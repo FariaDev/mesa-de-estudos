@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' file:;">
+  <title>Mesa de Estudos</title>
+  <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <img class="brand-icon" src="assets/mesa.svg" alt="">
+    <strong>Mesa de Estudos</strong>
+  </div>
+  <div class="header-actions">
+    <select id="course-select" aria-label="Matéria"></select>
+    <div class="nav-menu" id="study-menu">
+      <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="study-pop">Estudar</button>
+      <div class="nav-pop" id="study-pop" role="menu">
+        <button type="button" id="reference-toggle" role="menuitem" aria-pressed="true">Formulário</button>
+        <button type="button" id="xournal" role="menuitem">Xournal++</button>
+      </div>
+    </div>
+    <div class="nav-menu" id="mesa-menu">
+      <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="mesa-pop">Mesa</button>
+      <div class="nav-pop" id="mesa-pop" role="menu">
+        <button type="button" id="help" role="menuitem">Como usar</button>
+        <button type="button" id="settings" role="menuitem">Configurações</button>
+      </div>
+    </div>
+  </div>
+</header>
+<main>
+  <section id="references" aria-label="Referências de estudo">
+    <div id="pdf-grid"></div>
+  </section>
+  <div id="divider" role="separator" aria-label="Redimensionar conversa" tabindex="0"></div>
+  <aside id="sidebar">
+    <section id="chat">
+      <div class="chat-head">
+        <div class="nav-menu pi-menu" id="pi-menu">
+          <button type="button" class="nav-trigger pi-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="pi-pop">
+            <h2><span id="pi-label">Pi</span> <span id="status-dot"></span></h2>
+          </button>
+          <div class="nav-pop pi-settings" id="pi-pop">
+            <label>Modelo
+              <select id="model-select" disabled><option>Conecte ao Pi</option></select>
+            </label>
+            <label>Esforço
+              <select id="thinking-select" disabled><option>—</option></select>
+            </label>
+          </div>
+        </div>
+        <div class="chat-head-actions">
+          <select id="session-select" aria-label="Conversa"></select>
+          <button id="new-session" class="icon-btn" title="Nova conversa" aria-label="Nova conversa"></button>
+        </div>
+      </div>
+      <div id="messages" aria-live="polite">
+        <div id="welcome">
+          <button id="connect">Conectar ao Pi</button>
+          <p>Sessão local desta matéria.</p>
+        </div>
+      </div>
+      <div id="activity" role="status"></div>
+      <div id="composer">
+        <textarea id="prompt" rows="3" placeholder="Pergunte ou peça uma dica…" aria-label="Mensagem para Pi"></textarea>
+        <div class="composer-actions">
+          <button id="include-refs" aria-pressed="true" title="Incluir referências das páginas abertas">Referências</button>
+          <button id="check">Conferir Xournal++</button>
+          <button id="stop" hidden>Parar</button>
+          <button id="send" class="primary" aria-label="Enviar mensagem">Enviar</button>
+        </div>
+        <small>⌘ Enter envia · ⌘⇧C confere · ← → muda a página · roda no fim avança</small>
+      </div>
+    </section>
+    <div id="calc-divider" role="separator" aria-label="Redimensionar calculadora" tabindex="0"></div>
+    <section id="calculator">
+      <button id="calc-toggle" aria-expanded="true">
+        <span>Calculadora</span>
+        <span class="calc-mode">
+          <select id="angle" aria-label="Unidade angular">
+            <option value="rad">RAD</option>
+            <option value="deg">GRAUS</option>
+          </select>
+        </span>
+      </button>
+      <div id="calc-body">
+        <form id="calc-form">
+          <input id="expression" autocomplete="off" placeholder="sqrt(16) + sin(pi/2)" aria-label="Expressão matemática">
+          <button type="submit" aria-label="Calcular">=</button>
+        </form>
+        <output id="result">0</output>
+        <div id="calc-history"></div>
+        <div class="calc-help">+ − * / ^ · sqrt · sin · cos · tan · ln · log · pi</div>
+        <details id="calc-guide">
+          <summary>Como usar</summary>
+          <p>Calculadora numérica local, sem IA. Digite e pressione Enter. Multiplicação: <code>2*pi</code>; potência: <code>2^3</code>; raiz: <code>sqrt(16)</code>.</p>
+          <p><code>sin(pi/2)</code> em RAD e <code>sin(90)</code> em GRAUS dão 1. <code>ln</code> é logaritmo natural; <code>log</code> é base 10. Aceita vírgula decimal. Clique no histórico para reutilizar uma expressão.</p>
+          <p>Não resolve equações nem deriva ou integra simbolicamente.</p>
+        </details>
+      </div>
+    </section>
+  </aside>
+</main>
+<div id="toast" role="status" hidden></div>
+<dialog id="pi-dialog">
+  <form method="dialog">
+    <h2 id="dialog-title"></h2>
+    <p id="dialog-message"></p>
+    <div id="dialog-fields"></div>
+    <div class="dialog-actions">
+      <button value="cancel">Cancelar</button>
+      <button id="dialog-ok" value="ok" class="primary">Continuar</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="help-dialog">
+  <form method="dialog">
+    <div class="help-head">
+      <h2>Como usar</h2>
+      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+    </div>
+    <div class="help-body">
+      <p class="help-lead">A Mesa é a tela de referências. A escrita continua no Xournal++. Coloque um app em cada monitor, ou os dois lado a lado.</p>
+      <h3>Estudar</h3>
+      <ol class="help-steps">
+        <li>Abra o enunciado e o formulário nos PDFs.</li>
+        <li>Resolva no Xournal++ com a Wacom.</li>
+        <li>Pergunte ao Pi ou use <strong>Conferir Xournal++</strong>.</li>
+        <li>Ajuste a resolução e confira de novo se precisar.</li>
+      </ol>
+      <h3>Atalhos</h3>
+      <table class="help-keys">
+        <tr><td><kbd>⌘</kbd><kbd>Enter</kbd></td><td>Enviar mensagem</td></tr>
+        <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd></td><td>Conferir o Xournal++</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Parar a resposta</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Página do PDF focado</td></tr>
+        <tr><td>Roda no fim / topo</td><td>Próxima / página anterior</td></tr>
+        <tr><td><kbd>⌘</kbd> + roda / pinça</td><td>Zoom no PDF</td></tr>
+        <tr><td><kbd>⌘</kbd><kbd>/</kbd></td><td>Esta ajuda</td></tr>
+        <tr><td><kbd>⌘</kbd><kbd>,</kbd></td><td>Configurações</td></tr>
+      </table>
+      <h3>Detalhes</h3>
+      <ul>
+        <li>A mesa conecta ao Pi sozinha. O seletor ao lado de <strong>＋</strong> reabre conversas da matéria.</li>
+        <li><strong>Referências</strong> manda caminho e página, não o PDF inteiro.</li>
+        <li>Conferir captura só a janela visível do Xournal++, e só no macOS. O sistema pode pedir Gravação de Tela.</li>
+        <li>A calculadora é local: não gasta tokens e não faz álgebra simbólica. Multiplicação explícita: <code>2*pi</code>.</li>
+        <li>Pastas, nomes de matérias e o caminho do Pi ficam em <strong>Mesa → Configurações</strong>.</li>
+      </ul>
+    </div>
+    <div class="dialog-actions">
+      <button value="cancel" class="primary">Fechar</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="settings-dialog">
+  <form method="dialog" id="settings-form">
+    <div class="help-head">
+      <h2 id="settings-title">Configurações</h2>
+      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+    </div>
+    <div class="help-body settings-body">
+      <p class="help-lead" id="settings-lead">Caminhos e nomes desta mesa. As credenciais do modelo continuam no Pi.</p>
+      <label>Pasta do vault / dados
+        <span class="path-row">
+          <input id="cfg-vault" type="text" spellcheck="false">
+          <button type="button" id="cfg-vault-browse">Escolher</button>
+        </span>
+      </label>
+      <label>Executável do Pi
+        <span class="path-row">
+          <input id="cfg-pi" type="text" spellcheck="false" placeholder="detectar automaticamente">
+          <button type="button" id="cfg-pi-detect">Detectar</button>
+          <button type="button" id="cfg-pi-browse">Escolher</button>
+        </span>
+      </label>
+      <label id="cfg-xournal-wrap">Xournal++
+        <span class="path-row">
+          <input id="cfg-xournal" type="text" spellcheck="false">
+          <button type="button" id="cfg-xournal-browse">Escolher</button>
+        </span>
+      </label>
+      <h3>Matérias</h3>
+      <p class="help-lead">Nome exibido e pasta com PDFs. Sem <code>_state.md</code> a mesa lista os PDFs da pasta.</p>
+      <div id="cfg-courses"></div>
+      <button type="button" id="cfg-add-course">Adicionar matéria</button>
+    </div>
+    <div class="dialog-actions">
+      <button value="cancel">Cancelar</button>
+      <button id="settings-save" value="ok" class="primary">Salvar</button>
+    </div>
+  </form>
+</dialog>
+<script type="module" src="renderer.mjs"></script>
+</body>
+</html>

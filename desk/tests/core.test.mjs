@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {calculate} from '../calculator.mjs';
+test('calculator precedence, functions and angle units',()=>{assert.equal(calculate('2+3*4'),'14');assert.equal(calculate('-2^2'),'-4');assert.equal(calculate('2^3^2'),'512');assert.equal(calculate('sqrt(16)+sin(pi/2)'),'5');assert.equal(calculate('sin(30)',true),'0.5');assert.equal(calculate('1,5+2'),'3.5');assert.equal(calculate('2^-2'),'0.25');});
+test('calculator rejects executable syntax and undefined results',()=>{for(const x of ['process.exit()','constructor(1)','1/0','sqrt(-1)','2;3','2+','sin(1','x=3'])assert.throws(()=>calculate(x),x);});

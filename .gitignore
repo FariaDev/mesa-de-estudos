@@ -1,0 +1,17 @@
+node_modules/
+.runtime/
+.DS_Store
+*.log
+Mesa de Estudos.app/
+desk/.test-runtime*/
+desk/.subjects-test*/
+desk/.live-runtime*/
+desk/.design-test*/
+desk/.installed-test*/
+desk/.reference-fixture-vault/
+desk/ui-*.png
+desk/design-*.png
+desk/help-dialog.png
+docs/archive/
+desk/.help-shot*/
+desk/.commandcode/
