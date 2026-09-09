@@ -28,6 +28,7 @@
       <div class="nav-pop" id="mesa-pop" role="menu">
         <button type="button" id="help" role="menuitem">Como usar</button>
         <button type="button" id="settings" role="menuitem">Configurações</button>
+        <button type="button" id="about" role="menuitem">Sobre</button>
       </div>
     </div>
   </div>
@@ -40,23 +41,19 @@
   <aside id="sidebar">
     <section id="chat">
       <div class="chat-head">
-        <div class="nav-menu pi-menu" id="pi-menu">
-          <button type="button" class="nav-trigger pi-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="pi-pop">
-            <h2><span id="pi-label">Pi</span> <span id="status-dot"></span></h2>
-          </button>
-          <div class="nav-pop pi-settings" id="pi-pop">
-            <label>Modelo
-              <select id="model-select" disabled><option>Conecte ao Pi</option></select>
-            </label>
-            <label>Esforço
-              <select id="thinking-select" disabled><option>—</option></select>
-            </label>
-          </div>
-        </div>
+        <h2><span id="pi-label">Pi</span> <span id="status-dot"></span></h2>
         <div class="chat-head-actions">
           <select id="session-select" aria-label="Conversa"></select>
           <button id="new-session" class="icon-btn" title="Nova conversa" aria-label="Nova conversa"></button>
         </div>
+      </div>
+      <div class="pi-settings">
+        <label>Modelo
+          <select id="model-select" disabled><option>Conecte ao Pi</option></select>
+        </label>
+        <label>Esforço
+          <select id="thinking-select" disabled><option>—</option></select>
+        </label>
       </div>
       <div id="messages" aria-live="polite">
         <div id="welcome">
@@ -97,7 +94,7 @@
         <div class="calc-help">+ − * / ^ · sqrt · sin · cos · tan · ln · log · pi</div>
         <details id="calc-guide">
           <summary>Como usar</summary>
-          <p>Calculadora numérica local, sem IA. Digite e pressione Enter. Multiplicação: <code>2*pi</code>; potência: <code>2^3</code>; raiz: <code>sqrt(16)</code>.</p>
+          <p>Calculadora numérica local, sem IA. Digite e pressione Enter. Parênteses agrupam: <code>(2+3)*4</code>. Multiplicação: <code>2*pi</code>; potência: <code>2^3</code>; raiz: <code>sqrt(16)</code>.</p>
           <p><code>sin(pi/2)</code> em RAD e <code>sin(90)</code> em GRAUS dão 1. <code>ln</code> é logaritmo natural; <code>log</code> é base 10. Aceita vírgula decimal. Clique no histórico para reutilizar uma expressão.</p>
           <p>Não resolve equações nem deriva ou integra simbolicamente.</p>
         </details>
@@ -148,8 +145,10 @@
         <li>A mesa conecta ao Pi sozinha. O seletor ao lado de <strong>＋</strong> reabre conversas da matéria.</li>
         <li><strong>Referências</strong> manda caminho e página, não o PDF inteiro.</li>
         <li>Conferir captura só a janela visível do Xournal++, e só no macOS. O sistema pode pedir Gravação de Tela.</li>
-        <li>A calculadora é local: não gasta tokens e não faz álgebra simbólica. Multiplicação explícita: <code>2*pi</code>.</li>
+        <li>A calculadora é local: não gasta tokens e não faz álgebra simbólica. Parênteses valem: <code>(2+3)*4</code>. Multiplicação explícita: <code>2*pi</code>.</li>
         <li>Pastas, nomes de matérias e o caminho do Pi ficam em <strong>Mesa → Configurações</strong>.</li>
+        <li>Modelo e esforço do Pi ficam no topo da conversa, sempre visíveis depois de conectar.</li>
+        <li>Créditos e licença: <strong>Mesa → Sobre</strong>.</li>
       </ul>
     </div>
     <div class="dialog-actions">
@@ -192,6 +191,34 @@
     <div class="dialog-actions">
       <button value="cancel">Cancelar</button>
       <button id="settings-save" value="ok" class="primary">Salvar</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="about-dialog">
+  <form method="dialog">
+    <div class="help-head">
+      <h2>Sobre</h2>
+      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+    </div>
+    <div class="help-body">
+      <p class="help-lead">Mesa de Estudos 0.3.0 · licença MIT</p>
+      <h3>Créditos</h3>
+      <ul>
+        <li><strong>Lucas Faria</strong> — autor</li>
+        <li><strong>Grok</strong> (xAI) — colaborador</li>
+      </ul>
+      <h3>Ferramentas</h3>
+      <ul>
+        <li>Pi — agente local na conversa</li>
+        <li>Electron — janela do aplicativo</li>
+        <li>PDF.js — leitores de PDF</li>
+        <li>KaTeX — fórmulas no chat</li>
+        <li>Xournal++ — escrita à mão, fora da mesa</li>
+      </ul>
+      <p class="help-lead">Código em github.com/FariaDev/mesa-de-estudos</p>
+    </div>
+    <div class="dialog-actions">
+      <button value="cancel" class="primary">Fechar</button>
     </div>
   </form>
 </dialog>

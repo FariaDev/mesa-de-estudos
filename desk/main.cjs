@@ -134,17 +134,17 @@ function initialData(){
 function buildMenu(){
  const study=[{label:'Conferir Xournal++',accelerator:'CmdOrCtrl+Shift+C',enabled:captureAvailable(),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-check');}},{label:'Parar',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-stop');}}];
  Menu.setApplicationMenu(Menu.buildFromTemplate([
-  {label:'Mesa de Estudos',submenu:[{role:'about'},{label:'Configurações…',accelerator:'CmdOrCtrl+,',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-settings');}},{type:'separator'},{role:'quit'}]},
+  {label:'Mesa de Estudos',submenu:[{label:'Sobre a Mesa de Estudos',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-about');}},{label:'Configurações…',accelerator:'CmdOrCtrl+,',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-settings');}},{type:'separator'},{role:'quit'}]},
   {label:'Editar',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
   {label:'Estudar',submenu:study},
   {label:'Visualizar',submenu:[{role:'reload'},{role:'togglefullscreen'}]},
-  {label:'Ajuda',submenu:[{label:'Como usar',accelerator:'CmdOrCtrl+/',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-help');}}]}
+  {label:'Ajuda',submenu:[{label:'Como usar',accelerator:'CmdOrCtrl+/',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-help');}},{label:'Sobre',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-about');}}]}
  ]));
 }
 
 app.whenReady().then(()=>{
  if(process.platform==='darwin')app.dock.setIcon(path.join(__dirname,'assets','mesa-1024.png'));
- app.setAboutPanelOptions({applicationName:'Mesa de Estudos',applicationVersion:'0.3.0',iconPath:path.join(__dirname,'assets','mesa-1024.png')});
+ app.setAboutPanelOptions({applicationName:'Mesa de Estudos',applicationVersion:'0.3.0',copyright:'© 2026 Lucas Faria. Colaboração: Grok (xAI). Licença MIT.',iconPath:path.join(__dirname,'assets','mesa-1024.png')});
  const displays=screen.getAllDisplays();
  const placed=placeWindow(displays,screen.getPrimaryDisplay().id,state.bounds);
  win=new BrowserWindow({width:placed.width,height:placed.height,...(placed.x!=null?{x:placed.x,y:placed.y}:{}),minWidth:900,minHeight:650,title:'Mesa de Estudos',backgroundColor:'#ffffff',backgroundThrottling:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,spellcheck:false}});

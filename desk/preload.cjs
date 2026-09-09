@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld('desk',{
  onMenuCheck:fn=>ipcRenderer.on('menu-check',fn),
  onMenuStop:fn=>ipcRenderer.on('menu-stop',fn),
  onMenuHelp:fn=>ipcRenderer.on('menu-help',fn),
- onMenuSettings:fn=>ipcRenderer.on('menu-settings',fn)
+ onMenuSettings:fn=>ipcRenderer.on('menu-settings',fn),
+ onMenuAbout:fn=>ipcRenderer.on('menu-about',fn)
 });

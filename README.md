@@ -52,3 +52,10 @@ No Mac, se `Mesa de Estudos.app` já existir ao lado de `desk/`:
 ```sh
 npm run install-app
 ```
+
+## Créditos
+
+- **Lucas Faria** — autor
+- **Grok** (xAI) — colaborador
+
+Licença [MIT](LICENSE).

@@ -65,14 +65,10 @@ header{
  width:100%;justify-content:flex-start;border:0;background:transparent;height:30px;font-size:12px;
 }
 .nav-pop button:hover{background:hsl(var(--muted-bg))}
-.pi-menu{min-width:0}
-.pi-trigger{padding:0;height:auto;border:0;background:transparent;justify-content:flex-start}
-.pi-trigger:hover{background:transparent}
 .pi-settings{
- min-width:240px;display:none;grid-template-columns:minmax(0,1fr) 108px;gap:8px;
- padding:10px;left:0;right:auto;
+ display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:8px;
+ padding:0 10px 8px;border-bottom:1px solid hsl(var(--border));
 }
-.pi-menu:hover .pi-settings,.pi-menu:focus-within .pi-settings,.pi-menu.open .pi-settings{display:grid}
 .pi-settings label{font-size:11px;color:hsl(var(--muted))}
 .pi-settings select{
  display:block;width:100%;margin-top:4px;padding:6px;border:1px solid hsl(var(--border));
@@ -213,20 +209,21 @@ dialog::backdrop{background:#0006}
 #dialog-fields input,#dialog-fields select,#dialog-fields textarea{width:100%;padding:8px;margin-top:8px;border:1px solid hsl(var(--border));border-radius:6px}
 #dialog-fields label{display:block;margin:8px}
 
-#help-dialog,#settings-dialog{max-width:460px;width:min(460px,92vw);max-height:min(640px,88vh);padding:0;overflow:hidden}
-#help-dialog[open],#settings-dialog[open]{display:flex;flex-direction:column}
-#help-dialog form,#settings-dialog form{display:flex;flex-direction:column;min-height:0;max-height:min(640px,88vh);padding:0}
+#help-dialog,#settings-dialog,#about-dialog{max-width:460px;width:min(460px,92vw);max-height:min(640px,88vh);padding:0;overflow:hidden}
+#help-dialog[open],#settings-dialog[open],#about-dialog[open]{display:flex;flex-direction:column}
+#help-dialog form,#settings-dialog form,#about-dialog form{display:flex;flex-direction:column;min-height:0;max-height:min(640px,88vh);padding:0}
 .help-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 20px 8px;flex-shrink:0}
 .help-head h2{margin:0;font-size:16px}
 .help-head .icon-btn{font-size:16px;color:hsl(var(--muted));width:28px;height:28px}
 .help-body{overflow:auto;padding:0 20px 8px;min-height:0}
 .help-lead{margin:0 0 14px;font-size:13px;line-height:1.5;color:hsl(var(--muted))}
-#help-dialog .dialog-actions,#settings-dialog .dialog-actions{margin:0;padding:12px 20px 16px;border-top:1px solid hsl(var(--border));flex-shrink:0}
-#help-dialog h3,#settings-dialog h3{margin:16px 0 8px;font-size:12px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:hsl(var(--muted))}
+#help-dialog .dialog-actions,#settings-dialog .dialog-actions,#about-dialog .dialog-actions{margin:0;padding:12px 20px 16px;border-top:1px solid hsl(var(--border));flex-shrink:0}
+#help-dialog h3,#settings-dialog h3,#about-dialog h3{margin:16px 0 8px;font-size:12px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:hsl(var(--muted))}
 .help-steps{margin:0;padding-left:18px;line-height:1.55}
 .help-steps li{margin:0 0 4px}
-#help-dialog ul{margin:0;padding-left:18px;line-height:1.55}
-#help-dialog ul li{margin:0 0 6px}
+#help-dialog ul,#about-dialog ul{margin:0;padding-left:18px;line-height:1.55}
+#help-dialog ul li,#about-dialog ul li{margin:0 0 6px}
+#about-dialog a{color:hsl(var(--primary))}
 .help-keys{width:100%;border-collapse:collapse;font-size:13px}
 .help-keys td{padding:5px 0;vertical-align:middle;border-bottom:1px solid hsl(var(--border))}
 .help-keys td:first-child{white-space:nowrap;padding-right:12px;width:1%}

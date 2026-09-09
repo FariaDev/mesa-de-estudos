@@ -60,9 +60,9 @@ function wireMenu(el){
  trigger.addEventListener('click',e=>{e.stopPropagation();set(!el.classList.contains('open'));});
  trigger.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();set(!el.classList.contains('open'));}});
 }
-for(const id of ['#study-menu','#mesa-menu','#pi-menu'])wireMenu($(id));
+for(const id of ['#study-menu','#mesa-menu'])wireMenu($(id));
 document.addEventListener('click',e=>{
- for(const id of ['#study-menu','#mesa-menu','#pi-menu']){
+ for(const id of ['#study-menu','#mesa-menu']){
   const el=$(id);if(el&&!el.contains(e.target)){el.classList.remove('open');el.querySelector('.nav-trigger')?.setAttribute('aria-expanded','false');}
  }
 });
@@ -180,8 +180,8 @@ let calcDrag=false;$('#calc-divider').onpointerdown=e=>{calcDrag=true;$('#calc-d
 function typingTarget(el){return el?.closest?.('input,textarea,select')||['INPUT','TEXTAREA','SELECT'].includes(el?.tagName);}
 window.addEventListener('keydown',e=>{
  if(e.key==='Escape'){
-  for(const id of ['#study-menu','#mesa-menu','#pi-menu']){const el=$(id);el?.classList.remove('open');el?.querySelector('.nav-trigger')?.setAttribute('aria-expanded','false');}
-  if($('#pi-dialog').open||$('#help-dialog').open||$('#settings-dialog').open)return;
+  for(const id of ['#study-menu','#mesa-menu']){const el=$(id);el?.classList.remove('open');el?.querySelector('.nav-trigger')?.setAttribute('aria-expanded','false');}
+  if($('#pi-dialog').open||$('#help-dialog').open||$('#settings-dialog').open||$('#about-dialog').open)return;
   if(busy){e.preventDefault();window.desk.abort().catch(err=>toast(err.message));}return;
  }
  if((e.metaKey||e.ctrlKey)&&e.key===','){e.preventDefault();openSettings();return;}
@@ -227,10 +227,14 @@ labelBtn($('#send'),'arrowUp','Enviar');
 labelBtn($('#connect'),'plug','Conectar ao Pi');
 labelBtn($('#help'),'help','Como usar');
 labelBtn($('#settings'),'settings','Configurações');
+labelBtn($('#about'),'help','Sobre');
 labelBtn($('#include-refs'),'columns','Referências');
 function openHelp(){if($('#help-dialog').open)return;$('#help-dialog').showModal();}
+function openAbout(){if($('#about-dialog').open)return;$('#about-dialog').showModal();}
 $('#help').onclick=openHelp;
+$('#about').onclick=openAbout;
 window.desk.onMenuHelp(openHelp);
+window.desk.onMenuAbout(openAbout);
 
 function courseRow(course={}){
  const row=document.createElement('div');row.className='cfg-course';
