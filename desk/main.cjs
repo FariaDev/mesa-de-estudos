@@ -144,7 +144,7 @@ function buildMenu(){
 
 app.whenReady().then(()=>{
  if(process.platform==='darwin')app.dock.setIcon(path.join(__dirname,'assets','mesa-1024.png'));
- app.setAboutPanelOptions({applicationName:'Mesa de Estudos',applicationVersion:'0.3.0',copyright:'© 2026 Lucas Faria. Colaboração: Grok (xAI). Licença MIT.',iconPath:path.join(__dirname,'assets','mesa-1024.png')});
+ app.setAboutPanelOptions({applicationName:'Mesa de Estudos',applicationVersion:'0.3.1',copyright:'© 2026 Lucas Faria. Colaboração: Grok (xAI). Licença MIT.',iconPath:path.join(__dirname,'assets','mesa-1024.png')});
  const displays=screen.getAllDisplays();
  const placed=placeWindow(displays,screen.getPrimaryDisplay().id,state.bounds);
  win=new BrowserWindow({width:placed.width,height:placed.height,...(placed.x!=null?{x:placed.x,y:placed.y}:{}),minWidth:900,minHeight:650,title:'Mesa de Estudos',backgroundColor:'#ffffff',backgroundThrottling:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,spellcheck:false}});

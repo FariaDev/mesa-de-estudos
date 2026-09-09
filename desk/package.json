@@ -1,6 +1,6 @@
 {
   "name": "learning-desk",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Mesa de Estudos: dois PDFs, calculadora e Pi numa janela, ao lado do Xournal++",
   "main": "main.cjs",
   "scripts": {
