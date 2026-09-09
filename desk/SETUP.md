@@ -32,6 +32,8 @@ Na primeira abertura:
 
 Depois disso, **Mesa → Configurações** (⌘ ,) altera pastas, nomes das matérias e o caminho do Pi.
 
+Para personalizar rótulos dos PDFs, PDF que abre primeiro, um só leitor, esconder calculadora/Xournal: edite o bloco `desk` do `config.json`. Contrato completo em [`../AGENTS.md`](../AGENTS.md) (seção Customizar) e exemplo em [`config.example.json`](config.example.json). Não mude os defaults em `config.cjs` — isso é o jeito do autor.
+
 ## Windows
 
 PDFs, calculadora e o chat com o Pi funcionam. **Conferir Xournal++** não está disponível (a captura da janela é só macOS).

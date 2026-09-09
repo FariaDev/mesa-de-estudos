@@ -1,0 +1,29 @@
+{
+  "vaultPath": "",
+  "piPath": "",
+  "xournalPath": "",
+  "courses": [
+    {
+      "id": "calculo-1",
+      "name": "Cálculo I",
+      "path": "/caminho/para/pasta/de/pdfs"
+    }
+  ],
+  "desk": {
+    "title": "Mesa de Estudos",
+    "calculator": true,
+    "xournal": true,
+    "conferir": true,
+    "panels": [
+      {
+        "label": "Enunciado",
+        "prefer": ["Limites"]
+      },
+      {
+        "label": "Formulário & apoio",
+        "prefer": ["Formul"],
+        "toggle": "Formulário"
+      }
+    ]
+  }
+}

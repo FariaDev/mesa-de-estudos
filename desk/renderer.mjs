@@ -127,6 +127,7 @@ function refs(){return includeRefs?panels.filter((p,i)=>p.path&&(i===0||refVisib
 async function send(text){if(!text.trim())return;try{await connect();message('user',text);$('#prompt').value='';setBusy(true);const result=await window.desk.prompt({text,refs:refs()});if(!result?.streaming)setBusy(false);}catch(e){setBusy(false);toast(e.message);}}
 async function conferir(){
  if(busy)return;
+ if(appConfig.desk?.conferir===false)return;
  if(!captureOk){toast('Conferir Xournal++ está disponível só no macOS.');return;}
  const note=$('#prompt').value.trim();
  try{
@@ -190,25 +191,48 @@ window.addEventListener('keydown',e=>{
  if(typingTarget(e.target)||e.target===document.getElementById('divider')||e.target===document.getElementById('calc-divider'))return;
  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){const panel=document.activeElement?.closest?.('.pdf-panel')||panels[0]?.el;const inst=panels.find(p=>p.el===panel);if(!inst)return;e.preventDefault();inst.goto(inst.page+(e.key==='ArrowRight'?1:-1));}
 });
+function applyDesk(desk){
+ const title=desk?.title||'Mesa de Estudos';
+ const brand=$('.brand strong');if(brand)brand.textContent=title;
+ const specs=desk?.panels?.length?desk.panels:[{label:'Enunciado'},{label:'Formulário & apoio',toggle:'Formulário'}];
+ const two=specs.length>1;
+ $('#reference-toggle').hidden=!two;
+ if(two)labelBtn($('#reference-toggle'),'columns',specs[1].toggle||'Formulário');
+ $('#xournal').hidden=desk?.xournal===false||(appConfig.platform==='win32'&&!appConfig.xournalPath);
+ $('#check').hidden=desk?.conferir===false;
+ $('#calculator').hidden=desk?.calculator===false;
+ $('#calc-divider').hidden=desk?.calculator===false;
+ return {title,specs,two};
+}
 async function loadCourse(data){
  captureOk=!!data.captureAvailable;
- appConfig=data.config||appConfig;
+ appConfig={...(data.config||appConfig),platform:data.platform||appConfig.platform};
+ const desk=applyDesk(appConfig.desk);
  fillSessions(data);
  $('#prompt').value=data.state.draft||'';
  for(const p of panels){p.version++;p.resize.disconnect();clearTimeout(p.resizeTimer);p.renderTask?.cancel();p.loadingTask?.destroy();}
- $('#pdf-grid').replaceChildren();library=data.library||[];panels=[new PdfPanel(0,'Enunciado'),new PdfPanel(1,'Formulário & apoio')];
+ $('#pdf-grid').replaceChildren();library=data.library||[];
+ panels=desk.specs.map((spec,i)=>new PdfPanel(i,spec.label));
  $('#course-select').replaceChildren(...(data.courses||[]).map(c=>new Option(c.name,c.id)));
  if(data.courseId)$('#course-select').value=data.courseId;
- document.title=data.course?`Mesa de Estudos · ${data.course}`:'Mesa de Estudos';
- $('#xournal').hidden=data.platform==='win32'&&!appConfig.xournalPath;
- const preferred=[library.find(p=>p.name.normalize('NFD').includes('Limites'))||library.find(p=>!p.name.startsWith('Formul'))||library[0],library.find(p=>p.name.startsWith('Formul'))||library[1]];
+ document.title=data.course?`${desk.title} · ${data.course}`:desk.title;
+ const preferred=data.preferred||[];
  const loads=[];
- for(let i=0;i<2;i++){const saved=data.state.pdfs?.[i];if(saved?.path&&!library.some(p=>p.path===saved.path)){library.push({path:saved.path,name:saved.path.split(/[/\\]/).at(-1)});panels[i].populate();}if(saved?.path||preferred[i]?.path)loads.push(panels[i].load(saved?.path||preferred[i].path,saved||{}));}
+ for(let i=0;i<panels.length;i++){
+  const saved=data.state.pdfs?.[i];
+  if(saved?.path&&!library.some(p=>p.path===saved.path)){library.push({path:saved.path,name:saved.path.split(/[/\\]/).at(-1)});panels[i].populate();}
+  const path=saved?.path||preferred[i];
+  if(path)loads.push(panels[i].load(path,saved||{}));
+ }
  await Promise.all(loads);
  document.documentElement.style.setProperty('--chat',(data.state.chatWidth||390)+'px');
  document.documentElement.style.setProperty('--calc',(data.state.calcHeight||220)+'px');
- refVisible=data.state.referenceVisible!==false;panels[1].el.hidden=!refVisible;$('#pdf-grid').classList.toggle('single',!refVisible);$('#reference-toggle').setAttribute('aria-pressed',String(refVisible));
- $('#check').disabled=!captureOk;
+ if(desk.two){
+  refVisible=data.state.referenceVisible!==false;panels[1].el.hidden=!refVisible;$('#pdf-grid').classList.toggle('single',!refVisible);$('#reference-toggle').setAttribute('aria-pressed',String(refVisible));
+ }else{
+  refVisible=false;$('#pdf-grid').classList.add('single');
+ }
+ $('#check').disabled=!captureOk||appConfig.desk?.conferir===false;
  if(captureOk)$('#check').title='Capturar a resolução sob demanda';
  else $('#check').title='Conferir Xournal++ está disponível só no macOS';
  save();
@@ -263,7 +287,7 @@ function readSettingsForm(){
   const id=row.dataset.id||name||folder.split(/[/\\]/).filter(Boolean).at(-1);
   return {id,name:name||id,path:folder};
  }).filter(Boolean);
- return {vaultPath:$('#cfg-vault').value.trim(),runtimePath:appConfig.runtimePath||'',piPath:$('#cfg-pi').value.trim(),xournalPath:$('#cfg-xournal').value.trim(),courses};
+ return {vaultPath:$('#cfg-vault').value.trim(),runtimePath:appConfig.runtimePath||'',piPath:$('#cfg-pi').value.trim(),xournalPath:$('#cfg-xournal').value.trim(),courses,desk:appConfig.desk};
 }
 async function openSettings(first){
  const info=await window.desk.getConfig();

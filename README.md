@@ -39,6 +39,8 @@ Instruções para um agente configurar o computador: [`desk/SETUP.md`](desk/SETU
 
 **Mesa → Configurações** (⌘ ,): pasta de dados, nomes das matérias, pastas de PDF, caminho do `pi`.
 
+Um agente pode ir além (rótulos dos painéis, PDF inicial, um ou dois leitores) editando o bloco `desk` do `config.json`. Ver [`AGENTS.md`](AGENTS.md) e [`desk/config.example.json`](desk/config.example.json). O default do repositório permanece o da mesa do autor.
+
 ## Desenvolvimento
 
 ```sh

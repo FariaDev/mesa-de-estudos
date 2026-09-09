@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 const {courseLibrary,mergeCourses}=createRequire(import.meta.url)('../courses.cjs');
-const {normalize,needsSetup,seedConfig}=createRequire(import.meta.url)('../config.cjs');
+const {normalize,needsSetup,seedConfig,pickPdfs,defaultDesk}=createRequire(import.meta.url)('../config.cjs');
 
 test('a folder of PDFs is a course even without _state.md',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'desk-plain-'));
@@ -33,6 +33,34 @@ test('config names overlay discovered vault courses',()=>{
 test('needsSetup is true without vault or courses',()=>{
  assert.equal(needsSetup(normalize({}),[]),true);
  assert.equal(needsSetup(normalize({vaultPath:'/definitely/missing'}),[]),true);
+});
+
+test('omitting desk keeps the original Enunciado / Formulário defaults',()=>{
+ const desk=normalize({}).desk;
+ assert.deepEqual(desk.panels.map(p=>p.label),['Enunciado','Formulário & apoio']);
+ assert.deepEqual(desk.panels[0].prefer,['Limites']);
+ assert.deepEqual(desk.panels[1].prefer,['Formul']);
+ assert.equal(desk.calculator,true);
+});
+
+test('pickPdfs follows Limites then Formulário, then leftover files',()=>{
+ const library=[
+  {name:'Apostila.pdf',path:'/a'},
+  {name:'Formulário de M03.pdf',path:'/f'},
+  {name:'M03 - Lista Limites.pdf',path:'/l'}
+ ];
+ const picked=pickPdfs(library,defaultDesk().panels);
+ assert.equal(picked[0].path,'/l');
+ assert.equal(picked[1].path,'/f');
+});
+
+test('a single panel config hides the second reader preference',()=>{
+ const desk=normalize({desk:{panels:[{label:'Lista',prefer:['lista']}]}}).desk;
+ assert.equal(desk.panels.length,1);
+ assert.equal(desk.panels[0].label,'Lista');
+ const picked=pickPdfs([{name:'lista-1.pdf',path:'/1'},{name:'form.pdf',path:'/2'}],desk.panels);
+ assert.equal(picked.length,1);
+ assert.equal(picked[0].path,'/1');
 });
 
 test('seedConfig points at the home vault when Courses exists',()=>{

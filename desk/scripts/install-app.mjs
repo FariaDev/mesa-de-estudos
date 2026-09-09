@@ -9,7 +9,7 @@ const app=path.join(root,'Mesa de Estudos.app');
 const dest=path.join(app,'Contents','Resources','app');
 if(!fs.existsSync(app))throw new Error('Mesa de Estudos.app não encontrada.');
 fs.mkdirSync(dest,{recursive:true});
-const files=['main.cjs','preload.cjs','rpc.cjs','courses.cjs','config.cjs','pi.cjs','lib.cjs','calculator.mjs','renderer.mjs','icons.mjs','text.mjs','wheel.mjs','index.html','style.css','package.json'];
+const files=['main.cjs','preload.cjs','rpc.cjs','courses.cjs','config.cjs','pi.cjs','lib.cjs','calculator.mjs','renderer.mjs','icons.mjs','text.mjs','wheel.mjs','index.html','style.css','package.json','config.example.json'];
 for(const file of files){
  const from=path.join(desk,file);
  if(!fs.existsSync(from))throw new Error('Arquivo ausente: '+file);

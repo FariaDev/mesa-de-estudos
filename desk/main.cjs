@@ -5,7 +5,7 @@ const execFileAsync=promisify(execFile);
 const {PiBridge}=require('./rpc.cjs');
 const {placeWindow,chooseXournal,sessionStartedFromPath,formatSessionLabel,sessionPreviewFromJsonl}=require('./lib.cjs');
 const {courseLibrary,mergeCourses}=require('./courses.cjs');
-const {readConfig,writeConfig,seedConfig,needsSetup,normalize}=require('./config.cjs');
+const {readConfig,writeConfig,seedConfig,needsSetup,normalize,pickPdfs}=require('./config.cjs');
 const {resolvePi,spawnEnv,FALLBACK_LEVELS,loadLevelsModule}=require('./pi.cjs');
 
 app.setName('Mesa de Estudos');
@@ -118,12 +118,14 @@ function initialData(){
  allowed.clear();
  for(const p of library)allowed.add(p.path);
  for(const p of state.pdfs||[])if(p?.path&&fs.existsSync(p.path))allowed.add(p.path);
+ const cfg=normalize(config);
  return {
   library,state,
   course:courses.find(c=>c.id===courseId)?.name||'',
   courseId,courses:courses.map(({id,name})=>({id,name})),
   session,sessions:courseSessions(),
-  config:normalize(config),
+  config:cfg,
+  preferred:(pickPdfs(library,cfg.desk.panels)||[]).map(p=>p?.path||null),
   needsSetup:needsSetup(config,courses),
   captureAvailable:captureAvailable(),
   detectedPi:piBinary(),
@@ -144,7 +146,7 @@ function buildMenu(){
 
 app.whenReady().then(()=>{
  if(process.platform==='darwin')app.dock.setIcon(path.join(__dirname,'assets','mesa-1024.png'));
- app.setAboutPanelOptions({applicationName:'Mesa de Estudos',applicationVersion:'0.3.1',copyright:'© 2026 Lucas Faria. Colaboração: Grok (xAI). Licença MIT.',iconPath:path.join(__dirname,'assets','mesa-1024.png')});
+ app.setAboutPanelOptions({applicationName:'Mesa de Estudos',applicationVersion:'0.3.2',copyright:'© 2026 Lucas Faria. Colaboração: Grok (xAI). Licença MIT.',iconPath:path.join(__dirname,'assets','mesa-1024.png')});
  const displays=screen.getAllDisplays();
  const placed=placeWindow(displays,screen.getPrimaryDisplay().id,state.bounds);
  win=new BrowserWindow({width:placed.width,height:placed.height,...(placed.x!=null?{x:placed.x,y:placed.y}:{}),minWidth:900,minHeight:650,title:'Mesa de Estudos',backgroundColor:'#ffffff',backgroundThrottling:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,spellcheck:false}});
