@@ -15,7 +15,8 @@
     <strong>Mesa de Estudos</strong>
   </div>
   <div class="header-actions">
-    <select id="course-select" aria-label="Matéria"></select>
+    <div id="course-tabs" role="tablist" aria-label="Matérias"></div>
+    <button type="button" id="new-tab" title="Nova matéria (abre as Configurações)" aria-label="Nova matéria (abre as Configurações)">+</button>
     <div class="nav-menu" id="study-menu">
       <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="study-pop">Estudar</button>
       <div class="nav-pop" id="study-pop" role="menu">
@@ -28,6 +29,7 @@
       <div class="nav-pop" id="mesa-pop" role="menu">
         <button type="button" id="help" role="menuitem">Como usar</button>
         <button type="button" id="settings" role="menuitem">Configurações</button>
+        <button type="button" id="theme-cycle" role="menuitem">Tema: auto</button>
         <button type="button" id="about" role="menuitem">Sobre</button>
       </div>
     </div>
@@ -35,16 +37,22 @@
 </header>
 <main>
   <section id="references" aria-label="Referências de estudo">
+    <div id="ggb-bar" hidden>
+      <strong>GeoGebra</strong>
+      <button type="button" id="ggb-shot" title="Mandar um print do applet para o chat">Print no chat</button>
+      <small>O applet é o da web; o Pi pode lê-lo e comandá-lo pela ferramenta geogebra.</small>
+    </div>
     <div id="pdf-grid"></div>
   </section>
   <div id="divider" role="separator" aria-label="Redimensionar conversa" tabindex="0"></div>
   <aside id="sidebar">
     <section id="chat">
       <div class="chat-head">
-        <h2><span id="pi-label">Pi</span> <span id="status-dot"></span></h2>
+        <h2><span id="pi-label">Pi</span> <span id="status-dot" role="img"></span> <span id="ctx-meter" hidden data-no-tip title=""><span class="bar"><i></i></span><em></em></span><button type="button" id="auto-compact" title="Compactação automática quando o contexto enche" aria-pressed="false" hidden>auto</button></h2><span id="ctx-tip" hidden></span>
         <div class="chat-head-actions">
           <select id="session-select" aria-label="Conversa"></select>
           <button id="new-session" class="icon-btn" title="Nova conversa" aria-label="Nova conversa"></button>
+          <button id="export-chat" class="icon-btn" title="Exportar conversa em Markdown" aria-label="Exportar conversa em Markdown"></button>
         </div>
       </div>
       <div class="pi-settings">
@@ -55,6 +63,10 @@
           <select id="thinking-select" disabled><option>—</option></select>
         </label>
       </div>
+      <div id="study-context">
+        <input id="exercise-title" type="text" maxlength="240" placeholder="Lista / questão ativa" aria-label="Lista ou questão ativa">
+        <button id="pick-xopp" type="button" title="Associar arquivo do Xournal++">Rascunho .xopp</button>
+      </div>
       <div id="messages" aria-live="polite">
         <div id="welcome">
           <button id="connect">Conectar ao Pi</button>
@@ -63,14 +75,19 @@
       </div>
       <div id="activity" role="status"></div>
       <div id="composer">
+        <div id="context-summary" aria-live="polite"></div>
+        <div id="attachments" hidden></div>
         <textarea id="prompt" rows="3" placeholder="Pergunte ou peça uma dica…" aria-label="Mensagem para Pi"></textarea>
         <div class="composer-actions">
+          <button id="attach" type="button" title="Anexar imagem (ou cole com ⌘V, ou arraste para o chat; ⌘⇧C anexa a captura do Xournal++)">Anexar</button>
           <button id="include-refs" aria-pressed="true" title="Incluir referências das páginas abertas">Referências</button>
-          <button id="check">Conferir Xournal++</button>
+          <button id="check" title="Anexar a captura do Xournal++ à mensagem">Conferir Xournal++</button>
+          <button id="end-day" type="button">Encerrar por hoje</button>
           <button id="stop" hidden>Parar</button>
           <button id="send" class="primary" aria-label="Enviar mensagem">Enviar</button>
         </div>
-        <small>⌘ Enter envia · ⌘⇧C confere · ← → muda a página · roda no fim avança</small>
+        <input id="attach-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+        <small>⌘ Enter envia · ⌘⇧C anexa a captura do Xournal++ · ← → muda a página · rolagem contínua</small>
       </div>
     </section>
     <div id="calc-divider" role="separator" aria-label="Redimensionar calculadora" tabindex="0"></div>
@@ -102,7 +119,9 @@
     </section>
   </aside>
 </main>
-<div id="toast" role="status" hidden></div>
+<div id="toast" role="status"></div>
+<button id="chat-restore" type="button" hidden title="Mostrar o chat (⌘\)">‹ chat</button>
+<button id="quote-btn" type="button" hidden title="Citar a seleção na mensagem" aria-label="Citar a seleção na mensagem">Citar</button>
 <dialog id="pi-dialog">
   <form method="dialog">
     <h2 id="dialog-title"></h2>
@@ -111,6 +130,29 @@
     <div class="dialog-actions">
       <button value="cancel">Cancelar</button>
       <button id="dialog-ok" value="ok" class="primary">Continuar</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="end-day-dialog">
+  <form method="dialog" id="end-day-form">
+    <h2>Encerrar por hoje</h2>
+    <p class="help-lead">Salve na conversa um ponto curto para retomar depois.</p>
+    <label>Onde parei<textarea id="end-where" rows="2" required></textarea></label>
+    <label>Próximo passo<textarea id="end-next" rows="2" required></textarea></label>
+    <div class="dialog-actions"><button value="cancel" formnovalidate>Cancelar</button><button id="end-day-save" value="ok" class="primary">Salvar na conversa</button></div>
+  </form>
+</dialog>
+<dialog id="image-dialog">
+  <form method="dialog">
+    <div class="help-head">
+      <h2 id="image-title">Imagem</h2>
+      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+    </div>
+    <div class="image-body"><img id="image-preview" alt="Visualização da imagem"></div>
+    <div class="dialog-actions">
+      <button type="button" id="image-copy">Copiar</button>
+      <button type="button" id="image-open">Abrir no Preview</button>
+      <button value="cancel" class="primary">Fechar</button>
     </div>
   </form>
 </dialog>
@@ -126,32 +168,60 @@
       <ol class="help-steps">
         <li>Abra o enunciado e o formulário nos PDFs.</li>
         <li>Resolva no Xournal++ com a Wacom.</li>
-        <li>Pergunte ao Pi ou use <strong>Conferir Xournal++</strong>.</li>
+        <li id="help-conferir-step">Pergunte ao Pi ou use <strong>Conferir Xournal++</strong>: a captura vira anexo e vai junto com a mensagem que você escrever.</li>
+        <li>Se o Pi precisar ver a página inteira, mande-a como imagem: botão de câmera no título do leitor de PDF.</li>
         <li>Ajuste a resolução e confira de novo se precisar.</li>
       </ol>
       <h3>Atalhos</h3>
       <table class="help-keys">
-        <tr><td><kbd>⌘</kbd><kbd>Enter</kbd></td><td>Enviar mensagem</td></tr>
-        <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd></td><td>Conferir o Xournal++</td></tr>
-        <tr><td><kbd>Esc</kbd></td><td>Parar a resposta</td></tr>
-        <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Página do PDF focado</td></tr>
-        <tr><td>Roda no fim / topo</td><td>Próxima / página anterior</td></tr>
+        <tr data-key="send"><td><kbd>⌘</kbd><kbd>Enter</kbd></td><td>Enviar mensagem</td></tr>
+        <tr data-key="check" id="help-check-row"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd></td><td>Anexar a captura do Xournal++</td></tr>
+        <tr data-key="ggb-check"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd></td><td>Conferir o applet GeoGebra</td></tr>
+        <tr><td><kbd>⌘</kbd><kbd>V</kbd></td><td>Colar uma imagem da área de transferência como anexo</td></tr>
+        <tr data-key="chat-toggle"><td><kbd>⌘</kbd><kbd>\</kbd></td><td>Recolher ou mostrar o chat</td></tr>
+        <tr data-key="pdf-find"><td><kbd>⌘</kbd><kbd>F</kbd></td><td>Buscar no PDF focado; <kbd>Esc</kbd> limpa</td></tr>
+        <tr data-key="invert"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>I</kbd></td><td>Inverter as cores da página (tema escuro)</td></tr>
+        <tr data-key="stop"><td><kbd>Esc</kbd></td><td>Parar a resposta</td></tr>
+        <tr data-key="page-nav"><td><kbd>←</kbd> <kbd>→</kbd></td><td>Página do PDF focado</td></tr>
+        <tr><td>Roda / trackpad</td><td>Rolagem contínua entre páginas</td></tr>
         <tr><td><kbd>⌘</kbd> + roda / pinça</td><td>Zoom no PDF</td></tr>
-        <tr><td><kbd>⌘</kbd><kbd>/</kbd></td><td>Esta ajuda</td></tr>
-        <tr><td><kbd>⌘</kbd><kbd>,</kbd></td><td>Configurações</td></tr>
+        <tr data-key="help"><td><kbd>⌘</kbd><kbd>/</kbd></td><td>Esta ajuda</td></tr>
+        <tr data-key="settings"><td><kbd>⌘</kbd><kbd>,</kbd></td><td>Configurações</td></tr>
+        <tr data-key="tab-number"><td><kbd>⌘</kbd><kbd>1</kbd>…<kbd>9</kbd></td><td>Ir para a aba</td></tr>
+        <tr data-key="new-course"><td><kbd>⌘</kbd><kbd>T</kbd></td><td>Nova matéria (Configurações)</td></tr>
+        <tr data-key="tab-cycle"><td><kbd>⌘</kbd><kbd>Tab</kbd></td><td>Próxima/anterior aba</td></tr>
       </table>
       <h3>Detalhes</h3>
       <ul>
-        <li>A mesa conecta ao Pi sozinha. O seletor ao lado de <strong>＋</strong> reabre conversas da matéria.</li>
-        <li><strong>Referências</strong> manda caminho e página, não o PDF inteiro.</li>
-        <li>Conferir captura só a janela visível do Xournal++, e só no macOS. O sistema pode pedir Gravação de Tela.</li>
+        <li>A mesa conecta ao Pi sozinha. As matérias ficam em abas no topo; o seletor ao lado de <strong>＋</strong> reabre conversas da matéria, inclusive o exercício associado.</li>
+        <li id="help-study-li">Preencha <strong>Lista / questão ativa</strong> e associe o <code>.xopp</code> para manter o contexto da sessão.</li>
+        <li id="help-endday-li"><strong>Encerrar por hoje</strong> registra onde você parou e o próximo passo na conversa.</li>
+        <li id="help-refs-li"><strong>Referências</strong> manda caminho e página, não o PDF inteiro.</li>
+        <li id="help-conferir-li"><strong>Conferir Xournal++</strong> anexa a captura da janela visível na bandeja de anexos (uma imagem por captura) — nada é enviado até você escrever e enviar. Só no macOS; o sistema pode pedir Gravação de Tela.</li>
         <li>A calculadora é local: não gasta tokens e não faz álgebra simbólica. Parênteses valem: <code>(2+3)*4</code>. Multiplicação explícita: <code>2*pi</code>.</li>
         <li>Pastas, nomes de matérias e o caminho do Pi ficam em <strong>Mesa → Configurações</strong>.</li>
         <li>Modelo e esforço do Pi ficam no topo da conversa, sempre visíveis depois de conectar.</li>
+        <li>Gráficos e diagramas que o Pi gera aparecem no chat. Clique na imagem para ampliar ou abrir no Preview.</li>
+        <li>A busca do PDF varre todas as páginas, destaca cada ocorrência no texto e mostra um contador; clicar em <strong>Buscar</strong> de novo salta para a ocorrência seguinte.</li>
+        <li><strong>Exportar conversa</strong> (seta no topo) salva a conversa como Markdown, por padrão na pasta <code>Mesa de Estudos</code> do vault.</li>
+        <li>Passe o mouse sobre uma mensagem e clique em <strong>Copiar</strong> para levar o texto original para a área de transferência.</li>
+        <li><strong>Mesa → Tema</strong> alterna auto (segue o sistema), claro e escuro; a escolha fica guardada.</li>
+        <li>Quizzes aparecem como cartões no chat: clique na resposta ou marque várias e envie. A correção vem logo abaixo.</li>
+        <li>Digite <code>/compact</code> na mensagem para compactar o contexto da conversa (aceita instruções: <code>/compact foque na questão 7</code>). O medidor ao lado de Pi mostra quanto do contexto está em uso; passe o mouse para ver o consumido/total da conversa.</li>
+        <li>O botão <code>auto</code> ao lado do medidor liga e desliga a compactação automática do Pi: com ela ativa, o contexto é resumido sozinho quando enche.</li>
+        <li>A mesa tem GeoGebra embutido na aba GeoGebra; a ferramenta <code>geogebra</code> deixa o Pi comandar o applet e ler a construção quando a aba está aberta. Com a aba aberta, <strong>⌘⇧G</strong> manda um print do applet para o Pi conferir (o modelo precisa aceitar imagens), e a construção é lembrada por matéria quando você sai da aba.</li>
+        <li>Selecione um trecho da conversa ou do texto de um PDF e clique em <strong>Citar</strong> para perguntar sobre ele. Fórmulas entram no texto como LaTeX; trechos de PDF citam com o nome do arquivo e a página.</li>
+        <li>Anexe imagens pelo botão <strong>Anexar</strong>, colando (⌘V) ou arrastando para o chat. O modelo precisa aceitar imagens.</li>
+        <li>Blocos de código nas respostas vêm com realce de sintaxe e a etiqueta da linguagem; o botão <strong>cópia</strong> no canto leva só o código.</li>
+        <li>A seta no título de cada leitor <strong>minimiza o PDF</strong> para uma faixa e libera o espaço para o outro; clique de novo para restaurar.</li>
+        <li>No tema escuro, o botão de contraste na barra do leitor (ou <strong>⌘⇧I</strong>) inverte as cores das páginas do documento aberto; a escolha fica por arquivo.</li>
         <li>Créditos e licença: <strong>Mesa → Sobre</strong>.</li>
       </ul>
+      <p class="help-version" id="help-version"></p>
+      <p class="help-lead">Mudanças de código valem ao reabrir o app (ou <code>npm run install-app</code>).</p>
     </div>
     <div class="dialog-actions">
+      <button type="button" id="keys-customize">Personalizar atalhos…</button>
       <button value="cancel" class="primary">Fechar</button>
     </div>
   </form>
@@ -164,35 +234,54 @@
     </div>
     <div class="help-body settings-body">
       <p class="help-lead" id="settings-lead">Caminhos e nomes desta mesa. As credenciais do modelo continuam no Pi.</p>
-      <label>Pasta do vault / dados
-        <span class="path-row">
-          <input id="cfg-vault" type="text" spellcheck="false">
-          <button type="button" id="cfg-vault-browse">Escolher</button>
-        </span>
-      </label>
-      <label>Executável do Pi
-        <span class="path-row">
-          <input id="cfg-pi" type="text" spellcheck="false" placeholder="detectar automaticamente">
-          <button type="button" id="cfg-pi-detect">Detectar</button>
-          <button type="button" id="cfg-pi-browse">Escolher</button>
-        </span>
-      </label>
-      <label id="cfg-xournal-wrap">Xournal++
-        <span class="path-row">
-          <input id="cfg-xournal" type="text" spellcheck="false">
-          <button type="button" id="cfg-xournal-browse">Escolher</button>
-        </span>
-      </label>
-      <h3>Matérias</h3>
-      <p class="help-lead">Nome exibido e pasta com PDFs. Sem <code>_state.md</code> a mesa lista os PDFs da pasta.</p>
-      <div id="cfg-courses"></div>
-      <button type="button" id="cfg-add-course">Adicionar matéria</button>
+      <section class="set-sec" data-sec="pastas" aria-labelledby="set-pastas">
+        <h3 id="set-pastas">Pastas e programas</h3>
+        <label>Pasta do vault / dados
+          <span class="path-row">
+            <input id="cfg-vault" type="text" spellcheck="false">
+            <button type="button" id="cfg-vault-browse">Escolher</button>
+          </span>
+        </label>
+        <label>Executável do Pi
+          <span class="path-row">
+            <input id="cfg-pi" type="text" spellcheck="false" placeholder="detectar automaticamente">
+            <button type="button" id="cfg-pi-detect">Detectar</button>
+            <button type="button" id="cfg-pi-browse">Escolher</button>
+          </span>
+        </label>
+        <label id="cfg-xournal-wrap">Xournal++
+          <span class="path-row">
+            <input id="cfg-xournal" type="text" spellcheck="false">
+            <button type="button" id="cfg-xournal-browse">Escolher</button>
+          </span>
+        </label>
+      </section>
+      <section class="set-sec" data-sec="materias" aria-labelledby="set-materias">
+        <h3 id="set-materias">Matérias</h3>
+        <p class="help-lead">Nome exibido e pasta com PDFs. Sem <code>_state.md</code> a mesa lista os PDFs da pasta.</p>
+        <div id="cfg-courses"></div>
+        <button type="button" id="cfg-add-course">Adicionar matéria</button>
+      </section>
+      <section class="set-sec" data-sec="avisos" aria-labelledby="set-avisos">
+        <h3 id="set-avisos">Aparência e avisos</h3>
+        <label>Densidade<select id="density-mode"><option value="padrao">Padrão</option><option value="compacta">Compacta</option></select></label>
+        <div id="notify-mode" class="set-group" role="group" aria-label="Avisos de conclusão">
+          <span class="set-group-label">Avisos de conclusão</span>
+          <label class="set-check"><input type="checkbox" id="notify-sound"><span>Som</span></label>
+          <label class="set-check"><input type="checkbox" id="notify-desktop"><span>Notificação</span></label>
+          <label class="set-check"><input type="checkbox" id="notify-focused"><span>Avisar mesmo com a janela em foco</span></label>
+        </div>
+        <p class="fine">O tema fica em Mesa → Tema.</p>
+      </section>
     </div>
     <div class="dialog-actions">
       <button value="cancel">Cancelar</button>
       <button id="settings-save" value="ok" class="primary">Salvar</button>
     </div>
   </form>
+</dialog>
+<dialog id="welcome-dialog">
+  <form method="dialog" id="welcome-form"></form>
 </dialog>
 <dialog id="about-dialog">
   <form method="dialog">
@@ -201,7 +290,12 @@
       <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
     </div>
     <div class="help-body">
-      <p class="help-lead">Mesa de Estudos 0.3.2 · licença MIT</p>
+      <p class="help-lead">Mesa de Estudos 0.4.0 · licença MIT</p>
+      <h3>Atualizações</h3>
+      <div id="about-update"></div>
+      <h3>Componentes</h3>
+      <div id="component-rows"></div>
+      <button type="button" id="components-refresh">Verificar agora</button>
       <h3>Créditos</h3>
       <ul>
         <li><strong>Lucas Faria</strong> — autor</li>

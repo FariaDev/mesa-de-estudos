@@ -22,6 +22,21 @@ A mesa do autor já está no jeito dele. **Não altere os defaults em `desk/conf
 - Não publique sessões JSONL, credenciais do Pi, capturas com material de curso, nem o bundle `Mesa de Estudos.app`.
 - Conferir Xournal++ é só macOS.
 - Preferir `config.json` a editar `renderer.mjs` / `index.html`. Só mexa no código se o pedido não couber no schema abaixo.
+- Portão do núcleo: `npm run verify:bend` (em `desk/`) exige a toolchain pinada e roda build + provas. O hook `.githooks/pre-push` o roda antes de todo push; `git push --no-verify` é a saída de emergência.
+
+## Release (fluxo do updater por clique)
+
+O updater da Mesa (Sobre → Atualizar e reiniciar) só funciona a partir da
+v0.4.0 — a primeira versão que o contém. Para publicar `vX.Y.Z`:
+
+1. snapshot no repositório público `FariaDev/mesa-de-estudos` e push na `main` dele;
+2. tag `vX.Y.Z` no público;
+3. `gh release create vX.Y.Z --notes "…"` — o corpo da Release é o "o que mudou" mostrado no app.
+
+Quem prefere terminal (ou recuperação) usa `npm run update` em `desk/`:
+checa, aplica (git/bundle/zip), roda `npm ci` só se o lock mudou, re-sincroniza
+o bundle no macOS e reabre. Falhou = rollback automático, com o motivo em
+`.runtime/desk.log`.
 
 ## Setup num computador novo
 
@@ -57,6 +72,9 @@ Defaults (o jeito do autor — deixe assim se o usuário não pediu o contrário
     "calculator": true,
     "xournal": true,
     "conferir": true,
+    "refsToggle": true,
+    "endDay": true,
+    "studyContext": true,
     "panels": [
       { "label": "Enunciado", "prefer": ["Limites"] },
       { "label": "Formulário & apoio", "prefer": ["Formul"], "toggle": "Formulário" }
@@ -69,6 +87,9 @@ Defaults (o jeito do autor — deixe assim se o usuário não pediu o contrário
 |---|---|
 | `title` | Nome na barra e no título da janela |
 | `calculator` | `false` esconde a calculadora |
+| `refsToggle` | `false` esconde o botão Referências (as referências continuam indo ao Pi) |
+| `endDay` | `false` esconde Encerrar por hoje |
+| `studyContext` | `false` esconde Lista/questão ativa e o Rascunho `.xopp` |
 | `xournal` | `false` esconde o botão Xournal++ |
 | `conferir` | `false` esconde Conferir Xournal++ |
 | `panels` | 1 ou 2 leitores. `label` é o título do painel. `prefer` são trechos do nome do PDF (sem acento importa; “Limites” pega `Limites.pdf`). O 1º painel pega o primeiro `prefer`; se não houver, um arquivo que não case com o outro painel. `toggle` é o texto do botão que recolhe o 2º painel. Um item só em `panels` = um PDF. |

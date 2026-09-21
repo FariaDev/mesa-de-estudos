@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>bench</title></head>
+<body>
+<script type="module">
+import {marked} from '../node_modules/marked/lib/marked.esm.js';
+import DOMPurify from '../node_modules/dompurify/dist/purify.es.mjs';
+import katex from '../node_modules/katex/dist/katex.mjs';
+
+function attrValue(value){return String(value).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function unescHtml(value){return String(value).replace(/&(amp|lt|gt|quot|apos|#39|#x27);/g,(_,e)=>({amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",'#39':"'",'#x27':"'"}[e]));}
+function highlightCode(code,lang){return String(code||'');}
+const ASSET_MARKDOWN=/!\[([^\]]*)\]\(\s*(?:<([^<>]+)>|((?:file:\/\/|\.{0,2}[\\/]|[\\/]|desk[\\/]|[a-zA-Z]:[\\/])[^)]*?\.(?:png|jpe?g|gif|webp|svg))(?:\s+"[^"]*")?)\s*\)/gi;
+function assetSource(value){const text=String(value||'').trim();return /^(?:file:\/\/|\.{0,2}[\\/]|[\\/]|desk[\\/]|[a-zA-Z]:[\\/])/i.test(text)&&/\.(?:png|jpe?g|gif|webp|svg)$/i.test(text.split(/[?#]/)[0]);}
+function markup(text,allowAssets=true){
+ const math=[],assets=[];
+ const withMath=text.replace(/\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)|(?<!\$)\$([^\n$]+)\$(?!\$)/g,(match,a,b,c,d)=>{const tex=a??b??c??d,display=a!==undefined||b!==undefined;try{const source=display?`$$${tex}$$`:`$${tex}$`;math.push(katex.renderToString(tex,{displayMode:display,throwOnError:false,trust:false}).replace('<span',()=>`<span data-tex="${attrValue(source)}"`));}catch{math.push(match);}return `MATHPLACEHOLDER${math.length-1}END`;});
+ const protectedText=withMath.replace(ASSET_MARKDOWN,(match,alt,bracketed,plain)=>{const source=(bracketed??plain??'').trim();if(!assetSource(source))return match;if(!allowAssets)return `\`${source}\``;assets.push({source,alt:(alt||'').trim()});return `ASSETPLACEHOLDER${assets.length-1}END`;});
+ let html=marked.parse(protectedText,{breaks:true});
+ const codes=[];
+ html=html.replace(/<pre><code(?: class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g,(all,lang,code)=>{codes.push(`<pre class="hl"><code data-lang="${attrValue(lang||'')}">${highlightCode(unescHtml(code),lang)}</code></pre>`);return `CODEPLACEHOLDER${codes.length-1}END`;});
+ html=html.replace(/MATHPLACEHOLDER(\d+)END/g,(_,n)=>math[n]);
+ html=html.replace(/ASSETPLACEHOLDER(\d+)END/g,()=>'');
+ return DOMPurify.sanitize(html,{FORBID_TAGS:['style','iframe','form','input','button'],FORBID_ATTR:['srcset']}).replace(/CODEPLACEHOLDER(\d+)END/g,(_,n)=>codes[Number(n)]||'');
+}
+function step(label,fn){const t0=performance.now();const out=fn();const ms=performance.now()-t0;console.log(`BENCH ${label}: ${ms.toFixed(1)}ms out=${String(out).length}`);return out;}
+function run(text){
+ console.log(`--- texto de ${text.length} chars (maior linha ${Math.max(...text.split('\n').map(l=>l.length))})`);
+ step('math-replace',()=>text.replace(/\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)|(?<!\$)\$([^\n$]+)\$(?!\$)/g,m=>m));
+ const protectedText=text;
+ const md=step('marked.parse',()=>marked.parse(protectedText,{breaks:true}));
+ step('code-replace',()=>md.replace(/<pre><code(?: class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g,m=>m));
+ step('DOMPurify.sanitize',()=>DOMPurify.sanitize(md,{FORBID_TAGS:['style','iframe','form','input','button'],FORBID_ATTR:['srcset']}));
+ step('markup completo',()=>markup(text));
+}
+for(const n of [1000,5000,10000,20000,40000]){
+ run('x'.repeat(n));
+}
+run('x'.repeat(20000)+' fim do bloco gigante');
+run('x'.repeat(5000)+' fim');
+run('x'.repeat(2000)+' fim');
+run('x'.repeat(1000)+' fim');
+run('x'.repeat(5000)+' '+'palavra '.repeat(20));
+console.log('BENCH FIM');
+</script>
+</body>
+</html>

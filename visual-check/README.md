@@ -2,6 +2,8 @@
 
 Parte do produto **Mesa de Estudos**: o Xournal++ continua como editor de escrita; esta extensão envia a janela visível ao Pi somente após um pedido. A mesa de referências é o aplicativo em `desk/`.
 
+> **Nota:** a Mesa não depende mais desta extensão para conferir — o botão **Conferir Xournal++** captura direto e anexa a imagem à mensagem. Esta extensão continua valendo para quem usa o Pi no terminal.
+
 ## Uso
 
 Em uma sessão Pi no vault ou em seus cursos, execute `/reload` uma vez após a instalação. Mantenha o Xournal++ aberto, não minimizado, no desktop atual (pode estar no monitor externo ou atrás de outra janela).

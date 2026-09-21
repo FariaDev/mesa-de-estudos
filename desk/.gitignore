@@ -1,6 +1,9 @@
 node_modules/
 .runtime/
 .test-runtime/
+.test-runtime-*/
+.design-test-*/
+.installed-test-*/
 .live-runtime*/
 .help-shot*/
 .commandcode/

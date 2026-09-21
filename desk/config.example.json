@@ -14,6 +14,9 @@
     "calculator": true,
     "xournal": true,
     "conferir": true,
+    "refsToggle": true,
+    "endDay": true,
+    "studyContext": true,
     "panels": [
       {
         "label": "Enunciado",

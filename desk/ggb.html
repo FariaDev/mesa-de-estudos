@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>GeoGebra</title>
+  <style>
+    html,body{margin:0;height:100%;overflow:hidden;background:#fff}
+    #ggb{position:absolute;inset:0}
+    #ggb-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#555;font:13px -apple-system,BlinkMacSystemFont,sans-serif;z-index:2;pointer-events:none}
+    #ggb-loading.hidden{display:none}
+    #ggb-error{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:30px;color:#444;font:13px -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;line-height:1.6;background:#fff;z-index:3}
+  </style>
+</head>
+<body>
+  <div id="ggb"></div>
+  <div id="ggb-loading">Carregando o GeoGebra…<small>precisa de internet na primeira abertura</small></div>
+  <div id="ggb-error"></div>
+  <script src="https://www.geogebra.org/apps/deployggb.js"></script>
+  <script>
+    window.__ggbReady=false;
+    function ggbSize(){
+      const el=document.getElementById('ggb');
+      return {width:Math.max(320,el.clientWidth||window.innerWidth||800),height:Math.max(240,el.clientHeight||window.innerHeight||600)};
+    }
+    // O applet só calcula o layout no load: no resize, recarrega com as dimensões novas
+    // (os assets já estão em cache; o snapshot da matéria reaplica a construção ao voltar).
+    let fitTimer=0;
+    function reloadApplet(){clearTimeout(fitTimer);fitTimer=setTimeout(()=>{if(window.__ggbReady)location.reload();},200);}
+    function ggbFail(message){
+      const el=document.getElementById('ggb-error');
+      el.textContent='Não foi possível carregar o GeoGebra. '+message;
+      el.style.display='flex';
+    }
+    window.addEventListener('resize',reloadApplet);
+    window.addEventListener('error',e=>{if(!window.__ggbReady)ggbFail('Recarregue a aba ('+(e.message||'erro de script')+').');},true);
+    setTimeout(()=>{
+      if(!window.__ggbReady)ggbFail('Verifique a conexão com a internet e recarregue a aba.');
+    },20000);
+    try{
+      if(typeof GGBApplet==='function'){
+        const fit=ggbSize();
+        const params={
+          appName:'suite',
+          width:fit.width,height:fit.height,
+          showToolBar:true,showAlgebraInput:true,showMenuBar:true,
+          showZoomButtons:true,enableShiftDragZoom:true,
+          language:'pt',preventFocus:false,
+          appletOnLoad:()=>{
+            window.__ggbReady=true;
+            document.getElementById('ggb-loading').classList.add('hidden');
+            const err=document.getElementById('ggb-error');err.style.display='none';err.textContent='';
+          }
+        };
+        new GGBApplet(params,'5.0').inject('ggb');
+      }
+    }catch(e){ggbFail('('+e.message+')');}
+  </script>
+</body>
+</html>

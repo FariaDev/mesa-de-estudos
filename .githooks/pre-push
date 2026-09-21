@@ -1,0 +1,11 @@
+#!/bin/sh
+# Portão de pre-push: sem CI, isto é o que impede `verify:bend` de ser só
+# disciplina. Roda o portão estrito (toolchain fixada, artefatos reproduzíveis
+# e provas com o mesmo bend) antes de qualquer push.
+#
+# Ativar neste clone: git config core.hooksPath .githooks
+# Emergência: git push --no-verify
+set -e
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+exec node core/verify.mjs

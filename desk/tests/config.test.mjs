@@ -72,3 +72,61 @@ test('seedConfig points at the home vault when Courses exists',()=>{
   assert.equal(seed.vaultPath,'');
  }
 });
+
+test('normalizePanel keeps valid prefer and toggle pairs',()=>{
+ const desk=normalize({desk:{panels:[
+  {label:'Enunciado',prefer:['Lista de Limites','Enunci']},
+  {label:'Apoio',prefer:['Tabela'],toggle:'Tabela'}
+ ]}}).desk;
+ assert.deepEqual(desk.panels[0],{label:'Enunciado',prefer:['Lista de Limites','Enunci'],toggle:''},'slot 1 não tem toggle default em config.cjs');
+ assert.deepEqual(desk.panels[1],{label:'Apoio',prefer:['Tabela'],toggle:'Tabela'},'prefer/toggle válidos são preservados');
+});
+
+test('absent, empty or non-array panels fall back to the default readers',()=>{
+ const fallback=defaultDesk().panels;
+ assert.deepEqual(normalize({desk:{panels:'Limites'}}).desk.panels,fallback);
+ assert.deepEqual(normalize({desk:{panels:[]}}).desk.panels,fallback);
+ assert.deepEqual(normalize({desk:{panels:null}}).desk.panels,fallback);
+ const three=normalize({desk:{panels:[{label:'A'},{label:'B'},{label:'C'}]}}).desk.panels;
+ assert.equal(three.length,2,'no máximo dois leitores');
+ assert.deepEqual(three,[
+  {label:'A',prefer:['Limites'],toggle:''},
+  {label:'B',prefer:['Formul'],toggle:'Formulário'}
+ ],'cada slot herda o prefer/toggle do default dele');
+});
+
+test('empty prefer or toggle inherits the slot default and cannot be cleared via JSON (limitação conhecida; decisão 2026-09-15)',()=>{
+ // Comportamento atual: prefer []/ausente/não-array herda o prefer do slot; toggle ausente ou ''
+ // herda o toggle do slot. Não há hoje como limpar prefer/toggle pelo config.json — este teste
+ // trava o contrato até uma decisão da UI dizer o contrário. O slot 0 não tem toggle default
+ // (fica ''); o rótulo do botão volta a "Formulário" no renderer (applyDesk usa `||'Formulário'`).
+ const desk=normalize({desk:{panels:[{label:'Lista',prefer:[],toggle:''}]}}).desk;
+ assert.equal(desk.panels.length,1);
+ assert.deepEqual(desk.panels[0],{label:'Lista',prefer:['Limites'],toggle:''});
+ const secondEmpty=normalize({desk:{panels:[{label:'Lista',prefer:['lista']},{label:'Apoio',prefer:['tabela'],toggle:''}]}}).desk;
+ assert.equal(secondEmpty.panels[1].toggle,'Formulário','toggle vazio no slot 1 herda o default — não dá para limpar');
+ const asString=normalize({desk:{panels:[{label:'Lista',prefer:'lista'}]}}).desk;
+ assert.deepEqual(asString.panels[0].prefer,['Limites'],'prefer como string cai no default do slot');
+});
+
+test('a panel without prefer keeps the default preference for its slot',()=>{
+ const desk=normalize({desk:{panels:[{label:'Lista'}]}}).desk;
+ assert.equal(desk.panels.length,1);
+ assert.deepEqual(desk.panels[0],{label:'Lista',prefer:['Limites'],toggle:''});
+});
+
+test('desk flags survive normalize with sane defaults',()=>{
+ const base=normalize({desk:{}});
+ assert.equal(base.desk.refsToggle,true);
+ assert.equal(base.desk.endDay,true);
+ assert.equal(base.desk.studyContext,true);
+ const off=normalize({desk:{refsToggle:false,endDay:false,studyContext:false}});
+ assert.equal(off.desk.refsToggle,false);
+ assert.equal(off.desk.endDay,false);
+ assert.equal(off.desk.studyContext,false);
+ const partial=normalize({desk:{refsToggle:false}});
+ assert.equal(partial.desk.refsToggle,false);
+ assert.equal(partial.desk.endDay,true);
+ assert.equal(partial.desk.panels.length,2);
+});
+

@@ -1,0 +1,122 @@
+import Base
+import ../deskflags.bend as D
+import ../view.bend as V
+
+# ---------------------------------------------------------------------------
+# Contrato das flags do `desk` nos controles vivos do index.html: `hidden` por
+# flag e o `aria-pressed` do botão de referências. Cenários concretos, como as
+# leis do status — o host entrega os fatos já normalizados (`Bool`).
+# ---------------------------------------------------------------------------
+
+# Tudo ligado no macOS (o cenário padrão do app).
+def ligado() -> D.DeskFlags:
+  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, True{}, False{}}
+
+# Só o botão de referências em jogo: `includeRefs` corrente, resto ligado.
+def soRefs(includeRefs: Bool) -> D.DeskFlags:
+  D.DeskFlags{True{}, includeRefs, True{}, True{}, True{}, True{}, False{}}
+
+# refsToggle desligado: o botão some e as referências ficam ligadas na view.
+def semBotaoRefs(includeRefs: Bool) -> D.DeskFlags:
+  D.DeskFlags{False{}, includeRefs, True{}, True{}, True{}, True{}, False{}}
+
+# Uma flag desligada por vez (para os `hidden`).
+def semEndDay() -> D.DeskFlags:
+  D.DeskFlags{True{}, True{}, False{}, True{}, True{}, True{}, False{}}
+
+def semEstudo() -> D.DeskFlags:
+  D.DeskFlags{True{}, True{}, True{}, False{}, True{}, True{}, False{}}
+
+def semConferir() -> D.DeskFlags:
+  D.DeskFlags{True{}, True{}, True{}, True{}, False{}, True{}, False{}}
+
+def semCalculadora() -> D.DeskFlags:
+  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, False{}, False{}}
+
+# No Windows: tudo ligado, mas o Conferir Xournal++ some (a captura é só macOS).
+def noWindows() -> D.DeskFlags:
+  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, True{}, True{}}
+
+# ---------- referências do composer ----------
+
+law deskflags_refs_tag:
+  {V.tagOf(D.includeRefsButton(ligado())) == "button" : String}
+
+law deskflags_refs_id:
+  {V.attrGet(V.attrsOf(D.includeRefsButton(ligado())), "id") == Some{"include-refs"} : Maybe<&2, String>}
+
+law deskflags_refs_visivel:
+  {V.attrGet(V.attrsOf(D.includeRefsButton(ligado())), "hidden") == None{} : Maybe<&2, String>}
+
+law deskflags_refs_oculto:
+  {V.attrGet(V.attrsOf(D.includeRefsButton(semBotaoRefs(True{}))), "hidden") == Some{""} : Maybe<&2, String>}
+
+law deskflags_refs_pressed:
+  {V.attrGet(V.attrsOf(D.includeRefsButton(soRefs(True{}))), "aria-pressed") == Some{"true"} : Maybe<&2, String>}
+
+law deskflags_refs_pressed_false:
+  {V.attrGet(V.attrsOf(D.includeRefsButton(soRefs(False{}))), "aria-pressed") == Some{"false"} : Maybe<&2, String>}
+
+# Sem o botão, as referências seguem ligadas mesmo com o fato corrente false.
+law deskflags_refs_pressed_forcado:
+  {V.attrGet(V.attrsOf(D.includeRefsButton(semBotaoRefs(False{}))), "aria-pressed") == Some{"true"} : Maybe<&2, String>}
+
+# ---------- encerrar por hoje ----------
+
+law deskflags_endday_tag:
+  {V.tagOf(D.endDayButton(ligado())) == "button" : String}
+
+law deskflags_endday_id:
+  {V.attrGet(V.attrsOf(D.endDayButton(ligado())), "id") == Some{"end-day"} : Maybe<&2, String>}
+
+law deskflags_endday_visivel:
+  {V.attrGet(V.attrsOf(D.endDayButton(ligado())), "hidden") == None{} : Maybe<&2, String>}
+
+law deskflags_endday_oculto:
+  {V.attrGet(V.attrsOf(D.endDayButton(semEndDay())), "hidden") == Some{""} : Maybe<&2, String>}
+
+# ---------- contexto de estudo ----------
+
+law deskflags_estudo_tag:
+  {V.tagOf(D.studyContextRow(ligado())) == "div" : String}
+
+law deskflags_estudo_id:
+  {V.attrGet(V.attrsOf(D.studyContextRow(ligado())), "id") == Some{"study-context"} : Maybe<&2, String>}
+
+law deskflags_estudo_visivel:
+  {V.attrGet(V.attrsOf(D.studyContextRow(ligado())), "hidden") == None{} : Maybe<&2, String>}
+
+law deskflags_estudo_oculto:
+  {V.attrGet(V.attrsOf(D.studyContextRow(semEstudo())), "hidden") == Some{""} : Maybe<&2, String>}
+
+# ---------- conferir Xournal++ ----------
+
+law deskflags_conferir_tag:
+  {V.tagOf(D.conferirButton(ligado())) == "button" : String}
+
+law deskflags_conferir_id:
+  {V.attrGet(V.attrsOf(D.conferirButton(ligado())), "id") == Some{"check"} : Maybe<&2, String>}
+
+law deskflags_conferir_visivel:
+  {V.attrGet(V.attrsOf(D.conferirButton(ligado())), "hidden") == None{} : Maybe<&2, String>}
+
+law deskflags_conferir_oculto:
+  {V.attrGet(V.attrsOf(D.conferirButton(semConferir())), "hidden") == Some{""} : Maybe<&2, String>}
+
+# A flag ligada não basta: no win32 o botão também some.
+law deskflags_conferir_oculto_win:
+  {V.attrGet(V.attrsOf(D.conferirButton(noWindows())), "hidden") == Some{""} : Maybe<&2, String>}
+
+# ---------- divisor da calculadora ----------
+
+law deskflags_calc_tag:
+  {V.tagOf(D.calcDivider(ligado())) == "div" : String}
+
+law deskflags_calc_id:
+  {V.attrGet(V.attrsOf(D.calcDivider(ligado())), "id") == Some{"calc-divider"} : Maybe<&2, String>}
+
+law deskflags_calc_visivel:
+  {V.attrGet(V.attrsOf(D.calcDivider(ligado())), "hidden") == None{} : Maybe<&2, String>}
+
+law deskflags_calc_oculto:
+  {V.attrGet(V.attrsOf(D.calcDivider(semCalculadora())), "hidden") == Some{""} : Maybe<&2, String>}

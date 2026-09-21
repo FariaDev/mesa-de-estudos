@@ -11,8 +11,8 @@ Mesa de Estudos                         Xournal++
 
 ## Requisitos
 
-- Node 20+
-- [Pi](https://github.com/badlogic/pi-mono) (o `npm run setup` tenta instalar)
+- Node 22.19+ (exigência do Pi)
+- [Pi](https://github.com/earendil-works/pi) (o `npm run setup` tenta instalar)
 - PDFs da matéria numa pasta qualquer
 
 ## Começar
@@ -21,17 +21,20 @@ Mesa de Estudos                         Xournal++
 cd desk
 npm ci
 npm run setup
+npm run doctor
 npm start
 ```
 
 Na primeira abertura: pasta de dados + pelo menos uma matéria (nome e pasta de PDFs). O Pi pede as credenciais do provedor na primeira conexão; elas ficam no Pi, não neste app.
+
+`npm run doctor` confere Pi, políticas, fontes, extensão visual e persistência sem abrir o app.
 
 Instruções para um agente configurar o computador: [`desk/SETUP.md`](desk/SETUP.md).
 
 ## O que entra / o que não entra
 
 - **Entra:** PDFs, calculadora, conversa com o Pi, configurações de pastas e nomes.
-- **macOS:** botão Conferir Xournal++ (captura da janela visível, só quando você pede).
+- **macOS:** botão Conferir Xournal++ (captura a janela visível e anexa à mensagem; você escreve e envia quando quiser).
 - **Windows:** PDFs, calculadora e Pi. Conferir Xournal++ não está disponível.
 - **Não entra:** canvas de tinta, edição de PDF, telemetria, conta na nuvem.
 

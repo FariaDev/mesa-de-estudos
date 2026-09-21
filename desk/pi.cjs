@@ -1,4 +1,4 @@
-const fs=require('node:fs');const path=require('node:path');
+const fs=require('node:fs');const os=require('node:os');const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 
 const FALLBACK_LEVELS=['off','minimal','low','medium','high'];
@@ -29,10 +29,25 @@ function resolvePi({configPath='',deskDir='',envPath=''}={}){
  return '';
 }
 
+/* PATH: um app aberto pelo Finder nasce com o mínimo do sistema
+   (/usr/bin:/bin:/usr/sbin:/sbin), então o que o usuário instalou em casa — bun,
+   homebrew, pipx — some do ambiente. O Pi, as skills dele e os servidores MCP
+   falham com "no such file or directory" sem que nada esteja errado no pacote.
+   Os diretórios do usuário entram antes do PATH herdado, e só os que existem. */
+const USER_BIN_DIRS=['.bun/bin','.local/bin','.cargo/bin','.deno/bin'];
+
+function userBinDirs(home=os.homedir()){
+ const dirs=USER_BIN_DIRS.map(rel=>path.join(home,...rel.split('/')));
+ dirs.push('/opt/homebrew/bin','/usr/local/bin');
+ return dirs.filter(dir=>{try{return fs.existsSync(dir);}catch{return false;}});
+}
+
 function spawnEnv(piPath){
  const dir=piPath?path.dirname(piPath):'';
- const parts=[dir,process.env.PATH||''].filter(Boolean);
- return {...process.env,PATH:parts.join(path.delimiter),PI_LEARNING_NO_OBSIDIAN:'1'};
+ const parts=[dir,...userBinDirs(),process.env.PATH||''].filter(Boolean);
+ // A mesa não abre o Obsidian nem usa observational-memory: o contexto do estudo
+ // fica só com a conversa; o daily driver do terminal não é afetado.
+ return {...process.env,PATH:parts.join(path.delimiter),PI_LEARNING_NO_OBSIDIAN:'1',PI_OM_PASSIVE:'1'};
 }
 
 function missingPiMessage(err){
@@ -74,4 +89,4 @@ async function loadLevelsModule(piPath,deskDir){
  return null;
 }
 
-module.exports={FALLBACK_LEVELS,resolvePi,spawnEnv,missingPiMessage,modelsCandidates,loadLevelsModule};
+module.exports={FALLBACK_LEVELS,USER_BIN_DIRS,resolvePi,spawnEnv,userBinDirs,missingPiMessage,modelsCandidates,loadLevelsModule};

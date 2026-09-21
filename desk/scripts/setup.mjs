@@ -26,6 +26,16 @@ if(!fs.existsSync(path.join(desk,'node_modules','electron'))){
  if(r.status){fail('npm ci falhou.');process.exit(r.status);}
 }
 
+if(process.platform==='darwin'){
+ const visual=path.resolve(desk,'..','visual-check');
+ const helper=path.join(visual,'windows');
+ if(!fs.existsSync(helper)){
+  log('Compilando integração visual do Xournal++…');
+  const r=spawnSync('swiftc',[path.join(visual,'windows.swift'),'-o',helper],{stdio:'inherit'});
+  if(r.status)fail('Não foi possível compilar a integração visual. Instale as Command Line Tools do Xcode e rode npm run setup novamente.');
+ }
+}
+
 let pi=resolvePi({deskDir:desk,envPath:process.env.LEARNING_DESK_PI||''});
 if(!pi){
  log('Pi não encontrado. Instalando @earendil-works/pi-coding-agent localmente…');

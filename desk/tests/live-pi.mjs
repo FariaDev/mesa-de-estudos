@@ -17,6 +17,7 @@ try{
  assert.ok(await page.locator('.message.assistant .katex').count());
  await page.locator('#prompt').fill('Confira apenas a imagem do Xournal++. Informe o identificador do teste e o primeiro erro, sem solução completa.');
  await page.locator('#check').click();
+ await page.locator('#send').click();
  await page.waitForFunction(()=>[...document.querySelectorAll('.message.assistant')].some(e=>e.textContent.includes('7319')),{timeout:60000});
  await page.locator('#stop').waitFor({state:'hidden',timeout:60000});
  console.log('VISUAL PASSED',await page.locator('.message.assistant').last().textContent());

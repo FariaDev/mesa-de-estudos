@@ -1,16 +1,16 @@
+// Adaptador do núcleo provado em core/wheel.bend: o host resolve os fatos
+// (cooldown, limites, direção, limiar) e o núcleo decide. Para mudar a lógica,
+// edite o core e rode `npm run build:bend` — este arquivo só traduz.
+import core from './src/generated/wheel.core.js';
+
 export const PAGE_TURN_THRESHOLD=80;
 export const PAGE_TURN_COOLDOWN=280;
 
 export function pageTurnFromWheel({deltaY=0,atTop=false,atBottom=false,fits=false,accum=0,now=0,lastTurn=0,threshold=PAGE_TURN_THRESHOLD,cooldown=PAGE_TURN_COOLDOWN}={}){
- if(now&&lastTurn&&now-lastTurn<cooldown)return {accum:0,turn:0};
+ const blocked=!!(now&&lastTurn&&now-lastTurn<cooldown);
  const towardNext=deltaY>0,towardPrev=deltaY<0;
- if(!fits){
-  if(towardNext&&!atBottom)return {accum:0,turn:0};
-  if(towardPrev&&!atTop)return {accum:0,turn:0};
- }
- if(!towardNext&&!towardPrev)return {accum,turn:0};
  const next=accum+deltaY;
- if(next>=threshold)return {accum:0,turn:1};
- if(next<=-threshold)return {accum:0,turn:-1};
- return {accum:next,turn:0};
+ const over=next>=threshold,under=next<=-threshold;
+ const out=core.pageTurn(blocked,fits,towardNext,towardPrev,atTop,atBottom,over,under,accum,next);
+ return {accum:out.accum,turn:out.turn.$==='Next'?1:out.turn.$==='Prev'?-1:0};
 }
