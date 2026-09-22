@@ -1,6 +1,6 @@
 {
   "name": "learning-desk",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Mesa de Estudos: dois PDFs, calculadora e Pi numa janela, ao lado do Xournal++",
   "main": "main.cjs",
   "scripts": {
@@ -11,7 +11,7 @@
     "build:bend": "node ../core/build-safe.mjs",
     "test:proof": "node ../core/proof.mjs",
     "test:parity": "node tests/parity.mjs",
- "verify:bend": "node ../core/verify.mjs",
+    "verify:bend": "node ../core/verify.mjs",
     "test:pi": "node tests/pi-contract.mjs",
     "test:ui:x3": "node tests/smoke-x3.mjs",
     "test:app": "node tests/app-smoke.mjs",

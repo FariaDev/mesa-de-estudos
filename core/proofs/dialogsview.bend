@@ -178,16 +178,46 @@ def Laws.dlg_upd_botao_verificar():
 def Laws.dlg_upd_botao_notas():
   {==}
 
+def Laws.dlg_upd_botao_log():
+  {==}
+
 def Laws.dlg_upd_botao_aplicar():
   {==}
 
 def Laws.dlg_upd_pronta():
   {==}
 
+def Laws.dlg_upd_pronta_sem_notas():
+  {==}
+
+def Laws.dlg_upd_aplicando():
+  {==}
+
+def Laws.dlg_upd_botao_aplicar_desligado():
+  {==}
+
+def Laws.dlg_upd_resultado_textos():
+  {==}
+
+def Laws.dlg_upd_resultado_atualizada():
+  {==}
+
+def Laws.dlg_upd_resultado_recuperada():
+  {==}
+
+def Laws.dlg_upd_resultado_recuperada_sem_motivo():
+  {==}
+
+def Laws.dlg_upd_resultado_incompleta():
+  {==}
+
 def Laws.dlg_comp_ids():
   {==}
 
 def Laws.dlg_comp_estados():
+  {==}
+
+def Laws.dlg_comp_verificando():
   {==}
 
 def Laws.dlg_comp_versao_texto():

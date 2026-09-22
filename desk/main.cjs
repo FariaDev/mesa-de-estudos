@@ -12,6 +12,7 @@ const {cleanStudy,authorizeRestoredStudy}=require('./study.cjs');
 const {deskLayout,saveState,MAX_DRAFT}=require('./state-adapter.cjs');
 const updater=require('./updater.cjs');
 const components=require('./components.cjs');
+const {captureXournalWindow}=require('./capture-win.cjs');
 
 app.setName('Mesa de Estudos');
 const deskDir=__dirname;
@@ -151,7 +152,9 @@ function sessionStudy(file=session){return cleanStudy(courseStates[courseId]?.se
 
 function piBinary(){return resolvePi({configPath:config.piPath,deskDir,envPath:process.env.LEARNING_DESK_PI||''});}
 function captureHelper(){return [path.join(__dirname,'..','visual-check','windows'),config.vaultPath&&path.join(config.vaultPath,'Code','learning-canvas','visual-check','windows')].filter(Boolean).find(p=>fs.existsSync(p));}
-function captureAvailable(){return process.platform==='darwin'&&!!captureHelper();}
+/* A captura existe no macOS (helper visual-check + screencapture -l) e no
+   Windows (PowerShell/.NET do sistema — capture-win.cjs); fora disso, some. */
+function captureAvailable(){return process.platform==='win32'||(process.platform==='darwin'&&!!captureHelper());}
 
 function previewFile(file){
  try{return sessionPreviewFromJsonl(fs.readFileSync(file,'utf8').slice(0,200000));}catch{return '';}
@@ -399,7 +402,7 @@ ipcMain.handle('set-keymap',(_e,raw)=>{
 });
 
 function buildMenu(){
- const study=[...(process.platform==='darwin'?[{label:'Conferir Xournal++',...accelProps('check'),enabled:captureAvailable(),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-check');}}]:[]),{label:'Conferir GeoGebra',...accelProps('ggb-check'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-geogebra');}},{label:'Alternar chat',...accelProps('chat-toggle'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-chat-toggle');}},{label:'Parar',...accelProps('stop'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-stop');}}];
+ const study=[{label:'Conferir Xournal++',...accelProps('check'),enabled:captureAvailable(),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-check');}},{label:'Conferir GeoGebra',...accelProps('ggb-check'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-geogebra');}},{label:'Alternar chat',...accelProps('chat-toggle'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-chat-toggle');}},{label:'Parar',...accelProps('stop'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-stop');}}];
  Menu.setApplicationMenu(Menu.buildFromTemplate([
   {label:'Mesa de Estudos',submenu:[{label:'Sobre a Mesa de Estudos',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-about');}},{label:'Configurações…',...accelProps('settings'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-settings');}},{type:'separator'},{role:'quit'}]},
   {label:'Editar',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
@@ -645,7 +648,10 @@ ipcMain.handle('open-session',async(_e,file)=>{
  return {session,sessions:courseSessions(),state};
 });
 ipcMain.handle('capture-ready',async()=>{
- if(process.platform!=='darwin')throw Error('Conferir Xournal++ está disponível só no macOS.');
+ /* Windows: janela do Xournal++ via PowerShell/.NET do sistema (capture-win.cjs)
+    — mesma saída {title, dataUrl} do caminho macOS abaixo. */
+ if(process.platform==='win32')return captureXournalWindow();
+ if(process.platform!=='darwin')throw Error('Conferir Xournal++ está disponível no macOS e no Windows.');
  let status=systemPreferences.getMediaAccessStatus('screen');
  if(status!=='granted'){
   if(status==='not-determined'){try{await systemPreferences.askForMediaAccess('screen');}catch{}}
@@ -693,26 +699,66 @@ ipcMain.handle('update-check',(_e,opts)=>{
  if(TEST_MODE)return {status:'unknown',version:'',notes:'',url:'',current:app.getVersion()};
  return updater.checkForUpdates({current:app.getVersion(),manual:!!opts?.manual,cacheFile:updateCacheFile});
 });
-ipcMain.handle('update-apply',()=>{
+ipcMain.handle('update-apply',async()=>{
  if(TEST_MODE)throw Error('Atualização desativada no modo de teste.');
  const target=updater.readCache(updateCacheFile)?.release?.version;
  if(!target)throw Error('Nenhuma atualização conhecida. Verifique atualizações primeiro.');
- appendLog('update',`aplicando v${target} (script pós-fechamento)`);
- updater.spawnWorker({...updateContext(),announcedVersion:target,waitPid:process.pid});
+ /* A4: lock compartilhado entre Atualizar Mesa, Atualizar Pi e o CLI — dois
+    cliques (ou clique + terminal) não abrem dois workers concorrentes. */
+ const lock=updater.acquireLock(runtime);
+ if(!lock.ok)throw Error(lock.reason);
+ const worker=updater.spawnWorker({...updateContext(),announcedVersion:target,waitPid:process.pid,cacheFile:updateCacheFile,lockFile:lock.file});
+ if(!worker.ok){
+  updater.releaseLock(lock.file);
+  throw Error(worker.error||'não foi possível iniciar o script de atualização');
+ }
+ /* A4: handshake — o app SÓ fecha depois de o worker confirmar que subiu
+    (Node ausente/spawn falho/handshake perdido deixam a Mesa de pé). */
+ const ok=await updater.waitForHandshake(worker.status,15000);
+ if(!ok){
+  appendLog('update','worker não confirmou o arranque — app segue aberto; atualização abortada');
+  updater.releaseLock(lock.file);
+  throw Error('O script de atualização não iniciou (Node do sistema ausente?). A Mesa segue aberta — rode npm run update no terminal para atualizar.');
+ }
+ appendLog('update',`aplicando v${target} (worker confirmado: ${worker.script})`);
  setTimeout(()=>app.quit(),400);
  return {ok:true,version:target};
 });
-ipcMain.handle('update-pi',()=>{
+ipcMain.handle('update-pi',async()=>{
  if(TEST_MODE)throw Error('Atualização desativada no modo de teste.');
  const ctx=updateContext();
  const pi=piBinary();
- if(!components.piIsLocal(pi,deskDir))throw Error('Seu Pi não está em desk/node_modules — atualize no terminal.');
- appendLog('update','atualizando o Pi local (script pós-fechamento)');
- updater.spawnWorker({...ctx,piOnly:true,waitPid:process.pid});
+ if(!components.piIsLocal(pi,deskDir))throw Error('Seu Pi não é o local da Mesa (desk/.pi-local) — atualize no terminal.');
+ const lock=updater.acquireLock(runtime);
+ if(!lock.ok)throw Error(lock.reason);
+ const worker=updater.spawnWorker({...ctx,piOnly:true,waitPid:process.pid,cacheFile:updateCacheFile,lockFile:lock.file});
+ if(!worker.ok){
+  updater.releaseLock(lock.file);
+  throw Error(worker.error||'não foi possível iniciar o script de atualização');
+ }
+ const ok=await updater.waitForHandshake(worker.status,15000);
+ if(!ok){
+  appendLog('update','worker do Pi não confirmou o arranque — app segue aberto; atualização abortada');
+  updater.releaseLock(lock.file);
+  throw Error('O script de atualização do Pi não iniciou (Node do sistema ausente?). A Mesa segue aberta — rode npm run update -- --pi.');
+ }
+ appendLog('update','atualizando o Pi local (worker confirmado)');
  setTimeout(()=>app.quit(),400);
  return {ok:true};
 });
 ipcMain.handle('components',(_e,opts)=>components.collect({deskDir,config,cacheFile:updateCacheFile,version:app.getVersion(),manual:!!opts?.manual,testMode:TEST_MODE}));
+/* Resultado REAL da última atualização (C1): gravado pelo worker em
+   update.json; o Sobre mostra na reabertura (atualizada/recuperada/incompleta). */
+ipcMain.handle('update-result',()=>{
+ if(TEST_MODE)return null;
+ const r=updater.readCache(updateCacheFile)?.lastResult;
+ return r&&typeof r==='object'?r:null;
+});
+/* Acesso ao desk.log (C1): o resultado de rollback se explica no log. */
+ipcMain.handle('open-log',()=>{
+ if(TEST_MODE)return {ok:false};
+ return shell.openPath(logFile);
+});
 ipcMain.handle('open-external',(_e,url)=>{
  if(typeof url!=='string'||!/^https:\/\//.test(url))throw Error('Link inválido.');
  return shell.openExternal(url);
@@ -725,7 +771,7 @@ function scheduleUpdateCheck(){
   try{
    const r=await updater.checkForUpdates({current:app.getVersion(),manual:false,cacheFile:updateCacheFile});
    await updater.piLatest({cacheFile:updateCacheFile});
-   if(r.status==='update'&&r.version&&updater.markToasted(updateCacheFile,r.version)&&win&&!win.isDestroyed()){
+   if(r.status==='update'&&r.version&&await updater.markToasted(updateCacheFile,r.version)&&win&&!win.isDestroyed()){
     win.webContents.send('update-available',{version:r.version});
    }
   }catch{}

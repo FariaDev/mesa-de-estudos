@@ -64,9 +64,6 @@ def Laws.deskflags_conferir_visivel():
 def Laws.deskflags_conferir_oculto():
   {==}
 
-def Laws.deskflags_conferir_oculto_win():
-  {==}
-
 def Laws.deskflags_calc_tag():
   {==}
 

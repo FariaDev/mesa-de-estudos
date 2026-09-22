@@ -4,6 +4,7 @@ import DOMPurify from '../node_modules/dompurify/dist/purify.es.mjs';
 import {displayUserText,contentParts} from '../text.mjs';
 import {highlightCode} from '../highlight.mjs';
 import {$,S,toast,activity,activityLive,atBottom,connectionState,followBottom,refs,save,layoutSnapshot,setBusy,refreshMeter,connect} from './state.mjs';
+import {beginCaptureLock,captureLockValid,endCaptureLock} from './capture-lock.mjs';
 import {createWorkLogView} from './worklog-view.mjs';
 import {build,htmlNode,preserveFocus,renderChildren} from './view-host.mjs';
 import {renderImageChrome,renderPiDialog} from './dialogs.mjs';
@@ -188,13 +189,19 @@ function dataUrlFile(dataUrl,name){
 /* Conferir Xournal++ virou anexo: captura a janela do Xournal++ e entrega a
    imagem na bandeja (`addAttachments` herda re-encode, teto de bytes e o aviso
    de modelo sem visão). Nada vai para o Pi sozinho — o usuário escreve e envia
-   junto; uma imagem por captura no JSONL. O requisito de visão é do envio. */
+   junto; uma imagem por captura no JSONL. O requisito de visão é do envio.
+   B6: clique duplo engole o segundo clique (uma captura em voo por vez) e a
+   matéria/sessão de destino fica FIXADA — se ela mudou durante a captura, a
+   imagem é descartada em vez de pousar na conversa de outra matéria. */
 export async function conferir(){
  if(S.busy)return;
  if(S.appConfig.desk?.conferir===false)return;
- if(!S.captureOk){toast('Conferir Xournal++ está disponível só no macOS.');return;}
+ if(!S.captureOk){toast('Conferir Xournal++ indisponível neste computador.');return;}
+ const lock=beginCaptureLock(S);
+ if(!lock)return;
  try{
   const shot=await window.desk.captureReady();
+  if(!captureLockValid(S,lock)){toast('A matéria mudou durante a captura — captura descartada.');return;}
   const file=dataUrlFile(shot?.dataUrl,'xournal.png');
   if(!file){toast('A captura não produziu uma imagem válida.');return;}
   const added=await addAttachments([file]);
@@ -202,6 +209,7 @@ export async function conferir(){
   toast('Captura do Xournal++ anexada — escreva e envie.');
   $('#prompt').focus();
  }catch(e){toast(e.message);}
+ finally{endCaptureLock(S,lock);}
 }
 export async function conferirGeogebra(){
  if(S.busy||S.connecting||S.switching)return;

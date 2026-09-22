@@ -396,12 +396,12 @@ type WelcomeBlock is Data:
 def welcomeTitle() -> String:
   "Bem-vindo à Mesa de Estudos"
 
-# Nota de workflow por plataforma: o macOS tem o Conferir Xournal++; no Windows
-# o print da resolução cola como anexo.
+# Nota de workflow por plataforma: o macOS captura a janela pelo botão e o
+# Windows também (Ctrl+Shift+C) — colar print (Ctrl+V) funciona nos dois.
 def welcomeWorkflowNote(win32: Bool) -> String:
   match win32:
     case True{}:
-      "No Windows, o Conferir Xournal++ não existe: cole um print da resolução como anexo e envie com a mensagem."
+      "No Windows, o Conferir Xournal++ captura a janela do Xournal++ (Ctrl+Shift+C) e você envia junto com a mensagem — prints colados com Ctrl+V também funcionam."
     case False{}:
       "No macOS, o Conferir Xournal++ anexa a captura da sua resolução no Xournal++ e você envia junto com a mensagem."
 
@@ -414,7 +414,7 @@ def welcomeBlocks(win32: Bool) -> List<&2, WelcomeBlock>:
       Con{"Cada matéria tem a sua conversa, guardada localmente; a Mesa conecta sozinha quando abre.", Nil{}}}}
     , WelcomeBlock{"Customização por agentes", Con{
       "Esta Mesa foi feita para ser customizada por agentes: o AGENTS.md é o contrato e o bloco desk do config.json decide os leitores, os rótulos, qual PDF abre primeiro e o que esconder (calculadora, Xournal++, Conferir, Encerrar).",
-      Con{"Os templates TUTOR.md e LEARNER.md ajustam o jeito de o Pi dar aula.", Nil{}}}}
+      Con{"Para ajustar o jeito de o Pi dar aula, copie os templates TUTOR.md e LEARNER.md para a sua pasta de dados e edite as CÓPIAS — os arquivos do repositório são só o molde.", Nil{}}}}
     , WelcomeBlock{"Dicas de uso", Con{
       "Encerrar por hoje registra onde você parou e o próximo passo; o diário do turno e os quizzes aparecem na conversa. O Como usar tem os atalhos todos.",
       Con{welcomeWorkflowNote(win32), Nil{}}}}
@@ -497,14 +497,21 @@ def welcomeChildren(win32: Bool) -> List<&2, V.ViewNode>:
 # A checagem é 1×/dia silenciosa + o botão manual do Sobre. `UpdateNone` traz a
 # versão corrente; `UpdateReady` traz a versão nova, o corpo da Release (o "o
 # que mudou" mostrado no app) e a URL das Release notes. Offline não é drama:
-# `UpdateFailed` só oferece o botão de novo. O "Atualizar e reiniciar" roda o
-# script pós-fechamento — quem aplica é o host, aqui é só a linha.
+# `UpdateFailed` só oferece o botão de novo. `UpdateApplying` desliga a ação
+# enquanto o pós-fechamento roda; na reabertura o resultado real é
+# `UpdateDone` / `UpdateRecovered` / `UpdateIncomplete` (com "Ver o log" nos
+# dois últimos). O "Atualizar e reiniciar" roda o script pós-fechamento —
+# quem aplica é o host, aqui é só a linha.
 type UpdateState is Data:
   UpdateIdle{}
   UpdateChecking{}
   UpdateNone{current: String}
   UpdateReady{version: String, notes: String, url: String}
   UpdateFailed{}
+  UpdateApplying{}
+  UpdateDone{version: String}
+  UpdateRecovered{version: String, reason: String}
+  UpdateIncomplete{version: String, reason: String}
 
 def checkUpdateLabel() -> String:
   "Verificar atualizações"
@@ -521,14 +528,29 @@ def updateNoneText(current: String) -> String:
 def updateFailedText() -> String:
   "Não foi possível verificar agora. Tente de novo quando quiser."
 
-def updateReadyPrefix(version: String) -> String:
-  "v" ++ version ++ " disponível — o que mudou ("
+def updateReadyPrefix.if(version: String, withoutUrl: Bool) -> String:
+  match withoutUrl:
+    case True{}:
+      "v" ++ version ++ " disponível"
+    case False{}:
+      "v" ++ version ++ " disponível — o que mudou ("
 
-def updateReadyJoin() -> String:
-  ") · "
+# Com link das notas o parêntese fecha; sem link a frase termina antes dele.
+def updateReadyPrefix(+version: String, url: String) -> String:
+  updateReadyPrefix.if(version, String.is_empty(url))
+
+def updateReadyJoin.if(withoutUrl: Bool) -> String:
+  match withoutUrl:
+    case True{}:
+      " · "
+    case False{}:
+      ") · "
+
+def updateReadyJoin(url: String) -> String:
+  updateReadyJoin.if(String.is_empty(url))
 
 def updateNotesLabel() -> String:
-  "Release notes"
+  "Notas da versão"
 
 def updateApplyLabel() -> String:
   "Atualizar e reiniciar"
@@ -536,10 +558,39 @@ def updateApplyLabel() -> String:
 def updatePiLabel() -> String:
   "Atualizar Pi"
 
+def updateApplyingText() -> String:
+  "Aplicando a atualização — a Mesa fecha e reabre sozinha."
+
+def updateDoneText(version: String) -> String:
+  "Mesa atualizada para v" ++ version ++ "."
+
+def updateRecoveredText.if(version: String, reason: String, emptyReason: Bool) -> String:
+  match emptyReason:
+    case True{}:
+      "A atualização para v" ++ version ++ " falhou — a versão anterior voltou."
+    case False{}:
+      "A atualização para v" ++ version ++ " falhou — a versão anterior voltou (" ++ reason ++ ")."
+
+def updateRecoveredText(+version: String, +reason: String) -> String:
+  updateRecoveredText.if(version, reason, String.is_empty(reason))
+
+def updateIncompleteText.if(version: String, reason: String, emptyReason: Bool) -> String:
+  match emptyReason:
+    case True{}:
+      "A atualização para v" ++ version ++ " falhou e a recuperação ficou incompleta."
+    case False{}:
+      "A atualização para v" ++ version ++ " falhou e a recuperação ficou incompleta (" ++ reason ++ ")."
+
+def updateIncompleteText(+version: String, +reason: String) -> String:
+  updateIncompleteText.if(version, reason, String.is_empty(reason))
+
+def updateLogLabel() -> String:
+  "Ver o log"
+
 def updateLineNode(text: String) -> V.ViewNode:
   V.viewEl("p", Nil{}, [V.viewText(text)])
 
-# O clique de link (Release notes / página do Xournal++) cai no handler
+# O clique de link (Notas da versão / página do Xournal++) cai no handler
 # `OpenLink` do host com a URL em `data-url` (o Electron abre no navegador).
 def releaseNotesButton(url: String) -> V.ViewNode:
   V.viewEl("button", [
@@ -549,12 +600,32 @@ def releaseNotesButton(url: String) -> V.ViewNode:
     V.attrData("url", url)
   ], [V.viewText(updateNotesLabel())])
 
+# O "Ver o log" abre o desk.log do runtime (o `OpenLog` é handler do host):
+# resultado de update só se explica inteiro com o motivo de lá.
+def updateLogButton() -> V.ViewNode:
+  V.viewEl("button", [
+    V.attrId("update-log"),
+    V.attrType("button"),
+    V.attrOn("click", "OpenLog")
+  ], [V.viewText(updateLogLabel())])
+
 def applyUpdateButton() -> V.ViewNode:
   V.viewEl("button", [
     V.attrId("update-apply"),
     V.attrType("button"),
     V.attrClass("primary"),
     V.attrOn("click", "ApplyUpdate")
+  ], [V.viewText(updateApplyLabel())])
+
+# Enquanto aplica o clique fica desligado: a mesma árvore do botão pronto,
+# com `disabled` — dois pós-fechamentos simultâneos nunca saem daqui.
+def applyingUpdateButton() -> V.ViewNode:
+  V.viewEl("button", [
+    V.attrId("update-apply"),
+    V.attrType("button"),
+    V.attrClass("primary"),
+    V.attrOn("click", "ApplyUpdate"),
+    V.attr("disabled", "")
   ], [V.viewText(updateApplyLabel())])
 
 def checkUpdateButton() -> V.ViewNode:
@@ -564,14 +635,16 @@ def checkUpdateButton() -> V.ViewNode:
     V.attrOn("click", "CheckUpdate")
   ], [V.viewText(checkUpdateLabel())])
 
-# A linha pronta, literal: "vX disponível — o que mudou (Release notes) · Atualizar e reiniciar".
-def updateReadyLine(version: String, url: String) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("update-line")], [
-    V.viewText(updateReadyPrefix(version)),
-    releaseNotesButton(url),
-    V.viewText(updateReadyJoin()),
-    applyUpdateButton()
-  ])
+# A linha pronta, literal: "vX disponível — o que mudou (Notas da versão) ·
+# Atualizar e reiniciar". Sem URL o botão de notas não existe (clique morto não
+# entra na árvore) e a frase termina antes do parêntese.
+def updateReadyLine(version: String, +url: String) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("update-line")], V.viewJoin([
+    [V.viewText(updateReadyPrefix(version, url))],
+    V.viewWhen(Bool.not(String.is_empty(url)), releaseNotesButton(url)),
+    [V.viewText(updateReadyJoin(url))],
+    [applyUpdateButton()]
+  ]))
 
 # O corpo da Release (markdown cru; o host trunca e mostra como texto).
 def updateNotesNode(notes: String) -> V.ViewNode:
@@ -585,10 +658,29 @@ def aboutUpdateChildren(s: UpdateState) -> List<&2, V.ViewNode>:
       [updateLineNode(updateCheckingText())]
     case UpdateNone{current}:
       [updateLineNode(updateNoneText(current)), checkUpdateButton()]
-    case UpdateReady{version, notes, url}:
-      [updateReadyLine(version, url), updateNotesNode(notes)]
+    case UpdateReady{version, +notes, +url}:
+      V.viewConcat(
+        [updateReadyLine(version, url)],
+        V.viewWhen(Bool.not(String.is_empty(notes)), updateNotesNode(notes))
+      )
     case UpdateFailed{}:
       [updateLineNode(updateFailedText()), checkUpdateButton()]
+    case UpdateApplying{}:
+      [updateLineNode(updateApplyingText()), applyingUpdateButton()]
+    case UpdateDone{version}:
+      [updateLineNode(updateDoneText(version)), checkUpdateButton()]
+    case UpdateRecovered{version, reason}:
+      [
+        updateLineNode(updateRecoveredText(version, reason)),
+        updateLogButton(),
+        checkUpdateButton()
+      ]
+    case UpdateIncomplete{version, reason}:
+      [
+        updateLineNode(updateIncompleteText(version, reason)),
+        updateLogButton(),
+        checkUpdateButton()
+      ]
 
 # ---------- about: painel "Componentes" ----------
 
@@ -600,6 +692,9 @@ type ComponentState is Data:
   CompUnknown{}
   CompOutdated{latest: String}
   CompWarn{note: String}
+  # Painel aberto antes de a checagem responder: a linha nasce "Verificando…"
+  # (nunca vazia nem mentindo "desconhecido") e o estado chega em seguida.
+  CompChecking{}
 
 type ComponentRow is Data:
   ComponentRow{id: String, label: String, version: String, state: ComponentState, hint: String, link: String, linkLabel: String, canUpdate: Bool}
@@ -618,6 +713,8 @@ def componentStateText(s: ComponentState) -> String:
       "→ v" ++ latest ++ " disponível"
     case CompWarn{note}:
       note
+    case CompChecking{}:
+      "Verificando…"
 
 def componentVersionText(+version: String) -> String:
   textOr(version, "—")

@@ -51,12 +51,22 @@ test('piVersion: sem package.json por perto, cai no pi --version com timeout', a
   assert.equal(await components.piVersion({piPath: pi, run: async () => { throw Error('travou'); }}), '', 'timeout/falha = sem versão, sem erro');
 });
 
-test('piIsLocal: só desk/node_modules é atualizável pela Mesa', () => {
+test('piIsLocal: só o local da Mesa é atualizável pela Mesa (.pi-local e node_modules antigo)', () => {
   const deskDir = tmp();
   const pi = seedLocalPi(deskDir);
   assert.equal(components.piIsLocal(pi, deskDir), true);
+  assert.equal(components.piLocalRoot(pi, deskDir), 'node_modules');
   assert.equal(components.piIsLocal('/opt/homebrew/bin/pi', deskDir), false);
   assert.equal(components.piIsLocal('', deskDir), false);
+  /* Contrato novo: o Pi da Mesa mora em desk/.pi-local (fora da árvore npm). */
+  const local = path.join(deskDir, '.pi-local', 'node_modules', '.bin', 'pi');
+  fs.mkdirSync(path.dirname(local), {recursive: true});
+  fs.writeFileSync(local, '#!/usr/bin/env node\n');
+  fs.chmodSync(local, 0o755);
+  assert.equal(components.piIsLocal(local, deskDir), true);
+  assert.equal(components.piLocalRoot(local, deskDir), '.pi-local');
+  const real = fs.realpathSync.native ? fs.realpathSync(local) : fs.realpathSync(local);
+  assert.equal(components.piIsLocal(real, deskDir), true, 'caminho resolvido também vale');
 });
 
 test('collect: linhas na ordem do núcleo, Mesa pelo cache do updater', async () => {
@@ -86,10 +96,12 @@ test('collect: linhas na ordem do núcleo, Mesa pelo cache do updater', async ()
   assert.equal(pi.state, 'outdated');
   assert.equal(pi.latest, '0.90.0');
   assert.equal(pi.canUpdate, true, 'Pi local com versão nova = botão Atualizar Pi');
-  assert.match(pi.hint, /desk\/node_modules/);
+  assert.match(pi.hint, /node_modules|\.pi-local/);
 
   assert.equal(node.state, 'ok');
   assert.equal(node.version, '22.19.0');
+  assert.equal(node.label, 'Node (sistema)', 'o Node do painel é o do sistema (fato injetado aqui)');
+  assert.equal(node.hint, '');
 
   assert.equal(xournal.state, 'unknown', 'sem exec no fake, a versão do Xournal++ é desconhecida');
   assert.equal(xournal.link, updater.XOURNAL_SITE_URL);
@@ -132,6 +144,28 @@ test('collect: sem Pi e sem registry = desconhecido, sem erro', async () => {
   assert.match(rows[1].hint, /npm run setup/);
   assert.equal(rows[3].state, 'unknown');
   assert.match(rows[3].hint, /Configurações/);
+});
+
+test('collect: Node do SISTEMA é medido de verdade; sem node cai no embutido, rotulado', async () => {
+  const chamadas = [];
+  const medido = await components.systemNodeVersion({run: async (cmd, args, opts) => {
+    chamadas.push({cmd, args, timeout: opts?.timeout});
+    return {stdout: 'v24.4.1\n'};
+  }});
+  assert.deepEqual(medido, {version: '24.4.1', source: 'system'}, 'a versão vem do node --version do sistema');
+  assert.deepEqual(chamadas, [{cmd: 'node', args: ['--version'], timeout: 5000}]);
+
+  const embutido = await components.systemNodeVersion({run: async () => { throw Error('node não está no PATH'); }});
+  assert.equal(embutido.source, 'embedded', 'sem resposta do sistema = runtime embutido');
+  assert.equal(embutido.version, String(process.versions.node));
+
+  /* E o painel rotula os dois: */
+  const base = {deskDir: tmp(), config: {}, cacheFile: '', version: '0.4.0', testMode: true, run: async () => ({stdout: ''}), platform: 'linux', envPath: ''};
+  const comSistema = await components.collect({...base, nodeVersion: '24.4.0', nodeSource: 'system'});
+  assert.equal(comSistema.rows[2].label, 'Node (sistema)');
+  const semSistema = await components.collect({...base, nodeVersion: '22.19.0', nodeSource: 'embedded'});
+  assert.equal(semSistema.rows[2].label, 'Node (embutido)');
+  assert.match(semSistema.rows[2].hint, /node do sistema/);
 });
 
 test('collect: Node abaixo de 22.19 avisa (o corte é do núcleo)', async () => {

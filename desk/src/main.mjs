@@ -5,7 +5,7 @@ import {sendGgbRect,activateGeogebra,deactivateGeogebra} from './ggb.mjs';
 import {expandCalculator,initCalculator} from './calc.mjs';
 import tabsCore from './generated/tabsview.core.js';
 import {build,renderChildren} from './view-host.mjs';
-import {appendCourseRow,clearEndDay,renderAboutLead,renderAboutUpdate,renderComponentRows,renderCourseRows,renderEndDay,renderHelpVersion,renderSettingsHead,renderWelcome} from './dialogs.mjs';
+import {appendCourseRow,clearEndDay,renderAboutLead,renderAboutUpdate,renderComponentChecking,renderComponentRows,renderCourseRows,renderEndDay,renderHelpVersion,renderSettingsHead,renderWelcome} from './dialogs.mjs';
 import * as slash from './slash.mjs';
 function setMenuOpen(el,open,{animate=true,blur=false}={}){
  if(!el)return;
@@ -239,28 +239,57 @@ function updateStateOf(result){
  if(result?.status==='error')return {$:'UpdateFailed'};
  return {$:'UpdateIdle'};
 }
+/* C1: o resultado REAL da última atualização (gravado pelo worker no
+   update.json) vira estado do núcleo — é o que o Sobre mostra na reabertura. */
+function resultStateOf(result){
+ if(!result)return {$:'UpdateIdle'};
+ if(result.status==='applied')return {$:'UpdateDone',version:String(result.version||'')};
+ if(result.status==='recovered')return {$:'UpdateRecovered',version:String(result.version||''),reason:String(result.reason||'')};
+ if(result.status==='incomplete')return {$:'UpdateIncomplete',version:String(result.version||''),reason:String(result.reason||'')};
+ return {$:'UpdateIdle'};
+}
 const aboutHandlers={
  OpenLink:e=>{const url=e.currentTarget?.dataset?.url;if(url)window.desk.openExternal(url).catch(err=>toast(err.message));},
+ /* C1: abre o desk.log do runtime (o motivo de um rollback fica lá). */
+ OpenLog:async()=>{try{await window.desk.openLog();}catch(err){toast(err.message);}},
  CheckUpdate:async()=>{renderAboutUpdate({$:'UpdateChecking'},aboutHandlers);try{renderAboutUpdate(updateStateOf(await window.desk.updateCheck({manual:true})),aboutHandlers);}catch(e){renderAboutUpdate({$:'UpdateFailed'},aboutHandlers);toast(e.message);}},
  RefreshComponents:()=>refreshAbout(true),
- ApplyUpdate:async()=>{try{const r=await window.desk.updateApply();toast(`Atualizando para v${r?.version||''} — a Mesa reabre sozinha.`);}catch(e){toast(e.message);}},
+ /* C1: aplicar desliga a ação; na falha o Sobre volta ao resultado real. */
+ ApplyUpdate:async()=>{
+  renderAboutUpdate({$:'UpdateApplying'},aboutHandlers);
+  try{
+   const r=await window.desk.updateApply();
+   toast(`Atualizando para v${r?.version||''} — a Mesa reabre sozinha.`);
+  }catch(e){
+   toast(e.message);
+   try{renderAboutUpdate(resultStateOf(await window.desk.updateResult()),aboutHandlers);}
+   catch{renderAboutUpdate({$:'UpdateIdle'},aboutHandlers);}
+  }
+ },
  UpdatePi:async()=>{if(!confirm('Atualizar o Pi e reiniciar a Mesa? O app fecha e reabre sozinho.'))return;try{await window.desk.updatePi();toast('Atualizando o Pi — a Mesa reabre sozinha.');}catch(e){toast(e.message);}},
 };
+/* B4: os componentes não esperam a checagem da Mesa — versões/estados locais
+   primeiro (com a checagem de rede deles, que tem prazo), linha do update
+   depois. */
 async function refreshComponents(manual){
  try{renderComponentRows((await window.desk.components({manual:!!manual}))?.rows||[],aboutHandlers);}
- catch(e){toast(e.message);}
+ catch(e){if(manual)toast(e.message);}
 }
 async function refreshAbout(manual){
+ /* Não espera: o painel de componentes pinta por conta própria. */
+ refreshComponents(manual);
  try{renderAboutUpdate(updateStateOf(await window.desk.updateCheck({manual:!!manual})),aboutHandlers);}
  catch(e){if(manual)toast(e.message);}
- refreshComponents(manual);
 }
-function openAbout(){
+async function openAbout(){
  if($('#about-dialog').open)return;
  renderAboutLead(S.deskVersion);
- renderAboutUpdate({$:'UpdateIdle'},aboutHandlers);
- renderComponentRows([],aboutHandlers);
+ /* C3: as 4 linhas nascem já com "Verificando…" (Mesa com a versão local); a
+    checagem chega em seguida sem abrir vão. */
+ renderComponentChecking(S.deskVersion);
  $('#about-dialog').showModal();
+ try{renderAboutUpdate(resultStateOf(await window.desk.updateResult()),aboutHandlers);}
+ catch{renderAboutUpdate({$:'UpdateIdle'},aboutHandlers);}
  refreshAbout(false);
 }
 window.desk.onMenuHelp(openHelp);

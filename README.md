@@ -34,8 +34,8 @@ Instruções para um agente configurar o computador: [`desk/SETUP.md`](desk/SETU
 ## O que entra / o que não entra
 
 - **Entra:** PDFs, calculadora, conversa com o Pi, configurações de pastas e nomes.
-- **macOS:** botão Conferir Xournal++ (captura a janela visível e anexa à mensagem; você escreve e envia quando quiser).
-- **Windows:** PDFs, calculadora e Pi. Conferir Xournal++ não está disponível.
+- **macOS:** botão Conferir Xournal++ (captura a janela do Xournal++ e anexa à mensagem; você escreve e envia quando quiser).
+- **Windows:** PDFs, calculadora, Pi e Conferir Xournal++ (captura a janela do Xournal++ pelo PowerShell do sistema; Ctrl+V cola prints também).
 - **Não entra:** canvas de tinta, edição de PDF, telemetria, conta na nuvem.
 
 ## Configurações
@@ -43,6 +43,8 @@ Instruções para um agente configurar o computador: [`desk/SETUP.md`](desk/SETU
 **Mesa → Configurações** (⌘ ,): pasta de dados, nomes das matérias, pastas de PDF, caminho do `pi`.
 
 Um agente pode ir além (rótulos dos painéis, PDF inicial, um ou dois leitores) editando o bloco `desk` do `config.json`. Ver [`AGENTS.md`](AGENTS.md) e [`desk/config.example.json`](desk/config.example.json). O default do repositório permanece o da mesa do autor.
+
+O app irmão **Conversa** (`chat/`) substitui o ChatGPT web no dia a dia: só chat, busca e histórico, sem matéria nem pasta de trabalho. Ver [`chat/README.md`](chat/README.md).
 
 ## Desenvolvimento
 

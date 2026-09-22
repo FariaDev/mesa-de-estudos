@@ -22,6 +22,7 @@ mundo (DOM, arquivos, IPC) ficam nos apps.**
   clone com `git config core.hooksPath .githooks`; `git push --no-verify` é a
   saída de emergência. Sem CI, é o que impede `verify:bend` de ser só
   disciplina (custa ~10 s).
+- `playground/` fica fora daqui (é a vitrine da linguagem, em `../playground/bend`).
 
 ## Toolchain fixada
 
@@ -56,10 +57,11 @@ o rebuild tem de sair byte a byte.
 1. Edite o `.bend` do módulo e, se a regra mudou, a lei correspondente.
 2. `npm test` no app (ou `npm run build:bend` + `npm run test:proof`) —
    regenera os artefatos, roda `bend PROOF.bend` e os testes do app.
-3. O artefato (`desk/src/generated/*.core.js`) é importado pelo adaptador do
-   app (`desk/src/worklog.mjs`, `desk/courses.cjs`, `desk/src/pdf.mjs`,
-   `desk/rpc.cjs`, …). Sem bun/bend na máquina, o passo 2 avisa e segue usando
-   o artefato que já está no repositório.
+3. O artefato (`desk/src/generated/*.core.js`, `chat/src/generated/*.core.js`) é
+   importado pelo adaptador do app (`desk/src/worklog.mjs`, `chat/src/worklog.mjs`,
+   `desk/courses.cjs`, `desk/src/pdf.mjs`, `desk/rpc.cjs`, `chat/search-text.cjs`,
+   …). Sem bun/bend na máquina, o passo 2 avisa e segue usando o artefato que já
+   está no repositório.
 
 ## Escrever uma lei
 
@@ -82,21 +84,22 @@ A revisão humana leve olha os enunciados e as fronteiras, não o JS gerado.
 ## Módulos
 
 Hoje o portão importa 43 módulos (43 arquivos de leis, 1.585 declarações
-`law`) e o build gera 42 módulos distintos em 55 saídas.
+`law`) e o build gera 42 módulos distintos em 55 saídas (Mesa + Conversa).
 
 - **`wheel.bend`** — decisão da roda do trackpad (vira página ou acumula).
 - **`worklog.bend`** — máquina de estados do diário do turno: rajadas de
   pensamento, status dos passos, fechos. O adaptador `desk/src/worklog.mjs`
-  mantém a API mutável antiga.
+  (espelhado em `chat/src/worklog.mjs`) mantém a API mutável antiga.
 - **`library.bend`** — escolha dos PDFs de cada painel (preferido, sobra,
   nunca repetido). O adaptador `desk/config.cjs` calcula os fatos no JS e
   deixa a escolha para o núcleo.
 - **`find.bend`** — contador e ciclo da busca do PDF. O adaptador vive no
   renderer (`desk/src/pdf.mjs`): o host monta as páginas com ocorrências e o
   núcleo decide o alvo do ciclo e o que o contador mostra.
-- **`search.bend`** — busca no conteúdo das conversas: dobra
+- **`search.bend`** — busca no conteúdo das conversas (app Conversa): dobra
   Latin-1 sem marcas, casamento, trecho com `…`, limite, papel da linha,
-  decisão por arquivo (tetos/timeout) e agrupamento.
+  decisão por arquivo (tetos/timeout) e agrupamento. O adaptador
+  `chat/search-text.cjs` roda no main e usa `require` do artefato ESM.
 - **`courses.bend`** — matérias da Mesa: merge entre pastas descobertas e o
   config (rótulo/path do config vencem, ordem preservada) e biblioteca
   (dedupe por caminho canônico; a ordem final fica com o `localeCompare` do
@@ -104,12 +107,14 @@ Hoje o portão importa 43 módulos (43 arquivos de leis, 1.585 declarações
 - **`study.bend`** — restauração do rascunho `.xopp` (título aparado em 240,
   sufixo e existência). Adaptador `desk/study.cjs`.
 - **`framing.bend`** — framing das linhas JSON-RPC do stdout do Pi (split por
-  LF, resto no buffer, overflow descarta tudo). Adaptador `desk/rpc.cjs`.
+  LF, resto no buffer, overflow descarta tudo). Adaptadores `desk/rpc.cjs` e
+  `chat/rpc.cjs`.
 - **`fold.bend`** — dobra de acentos pt-BR + caixa, no espírito do
   `normalize("NFD").toLowerCase()` do host. **Ainda não é buildada** (o
   `nameMatches` do app continua em JS); fica pronta para quando o app quiser
   trocar o casamento de nomes. É grande quando compilada (~665 KB de tabela),
-  por isso vive fora do artefato de `library.bend`.
+  por isso vive fora do artefato de `library.bend`. A Conversa tem a dobra
+  dela em `search.bend` (Latin-1 + marcas combinantes).
 
 ## Por que "fatos como Bool"
 
@@ -121,8 +126,10 @@ o host faz as comparações. É onde os bugs moram e onde as leis pegam.
 Os **tetos** seguem o caminho inverso: o número mora no núcleo
 (`maxDraftChars()`), é pinado por lei e o host lê de lá — `MAX_DRAFT` em
 `state-adapter.cjs`, usado no corte/save do rascunho e no `pi-prompt` do main —
-em vez de repetir o literal. Os tetos de `attachments.bend` (4
-anexos, 120/80000/16 MiB) ainda estão em literais do host e do
+em vez de repetir o literal. Onde o host não alcança o artefato (o preload da
+Conversa roda com `sandbox: true`) o literal é inevitável, e aí ele é pinado
+por `chat/tests/limits-parity.test.mjs`. Os tetos de `attachments.bend` (4
+anexos, 120/80000/16 MiB) ainda estão em literais de `chat/main.cjs` e do
 preload.
 
 ## Pegadinhas do Bend (aprendidas aqui)

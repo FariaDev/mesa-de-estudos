@@ -221,9 +221,9 @@ export function fillSessions(data){
 export function applyStudy(study={}){$('#exercise-title').value=study.title||'';$('#pick-xopp').dataset.path=study.xopp||'';$('#pick-xopp').textContent=study.xopp?study.xopp.split(/[/\\]/).at(-1):'Rascunho .xopp';$('#pick-xopp').title=study.xopp||'Associar arquivo do Xournal++';updateContextSummary();}
 /* O requisito de visão saiu daqui: anexar a captura não exige modelo com
    imagem — o aviso fica no `addAttachments`/envio. disabled/title do #check são
-   só deste applier; o hidden é do `core/deskflags.bend` (flag conferir + win32). */
+   só deste applier; o hidden é do `core/deskflags.bend` (flag conferir). */
 function conferirEnabled(){return S.captureOk&&!S.busy;}
-function updateCheckButton(){const el=$('#check');if(!el)return;el.disabled=!conferirEnabled();el.title=S.captureOk?'Anexar a captura do Xournal++ à mensagem':'Conferir Xournal++ está disponível só no macOS';}
+function updateCheckButton(){const el=$('#check');if(!el)return;el.disabled=!conferirEnabled();el.title=S.captureOk?'Anexar a captura do Xournal++ à mensagem':'Conferir Xournal++ indisponível neste computador';}
 export function setBusy(value){S.busy=value;footValues({busy:value});if(value){if(!S.busySince)S.busySince=Date.now();}else{S.busySince=0;S.busyStall=0;}setTabsDisabled(value||!!S.connecting||S.switching);if($('#session-select'))$('#session-select').disabled=value||!!S.connecting||S.switching;$('#model-select').disabled=value||!S.connected;$('#thinking-select').disabled=value||!S.connected;$('#stop').hidden=!value;$('#attach').disabled=value;$('#send').disabled=value;updateCheckButton();if(value)activity('Pi está pensando…');else if(S.connected)activity('');}
 function setTabsDisabled(value){for(const tab of document.querySelectorAll('#course-tabs button'))tab.disabled=!!value;}
 function updateSettings(result){const current=result.state?.model;S.supportsImages=!!current?.input?.includes('image');updateMeter(result.contextUsage||result.state?.contextUsage);renderAutoCompact(result.state);updateCheckButton();$('#model-select').replaceChildren(...S.modelCatalog.map(m=>new Option(`${m.name||m.id} · ${m.provider}`,JSON.stringify([m.provider,m.id]))));if(current)$('#model-select').value=JSON.stringify([current.provider,current.id]);const labels={off:'Desligado',minimal:'Mínimo',low:'Baixo',medium:'Médio',high:'Alto',xhigh:'Muito alto',max:'Máximo'};$('#thinking-select').replaceChildren(...(result.levels||[]).map(l=>new Option(labels[l]||l,l)));$('#thinking-select').value=result.state?.thinkingLevel||'off';const level=result.state?.thinkingLevel||'off';const picked=current?S.modelCatalog.find(m=>m.provider===current.provider&&m.id===current.id):null;footValues({model:picked?`${picked.name||picked.id} · ${picked.provider}`:'',level:labels[level]||level});$('#model-select').disabled=S.busy;$('#thinking-select').disabled=S.busy;$('#pi-label').textContent=current?.name||current?.id||'Pi';}
@@ -292,14 +292,14 @@ function applyDesk(desk){
     pelo `core/tabsview.bend` e aplicados no `renderMenus` do `main.mjs` — o
     mesmo fato do `desk` normalizado. O `aria-pressed` do toggle continua no
     host: o clique o atualiza sem re-render. */
- const flags={refsToggle:desk?.refsToggle!==false,endDay:desk?.endDay!==false,studyContext:desk?.studyContext!==false,conferir:(desk?.conferir!==false)&&S.appConfig.platform!=='win32'};
+ const flags={refsToggle:desk?.refsToggle!==false,endDay:desk?.endDay!==false,studyContext:desk?.studyContext!==false,conferir:desk?.conferir!==false};
  if(!flags.refsToggle)S.includeRefs=true;
  /* Os controles vivos do composer/sidebar (botão de referências, Encerrar,
     contexto de estudo, Conferir e o divisor da calculadora) são view do
     `core/deskflags.bend`: a flag vira `hidden` e, sem o botão de referências,
     o `aria-pressed` fica forçado em true (as referências seguem ligadas). Só
     atributos entram — texto, ícone e handlers são do index.html. */
- const facts={$:'DeskFlags',refsToggle:flags.refsToggle,includeRefs:!!S.includeRefs,endDay:flags.endDay,studyContext:flags.studyContext,conferir:desk?.conferir!==false,calculator:desk?.calculator!==false,win32:S.appConfig.platform==='win32'};
+ const facts={$:'DeskFlags',refsToggle:flags.refsToggle,includeRefs:!!S.includeRefs,endDay:flags.endDay,studyContext:flags.studyContext,conferir:desk?.conferir!==false,calculator:desk?.calculator!==false};
  applyAttrsOn('#include-refs',deskFlagsCore.includeRefsButton(facts));
  applyAttrsOn('#end-day',deskFlagsCore.endDayButton(facts));
  applyAttrsOn('#study-context',deskFlagsCore.studyContextRow(facts));

@@ -8,10 +8,14 @@
      `resolvePi`) ou `pi --version` com timeout. Comparado SÓ com o registry
      `@earendil-works/pi-coding-agent/latest` (o `@mariozechner/...` está
      deprecado e parado em 0.73.1 — sem fallback: sem resposta = "desconhecido",
-     sem erro). Pi local (desk/node_modules) ganha o botão "Atualizar Pi"; Pi de
-     PATH/global/Homebrew mostra a versão e o comando, e o app não mexe.
-   - Node: `process.versions.node`; abaixo de 22.19 o painel avisa (o Pi exige
-     `engines >=22.19.0`). O corte é decisão do núcleo (`nodeState`).
+     sem erro). Pi local (`desk/.pi-local` — e o `desk/node_modules` antigo)
+     ganha o botão "Atualizar Pi"; Pi de PATH/global/Homebrew mostra a versão e
+     o comando, e o app não mexe.
+   - Node: o que o worker/setup usam é o node do SISTEMA — medido com
+     `node --version` (o `process.versions.node` do main do Electron é o
+     runtime EMBUTIDO e não serve); sem resposta cai no embutido, rotulado
+     como tal. Abaixo de 22.19 o painel avisa (o Pi exige `engines >=22.19.0`).
+     O corte é decisão do núcleo (`nodeState`).
    - Xournal++: macOS lê `CFBundleShortVersionString`, Windows roda o `.exe
      --version`; a comparação com `xournalpp/xournalpp/releases/latest` é só
      informativa (com link) — o app não atualiza o Xournal++.
@@ -40,13 +44,26 @@ function parseVersion(text){
  return m?m[1]:'';
 }
 
-/* Pi local = binário dentro de desk/node_modules (só ele é atualizável pela Mesa). */
-function piIsLocal(piPath,deskDir){
- if(!piPath||!deskDir)return false;
+/* Pi local = instalado pela própria Mesa: `desk/.pi-local` (o contrato novo)
+   ou `desk/node_modules` (instalações anteriores ao .pi-local). A comparação
+   resolve o realpath DOS DOIS lados: o caminho do binário e o do desk podem
+   atravessar links do sistema (ex.: /var/folders → /private/var/...). */
+function piLocalRoot(piPath,deskDir){
+ if(!piPath||!deskDir)return '';
  let real=piPath;
  try{real=fs.realpathSync(piPath);}catch{}
- const root=path.join(deskDir,'node_modules')+path.sep;
- return real.startsWith(root)||piPath.startsWith(root);
+ let base=deskDir;
+ try{base=fs.realpathSync(deskDir);}catch{}
+ for(const rel of ['.pi-local','node_modules']){
+  const root=path.join(base,rel)+path.sep;
+  if(real.startsWith(root))return rel;
+  if(piPath.startsWith(path.join(deskDir,rel)+path.sep))return rel;
+ }
+ return '';
+}
+
+function piIsLocal(piPath,deskDir){
+ return !!piLocalRoot(piPath,deskDir);
 }
 
 function piPackageVersion(piPath){
@@ -75,6 +92,18 @@ async function piVersion({piPath,run=defaultRun}){
   const r=await run(piPath,['--version'],{timeout:5000});
   return parseVersion(r.stdout);
  }catch{return '';}
+}
+
+/* B3: o Node que interessa é o do SISTEMA (o que o worker/setup e o npm usam).
+   `process.versions.node` no main do Electron é o runtime EMBUTIDO; medir de
+   verdade com `node --version`. Sem resposta = embutido, rotulado como tal. */
+async function systemNodeVersion({run=defaultRun,timeout=5000}={}){
+ try{
+  const r=await run('node',['--version'],{timeout});
+  const version=parseVersion(r.stdout);
+  if(version)return {version,source:'system'};
+ }catch{}
+ return {version:String(process.versions.node||''),source:'embedded'};
 }
 
 /* Xournal++: .app no macOS (plist), .exe no Windows (--version). */
@@ -111,7 +140,7 @@ async function collect(opts={}){
  const {
   deskDir='',config={},cacheFile='',version='',manual=false,testMode=false,
   fetchJson=updater.defaultFetchJson,run=defaultRun,now=Date.now(),
-  platform=process.platform,nodeVersion=process.versions.node,envPath=process.env.LEARNING_DESK_PI||'',
+  platform=process.platform,nodeVersion,nodeSource,envPath=process.env.LEARNING_DESK_PI||'',
   piPath:piPathOpt,
  }=opts;
  const fetchNet=testMode?async()=>{throw Error('modo de teste');}:fetchJson;
@@ -119,7 +148,8 @@ async function collect(opts={}){
  const byId={};
  /* `piPath` é injeção de teste: sem ele, o binário é o resolvido de verdade. */
  const piPath=piPathOpt!==undefined?piPathOpt:resolvePi({configPath:String(config.piPath||''),deskDir,envPath});
- const piLocal=piIsLocal(piPath,deskDir);
+ const localRoot=piLocalRoot(piPath,deskDir);
+ const piLocal=!!localRoot;
 
  /* Mesa: a checagem do updater (cache 24 h) é a única fonte da última release. */
  {
@@ -140,25 +170,31 @@ async function collect(opts={}){
   const latest=await updater.piLatest({cacheFile,fetchJson:fetchNet,now,manual});
   const state=!pi||!installed?{$:'CompUnknown'}
    :rowState({version:installed},{latest:latest.version});
+  const localHint=localRoot==='node_modules'
+   ?'Em desk/node_modules (atualizável pela Mesa; vai para desk/.pi-local na próxima).'
+   :'Em desk/.pi-local (atualizável pela Mesa).';
   byId.pi={
    id:'pi',label:'Pi',version:installed,
    state:state.$==='CompOutdated'?'outdated':state.$==='CompOk'?'ok':'unknown',
    latest:latest.version,note:'',
-   hint:!pi?'Não encontrado — rode npm run setup.':local?'Em desk/node_modules (atualizável pela Mesa).':'Fora de desk/node_modules — atualize no terminal: npm install -g @earendil-works/pi-coding-agent@latest',
+   hint:!pi?'Não encontrado — rode npm run setup.':local?localHint:'Fora da pasta da Mesa — atualize no terminal: npm install -g @earendil-works/pi-coding-agent@latest',
    link:'',linkLabel:'',
    canUpdate:local&&state.$==='CompOutdated',
   };
  }
 
- /* Node: o corte 22.19 é do núcleo (o Pi exige engines >=22.19.0). */
+ /* Node: B3 — mede o node do SISTEMA (o que o worker/setup usam); o corte
+    22.19 é do núcleo (o Pi exige engines >=22.19.0). */
  {
-  const [major,minor]=String(nodeVersion||'').split('.').map(n=>Number(n)||0);
-  const state=dialogsCore.nodeState(major,minor);
+  const info=nodeVersion===undefined?await systemNodeVersion({run}):{version:String(nodeVersion||''),source:nodeSource||'system'};
+  const [major,minor]=String(info.version||'').split('.').map(n=>Number(n)||0);
+  const state=!info.version?{$:'CompUnknown'}:dialogsCore.nodeState(major,minor);
   byId.node={
-   id:'node',label:'Node',version:String(nodeVersion||''),
-   state:state.$==='CompWarn'?'warn':'ok',
+   id:'node',label:info.source==='system'?'Node (sistema)':'Node (embutido)',version:String(info.version||''),
+   state:state.$==='CompWarn'?'warn':state.$==='CompOk'?'ok':'unknown',
    latest:'',note:state.$==='CompWarn'?String(state.note||''):'',
-   hint:'',link:'',linkLabel:'',canUpdate:false,
+   hint:info.source==='system'?'':'não achamos o node do sistema; este número é o runtime embutido do Electron',
+   link:'',linkLabel:'',canUpdate:false,
   };
  }
 
@@ -181,4 +217,4 @@ async function collect(opts={}){
  return {rows,piPath,piLocal};
 }
 
-module.exports={piIsLocal,piPackageVersion,piVersion,xournalVersion,collect};
+module.exports={piIsLocal,piLocalRoot,piPackageVersion,piVersion,systemNodeVersion,xournalVersion,collect};

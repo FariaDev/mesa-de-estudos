@@ -368,7 +368,7 @@ law dlg_welcome_nota_mac:
 
 law dlg_welcome_nota_win:
   {D.welcomeWorkflowNote(True{})
-    == "No Windows, o Conferir Xournal++ não existe: cole um print da resolução como anexo e envie com a mensagem."
+    == "No Windows, o Conferir Xournal++ captura a janela do Xournal++ (Ctrl+Shift+C) e você envia junto com a mensagem — prints colados com Ctrl+V também funcionam."
     : String}
 
 law dlg_welcome_bloco:
@@ -403,9 +403,11 @@ law dlg_welcome_acoes:
 
 law dlg_upd_textos:
   {D.checkUpdateLabel() ++ "|" ++ D.updateIdleText() ++ "|" ++ D.updateCheckingText() ++ "|"
-    ++ D.updateNoneText("0.4.0") ++ "|" ++ D.updateFailedText() ++ "|"
-    ++ D.updateReadyPrefix("0.4.1") ++ D.updateReadyJoin() ++ "|" ++ D.updateNotesLabel() ++ "|" ++ D.updateApplyLabel() ++ "|" ++ D.updatePiLabel()
-    == "Verificar atualizações|A Mesa verifica atualizações uma vez por dia, sem interromper. Você também pode verificar agora.|Verificando atualizações…|Você está na última versão (v0.4.0).|Não foi possível verificar agora. Tente de novo quando quiser.|v0.4.1 disponível — o que mudou () · |Release notes|Atualizar e reiniciar|Atualizar Pi"
+    ++ D.updateApplyingText() ++ "|" ++ D.updateNoneText("0.4.0") ++ "|" ++ D.updateFailedText() ++ "|"
+    ++ D.updateReadyPrefix("0.4.1", "https://github.com/x") ++ D.updateReadyJoin("https://github.com/x") ++ "|"
+    ++ D.updateReadyPrefix("0.4.1", "") ++ D.updateReadyJoin("") ++ "|"
+    ++ D.updateNotesLabel() ++ "|" ++ D.updateApplyLabel() ++ "|" ++ D.updatePiLabel()
+    == "Verificar atualizações|A Mesa verifica atualizações uma vez por dia, sem interromper. Você também pode verificar agora.|Verificando atualizações…|Aplicando a atualização — a Mesa fecha e reabre sozinha.|Você está na última versão (v0.4.0).|Não foi possível verificar agora. Tente de novo quando quiser.|v0.4.1 disponível — o que mudou () · |v0.4.1 disponível · |Notas da versão|Atualizar e reiniciar|Atualizar Pi"
     : String}
 
 law dlg_upd_repouso:
@@ -445,7 +447,14 @@ law dlg_upd_botao_notas:
     V.attrType("button"),
     V.ViewAttr{"on:click", "OpenLink"},
     V.ViewAttr{"data-url", "https://github.com/x"}
-  ], Con{V.viewText("Release notes"), Nil{}}) : V.ViewNode}
+  ], Con{V.viewText("Notas da versão"), Nil{}}) : V.ViewNode}
+
+law dlg_upd_botao_log:
+  {D.updateLogButton() == V.viewEl("button", [
+    V.attrId("update-log"),
+    V.attrType("button"),
+    V.ViewAttr{"on:click", "OpenLog"}
+  ], Con{V.viewText("Ver o log"), Nil{}}) : V.ViewNode}
 
 law dlg_upd_botao_aplicar:
   {D.applyUpdateButton() == V.viewEl("button", [
@@ -473,6 +482,66 @@ law dlg_upd_pronta:
     }
   } : List<&2, V.ViewNode>}
 
+# Fallback de tags: sem URL e sem corpo — sem botão de notas (clique morto não
+# entra na árvore) e sem parágrafo de notas vazio.
+law dlg_upd_pronta_sem_notas:
+  {D.aboutUpdateChildren(D.UpdateReady{"0.4.1", "", ""}) == Con{
+    V.viewEl("div", [V.attrClass("update-line")], Con{
+      V.viewText("v0.4.1 disponível"),
+      Con{V.viewText(" · "), Con{D.applyUpdateButton(), Nil{}}}
+    }),
+    Nil{}
+  } : List<&2, V.ViewNode>}
+
+# Aplicando: a linha avisa e o clique fica desligado.
+law dlg_upd_aplicando:
+  {D.aboutUpdateChildren(D.UpdateApplying{}) == Con{
+    D.updateLineNode("Aplicando a atualização — a Mesa fecha e reabre sozinha."),
+    Con{D.applyingUpdateButton(), Nil{}}
+  } : List<&2, V.ViewNode>}
+
+law dlg_upd_botao_aplicar_desligado:
+  {D.applyingUpdateButton() == V.viewEl("button", [
+    V.attrId("update-apply"),
+    V.attrType("button"),
+    V.attrClass("primary"),
+    V.ViewAttr{"on:click", "ApplyUpdate"},
+    V.ViewAttr{"disabled", ""}
+  ], Con{V.viewText("Atualizar e reiniciar"), Nil{}}) : V.ViewNode}
+
+# Resultado real na reabertura: atualizada, recuperada (rollback + motivo) e
+# recuperação incompleta — os dois últimos com "Ver o log".
+law dlg_upd_resultado_textos:
+  {D.updateDoneText("0.4.1") ++ "|" ++ D.updateRecoveredText("0.4.1", "npm ci morreu no meio") ++ "|"
+    ++ D.updateRecoveredText("0.4.1", "") ++ "|" ++ D.updateIncompleteText("0.4.1", "backup indisponível") ++ "|"
+    ++ D.updateIncompleteText("0.4.1", "")
+    == "Mesa atualizada para v0.4.1.|A atualização para v0.4.1 falhou — a versão anterior voltou (npm ci morreu no meio).|A atualização para v0.4.1 falhou — a versão anterior voltou.|A atualização para v0.4.1 falhou e a recuperação ficou incompleta (backup indisponível).|A atualização para v0.4.1 falhou e a recuperação ficou incompleta."
+    : String}
+
+law dlg_upd_resultado_atualizada:
+  {D.aboutUpdateChildren(D.UpdateDone{"0.4.1"}) == Con{
+    D.updateLineNode("Mesa atualizada para v0.4.1."),
+    Con{D.checkUpdateButton(), Nil{}}
+  } : List<&2, V.ViewNode>}
+
+law dlg_upd_resultado_recuperada:
+  {D.aboutUpdateChildren(D.UpdateRecovered{"0.4.1", "npm ci morreu no meio"}) == Con{
+    D.updateLineNode("A atualização para v0.4.1 falhou — a versão anterior voltou (npm ci morreu no meio)."),
+    Con{D.updateLogButton(), Con{D.checkUpdateButton(), Nil{}}}
+  } : List<&2, V.ViewNode>}
+
+law dlg_upd_resultado_recuperada_sem_motivo:
+  {D.aboutUpdateChildren(D.UpdateRecovered{"0.4.1", ""}) == Con{
+    D.updateLineNode("A atualização para v0.4.1 falhou — a versão anterior voltou."),
+    Con{D.updateLogButton(), Con{D.checkUpdateButton(), Nil{}}}
+  } : List<&2, V.ViewNode>}
+
+law dlg_upd_resultado_incompleta:
+  {D.aboutUpdateChildren(D.UpdateIncomplete{"0.4.1", "backup indisponível"}) == Con{
+    D.updateLineNode("A atualização para v0.4.1 falhou e a recuperação ficou incompleta (backup indisponível)."),
+    Con{D.updateLogButton(), Con{D.checkUpdateButton(), Nil{}}}
+  } : List<&2, V.ViewNode>}
+
 # ---------- about: painel "Componentes" ----------
 
 law dlg_comp_ids:
@@ -483,6 +552,10 @@ law dlg_comp_estados:
     ++ D.componentStateText(D.CompOutdated{"0.90.0"}) ++ "|" ++ D.componentStateText(D.CompWarn{"abaixo de 22.19"})
     == "✓|desconhecido|→ v0.90.0 disponível|abaixo de 22.19"
     : String}
+
+# Painel aberto antes de a checagem responder: a linha nasce verificando.
+law dlg_comp_verificando:
+  {D.componentStateText(D.CompChecking{}) == "Verificando…" : String}
 
 law dlg_comp_versao_texto:
   {D.componentVersionText("") ++ "|" ++ D.componentVersionText("0.4.0") ++ "|" ++ D.componentLinkLabel("") ++ "|" ++ D.componentLinkLabel("Baixar")

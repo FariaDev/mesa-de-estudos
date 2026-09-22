@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {spawnSync} from 'node:child_process';
 
 const require=createRequire(import.meta.url);
-const {resolvePi}=require('../pi.cjs');
+const {resolvePi,ensurePiLocalHome}=require('../pi.cjs');
 
 const desk=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const templates=path.join(desk,'templates');
@@ -38,11 +38,14 @@ if(process.platform==='darwin'){
 
 let pi=resolvePi({deskDir:desk,envPath:process.env.LEARNING_DESK_PI||''});
 if(!pi){
- log('Pi não encontrado. Instalando @earendil-works/pi-coding-agent localmente…');
- let r=spawnSync('npm',['install','@earendil-works/pi-coding-agent'],{cwd:desk,stdio:'inherit',shell:process.platform==='win32'});
+ /* A2: o Pi local mora em `desk/.pi-local` (package.json próprio, fora da
+    árvore npm da Mesa) — contrato em pi.cjs. */
+ const piHome=ensurePiLocalHome(desk);
+ log('Pi não encontrado. Instalando @earendil-works/pi-coding-agent em desk/.pi-local…');
+ let r=spawnSync('npm',['install','@earendil-works/pi-coding-agent'],{cwd:piHome,stdio:'inherit',shell:process.platform==='win32'});
  if(r.status){
   log('Pacote @earendil-works/pi-coding-agent indisponível. Tentando @mariozechner/pi-coding-agent…');
-  r=spawnSync('npm',['install','@mariozechner/pi-coding-agent'],{cwd:desk,stdio:'inherit',shell:process.platform==='win32'});
+  r=spawnSync('npm',['install','@mariozechner/pi-coding-agent'],{cwd:piHome,stdio:'inherit',shell:process.platform==='win32'});
  }
  if(r.status)fail('Não foi possível instalar o Pi. Instale-o depois ou indique o caminho em Configurações.');
  pi=resolvePi({deskDir:desk});

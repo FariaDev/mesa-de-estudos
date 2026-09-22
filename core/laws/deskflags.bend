@@ -6,36 +6,35 @@ import ../view.bend as V
 # Contrato das flags do `desk` nos controles vivos do index.html: `hidden` por
 # flag e o `aria-pressed` do botão de referências. Cenários concretos, como as
 # leis do status — o host entrega os fatos já normalizados (`Bool`).
+#
+# Sem fato de plataforma: o Conferir Xournal++ é de todas as suportadas (macOS
+# e Windows capturam a janela do Xournal++) e só a flag `conferir` o desliga.
 # ---------------------------------------------------------------------------
 
-# Tudo ligado no macOS (o cenário padrão do app).
+# Tudo ligado (o cenário padrão do app, em qualquer plataforma).
 def ligado() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, True{}, False{}}
+  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, True{}}
 
 # Só o botão de referências em jogo: `includeRefs` corrente, resto ligado.
 def soRefs(includeRefs: Bool) -> D.DeskFlags:
-  D.DeskFlags{True{}, includeRefs, True{}, True{}, True{}, True{}, False{}}
+  D.DeskFlags{True{}, includeRefs, True{}, True{}, True{}, True{}}
 
 # refsToggle desligado: o botão some e as referências ficam ligadas na view.
 def semBotaoRefs(includeRefs: Bool) -> D.DeskFlags:
-  D.DeskFlags{False{}, includeRefs, True{}, True{}, True{}, True{}, False{}}
+  D.DeskFlags{False{}, includeRefs, True{}, True{}, True{}, True{}}
 
 # Uma flag desligada por vez (para os `hidden`).
 def semEndDay() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, False{}, True{}, True{}, True{}, False{}}
+  D.DeskFlags{True{}, True{}, False{}, True{}, True{}, True{}}
 
 def semEstudo() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, False{}, True{}, True{}, False{}}
+  D.DeskFlags{True{}, True{}, True{}, False{}, True{}, True{}}
 
 def semConferir() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, True{}, False{}, True{}, False{}}
+  D.DeskFlags{True{}, True{}, True{}, True{}, False{}, True{}}
 
 def semCalculadora() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, False{}, False{}}
-
-# No Windows: tudo ligado, mas o Conferir Xournal++ some (a captura é só macOS).
-def noWindows() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, True{}, True{}}
+  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, False{}}
 
 # ---------- referências do composer ----------
 
@@ -97,15 +96,12 @@ law deskflags_conferir_tag:
 law deskflags_conferir_id:
   {V.attrGet(V.attrsOf(D.conferirButton(ligado())), "id") == Some{"check"} : Maybe<&2, String>}
 
+# A flag sozinha decide: ligada, o botão existe em qualquer plataforma.
 law deskflags_conferir_visivel:
   {V.attrGet(V.attrsOf(D.conferirButton(ligado())), "hidden") == None{} : Maybe<&2, String>}
 
 law deskflags_conferir_oculto:
   {V.attrGet(V.attrsOf(D.conferirButton(semConferir())), "hidden") == Some{""} : Maybe<&2, String>}
-
-# A flag ligada não basta: no win32 o botão também some.
-law deskflags_conferir_oculto_win:
-  {V.attrGet(V.attrsOf(D.conferirButton(noWindows())), "hidden") == Some{""} : Maybe<&2, String>}
 
 # ---------- divisor da calculadora ----------
 

@@ -1,8 +1,8 @@
 # Mesa de Estudos
 
-Aplicativo local de apoio ao Xournal++: dois PDFs independentes, calculadora e Pi na mesma janela. O Xournal++ continua separado, como editor de escrita. No Windows os PDFs, a calculadora e o Pi funcionam; Conferir Xournal++ é só macOS.
+Aplicativo local de apoio ao Xournal++: dois PDFs independentes, calculadora e Pi na mesma janela. O Xournal++ continua separado, como editor de escrita. No Windows os PDFs, a calculadora, o Pi e o Conferir Xournal++ funcionam (a captura usa o PowerShell do sistema).
 
-Definição fechada em 2026-09-06: mesa de referências + Xournal++, não um canvas de tinta dentro do app.
+Definição fechada em 2026-09-06: mesa de referências + Xournal++, não um canvas de tinta dentro do app. Ver [`../docs/START-HERE.md`](../docs/START-HERE.md) e [`../docs/DECISIONS.md`](../docs/DECISIONS.md).
 
 ## Uso
 
@@ -47,7 +47,7 @@ Para preservar os registros existentes, a mesa cria um contexto de curso em `.ru
 
 O aplicativo usa Pi em RPC. Preferências de modelo e credenciais permanecem no Pi. Diálogos de extensões (seleção, confirmação, entrada e editor) são apresentados na mesa. Customizações exclusivas do terminal, como cabeçalhos TUI, não são renderizadas pelo RPC.
 
-A imagem capturada é enviada ao provedor configurado no Pi e pode persistir no JSONL. A captura inclui apenas a área visível da janela do Xournal++, sem páginas fora de vista. O macOS pode pedir permissão de Gravação de Tela para o processo que hospeda o aplicativo; a permissão do terminal/Codex não é automaticamente compartilhada. O macOS associa essa permissão à assinatura do app: assine o `.app` com um certificado do Keychain (o `install-app` usa um quando existe) para não reconceder a cada atualização — detalhes em [`SETUP.md`](SETUP.md). Imagens anexadas ao prompt seguem o mesmo caminho: vão ao provedor e ficam na sessão. A Mesa reduz cada anexo a no máximo 1568 px por lado já no anexo (PNG mantém transparência, JPEG mantém o tipo) e depois aplica os limites de envio (8 MB por anexo, 28 MB somando os anexos; GIF não é re-codificado para não perder animação).
+A imagem capturada é enviada ao provedor configurado no Pi e pode persistir no JSONL. A captura inclui apenas a área visível da janela do Xournal++, sem páginas fora de vista. O macOS pode pedir permissão de Gravação de Tela para o processo que hospeda o aplicativo; a permissão do terminal/Codex não é automaticamente compartilhada. O macOS associa essa permissão à assinatura do app: assine o `.app` com um certificado do Keychain (o `install-app` usa um quando existe) para não reconceder a cada atualização — detalhes em [`SETUP.md`](SETUP.md). No Windows não há permissão a conceder: a captura sai do retângulo da janela pelo PowerShell do próprio sistema. Imagens anexadas ao prompt seguem o mesmo caminho: vão ao provedor e ficam na sessão. A Mesa reduz cada anexo a no máximo 1568 px por lado já no anexo (PNG mantém transparência, JPEG mantém o tipo) e depois aplica os limites de envio (8 MB por anexo, 28 MB somando os anexos; GIF não é re-codificado para não perder animação).
 
 Erros e diagnósticos ficam em `.runtime/desk.log` (JSON por linha, com rotação para `desk.log.1` acima de 256 KB): exceções do processo principal, `stderr` do Pi, encerramentos de processos e erros do renderer chegam lá. Se a interface ficar presa em "Pi está pensando…" sem stream ativo por mais de um minuto, o ping de saúde destrava sozinho e avisa com um toast.
 

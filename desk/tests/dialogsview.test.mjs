@@ -140,7 +140,7 @@ globalThis.document = {
 globalThis.window = {desk: {pickFolder: async () => '/tmp/escolhida'}};
 
 const dialogsCore = (await import('../src/generated/dialogsview.core.js')).default;
-const {dialogsHandlers, renderEndDay, clearEndDay, renderWelcome, renderSettingsHead, renderCourseRows, appendCourseRow, renderHelpVersion, applyHelpFlags, renderAboutLead, renderAboutUpdate, renderComponentRows, renderPiDialog, renderImageChrome} = await import('../src/dialogs.mjs');
+const {dialogsHandlers, renderEndDay, clearEndDay, renderWelcome, renderSettingsHead, renderCourseRows, appendCourseRow, renderHelpVersion, applyHelpFlags, renderAboutLead, renderAboutUpdate, renderComponentRows, renderComponentChecking, renderPiDialog, renderImageChrome} = await import('../src/dialogs.mjs');
 
 const list = (...xs) => xs.reduceRight((tail, head) => ({$: 'Con', head, tail}), {$: 'Nil'});
 const kids = (node) => {
@@ -321,6 +321,7 @@ test('about: a linha de atualização vem do núcleo e liga os handlers', () => 
     CheckUpdate: () => cliques.push('check'),
     /* O DOM falso não tem `dataset`; o attr cru é o mesmo que o navegador lê. */
     OpenLink: (e) => cliques.push('link:' + e.currentTarget.attrs.get('data-url')),
+    OpenLog: () => cliques.push('log'),
     ApplyUpdate: () => cliques.push('apply'),
   };
   renderAboutUpdate({$: 'UpdateIdle'}, handlers);
@@ -350,6 +351,7 @@ test('about: a linha de atualização vem do núcleo e liga os handlers', () => 
   const notas = line.children[1], aplicar = line.children[3];
   assert.equal(notas.attrs.get('id'), 'update-notes');
   assert.equal(notas.attrs.get('data-url'), 'https://github.com/x');
+  assert.equal(notas.textContent, 'Notas da versão', 'o rótulo é em PT-BR');
   assert.equal(aplicar.attrs.get('id'), 'update-apply');
   assert.equal(aplicar.attrs.get('class'), 'primary');
   notas.listeners.get('click')({currentTarget: notas});
@@ -358,9 +360,49 @@ test('about: a linha de atualização vem do núcleo e liga os handlers', () => 
   assert.equal(box.children[1].attrs.get('class'), 'update-notes');
   assert.equal(box.children[1].textContent, 'Corpo da Release', 'o que mudou é o corpo da Release');
 
+  /* Fallback de tags: sem URL não há botão de notas (clique morto não existe). */
+  renderAboutUpdate({$: 'UpdateReady', version: '0.4.2', notes: '', url: ''}, handlers);
+  const linhaSemNotas = box.children[0];
+  assert.equal(line2class(linhaSemNotas), 'update-line');
+  assert.match(linhaSemNotas.textContent, /^v0\.4\.2 disponível · Atualizar e reiniciar$/, 'a frase termina antes do parêntese');
+  assert.equal(box.children.length, 1, 'sem corpo de Release não há parágrafo');
+  assert.equal(linhaSemNotas.children.length, 3, 'prefixo + separador + aplicar (sem botão de notas)');
+
   renderAboutUpdate({$: 'UpdateFailed'}, handlers);
   assert.match(box.children[0].textContent, /Não foi possível verificar/);
   assert.equal(box.children[1].attrs.get('id'), 'update-check', 'falha de rede só oferece tentar de novo');
+});
+
+const line2class = (el) => el.attrs.get('class');
+
+test('about: aplicando desliga a ação; na reabertura o resultado real aparece', () => {
+  let cliques = [];
+  const handlers = {CheckUpdate: () => cliques.push('check'), OpenLog: () => cliques.push('log'), ApplyUpdate: () => cliques.push('apply')};
+
+  renderAboutUpdate({$: 'UpdateApplying'}, handlers);
+  const box = aboutUpdate;
+  assert.match(box.children[0].textContent, /Aplicando a atualização/);
+  const aplicar = box.children[1];
+  assert.equal(aplicar.attrs.get('id'), 'update-apply');
+  assert.equal(aplicar.attrs.get('disabled'), '', 'o clique fica desligado enquanto aplica');
+
+  /* Resultado real (o que o worker gravou): */
+  renderAboutUpdate({$: 'UpdateDone', version: '0.4.1'}, handlers);
+  assert.match(box.children[0].textContent, /Mesa atualizada para v0\.4\.1/);
+  assert.equal(box.children[1].attrs.get('id'), 'update-check');
+
+  renderAboutUpdate({$: 'UpdateRecovered', version: '0.4.1', reason: 'npm ci morreu no meio'}, handlers);
+  assert.match(box.children[0].textContent, /falhou — a versão anterior voltou \(npm ci morreu no meio\)/);
+  assert.equal(box.children[1].attrs.get('id'), 'update-log');
+  assert.equal(box.children[1].textContent, 'Ver o log');
+  assert.equal(box.children[2].attrs.get('id'), 'update-check');
+  box.children[1].listeners.get('click')({});
+  assert.deepEqual(cliques, ['log'], 'o "Ver o log" cai no OpenLog do host');
+
+  renderAboutUpdate({$: 'UpdateIncomplete', version: '0.4.1', reason: ''}, handlers);
+  assert.match(box.children[0].textContent, /a recuperação ficou incompleta\./);
+  assert.equal(box.children[1].attrs.get('id'), 'update-log');
+  assert.equal(box.children[2].attrs.get('id'), 'update-check');
 });
 
 test('about: painel de Componentes — ordem do núcleo, estados e Atualizar Pi', () => {
@@ -398,7 +440,7 @@ test('about: painel de Componentes — ordem do núcleo, estados e Atualizar Pi'
 });
 
 test('about: linha mínima de componente e lista vazia', () => {
-  renderComponentRows([{id: 'node', label: 'Node', version: '22.19.0', state: 'ok'}]);
+  renderComponentRows([{id: 'node', label: 'Node (sistema)', version: '22.19.0', state: 'ok'}]);
   const row = componentRows.children[0];
   assert.deepEqual(row.children.map((c) => c.tag), ['span', 'span', 'span']);
   assert.equal(row.children[2].textContent, '✓');
@@ -406,6 +448,23 @@ test('about: linha mínima de componente e lista vazia', () => {
   assert.equal(componentRows.children.length, 0);
   renderComponentRows(undefined);
   assert.equal(componentRows.children.length, 0);
+});
+
+/* C3: painel aberto nasce com as 4 linhas "Verificando…" (nada de vão vazio). */
+test('about: abertura do painel já pinta as 4 linhas em Verificando…', () => {
+  renderComponentChecking('0.4.0');
+  const rows = componentRows.children;
+  assert.deepEqual(rows.map((r) => r.attrs.get('data-id')), ['mesa', 'pi', 'node', 'xournal'], 'as 4 linhas nascem logo');
+  assert.equal(rows[0].children[1].textContent, '0.4.0', 'a versão local da Mesa já fica à mostra');
+  for (const row of rows) assert.equal(row.children[2].textContent, 'Verificando…', `${row.attrs.get('data-id')} começa verificando`);
+  /* E a checagem real substitui no mesmo lugar: */
+  renderComponentRows([
+    {id: 'mesa', label: 'Mesa', version: '0.4.0', state: 'outdated', latest: '0.4.1'},
+    {id: 'pi', label: 'Pi', version: '0.86.1', state: 'ok', canUpdate: false},
+    {id: 'node', label: 'Node (sistema)', version: '22.19.0', state: 'ok'},
+    {id: 'xournal', label: 'Xournal++', version: '1.2.5', state: 'unknown'},
+  ]);
+  assert.equal(componentRows.children[0].children[2].textContent, '→ v0.4.1 disponível');
 });
 
 test('pi-dialog: título/mensagem passam pelo host e os campos vão para #dialog-fields', () => {

@@ -111,7 +111,7 @@ export function applyHelpFlags(flags = {}) {
   hide('#help-endday-li', chrome.endDayHidden);
   hide('#help-refs-li', chrome.refsHidden);
   /* Conferir Xournal++: some a linha de atalho e as duas menções quando o
-     win32 (ou a flag `conferir`) desliga o recurso. */
+     a flag `conferir` desliga o recurso em qualquer plataforma. */
   hide('#help-check-row', chrome.conferirHidden);
   hide('#help-conferir-step', chrome.conferirHidden);
   hide('#help-conferir-li', chrome.conferirHidden);
@@ -153,7 +153,20 @@ function componentStateFacts(row = {}) {
   if (row.state === 'outdated') return {$: 'CompOutdated', latest: String(row.latest ?? '')};
   if (row.state === 'warn') return {$: 'CompWarn', note: String(row.note ?? '')};
   if (row.state === 'ok') return {$: 'CompOk'};
+  if (row.state === 'checking') return {$: 'CompChecking'};
   return {$: 'CompUnknown'};
+}
+
+/* C3: painel aberto ≠ carregando vazio — as 4 linhas nascem imediatamente com
+   "Verificando…" (a versão local da Mesa já fica à mostra) e a checagem real
+   substitui no mesmo lugar. */
+export function renderComponentChecking(version = '') {
+  renderComponentRows([
+    {id: 'mesa', label: 'Mesa', version: String(version ?? ''), state: 'checking'},
+    {id: 'pi', label: 'Pi', version: '', state: 'checking'},
+    {id: 'node', label: 'Node (sistema)', version: '', state: 'checking'},
+    {id: 'xournal', label: 'Xournal++', version: '', state: 'checking'},
+  ]);
 }
 
 /* Painel "Componentes": Mesa, Pi, Node e Xournal++ (a ordem é do núcleo). */

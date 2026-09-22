@@ -25,7 +25,6 @@ function flags(over = {}) {
     studyContext: true,
     conferir: true,
     calculator: true,
-    win32: false,
     ...over,
   };
 }
@@ -52,11 +51,10 @@ test('Encerrar por hoje e contexto de estudo: hidden pela flag', () => {
   assert.equal(attrsOf(df.studyContextRow(flags({studyContext: false}))).has('hidden'), true);
 });
 
-test('Conferir e divisor da calculadora: hidden pela flag', () => {
+test('Conferir e divisor da calculadora: hidden SÓ pela flag (sem fato de plataforma)', () => {
   assert.equal(attrsOf(df.conferirButton(flags())).get('id'), 'check');
-  assert.equal(attrsOf(df.conferirButton(flags())).has('hidden'), false);
+  assert.equal(attrsOf(df.conferirButton(flags())).has('hidden'), false, 'flag ligada: o botão existe em qualquer plataforma');
   assert.equal(attrsOf(df.conferirButton(flags({conferir: false}))).has('hidden'), true);
-  assert.equal(attrsOf(df.conferirButton(flags({win32: true}))).has('hidden'), true, 'no win32 o botão some mesmo com a flag ligada');
   assert.equal(attrsOf(df.calcDivider(flags())).get('id'), 'calc-divider');
   assert.equal(attrsOf(df.calcDivider(flags())).has('hidden'), false);
   assert.equal(attrsOf(df.calcDivider(flags({calculator: false}))).has('hidden'), true);

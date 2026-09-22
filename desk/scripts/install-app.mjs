@@ -72,11 +72,34 @@ fs.copyFileSync(path.join(desk,'scripts','install-app.mjs'),path.join(dest,'scri
 const nm=path.join(dest,'node_modules');
 fs.rmSync(nm,{recursive:true,force:true});
 fs.mkdirSync(nm,{recursive:true});
+const managed=[];
+const addManaged=(rel)=>{if(rel&&!managed.includes(rel))managed.push(rel);};
+for(const file of files)addManaged(file);
+for(const dir of dirs)addManaged(dir);
+addManaged('scripts/install-app.mjs');
+
 for(const dep of runtimeDeps){
  const from=path.join(desk,'node_modules',dep);
  if(!fs.existsSync(from))throw new Error('Dependência ausente: '+dep+' — rode npm ci antes.');
  fs.cpSync(from,path.join(nm,dep),{recursive:true});
+ addManaged(path.join('node_modules',dep));
 }
+
+/* Manifesto da instalação (A1/B1, no espírito do modo zip): o que ESTE payload
+   considera gerenciado, gravado no disco. Órfão = estava gerenciado e a
+   versão nova não tem — sai do bundle; arquivo local (nunca no manifesto)
+   fica. Sem isto, código removido ficava para trás e o app morria. */
+let previous=[];
+try{previous=JSON.parse(fs.readFileSync(path.join(dest,'.update-manifest.json'),'utf8')).files||[];}catch{}
+for(const rel of previous){
+ if(managed.includes(rel))continue;
+ /* Manifesto é dado do disco: recusa caminho que saia do payload (absoluto,
+    `..`) — delete arbitrário por manifesto adulterado não passa. */
+ const partes=String(rel).split(/[\\/]/);
+ if(typeof rel!=='string'||!rel||partes.some(p=>p===''||p==='..')||path.isAbsolute(String(rel))||/^[a-zA-Z]:/.test(String(rel)))continue;
+ fs.rmSync(path.join(dest,...partes),{recursive:true,force:true});
+}
+fs.writeFileSync(path.join(dest,'.update-manifest.json'),JSON.stringify({version:pkg.version||'',at:new Date().toISOString(),files:managed},null,2)+'\n');
 
 /* 3. Auxiliares fora do payload. */
 const helper=path.join(root,'visual-check','windows');

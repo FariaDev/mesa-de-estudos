@@ -22,7 +22,7 @@ npm run doctor
 npm start
 ```
 
-`npm run setup` instala as dependências se faltarem, tenta colocar o Pi localmente (`@earendil-works/pi-coding-agent`, com fallback para `@mariozechner/pi-coding-agent`), compila a integração visual no macOS e copia um `TUTOR.md` / `LEARNER.md` mínimos para `desk/.runtime/starter`.
+`npm run setup` instala as dependências se faltarem, tenta colocar o Pi localmente em `desk/.pi-local/` (`@earendil-works/pi-coding-agent`, com fallback para `@mariozechner/pi-coding-agent` — a pasta do Pi tem `package.json` próprio, FORA da árvore npm da Mesa: o `package.json`/`package-lock.json` versionados do `desk/` continuam limpos e o update por git nunca encontra "trabalho local" inventado), compila a integração visual no macOS e copia um `TUTOR.md` / `LEARNER.md` mínimos para `desk/.runtime/starter`.
 
 `npm run doctor` fornece uma verificação reproduzível do executável do Pi, políticas `TUTOR.md`/`LEARNER.md`, fontes das matérias, extensão visual e escrita do runtime. Corrija qualquer linha marcada com `✗` antes de estudar.
 
@@ -39,7 +39,7 @@ Para personalizar rótulos dos PDFs, PDF que abre primeiro, um só leitor, escon
 
 ## Windows
 
-PDFs, calculadora e o chat com o Pi funcionam. **Conferir Xournal++** não está disponível (a captura da janela é só macOS): o botão, o atalho e o item de menu somem. Cole um print da resolução (Ctrl+V) como anexo.
+PDFs, calculadora e o chat com o Pi funcionam. **Conferir Xournal++** captura a janela do Xournal++ (botão, Ctrl+Shift+C ou menu Estudar) com o PowerShell do próprio sistema — nada instalado. Prints colados com Ctrl+V também viram anexo. Precisa do Xournal++ aberto e com a janela restaurada.
 
 ### Passos
 
@@ -58,7 +58,8 @@ PDFs, calculadora e o chat com o Pi funcionam. **Conferir Xournal++** não está
 - [ ] GeoGebra: aba e "Print no chat".
 - [ ] Atalhos Ctrl (Ctrl+Enter envia, Ctrl+F busca, Ctrl+, Configurações) e ajuda com Ctrl em vez de ⌘.
 - [ ] Tema auto/claro/escuro; **Encerrar por hoje**; exportar conversa.
-- [ ] Conferir Xournal++ invisível em todo lugar (botão, atalho, menu Estudar e ajuda).
+- [ ] Conferir Xournal++: botão, Ctrl+Shift+C, menu Estudar e ajuda presentes; com o Xournal++ aberto, a captura anexa a janela dele (minimizada pede para restaurar; fechada pede para abrir).
+- [ ] **Atualizar e rollback**: com rede, `npm run update` aplica a versão nova e reabre a Mesa; simule falha (corte a rede no meio do `npm ci`) e confira o rollback no `desk.log` — a versão anterior sobe de novo; sem rede, nada pendura (checagens têm prazo).
 
 ## macOS (opcional)
 
@@ -89,3 +90,8 @@ Sem certificado a Mesa funciona igual — basta reconceder a permissão em Ajust
 - Rode `npm run setup` de novo.
 - Confira o caminho em Configurações.
 - A primeira conexão pede login/API key do provedor configurado no Pi.
+
+## Atualizar a Mesa (por clique ou terminal)
+
+- **Pelo app:** Mesa → Sobre → **Verificar atualizações** / **Atualizar e reiniciar** (o app fecha, aplica e reabre sozinho; se algo falhar, a versão anterior volta e o motivo fica em `.runtime/desk.log` — acesse pelo "Ver o log" no Sobre).
+- **Pelo terminal:** `npm run update` (mesma transação). `npm run update -- --versao X.Y.Z` só vale em instalação por **zip** (sem clone git); em clone, o update segue a branch de desenvolvimento. `npm run update -- --pi` atualiza só o Pi local (`desk/.pi-local`).

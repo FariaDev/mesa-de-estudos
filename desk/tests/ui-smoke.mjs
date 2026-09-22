@@ -1020,11 +1020,13 @@ await withArtifacts('atualizacao',async ctx=>{
  const linha=await page.locator('#about-update .update-line').textContent();
  assert.match(linha,/^v9\.9\.9 disponível — o que mudou \(/,'a linha do update é a literal do plano');
  assert.match(linha,/\) · Atualizar e reiniciar$/);
- assert.equal(await page.locator('#update-notes').textContent(),'Release notes');
- assert.equal(await page.locator('#update-notes').getAttribute('data-url'),'https://example.com/release-notes','Release notes abre pelo handler OpenLink');
+ assert.equal(await page.locator('#update-notes').textContent(),'Notas da versão');
+ assert.equal(await page.locator('#update-notes').getAttribute('data-url'),'https://example.com/release-notes','Notas da versão abre pelo handler OpenLink');
  assert.equal(await page.locator('#update-apply').textContent(),'Atualizar e reiniciar');
  assert.equal(await page.locator('#about-update .update-notes').textContent(),'Corpo da Release de teste','o que mudou é o corpo da Release');
  assert.deepEqual(await page.locator('#component-rows .component-row').evaluateAll(es=>es.map(e=>e.dataset.id)),['mesa','pi','node','xournal'],'ordem: Mesa, Pi, Node, Xournal++');
+ // o painel nasce "Verificando…" e a checagem (falsa) chega no mesmo lugar (C3)
+ await page.waitForFunction(()=>![...document.querySelectorAll('#component-rows .component-state')].some(e=>e.textContent==='Verificando…'),undefined,{timeout:8000});
  assert.equal(await page.locator('#component-rows .component-row').first().locator('.component-state').textContent(),'→ v9.9.9 disponível');
  assert.equal(await page.locator('#component-rows [data-id="node"] .component-state').textContent(),'abaixo de 22.19 — o Pi exige Node 22.19+','aviso de Node antigo vem do núcleo');
  assert.equal(await page.locator('#update-pi').isVisible(),true,'Pi local com versão nova mostra Atualizar Pi');
@@ -1041,5 +1043,5 @@ await withArtifacts('atualizacao',async ctx=>{
  await page.locator('#about-dialog .dialog-actions .primary').click();
  await page.waitForFunction(()=>!document.querySelector('#about-dialog').open);
  assert.deepEqual(errors,[]);
- console.log('ATUALIZACAO PASSED: linha do updater (vX disponível — o que mudou (Release notes) · Atualizar e reiniciar) e painel Componentes (4 linhas, estados, Atualizar Pi só no Pi local) vêm do Bend.');
+ console.log('ATUALIZACAO PASSED: linha do updater (vX disponível — o que mudou (Notas da versão) · Atualizar e reiniciar) e painel Componentes (4 linhas nascem Verificando…, estados, Atualizar Pi só no Pi local) vêm do Bend.');
 });

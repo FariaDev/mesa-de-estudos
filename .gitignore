@@ -2,6 +2,8 @@ Mesa de Estudos.app/
 Conversa.app/
 desk/node_modules/
 desk/.runtime/
+desk/.pi-local/
+desk/.update-manifest.json
 chat/node_modules/
 chat/.runtime/
 chat/.test-runtime-*/

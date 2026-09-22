@@ -1,26 +1,43 @@
 /* Updater por clique da Mesa: checagem (GitHub releases da tag pública) e
    aplicação (git / bundle / zip) com rollback.
 
-   - Checagem: `releases/latest` com fallback em `tags`; semver contra
-     `app.getVersion()`; cache de 24 h no runtime (`update.json`); offline/erro
-     = silêncio (status "error", sem drama).
+   - Checagem: `releases/latest` com fallback em `tags`; semver ESTRICTO contra
+     `app.getVersion()` (prerelease/build não vira "versão estável"); cache de
+     24 h no runtime (`update.json`) com gravação serializada (duas checagens
+     concorrentes não perdem entrada); fetch com prazo (rede presa não segura
+     o Sobre) e dedup dos GETs em voo; offline/erro = silêncio (status
+     "error", sem drama).
    - Aplicação: o app grava uma CÓPIA DESTE ARQUIVO no tmpdir e a dispara
      destacada (`spawn` detached); o script espera o PID sair, aplica e reabre.
      Por isso este módulo só usa builtins do Node — ele viaja sozinho.
-   - Origem: clone (`desk/../.git`) → `git pull --ff-only`; bundle com
+     O arranque do worker tem HANDSHAKE (arquivo de status escrito antes de
+     qualquer mutação): quem chamou só fecha o app depois de o worker confirmar
+     que subiu — Node ausente do PATH, spawn que falha ou handshake que não
+     chega abortam a atualização COM o app ainda de pé.
+   - Origem: clone (`desk/../.git`) → `git pull --ff-only` (a branch de
+     DESENVOLVIMENTO — a versão final é conferida no package.json; clone com
+     trabalho local é recusado antes de qualquer mutação); bundle com
      `install-source.json` → atualiza o clone e re-sincroniza (install-app);
-     sem git → baixa o zip da tag (codeload) e substitui SÓ a lista explícita
-     de arquivos de código, nunca os caminhos protegidos.
+     sem git → baixa o zip da tag (codeload), valida a versão no staging,
+     substitui SÓ a lista explícita de arquivos de código (o manifesto gravado
+     na instalação define o que é gerenciado: órfão gerenciado sai, arquivo
+     local fica), nunca os caminhos protegidos.
    - Invariantes: NUNCA tocar `config.json`, Application Support/%APPDATA%,
      `desk/.runtime/` (só append em `desk.json`/`desk.log` do runtime é do
      app), sessões (`*.jsonl`), PDFs, `.xopp`, `node_modules`, `install-source.json`
      ou templates do usuário (as cópias do vault/matéria estão fora daqui).
      Somente GETs públicos; zero telemetria.
-   - Rollback é REQUISITO: falhou no meio → instantâneo do código volta ao
-     lugar, o motivo vai para `.runtime/desk.log` e a versão antiga reabre. O
-     único estado que pode ficar inconsistente é `node_modules` quando o lock
-     mudou e o `npm ci` falhou no meio — aí o rollback refaz o `npm ci` com o
-     lock antigo e registra o motivo. */
+   - A aplicação é uma TRANSAÇÃO: instantâneo dos arquivos que a atualização
+     gerencia ANTES de qualquer mutação (nada de percorrer a raiz toda), lock
+     compartilhado entre Sobre/Atualizar Pi/CLI, o app tem de ter SAÍDO no
+     prazo (senão aborta sem tocar nada) e a instalação anterior permanece até
+     a confirmação.
+   - Rollback é REQUISITO: falhou no meio → instantâneo volta ao lugar (+ git
+     reset para a cabeça antiga no modo git + `npm ci` de recuperação quando as
+     dependências foram mexidas + re-sync do payload no bundle), o motivo vai
+     para `.runtime/desk.log` e a
+     versão antiga reabre. Se a própria recuperação falhar, o BACKUP fica no
+     lugar (caminho no log) — nunca apagado em cima de um rollback incompleto. */
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
@@ -28,6 +45,9 @@ const zlib=require('node:zlib');
 const {spawn,execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const execFileAsync=promisify(execFile);
+/* O contrato do Pi local (`desk/.pi-local`) mora no pi.cjs: o setup e o
+   updater usam o MESMO ensure (uma fonte para o diretório+package.json). */
+const {ensurePiLocalHome}=require('./pi.cjs');
 
 const RELEASES_URL='https://api.github.com/repos/FariaDev/mesa-de-estudos/releases/latest';
 const TAGS_URL='https://api.github.com/repos/FariaDev/mesa-de-estudos/tags';
@@ -35,7 +55,7 @@ const PI_REGISTRY_URL='https://registry.npmjs.org/@earendil-works/pi-coding-agen
 const XOURNAL_RELEASES_URL='https://api.github.com/repos/xournalpp/xournalpp/releases/latest';
 const XOURNAL_SITE_URL='https://github.com/xournalpp/xournalpp/releases/latest';
 const CHECK_TTL=24*60*60*1000;
-const CODE_DIRS=new Set(['src','assets','templates','scripts']);
+const CODE_DIRS=new Set(['src','assets','templates','scripts','tests']);
 const CODE_ROOT_DIRS=new Set(['core','geogebra','visual-check','.githooks']);
 const CODE_ROOT_FILES=new Set(['README.md','AGENTS.md','LICENSE','.gitignore']);
 const SKIP_TREE=new Set(['node_modules','.git','.runtime']);
@@ -52,8 +72,11 @@ function appendLog(logFile,line){
 
 /* ---------- semver ---------- */
 
+/* Semver ESTRICTO: só `X.Y.Z` (com ou sem `v`) — prerelease/build
+   (`0.4.1-rc.1`, `0.4.1+meta`) não é versão estável e nunca vira "atualização
+   disponível"; quem compara contra um prerelease recebe `null`. */
 function semverParse(value){
- const m=/^v?(\d+)\.(\d+)\.(\d+)/.exec(String(value||'').trim());
+ const m=/^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(value||'').trim());
  return m?[Number(m[1]),Number(m[2]),Number(m[3])]:null;
 }
 
@@ -77,6 +100,21 @@ function readCache(file){
  }catch{return {};}
 }
 
+/* Gravação em fila (serializada): ler → mexer → escrever acontece dentro da
+   fila, então duas checagens concorrentes (e a marca de toast) não perdem
+   entradas do cache por lerem antes e gravarem depois do `await`. */
+let cacheQueue=Promise.resolve();
+function cacheWrite(file,mutate){
+ const next=cacheQueue.then(()=>{
+  const cache=file?readCache(file):{};
+  const out=mutate(cache)||cache;
+  if(file)writeCache(file,out);
+  return out;
+ });
+ cacheQueue=next.catch(()=>{});
+ return next;
+}
+
 function writeCache(file,data){
  try{
   fs.mkdirSync(path.dirname(file),{recursive:true});
@@ -88,27 +126,46 @@ function fresh(entry,now){
  return !!entry&&typeof entry.at==='number'&&now-entry.at>=0&&now-entry.at<CHECK_TTL;
 }
 
-/* Um toast por versão: marcar aqui evita o "vX disponível" a cada abertura. */
+/* Um toast por versão: marcar aqui evita o "vX disponível" a cada abertura.
+   Devolve true só na PRIMEIRA marcação da versão (a leitura/mutação acontece
+   dentro da fila — ver cacheWrite). */
 function markToasted(file,version){
- const cache=readCache(file);
- if(cache.toasted===version)return false;
- cache.toasted=version;
- writeCache(file,cache);
- return true;
+ let primeira=false;
+ const done=cacheWrite(file,cache=>{
+  if(cache.toasted===version)return cache;
+  primeira=true;
+  return {...cache,toasted:version};
+ });
+ return done.then(()=>primeira);
 }
 
 /* ---------- rede: só GETs públicos, injetáveis nos testes ---------- */
 
+/* Prazo nos fetches: rede presa não segura o Sobre (o sinal aborta o request). */
+function timedFetch(url,{timeout=15000,headers}={}){
+ return fetch(url,{headers,signal:AbortSignal.timeout(timeout)});
+}
+
 async function defaultFetchJson(url){
- const res=await fetch(url,{headers:{'user-agent':'mesa-de-estudos',accept:'application/json'}});
+ const res=await timedFetch(url,{timeout:10000,headers:{'user-agent':'mesa-de-estudos',accept:'application/json'}});
  if(!res.ok)throw Error('HTTP '+res.status);
  return res.json();
 }
 
 async function defaultFetchBuffer(url){
- const res=await fetch(url,{headers:{'user-agent':'mesa-de-estudos'}});
+ const res=await timedFetch(url,{timeout:120000,headers:{'user-agent':'mesa-de-estudos'}});
  if(!res.ok)throw Error('HTTP '+res.status);
  return Buffer.from(await res.arrayBuffer());
+}
+
+/* Dedup dos GETs em voo: checagem automática e botão manual (ou painel e
+   updater) que pedem a mesma URL dividem uma única resposta. */
+const inflight=new Map();
+function sharedFetchJson(url,fetchJson=defaultFetchJson){
+ if(inflight.has(url))return inflight.get(url);
+ const pending=fetchJson(url).finally(()=>{inflight.delete(url);});
+ inflight.set(url,pending);
+ return pending;
 }
 
 function releaseFromGithub(json){
@@ -118,7 +175,8 @@ function releaseFromGithub(json){
  return {version,notes:String(json.body||'').slice(0,2000),url:String(json.html_url||'')};
 }
 
-/* Fallback `tags`: pega a maior semver listada (a lista não vem garantida em ordem). */
+/* Fallback `tags`: pega a maior semver listada (a lista não vem garantida em
+   ordem). Sem URL — não há botão de notas a mostrar (o núcleo omite). */
 function releaseFromTags(json){
  const list=Array.isArray(json)?json:[];
  let best=null;
@@ -140,14 +198,14 @@ async function checkForUpdates({current='',manual=false,cacheFile='',fetchJson=d
  }
  let release=null;
  try{
-  try{release=releaseFromGithub(await fetchJson(RELEASES_URL));}
+  try{release=releaseFromGithub(await sharedFetchJson(RELEASES_URL,fetchJson));}
   catch{}
-  if(!release)release=releaseFromTags(await fetchJson(TAGS_URL));
+  if(!release)release=releaseFromTags(await sharedFetchJson(TAGS_URL,fetchJson));
  }catch(e){
   return {status:'error',error:String(e&&e.message||e)||'sem rede',version:'',notes:'',url:'',current,cached:false};
  }
  if(!release)return {status:'error',error:'sem release publicada',version:'',notes:'',url:'',current,cached:false};
- if(cacheFile)writeCache(cacheFile,{...cache,release:{at:now,version:release.version,notes:release.notes,url:release.url}});
+ if(cacheFile)await cacheWrite(cacheFile,prev=>({...prev,release:{at:now,version:release.version,notes:release.notes,url:release.url}}));
  return {status:isNewer(release.version,current)?'update':'current',version:release.version,notes:release.notes,url:release.url,current,cached:false};
 }
 
@@ -158,10 +216,10 @@ async function piLatest({cacheFile='',fetchJson=defaultFetchJson,now=Date.now(),
  const cache=cacheFile?readCache(cacheFile):{};
  if(!manual&&fresh(cache.pi,now))return {version:String(cache.pi.version||''),known:!!cache.pi.version};
  try{
-  const json=await fetchJson(PI_REGISTRY_URL);
+  const json=await sharedFetchJson(PI_REGISTRY_URL,fetchJson);
   const version=String(json&&json.version||'').trim();
   if(!semverParse(version))throw Error('resposta sem versão');
-  if(cacheFile)writeCache(cacheFile,{...cache,pi:{at:now,version}});
+  if(cacheFile)await cacheWrite(cacheFile,prev=>({...prev,pi:{at:now,version}}));
   return {version,known:true};
  }catch{return {version:'',known:false};}
 }
@@ -171,10 +229,10 @@ async function xournalLatest({cacheFile='',fetchJson=defaultFetchJson,now=Date.n
  const cache=cacheFile?readCache(cacheFile):{};
  if(!manual&&fresh(cache.xournal,now))return {version:String(cache.xournal.version||''),known:!!cache.xournal.version};
  try{
-  const json=await fetchJson(XOURNAL_RELEASES_URL);
+  const json=await sharedFetchJson(XOURNAL_RELEASES_URL,fetchJson);
   const version=String(json&&json.tag_name||'').replace(/^v/,'').trim();
   if(!semverParse(version))throw Error('resposta sem versão');
-  if(cacheFile)writeCache(cacheFile,{...cache,xournal:{at:now,version}});
+  if(cacheFile)await cacheWrite(cacheFile,prev=>({...prev,xournal:{at:now,version}}));
   return {version,known:true};
  }catch{return {version:'',known:false};}
 }
@@ -193,7 +251,7 @@ function isProtected(rel){
  const parts=norm.split('/');
  if(parts.some(p=>p==='..'||p===''))return true;
  if(/^[a-zA-Z]:/.test(norm))return true;
- if(/(^|\/)(config\.json|desk\.json|install-source\.json)$/i.test(norm))return true;
+ if(/(^|\/)(config\.json|desk\.json|install-source\.json|\.update-manifest\.json)$/i.test(norm))return true;
  if(/(^|\/)\.runtime(\/|$)/.test(norm))return true;
  if(/(^|\/)node_modules(\/|$)/.test(norm))return true;
  if(/\.(jsonl|xopp|pdf|log)$/i.test(norm))return true;
@@ -202,8 +260,9 @@ function isProtected(rel){
 }
 
 /* Lista explícita do que o modo zip pode substituir: módulos de código e
-   documentos de UI do desk, o miolo de src/assets/templates/scripts e as
-   árvores de código do repo (core/geogebra/visual-check/.githooks + raiz).
+   documentos de UI do desk (tests incluído — o manifesto apaga o órfão),
+   o miolo de src/assets/templates/scripts/tests e as árvores de código do
+   repo (core/geogebra/visual-check/.githooks + raiz).
    Nada fora desta lista é tocado — e a lista nunca inclui o protegido. */
 function isReplaceable(rel){
  const norm=normalizeRel(rel);
@@ -211,7 +270,7 @@ function isReplaceable(rel){
  const parts=norm.split('/');
  const [first,second]=parts;
  if(first==='desk'&&parts.length===2){
-  return /\.(cjs|mjs|html|css|md)$/i.test(second)||/^(package(-lock)?|config\.example)\.json$/.test(second);
+  return /\.(cjs|mjs|html|css|md|json)$/i.test(second)&&!/^(config|desk)\.json$/.test(second);
  }
  if(first==='desk'&&parts.length>2)return CODE_DIRS.has(second);
  if(parts.length>1)return CODE_ROOT_DIRS.has(first);
@@ -269,10 +328,82 @@ function stripCommonRoot(entries){
  return entries.map((entry,i)=>({name:nested?names[i].slice(first.length+1):names[i],data:entry.data}));
 }
 
-/* Aplica o zip num staging conferido: versão do `package.json` extraído bate
-   com a anunciada, SÓ lista explícita é copiada, protegido nunca. Devolve os
-   arquivos criados (para o rollback apagar) e os pulados. */
-function applyZip(buffer,{rootDir,announcedVersion='',log=()=>{},created=[]}={}){
+/* ---------- caminho de verdade: symlink no destino é recusado ---------- */
+
+/* writeFileSync/copyFileSync SEGUEM links: alvo que é symlink (ou que mora
+   dentro de um diretório que é) pode pousar fora da raiz gerenciada. O par
+   abaixo lê o destino com lstat e recusa antes de qualquer escrita — link para
+   fora, link para dentro, tanto faz: conservador, nenhum link é seguido. */
+function assertRealTarget(rootDir,abs,rel){
+ try{
+  const st=fs.lstatSync(abs);
+  if(st.isSymbolicLink())throw Error(`alvo é link simbólico (${rel}) — recusado`);
+  if(!st.isFile()&&!st.isDirectory())throw Error(`alvo não é arquivo regular (${rel}) — recusado`);
+ }catch(e){
+  if(e&&e.code==='ENOENT')return; // não existe ainda: nada a seguir
+  throw e;
+ }
+ const root=path.resolve(rootDir);
+ let cur=path.dirname(path.resolve(abs));
+ while(cur===root||cur.startsWith(root+path.sep)){
+  if(cur===root)break;
+  let st;
+  try{st=fs.lstatSync(cur);}catch(e){if(e&&e.code==='ENOENT')break;throw e;}
+  if(st.isSymbolicLink())throw Error(`diretório pai é link simbólico (${cur}) — recusado`);
+  cur=path.dirname(cur);
+ }
+}
+
+/* ---------- manifesto da instalação (B1) ---------- */
+
+/* O que a instalação CONSIDERA gerenciado, por versão, gravado no disco:
+   o próximo update apaga o que era gerenciado e sumiu da versão nova
+   (órfão) e preserva o que nunca esteve no manifesto (arquivo local). */
+function manifestFile(rootDir){
+ return path.join(rootDir,'.update-manifest.json');
+}
+
+function readManifest(rootDir){
+ try{
+  const data=JSON.parse(fs.readFileSync(manifestFile(rootDir),'utf8'));
+  if(data&&Array.isArray(data.files))return data.files.filter(f=>typeof f==='string');
+ }catch{}
+ return [];
+}
+
+function writeManifest(rootDir,version,files){
+ try{
+  fs.mkdirSync(path.dirname(manifestFile(rootDir)),{recursive:true});
+  fs.writeFileSync(manifestFile(rootDir),JSON.stringify({version,at:new Date().toISOString(),files},null,2)+'\n');
+ }catch{}
+}
+
+/* Órfão = estava no manifesto anterior e não voltou na versão nova. */
+function removeOrphans(rootDir,previous,written,log=()=>{}){
+ const now=new Set(written);
+ let removed=0;
+ for(const rel of previous||[]){
+  const norm=normalizeRel(rel);
+  if(!norm||now.has(norm))continue;
+  /* O manifesto é dado do disco: só apaga o que a lista de código aceita —
+     entrada adulterada (`../x`, absoluto) nunca vira delete fora da raiz. */
+  if(!isReplaceable(norm)){log('update: entrada de manifesto recusada: '+norm);continue;}
+  const target=path.join(rootDir,...norm.split('/'));
+  try{
+   fs.rmSync(target,{force:true});
+   removed++;
+   log('update: órfão gerenciado removido: '+norm);
+  }catch(e){log('update: órfão não removido ('+norm+'): '+String(e&&e.message||e));}
+ }
+ return removed;
+}
+
+/* Aplica o zip com o staging conferido ANTES da cópia: a versão do
+   `package.json` extraído bate com a anunciada, SÓ a lista explícita é
+   copiada, protegido nunca, alvo com link simbólico recusado ANTES da
+   escrita. Devolve os arquivos escritos (`written`, vira o manifesto novo),
+   os criados (o rollback apaga) e os pulados. */
+function applyZip(buffer,{rootDir,announcedVersion='',log=()=>{},created=[],written=[]}={}){
  const raw=readZip(buffer);
  assertSafeEntries(raw);
  const entries=stripCommonRoot(raw);
@@ -290,20 +421,24 @@ function applyZip(buffer,{rootDir,announcedVersion='',log=()=>{},created=[]}={})
   const target=path.join(rootDir,...entry.name.split('/'));
   const rel=path.relative(rootDir,target);
   if(rel.startsWith('..')||path.isAbsolute(rel))throw Error('alvo fora da raiz: '+entry.name);
+  assertRealTarget(rootDir,target,rel);
   const existed=fs.existsSync(target);
   fs.mkdirSync(path.dirname(target),{recursive:true});
   fs.writeFileSync(target,entry.data);
   if(!existed)created.push(entry.name);
+  written.push(entry.name);
   replaced++;
  }
- return {created,replaced,skipped,version};
+ return {created,written,replaced,skipped,version};
 }
 
 /* ---------- instantâneo / rollback ---------- */
 
-/* O que o rollback precisa para devolver a versão antiga inteira: o código
-   atual antes de qualquer mutação. Pula árvores pesadas/de usuário. */
-function snapshotTree(rootDir,backupDir){
+/* O que o rollback precisa para devolver a versão antiga: SOMENTE os arquivos
+   que a atualização gerencia (a lista explícita + o manifesto anterior) —
+   nunca a raiz toda (PDFs, config.json e árvores de outros produtos ficam
+   fora do instantâneo por construção). `include` é o predicado da lista. */
+function snapshotTree(rootDir,backupDir,include){
  const files=[];
  const walk=(rel)=>{
   const abs=rel?path.join(rootDir,rel):rootDir;
@@ -315,6 +450,7 @@ function snapshotTree(rootDir,backupDir){
     continue;
    }
    if(!entry.isFile())continue;
+   if(include&&!include(childRel))continue;
    const dest=path.join(backupDir,childRel);
    fs.mkdirSync(path.dirname(dest),{recursive:true});
    fs.copyFileSync(path.join(rootDir,childRel),dest);
@@ -334,6 +470,8 @@ function restoreTree(rootDir,backupDir,created=[]){
    if(entry.isDirectory()){walk(childRel);continue;}
    if(!entry.isFile())continue;
    const target=path.join(rootDir,childRel);
+   /* O update não devia ter feito links, mas se fez o restore não os segue. */
+   try{const st=fs.lstatSync(target);if(st.isSymbolicLink())fs.rmSync(target,{force:true});}catch{}
    fs.mkdirSync(path.dirname(target),{recursive:true});
    fs.copyFileSync(path.join(backupDir,childRel),target);
    files.push(childRel);
@@ -351,66 +489,188 @@ function restoreTree(rootDir,backupDir,created=[]){
 
 /* ---------- comandos / reopen / worker ---------- */
 
+/* B5: shell só onde é inevitável. npm/npx no Windows são .cmd (spawn direto
+   deles não roda sem shell); git/node/executáveis vão DIRETOS — caminhos com
+   espaço ou `&` deixam de depender do quoting do shell. */
+function needsShell(cmd){
+ if(process.platform!=='win32')return false;
+ const base=path.win32.basename(String(cmd||''));
+ return /^(npm|npx)(\.cmd|\.exe)?$/i.test(base)||/\.(cmd|bat)$/i.test(base);
+}
+
 function defaultRun(cmd,args=[],opts={}){
  return execFileAsync(cmd,args,{
   cwd:opts.cwd,
   timeout:opts.timeout||600000,
   maxBuffer:8*1024*1024,
   windowsHide:true,
-  /* npm/git precisam de shell no Windows (npm.cmd); nos testes o `run` é falso. */
-  shell:!!opts.shell||process.platform==='win32',
+  /* shell:true apenas para npm/npx no Windows (npm.cmd); nos testes o `run`
+     é falso e o chamador decide. */
+  shell:!!opts.shell||needsShell(cmd),
  }).then(r=>({stdout:String(r.stdout||''),stderr:String(r.stderr||'')}));
 }
 
-/* O app reabre sozinho: bundle = `open "<app>"`; fonte = `npm start` destacado. */
-function spawnReopen(reopen,env=process.env){
+/* O app reabre sozinho: bundle = `open "<app>"`; fonte = `npm start` destacado.
+   Falha de reabertura é registrada (não silêncio): o worker termina e ninguém
+   reabre é estado que o usuário precisa saber explicar. */
+function spawnReopen(reopen,env=process.env,log=()=>{}){
  if(!reopen||!reopen.cmd)return;
  try{
-  const child=spawn(reopen.cmd,reopen.args||[],{cwd:reopen.cwd||undefined,detached:true,stdio:'ignore',shell:!!reopen.shell||process.platform==='win32',env});
+  const child=spawn(reopen.cmd,reopen.args||[],{cwd:reopen.cwd||undefined,detached:true,stdio:'ignore',shell:!!reopen.shell||needsShell(reopen.cmd),env});
+  child.on('error',err=>log('update: reabertura falhou ('+String(err&&err.message||err)+') — rode npm start à mão'));
   child.unref();
- }catch{}
+ }catch(e){log('update: reabertura falhou ('+String(e&&e.message||e)+') — rode npm start à mão');}
 }
 
 /* Reabrir: em produção um `spawn` destacado (bundle = `open "<app>"`; fonte =
    `npm start`); nos testes, uma função que só registra o pedido. */
-function doReopen(reopen){
+function doReopen(reopen,log=()=>{}){
  if(typeof reopen==='function'){try{reopen();}catch{}return;}
- if(reopen)spawnReopen(reopen);
+ if(reopen)spawnReopen(reopen,undefined,log);
 }
 
-function waitForPid(pid,timeoutMs=60000){
+/* ESRCH = o processo saiu; EPERM = existe (sem direito de sinal) — continua
+   esperando em vez de declarar "saiu" de graça. */
+function pidAlive(pid){
+ try{process.kill(pid,0);return true;}
+ catch(e){return !(e&&e.code==='ESRCH');}
+}
+
+function waitForPid(pid,timeoutMs=60000,{pollMs=500}={}){
  return new Promise(resolve=>{
   const started=Date.now();
   const tick=()=>{
-   try{process.kill(pid,0);}
-   catch(e){if(e&&e.code==='ESRCH')return resolve(true);return resolve(true);}
+   if(!pidAlive(pid))return resolve(true);
    if(Date.now()-started>timeoutMs)return resolve(false);
-   setTimeout(tick,500);
+   setTimeout(tick,pollMs);
   };
   tick();
  });
 }
 
-function workerEnv(env=process.env){
+function workerEnv(env=process.env,home=os.homedir()){
  /* O app aberto pelo Finder nasce com o PATH mínimo: node/npm do usuário têm
     de continuar acháveis pelo script destacado (mesma ideia do pi.cjs). */
- const userDirs=['.bun/bin','.local/bin','.cargo/bin','.deno/bin'].map(rel=>path.join(os.homedir(),...rel.split('/')));
+ const userDirs=['.bun/bin','.local/bin','.cargo/bin','.deno/bin'].map(rel=>path.join(home,...rel.split('/')));
  userDirs.push('/opt/homebrew/bin','/usr/local/bin');
  const parts=[...userDirs.filter(dir=>{try{return fs.existsSync(dir);}catch{return false;}}),env.PATH||''].filter(Boolean);
  return {...env,PATH:parts.join(path.delimiter)};
 }
 
+/* Executável do Node do SISTEMA (o mesmo que o setup e o npm usam): 'node' a
+   seco falha no app aberto pelo Finder (PATH mínimo). Procuramos nos mesmos
+   diretórios que o workerEnv semeia; `opts.dirs` restringe a busca (injeção
+   de teste). Sem achar, o update por clique aborta com mensagem (o terminal
+   segue com `npm run update`). */
+function resolveNode(env=process.env,home=os.homedir(),opts={}){
+ const names=process.platform==='win32'?['node.exe','node.cmd']:['node'];
+ const dirs=opts&&opts.dirs?opts.dirs:workerEnv(env,home).PATH.split(path.delimiter);
+ for(const dir of dirs){
+  if(!dir)continue;
+  for(const name of names){
+   try{
+    const candidate=path.join(dir,name);
+    const st=fs.statSync(candidate);
+    if(st.isFile())return candidate;
+   }catch{}
+  }
+ }
+ return '';
+}
+
+/* ---------- handshake do worker (A4) ---------- */
+
+/* O worker escreve um arquivo de status ANTES de qualquer mutação; quem chamou
+   só agenda o fechamento do app depois de o arquivo existir. Spawn morto =
+   arquivo que não chega = app continua de pé (e o clique falha com mensagem). */
+function writeHandshake(file,data){
+ try{
+  fs.mkdirSync(path.dirname(file),{recursive:true});
+  fs.writeFileSync(file,JSON.stringify(data,null,2)+'\n');
+ }catch{}
+}
+
+function waitForHandshake(file,timeoutMs=15000,{pollMs=250}={}){
+ return new Promise(resolve=>{
+  const started=Date.now();
+  const tick=()=>{
+   try{
+    const data=JSON.parse(fs.readFileSync(file,'utf8'));
+    if(data&&data.phase==='started')return resolve(true);
+   }catch{}
+   if(Date.now()-started>=timeoutMs)return resolve(false);
+   setTimeout(tick,pollMs);
+  };
+  tick();
+ });
+}
+
+/* ---------- lock de atualização (A4): Sobre × Atualizar Pi × CLI ---------- */
+
+const LOCK_STALE_MS=30*60*1000;
+function lockFileOf(runtime){
+ return runtime?path.join(runtime,'update.lock'):'';
+}
+
+function acquireLock(runtime,opts={}){
+ const {now=Date.now(),staleMs=LOCK_STALE_MS}=opts||{};
+ const file=lockFileOf(runtime);
+ if(!file)return {ok:true,file:'',release(){}};
+ let presa=false;
+ try{
+  const data=JSON.parse(fs.readFileSync(file,'utf8'));
+  if(data&&typeof data.at==='number'&&now-data.at<staleMs){
+   return {ok:false,file,reason:'já existe uma atualização em andamento (ou o lock ficou preso; apague '+file+')'};
+  }
+  presa=true; // sem dono no prazo: o lock é quebrado
+ }catch{}
+ try{
+  if(presa)fs.rmSync(file,{force:true}); // stale: sai da frente para o wx criar o nosso
+  fs.writeFileSync(file,JSON.stringify({pid:process.pid,at:now,cmd:String(process.argv[1]||'')})+'\n',{flag:'wx'});
+ }catch(e){
+  if(e&&e.code==='EEXIST')return {ok:false,file,reason:'já existe uma atualização em andamento'};
+  return {ok:false,file,reason:'não foi possível criar o lock ('+String(e&&e.message||e)+')'};
+ }
+ return {ok:true,file,release(){releaseLock(file);}};
+}
+
+function releaseLock(file){
+ if(!file)return;
+ try{fs.rmSync(file,{force:true});}catch{}
+}
+
 /* O worker é uma CÓPIA deste arquivo no tmpdir: o update pode substituir o
-   original em pleno voo sem quebrar quem já está rodando. */
-function spawnWorker(args,env=process.env){
+   original em pleno voo sem quebrar quem já está rodando. O executável é o
+   node do sistema RESOLVIDO (não o literal 'node'), o spawn tem listener de
+   `error` e o chamador recebe o caminho do handshake. */
+function spawnWorker(args,opts={}){
+ const env=opts.env||process.env,home=opts.home||os.homedir(),spawnFn=opts.spawn||spawn;
+ const node=resolveNode(env,home,{dirs:opts.dirs});
+ if(!node){
+  return {ok:false,error:'Node do sistema não foi encontrado — o script pós-fechamento precisa dele. Confira a instalação do Node (22.19+) ou rode npm run update no terminal.'};
+ }
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-update-'));
  const script=path.join(dir,'update-worker.cjs');
  fs.copyFileSync(__filename,script);
+ /* O worker viaja sozinho: o contrato do Pi local (`require('./pi.cjs')` no
+    ensure) tem de estar do lado da cópia. */
+ try{fs.copyFileSync(path.join(__dirname,'pi.cjs'),path.join(dir,'pi.cjs'));}catch{}
  const payload=path.join(dir,'args.json');
- fs.writeFileSync(payload,JSON.stringify(args));
- const child=spawn('node',[script,'--apply',payload],{detached:true,stdio:'ignore',env:workerEnv(env)});
+ const status=path.join(dir,'status.json');
+ fs.writeFileSync(payload,JSON.stringify({...args,_status:status}));
+ let child;
+ try{
+  child=spawnFn(node,[script,'--apply',payload],{detached:true,stdio:'ignore',env:workerEnv(env,home)});
+ }catch(e){
+  try{fs.rmSync(dir,{recursive:true,force:true});}catch{}
+  return {ok:false,error:'não foi possível iniciar o script de atualização ('+String(e&&e.message||e)+')'};
+ }
+ /* Sem listener o spawn que falha (ENOENT etc.) derrubaria o processo pai. */
+ child.on('error',err=>{
+  appendLog(args.runtime?path.join(args.runtime,'desk.log'):'','update: spawn do worker falhou ('+String(err&&err.message||err)+')');
+ });
  child.unref();
- return {script,payload};
+ return {ok:true,script,payload,status,node,child};
 }
 
 /* ---------- aplicação ---------- */
@@ -426,8 +686,19 @@ function lockChangedSince(before,lockFile){
  return !before.equals(after);
 }
 
+function installedVersion(dir){
+ try{return String(JSON.parse(fs.readFileSync(path.join(dir,'package.json'),'utf8')).version||'');}catch{return '';}
+}
+
 async function npmCi({deskDir,run}){
  await run('npm',['ci'],{cwd:deskDir,timeout:20*60*1000});
+}
+
+/* Resultado real da aplicação, persistido no cache do runtime: é o que o
+   Sobre mostra na reabertura (atualizada / recuperada / incompleta). */
+function persistResult(cacheFile,result){
+ if(!cacheFile)return Promise.resolve();
+ return cacheWrite(cacheFile,cache=>({...cache,lastResult:{...result,at:Date.now()}}));
 }
 
 /* Pós-aplicação no macOS: a lógica do install-app (sync + codesign + registra
@@ -448,93 +719,220 @@ async function syncBundle({mode,sourceDir,run,log}){
  catch(e){log('update: install-app falhou ('+String(e&&e.message||e)+') — fonte atualizada, bundle desatualizado; rode npm run install-app');}
 }
 
-/* O coração do updater. `ok:false` = rollback aplicado e a versão antiga sobe
-   de novo sozinha (o `reopen` roda nos dois caminhos). */
+/* Modo git: o pull só é seguro num clone sem trabalho local — `git reset
+   --hard` do rollback destruiria essas mudanças. Política EXPLÍCITA: o update
+   recusa clones sujos (modificação em arquivo rastreado) antes de qualquer
+   mutação; arquivos não rastreados (`??`) sobrevivem ao reset e não bloqueiam. */
+async function assertCleanClone(sourceDir,run){
+ let status='';
+ try{status=(await run('git',['status','--porcelain'],{cwd:sourceDir})).stdout;}catch(e){
+  throw Error('git status não respondeu ('+String(e&&e.message||e)+') — clone recusado');
+ }
+ const sujos=status.split('\n').filter(l=>l.trim()&&!l.startsWith('??'));
+ if(sujos.length){
+  throw Error('o clone tem trabalho local (git status não limpo: '+sujos.length+' arquivo(s)) — atualização abortada para não destruir mudanças; commit/stash e rode de novo');
+ }
+}
+
+/* O coração do updater: uma TRANSAÇÃO verificável.
+   `ok:false` = abortado antes de qualquer mutação ou rollback aplicado, e a
+   versão antiga sobe de novo sozinha (o `reopen` roda nos caminhos que tocam
+   o disco). A versão devolvida em `version` é a CONFERIDA no package.json —
+   nunca a anunciada sem conferência. */
 async function applyUpdate(opts={}){
  const {
   mode='zip',rootDir='',deskDir='',runtime='',announcedVersion='',sourceInfo=null,
   waitPid=0,reopen=null,run=defaultRun,fetchBuffer=defaultFetchBuffer,
+  cacheFile='',lockFile='',pidTimeout=120000,
+  snapshot=snapshotTree,restore=restoreTree, /* injeção de teste (mesma ideia do run) */
  }=opts;
  const logFile=runtime?path.join(runtime,'desk.log'):'';
  const log=line=>appendLog(logFile,line);
+ const finish=(result)=>{
+  releaseLock(lockFile);
+  doReopen(reopen,log);
+  return result;
+ };
  const sourceDir=mode==='zip'?rootDir:(mode==='bundle'?String(sourceInfo&&sourceInfo.path||''):rootDir);
+ /* Snapshot cobre só o que a atualização gerencia: o payload do bundle (que o
+    install-app reescreve por inteiro, node_modules incluso) ou, em git/zip, a
+    lista explícita + o manifesto anterior — nunca a raiz toda. */
  const snapshotRoot=mode==='bundle'?deskDir:sourceDir;
  const npmCiDir=mode==='bundle'?path.join(sourceDir,'desk'):deskDir;
  if(!rootDir||!deskDir||!sourceDir)throw Error('applyUpdate: caminhos incompletos');
  log(`update: começando (${mode} → v${announcedVersion||'?'} em ${rootDir})`);
- if(waitPid){const gone=await waitForPid(waitPid,120000);if(!gone)log('update: o app não saiu no prazo; aplicando mesmo assim');}
+ /* A4: o app tem de ter SAÍDO no prazo — sem "aplica mesmo assim" (duas
+    instâncias escrevendo os mesmos arquivos). Aborta SEM tocar nada. */
+ if(waitPid){
+  const gone=await waitForPid(waitPid,pidTimeout);
+  if(!gone){
+   const reason='o app não encerrou no prazo — atualização abortada sem tocar nada';
+   log('update: FALHOU ('+reason+')');
+   releaseLock(lockFile);
+   /* A4: o app NUNCA saiu — reabrir abriria uma segunda instância à toa. */
+   return {ok:false,mode,version:announcedVersion,reason};
+  }
+ }
  const lockBefore=readFileSafe(path.join(npmCiDir,'package-lock.json'));
- const backup=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-update-backup-'));
- let created=[],head='',npmStarted=false;
+ let backup=null,created=[],written=[],head='',depsTouched=false,diverged=false,confirmedVersion=announcedVersion,cloneClean=false;
  try{
-  snapshotTree(snapshotRoot,backup);
+  const manifestRoot=mode==='bundle'?deskDir:rootDir;
+  const previous=readManifest(manifestRoot);
+  backup=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-update-backup-'));
+  const snapshotInclude=mode==='bundle'
+   ?null // o payload inteiro é gerenciado pelo install-app
+   :rel=>isReplaceable(rel)||normalizeRel(rel)==='.update-manifest.json';
+  snapshot(snapshotRoot,backup,snapshotInclude);
+  if(mode==='bundle'){
+   /* O Info.plist mora fora do payload; entra no backup com nome reservado. */
+   const plist=path.join(path.resolve(deskDir,'..','..','..'),'Contents','Info.plist');
+   if(fs.existsSync(plist))fs.copyFileSync(plist,path.join(backup,'__Info.plist__'));
+  }
   if(mode==='zip'){
    const buffer=await fetchBuffer(`https://codeload.github.com/FariaDev/mesa-de-estudos/zip/refs/tags/v${announcedVersion}`);
-   /* `created` é do chamador: se a cópia morrer no meio, o rollback ainda sabe
-      o que foi criado para apagar. */
-   const result=applyZip(buffer,{rootDir,announcedVersion,log,created});
+   /* `created`/`written` são do chamador: se a cópia morrer no meio, o
+      rollback ainda sabe o que apagar e o que era gerenciado. */
+   const result=applyZip(buffer,{rootDir,announcedVersion,log,created,written});
    log(`update: zip aplicado (${result.replaced} arquivo(s) de código, ${result.skipped} pulado(s))`);
+   writeManifest(manifestRoot,announcedVersion,written);
+   removeOrphans(rootDir,previous,written,log);
   }else{
    head=(await run('git',['rev-parse','HEAD'],{cwd:sourceDir})).stdout.trim();
+   await assertCleanClone(sourceDir,run);
+   /* Passou do portão: o clone estava limpo — o reset do rollback sabe disso. */
+   cloneClean=true;
    await run('git',['pull','--ff-only'],{cwd:sourceDir});
-   log('update: git pull --ff-only ok');
+   log('update: git pull --ff-only ok (branch de desenvolvimento do clone)');
    if(mode==='bundle')log(`update: re-sincronizando o bundle a partir de ${sourceDir}`);
   }
-  npmStarted=false;
+  /* A1: "dependências mexidas" é estado INDEPENDENTE — vale desde que o lock
+     mudou (antes do npm ci começar) e NÃO volta a false quando o ci termina;
+     qualquer falha depois disso refaz o npm ci no rollback. */
   if(lockChangedSince(lockBefore,path.join(npmCiDir,'package-lock.json'))){
    log('update: package-lock.json mudou — rodando npm ci');
-   npmStarted=true;
+   depsTouched=true;
    await npmCi({deskDir:npmCiDir,run});
-   npmStarted=false;
+  }
+  /* A3: "vX no lugar" só depois de conferir a versão INSTALADA no
+     package.json. No modo git o pull segue a branch de desenvolvimento —
+     divergir da tag anunciada é aviso explícito, não sucesso silencioso. */
+  const finalVersion=installedVersion(npmCiDir);
+  if(announcedVersion&&finalVersion&&finalVersion!==String(announcedVersion)){
+   diverged=true;
+   confirmedVersion=finalVersion;
+   log(`update: aviso — a versão instalada é v${finalVersion}, não a v${announcedVersion} anunciada (o modo git segue a branch de desenvolvimento)`);
+  }else if(finalVersion){
+   confirmedVersion=finalVersion;
   }
   await syncBundle({mode,sourceDir,run,log});
   fs.rmSync(backup,{recursive:true,force:true});
-  log(`update: concluído — v${announcedVersion||'?'} no lugar`);
-  doReopen(reopen);
-  return {ok:true,mode,version:announcedVersion};
+  backup=null;
+  if(diverged){
+   log(`update: concluído — v${confirmedVersion||'?'} no lugar (divergente da v${announcedVersion} anunciada)`);
+  }else{
+   log(`update: concluído — v${confirmedVersion||'?'} no lugar (conferida no package.json)`);
+  }
+  persistResult(cacheFile,{status:'applied',mode,version:confirmedVersion||''});
+  return finish({ok:true,mode,version:confirmedVersion||'',announced:announcedVersion,diverged});
  }catch(e){
   const reason=String(e&&e.message||e)||'falha desconhecida';
+  if(!backup){
+   /* Falha depois do commit (backup já dispensado) — raro, mas não há como
+      piorar: o update está no lugar; reporta como sucesso perdido? Não:
+      reporta a falha sem rollback possível. */
+   log(`update: FALHOU (${reason}) — após o commit do backup; versão aplicada permanece`);
+   persistResult(cacheFile,{status:'applied',mode,version:confirmedVersion||announcedVersion});
+   return finish({ok:false,mode,version:confirmedVersion||announcedVersion,reason});
+  }
   log(`update: FALHOU (${reason}) — rollback para a versão anterior`);
   try{
-   if(head){try{await run('git',['reset','--hard',head],{cwd:sourceDir});}catch(err){log('update: git reset falhou ('+String(err&&err.message||err)+')');}}
-   restoreTree(snapshotRoot,backup,created);
+   /* A5: o reset só é seguro quando o clone estava LIMPO no portão (o reset
+      descartaria trabalho do usuário); recusado no portão, nada é mexido. */
+   if(head&&cloneClean){try{await run('git',['reset','--hard',head],{cwd:sourceDir});}catch(err){log('update: git reset falhou ('+String(err&&err.message||err)+')');}}
+   restore(snapshotRoot,backup,created);
+   /* Info.plist do bundle de volta (o install-app mexe nele fora do payload). */
+   const plistBackup=path.join(backup,'__Info.plist__');
+   if(fs.existsSync(plistBackup)){
+    fs.copyFileSync(plistBackup,path.join(path.resolve(deskDir,'..','..','..'),'Contents','Info.plist'));
+   }
    log('update: rollback aplicado; a versão anterior sobe de novo');
-   /* O único estado que o rollback não cobre sozinho: lock trocado com o
-      `npm ci` morto no meio (node_modules inconsistente). Refaz o ci com o
-      lock antigo e registra o motivo no desk.log. */
-   if(npmStarted){
+   /* O único estado que o rollback de código não cobre sozinho: lock trocado
+      com dependências mexidas (npm ci morto no meio, node_modules da versão
+      nova). Refaz o ci com o lock antigo e registra o motivo no desk.log. */
+   if(depsTouched){
     try{await npmCi({deskDir:npmCiDir,run});log('update: npm ci de recuperação ok (lock antigo de volta)');}
     catch(err2){log('update: npm ci de recuperação TAMBÉM falhou ('+String(err2&&err2.message||err2)+') — rode npm ci à mão; node_modules pode estar inconsistente');}
    }
+   /* A1: as dependências do payload do bundle NÃO vivem no instantâneo (o
+      install-app apaga e reescreve o node_modules) — a recuperação é
+      RE-RODAR o sync: o install-app copia os runtimeDeps do clone já
+      restaurado (lock antigo, ci de recuperação acima), reescreve o payload
+      e re-assina. Sem sync, o fallback re-assina a cópia devolvida e avisa
+      que as dependências podem estar inconsistentes. */
+   if(mode==='bundle'&&process.platform==='darwin'){
+    try{
+     await syncBundle({mode,sourceDir,run,log});
+     log('update: payload do bundle re-sincronizado após o rollback (dependências refeitas do clone restaurado)');
+    }catch(err2){
+     log('update: sync de recuperação falhou ('+String(err2&&err2.message||err2)+') — dependências do payload podem estar inconsistentes');
+     const bundle=path.resolve(deskDir,'..','..','..');
+     try{await run('codesign',['--force','--deep','--sign','-',bundle],{timeout:120000});log('update: bundle re-assinado (ad-hoc) após o rollback');}
+     catch(err3){log('update: re-assinatura do bundle falhou ('+String(err3&&err3.message||err3)+')');}
+    }
+   }else if(process.platform==='darwin'){
+    /* git/zip com bundle instalado do lado: melhor esforço — devolve o
+       bundle à versão restaurada; falha não piora o rollback (só log). */
+    await syncBundle({mode,sourceDir,run,log});
+   }
+   persistResult(cacheFile,{status:'recovered',mode,version:confirmedVersion||announcedVersion,reason});
+   return finish({ok:false,mode,version:confirmedVersion||announcedVersion,reason});
   }catch(err){
-   log('update: rollback incompleto ('+String(err&&err.message||err)+')');
+   /* A5: rollback incompleto NUNCA apaga o backup — é a última cópia da
+      instalação anterior; o caminho vai no log. */
+   const detail=String(err&&err.message||err);
+   log(`update: rollback incompleto (${detail}) — backup PRESERVADO em ${backup}`);
+   persistResult(cacheFile,{status:'incomplete',mode,version:announcedVersion,reason:`${reason}; rollback incompleto: ${detail}`});
+   return finish({ok:false,mode,version:announcedVersion,reason:`${reason} (rollback incompleto: ${detail}; backup em ${backup})`,incomplete:true,backup});
   }
-  try{fs.rmSync(backup,{recursive:true,force:true});}catch{}
-  doReopen(reopen);
-  return {ok:false,mode,version:announcedVersion,reason};
  }
 }
 
-/* Atualizar Pi (só o local, em desk/node_modules): roda no pós-fechamento
-   porque o npm mexe no node_modules em uso. Sem rollback — o npm é que cuida
-   da transação; o motivo de qualquer falha vai para o desk.log. */
+/* Atualizar Pi (só o LOCAL): o Pi mora em desk/.pi-local com package.json
+   próprio, FORA da árvore npm da Mesa — o npm daqui não toca o
+   package.json/lock versionados e o git pull nunca encontra trabalho local
+   inventado pelo setup. Roda no pós-fechamento porque o npm mexe no
+   node_modules em uso. Sem rollback — o npm é que cuida da transação; o
+   motivo de qualquer falha vai para o desk.log. */
 async function applyPiOnly(opts={}){
- const {deskDir='',runtime='',waitPid=0,reopen=null,run=defaultRun}=opts;
+ const {deskDir='',runtime='',waitPid=0,reopen=null,run=defaultRun,pidTimeout=120000,lockFile=''}=opts;
  const logFile=runtime?path.join(runtime,'desk.log'):'';
  const log=line=>appendLog(logFile,line);
+ const finish=(result)=>{
+  releaseLock(lockFile);
+  doReopen(reopen,log);
+  return result;
+ };
  if(!deskDir)throw Error('applyPiOnly: deskDir ausente');
- log('update: atualizando o Pi local (@earendil-works/pi-coding-agent@latest)');
- if(waitPid)await waitForPid(waitPid,120000);
+ log('update: atualizando o Pi local (@earendil-works/pi-coding-agent@latest em desk/.pi-local)');
+ if(waitPid){
+  const gone=await waitForPid(waitPid,pidTimeout);
+  if(!gone){
+   const reason='o app não encerrou no prazo — atualização do Pi abortada';
+   log('update: FALHOU ('+reason+')');
+   return finish({ok:false,reason});
+  }
+ }
  try{
-  await run('npm',['install','@earendil-works/pi-coding-agent@latest'],{cwd:deskDir,timeout:20*60*1000});
-  log('update: Pi atualizado');
-  doReopen(reopen);
-  return {ok:true};
+  /* A2: o Pi local mora em `desk/.pi-local` (package.json próprio, fora da
+     árvore npm da Mesa) — ver pi.cjs. Cria a pasta se a instalação é antiga. */
+  const piHome=ensurePiLocalHome(deskDir);
+  await run('npm',['install','@earendil-works/pi-coding-agent@latest'],{cwd:piHome,timeout:20*60*1000});
+  log('update: Pi atualizado (desk/.pi-local)');
+  return finish({ok:true});
  }catch(e){
   const reason=String(e&&e.message||e)||'falha desconhecida';
   log(`update: FALHOU ao atualizar o Pi (${reason}) — mantendo o que já está instalado`);
-  doReopen(reopen);
-  return {ok:false,reason};
+  return finish({ok:false,reason});
  }
 }
 
@@ -543,21 +941,28 @@ async function applyPiOnly(opts={}){
 if(require.main===module&&process.argv[2]==='--apply'){
  let args={};
  try{args=JSON.parse(fs.readFileSync(process.argv[3],'utf8'));}catch{}
+ /* Handshake (A4): o arquivo de status sai ANTES de qualquer mutação — quem
+    chamou só fecha o app depois de ver este arquivo. */
+ if(args._status)writeHandshake(args._status,{pid:process.pid,phase:'started',at:Date.now()});
  (async()=>{
   const result=args.piOnly?await applyPiOnly(args):await applyUpdate(args);
   process.exit(result&&result.ok?0:1);
  })().catch(e=>{
   appendLog(args.runtime?path.join(args.runtime,'desk.log'):'',`update: worker caiu (${String(e&&e.message||e)})`);
+  releaseLock(args.lockFile||'');
   process.exit(1);
  });
 }
 
 module.exports={
  RELEASES_URL,TAGS_URL,PI_REGISTRY_URL,XOURNAL_RELEASES_URL,XOURNAL_SITE_URL,CHECK_TTL,
- semverParse,semverCompare,isNewer,readCache,writeCache,fresh,markToasted,
- defaultFetchJson,defaultFetchBuffer,releaseFromGithub,releaseFromTags,
+ semverParse,semverCompare,isNewer,readCache,writeCache,cacheWrite,fresh,markToasted,
+ defaultFetchJson,defaultFetchBuffer,timedFetch,sharedFetchJson,releaseFromGithub,releaseFromTags,
  checkForUpdates,piLatest,xournalLatest,
  normalizeRel,isProtected,isReplaceable,readZip,assertSafeEntries,stripCommonRoot,applyZip,
- snapshotTree,restoreTree,readFileSafe,lockChangedSince,defaultRun,spawnReopen,doReopen,spawnWorker,waitForPid,workerEnv,
- applyUpdate,applyPiOnly,appendLog,
+ assertRealTarget,manifestFile,readManifest,writeManifest,removeOrphans,
+ snapshotTree,restoreTree,readFileSafe,lockChangedSince,installedVersion,defaultRun,needsShell,
+ spawnReopen,doReopen,spawnWorker,waitForPid,pidAlive,resolveNode,workerEnv,
+ writeHandshake,waitForHandshake,acquireLock,releaseLock,lockFileOf,LOCK_STALE_MS,
+ applyUpdate,applyPiOnly,appendLog,persistResult,
 };

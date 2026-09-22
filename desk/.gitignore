@@ -1,5 +1,7 @@
 node_modules/
 .runtime/
+.pi-local/
+.update-manifest.json
 .test-runtime/
 .test-runtime-*/
 .design-test-*/

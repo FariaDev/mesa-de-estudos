@@ -19,7 +19,14 @@ function whichOnPath(name){
 function resolvePi({configPath='',deskDir='',envPath=''}={}){
  const files=[envPath,configPath].filter(Boolean);
  const dirs=[];
- if(deskDir)dirs.push(path.join(deskDir,'node_modules','.bin'));
+ if(deskDir){
+  /* A2: o Pi local da Mesa mora em `desk/.pi-local` (package.json próprio,
+     fora da árvore npm da Mesa) e vence os demais candidatos automáticos —
+     é o que a Mesa instala e atualiza. `desk/node_modules` segue como
+     candidato (instalações antigas) e o PATH/global não muda. */
+  dirs.push(path.join(deskDir,'.pi-local','node_modules','.bin'));
+  dirs.push(path.join(deskDir,'node_modules','.bin'));
+ }
  for(const p of files){const hit=existingFile(p);if(hit)return hit;}
  for(const dir of dirs){
   for(const name of BIN_NAMES){const hit=existingFile(path.join(dir,name));if(hit)return hit;}
@@ -58,6 +65,31 @@ function missingPiMessage(err){
  return msg;
 }
 
+/* ---------- Pi local (A2) ---------- */
+
+/* O Pi instalado pela Mesa mora em `desk/.pi-local`, com package.json PRÓPRIO
+   e FORA da árvore npm da Mesa: o npm da pasta do Pi não toca o package.json/
+   package-lock.json versionados do desk — o update por git/zip deixa de
+   esbarrar em "trabalho local" que o setup inventava. */
+function piLocalHome(deskDir){
+ return deskDir?path.join(deskDir,'.pi-local'):'';
+}
+
+function ensurePiLocalHome(deskDir){
+ const home=piLocalHome(deskDir);
+ if(!home)return '';
+ fs.mkdirSync(home,{recursive:true});
+ if(!fs.existsSync(path.join(home,'package.json'))){
+  fs.writeFileSync(path.join(home,'package.json'),JSON.stringify({
+   name:'mesa-pi-local',
+   version:'1.0.0',
+   private:true,
+   description:'Pi local da Mesa de Estudos — fora da árvore npm do desk',
+  },null,2)+'\n');
+ }
+ return home;
+}
+
 function modelsCandidates(piPath,deskDir){
  const out=[];
  const add=p=>{if(p&&!out.includes(p))out.push(p);};
@@ -68,7 +100,10 @@ function modelsCandidates(piPath,deskDir){
   try{roots.push(path.dirname(fs.realpathSync(piPath)));}catch{roots.push(path.dirname(piPath));}
   roots.push(path.dirname(piPath));
  }
- if(deskDir)roots.push(path.join(deskDir,'node_modules'));
+ if(deskDir){
+  roots.push(path.join(deskDir,'.pi-local','node_modules'));
+  roots.push(path.join(deskDir,'node_modules'));
+ }
  roots.push('/opt/homebrew/lib/node_modules','/usr/local/lib/node_modules');
  for(const root of roots){
   for(const pkg of pkgs)for(const ai of ais){
@@ -89,4 +124,4 @@ async function loadLevelsModule(piPath,deskDir){
  return null;
 }
 
-module.exports={FALLBACK_LEVELS,USER_BIN_DIRS,resolvePi,spawnEnv,userBinDirs,missingPiMessage,modelsCandidates,loadLevelsModule};
+module.exports={FALLBACK_LEVELS,USER_BIN_DIRS,resolvePi,spawnEnv,userBinDirs,missingPiMessage,modelsCandidates,loadLevelsModule,piLocalHome,ensurePiLocalHome};

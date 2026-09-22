@@ -520,13 +520,13 @@ function $welcomeTitle$() {
 }
 function $welcomeWorkflowNote$(win32_0) {
   if (win32_0) {
-    return "No Windows, o Conferir Xournal++ não existe: cole um print da resolução como anexo e envie com a mensagem.";
+    return "No Windows, o Conferir Xournal++ captura a janela do Xournal++ (Ctrl+Shift+C) e você envia junto com a mensagem — prints colados com Ctrl+V também funcionam.";
   } else {
     return "No macOS, o Conferir Xournal++ anexa a captura da sua resolução no Xournal++ e você envia junto com a mensagem.";
   }
 }
 function $welcomeBlocks$(win32_0) {
-  return { $: "Con", ["head"]: { $: "WelcomeBlock", ["title"]: "O que é a Mesa", ["paras"]: { $: "Con", ["head"]: "A Mesa é a sua bancada de referências: os PDFs do enunciado e do formulário, uma calculadora e o Pi na mesma janela. A escrita à mão continua no Xournal++, do lado — a Mesa não é um canvas de tinta.", ["tail"]: { $: "Con", ["head"]: "Coloque um app em cada monitor, ou os dois lado a lado.", ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Con", ["head"]: { $: "WelcomeBlock", ["title"]: "O Pi", ["paras"]: { $: "Con", ["head"]: "O Pi é o motor da conversa: um agente que roda nesta máquina. As credenciais do modelo ficam no Pi, não neste app — ele pede na primeira conexão.", ["tail"]: { $: "Con", ["head"]: "Cada matéria tem a sua conversa, guardada localmente; a Mesa conecta sozinha quando abre.", ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Con", ["head"]: { $: "WelcomeBlock", ["title"]: "Customização por agentes", ["paras"]: { $: "Con", ["head"]: "Esta Mesa foi feita para ser customizada por agentes: o AGENTS.md é o contrato e o bloco desk do config.json decide os leitores, os rótulos, qual PDF abre primeiro e o que esconder (calculadora, Xournal++, Conferir, Encerrar).", ["tail"]: { $: "Con", ["head"]: "Os templates TUTOR.md e LEARNER.md ajustam o jeito de o Pi dar aula.", ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Con", ["head"]: { $: "WelcomeBlock", ["title"]: "Dicas de uso", ["paras"]: { $: "Con", ["head"]: "Encerrar por hoje registra onde você parou e o próximo passo; o diário do turno e os quizzes aparecem na conversa. O Como usar tem os atalhos todos.", ["tail"]: { $: "Con", ["head"]: run_loop($welcomeWorkflowNote$(win32_0)), ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Nil" } } } } };
+  return { $: "Con", ["head"]: { $: "WelcomeBlock", ["title"]: "O que é a Mesa", ["paras"]: { $: "Con", ["head"]: "A Mesa é a sua bancada de referências: os PDFs do enunciado e do formulário, uma calculadora e o Pi na mesma janela. A escrita à mão continua no Xournal++, do lado — a Mesa não é um canvas de tinta.", ["tail"]: { $: "Con", ["head"]: "Coloque um app em cada monitor, ou os dois lado a lado.", ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Con", ["head"]: { $: "WelcomeBlock", ["title"]: "O Pi", ["paras"]: { $: "Con", ["head"]: "O Pi é o motor da conversa: um agente que roda nesta máquina. As credenciais do modelo ficam no Pi, não neste app — ele pede na primeira conexão.", ["tail"]: { $: "Con", ["head"]: "Cada matéria tem a sua conversa, guardada localmente; a Mesa conecta sozinha quando abre.", ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Con", ["head"]: { $: "WelcomeBlock", ["title"]: "Customização por agentes", ["paras"]: { $: "Con", ["head"]: "Esta Mesa foi feita para ser customizada por agentes: o AGENTS.md é o contrato e o bloco desk do config.json decide os leitores, os rótulos, qual PDF abre primeiro e o que esconder (calculadora, Xournal++, Conferir, Encerrar).", ["tail"]: { $: "Con", ["head"]: "Para ajustar o jeito de o Pi dar aula, copie os templates TUTOR.md e LEARNER.md para a sua pasta de dados e edite as CÓPIAS — os arquivos do repositório são só o molde.", ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Con", ["head"]: { $: "WelcomeBlock", ["title"]: "Dicas de uso", ["paras"]: { $: "Con", ["head"]: "Encerrar por hoje registra onde você parou e o próximo passo; o diário do turno e os quizzes aparecem na conversa. O Como usar tem os atalhos todos.", ["tail"]: { $: "Con", ["head"]: run_loop($welcomeWorkflowNote$(win32_0)), ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Nil" } } } } };
 }
 function $paraNode$(text_0) {
   return run_jump($view$viewEl$, ["p", { $: "Nil" }, { $: "Con", ["head"]: run_loop($view$viewText$(text_0)), ["tail"]: { $: "Nil" } }]);
@@ -602,15 +602,30 @@ function $updateNoneText$(current_0) {
 function $updateFailedText$() {
   return "Não foi possível verificar agora. Tente de novo quando quiser.";
 }
-function $updateReadyPrefix$(version_0) {
-  const x_0 = version_0 + " disponível — o que mudou (";
-  return "v" + x_0;
+function $updateReadyPrefix$if$(version_0, withoutUrl_0) {
+  if (withoutUrl_0) {
+    const x_0 = version_0 + " disponível";
+    return "v" + x_0;
+  } else {
+    const x_1 = version_0 + " disponível — o que mudou (";
+    return "v" + x_1;
+  }
 }
-function $updateReadyJoin$() {
-  return ") · ";
+function $updateReadyPrefix$(version_0, url_0) {
+  return run_jump($updateReadyPrefix$if$, [version_0, run_loop($String$is_empty$(url_0))]);
+}
+function $updateReadyJoin$if$(withoutUrl_0) {
+  if (withoutUrl_0) {
+    return " · ";
+  } else {
+    return ") · ";
+  }
+}
+function $updateReadyJoin$(url_0) {
+  return run_jump($updateReadyJoin$if$, [run_loop($String$is_empty$(url_0))]);
 }
 function $updateNotesLabel$() {
-  return "Release notes";
+  return "Notas da versão";
 }
 function $updateApplyLabel$() {
   return "Atualizar e reiniciar";
@@ -618,20 +633,64 @@ function $updateApplyLabel$() {
 function $updatePiLabel$() {
   return "Atualizar Pi";
 }
+function $updateApplyingText$() {
+  return "Aplicando a atualização — a Mesa fecha e reabre sozinha.";
+}
+function $updateDoneText$(version_0) {
+  const x_0 = version_0 + ".";
+  return "Mesa atualizada para v" + x_0;
+}
+function $updateRecoveredText$if$(version_0, reason_0, emptyReason_0) {
+  if (emptyReason_0) {
+    const x_0 = version_0 + " falhou — a versão anterior voltou.";
+    return "A atualização para v" + x_0;
+  } else {
+    const x_1 = reason_0 + ").";
+    const x_2 = " falhou — a versão anterior voltou (" + x_1;
+    const x_3 = version_0 + x_2;
+    return "A atualização para v" + x_3;
+  }
+}
+function $updateRecoveredText$(version_0, reason_0) {
+  return run_jump($updateRecoveredText$if$, [version_0, reason_0, run_loop($String$is_empty$(reason_0))]);
+}
+function $updateIncompleteText$if$(version_0, reason_0, emptyReason_0) {
+  if (emptyReason_0) {
+    const x_0 = version_0 + " falhou e a recuperação ficou incompleta.";
+    return "A atualização para v" + x_0;
+  } else {
+    const x_1 = reason_0 + ").";
+    const x_2 = " falhou e a recuperação ficou incompleta (" + x_1;
+    const x_3 = version_0 + x_2;
+    return "A atualização para v" + x_3;
+  }
+}
+function $updateIncompleteText$(version_0, reason_0) {
+  return run_jump($updateIncompleteText$if$, [version_0, reason_0, run_loop($String$is_empty$(reason_0))]);
+}
+function $updateLogLabel$() {
+  return "Ver o log";
+}
 function $updateLineNode$(text_0) {
   return run_jump($view$viewEl$, ["p", { $: "Nil" }, { $: "Con", ["head"]: run_loop($view$viewText$(text_0)), ["tail"]: { $: "Nil" } }]);
 }
 function $releaseNotesButton$(url_0) {
   return run_jump($view$viewEl$, ["button", { $: "Con", ["head"]: run_loop($view$attrId$("update-notes")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "OpenLink")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("url", url_0)), ["tail"]: { $: "Nil" } } } } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($updateNotesLabel$()))), ["tail"]: { $: "Nil" } }]);
 }
+function $updateLogButton$() {
+  return run_jump($view$viewEl$, ["button", { $: "Con", ["head"]: run_loop($view$attrId$("update-log")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "OpenLog")), ["tail"]: { $: "Nil" } } } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($updateLogLabel$()))), ["tail"]: { $: "Nil" } }]);
+}
 function $applyUpdateButton$() {
   return run_jump($view$viewEl$, ["button", { $: "Con", ["head"]: run_loop($view$attrId$("update-apply")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrClass$("primary")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "ApplyUpdate")), ["tail"]: { $: "Nil" } } } } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($updateApplyLabel$()))), ["tail"]: { $: "Nil" } }]);
+}
+function $applyingUpdateButton$() {
+  return run_jump($view$viewEl$, ["button", { $: "Con", ["head"]: run_loop($view$attrId$("update-apply")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrClass$("primary")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "ApplyUpdate")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attr$("disabled", "")), ["tail"]: { $: "Nil" } } } } } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($updateApplyLabel$()))), ["tail"]: { $: "Nil" } }]);
 }
 function $checkUpdateButton$() {
   return run_jump($view$viewEl$, ["button", { $: "Con", ["head"]: run_loop($view$attrId$("update-check")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "CheckUpdate")), ["tail"]: { $: "Nil" } } } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($checkUpdateLabel$()))), ["tail"]: { $: "Nil" } }]);
 }
 function $updateReadyLine$(version_0, url_0) {
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("update-line")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($updateReadyPrefix$(version_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($releaseNotesButton$(url_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($updateReadyJoin$()))), ["tail"]: { $: "Con", ["head"]: run_loop($applyUpdateButton$()), ["tail"]: { $: "Nil" } } } } }]);
+  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("update-line")), ["tail"]: { $: "Nil" } }, run_loop($view$viewJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($updateReadyPrefix$(version_0, url_0)))), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($view$viewWhen$(run_loop($Bool$not$(run_loop($String$is_empty$(url_0)))), run_loop($releaseNotesButton$(url_0)))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($updateReadyJoin$(url_0)))), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($applyUpdateButton$()), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Nil" } } } } }))]);
 }
 function $updateNotesNode$(notes_0) {
   return run_jump($view$viewEl$, ["p", { $: "Con", ["head"]: run_loop($view$attrClass$("update-notes")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewText$(notes_0)), ["tail"]: { $: "Nil" } }]);
@@ -648,9 +707,24 @@ function $aboutUpdateChildren$(s_0) {
     const version_0 = s_0.version;
     const notes_0 = s_0.notes;
     const url_0 = s_0.url;
-    return { $: "Con", ["head"]: run_loop($updateReadyLine$(version_0, url_0)), ["tail"]: { $: "Con", ["head"]: run_loop($updateNotesNode$(notes_0)), ["tail"]: { $: "Nil" } } };
-  } else {
+    const notes_1 = notes_0;
+    const url_1 = url_0;
+    return run_jump($view$viewConcat$, [{ $: "Con", ["head"]: run_loop($updateReadyLine$(version_0, url_1)), ["tail"]: { $: "Nil" } }, run_loop($view$viewWhen$(run_loop($Bool$not$(run_loop($String$is_empty$(notes_1)))), run_loop($updateNotesNode$(notes_1))))]);
+  } else if (s_0.$ === "UpdateFailed") {
     return { $: "Con", ["head"]: run_loop($updateLineNode$(run_loop($updateFailedText$()))), ["tail"]: { $: "Con", ["head"]: run_loop($checkUpdateButton$()), ["tail"]: { $: "Nil" } } };
+  } else if (s_0.$ === "UpdateApplying") {
+    return { $: "Con", ["head"]: run_loop($updateLineNode$(run_loop($updateApplyingText$()))), ["tail"]: { $: "Con", ["head"]: run_loop($applyingUpdateButton$()), ["tail"]: { $: "Nil" } } };
+  } else if (s_0.$ === "UpdateDone") {
+    const version_1 = s_0.version;
+    return { $: "Con", ["head"]: run_loop($updateLineNode$(run_loop($updateDoneText$(version_1)))), ["tail"]: { $: "Con", ["head"]: run_loop($checkUpdateButton$()), ["tail"]: { $: "Nil" } } };
+  } else if (s_0.$ === "UpdateRecovered") {
+    const version_2 = s_0.version;
+    const reason_0 = s_0.reason;
+    return { $: "Con", ["head"]: run_loop($updateLineNode$(run_loop($updateRecoveredText$(version_2, reason_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($updateLogButton$()), ["tail"]: { $: "Con", ["head"]: run_loop($checkUpdateButton$()), ["tail"]: { $: "Nil" } } } };
+  } else {
+    const version_3 = s_0.version;
+    const reason_1 = s_0.reason;
+    return { $: "Con", ["head"]: run_loop($updateLineNode$(run_loop($updateIncompleteText$(version_3, reason_1)))), ["tail"]: { $: "Con", ["head"]: run_loop($updateLogButton$()), ["tail"]: { $: "Con", ["head"]: run_loop($checkUpdateButton$()), ["tail"]: { $: "Nil" } } } };
   }
 }
 function $componentIds$() {
@@ -665,9 +739,11 @@ function $componentStateText$(s_0) {
     const latest_0 = s_0.latest;
     const x_0 = latest_0 + " disponível";
     return "→ v" + x_0;
-  } else {
+  } else if (s_0.$ === "CompWarn") {
     const note_0 = s_0.note;
     return note_0;
+  } else {
+    return "Verificando…";
   }
 }
 function $componentVersionText$(version_0) {
@@ -1003,14 +1079,25 @@ var dialogsview_default = {
   updateCheckingText: run_lib($updateCheckingText$, 0),
   updateNoneText: run_lib($updateNoneText$, 1),
   updateFailedText: run_lib($updateFailedText$, 0),
-  updateReadyPrefix: run_lib($updateReadyPrefix$, 1),
-  updateReadyJoin: run_lib($updateReadyJoin$, 0),
+  "updateReadyPrefix.if": run_lib($updateReadyPrefix$if$, 2),
+  updateReadyPrefix: run_lib($updateReadyPrefix$, 2),
+  "updateReadyJoin.if": run_lib($updateReadyJoin$if$, 1),
+  updateReadyJoin: run_lib($updateReadyJoin$, 1),
   updateNotesLabel: run_lib($updateNotesLabel$, 0),
   updateApplyLabel: run_lib($updateApplyLabel$, 0),
   updatePiLabel: run_lib($updatePiLabel$, 0),
+  updateApplyingText: run_lib($updateApplyingText$, 0),
+  updateDoneText: run_lib($updateDoneText$, 1),
+  "updateRecoveredText.if": run_lib($updateRecoveredText$if$, 3),
+  updateRecoveredText: run_lib($updateRecoveredText$, 2),
+  "updateIncompleteText.if": run_lib($updateIncompleteText$if$, 3),
+  updateIncompleteText: run_lib($updateIncompleteText$, 2),
+  updateLogLabel: run_lib($updateLogLabel$, 0),
   updateLineNode: run_lib($updateLineNode$, 1),
   releaseNotesButton: run_lib($releaseNotesButton$, 1),
+  updateLogButton: run_lib($updateLogButton$, 0),
   applyUpdateButton: run_lib($applyUpdateButton$, 0),
+  applyingUpdateButton: run_lib($applyingUpdateButton$, 0),
   checkUpdateButton: run_lib($checkUpdateButton$, 0),
   updateReadyLine: run_lib($updateReadyLine$, 2),
   updateNotesNode: run_lib($updateNotesNode$, 1),

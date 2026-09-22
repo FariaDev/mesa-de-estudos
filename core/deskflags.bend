@@ -17,10 +17,13 @@ import view.bend as V
 # Os nós aqui são só de atributos (filhos `Nil`): os elementos do `index.html`
 # têm texto, ícone injetado (`labelBtn`) e handlers próprios; o host aplica os
 # atributos no nó vivo. Nada aqui lê DOM, mede ou fala IPC.
+#
+# O Conferir Xournal++ é de TODAS as plataformas suportadas (macOS e Windows
+# capturam a janela do Xournal++ — o `capture-ready` do main.cjs escolhe o
+# método): só a flag `conferir` decide o `hidden`, sem fato de plataforma.
 # ---------------------------------------------------------------------------
 
-# Fatos normalizados do `desk` + o estado corrente do botão de referências +
-# o fato `win32` (o Conferir Xournal++ é só macOS).
+# Fatos normalizados do `desk` + o estado corrente do botão de referências.
 type DeskFlags is Data:
   DeskFlags{
     refsToggle: Bool,
@@ -28,8 +31,7 @@ type DeskFlags is Data:
     endDay: Bool,
     studyContext: Bool,
     conferir: Bool,
-    calculator: Bool,
-    win32: Bool
+    calculator: Bool
   }
 
 def hiddenAttrs(hidden: Bool) -> List<&2, V.ViewAttr>:
@@ -45,7 +47,7 @@ def refsPressed.if(refsToggle: Bool, includeRefs: Bool) -> Bool:
 
 def includeRefsButton(f: DeskFlags) -> V.ViewNode:
   match f:
-    case DeskFlags{+refsToggle, includeRefs, _, _, _, _, _}:
+    case DeskFlags{+refsToggle, includeRefs, _, _, _, _}:
       V.viewEl("button", V.attrJoin([
         [V.attrId("include-refs"), V.attrAria("pressed", V.boolStr(refsPressed.if(refsToggle, includeRefs)))],
         hiddenAttrs(Bool.not(refsToggle))
@@ -53,7 +55,7 @@ def includeRefsButton(f: DeskFlags) -> V.ViewNode:
 
 def endDayButton(f: DeskFlags) -> V.ViewNode:
   match f:
-    case DeskFlags{_, _, endDay, _, _, _, _}:
+    case DeskFlags{_, _, endDay, _, _, _}:
       V.viewEl("button", V.attrJoin([
         [V.attrId("end-day")],
         hiddenAttrs(Bool.not(endDay))
@@ -61,24 +63,25 @@ def endDayButton(f: DeskFlags) -> V.ViewNode:
 
 def studyContextRow(f: DeskFlags) -> V.ViewNode:
   match f:
-    case DeskFlags{_, _, _, studyContext, _, _, _}:
+    case DeskFlags{_, _, _, studyContext, _, _}:
       V.viewEl("div", V.attrJoin([
         [V.attrId("study-context")],
         hiddenAttrs(Bool.not(studyContext))
       ]), Nil{})
 
-# No win32 o botão some mesmo com a flag ligada: a captura é só macOS.
+# Só a flag `conferir` desliga o botão: a captura existe no macOS e no
+# Windows (métodos diferentes — screencapture × PowerShell — mesmo anexo).
 def conferirButton(f: DeskFlags) -> V.ViewNode:
   match f:
-    case DeskFlags{_, _, _, _, conferir, _, win32}:
+    case DeskFlags{_, _, _, _, conferir, _}:
       V.viewEl("button", V.attrJoin([
         [V.attrId("check")],
-        hiddenAttrs(Bool.or(Bool.not(conferir), win32))
+        hiddenAttrs(Bool.not(conferir))
       ]), Nil{})
 
 def calcDivider(f: DeskFlags) -> V.ViewNode:
   match f:
-    case DeskFlags{_, _, _, _, _, calculator, _}:
+    case DeskFlags{_, _, _, _, _, calculator}:
       V.viewEl("div", V.attrJoin([
         [V.attrId("calc-divider")],
         hiddenAttrs(Bool.not(calculator))

@@ -285,7 +285,6 @@ function $includeRefsButton$(f_0) {
   const __1 = f_0.studyContext;
   const __2 = f_0.conferir;
   const __3 = f_0.calculator;
-  const __4 = f_0.win32;
   const refsToggle_1 = refsToggle_0;
   return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrId$("include-refs")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("pressed", run_loop($view$boolStr$(run_loop($refsPressed$if$(refsToggle_1, includeRefs_0)))))), ["tail"]: { $: "Nil" } } }, ["tail"]: { $: "Con", ["head"]: run_loop($hiddenAttrs$(run_loop($Bool$not$(refsToggle_1)))), ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
 }
@@ -296,7 +295,6 @@ function $endDayButton$(f_0) {
   const __2 = f_0.studyContext;
   const __3 = f_0.conferir;
   const __4 = f_0.calculator;
-  const __5 = f_0.win32;
   return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrId$("end-day")), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($hiddenAttrs$(run_loop($Bool$not$(endDay_0)))), ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
 }
 function $studyContextRow$(f_0) {
@@ -306,7 +304,6 @@ function $studyContextRow$(f_0) {
   const studyContext_0 = f_0.studyContext;
   const __3 = f_0.conferir;
   const __4 = f_0.calculator;
-  const __5 = f_0.win32;
   return run_jump($view$viewEl$, ["div", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrId$("study-context")), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($hiddenAttrs$(run_loop($Bool$not$(studyContext_0)))), ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
 }
 function $conferirButton$(f_0) {
@@ -316,9 +313,7 @@ function $conferirButton$(f_0) {
   const __3 = f_0.studyContext;
   const conferir_0 = f_0.conferir;
   const __4 = f_0.calculator;
-  const win32_0 = f_0.win32;
-  const x_0 = run_loop($Bool$not$(conferir_0));
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrId$("check")), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($hiddenAttrs$(x_0 || win32_0)), ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
+  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrId$("check")), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($hiddenAttrs$(run_loop($Bool$not$(conferir_0)))), ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
 }
 function $calcDivider$(f_0) {
   const __0 = f_0.refsToggle;
@@ -327,7 +322,6 @@ function $calcDivider$(f_0) {
   const __3 = f_0.studyContext;
   const __4 = f_0.conferir;
   const calculator_0 = f_0.calculator;
-  const __5 = f_0.win32;
   return run_jump($view$viewEl$, ["div", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrId$("calc-divider")), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($hiddenAttrs$(run_loop($Bool$not$(calculator_0)))), ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
 }
 function $String$eq$(a_0, b_0) {

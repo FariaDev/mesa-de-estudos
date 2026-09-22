@@ -363,8 +363,6 @@ const editorHandlers={
 function editorSections(){
  const groups=[];
  for(const action of CATALOG){
-  /* No Windows o Conferir Xournal++ não existe: a linha do atalho some do editor. */
-  if(!isMac&&action.id==='check')continue;
   let group=groups.find(item=>item.title===action.group);
   if(!group){group={title:action.group,rows:[]};groups.push(group);}
   const shown=format(effective(action.id));
