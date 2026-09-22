@@ -63,6 +63,5 @@ npm run install-app
 ## Créditos
 
 - **Lucas Faria** — autor
-- **Grok** (xAI) — colaborador
 
 Licença [MIT](LICENSE).
