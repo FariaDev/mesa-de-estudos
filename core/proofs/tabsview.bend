@@ -228,7 +228,16 @@ def Laws.tabs_icone_ajuda():
 def Laws.tabs_icone_xournal():
   {==}
 
-def Laws.tabs_tema_sem_icone():
+def Laws.tabs_icone_ggb():
+  {==}
+
+def Laws.tabs_icone_tema_auto():
+  {==}
+
+def Laws.tabs_icone_tema_claro():
+  {==}
+
+def Laws.tabs_icone_tema_escuro():
   {==}
 
 def Laws.tabs_tema_rotulo_no():

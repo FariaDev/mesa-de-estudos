@@ -285,6 +285,23 @@ function $themeLabel$at$(light_0, dark_0) {
 function $themeLabel$(raw_0) {
   return run_jump($themeLabel$at$, [run_loop($String$eq$(raw_0, "light")), run_loop($String$eq$(raw_0, "dark"))]);
 }
+function $themeIcon$atDark$(dark_0) {
+  if (dark_0) {
+    return "moon";
+  } else {
+    return "contrast";
+  }
+}
+function $themeIcon$at$(light_0, dark_0) {
+  if (light_0) {
+    return "sun";
+  } else {
+    return run_jump($themeIcon$atDark$, [dark_0]);
+  }
+}
+function $themeIcon$(raw_0) {
+  return run_jump($themeIcon$at$, [run_loop($String$eq$(raw_0, "light")), run_loop($String$eq$(raw_0, "dark"))]);
+}
 function $labelOr$if$(s_0, fallback_0, empty_0) {
   if (empty_0) {
     return fallback_0;
@@ -333,7 +350,7 @@ function $tabSep$() {
   return run_jump($view$viewEl$, ["span", { $: "Con", ["head"]: run_loop($view$attrClass$("tab-sep")), ["tail"]: { $: "Nil" } }, { $: "Nil" }]);
 }
 function $ggbAttrs$(active_0, disabled_0) {
-  return run_jump($view$attrJoin$, [{ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$classes$({ $: "Con", ["head"]: run_loop($view$classOn$("active", active_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("ggb-tab", true)), ["tail"]: { $: "Nil" } } })), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("id", "geogebra")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attr$("role", "tab")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("selected", run_loop($view$boolStr$(active_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attr$("tabindex", run_loop($rovingTabindex$(active_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrTitle$("GeoGebra embutido (gráficos, geometria e CAS no applet da web)")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("icon", "shapes")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("icon-tight", "")), ["tail"]: { $: "Nil" } } } } } } } } } }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrWhen$(disabled_0, run_loop($view$attr$("disabled", "")))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "OpenGeoGebra")), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Nil" } } } }]);
+  return run_jump($view$attrJoin$, [{ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$classes$({ $: "Con", ["head"]: run_loop($view$classOn$("active", active_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("ggb-tab", true)), ["tail"]: { $: "Nil" } } })), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("id", "geogebra")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attr$("role", "tab")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("selected", run_loop($view$boolStr$(active_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attr$("tabindex", run_loop($rovingTabindex$(active_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrTitle$("GeoGebra embutido (gráficos, geometria e CAS no applet da web)")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("icon", "graph")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("icon-tight", "")), ["tail"]: { $: "Nil" } } } } } } } } } }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrWhen$(disabled_0, run_loop($view$attr$("disabled", "")))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "OpenGeoGebra")), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Nil" } } } }]);
 }
 function $ggbTab$(active_0, disabled_0) {
   return run_jump($view$viewEl$, ["button", run_loop($ggbAttrs$(active_0, disabled_0)), { $: "Con", ["head"]: run_loop($view$viewText$("GeoGebra")), ["tail"]: { $: "Nil" } }]);
@@ -379,7 +396,7 @@ function $settingsItem$() {
   return run_jump($menuItem$, ["settings", "Configurações", "settings", "OpenSettings", { $: "Nil" }]);
 }
 function $themeItem$(theme_0) {
-  return run_jump($menuItem$, ["theme-cycle", run_loop($themeLabel$(theme_0)), "", "CycleTheme", { $: "Nil" }]);
+  return run_jump($menuItem$, ["theme-cycle", run_loop($themeLabel$(theme_0)), run_loop($themeIcon$(theme_0)), "CycleTheme", { $: "Nil" }]);
 }
 function $aboutItem$() {
   return run_jump($menuItem$, ["about", "Sobre", "help", "OpenAbout", { $: "Nil" }]);
@@ -560,6 +577,9 @@ var tabsview_default = {
   "themeLabel.atDark": run_lib($themeLabel$atDark$, 1),
   "themeLabel.at": run_lib($themeLabel$at$, 2),
   themeLabel: run_lib($themeLabel$, 1),
+  "themeIcon.atDark": run_lib($themeIcon$atDark$, 1),
+  "themeIcon.at": run_lib($themeIcon$at$, 2),
+  themeIcon: run_lib($themeIcon$, 1),
   "labelOr.if": run_lib($labelOr$if$, 3),
   labelOr: run_lib($labelOr$, 2),
   refToggleLabel: run_lib($refToggleLabel$, 1),

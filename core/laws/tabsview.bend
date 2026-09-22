@@ -310,9 +310,22 @@ law tabs_icone_xournal:
   {V.attrGet(V.attrsOf(T.xournalItem(True{}, False{}, False{})), "data-icon")
     == Some{"external"} : Maybe<&2, String>}
 
-# Tema é texto puro: sem andaime de ícone (como o `applyTheme` do app).
-law tabs_tema_sem_icone:
-  {V.attrGet(V.attrsOf(T.themeItem("auto")), "data-icon") == None{} : Maybe<&2, String>}
+# A aba GeoGebra usa o glifo `graph` (eixos + parábola — o autor escolheu no
+# lugar do `shapes`); o SVG é do desk/icons.mjs.
+law tabs_icone_ggb:
+  {V.attrGet(V.attrsOf(T.ggbTab(False{}, False{})), "data-icon")
+    == Some{"graph"} : Maybe<&2, String>}
+
+# O tema tem andaime de ícone desde que o autor pediu (a lei era "texto puro"):
+# o glifo acompanha o estado — auto = contraste, claro = sol, escuro = lua.
+law tabs_icone_tema_auto:
+  {V.attrGet(V.attrsOf(T.themeItem("auto")), "data-icon") == Some{"contrast"} : Maybe<&2, String>}
+
+law tabs_icone_tema_claro:
+  {V.attrGet(V.attrsOf(T.themeItem("light")), "data-icon") == Some{"sun"} : Maybe<&2, String>}
+
+law tabs_icone_tema_escuro:
+  {V.attrGet(V.attrsOf(T.themeItem("dark")), "data-icon") == Some{"moon"} : Maybe<&2, String>}
 
 # O rótulo do tema é texto direto, não `<span>` de ícone.
 law tabs_tema_rotulo_no:

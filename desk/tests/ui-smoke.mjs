@@ -586,7 +586,9 @@ await withArtifacts('tabs',async ctx=>{
  assert.deepEqual(await page.locator('#study-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['reference-toggle','xournal'],'itens do menu Estudar na ordem');
  assert.deepEqual(await page.locator('#mesa-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['help','settings','theme-cycle','about'],'itens do menu Mesa na ordem');
  assert.equal(await page.locator('#course-tabs [data-icon],#study-pop [data-icon],#mesa-pop [data-icon]').count(),0,'o andaime data-icon sai do DOM');
- assert.match(await page.locator('#theme-cycle').textContent(),/^Tema: (auto|claro|escuro)$/,'rótulo do tema no item');
+ assert.match((await page.locator('#theme-cycle').textContent()).trim(),/^Tema: (auto|claro|escuro)$/,'rótulo do tema no item');
+ assert.equal(await page.locator('#theme-cycle svg.icon').count(),1,'o item de tema ganhou glifo (auto = contraste)');
+ assert.equal(await page.locator('#course-tabs [data-id="geogebra"] svg.icon').count(),1,'a aba GeoGebra tem o glifo graph (eixos + parábola)');
  await tabs.nth(1).click();
  await page.waitForFunction(()=>{const tab=document.querySelectorAll('#course-tabs button')[1];return tab?.classList.contains('active')&&tab?.getAttribute('aria-selected')==='true';},{timeout:15000});
  assert.match(await page.title(),/Matéria B/,'document title follows the active tab');

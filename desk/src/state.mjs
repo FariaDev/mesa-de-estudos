@@ -229,11 +229,14 @@ function setTabsDisabled(value){for(const tab of document.querySelectorAll('#cou
 function updateSettings(result){const current=result.state?.model;S.supportsImages=!!current?.input?.includes('image');updateMeter(result.contextUsage||result.state?.contextUsage);renderAutoCompact(result.state);updateCheckButton();$('#model-select').replaceChildren(...S.modelCatalog.map(m=>new Option(`${m.name||m.id} · ${m.provider}`,JSON.stringify([m.provider,m.id]))));if(current)$('#model-select').value=JSON.stringify([current.provider,current.id]);const labels={off:'Desligado',minimal:'Mínimo',low:'Baixo',medium:'Médio',high:'Alto',xhigh:'Muito alto',max:'Máximo'};$('#thinking-select').replaceChildren(...(result.levels||[]).map(l=>new Option(labels[l]||l,l)));$('#thinking-select').value=result.state?.thinkingLevel||'off';const level=result.state?.thinkingLevel||'off';const picked=current?S.modelCatalog.find(m=>m.provider===current.provider&&m.id===current.id):null;footValues({model:picked?`${picked.name||picked.id} · ${picked.provider}`:'',level:labels[level]||level});$('#model-select').disabled=S.busy;$('#thinking-select').disabled=S.busy;$('#pi-label').textContent=current?.name||current?.id||'Pi';}
 export async function settings(change){$('#model-select').disabled=true;$('#thinking-select').disabled=true;try{updateSettings(await window.desk.settings(change));}catch(e){toast(e.message);try{updateSettings(await window.desk.settings({}));}catch{}}finally{$('#model-select').disabled=S.busy;$('#thinking-select').disabled=S.busy;}}
 export const THEME_LABELS={auto:'Tema: auto',light:'Tema: claro',dark:'Tema: escuro'};
+/* O glifo do item de tema acompanha o estado (mesmo mapa do `themeIcon` do
+   núcleo): auto = contraste, claro = sol, escuro = lua. */
+export const THEME_ICONS={auto:'contrast',light:'sun',dark:'moon'};
 export function applyTheme(value){
  S.currentTheme=['light','dark'].includes(value)?value:'auto';
  if(S.currentTheme==='auto')delete document.documentElement.dataset.theme;
  else document.documentElement.dataset.theme=S.currentTheme;
- const btn=$('#theme-cycle');if(btn)btn.textContent=THEME_LABELS[S.currentTheme];
+ const btn=$('#theme-cycle');if(btn)labelBtn(btn,THEME_ICONS[S.currentTheme],THEME_LABELS[S.currentTheme]);
 }
 export function labelBtn(el,name,text){if(!el)return;el.innerHTML=`${icon(name)}${text?` <span>${text}</span>`:''}`;}
 /* O vazio da conversa é árvore do núcleo (`core/welcomeview.bend`): o título é

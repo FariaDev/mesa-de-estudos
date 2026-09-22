@@ -37,7 +37,7 @@ test('abas: GeoGebra desativa a matéria e ativa a própria aba',()=>{
  assert.equal(attrs(tabs[2])['aria-selected'],'true');
  assert.equal(attrs(tabs[2])['data-id'],'geogebra');
  assert.equal(attrs(tabs[2]).title,'GeoGebra embutido (gráficos, geometria e CAS no applet da web)');
- assert.equal(attrs(tabs[2])['data-icon'],'shapes');
+ assert.equal(attrs(tabs[2])['data-icon'],'graph');
  assert.ok('data-icon-tight' in attrs(tabs[2]),'o ícone do GeoGebra cola no rótulo (textContent exato)');
  assert.deepEqual(texts(tabs[2]),['GeoGebra']);
 });
@@ -83,18 +83,23 @@ test('menu Mesa: ordem, rótulos, tema e ícones',()=>{
  assert.deepEqual(ids(items),['help','settings','theme-cycle','about']);
  assert.deepEqual(items.map(n=>texts(n)[0]),['Como usar','Configurações','Tema: escuro','Sobre']);
  assert.ok(items.every(n=>attrs(n).role==='menuitem'));
- assert.equal(attrs(items[2])['data-icon'],undefined,'tema é texto puro, sem andaime de ícone');
+ assert.equal(attrs(items[2])['data-icon'],'moon','o glifo do tema acompanha o estado (escuro = lua)');
  assert.equal(attrs(items[0])['data-icon'],'help');
  assert.equal(attrs(items[1])['data-icon'],'settings');
  assert.equal(attrs(items[3])['data-icon'],'help');
 });
 
-test('tema: mesmos rótulos do applyTheme',()=>{
+test('tema: mesmos rótulos do applyTheme e glifo por estado',()=>{
  assert.equal(core.themeLabel('auto'),'Tema: auto');
  assert.equal(core.themeLabel('light'),'Tema: claro');
  assert.equal(core.themeLabel('dark'),'Tema: escuro');
  assert.equal(core.themeLabel('rouge'),'Tema: auto');
  assert.equal(core.themeLabel(''),'Tema: auto');
+ assert.equal(core.themeIcon('auto'),'contrast');
+ assert.equal(core.themeIcon('light'),'sun');
+ assert.equal(core.themeIcon('dark'),'moon');
+ assert.equal(core.themeIcon('rouge'),'contrast');
+ assert.equal(core.themeIcon(''),'contrast');
 });
 
 // Paridade com o `renderTabs` antigo (referência inline, como estava em
@@ -107,7 +112,7 @@ const oldTabs=(courses,activeId,ggbActive,disabled)=>{
   out.push({tag:'button',attrs:{type:'button',class:active?'active':'','data-id':c.id,role:'tab','aria-selected':String(active),tabindex:active?'0':'-1'},disabled,text:c.name});
  }
  out.push({tag:'span',attrs:{class:'tab-sep'},disabled:false,text:''});
- out.push({tag:'button',attrs:{type:'button',class:ggbActive?'active ggb-tab':'ggb-tab','data-id':'geogebra',role:'tab','aria-selected':String(ggbActive),tabindex:ggbActive?'0':'-1',title:'GeoGebra embutido (gráficos, geometria e CAS no applet da web)','data-icon':'shapes','data-icon-tight':''},disabled,text:'GeoGebra'});
+ out.push({tag:'button',attrs:{type:'button',class:ggbActive?'active ggb-tab':'ggb-tab','data-id':'geogebra',role:'tab','aria-selected':String(ggbActive),tabindex:ggbActive?'0':'-1',title:'GeoGebra embutido (gráficos, geometria e CAS no applet da web)','data-icon':'graph','data-icon-tight':''},disabled,text:'GeoGebra'});
  return out;
 };
 const shape=(node,disabled)=>{

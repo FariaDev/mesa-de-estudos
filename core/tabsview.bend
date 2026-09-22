@@ -67,6 +67,26 @@ def themeLabel.at(light: Bool, dark: Bool) -> String:
 def themeLabel(+raw: String) -> String:
   themeLabel.at(String.eq(raw, "light"), String.eq(raw, "dark"))
 
+# O ícone acompanha o estado (o autor pediu andaime de ícone no tema): auto =
+# contraste (◍), claro = sol, escuro = lua. Mesmo mapa do `THEME_ICONS` do
+# host (state.mjs) — o glifo é do desk/icons.mjs.
+def themeIcon.atDark(dark: Bool) -> String:
+  match dark:
+    case True{}:
+      "moon"
+    case False{}:
+      "contrast"
+
+def themeIcon.at(light: Bool, dark: Bool) -> String:
+  match light:
+    case True{}:
+      "sun"
+    case False{}:
+      themeIcon.atDark(dark)
+
+def themeIcon(+raw: String) -> String:
+  themeIcon.at(String.eq(raw, "light"), String.eq(raw, "dark"))
+
 # ---------- rótulos ----------
 
 # O `||` do host: string vazia cai no fallback.
@@ -139,7 +159,7 @@ def ggbAttrs(+active: Bool, disabled: Bool) -> List<&2, V.ViewAttr>:
     , V.attrAria("selected", V.boolStr(active))
     , V.attr("tabindex", rovingTabindex(active))
     , V.attrTitle("GeoGebra embutido (gráficos, geometria e CAS no applet da web)")
-    , V.attrData("icon", "shapes")
+    , V.attrData("icon", "graph")
     , V.attrData("icon-tight", "")
     ],
     V.attrWhen(disabled, V.attr("disabled", "")),
@@ -231,8 +251,8 @@ def helpItem() -> V.ViewNode:
 def settingsItem() -> V.ViewNode:
   menuItem("settings", "Configurações", "settings", "OpenSettings", Nil{})
 
-def themeItem(theme: String) -> V.ViewNode:
-  menuItem("theme-cycle", themeLabel(theme), "", "CycleTheme", Nil{})
+def themeItem(+theme: String) -> V.ViewNode:
+  menuItem("theme-cycle", themeLabel(theme), themeIcon(theme), "CycleTheme", Nil{})
 
 def aboutItem() -> V.ViewNode:
   menuItem("about", "Sobre", "help", "OpenAbout", Nil{})
