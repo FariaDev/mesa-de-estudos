@@ -280,8 +280,32 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
    assert.equal(await page.locator('#result').textContent(),want,expr+' → '+want);
   }
  });
- await check('calc: guia tem 8 códigos e o open sobrevive ao render',async()=>{
-  assert.equal(await page.locator('#calc-guide code').count(),8);
+ await check('calc: recíprocas, inversas e ângulos exatos em GRAUS',async()=>{
+  await page.locator('#angle').selectOption('deg');
+  for(const [expr,want] of [['sec(60)','2'],['csc(30)','2'],['cot(45)','1'],['cot(90)','0'],['sec(180)','-1'],['asin(0.5)','30'],['acos(0.5)','60'],['atan(1)','45'],['cos(90)','0'],['sin(180)','0'],['tan(180)','0']]){
+   await page.locator('#expression').fill(expr);
+   await page.locator('#expression').press('Enter');
+   assert.equal(await page.locator('#result').textContent(),want,expr+' → '+want);
+  }
+  const before=await page.locator('#calc-history button').count();
+  for(const expr of ['tan(90)','sec(90)','csc(0)','cot(0)']){
+   await page.locator('#expression').fill(expr);
+   await page.locator('#calc-form button').click();
+   assert.equal(await page.locator('#result').textContent(),'—',expr+' é indefinido');
+   await toastWait(page,'Resultado indefinido',{timeout:5000});
+  }
+  assert.equal(await page.locator('#calc-history button').count(),before,'polos não entram no histórico');
+  await page.locator('#angle').selectOption('rad');
+  await page.locator('#expression').fill('sec(pi/2)');
+  await page.locator('#calc-form button').click();
+  assert.equal(await page.locator('#result').textContent(),'—','em RAD o polo de pi/2 também é indefinido');
+  await toastWait(page,'Resultado indefinido',{timeout:5000});
+  await page.locator('#expression').fill('cot(pi/2)');
+  await page.locator('#expression').press('Enter');
+  assert.equal(await page.locator('#result').textContent(),'0','em RAD o zero de pi/2 sai exato');
+ });
+ await check('calc: guia tem os códigos da view e o open sobrevive ao render',async()=>{
+  assert.equal(await page.locator('#calc-guide code').count(),17);
   await page.locator('#calc-guide summary').click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true);
   await page.locator('#angle').selectOption('deg');
@@ -289,7 +313,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   await page.locator('#calc-toggle > span').first().click();
   await page.locator('#calc-toggle > span').first().click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true,'open sobrevive ao colapso');
-  assert.equal(await page.locator('#calc-guide code').count(),8);
+  assert.equal(await page.locator('#calc-guide code').count(),17);
   await page.locator('#calc-guide summary').click();
   await page.locator('#angle').selectOption('rad');
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),false,'fechar a guia também sobrevive');

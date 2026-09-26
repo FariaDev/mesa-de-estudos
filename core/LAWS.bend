@@ -6,6 +6,6 @@
 #   laws/worklog.bend   — contrato do diário do turno
 #
 # Este arquivo é só o índice humano; nada de código aqui. Não é exaustivo: a
-# lista completa é `ls core/laws/` (43 módulos hoje). O que entra aqui é a
+# lista completa é `ls core/laws/` (45 módulos hoje). O que entra aqui é a
 # garantia que vale ler antes de mexer — e, principalmente, onde ela não
 # alcança.

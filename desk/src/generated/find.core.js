@@ -21,178 +21,178 @@ function run_loop(r) {
 function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
-function $pageOf$(h_0) {
-  const page_0 = h_0.page;
-  const count_0 = h_0.count;
-  return page_0;
+function $pageOf$(_h_0) {
+  const _page_0 = _h_0["page"];
+  const _count_0 = _h_0["count"];
+  return _page_0;
 }
-function $countOf$(h_0) {
-  const page_0 = h_0.page;
-  const count_0 = h_0.count;
-  return count_0;
+function $countOf$(_h_0) {
+  const _page_0 = _h_0["page"];
+  const _count_0 = _h_0["count"];
+  return _count_0;
 }
-function $firstHit$(pages_0) {
-  if (pages_0.$ === "Nil") {
+function $firstHit$(_pages_0) {
+  if (_pages_0.$ === "Nil") {
     return { $: "None" };
   } else {
-    const h_0 = pages_0.head;
-    const t_0 = pages_0.tail;
-    return { $: "Some", ["value"]: run_loop($pageOf$(h_0)) };
+    const _h_0 = _pages_0["head"];
+    const _t_0 = _pages_0["tail"];
+    return { $: "Some", ["value"]: run_loop($pageOf$(_h_0)) };
   }
 }
-function $setFound$bump$(page_0, after_0) {
-  if (after_0) {
-    return { $: "Some", ["value"]: page_0 };
+function $setFound$bump$(_page_0, _after_0) {
+  if (_after_0) {
+    return { $: "Some", ["value"]: _page_0 };
   } else {
     return { $: "None" };
   }
 }
-function $setFound$(found_0, page_0, after_0) {
-  if (found_0.$ === "Some") {
-    const v_0 = found_0.value;
-    return { $: "Some", ["value"]: v_0 };
+function $setFound$(_found_0, _page_0, _after_0) {
+  if (_found_0.$ === "Some") {
+    const _v_0 = _found_0["value"];
+    return { $: "Some", ["value"]: _v_0 };
   } else {
-    return run_jump($setFound$bump$, [page_0, after_0]);
+    return run_jump($setFound$bump$, [_page_0, _after_0]);
   }
 }
-function $walkFound$(pages_0, facts_0, found_0) {
-  if (pages_0.$ === "Nil") {
-    return found_0;
+function $walkFound$(_pages_0, _facts_0, _found_0) {
+  if (_pages_0.$ === "Nil") {
+    return _found_0;
   } else {
-    const h_0 = pages_0.head;
-    const t_0 = pages_0.tail;
-    if (facts_0.$ === "Nil") {
-      return found_0;
+    const _h_0 = _pages_0["head"];
+    const _t_0 = _pages_0["tail"];
+    if (_facts_0.$ === "Nil") {
+      return _found_0;
     } else {
-      const f_0 = facts_0.head;
-      const fs_0 = facts_0.tail;
-      return run_jump($walkFound$, [t_0, fs_0, run_loop($setFound$(found_0, run_loop($pageOf$(h_0)), f_0))]);
+      const _f_0 = _facts_0["head"];
+      const _fs_0 = _facts_0["tail"];
+      return run_jump($walkFound$, [_t_0, _fs_0, run_loop($setFound$(_found_0, run_loop($pageOf$(_h_0)), _f_0))]);
     }
   }
 }
-function $finishWalk$(found_0, first_0) {
-  if (found_0.$ === "Some") {
-    const p_0 = found_0.value;
-    return { $: "Some", ["value"]: p_0 };
+function $finishWalk$(_found_0, _first_0) {
+  if (_found_0.$ === "Some") {
+    const _p_0 = _found_0["value"];
+    return { $: "Some", ["value"]: _p_0 };
   } else {
-    return first_0;
+    return _first_0;
   }
 }
-function $nextHitFacts$(pages_0, facts_0) {
-  return run_jump($finishWalk$, [run_loop($walkFound$(pages_0, facts_0, { $: "None" })), run_loop($firstHit$(pages_0))]);
+function $nextHitFacts$(_pages_0, _facts_0) {
+  return run_jump($finishWalk$, [run_loop($walkFound$(_pages_0, _facts_0, { $: "None" })), run_loop($firstHit$(_pages_0))]);
 }
-function $afterFacts$(pages_0, current_0) {
-  if (pages_0.$ === "Nil") {
+function $afterFacts$(_pages_0, _current_0) {
+  if (_pages_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
-    const _t_0 = pages_0.head;
-    const page_0 = _t_0.page;
-    const count_0 = _t_0.count;
-    const t_0 = pages_0.tail;
-    return { $: "Con", ["head"]: run_loop($Nat$is_gt$(page_0, current_0)), ["tail"]: run_loop($afterFacts$(t_0, current_0)) };
+    const _t_0 = _pages_0["head"];
+    const _page_0 = _t_0["page"];
+    const _count_0 = _t_0["count"];
+    const _t_1 = _pages_0["tail"];
+    return { $: "Con", ["head"]: run_loop($Nat$is_gt$(_page_0, _current_0)), ["tail"]: run_loop($afterFacts$(_t_1, _current_0)) };
   }
 }
-function $nextHit$(pages_0, current_0) {
-  return run_jump($nextHitFacts$, [pages_0, run_loop($afterFacts$(pages_0, current_0))]);
+function $nextHit$(_pages_0, _current_0) {
+  return run_jump($nextHitFacts$, [_pages_0, run_loop($afterFacts$(_pages_0, _current_0))]);
 }
-function $cycleTarget$(cycle_0, pages_0, current_0) {
-  if (cycle_0) {
-    return run_jump($nextHit$, [pages_0, current_0]);
+function $cycleTarget$(_cycle_0, _pages_0, _current_0) {
+  if (_cycle_0) {
+    return run_jump($nextHit$, [_pages_0, _current_0]);
   } else {
-    return run_jump($firstHit$, [pages_0]);
+    return run_jump($firstHit$, [_pages_0]);
   }
 }
-function $totalHits$(pages_0) {
-  if (pages_0.$ === "Nil") {
+function $totalHits$(_pages_0) {
+  if (_pages_0.$ === "Nil") {
     return 0n;
   } else {
-    const _t_0 = pages_0.head;
-    const page_0 = _t_0.page;
-    const count_0 = _t_0.count;
-    const t_0 = pages_0.tail;
-    const x_0 = run_loop($totalHits$(t_0));
-    return nat_chk(count_0 + x_0);
+    const _t_0 = _pages_0["head"];
+    const _page_0 = _t_0["page"];
+    const _count_0 = _t_0["count"];
+    const _t_1 = _pages_0["tail"];
+    const _x_0 = run_loop($totalHits$(_t_1));
+    return nat_chk(_count_0 + _x_0);
   }
 }
-function $scanStep$look$(before_0, count_0, same_0) {
-  if (same_0) {
-    return { $: "Got", ["before"]: before_0 };
+function $scanStep$look$(_before_0, _count_0, _same_0) {
+  if (_same_0) {
+    return { $: "Got", ["before"]: _before_0 };
   } else {
-    return { $: "Looking", ["before"]: nat_chk(before_0 + count_0) };
+    return { $: "Looking", ["before"]: nat_chk(_before_0 + _count_0) };
   }
 }
-function $scanStep$(s_0, count_0, same_0) {
-  if (s_0.$ === "Got") {
-    const before_0 = s_0.before;
-    return { $: "Got", ["before"]: before_0 };
+function $scanStep$(_s_0, _count_0, _same_0) {
+  if (_s_0.$ === "Got") {
+    const _before_0 = _s_0["before"];
+    return { $: "Got", ["before"]: _before_0 };
   } else {
-    const before_1 = s_0.before;
-    return run_jump($scanStep$look$, [before_1, count_0, same_0]);
+    const _before_1 = _s_0["before"];
+    return run_jump($scanStep$look$, [_before_1, _count_0, _same_0]);
   }
 }
-function $finishScan$(s_0, total_0) {
-  if (s_0.$ === "Looking") {
-    const before_0 = s_0.before;
-    return { $: "All", ["total"]: total_0 };
+function $finishScan$(_s_0, _total_0) {
+  if (_s_0.$ === "Looking") {
+    const _before_0 = _s_0["before"];
+    return { $: "All", ["total"]: _total_0 };
   } else {
-    const before_1 = s_0.before;
-    return { $: "Shown", ["index"]: nat_chk(before_1 + 1n), ["total"]: total_0 };
+    const _before_1 = _s_0["before"];
+    return { $: "Shown", ["index"]: nat_chk(_before_1 + 1n), ["total"]: _total_0 };
   }
 }
-function $countFacts$(pages_0, facts_0, total_0, s_0) {
-  if (pages_0.$ === "Nil") {
-    return run_jump($finishScan$, [s_0, total_0]);
+function $countFacts$(_pages_0, _facts_0, _total_0, _s_0) {
+  if (_pages_0.$ === "Nil") {
+    return run_jump($finishScan$, [_s_0, _total_0]);
   } else {
-    const h_0 = pages_0.head;
-    const t_0 = pages_0.tail;
-    if (facts_0.$ === "Nil") {
-      return run_jump($finishScan$, [s_0, total_0]);
+    const _h_0 = _pages_0["head"];
+    const _t_0 = _pages_0["tail"];
+    if (_facts_0.$ === "Nil") {
+      return run_jump($finishScan$, [_s_0, _total_0]);
     } else {
-      const f_0 = facts_0.head;
-      const fs_0 = facts_0.tail;
-      return run_jump($countFacts$, [t_0, fs_0, total_0, run_loop($scanStep$(s_0, run_loop($countOf$(h_0)), f_0))]);
+      const _f_0 = _facts_0["head"];
+      const _fs_0 = _facts_0["tail"];
+      return run_jump($countFacts$, [_t_0, _fs_0, _total_0, run_loop($scanStep$(_s_0, run_loop($countOf$(_h_0)), _f_0))]);
     }
   }
 }
-function $sameFacts$(pages_0, current_0) {
-  if (pages_0.$ === "Nil") {
+function $sameFacts$(_pages_0, _current_0) {
+  if (_pages_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
-    const _t_0 = pages_0.head;
-    const page_0 = _t_0.page;
-    const count_0 = _t_0.count;
-    const t_0 = pages_0.tail;
-    return { $: "Con", ["head"]: run_loop($Nat$is_eq$(page_0, current_0)), ["tail"]: run_loop($sameFacts$(t_0, current_0)) };
+    const _t_0 = _pages_0["head"];
+    const _page_0 = _t_0["page"];
+    const _count_0 = _t_0["count"];
+    const _t_1 = _pages_0["tail"];
+    return { $: "Con", ["head"]: run_loop($Nat$is_eq$(_page_0, _current_0)), ["tail"]: run_loop($sameFacts$(_t_1, _current_0)) };
   }
 }
-function $findCount$(pages_0, current_0) {
-  if (pages_0.$ === "Nil") {
+function $findCount$(_pages_0, _current_0) {
+  if (_pages_0.$ === "Nil") {
     return { $: "Hidden" };
   } else {
-    const h_0 = pages_0.head;
-    const t_0 = pages_0.tail;
-    return run_jump($countFacts$, [{ $: "Con", ["head"]: h_0, ["tail"]: t_0 }, run_loop($sameFacts$({ $: "Con", ["head"]: h_0, ["tail"]: t_0 }, current_0)), run_loop($totalHits$({ $: "Con", ["head"]: h_0, ["tail"]: t_0 })), { $: "Looking", ["before"]: 0n }]);
+    const _h_0 = _pages_0["head"];
+    const _t_0 = _pages_0["tail"];
+    return run_jump($countFacts$, [{ $: "Con", ["head"]: _h_0, ["tail"]: _t_0 }, run_loop($sameFacts$({ $: "Con", ["head"]: _h_0, ["tail"]: _t_0 }, _current_0)), run_loop($totalHits$({ $: "Con", ["head"]: _h_0, ["tail"]: _t_0 })), { $: "Looking", ["before"]: 0n }]);
   }
 }
-function $Nat$is_gt$(a_0, b_0) {
-  return run_jump($Cmp$is_gt$, [cmp_new(a_0, b_0)]);
+function $Nat$is_gt$(_a_0, _b_0) {
+  return run_jump($Cmp$is_gt$, [cmp_new(_a_0, _b_0)]);
 }
-function $Nat$is_eq$(a_0, b_0) {
-  return run_jump($Cmp$is_eq$, [cmp_new(a_0, b_0)]);
+function $Nat$is_eq$(_a_0, _b_0) {
+  return run_jump($Cmp$is_eq$, [cmp_new(_a_0, _b_0)]);
 }
-function $Cmp$is_gt$(c_0) {
-  if (c_0.$ === "LT") {
+function $Cmp$is_gt$(_c_0) {
+  if (_c_0.$ === "LT") {
     return false;
-  } else if (c_0.$ === "EQ") {
+  } else if (_c_0.$ === "EQ") {
     return false;
   } else {
     return true;
   }
 }
-function $Cmp$is_eq$(c_0) {
-  if (c_0.$ === "LT") {
+function $Cmp$is_eq$(_c_0) {
+  if (_c_0.$ === "LT") {
     return false;
-  } else if (c_0.$ === "EQ") {
+  } else if (_c_0.$ === "EQ") {
     return true;
   } else {
     return false;

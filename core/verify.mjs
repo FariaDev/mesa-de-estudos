@@ -30,7 +30,17 @@ if (!existsSync(plugin)) fail(`bend não encontrado em ${plugin} — instale com
 const pluginSha = createHash("sha256").update(readFileSync(plugin)).digest("hex");
 
 const bendBin = process.env.BEND_BIN || "bend";
-const bendProbe = spawnSync(bendBin, ["--version"], {encoding: "utf8"});
+// bend 2.0.8+ fala a versão pelo subcomando `version`; 2.0.7 e anteriores, pelo
+// flag `--version`. O portão aceita os dois — e desliga a checagem diária do CLI
+// (o único request de telemetria dele) em toda invocação que ele faz aqui.
+const probeBend = (argv) => spawnSync(bendBin, argv, {
+  encoding: "utf8",
+  env: {...process.env, BEND_NO_TELEMETRY: "1"},
+});
+let bendProbe = probeBend(["version"]);
+if (bendProbe.error || bendProbe.status !== 0 || !String(bendProbe.stdout || "").trim()) {
+  bendProbe = probeBend(["--version"]);
+}
 if (bendProbe.error || bendProbe.status !== 0) fail(`binário do bend não respondeu (${bendBin}) — o portão exige a toolchain completa`);
 const bendVersion = String(bendProbe.stdout || "").trim();
 

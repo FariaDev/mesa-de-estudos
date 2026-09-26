@@ -1,5 +1,6 @@
 import Base
 import view.bend as V
+import pdfnav.bend as N
 
 # ---------------------------------------------------------------------------
 # Os diálogos da Mesa: as partes dinâmicas dos `<dialog>` do `desk/index.html`.
@@ -231,6 +232,39 @@ def endDayChildren(whereText: String, nextText: String) -> List<&2, V.ViewNode>:
   , endDayField("end-where", endDayWhereLabel(), whereText)
   , endDayField("end-next", endDayNextLabel(), nextText)
   , endDayActions()
+  ]
+
+# ---------- bookmark-dialog (favoritos do leitor) ----------
+
+# O nome vem do host (o diálogo abre pré-preenchido com o que ele sugerir) e a
+# dica é o documento com a página: "Limites.pdf, p. 12".
+def bookmarkNameInput(value: String) -> V.ViewNode:
+  V.viewEl("input", [
+    V.attrId("bookmark-name"),
+    V.attrType("text"),
+    V.attr("value", value),
+    V.attr("required", "")
+  ], Nil{})
+
+def bookmarkActions() -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("dialog-actions")], [
+    V.viewEl("button", [
+      V.attr("value", "cancel"),
+      V.attr("formnovalidate", "")
+    ], [V.viewText(N.bookmarkCancelLabel())]),
+    V.viewEl("button", [
+      V.attrId("bookmark-save"),
+      V.attr("value", "ok"),
+      V.attrClass("primary")
+    ], [V.viewText(N.bookmarkSaveLabel())])
+  ])
+
+# Filhos do `#bookmark-form` (h2, dica, campo do nome e ações).
+def bookmarkChildren(name: String, hint: String) -> List<&2, V.ViewNode>:
+  [ V.viewEl("h2", Nil{}, [V.viewText(N.bookmarkDialogTitle())])
+  , V.viewEl("p", [V.attrClass("help-lead")], [V.viewText(hint)])
+  , V.viewEl("label", Nil{}, [V.viewText(N.bookmarkNameLabel()), bookmarkNameInput(name)])
+  , bookmarkActions()
   ]
 
 # ---------- image-dialog ----------

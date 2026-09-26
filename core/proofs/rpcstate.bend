@@ -78,6 +78,18 @@ def Laws.rpc_respond_alive(stopped, pending, seq):
 def Laws.rpc_respond_dead(stopped, pending, seq):
   {==}
 
+def Laws.rpc_garbage_keeps(alive, stopped, pending, seq):
+  {==}
+
+def Laws.rpc_garbage_pending_kept(alive, stopped, pending, seq):
+  {==}
+
+def Laws.rpc_garbage_alive(alive, stopped, pending, seq):
+  {==}
+
+def Laws.rpc_step_garbage(alive, stopped, pending, seq):
+  {==}
+
 def Laws.rpc_step_timeout(known, alive, stopped, pending, seq):
   {==}
 

@@ -45,7 +45,9 @@ type MenuFacts is Data:
     xournal: Bool,
     win32: Bool,
     hasXournalPath: Bool,
-    theme: String
+    theme: String,
+    endDay: Bool,
+    compact: Bool
   }
 
 # ---------- tema ----------
@@ -248,6 +250,37 @@ def xournalItem(xournal: Bool, win32: Bool, hasPath: Bool) -> V.ViewNode:
 def helpItem() -> V.ViewNode:
   menuItem("help", "Como usar", "help", "OpenHelp", Nil{})
 
+def endDayItem(endDay: Bool) -> V.ViewNode:
+  menuItem(
+    "end-day",
+    "Encerrar por hoje",
+    "moon",
+    "OpenEndDay",
+    V.attrWhen(Bool.not(endDay), V.attr("hidden", ""))
+  )
+
+def reviewItem() -> V.ViewNode:
+  menuItem("review-open", "Caderno de revisão", "book", "OpenReview", Nil{})
+
+def densityLabel() -> String:
+  "Modo compacto"
+
+def densityIcon(compact: Bool) -> String:
+  match compact:
+    case True{}:
+      "check"
+    case False{}:
+      "unfold"
+
+def densityItem(+compact: Bool) -> V.ViewNode:
+  menuItem(
+    "density-cycle",
+    densityLabel(),
+    densityIcon(compact),
+    "ToggleDensity",
+    [V.attrAria("pressed", V.boolStr(compact))]
+  )
+
 def settingsItem() -> V.ViewNode:
   menuItem("settings", "Configurações", "settings", "OpenSettings", Nil{})
 
@@ -260,11 +293,16 @@ def aboutItem() -> V.ViewNode:
 # Filhos do `#study-pop` (ordem do index.html).
 def studyItems(f: MenuFacts) -> List<&2, V.ViewNode>:
   match f:
-    case MenuFacts{twoPanels, toggle, refVisible, xournal, win32, hasXournalPath, _}:
-      [refToggleItem(twoPanels, toggle, refVisible), xournalItem(xournal, win32, hasXournalPath)]
+    case MenuFacts{twoPanels, toggle, refVisible, xournal, win32, hasXournalPath, _, endDay, _}:
+      [
+        refToggleItem(twoPanels, toggle, refVisible),
+        xournalItem(xournal, win32, hasXournalPath),
+        reviewItem(),
+        endDayItem(endDay)
+      ]
 
 # Filhos do `#mesa-pop` (ordem do index.html).
 def mesaItems(f: MenuFacts) -> List<&2, V.ViewNode>:
   match f:
-    case MenuFacts{_, _, _, _, _, _, theme}:
-      [helpItem(), settingsItem(), themeItem(theme), aboutItem()]
+    case MenuFacts{_, _, _, _, _, _, theme, _, compact}:
+      [helpItem(), settingsItem(), themeItem(theme), densityItem(compact), aboutItem()]

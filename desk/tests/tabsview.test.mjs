@@ -10,7 +10,7 @@ const con=(head,tail)=>({$:'Con',head,tail});
 const list=(...xs)=>xs.reduceRight((tail,head)=>con(head,tail),Nil);
 const nodes=(l)=>{const out=[];for(let c=l;c&&c.$==='Con';c=c.tail)out.push(c.head);return out;};
 const tab=(id,name)=>({$:'Tab',id,name});
-const facts=(over={})=>({$:'MenuFacts',twoPanels:true,toggle:'Formulário',refVisible:true,xournal:true,win32:false,hasXournalPath:false,theme:'auto',...over});
+const facts=(over={})=>({$:'MenuFacts',twoPanels:true,toggle:'Formulário',refVisible:true,xournal:true,win32:false,hasXournalPath:false,theme:'auto',endDay:true,compact:false,...over});
 const attrs=(node)=>{const out={};for(let a=node.attrs;a&&a.$==='Con';a=a.tail)out[a.head.name]=a.head.value;return out;};
 const texts=(node)=>nodes(node.kids).map(k=>k.text??'');
 const ids=(xs)=>xs.map(n=>attrs(n).id);
@@ -57,7 +57,7 @@ test('abas: disabled é fato, não texto; o "+" fica sempre ativo',()=>{
 
 test('menu Estudar: rótulo do toggle, ARIA e painel único',()=>{
  const items=nodes(core.studyItems(facts()));
- assert.deepEqual(ids(items),['reference-toggle','xournal']);
+ assert.deepEqual(ids(items),['reference-toggle','xournal','review-open','end-day']);
  assert.deepEqual(texts(items[0]),['Formulário']);
  assert.equal(attrs(items[0])['aria-pressed'],'true');
  assert.equal(attrs(items[0]).role,'menuitem');
@@ -70,6 +70,24 @@ test('menu Estudar: rótulo do toggle, ARIA e painel único',()=>{
  assert.deepEqual(texts(one[1]),['Xournal++']);
 });
 
+test('menu Estudar: o Encerrar por hoje é item, com `hidden` pela flag',()=>{
+ const items=nodes(core.studyItems(facts()));
+ const end=items[3];
+ assert.deepEqual(texts(end),['Encerrar por hoje']);
+ assert.equal(attrs(end)['on:click'],'OpenEndDay');
+ assert.equal(attrs(end)['data-icon'],'moon');
+ assert.equal('hidden' in attrs(end),false);
+ assert.equal(attrs(nodes(core.studyItems(facts({endDay:false})))[3]).hidden,'','flag desligada esconde o item');
+});
+
+test('menu Estudar: o Caderno de revisão está sempre no menu',()=>{
+ const review=nodes(core.studyItems(facts()))[2];
+ assert.deepEqual(texts(review),['Caderno de revisão']);
+ assert.equal(attrs(review)['on:click'],'OpenReview');
+ assert.equal(attrs(review)['data-icon'],'book');
+ assert.equal('hidden' in attrs(review),false);
+});
+
 test('menu Estudar: Xournal++ segue a flag e a plataforma',()=>{
  assert.equal(attrs(nodes(core.studyItems(facts({xournal:false})))[1]).hidden,'');
  assert.equal(attrs(nodes(core.studyItems(facts({win32:true,hasXournalPath:false})))[1]).hidden,'');
@@ -80,13 +98,24 @@ test('menu Estudar: Xournal++ segue a flag e a plataforma',()=>{
 
 test('menu Mesa: ordem, rótulos, tema e ícones',()=>{
  const items=nodes(core.mesaItems(facts({theme:'dark'})));
- assert.deepEqual(ids(items),['help','settings','theme-cycle','about']);
- assert.deepEqual(items.map(n=>texts(n)[0]),['Como usar','Configurações','Tema: escuro','Sobre']);
+ assert.deepEqual(ids(items),['help','settings','theme-cycle','density-cycle','about']);
+ assert.deepEqual(items.map(n=>texts(n)[0]),['Como usar','Configurações','Tema: escuro','Modo compacto','Sobre']);
  assert.ok(items.every(n=>attrs(n).role==='menuitem'));
  assert.equal(attrs(items[2])['data-icon'],'moon','o glifo do tema acompanha o estado (escuro = lua)');
  assert.equal(attrs(items[0])['data-icon'],'help');
  assert.equal(attrs(items[1])['data-icon'],'settings');
- assert.equal(attrs(items[3])['data-icon'],'help');
+ assert.equal(attrs(items[4])['data-icon'],'help');
+});
+
+test('menu Mesa: o Modo compacto reflete o fato e alterna por clique',()=>{
+ const off=nodes(core.mesaItems(facts({compact:false})))[3];
+ assert.equal(attrs(off)['on:click'],'ToggleDensity');
+ assert.equal(attrs(off)['aria-pressed'],'false');
+ assert.equal(attrs(off)['data-icon'],'unfold','desligado convida a apertar');
+ const on=nodes(core.mesaItems(facts({compact:true})))[3];
+ assert.equal(attrs(on)['aria-pressed'],'true');
+ assert.equal(attrs(on)['data-icon'],'check','ligado mostra a marca');
+ assert.deepEqual(texts(on),['Modo compacto']);
 });
 
 test('tema: mesmos rótulos do applyTheme e glifo por estado',()=>{

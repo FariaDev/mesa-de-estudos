@@ -48,6 +48,15 @@ def Laws.worklogview_detail_aberto():
 def Laws.worklogview_detail_fechado():
   {==}
 
+def Laws.worklogview_preview_aberto():
+  {==}
+
+def Laws.worklogview_preview_fechado_com_preview():
+  {==}
+
+def Laws.worklogview_preview_fechado_vazio():
+  {==}
+
 def Laws.worklogview_tag(row):
   match row:
     case W.WorkRow{live, expanded, title, meta, steps}:

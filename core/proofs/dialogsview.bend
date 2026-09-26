@@ -4,6 +4,33 @@ import ../laws/dialogsview.bend as Laws
 # Provas dos diálogos da Mesa. Aceitador: `bend proofs/dialogsview.bend`.
 # Todas as leis são cenários concretos: fecham por computação.
 
+def Laws.dlg_bookmark_kids():
+  {==}
+
+def Laws.dlg_bookmark_titulo():
+  {==}
+
+def Laws.dlg_bookmark_dica():
+  {==}
+
+def Laws.dlg_bookmark_campo_id():
+  {==}
+
+def Laws.dlg_bookmark_campo_valor():
+  {==}
+
+def Laws.dlg_bookmark_salvar_id():
+  {==}
+
+def Laws.dlg_bookmark_salvar_texto():
+  {==}
+
+def Laws.dlg_bookmark_cancelar():
+  {==}
+
+def Laws.dlg_bookmark_cancelar_valor():
+  {==}
+
 def Laws.dlg_pi_titulo_vazio():
   {==}
 

@@ -42,6 +42,10 @@
       <button type="button" id="ggb-shot" title="Mandar um print do applet para o chat">Print no chat</button>
       <small>O applet é o da web; o Pi pode lê-lo e comandá-lo pela ferramenta geogebra.</small>
     </div>
+    <div id="review-bar" hidden></div>
+    <div id="review-view" hidden>
+      <div id="review-list" aria-label="Itens guardados para revisar"></div>
+    </div>
     <div id="pdf-grid"></div>
   </section>
   <div id="divider" role="separator" aria-label="Redimensionar conversa" tabindex="0"></div>
@@ -55,6 +59,9 @@
           <button id="export-chat" class="icon-btn" title="Exportar conversa em Markdown" aria-label="Exportar conversa em Markdown"></button>
         </div>
       </div>
+      <!-- O painel de ajustes (Modelo, Esforço e o `auto` da compactação) é
+           montado pelo Bend em src/settings-panel.mjs: esta linha e o
+           #auto-compact são MOVIDOS para dentro do corpo recolhível. -->
       <div class="pi-settings">
         <label>Modelo
           <select id="model-select" disabled><option>Conecte ao Pi</option></select>
@@ -82,12 +89,11 @@
           <button id="attach" type="button" title="Anexar imagem (ou cole com ⌘V, ou arraste para o chat; ⌘⇧C anexa a captura do Xournal++)">Anexar</button>
           <button id="include-refs" aria-pressed="true" title="Incluir referências das páginas abertas">Referências</button>
           <button id="check" title="Anexar a captura do Xournal++ à mensagem">Conferir Xournal++</button>
-          <button id="end-day" type="button">Encerrar por hoje</button>
           <button id="stop" hidden>Parar</button>
           <button id="send" class="primary" aria-label="Enviar mensagem">Enviar</button>
         </div>
         <input id="attach-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
-        <small>⌘ Enter envia · ⌘⇧C anexa a captura do Xournal++ · ← → muda a página · rolagem contínua</small>
+        <small id="composer-hint">⏎ envia · ⇧⏎ quebra linha · ⌘⇧C anexa a captura do Xournal++ · ← → muda a página · rolagem contínua</small>
       </div>
     </section>
     <div id="calc-divider" role="separator" aria-label="Redimensionar calculadora" tabindex="0"></div>
@@ -108,11 +114,12 @@
         </form>
         <output id="result">0</output>
         <div id="calc-history"></div>
-        <div class="calc-help">+ − * / ^ · sqrt · sin · cos · tan · ln · log · pi</div>
+        <div class="calc-help">+ − * / ^ · sqrt · abs · sin · cos · tan · sec · csc · cot · asin · acos · atan · ln · log · exp · pi · e</div>
         <details id="calc-guide">
           <summary>Como usar</summary>
           <p>Calculadora numérica local, sem IA. Digite e pressione Enter. Parênteses agrupam: <code>(2+3)*4</code>. Multiplicação: <code>2*pi</code>; potência: <code>2^3</code>; raiz: <code>sqrt(16)</code>.</p>
           <p><code>sin(pi/2)</code> em RAD e <code>sin(90)</code> em GRAUS dão 1. <code>ln</code> é logaritmo natural; <code>log</code> é base 10. Aceita vírgula decimal. Clique no histórico para reutilizar uma expressão.</p>
+          <p><code>sec</code>, <code>csc</code> e <code>cot</code> são as recíprocas de cosseno, seno e tangente; <code>asin</code>, <code>acos</code> e <code>atan</code> devolvem o ângulo (em GRAUS, <code>asin(0.5)</code> dá 30). Nos ângulos exatos o resultado sai exato: <code>cos(90)</code> é 0 e <code>tan(90)</code> fica indefinido.</p>
           <p>Não resolve equações nem deriva ou integra simbolicamente.</p>
         </details>
       </div>
@@ -140,6 +147,18 @@
     <label>Onde parei<textarea id="end-where" rows="2" required></textarea></label>
     <label>Próximo passo<textarea id="end-next" rows="2" required></textarea></label>
     <div class="dialog-actions"><button value="cancel" formnovalidate>Cancelar</button><button id="end-day-save" value="ok" class="primary">Salvar na conversa</button></div>
+  </form>
+</dialog>
+<dialog id="review-dialog">
+  <form method="dialog" id="review-form"></form>
+</dialog>
+
+<dialog id="bookmark-dialog">
+  <form method="dialog" id="bookmark-form">
+    <h2>Guardar esta página</h2>
+    <p class="help-lead">Favorito do leitor.</p>
+    <label>Nome do favorito<input id="bookmark-name" type="text" value="" required></label>
+    <div class="dialog-actions"><button value="cancel" formnovalidate>Cancelar</button><button id="bookmark-save" value="ok" class="primary">Salvar</button></div>
   </form>
 </dialog>
 <dialog id="image-dialog">
@@ -174,14 +193,18 @@
       </ol>
       <h3>Atalhos</h3>
       <table class="help-keys">
-        <tr data-key="send"><td><kbd>⌘</kbd><kbd>Enter</kbd></td><td>Enviar mensagem</td></tr>
+        <tr data-key="send"><td><kbd>⏎</kbd></td><td>Enviar mensagem</td></tr>
+        <tr data-key="queue"><td><kbd>⏎</kbd></td><td>Com o Pi respondendo, enfileira a mensagem (a faixa <b>Na fila</b> abre acima do campo e a fila fica salva se você fechar a mesa)</td></tr>
+        <tr data-key="steer"><td><kbd>⌘</kbd><kbd>⏎</kbd></td><td>Interromper a resposta e enviar agora</td></tr>
+        <tr data-key="newline"><td><kbd>⇧</kbd><kbd>⏎</kbd></td><td>Quebrar linha dentro da mensagem</td></tr>
         <tr data-key="check" id="help-check-row"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd></td><td>Anexar a captura do Xournal++</td></tr>
         <tr data-key="ggb-check"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd></td><td>Conferir o applet GeoGebra</td></tr>
         <tr><td><kbd>⌘</kbd><kbd>V</kbd></td><td>Colar uma imagem da área de transferência como anexo</td></tr>
         <tr data-key="chat-toggle"><td><kbd>⌘</kbd><kbd>\</kbd></td><td>Recolher ou mostrar o chat</td></tr>
         <tr data-key="pdf-find"><td><kbd>⌘</kbd><kbd>F</kbd></td><td>Buscar no PDF focado; <kbd>Esc</kbd> limpa</td></tr>
         <tr data-key="invert"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>I</kbd></td><td>Inverter as cores da página (tema escuro)</td></tr>
-        <tr data-key="stop"><td><kbd>Esc</kbd></td><td>Parar a resposta</td></tr>
+        <tr data-key="density"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd></td><td>Modo compacto (aperta o espaçamento da coluna)</td></tr>
+        <tr data-key="stop"><td><kbd>Esc</kbd></td><td>Parar a resposta (a fila fica segurada — <b>Enviar agora</b> ou <b>Limpar</b> na faixa)</td></tr>
         <tr data-key="page-nav"><td><kbd>←</kbd> <kbd>→</kbd></td><td>Página do PDF focado</td></tr>
         <tr><td>Roda / trackpad</td><td>Rolagem contínua entre páginas</td></tr>
         <tr><td><kbd>⌘</kbd> + roda / pinça</td><td>Zoom no PDF</td></tr>
@@ -195,12 +218,12 @@
       <ul>
         <li>A mesa conecta ao Pi sozinha. As matérias ficam em abas no topo; o seletor ao lado de <strong>＋</strong> reabre conversas da matéria, inclusive o exercício associado.</li>
         <li id="help-study-li">Preencha <strong>Lista / questão ativa</strong> e associe o <code>.xopp</code> para manter o contexto da sessão.</li>
-        <li id="help-endday-li"><strong>Encerrar por hoje</strong> registra onde você parou e o próximo passo na conversa.</li>
+        <li id="help-endday-li">No menu <strong>Estudar</strong>, <strong>Encerrar por hoje</strong> grava o registro local da matéria (onde você parou, o próximo passo, a questão, as páginas e o <code>.xopp</code>) e só depois avisa o Pi — sem Pi o registro fica igual. Na abertura seguinte o cartão <b>Continuar …</b> aparece acima do campo: <b>Retomar</b> restaura a questão, a página e o <code>.xopp</code> e pré-preenche a mensagem; <b>Dispensar</b> só apaga o registro.</li>
         <li id="help-refs-li"><strong>Referências</strong> manda caminho e página, não o PDF inteiro.</li>
         <li id="help-conferir-li"><strong>Conferir Xournal++</strong> anexa a captura da janela do Xournal++ na bandeja de anexos (uma imagem por captura) — nada é enviado até você escrever e enviar. No macOS o sistema pode pedir Gravação de Tela; no Windows a captura usa o PowerShell do próprio sistema.</li>
         <li>A calculadora é local: não gasta tokens e não faz álgebra simbólica. Parênteses valem: <code>(2+3)*4</code>. Multiplicação explícita: <code>2*pi</code>.</li>
         <li>Pastas, nomes de matérias e o caminho do Pi ficam em <strong>Mesa → Configurações</strong>.</li>
-        <li>Modelo e esforço do Pi ficam no topo da conversa, sempre visíveis depois de conectar.</li>
+        <li>Modelo, esforço e a compactação automática ficam no painel <strong>Ajustes</strong>, acima do campo: clique no título para recolher (a escolha é lembrada). O envio, o anexo e o Conferir Xournal++ continuam sempre à vista.</li>
         <li>Gráficos e diagramas que o Pi gera aparecem no chat. Clique na imagem para ampliar ou abrir no Preview.</li>
         <li>A busca do PDF varre todas as páginas, destaca cada ocorrência no texto e mostra um contador; clicar em <strong>Buscar</strong> de novo salta para a ocorrência seguinte.</li>
         <li><strong>Exportar conversa</strong> (seta no topo) salva a conversa como Markdown, por padrão na pasta <code>Mesa de Estudos</code> do vault.</li>
@@ -208,9 +231,12 @@
         <li><strong>Mesa → Tema</strong> alterna auto (segue o sistema), claro e escuro; a escolha fica guardada.</li>
         <li>Quizzes aparecem como cartões no chat: clique na resposta ou marque várias e envie. A correção vem logo abaixo.</li>
         <li>Digite <code>/compact</code> na mensagem para compactar o contexto da conversa (aceita instruções: <code>/compact foque na questão 7</code>). O medidor ao lado de Pi mostra quanto do contexto está em uso; passe o mouse para ver o consumido/total da conversa.</li>
-        <li>O botão <code>auto</code> ao lado do medidor liga e desliga a compactação automática do Pi: com ela ativa, o contexto é resumido sozinho quando enche.</li>
+        <li>O botão <code>auto</code> no painel <strong>Ajustes</strong> liga e desliga a compactação automática do Pi: com ela ativa, o contexto é resumido sozinho quando enche.</li>
+        <li><strong>Modo compacto</strong> (menu <strong>Mesa</strong> ou <strong>⌘⇧D</strong>) aperta o espaçamento da coluna da conversa, do leitor e das Configurações — útil com a mesa ao lado do Xournal++ em tela menor. Não muda o tamanho da fonte.</li>
         <li>A mesa tem GeoGebra embutido na aba GeoGebra; a ferramenta <code>geogebra</code> deixa o Pi comandar o applet e ler a construção quando a aba está aberta. Com a aba aberta, <strong>⌘⇧G</strong> manda um print do applet para o Pi conferir (o modelo precisa aceitar imagens), e a construção é lembrada por matéria quando você sai da aba.</li>
         <li>Selecione um trecho da conversa ou do texto de um PDF e clique em <strong>Citar</strong> para perguntar sobre ele. Fórmulas entram no texto como LaTeX; trechos de PDF citam com o nome do arquivo e a página.</li>
+        <li><code>Limites.pdf, p. 3</code> nas respostas do Pi é clicável: abre o PDF naquela página (ou carrega o arquivo no leitor). O <strong>Voltar</strong> da cabeça do leitor desfaz o pulo, e o botão <strong>Navegar</strong> guarda <strong>favoritos nomeados</strong> e mostra o <strong>sumário</strong> do documento.</li>
+        <li>Em toda resposta do Pi, <strong>Guardar para revisar</strong> abre o caderno já preenchido (questão ativa, sua última mensagem, o trecho selecionado e a página aberta). O <strong>Caderno de revisão</strong> fica no menu <strong>Estudar</strong>, em aba; lá cada item pede um exercício <strong>semelhante</strong> ou <strong>tentar de novo</strong> (o pedido vai para o campo de mensagem), edita pelo título e remove com confirmação.</li>
         <li>Anexe imagens pelo botão <strong>Anexar</strong>, colando (⌘V) ou arrastando para o chat. O modelo precisa aceitar imagens.</li>
         <li>Blocos de código nas respostas vêm com realce de sintaxe e a etiqueta da linguagem; o botão <strong>cópia</strong> no canto leva só o código.</li>
         <li>A seta no título de cada leitor <strong>minimiza o PDF</strong> para uma faixa e libera o espaço para o outro; clique de novo para restaurar.</li>

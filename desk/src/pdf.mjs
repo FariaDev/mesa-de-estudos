@@ -5,7 +5,8 @@ import {addAttachments,hideQuoteButton,MAX_ATTACH,MAX_ATTACH_BYTES} from './chat
 import findCore from './generated/find.core.js';
 import pdfView from './generated/pdfview.core.js';
 import pdfPage from './generated/pdfpageview.core.js';
-import {build,renderInto,renderChildren} from './view-host.mjs';
+import {applyIcons,build,renderInto,renderChildren} from './view-host.mjs';
+import {navBack,toggleNav} from './nav.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc=new URL('../node_modules/pdfjs-dist/build/pdf.worker.mjs',import.meta.url).href;
 // Dobra de acento que preserva o comprimento da string (índices continuam válidos
 // para o destaque): minúsculas + acentos pt-BR → letra base.
@@ -47,17 +48,9 @@ async function cachedPdf(file){
 }
 // Lista do artefato Bend (`Con`/`Nil`) a partir de um array JS.
 function bendList(items){let out={$:'Nil'};for(let i=items.length-1;i>=0;i--)out={$:'Con',head:items[i],tail:out};return out;}
-// Andaime `data-icon` do núcleo vira SVG do host (mesma convenção do main.mjs).
-// Inclui o próprio root: o `swapInto` do botão de colapsar passa o botão (e não
-// o painel) e `querySelectorAll` não enxerga o elemento raiz.
-function iconize(root){
- const targets=root.matches?.('[data-icon]')?[root,...root.querySelectorAll('[data-icon]')]:[...root.querySelectorAll('[data-icon]')];
- for(const el of targets){
-  const name=el.dataset.icon,label=el.textContent;
-  el.removeAttribute('data-icon');
-  el.innerHTML=icon(name)+(label?` <span>${label}</span>`:'');
- }
-}
+// Andaime `data-icon` do núcleo vira SVG do host (o aplicador compartilhado
+// com o popover de navegação: `view-host.mjs`).
+const iconize=root=>applyIcons(root,icon);
 // O aplicador não faz diff: a região trocada é substituída pela árvore nova.
 function swapInto(oldEl,node,handlers){const next=build(node,handlers);oldEl.replaceWith(next);iconize(next);return next;}
 export class PdfPanel {
@@ -72,6 +65,10 @@ export class PdfPanel {
    ToggleInvert:()=>this.toggleInvert(),
    Prev:()=>this.goto(this.page-1),
    Next:()=>this.goto(this.page+1),
+   // Voltar da citação seguida (a pilha é de nav.mjs, por painel).
+   NavBack:()=>navBack(this),
+   // Popover de favoritos/sumário (o corpo é do nav.mjs).
+   ToggleNav:()=>toggleNav(this),
    GotoPage:e=>this.goto(Number(e.currentTarget.value)),
    ZoomOut:()=>this.nudgeZoom(-.2),
    ZoomIn:()=>this.nudgeZoom(.2),
@@ -214,7 +211,30 @@ export class PdfPanel {
  }
  nudgeZoom(delta){this.rememberScroll();const before=this.zoom;this.zoom=Math.max(.5,Math.min(4,+(this.zoom+delta).toFixed(2)));this.scrollY*=this.zoom/before;this.q('.zoom-label').textContent=`${Math.round(this.zoom*100)}%`;save(true);clearTimeout(this.zoomTimer);this.zoomTimer=setTimeout(()=>this.render(),50);}
  rememberScroll(){const box=this.q('.pdf-viewport');if(!box)return;this.scrollX=box.scrollLeft;this.scrollY=box.scrollTop;}
- async load(path,settings={}){if(!path)return;if(this.path&&this.doc)this.docMemo.set(this.path,{page:this.page,zoom:this.zoom,scrollX:this.scrollX,scrollY:this.scrollY,invert:this.invert});const id=++this.version;this.cancelRenders();this.textDoc=null;this.textPages=null;const memo=Object.prototype.hasOwnProperty.call(settings,'zoom')?null:this.docMemo.get(path);const use=memo||settings;this.loading=true;this.path=path;this.page=Math.max(1,use.page||1);this.zoom=use.zoom||1;this.scrollX=use.scrollX||0;this.scrollY=use.scrollY||0;this.invert=!!use.invert;this.findTerm='';this.findPages=[];this.findTotal=0;this.q('.pdf-select').value=path;this.updateFindCount();this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintViewport();renderInto(this.q('.pdf-foot'),pdfView.footLoading());try{const {doc}=await cachedPdf(path);if(id!==this.version)return;this.doc=doc;this.page=Math.max(1,Math.min(doc.numPages,this.page));await this.render();this.loading=false;updateWindowTitle();save();}catch(e){this.loading=false;renderInto(this.q('.pdf-foot'),pdfView.footError());toast(e.message);}}
+ async load(path,settings={}){if(!path)return;if(this.path&&this.doc)this.docMemo.set(this.path,{page:this.page,zoom:this.zoom,scrollX:this.scrollX,scrollY:this.scrollY,invert:this.invert});const id=++this.version;this.cancelRenders();this.textDoc=null;this.textPages=null;const memo=Object.prototype.hasOwnProperty.call(settings,'zoom')||Object.prototype.hasOwnProperty.call(settings,'page')?null:this.docMemo.get(path);const use=memo||settings;this.loading=true;this.path=path;this.page=Math.max(1,use.page||1);this.zoom=use.zoom||1;this.scrollX=use.scrollX||0;this.scrollY=use.scrollY||0;this.invert=!!use.invert;this.findTerm='';this.findPages=[];this.findTotal=0;this.q('.pdf-select').value=path;this.updateFindCount();this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintViewport();renderInto(this.q('.pdf-foot'),pdfView.footLoading());try{const {doc}=await cachedPdf(path);if(id!==this.version)return;this.doc=doc;this.page=Math.max(1,Math.min(doc.numPages,this.page));await this.render();this.loading=false;updateWindowTitle();save();}catch(e){this.loading=false;renderInto(this.q('.pdf-foot'),pdfView.footError());toast(e.message);}}
+ // Sumário do documento (pdf.js `getOutline` com o destino resolvido): lista
+ // de `{title, page, depth}` com a página 1-based. Cache por doc — o teto de 40
+ // linhas é o `maxOutline()` do núcleo. Papelão sem `/Outlines` devolve [].
+ async outline(){
+  if(!this.doc)return [];
+  if(this._outlineDoc===this.doc)return this._outline||[];
+  const doc=this.doc,out=[];
+  const walk=async(nodes,depth)=>{
+   for(const node of nodes||[]){
+    if(out.length>=40)return;
+    let page=1;
+    try{
+     const dest=typeof node.dest==='string'?await doc.getDestination(node.dest):node.dest;
+     if(dest&&dest[0]!=null)page=(await doc.getPageIndex(dest[0]))+1;
+    }catch{}
+    out.push({title:String(node.title||'').trim(),page,depth});
+    if(node.items&&node.items.length)await walk(node.items,depth+1);
+   }
+  };
+  try{await walk(await doc.getOutline(),0);}catch{}
+  this._outlineDoc=doc;this._outline=out;
+  return out;
+ }
  goto(n){if(!this.doc)return;const page=Math.max(1,Math.min(this.doc.numPages,Math.trunc(n)||1));this.page=page;const target=this.pageEls[page-1];if(target&&target.isConnected&&target.offsetTop>0){const box=this.q('.pdf-viewport');box.scrollTo({top:Math.max(0,target.offsetTop-4),left:0,behavior:'auto'});this.scrollY=box.scrollTop;this.updatePageUI();this.renderVisible();save(true);return;}this.updatePageUI();this.renderVisible();save(true);}
  cancelRenders(){for(const task of this.renderTasks.values())try{task.cancel();}catch{}this.renderTasks.clear();}
  updatePageUI(){

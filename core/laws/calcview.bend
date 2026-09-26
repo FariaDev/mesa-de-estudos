@@ -210,11 +210,11 @@ law calc_corpo_tamanho:
 # ---------- ajuda e guia ----------
 
 law calc_ajuda_texto:
-  {C.calcHelpText() == "+ − * / ^ · sqrt · sin · cos · tan · ln · log · pi" : String}
+  {C.calcHelpText() == "+ − * / ^ · sqrt · abs · sin · cos · tan · sec · csc · cot · asin · acos · atan · ln · log · exp · pi · e" : String}
 
 law calc_ajuda_no:
   {C.calcHelp() == V.viewEl("div", [V.attrClass("calc-help")], Con{
-    V.viewText("+ − * / ^ · sqrt · sin · cos · tan · ln · log · pi"),
+    V.viewText("+ − * / ^ · sqrt · abs · sin · cos · tan · sec · csc · cot · asin · acos · atan · ln · log · exp · pi · e"),
     Nil{}
   }) : V.ViewNode}
 
@@ -232,7 +232,10 @@ law calc_guia_no:
     V.viewEl("summary", Nil{}, Con{V.viewText("Como usar"), Nil{}}),
     Con{
       C.guideParagraph1(),
-      Con{C.guideParagraph2(), Con{C.guideParagraph3(), Nil{}}}
+      Con{
+        C.guideParagraph2(),
+        Con{C.guideParagraph3(), Con{C.guideParagraph4(), Nil{}}}
+      }
     }
   }) : V.ViewNode}
 
@@ -288,7 +291,28 @@ law calc_guia_p2:
   }) : V.ViewNode}
 
 law calc_guia_p3:
-  {C.guideParagraph3() == V.viewEl("p", Nil{}, Con{
-    V.viewText("Não resolve equações nem deriva ou integra simbolicamente."),
-    Nil{}
-  }) : V.ViewNode}
+  {C.guideParagraph3() == V.viewEl("p", Nil{}, [
+    C.codeNode("sec"),
+    V.viewText(", "),
+    C.codeNode("csc"),
+    V.viewText(" e "),
+    C.codeNode("cot"),
+    V.viewText(" são as recíprocas de cosseno, seno e tangente; "),
+    C.codeNode("asin"),
+    V.viewText(", "),
+    C.codeNode("acos"),
+    V.viewText(" e "),
+    C.codeNode("atan"),
+    V.viewText(" devolvem o ângulo (em GRAUS, "),
+    C.codeNode("asin(0.5)"),
+    V.viewText(" dá 30). Nos ângulos exatos o resultado sai exato: "),
+    C.codeNode("cos(90)"),
+    V.viewText(" é 0 e "),
+    C.codeNode("tan(90)"),
+    V.viewText(" fica indefinido.")
+  ]) : V.ViewNode}
+
+law calc_guia_p4:
+  {C.guideParagraph4() == V.viewEl("p", Nil{}, [
+    V.viewText("Não resolve equações nem deriva ou integra simbolicamente.")
+  ]) : V.ViewNode}

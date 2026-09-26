@@ -13,8 +13,8 @@ import ./worklog.bend as L
 #       .work-mark, .work-title, .work-meta, .pulse.work-dots, .work-chevron
 #     .work-steps > .work-step[data-kind][data-status][data-detail][key]
 #       button.step-toggle[aria-expanded]
-#         .step-icon, .step-main (.step-line, .step-preview, .step-detail),
-#         .step-status
+#         .step-icon, .step-main (.step-line, .step-preview [hidden aberto],
+#         .step-detail), .step-status
 # Ícones SVG e o relógio ficam no host. `hidden` só entra quando o fato é
 # verdadeiro (atributo booleano: presença esconde, `hidden="false"` também).
 # ---------------------------------------------------------------------------
@@ -101,6 +101,22 @@ def detailHidden(open: Bool, hasDetail: Bool) -> Bool:
       True{}
     case True{}:
       isOff(open)
+
+# O preview (o resumo que "corre" enquanto o passo pensa) some quando o passo
+# está aberto: aberto, quem manda é o texto completo, que cresce no lugar dele.
+#
+# Quem chama passa o mesmo `expandedOn` do botão, e não `open` cru: um passo SEM
+# detalhe nunca mostra detalhe nenhum (`detailHidden`), mas `open` ainda pode
+# estar verdadeiro. Com `open` cru, o resumo sumia e nada aparecia no lugar — o
+# passo esvaziava enquanto o botão continuava dizendo "recolhido". Com
+# `expandedOn`, sem detalhe o resumo fica (o clique vira inócuo em vez de
+# apagar conteúdo); com detalhe, os dois valores coincidem e nada muda.
+def previewHidden(open: Bool, previewEmpty: Bool) -> Bool:
+  match open:
+    case True{}:
+      True{}
+    case False{}:
+      previewEmpty
 
 def attrHidden() -> V.ViewAttr:
   V.ViewAttr{"hidden", ""}
@@ -213,7 +229,7 @@ def workStep.go(
                 V.viewEl("span", [V.attrClass("step-time")], [V.viewText(time)])
               ]
             ),
-            V.viewEl("div", classHidden("step-preview", String.is_empty(preview)), [V.viewText(preview)]),
+            V.viewEl("div", classHidden("step-preview", previewHidden(expandedOn, String.is_empty(preview))), [V.viewText(preview)]),
             V.viewEl(
               "div",
               classHidden("step-detail", detailHidden(open, hasDetail)),

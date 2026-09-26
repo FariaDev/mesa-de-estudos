@@ -10,6 +10,36 @@ def Laws.composer_label_um(count):
 def Laws.composer_label_muitos(count):
   {==}
 
+def Laws.composer_label_recuperadas_um(count):
+  {==}
+
+def Laws.composer_label_recuperadas_muitos(count):
+  {==}
+
+def Laws.composer_action_visible():
+  {==}
+
+def Laws.composer_action_hidden():
+  {==}
+
+def Laws.composer_send_now_class():
+  {==}
+
+def Laws.composer_send_now_click():
+  {==}
+
+def Laws.composer_send_now_hidden_attr():
+  {==}
+
+def Laws.composer_clear_class():
+  {==}
+
+def Laws.composer_clear_click():
+  {==}
+
+def Laws.composer_clear_hidden_attr():
+  {==}
+
 def Laws.composer_title_sending(text):
   {==}
 
@@ -76,6 +106,15 @@ def Laws.composer_strip_closing_data():
 def Laws.composer_strip_open_data():
   {==}
 
+def Laws.composer_strip_actions_class():
+  {==}
+
+def Laws.composer_send_now_text():
+  {==}
+
+def Laws.composer_clear_text():
+  {==}
+
 def Laws.composer_item_tag():
   {==}
 
@@ -95,4 +134,48 @@ def Laws.composer_banner_tag(visible, closing):
   {==}
 
 def Laws.composer_banner_id():
+  {==}
+
+# ---------- painel de ajustes (Mesa) ----------
+
+def Laws.composer_settings_panel_id():
+  {==}
+
+def Laws.composer_settings_panel_classe():
+  {==}
+
+def Laws.composer_settings_toggle_id():
+  {==}
+
+def Laws.composer_settings_toggle_rotulo():
+  {==}
+
+def Laws.composer_settings_toggle_clique():
+  {==}
+
+def Laws.composer_settings_toggle_controles():
+  {==}
+
+def Laws.composer_settings_aberto_aria():
+  {==}
+
+def Laws.composer_settings_fechado_aria():
+  {==}
+
+def Laws.composer_settings_aberto_classe():
+  {==}
+
+def Laws.composer_settings_fechado_classe():
+  {==}
+
+def Laws.composer_settings_corpo_id():
+  {==}
+
+def Laws.composer_settings_corpo_classe():
+  {==}
+
+def Laws.composer_settings_aberto_visivel():
+  {==}
+
+def Laws.composer_settings_fechado_oculto():
   {==}

@@ -118,3 +118,6 @@ def Laws.calc_guia_p2():
 
 def Laws.calc_guia_p3():
   {==}
+
+def Laws.calc_guia_p4():
+  {==}

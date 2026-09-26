@@ -310,3 +310,14 @@ test('A4/lock: segunda aquisição recusa; lock velho (preso) é quebrado', () =
   presa.release();
   assert.equal(fs.existsSync(path.join(runtime, 'update.lock')), false, 'o dono solta o lock');
 });
+
+/* Notas da release: o Sobre despeja texto puro (o Markdown bonito é do
+   navegador, pelo botão) e o corte de 2000 é na fronteira de palavra. */
+test('releaseFromGithub: notas viram texto puro e cortam na palavra', () => {
+  const r = updater.releaseFromGithub({tag_name: 'v0.4.4', html_url: 'https://github.com/x', body: '## O que mudou\n**Forte** e `código` com [link](https://x)\n- item um\n* item dois\n\n\n\nfim'});
+  assert.equal(r.notes, 'O que mudou\nForte e código com link\n• item um\n• item dois\n\nfim');
+  const longo = updater.releaseFromGithub({tag_name: 'v0.4.4', html_url: '', body: 'palavra '.repeat(400)});
+  assert.ok(longo.notes.length <= 2001, 'dentro do teto do Sobre');
+  assert.ok(longo.notes.endsWith('…'), 'reticências dizem que tem mais');
+  assert.equal(/[^\s…]$/.test(longo.notes.slice(0, -1)), true, 'o corte não parte palavra no meio');
+});

@@ -60,6 +60,9 @@ test('displayUserText hides conferir commands and reference appendices',()=>{
  assert.equal(displayUserText('/conferir Olha o passo 3'),'Conferir Xournal++\nOlha o passo 3');
  assert.equal(displayUserText('quanto vale o limite?\n\n[Referências abertas na mesa, indicadas pelo usuário como contexto: "/tmp/a.pdf#page=1".]'),'quanto vale o limite?');
  assert.equal(displayUserText('quanto vale?\n\n[Contexto da sessão na Mesa: matéria: "Cálculo I"; exercício ativo: "Lista 2 · 7b".]\n\n[Referências abertas na mesa, indicadas pelo usuário como contexto: "/tmp/a.pdf#page=1".]'),'quanto vale?');
+ /* Bloco atual (core/studycontext.bend): some inteiro, inclusive a linha da
+    captura, e o texto do usuário fica. */
+ assert.equal(displayUserText('confere minha resposta\n\n[Contexto da Mesa]\n- matéria: Cálculo I\n- exercício ativo: Lista 3\n- referências abertas na mesa (abertas, não lidas por você):\n  · /tmp/a.pdf#page=1\ncaptura desta mensagem: janela do Xournal++ às 14:32, do exercício Lista 3'),'confere minha resposta');
  assert.match(displayUserText('x\n\n[Conferência visual solicitada pelo usuário; captura de Xournal++]'),/Conferir Xournal\+\+/);
 });
 

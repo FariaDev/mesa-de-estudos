@@ -12,62 +12,62 @@ function run_loop(r) {
 function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
-function $pageTurn$under$(under_0, next_0) {
-  if (under_0) {
+function $pageTurn$under$(_under_0, _next_0) {
+  if (_under_0) {
     return { $: "Spin", ["accum"]: 0, ["turn"]: { $: "Prev" } };
   } else {
-    return { $: "Spin", ["accum"]: next_0, ["turn"]: { $: "Stay" } };
+    return { $: "Spin", ["accum"]: _next_0, ["turn"]: { $: "Stay" } };
   }
 }
-function $pageTurn$turn$(over_0, under_0, next_0) {
-  if (over_0) {
+function $pageTurn$turn$(_over_0, _under_0, _next_0) {
+  if (_over_0) {
     return { $: "Spin", ["accum"]: 0, ["turn"]: { $: "Next" } };
   } else {
-    return run_jump($pageTurn$under$, [under_0, next_0]);
+    return run_jump($pageTurn$under$, [_under_0, _next_0]);
   }
 }
-function $pageTurn$dir$(towardNext_0, towardPrev_0, over_0, under_0, accum_0, next_0) {
-  if (towardNext_0) {
-    return run_jump($pageTurn$turn$, [over_0, under_0, next_0]);
+function $pageTurn$dir$(_towardNext_0, _towardPrev_0, _over_0, _under_0, _accum_0, _next_0) {
+  if (_towardNext_0) {
+    return run_jump($pageTurn$turn$, [_over_0, _under_0, _next_0]);
   } else {
-    if (towardPrev_0) {
-      return run_jump($pageTurn$turn$, [over_0, under_0, next_0]);
+    if (_towardPrev_0) {
+      return run_jump($pageTurn$turn$, [_over_0, _under_0, _next_0]);
     } else {
-      return { $: "Spin", ["accum"]: accum_0, ["turn"]: { $: "Stay" } };
+      return { $: "Spin", ["accum"]: _accum_0, ["turn"]: { $: "Stay" } };
     }
   }
 }
-function $pageTurn$edge$(towardNext_0, towardPrev_0, atTop_0, atBottom_0, over_0, under_0, accum_0, next_0) {
-  if (towardNext_0) {
-    if (atBottom_0) {
-      return run_jump($pageTurn$dir$, [true, towardPrev_0, over_0, under_0, accum_0, next_0]);
+function $pageTurn$edge$(_towardNext_0, _towardPrev_0, _atTop_0, _atBottom_0, _over_0, _under_0, _accum_0, _next_0) {
+  if (_towardNext_0) {
+    if (_atBottom_0) {
+      return run_jump($pageTurn$dir$, [true, _towardPrev_0, _over_0, _under_0, _accum_0, _next_0]);
     } else {
       return { $: "Spin", ["accum"]: 0, ["turn"]: { $: "Stay" } };
     }
   } else {
-    if (towardPrev_0) {
-      if (atTop_0) {
-        return run_jump($pageTurn$dir$, [false, true, over_0, under_0, accum_0, next_0]);
+    if (_towardPrev_0) {
+      if (_atTop_0) {
+        return run_jump($pageTurn$dir$, [false, true, _over_0, _under_0, _accum_0, _next_0]);
       } else {
         return { $: "Spin", ["accum"]: 0, ["turn"]: { $: "Stay" } };
       }
     } else {
-      return run_jump($pageTurn$dir$, [false, false, over_0, under_0, accum_0, next_0]);
+      return run_jump($pageTurn$dir$, [false, false, _over_0, _under_0, _accum_0, _next_0]);
     }
   }
 }
-function $pageTurn$open$(fits_0, towardNext_0, towardPrev_0, atTop_0, atBottom_0, over_0, under_0, accum_0, next_0) {
-  if (fits_0) {
-    return run_jump($pageTurn$dir$, [towardNext_0, towardPrev_0, over_0, under_0, accum_0, next_0]);
+function $pageTurn$open$(_fits_0, _towardNext_0, _towardPrev_0, _atTop_0, _atBottom_0, _over_0, _under_0, _accum_0, _next_0) {
+  if (_fits_0) {
+    return run_jump($pageTurn$dir$, [_towardNext_0, _towardPrev_0, _over_0, _under_0, _accum_0, _next_0]);
   } else {
-    return run_jump($pageTurn$edge$, [towardNext_0, towardPrev_0, atTop_0, atBottom_0, over_0, under_0, accum_0, next_0]);
+    return run_jump($pageTurn$edge$, [_towardNext_0, _towardPrev_0, _atTop_0, _atBottom_0, _over_0, _under_0, _accum_0, _next_0]);
   }
 }
-function $pageTurn$(blocked_0, fits_0, towardNext_0, towardPrev_0, atTop_0, atBottom_0, over_0, under_0, accum_0, next_0) {
-  if (blocked_0) {
+function $pageTurn$(_blocked_0, _fits_0, _towardNext_0, _towardPrev_0, _atTop_0, _atBottom_0, _over_0, _under_0, _accum_0, _next_0) {
+  if (_blocked_0) {
     return { $: "Spin", ["accum"]: 0, ["turn"]: { $: "Stay" } };
   } else {
-    return run_jump($pageTurn$open$, [fits_0, towardNext_0, towardPrev_0, atTop_0, atBottom_0, over_0, under_0, accum_0, next_0]);
+    return run_jump($pageTurn$open$, [_fits_0, _towardNext_0, _towardPrev_0, _atTop_0, _atBottom_0, _over_0, _under_0, _accum_0, _next_0]);
   }
 }
 var wheel_default = {

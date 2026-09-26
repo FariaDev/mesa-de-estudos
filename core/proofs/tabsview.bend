@@ -179,6 +179,32 @@ def Laws.tabs_xournal_item_visivel():
 def Laws.tabs_xournal_rotulo():
   {==}
 
+# ---------- menu Estudar: Encerrar e Caderno ----------
+
+def Laws.tabs_endday_id():
+  {==}
+
+def Laws.tabs_endday_rotulo():
+  {==}
+
+def Laws.tabs_endday_clique():
+  {==}
+
+def Laws.tabs_endday_visivel():
+  {==}
+
+def Laws.tabs_endday_oculto():
+  {==}
+
+def Laws.tabs_caderno_id():
+  {==}
+
+def Laws.tabs_caderno_rotulo():
+  {==}
+
+def Laws.tabs_caderno_clique():
+  {==}
+
 # ---------- menu Mesa ----------
 
 def Laws.tabs_menu_mesa():
@@ -194,6 +220,32 @@ def Laws.tabs_tema_escuro():
   {==}
 
 def Laws.tabs_tema_desconhecido():
+  {==}
+
+# ---------- modo compacto (densidade) ----------
+
+def Laws.tabs_compacto_id():
+  {==}
+
+def Laws.tabs_compacto_rotulo():
+  {==}
+
+def Laws.tabs_compacto_clique():
+  {==}
+
+def Laws.tabs_compacto_ligado():
+  {==}
+
+def Laws.tabs_compacto_desligado():
+  {==}
+
+def Laws.tabs_compacto_icone_ligado():
+  {==}
+
+def Laws.tabs_compacto_icone_desligado():
+  {==}
+
+def Laws.tabs_compacto_icone_attr():
   {==}
 
 def Laws.tabs_ajuda_id():

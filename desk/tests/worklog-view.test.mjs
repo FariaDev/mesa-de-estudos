@@ -96,6 +96,27 @@ test('passo sem detalhe fica data-detail=false e o detalhe hidden',()=>{
  assert.equal('hidden' in attrs(findClass(tree,'step-detail')),true);
 });
 
+test('passo aberto esconde o preview; fechado, o preview corre',()=>{
+ const open=core.workStep(thinkStep({open:true,preview:'correndo…',text:'texto completo'}));
+ assert.equal('hidden' in attrs(findClass(open,'step-preview')),true,'aberto: o preview some (quem manda é o texto)');
+ assert.equal(textOf(findClass(open,'step-preview')),'correndo…','o nó do preview fica no DOM (só escondido)');
+ assert.equal('hidden' in attrs(findClass(open,'step-detail')),false);
+ const closed=core.workStep(thinkStep({open:false,preview:'correndo…',text:'texto completo'}));
+ assert.equal('hidden' in attrs(findClass(closed,'step-preview')),false,'fechado: o preview corre');
+ assert.equal(attrs(findClass(closed,'step-detail')).hidden,'','fechado: o detalhe some');
+});
+
+test('passo sem detalhe mantém o preview mesmo aberto (o corpo não esvazia)',()=>{
+ /* Sem detalhe não há o que expandir: o botão já diz "recolhido"
+    (aria-expanded=false). Se o preview sumisse com `open` verdadeiro, o clique
+    apagaria o único conteúdo do passo e nada apareceria no lugar. */
+ const step=core.workStep(thinkStep({hasDetail:false,open:true,preview:'correndo…',text:''}));
+ assert.equal(attrs(findClass(step,'step-toggle'))['aria-expanded'],'false');
+ assert.equal('hidden' in attrs(findClass(step,'step-detail')),true,'sem detalhe, o detalhe nunca aparece');
+ assert.equal('hidden' in attrs(findClass(step,'step-preview')),false,'o preview fica: é o único conteúdo do passo');
+ assert.equal(textOf(findClass(step,'step-preview')),'correndo…');
+});
+
 test('busca running ganha spinner; link traz domínio',()=>{
  const step={
   $:'StepRow',id:'s1',kind:{$:'Search'},status:{$:'Status.Running'},

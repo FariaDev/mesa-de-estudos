@@ -22,6 +22,11 @@ const BUILD = [
   {entry: "find.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "courses.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "study.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  {entry: "studycontext.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  /* O bilhete Conversa → Mesa é o único módulo gerado para os DOIS apps: um lado
+     escreve, o outro lê, e o formato precisa ser o mesmo byte a byte. */
+  {entry: "handoff.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  {entry: "handoff.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
   {entry: "config.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "framing.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "rpcstate.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
@@ -39,11 +44,15 @@ const BUILD = [
   {entry: "worklog.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
   {entry: "search.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
   {entry: "composerview.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
+  {entry: "composerview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "searchview.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
   {entry: "statusview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "statusview.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
   {entry: "worklogview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "worklogview.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
+  {entry: "pdfref.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  {entry: "pdfnav.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  {entry: "review.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "pdfview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "tabsview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "toastview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
@@ -71,6 +80,8 @@ const BUILD = [
   {entry: "talkview.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
   {entry: "slashview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "slashview.bend", out: join(import.meta.dir, "..", "chat", "src", "generated")},
+  {entry: "pending.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  {entry: "resume.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
 ];
 
 for (const job of BUILD) {

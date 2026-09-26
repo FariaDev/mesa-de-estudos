@@ -32,7 +32,10 @@ import Base
 #
 # Overflow do framing e erro de write no stdin caem em ActKill; o timeout de um
 # pedido recusa só ele (ActRefuse) e a ponte segue viva — quem detecta um Pi
-# morto depois é o health. Helpers primeiro: Bend não tem referência para frente.
+# morto depois é o health. Linha que não é JSON (lixo no stdout) também NÃO
+# derruba: é `EvGarbage` → keep, e o host só avisa (um `desk_error` faria a UI
+# cair para "offline" e destravar o composer no meio de um turno vivo).
+# Helpers primeiro: Bend não tem referência para frente.
 # ---------------------------------------------------------------------------
 
 type RpcAct is Data:
@@ -57,6 +60,7 @@ type RpcEvt is Data:
   EvExit{isCurrent: Bool}
   EvStop{}
   EvRespond{}
+  EvGarbage{}
 
 type RpcOut is Data:
   RpcOut{
@@ -183,6 +187,11 @@ def onExit(isCurrent: Bool, alive: Bool, stopped: Bool, pending: Nat, seq: Nat) 
 def onStop(alive: Bool, pending: Nat, seq: Nat) -> RpcOut:
   downStop(seq)
 
+# Linha ilegível no stdout (não é JSON): a ponte fica exatamente como estava —
+# não derruba, não resolve nem rejeita pendente. O aviso é do host.
+def onGarbage(alive: Bool, stopped: Bool, pending: Nat, seq: Nat) -> RpcOut:
+  keep(alive, stopped, pending, seq)
+
 # ---------- despacho ----------
 
 def step(alive: Bool, stopped: Bool, pending: Nat, seq: Nat, e: RpcEvt) -> RpcOut:
@@ -203,6 +212,8 @@ def step(alive: Bool, stopped: Bool, pending: Nat, seq: Nat, e: RpcEvt) -> RpcOu
       onStop(alive, pending, seq)
     case EvRespond{}:
       onRespond(alive, stopped, pending, seq)
+    case EvGarbage{}:
+      onGarbage(alive, stopped, pending, seq)
 
 # ---------- projeções (leis falam do campo, não casam no RpcOut computado) ----------
 

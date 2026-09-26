@@ -1,12 +1,18 @@
 import {icon} from '../icons.mjs';
-import {$,S,toast,connectionState,save,calcHeightPx,studySnapshot,layoutSnapshot,updateContextSummary,fillSessions,applyStudy,applyTheme,THEME_LABELS,labelBtn,settings,connect,loadCourse,markCourseTab,switchCourse} from './state.mjs';
-import {conferir,conferirGeogebra,send,resetAttachments,hideQuoteButton} from './chat.mjs';
+import {$,S,toast,connectionState,save,calcHeightPx,studySnapshot,pageRefs,layoutSnapshot,updateContextSummary,fillSessions,applyStudy,applyTheme,THEME_LABELS,labelBtn,settings,connect,loadCourse,markCourseTab,switchCourse} from './state.mjs';
+import {conferir,conferirGeogebra,send,resetAttachments,restoreAttachments,hideQuoteButton} from './chat.mjs';
+import {renderResumeCard} from './resume.mjs';
+import resumeCore from './generated/resume.core.js';
+
 import {sendGgbRect,activateGeogebra,deactivateGeogebra} from './ggb.mjs';
+import {activateReview,deactivateReview,drawReview} from './review.mjs';
 import {expandCalculator,initCalculator} from './calc.mjs';
 import tabsCore from './generated/tabsview.core.js';
 import {build,renderChildren} from './view-host.mjs';
 import {appendCourseRow,clearEndDay,renderAboutLead,renderAboutUpdate,renderComponentChecking,renderComponentRows,renderCourseRows,renderEndDay,renderHelpVersion,renderSettingsHead,renderWelcome} from './dialogs.mjs';
 import * as slash from './slash.mjs';
+import * as queue from './queue.mjs';
+import {toggleDensity,compactMode} from './density.mjs';
 function setMenuOpen(el,open,{animate=true,blur=false}={}){
  if(!el)return;
  const trigger=el.querySelector('.nav-trigger');
@@ -64,10 +70,10 @@ function toCoreCourses(courses){
 function menuFactsOf(){
  const desk=S.appConfig.desk||{};
  const panels=Array.isArray(desk.panels)?desk.panels:[];
- return {$:'MenuFacts',twoPanels:panels.length>1,toggle:String(panels[1]?.toggle||''),refVisible:!!S.refVisible,xournal:desk.xournal!==false,win32:S.appConfig.platform==='win32',hasXournalPath:!!S.appConfig.xournalPath,theme:S.currentTheme||'auto'};
+ return {$:'MenuFacts',twoPanels:panels.length>1,toggle:String(panels[1]?.toggle||''),refVisible:!!S.refVisible,xournal:desk.xournal!==false,win32:S.appConfig.platform==='win32',hasXournalPath:!!S.appConfig.xournalPath,theme:S.currentTheme||'auto',endDay:desk.endDay!==false,compact:compactMode()};
 }
 const tabsHandlers={SelectCourse:e=>selectTab(e.currentTarget.dataset.id),OpenGeoGebra:()=>selectTab('geogebra'),NewCourse:()=>openSettings(false)};
-const menuHandlers={ToggleReference:toggleReference,OpenXournal:openXournal,CycleTheme:cycleTheme,OpenHelp:openHelp,OpenSettings:()=>openSettings(false),OpenAbout:openAbout};
+const menuHandlers={ToggleReference:toggleReference,OpenXournal:openXournal,CycleTheme:cycleTheme,OpenHelp:openHelp,OpenSettings:()=>openSettings(false),OpenAbout:openAbout,OpenEndDay:openEndDay,ToggleDensity:toggleDensityMode,OpenReview:()=>selectTab('review')};
 /* Andaime `data-icon`: o núcleo diz o nome do ícone; o SVG é deste arquivo. */
 function iconize(root){
  for(const el of root.querySelectorAll('[data-icon]')){
@@ -88,8 +94,12 @@ function renderMenus(){
 }
 function selectTab(id){
  if(!id)return;
- if(id==='geogebra'){if(!S.ggbActive)activateGeogebra();return;}
+ /* O caderno e o applet não dividem a área de estudo: abrir um fecha o outro. */
+ if(id==='review'){if(!S.reviewActive){deactivateGeogebra();activateReview();}return;}
+ if(id==='geogebra'){if(!S.ggbActive){deactivateReview();activateGeogebra();}return;}
  if(S.ggbActive&&id===S.currentCourseId){deactivateGeogebra();markCourseTab(id);return;}
+ if(S.reviewActive&&id===S.currentCourseId){deactivateReview();markCourseTab(id);return;}
+ if(S.reviewActive)deactivateReview();
  selectCourse(id);
 }
 let tabFocusId='',tabFocusGen=0;
@@ -156,21 +166,79 @@ function cycleTheme(){
  /* Sem re-render dos menus: o `applyTheme` já troca o rótulo do item vivo e
     recriar os filhos no meio do clique desanexaria o alvo (o menu fecharia). */
 }
+/* Encerrar por hoje saiu do composer e virou item do menu Estudar (o `hidden`
+   pela flag `endDay` e o rótulo vêm do núcleo). O diálogo é o mesmo; o miolo é
+   do `dialogsview` e o submit à prova de falha segue no `#end-day-form`. */
+function openEndDay(){
+ if(S.busy){toast('Pare a resposta antes de encerrar.');return;}
+ $('#end-day-dialog').showModal();
+}
+/* Modo compacto (menu Mesa e ⌘⇧D): o item vivo só troca o que o núcleo manda —
+   ícone do modo corrente e `aria-pressed` —, então o menu fica aberto e o
+   `selected` do select das Configurações acompanha pelo `sync` da densidade. */
+function refreshDensityItem(){
+ const button=$('#density-cycle');
+ if(!button)return;
+ const compact=compactMode();
+ button.setAttribute('aria-pressed',String(compact));
+ labelBtn(button,tabsCore.densityIcon(compact),tabsCore.densityLabel());
+}
+function toggleDensityMode(){
+ toggleDensity();
+ refreshDensityItem();
+}
 $('#new-tab')?.replaceWith(build(tabsCore.newTab(),tabsHandlers));
-$('#send').onclick=()=>send($('#prompt').value);$('#prompt').onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();if(!S.busy)send($('#prompt').value);}};$('#check').onclick=()=>conferir();$('#connect').onclick=()=>connect().catch(()=>{});$('#stop').onclick=()=>{window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));};
+$('#send').onclick=()=>{queue.release();send($('#prompt').value);};
+/* ⏎ envia; ⇧⏎ quebra linha; ⌘/Ctrl+⏎ interrompe e envia (steer) com o Pi
+   ocupado — livre, vale como ⏎. Ocupado, o ⏎ do composer vira fila: quem captura
+   antes é o `queue.mjs` (com o menu `/` aberto, o slash consome na janela e passa
+   na frente dos dois). Enviar à mão solta a fila segurada (`release`): o usuário
+   voltou ao comando. */
+$('#prompt').onkeydown=e=>{
+ if(e.key!=='Enter'||e.isComposing)return;
+ const steer=e.metaKey||e.ctrlKey;
+ if(e.shiftKey&&!steer)return;
+ e.preventDefault();
+ const value=$('#prompt').value;
+ if(steer){if(value.trim()||S.attachments.length)send(value,undefined,{steer:true});return;}
+ if(!S.busy){queue.release();send(value);}
+};
+$('#check').onclick=()=>conferir();$('#connect').onclick=()=>connect().catch(()=>{});$('#stop').onclick=()=>{window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));};
 $('#exercise-title').addEventListener('input',()=>{updateContextSummary();save();});
 $('#pick-xopp').onclick=async()=>{try{const file=await window.desk.pickXopp();if(file)applyStudy({...studySnapshot(),xopp:file});save(true);}catch(e){toast(e.message);}};
-$('#end-day').onclick=()=>{if(S.busy){toast('Pare a resposta antes de encerrar.');return;}$('#end-day-dialog').showModal();};
-/* O miolo do `#end-day-dialog` vem do Bend (`core/dialogsview.bend`): rótulos,
-   textareas e ações; o `<form>` e este submit continuam aqui. */
+/* O Encerrar por hoje mora no menu Estudar (`OpenEndDay`), decidido pelo núcleo
+   com a flag `endDay`. O miolo do `#end-day-dialog` vem do Bend
+   (`core/dialogsview.bend`) — rótulos, textareas e ações; o `<form>` e o submit
+   continuam aqui. */
 renderEndDay();
-$('#end-day-form').addEventListener('submit',e=>{if(e.submitter?.id!=='end-day-save')return;e.preventDefault();const where=$('#end-where').value.trim(),next=$('#end-next').value.trim();if(!where||!next)return;$('#end-day-dialog').close();clearEndDay();send(`Encerrar por hoje.\n\nOnde parei: ${where}\n\nPróximo passo: ${next}`,[]);});
+/* Encerrar por hoje à prova de falha: o registro local é gravado PRIMEIRO — o
+   diálogo só fecha se gravou (erro de IO mantém o texto na tela) — e só então o
+   Pi é chamado. Sem conexão, sem provedor ou com o Pi recusando, o registro
+   fica no disco e o cartão de retomada aparece na próxima abertura. */
+$('#end-day-form').addEventListener('submit',async e=>{
+ if(e.submitter?.id!=='end-day-save')return;
+ e.preventDefault();
+ const stopped=$('#end-where').value.trim(),next=$('#end-next').value.trim();
+ if(!stopped||!next)return;
+ const study=studySnapshot();
+ let saved=null;
+ try{
+  saved=await window.desk.endDaySave({record:{stopped,next,exercise:study.title,xopp:study.xopp,pages:pageRefs()}});
+ }catch(err){
+  toast(`Não consegui guardar o registro: ${err.message}`);
+  return;
+ }
+ $('#end-day-dialog').close();
+ clearEndDay();
+ renderResumeCard(saved);
+ if(!(await send(resumeCore.endDayDraft(stopped,next),[])))toast('Registro guardado localmente — o envio ao Pi falhou.');
+});
 window.desk.onMenuCheck(()=>conferir());
 window.desk.onMenuGeogebra(()=>conferirGeogebra());
 window.desk.onMenuStop(()=>{if(S.busy&&!$('#pi-dialog').open){window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));}});
 window.desk.onMenuChatToggle(()=>toggleChat());
-$('#new-session').onclick=async()=>{if(S.busy||S.connecting||S.switching){toast('Aguarde: o Pi está conectando.');return;}if(!confirm('Começar uma nova conversa? A sessão atual continuará salva.'))return;try{clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());const data=await window.desk.newSession();S.connected=false;connectionState('','Pi desconectado');fillSessions(data);applyStudy(data.state?.study);$('#prompt').value=data.state?.draft||'';$('#messages').replaceChildren();resetAttachments();await connect();toast('Nova conversa iniciada.');}catch(e){toast(e.message);}};
-$('#session-select').onchange=async()=>{const file=$('#session-select').value;if(!file||file===S.currentSession)return;if(S.busy||S.connecting||S.switching){toast('Aguarde o Pi terminar de conectar.');$('#session-select').value=S.currentSession;return;}try{clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());const data=await window.desk.openSession(file);S.connected=false;connectionState('','Pi desconectado');fillSessions(data);applyStudy(data.state?.study);$('#prompt').value=data.state?.draft||'';$('#messages').replaceChildren();resetAttachments();await connect();}catch(e){toast(e.message);$('#session-select').value=S.currentSession;}};
+$('#new-session').onclick=async()=>{if(S.busy||S.connecting||S.switching){toast('Aguarde: o Pi está conectando.');return;}if(!confirm('Começar uma nova conversa? A sessão atual continuará salva.'))return;try{clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());const data=await window.desk.newSession();S.connected=false;connectionState('','Pi desconectado');fillSessions(data);applyStudy(data.state?.study);$('#prompt').value=data.state?.draft||'';$('#messages').replaceChildren();resetAttachments();queue.adopt(data.pending);restoreAttachments(data.pending);renderResumeCard(data.resume);await connect();toast('Nova conversa iniciada.');}catch(e){toast(e.message);}};
+$('#session-select').onchange=async()=>{const file=$('#session-select').value;if(!file||file===S.currentSession)return;if(S.busy||S.connecting||S.switching){toast('Aguarde o Pi terminar de conectar.');$('#session-select').value=S.currentSession;return;}try{clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());const data=await window.desk.openSession(file);S.connected=false;connectionState('','Pi desconectado');fillSessions(data);applyStudy(data.state?.study);$('#prompt').value=data.state?.draft||'';$('#messages').replaceChildren();resetAttachments();queue.adopt(data.pending);restoreAttachments(data.pending);renderResumeCard(data.resume);await connect();}catch(e){toast(e.message);$('#session-select').value=S.currentSession;}};
 $('#include-refs').onclick=()=>{S.includeRefs=!S.includeRefs;$('#include-refs').setAttribute('aria-pressed',String(S.includeRefs));updateContextSummary();};
 /* A calculadora é view do Bend (`core/calcview.bend` → `desk/src/calc.mjs`):
    colapso, ângulo, avaliação, histórico e guia saem de lá; o divisor abaixo
@@ -208,6 +276,7 @@ window.addEventListener('keydown',e=>{
   if(e.key==='Tab'){e.preventDefault();cycleToTab(e.shiftKey?-1:1);return;}
   if(e.key.toLowerCase()==='t'){e.preventDefault();openSettings(false);return;}
   if(e.shiftKey&&e.key.toLowerCase()==='i'){e.preventDefault();const panel=S.panels.find(p=>p.el.contains(document.activeElement))||S.panels[0];if(panel&&panel.doc)panel.toggleInvert();return;}
+  if(e.shiftKey&&e.key.toLowerCase()==='d'){e.preventDefault();toggleDensityMode();return;}
   if(e.key.toLowerCase()==='f'){e.preventDefault();focusPdfFind();return;}
   if(e.key==='\\'){e.preventDefault();toggleChat();return;}
   if(/^[1-9]$/.test(e.key)){e.preventDefault();const tab=document.querySelectorAll('#course-tabs button')[Number(e.key)-1];if(tab)selectTab(tab.dataset.id);return;}
@@ -295,6 +364,18 @@ async function openAbout(){
 window.desk.onMenuHelp(openHelp);
 window.desk.onMenuAbout(openAbout);
 window.desk.onUpdateAvailable?.(data=>{if(data?.version)toast(`v${data.version} disponível — Mesa → Sobre para atualizar.`);});
+/* Bilhete da Conversa: o contexto em si já vai no turno (main.cjs); o aviso
+   existe para a resposta não parecer vir do nada. */
+window.desk.onHandoff?.(data=>{
+ if(!data)return;
+ const alvo=data.goal||data.question||'';
+ toast(`Bilhete da Conversa${alvo?`: ${alvo}`:''} — vai no próximo envio.`);
+});
+/* Recusa ou falha do bilhete também aparece. O motivo é código curto montado no
+   main (sem o conteúdo do bilhete), então nada privado entra em aviso ou log. */
+window.desk.onHandoffProblem?.(data=>{
+ if(data?.reason)toast(`Bilhete da Conversa: ${data.reason}`);
+});
 function fillSettingsForm(cfg){
  $('#cfg-vault').value=cfg.vaultPath||'';
  $('#cfg-pi').value=cfg.piPath||'';
@@ -368,6 +449,9 @@ $('#settings-form').addEventListener('submit',e=>{
 });
 $('#prompt').addEventListener('input',save);
 slash.init();
+/* Fila de mensagens + steer da Mesa (mesma feature da Conversa, sobre o núcleo
+   `core/composerview.bend`): ⏎ ocupado enfileira, ⌘/Ctrl+⏎ interrompe e envia. */
+queue.init();
 /* O `loadCourse` avisa quando o `desk` normalizado entra: abas e menus são
    aplicados antes do carregamento dos PDFs — o chrome inteiro fica pronto no
    mesmo tick (abas parciais deixariam o #course-tabs vazio no meio do boot). */

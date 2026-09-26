@@ -82,8 +82,16 @@ def noteSep() -> String:
 # Marcadores da Mesa: blocos de contexto/referências/conferência, cortados
 # até o fim. O JS da Mesa usa lookahead no contexto; como referências e
 # conferência também saem até o fim, cortar cada um até o fim é o mesmo.
+# `[Contexto da Mesa]` é o bloco atual (core/studycontext.bend); os dois
+# seguintes ficam para as conversas gravadas antes dele.
+# `[Da Conversa]` (core/handoff.bend) é o bilhete que a Conversa deixa para a
+# Mesa: entra no fim da mensagem e precisa sair do preview como os outros —
+# inclusive quando a Mesa está com o contexto de estudo desligado, caso em que
+# ele é o único bloco apenso.
 def mesaSuffix() -> List<&2, String>:
   [
+    "[Da Conversa]",
+    "[Contexto da Mesa]",
     "[Contexto da sessão na Mesa:",
     "[Referências abertas",
     "[Conferência visual"

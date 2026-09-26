@@ -25,10 +25,10 @@ import ../view.bend as V
 # ---------- vocabulário auxiliar (só para falar do núcleo) ----------
 
 def doisPaineis() -> T.MenuFacts:
-  T.MenuFacts{True{}, "Formulário", True{}, True{}, False{}, False{}, "auto"}
+  T.MenuFacts{True{}, "Formulário", True{}, True{}, False{}, False{}, "auto", True{}, False{}}
 
 def temaEscuro() -> T.MenuFacts:
-  T.MenuFacts{True{}, "Formulário", True{}, True{}, False{}, False{}, "dark"}
+  T.MenuFacts{True{}, "Formulário", True{}, True{}, False{}, False{}, "dark", True{}, False{}}
 
 # ---------- abas: forma e ordem ----------
 
@@ -205,6 +205,8 @@ law tabs_menu_estudar:
   {T.studyItems(doisPaineis())
     == [ T.refToggleItem(True{}, "Formulário", True{})
        , T.xournalItem(True{}, False{}, False{})
+       , T.reviewItem()
+       , T.endDayItem(True{})
        ] : List<&2, V.ViewNode>}
 
 law tabs_ref_rotulo_vazio:
@@ -258,12 +260,81 @@ law tabs_xournal_rotulo:
   {V.kidsOf(T.xournalItem(True{}, False{}, False{}))
     == [V.viewText("Xournal++")] : List<&2, V.ViewNode>}
 
+# ---------- menu Estudar: Encerrar e Caderno ----------
+
+law tabs_endday_id:
+  {V.attrGet(V.attrsOf(T.endDayItem(True{})), "id") == Some{"end-day"} : Maybe<&2, String>}
+
+law tabs_endday_rotulo:
+  {V.kidsOf(T.endDayItem(True{}))
+    == [V.viewText("Encerrar por hoje")] : List<&2, V.ViewNode>}
+
+law tabs_endday_clique:
+  {V.attrGet(V.attrsOf(T.endDayItem(True{})), "on:click")
+    == Some{"OpenEndDay"} : Maybe<&2, String>}
+
+# A flag `desk.endDay` é o único motivo para o item sumir (o botão saiu do
+# composer; o diálogo e o atalho continuam iguais).
+law tabs_endday_visivel:
+  {V.attrGet(V.attrsOf(T.endDayItem(True{})), "hidden") == None{} : Maybe<&2, String>}
+
+law tabs_endday_oculto:
+  {V.attrGet(V.attrsOf(T.endDayItem(False{})), "hidden") == Some{""} : Maybe<&2, String>}
+
+law tabs_caderno_id:
+  {V.attrGet(V.attrsOf(T.reviewItem()), "id") == Some{"review-open"} : Maybe<&2, String>}
+
+law tabs_caderno_rotulo:
+  {V.kidsOf(T.reviewItem())
+    == [V.viewText("Caderno de revisão")] : List<&2, V.ViewNode>}
+
+law tabs_caderno_clique:
+  {V.attrGet(V.attrsOf(T.reviewItem()), "on:click")
+    == Some{"OpenReview"} : Maybe<&2, String>}
+
 # ---------- menu Mesa ----------
 
 law tabs_menu_mesa:
   {T.mesaItems(temaEscuro())
-    == [T.helpItem(), T.settingsItem(), T.themeItem("dark"), T.aboutItem()]
-    : List<&2, V.ViewNode>}
+    == [ T.helpItem()
+       , T.settingsItem()
+       , T.themeItem("dark")
+       , T.densityItem(False{})
+       , T.aboutItem()
+       ] : List<&2, V.ViewNode>}
+
+# ---------- modo compacto (densidade) ----------
+
+law tabs_compacto_id:
+  {V.attrGet(V.attrsOf(T.densityItem(False{})), "id")
+    == Some{"density-cycle"} : Maybe<&2, String>}
+
+law tabs_compacto_rotulo:
+  {V.kidsOf(T.densityItem(False{}))
+    == [V.viewText("Modo compacto")] : List<&2, V.ViewNode>}
+
+law tabs_compacto_clique:
+  {V.attrGet(V.attrsOf(T.densityItem(False{})), "on:click")
+    == Some{"ToggleDensity"} : Maybe<&2, String>}
+
+# O item é um interruptor: ARIA conta o modo e o ícone é o check quando ligado.
+law tabs_compacto_ligado:
+  {V.attrGet(V.attrsOf(T.densityItem(True{})), "aria-pressed")
+    == Some{"true"} : Maybe<&2, String>}
+
+law tabs_compacto_desligado:
+  {V.attrGet(V.attrsOf(T.densityItem(False{})), "aria-pressed")
+    == Some{"false"} : Maybe<&2, String>}
+
+law tabs_compacto_icone_ligado:
+  {T.densityIcon(True{}) == "check" : String}
+
+law tabs_compacto_icone_desligado:
+  {T.densityIcon(False{}) == "unfold" : String}
+
+law tabs_compacto_icone_attr:
+  {V.attrGet(V.attrsOf(T.densityItem(True{})), "data-icon")
+    == Some{"check"} : Maybe<&2, String>}
 
 law tabs_tema_auto:
   {T.themeLabel("auto") == "Tema: auto" : String}

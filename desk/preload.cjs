@@ -203,6 +203,9 @@ contextBridge.exposeInMainWorld('desk',{
  init:()=>invoke('init'),switchCourse:id=>invoke('switch-course',id),settings:change=>invoke('pi-settings',change),openPDF:()=>invoke('open-pdf'),readPDF:p=>invoke('read-pdf',p),readImage:p=>invoke('read-image',p),openImage:p=>invoke('open-image',p),ggbShow:p=>invoke('ggb-view',p),ggbShot:()=>invoke('ggb-shot'),ggbSnapshot:()=>invoke('ggb-snapshot'),save:s=>invoke('save-state',s),
  connect:()=>invoke('pi-connect'),health:()=>invoke('pi-health'),prompt:p=>invoke('pi-prompt',p),abort:()=>invoke('pi-abort'),compact:i=>invoke('pi-compact',i),commands:()=>invoke('pi-commands'),autoCompaction:e=>invoke('pi-auto-compaction',e),respond:d=>invoke('pi-response',d),newSession:()=>invoke('new-session'),openSession:p=>invoke('open-session',p),captureReady:()=>invoke('capture-ready'),openXournal:()=>invoke('open-xournal'),exportChat:()=>invoke('export-chat'),
  getConfig:()=>invoke('get-config'),saveConfig:c=>invoke('save-config',c),pickFolder:()=>invoke('pick-folder'),pickFile:()=>invoke('pick-file'),pickXopp:()=>invoke('pick-xopp'),detectPi:()=>invoke('detect-pi'),logError:line=>invoke('desk-log',line),
+ /* Fila e bandeja guardadas: `{items, held}` / `{images, held}`. */
+ pendingSave:p=>invoke('pending-save',p),traySave:p=>invoke('tray-save',p),
+ endDaySave:p=>invoke('end-day-save',p),resumeClear:()=>invoke('resume-clear'),bookmarksSave:p=>invoke('bookmarks-save',p),reviewSave:p=>invoke('review-save',p),
  updateCheck:o=>invoke('update-check',o),updateApply:()=>invoke('update-apply'),updatePi:()=>invoke('update-pi'),updateResult:()=>invoke('update-result'),components:o=>invoke('components',o),openExternal:url=>invoke('open-external',url),openLog:()=>invoke('open-log'),
  testMode:()=>invoke('test-mode'),
  notify:payload=>{const value=asPlain(payload,'Aviso inválido.');asString(value.body||'','Aviso inválido.',MAX_NOTIFY);return invoke('notify',value);},
@@ -231,5 +234,7 @@ contextBridge.exposeInMainWorld('desk',{
  onMenuHelp:fn=>ipcRenderer.on('menu-help',fn),
  onMenuSettings:fn=>ipcRenderer.on('menu-settings',fn),
  onMenuAbout:fn=>ipcRenderer.on('menu-about',fn),
- onUpdateAvailable:fn=>ipcRenderer.on('update-available',(_e,data)=>{if(typeof fn==='function')fn(data);})
+ onUpdateAvailable:fn=>ipcRenderer.on('update-available',(_e,data)=>{if(typeof fn==='function')fn(data);}),
+ onHandoff:fn=>ipcRenderer.on('handoff-received',(_e,data)=>{if(typeof fn==='function')fn(data);}),
+ onHandoffProblem:fn=>ipcRenderer.on('handoff-problem',(_e,data)=>{if(typeof fn==='function')fn(data);})
 });

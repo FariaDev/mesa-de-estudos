@@ -25,6 +25,7 @@ A mesa do autor já está no jeito dele. **Não altere os defaults em `desk/conf
 - Conferir Xournal++ captura a janela do Xournal++ no macOS (`screencapture`) e no Windows (PowerShell do sistema); o helper `visual-check` continua sendo macOS.
 - Preferir `config.json` a editar `renderer.mjs` / `index.html`. Só mexa no código se o pedido não couber no schema abaixo.
 - Portão do núcleo: `npm run verify:bend` (em `desk/` ou `chat/`) exige a toolchain pinada e roda build + provas. O hook `.githooks/pre-push` o roda antes de todo push; `git push --no-verify` é a saída de emergência.
+- Rodada local: `npm test` usa cache do portão por conteúdo (`core/**`, artefatos gerados, verificadores de paridade com os hosts que eles importam, e `package.json`; `MESA_GATE_CACHE=0 npm test` força) e `npm run hunts` roda os `tests/hunt-*.mjs` em paralelo (2 por vez). O hook de push continua sem cache.
 
 ## Release (fluxo do updater por clique)
 
@@ -86,10 +87,50 @@ IPC liga ao main; os testes cobrem os dois lados.**
 | Painel Componentes | `nodeState`/`componentIds` (dialogsview) | idem | `desk/components.cjs` | `components` | `tests/components.test.mjs` |
 | Chat/Conferir (anexo) | `core/talkview`/`attachview`/`attachments` | idem | `desk/src/chat.mjs` + `src/capture-lock.mjs` | `capture-ready` | `tests/capture-lock.test.mjs`, `talkview.test.mjs`, hunt |
 | Framing do Pi | `core/framing.bend` | idem | `desk/rpc.cjs` | — | `tests/framing-parity.mjs` |
-| Diário do turno | `core/worklog.bend` | idem | `desk/src/worklog.mjs` | eventos | `tests/worklog*.test.mjs` |
+| Ponte RPC do Pi (estado, timeout, aviso de linha torta, kill) | `core/rpcstate.bend` (+`laws/`+`proofs/`) | `desk/src/generated/rpcstate.core.js` e `chat/src/generated/rpcstate.core.js` | `desk/rpc.cjs`, `chat/rpc.cjs` (`onGarbage` → `desk_warn`/`pi_warning`; nunca `desk_error`) | — | `tests/rpc.test.mjs` (dos dois apps) |
+| Diário do turno | `core/worklog.bend` | idem | `desk/src/worklog.mjs`, `chat/src/worklog.mjs` | eventos | `tests/worklog*.test.mjs` |
+| Linha do tempo do turno (a fala fecha a rodada; rodada nova nasce embaixo) | — (host puro; `chat/src/worklog.mjs#historyTurns` + `parts`) | — | `chat/src/chat.mjs`, `chat/src/worklog-view.mjs` | — | `tests/worklog.test.mjs`, `tests/hunt-mcp.mjs`, `hunt-transcript.mjs` |
+| Guarda de MCP (auto-correção do agente: truncamento, ferramenta inexistente, repetição que falhou) | — (extensão do Pi, host puro) | — | `chat/extensions/mcp-guard/`, `chat/pi.cjs` | — | `tests/mcp-guard.test.mjs` |
+| Passo aberto do diário (prévia some, texto cresce) | `core/worklogview.bend` (`previewHidden` + `laws/`+`proofs/`) | `desk/src/generated/worklogview.core.js` e `chat/src/generated/worklogview.core.js` | `desk/src/worklog-view.mjs`, `chat/src/worklog-view.mjs` + o teto de `.step-text` no CSS | — | `tests/worklog-view.test.mjs`/`worklogview.test.mjs`, `tests/hunt-chat.mjs` (bloco `thinking-open`) |
+| Fila do composer e steer | `core/composerview.bend` + `core/pending.bend` (+`laws/`+`proofs/`) | `desk/src/generated/composerview.core.js`, `desk/src/generated/pending.core.js` e `chat/src/generated/composerview.core.js` | `desk/src/queue.mjs` (Conversa: `chat/src/features/queue.mjs`), `desk/pending.cjs` (fila e bandeja no disco, por conversa), `desk/src/main.mjs` (`#prompt`) | `pi-prompt` (`streamingBehavior`), `pending-save`, `tray-save` | `tests/pending.test.mjs`, `tests/hunt-queue.mjs`, `ui-smoke` (bloco `fila-guardada`) |
+| Encerrar por hoje e retomada | `core/resume.bend` (+`laws/`+`proofs/`) | `desk/src/generated/resume.core.js` | `desk/resume.cjs` (registro no disco, por matéria), `desk/src/resume.mjs` (cartão), `desk/src/main.mjs` (`#end-day-form`) | `end-day-save`, `resume-clear` | `tests/resume.test.mjs`, `tests/core.test.mjs`, `tests/hunt-shell.mjs` (cenário `encerrar`) |
 | Leitor de PDF | `core/pdfview`/`pdfpageview`/`find` | idem | `desk/src/pdf.mjs` | `read-pdf` | `tests/pdf*.test.mjs`, `find-parity.mjs` |
+| Navegação resposta → material (citação clicável, favoritos, Voltar, sumário) | `core/pdfref.bend`/`core/pdfnav.bend` (+`laws/`+`proofs/`) | `desk/src/generated/pdfref.core.js`, `desk/src/generated/pdfnav.core.js` | `desk/src/chat.mjs` (linkify), `desk/src/nav.mjs`, `desk/bookmarks.cjs` (disco por matéria) | `bookmarks-save` | `tests/pdfnav.test.mjs`, `tests/bookmarks.test.mjs`, `tests/hunt-nav.mjs` |
+| Caderno de revisão | `core/review.bend` (+`laws/`+`proofs/`) | `desk/src/generated/review.core.js` | `desk/review.cjs` (disco por matéria), `desk/src/review.mjs` (aba), `desk/src/dialogs.mjs` (diálogo) | `review-save` | `tests/review.test.mjs`, `tests/hunt-review.mjs`, `ui-smoke` |
+| Calculadora (ajuda, guia, ângulo) | `core/calcview.bend` (+`laws/`+`proofs/`) | `desk/src/generated/calcview.core.js` | `desk/src/calc.mjs` (aplica a árvore), `desk/calculator.mjs` (avalia: recíprocas, inversas e ângulos exatos; precisão dupla, sem `eval`) | — | `tests/calcview.test.mjs`, `tests/core.test.mjs`, `ui-smoke`, `tests/hunt-calc-ggb.mjs` |
 | Matérias/biblioteca | `core/courses.bend`/`library.bend` | idem | `desk/courses.cjs`, `desk/config.cjs` | `get/save-config` | `tests/lib*.test.mjs`, `subjects.test.mjs` |
 | Estado/tema | `core/state.bend`/`statusview`/`toastview` | idem | `desk/src/state.mjs`, `state-adapter.cjs` | `save-state` | `tests/state-parity.mjs`, `toast-view.test.mjs` |
+| Perfil de carregamento da Mesa | — (host puro) | — | `desk/profiles.cjs` | — | `tests/profiles.test.mjs`, `npm run profile` |
+| Bilhete Conversa → Mesa | `core/handoff.bend` + `laws/`+`proofs/` | `desk/src/generated/handoff.core.js` **e** `chat/src/generated/handoff.core.js` | `desk/handoff.cjs` (protocolo: reivindica, marca o envio, entrega, arquiva; `claimHand` mantém um bilhete na mão por vez), `desk/send.cjs` (ciclo do envio: validar → conectar → marcar → escrever → confirmar), `chat/handoff.cjs` (escreve) | `handoff` (chat) | `tests/handoff.test.mjs`, `tests/send.test.mjs`, `tests/hunt-handoff.mjs`, `appcontract.test.mjs` |
+
+O bilhete passa por fases no disco, e o nome do arquivo diz a fase:
+`conversa.json` (pendente) → `reivindicado-*` (em uso; o envio ainda NÃO começou)
+→ `enviando-*` (envio iniciado, confirmação pendente) → `entregue-*` (o Pi
+aceitou) → `arquivo/`. `falha/` guarda o que não vira contexto e `duvida/` guarda
+o que pode ter chegado sem confirmação. **Nada é apagado nesse caminho.** Só
+`reivindicado-*` volta para a fila: a marca de envio iniciado é gravada antes da
+primeira escrita no Pi (`beginDelivery`) e, se não puder ser gravada, nada é
+enviado. Na abertura, `recoverClaims` devolve `reivindicado-*` à fila (queda antes
+do envio), manda `enviando-*` para `duvida/` (queda no meio do envio: nunca
+reenvia sozinho) e arquiva `entregue-*`; o que já foi entregue nunca volta para a
+fila, para não repetir contexto. Sem identidade no contrato do Pi, não há entrega
+exatamente uma vez: a falha de envio é *recusada* (nada escrito) ou *ambígua*
+(pode ter sido escrita), e as duas vão para lugares diferentes.
+
+A ordem do envio (validar anexo → conectar → marcar o envio → escrever →
+confirmar → ler o estado) e o momento em que `lastContextKey` é atualizado moram
+em `desk/send.cjs`, não no main: é o que permite provar por comportamento
+(`tests/send.test.mjs`) que uma falha antes da aceitação não consome o bilhete
+nem o contexto. O `main.cjs` só decide **quando** chamar; o objetivo do bilhete
+vem do que a conversa tem (`title`/`preview`), nunca do rótulo decorado — conversa
+vazia não manda "Nova conversa" como assunto.
+
+Durante a execução a Mesa mantém no máximo UM bilhete na mão (`claimHand`): cada
+mensagem procura um pendente — o bilhete que a Conversa escrever DEPOIS da
+primeira mensagem é reivindicado na mensagem seguinte, não só no próximo
+reinício — e o que chega com outro na mão espera a vez. O aceite (e a entrega
+incerta) solta a mão; a recusa comprovada a mantém para a próxima tentativa, e o
+caminho guardado acompanha a fase do arquivo a cada transição.
 
 Leis novas em `core/laws/` têm de fechar em `core/proofs/` (cenários concretos)
 e os artefatos regenerados vão commitados (`desk/src/generated/*`).

@@ -111,22 +111,24 @@ def messageAction(className: String, label: String, handler: String) -> V.ViewNo
     [V.viewText(label)]
   )
 
-def messageActions(canCopy: Bool, canQuote: Bool) -> List<&2, V.ViewNode>:
-  V.viewConcat(
+def messageActions(canCopy: Bool, canQuote: Bool, canReview: Bool) -> List<&2, V.ViewNode>:
+  V.viewJoin([
     V.viewWhen(canCopy, messageAction("msg-copy", "Copiar", "CopyMessage")),
-    V.viewWhen(canQuote, messageAction("msg-quote", "Citar", "QuoteMessage"))
-  )
+    V.viewWhen(canQuote, messageAction("msg-quote", "Citar", "QuoteMessage")),
+    V.viewWhen(canReview, messageAction("msg-review", "Guardar para revisar", "SaveForReview"))
+  ])
 
 def messageKids(
   +user: Bool,
   markup: V.ViewNode,
   images: List<&2, String>,
   canCopy: Bool,
-  canQuote: Bool
+  canQuote: Bool,
+  canReview: Bool
 ) -> List<&2, V.ViewNode>:
   V.viewConcat(
     [roleNode(roleLabel(user)), messageBody(markup, images)],
-    messageActions(canCopy, canQuote)
+    messageActions(canCopy, canQuote, canReview)
   )
 
 def message(
@@ -134,9 +136,10 @@ def message(
   markup: V.ViewNode,
   images: List<&2, String>,
   canCopy: Bool,
-  canQuote: Bool
+  canQuote: Bool,
+  canReview: Bool
 ) -> V.ViewNode:
-  V.viewEl("article", messageAttrs(user), messageKids(user, markup, images, canCopy, canQuote))
+  V.viewEl("article", messageAttrs(user), messageKids(user, markup, images, canCopy, canQuote, canReview))
 
 # Citação e chips curtos são construtores reutilizáveis para conteúdo já
 # convertido em texto pelo host. O diário detalhado do turno não usa estes nós.

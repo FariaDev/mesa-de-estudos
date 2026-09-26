@@ -18,6 +18,18 @@ const slice=(s,n=60)=>String(s??'').replace(/\s+/g,' ').trim().slice(0,n);
 const slug=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,50);
 
 const all=[];
+/* PDF de N páginas (uma linha por página) para o bloco do Encerrar/Retomar
+   provar a volta da página: o `tinyPdf` dos helpers tem sempre uma só. */
+function pagesPdf(count){
+ const objs=['<</Type/Catalog/Pages 2 0 R>>',`<</Type/Pages/Kids[${Array.from({length:count},(_,i)=>`${4+i} 0 R`).join(' ')}]/Count ${count}>>`,'<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>'];
+ for(let i=0;i<count;i++)objs.push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>>>/Contents ${4+count+i} 0 R>>`);
+ for(let i=0;i<count;i++){const c=`BT /F1 16 Tf 72 720 Td (pagina ${i+1}) Tj ET`;objs.push(`<</Length ${c.length}>>\nstream\n${c}\nendstream`);}
+ let out='%PDF-1.4\n';const offs=[];
+ objs.forEach((obj,i)=>{offs.push(out.length);out+=`${i+1} 0 obj\n${obj}\nendobj\n`;});
+ const start=out.length;
+ out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n${offs.map(off=>`${String(off).padStart(10,'0')} 00000 n \n`).join('')}trailer\n<</Size ${objs.length+1}/Root 1 0 R>>\nstartxref\n${start}\n%%EOF\n`;
+ return Buffer.from(out,'latin1');
+}
 class Scenario{
  constructor(title,{saveOnPass=false}={}){
   this.title=title;this.saveOnPass=saveOnPass;this.steps=0;this.failures=[];this.notes=[];
@@ -84,6 +96,14 @@ class Scenario{
 const filter=process.argv[2]||'';
 const only=title=>!filter||title.toLowerCase().includes(filter.toLowerCase());
 
+/* O Encerrar por hoje saiu do composer e é item do menu Estudar (núcleo
+   `core/tabsview.bend`): abre o menu quando preciso e clica no item. */
+async function openEndDay(page){
+ const isOpen=await page.evaluate(()=>document.querySelector('#study-menu')?.classList.contains('open')===true);
+ if(!isOpen)await page.locator('#study-menu .nav-trigger').click();
+ await page.locator('#study-pop #end-day').click();
+}
+
 /* ------------------------------------------------------------------ */
 /* H1: menus (#study-menu / #mesa-menu)                                */
 /* ------------------------------------------------------------------ */
@@ -124,7 +144,7 @@ if(only('menus')){
 
   await s.step('itens do menu Mesa e do Estudar têm ids/handlers',async()=>{
    const ids=await page.locator('#study-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id));
-   assert.deepEqual(ids,['reference-toggle','xournal']);
+   assert.deepEqual(ids,['reference-toggle','xournal','review-open','end-day']);
    await page.locator('#study-menu .nav-trigger').click();
    const pressed=await page.locator('#reference-toggle').getAttribute('aria-pressed');
    assert.equal(pressed,'true');
@@ -491,12 +511,12 @@ if(only('dialogs')){
   });
 
   await s.step('Encerrar: cancelar preserva o texto; salvar limpa e grava JSONL',async()=>{
-   await page.locator('#end-day').click();
+   await openEndDay(page);
    await page.waitForSelector('#end-day-dialog[open]');
    await page.locator('#end-where').fill('rascunho descartado');
    await page.locator('#end-day-dialog button[value="cancel"]').click();
    await page.waitForFunction(()=>!document.querySelector('#end-day-dialog').open);
-   await page.locator('#end-day').click();
+   await openEndDay(page);
    await page.waitForSelector('#end-day-dialog[open]');
    assert.equal(await page.locator('#end-where').inputValue(),'rascunho descartado','cancelar mantém o texto (como no app antigo)');
    await page.locator('#end-where').fill('terminei X');
@@ -507,11 +527,109 @@ if(only('dialogs')){
    const saved=fs.readdirSync(s.runtime).filter(n=>n.endsWith('.jsonl')).map(n=>fs.readFileSync(path.join(s.runtime,n),'utf8')).join('\n');
    assert.match(saved,/Onde parei: terminei X/);
    assert.match(saved,/Próximo passo: começar Y/);
-   await page.locator('#end-day').click();
+   await openEndDay(page);
    await page.waitForSelector('#end-day-dialog[open]');
    assert.equal(await page.locator('#end-where').inputValue(),'','salvar precisa limpar o texto para a próxima');
    await page.keyboard.press('Escape');
    await page.waitForFunction(()=>!document.querySelector('#end-day-dialog').open);
+  });
+
+  await s.step('sem erros de página',async()=>{
+   assert.deepEqual(s.errors,[]);
+  });
+ }finally{await s.close();}
+ s.finish();
+}
+
+/* ------------------------------------------------------------------ */
+/* H4b: Encerrar por hoje à prova de falha (sem Pi)                    */
+/* ------------------------------------------------------------------ */
+if(only('encerrar')){
+ const s=new Scenario('encerrar sem pi cartao de retomada');
+ try{
+  seedCourse(s.runtime,'A');
+  const course=path.join(s.runtime,'learning','Courses','A');
+  const pdf=path.join(course,'lista.pdf');fs.writeFileSync(pdf,pagesPdf(3));
+  const xopp=path.join(s.runtime,'rascunho.xopp');fs.writeFileSync(xopp,'');
+  writeConfigJson(s.runtime,{vaultPath:s.runtime,courses:[{id:'A',name:'Matéria A',path:course}]});
+  writeDeskJson(s.runtime,{courseId:'A',pdfs:[{path:pdf,page:2}],study:{title:'Lista 2 · 7b',xopp}});
+  /* Sem Pi: um binário que existe e morre na hora — o `resolvePi` só aceita
+     `LEARNING_DESK_PI` se o arquivo existe, e sem isso o teste cairia no Pi real
+     da máquina. O registro local é o que precisa segurar o dia sozinho. */
+  const badPi=path.join(s.runtime,'pi-quebrado.sh');
+  fs.writeFileSync(badPi,'#!/bin/sh\nexit 1\n');
+  fs.chmodSync(badPi,0o755);
+  const env={LEARNING_DESK_PI:badPi};
+  await s.launch({env});
+  const page=s.page;
+  await page.waitForSelector('.pdf-panel',{timeout:30000});
+  await page.waitForFunction(()=>document.querySelectorAll('.page-number')[0]?.value==='2',undefined,{timeout:30000});
+  const resumeFile=path.join(s.runtime,'resume.json');
+  const stored=()=>{try{return JSON.parse(fs.readFileSync(resumeFile,'utf8'));}catch{return {};}};
+
+  await s.step('salvar sem Pi grava o registro local primeiro e avisa',async()=>{
+   await openEndDay(page);
+   await page.waitForSelector('#end-day-dialog[open]');
+   await page.locator('#end-where').fill('travei na 3');
+   await page.locator('#end-next').fill('seguir para a 4');
+   await page.locator('#end-day-save').click();
+   await page.waitForFunction(()=>!document.querySelector('#end-day-dialog').open,undefined,{timeout:10000});
+   await toastWait(page,'guardado localmente',{timeout:20000});
+   const reg=stored();
+   assert.deepEqual(Object.keys(reg),['A'],'o registro é da matéria ativa');
+   assert.deepEqual(reg.A,{
+    stopped:'travei na 3',next:'seguir para a 4',exercise:'Lista 2 · 7b',xopp,pages:[{path:pdf,page:2}]
+   },'onde parei, próximo passo, questão, .xopp e a página aberta');
+   assert.equal(await page.locator('.resume-card').isVisible(),true,'o cartão aparece já nesta sessão');
+   assert.match(await page.locator('.resume-card-title').textContent(),/^Continuar Matéria A — Lista 2 · 7b$/);
+   assert.equal(await page.locator('.message.user').count(),0,'o envio falhou: nada foi para o histórico');
+  });
+
+  await s.step('reabrir: o cartão volta do disco e Retomar restaura questão, .xopp, página e composer',async()=>{
+   await s.close();
+   s.errors=[];
+   await s.launch({env});
+   const p2=s.page;
+   await p2.waitForSelector('.resume-card',{timeout:30000});
+   assert.match(await p2.locator('.resume-card-title').textContent(),/^Continuar Matéria A — Lista 2 · 7b$/);
+   assert.equal(await p2.locator('.resume-card-line').first().textContent(),'Onde parei: travei na 3');
+   assert.equal(await p2.locator('.resume-card-line').nth(1).textContent(),'Próximo passo: seguir para a 4');
+   assert.equal(await p2.locator('#prompt').inputValue(),'','o registro não escreve nada sozinho no composer');
+   /* Sai da página 2 antes de retomar: é o Retomar que tem de voltar com ela. */
+   await p2.locator('.pdf-panel').first().locator('.page-number').fill('1');
+   await p2.locator('.pdf-panel').first().locator('.page-number').press('Enter');
+   await p2.waitForFunction(()=>document.querySelector('.page-number')?.value==='1');
+   await p2.locator('#exercise-title').fill('outra questão');
+   await p2.locator('.resume-go').click();
+   await p2.waitForFunction(()=>!document.querySelector('.resume-card'),undefined,{timeout:10000});
+   assert.equal(await p2.locator('#exercise-title').inputValue(),'Lista 2 · 7b','a questão volta');
+   assert.equal(await p2.locator('#pick-xopp').getAttribute('data-path'),xopp,'o rascunho .xopp volta');
+   await p2.waitForFunction(()=>document.querySelector('.page-number')?.value==='2',undefined,{timeout:30000});
+   assert.equal(await p2.locator('#prompt').inputValue(),'Continuar de onde parei.\n\nOnde parei: travei na 3\n\nPróximo passo: seguir para a 4','a mensagem fica pronta no composer');
+   assert.equal(await p2.locator('.message.user').count(),0,'Retomar não envia nada');
+   assert.deepEqual(Object.keys(stored()),[],'Retomar limpa o registro');
+   await p2.waitForTimeout(800);
+   const desk=JSON.parse(fs.readFileSync(path.join(s.runtime,'desk.json'),'utf8'));
+   const study=desk.courseStates?.A?.study||desk.study;
+   assert.equal(study.title,'Lista 2 · 7b','o contexto retomado fica no estado');
+   assert.equal(study.xopp,xopp);
+   assert.equal(desk.courseStates.A.pdfs[0].page,2);
+  });
+
+  await s.step('Encerrar de novo substitui o registro; Dispensar apaga',async()=>{
+   const p2=s.page;
+   await openEndDay(p2);
+   await p2.waitForSelector('#end-day-dialog[open]');
+   await p2.locator('#end-where').fill('agora foi a 5');
+   await p2.locator('#end-next').fill('revisar a 6');
+   await p2.locator('#end-day-save').click();
+   await p2.waitForFunction(()=>!document.querySelector('#end-day-dialog').open,undefined,{timeout:10000});
+   await p2.waitForFunction(()=>document.querySelector('.resume-card-line')?.textContent==='Onde parei: agora foi a 5',undefined,{timeout:10000});
+   assert.equal(stored().A.next,'revisar a 6','o registro novo é o que fica');
+   await p2.locator('.resume-dismiss').click();
+   await p2.waitForFunction(()=>!document.querySelector('.resume-card'),undefined,{timeout:10000});
+   assert.deepEqual(Object.keys(stored()),[],'Dispensar apaga o registro');
+   assert.equal(await p2.locator('#exercise-title').inputValue(),'Lista 2 · 7b','Dispensar não mexe no contexto');
   });
 
   await s.step('sem erros de página',async()=>{
@@ -822,9 +940,10 @@ if(only('flags')){
   });
 
   await s.step('todos os controles das flags ficam escondidos',async()=>{
-   for(const sel of ['#include-refs','#end-day','#study-context','#calculator','#calc-divider','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia sumir`);
+   for(const sel of ['#include-refs','#study-context','#calculator','#calc-divider','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia sumir`);
    await page.locator('#study-menu .nav-trigger').click();
    assert.equal(await page.locator('#xournal').isHidden(),true);
+   assert.equal(await page.locator('#end-day').getAttribute('hidden'),'','a flag endDay esconde o item do menu');
    await page.keyboard.press('Escape');
   });
 
@@ -843,9 +962,10 @@ if(only('flags')){
    await page.locator('#settings-save').click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:15000});
    await page.waitForTimeout(800);
-   for(const sel of ['#include-refs','#end-day','#study-context','#calculator','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia continuar escondido depois de Salvar`);
+   for(const sel of ['#include-refs','#study-context','#calculator','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia continuar escondido depois de Salvar`);
    await page.locator('#study-menu .nav-trigger').click();
    assert.equal(await page.locator('#xournal').isHidden(),true);
+   assert.equal(await page.locator('#end-day').getAttribute('hidden'),'','a flag endDay segue escondendo o item do menu');
    await page.keyboard.press('Escape');
    const cfg=JSON.parse(fs.readFileSync(path.join(s.runtime,'config.json'),'utf8'));
    assert.equal(cfg.desk.refsToggle,false);assert.equal(cfg.desk.endDay,false);assert.equal(cfg.desk.studyContext,false);assert.equal(cfg.desk.calculator,false);assert.equal(cfg.desk.conferir,false);assert.equal(cfg.desk.xournal,false);
@@ -961,7 +1081,7 @@ if(only('busy')){
    await page.waitForFunction(()=>document.querySelector('#send').disabled,undefined,{timeout:10000});
    assert.equal(await page.locator('#stop').isHidden(),false,'Parar aparece no turno');
    assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].every(b=>b.disabled)),true,'abas desabilitadas no turno');
-   await page.locator('#end-day').click();
+   await openEndDay(page);
    await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Pare a resposta'),undefined,{timeout:5000});
    assert.equal(await page.evaluate(()=>document.querySelector('#end-day-dialog').open),false,'o diálogo não abre no meio do turno');
   });

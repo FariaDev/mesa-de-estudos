@@ -89,6 +89,39 @@ def Laws.pdfpage_title_kids():
 def Laws.pdfpage_title_strong():
   {==}
 
+def Laws.pdfpage_back_class():
+  {==}
+
+def Laws.pdfpage_back_oculto():
+  {==}
+
+def Laws.pdfpage_back_clique():
+  {==}
+
+def Laws.pdfpage_back_aria():
+  {==}
+
+def Laws.pdfpage_back_rotulo():
+  {==}
+
+def Laws.pdfpage_nav_class():
+  {==}
+
+def Laws.pdfpage_nav_icon():
+  {==}
+
+def Laws.pdfpage_nav_titulo():
+  {==}
+
+def Laws.pdfpage_nav_aria():
+  {==}
+
+def Laws.pdfpage_nav_clique():
+  {==}
+
+def Laws.pdfpage_nav_expandido():
+  {==}
+
 def Laws.pdfpage_open_btn():
   {==}
 

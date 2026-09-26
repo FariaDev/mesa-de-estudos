@@ -86,6 +86,16 @@ button:disabled{cursor:default;opacity:.45;box-shadow:none}
 .icon-btn:hover{background:var(--hover);border-color:transparent;color:var(--fg)}
 .icon-btn:active{background:var(--active)}
 
+/* Citação do material dentro da resposta (pdfref.bend): abre a página no leitor. */
+.pdf-ref{
+ display:inline;padding:0 2px;margin:0;border:0;background:transparent;
+ color:var(--ring);font:inherit;cursor:pointer;text-decoration:underline dotted;
+ text-underline-offset:2px;
+}
+.pdf-ref:hover{background:var(--hover)}
+.pdf-ref:active{background:var(--active)}
+.pdf-ref:disabled{cursor:default;opacity:1;color:var(--muted)}
+
 /* ---------- Cabeçalho ---------- */
 
 header{
@@ -144,10 +154,21 @@ header{
 }
 .nav-pop button:hover{background:var(--hover)}
 .nav-pop button:active{background:var(--active)}
-.pi-settings{
- display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:var(--space-3);
- padding:0 var(--space-4) var(--space-3);border-bottom:1px solid var(--border);
+/* Painel de ajustes (casca do Bend em src/settings-panel.mjs): guarda Modelo,
+   Esforço e o `auto` da compactação. Fechado, sobra coluna para o estudo; o
+   estado fica em localStorage e o miolo vem do `core/composerview.bend`. */
+.settings-panel{margin:0 var(--space-4) var(--space-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface)}
+.settings-toggle{
+ display:flex;align-items:center;gap:var(--space-2);width:100%;padding:var(--space-2) var(--space-3);
+ border:0;background:transparent;box-shadow:none;color:var(--muted);font-size:var(--fs-xs);cursor:pointer;text-align:left;
 }
+.settings-toggle:hover{color:var(--fg);background:var(--hover)}
+.settings-toggle[aria-expanded="true"]{color:var(--fg)}
+.settings-body{
+ display:flex;flex-direction:column;gap:var(--space-2);
+ padding:var(--space-2) var(--space-3) var(--space-3);border-top:1px solid var(--border);
+}
+.pi-settings{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:var(--space-3)}
 .pi-settings label{font-size:var(--fs-xs);color:var(--muted)}
 .pi-settings select{
  display:block;width:100%;margin-top:var(--space-1);padding:var(--space-2);border:1px solid var(--border);
@@ -176,7 +197,46 @@ main{height:calc(100vh - var(--header));display:grid;grid-template-columns:minma
 .pdf-panel{
  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
  overflow:hidden;display:flex;flex-direction:column;min-width:0;outline:none;flex:1 1 0;
+ /* Âncora do popover de navegação (favoritos + sumário), que o host monta. */
+ position:relative;
 }
+
+/* ---------- popover de navegação do leitor (core/pdfnav.bend) ---------- */
+
+.pdf-nav-pop{
+ position:absolute;top:calc(var(--space-6) + var(--space-2));right:var(--space-3);z-index:12;
+ width:min(330px,92%);max-height:min(60%,420px);overflow:auto;
+ display:flex;flex-direction:column;gap:var(--space-3);
+ padding:var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-md);
+ background:var(--surface);box-shadow:var(--shadow-pop);
+}
+.nav-section{display:flex;flex-direction:column;gap:var(--space-hairline)}
+.nav-section h4{
+ margin:0 0 var(--space-1);padding:0 var(--space-2);font-size:var(--fs-2xs);
+ text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;
+}
+.nav-save{justify-content:flex-start;text-align:left}
+.nav-empty{margin:0;padding:0 var(--space-2);color:var(--muted);font-size:var(--fs-sm)}
+.nav-row{display:flex;align-items:center;gap:var(--space-hairline)}
+.nav-bookmark{
+ flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
+ padding:var(--space-1) var(--space-2);background:transparent;border-color:transparent;box-shadow:none;
+ font-size:var(--fs-sm);text-align:left;
+}
+.nav-bookmark .nav-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-bookmark.current{color:var(--primary)}
+.nav-page{color:var(--muted);font-size:var(--fs-xs);flex:0 0 auto}
+.nav-bookmark-remove{width:22px;height:22px}
+.nav-outline{
+ display:block;width:100%;padding:var(--space-1) var(--space-2);background:transparent;
+ border-color:transparent;box-shadow:none;font-size:var(--fs-sm);text-align:left;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.nav-outline[data-depth="1"]{padding-left:calc(var(--space-2) + 14px)}
+.nav-outline[data-depth="2"]{padding-left:calc(var(--space-2) + 28px)}
+.nav-outline[data-depth="3"]{padding-left:calc(var(--space-2) + 42px)}
+.nav-bookmark:hover,.nav-outline:hover,.nav-save:hover{background:var(--hover)}
+body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
 .pdf-panel.pinned{flex:0 0 clamp(300px,var(--pdf-left,50%),calc(100% - var(--pdf-other,340px)))}
 #pdf-grid.other-min{--pdf-other:120px}
 /* com um leitor minimizado, o split não vale: o que sobrou ocupa a mesa */
@@ -296,12 +356,12 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
  background:var(--fg-strong);color:var(--bg);font-size:var(--fs-xs);font-weight:400;letter-spacing:normal;
  line-height:1.5;box-shadow:var(--shadow-pop);pointer-events:none;white-space:nowrap;text-wrap:wrap;overflow-wrap:anywhere;
 }
-.chat-head #auto-compact{
- font-size:var(--fs-2xs);padding:1px 7px;border:1px solid transparent;border-radius:var(--r-pill);
- background:var(--hover);color:var(--muted);margin-left:var(--space-1);cursor:pointer;box-shadow:none;
+.settings-body #auto-compact{
+ align-self:flex-start;font-size:var(--fs-2xs);padding:1px 7px;border:1px solid transparent;border-radius:var(--r-pill);
+ background:var(--hover);color:var(--muted);cursor:pointer;box-shadow:none;
  transition:background var(--t-fast) var(--ease-out),border-color var(--t-fast) var(--ease-out),color var(--t-fast) var(--ease-out);
 }
-.chat-head #auto-compact:hover{color:var(--fg)}
+.settings-body #auto-compact:hover{color:var(--fg)}
 #auto-compact[aria-pressed="true"],#auto-compact.on{border-color:var(--ring);color:var(--primary)}
 
 #messages{flex:1;overflow:auto;padding:var(--space-4) var(--space-5);min-height:90px;contain:size}
@@ -423,6 +483,11 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .step-preview{font-size:var(--fs-sm);color:var(--faint);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .step-detail{display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-1)}
 .step-text{margin:0;font-family:inherit;font-size:var(--fs-sm-half);line-height:1.5;color:var(--muted);background:var(--code);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--space-3) var(--space-4);white-space:pre-wrap;max-height:240px;overflow:auto}
+/* Pensamento aberto com o turno vivo: o texto cresce no lugar (a caixa de
+   240px some) e a rolagem da conversa segue o fim enquanto você está no fim —
+   se você rolar para cima, ela para de seguir. Fechado ou encerrado o turno,
+   o teto volta. */
+.work[data-live=true] .step-toggle[aria-expanded=true] .step-text{max-height:none;overflow:visible}
 .step-links{display:flex;flex-direction:column;gap:2px;padding:var(--space-1) 0}
 .step-link{font-size:var(--fs-sm-half);color:var(--primary);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .step-link:hover{text-decoration:underline}
@@ -445,7 +510,7 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 #context-summary{font-size:var(--fs-xs);color:var(--faint);margin:0 0 var(--space-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #attachments{display:flex;gap:var(--space-3);flex-wrap:wrap;margin:0 0 var(--space-3)}
 .attachment{position:relative}
-.attachment img{width:54px;height:54px;object-fit:cover;display:block;background:white;border:1px solid var(--border);border-radius:var(--r-lg)}
+.attachment img{width:54px;height:54px;object-fit:contain;display:block;background:white;border:1px solid var(--border);border-radius:var(--r-lg);cursor:zoom-in}
 .attachment .attachment-remove{
  position:absolute;top:-7px;right:-7px;width:18px;height:18px;min-width:0;padding:0;border-radius:var(--r-round);
  background:var(--surface);color:var(--muted);border:1px solid var(--border);box-shadow:var(--shadow-1);
@@ -463,7 +528,10 @@ textarea::placeholder{color:var(--faint)}
 #prompt:focus{outline:none;border-color:var(--ring);box-shadow:var(--ring-shadow)}
 .composer-actions{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-2);flex-wrap:wrap}
 .composer-actions button{font-size:var(--fs-sm);padding:6px 8px}
-.composer-actions #end-day{margin-right:auto}
+/* Enviar (e Parar, quando visível) fecham a linha à direita: o Encerrar saiu
+   daqui e virou item do menu Estudar. */
+.composer-actions #send{margin-left:auto}
+.composer-actions #stop:not([hidden]){margin-left:auto}
 #include-refs[aria-pressed="false"]{color:var(--muted)}
 #stop{color:var(--danger)}
 #stop:hover{background:color-mix(in oklab,var(--danger) 12%,transparent);border-color:color-mix(in oklab,var(--danger) 40%,transparent)}
@@ -471,6 +539,30 @@ textarea::placeholder{color:var(--faint)}
 .primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
 .primary:disabled{background:var(--hover);border-color:transparent;color:var(--faint);opacity:1;box-shadow:none}
 #composer small{display:block;font-size:var(--fs-xs);margin-top:var(--space-2);color:var(--faint)}
+
+/* ---------- Fila de mensagens ----------
+   Faixa do núcleo `core/composerview.bend` (a mesma view da Conversa): rótulo
+   "Na fila · N", item com editar (⏎ salva / Esc cancela) e × para remover. */
+
+.queue-strip{display:flex;flex-direction:column;gap:var(--space-hairline);margin:0 0 var(--space-1);padding:0 0 5px;border-bottom:1px solid var(--border)}
+.queue-label{padding:0 var(--space-2);font-size:var(--fs-xs);font-weight:600;color:var(--faint)}
+.queue-item{display:flex;align-items:center;gap:var(--space-1);min-width:0;padding:1px var(--space-0) 1px var(--space-2);border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--muted)}
+.queue-item>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queue-item button{flex:none;width:18px;height:18px;min-width:0;padding:0;border:0;background:none;box-shadow:none;border-radius:var(--r-xs);font-size:var(--fs-md);line-height:1;color:var(--faint)}
+.queue-item button:hover{background:var(--hover);color:var(--fg)}
+.queue-item.sending{opacity:.55}
+.queue-item.sending>span{cursor:default}
+.queue-item>span[role=button]{cursor:text}
+.queue-item>span[role=button]:focus-visible{outline:2px solid var(--ring);outline-offset:1px;border-radius:var(--r-xs)}
+.queue-edit{flex:1;min-width:0;height:20px;margin:0;padding:0 var(--space-2);border:1px solid var(--ring);border-radius:var(--r-xs);background:var(--bg);font:inherit;font-size:var(--fs-sm);color:var(--fg)}
+.queue-edit:focus{outline:none}
+.queue-item button:disabled{opacity:.35;pointer-events:none}
+/* Ações da fila (Enviar agora / Limpar): linha própria no fim da faixa. A
+   visibilidade é decisão do núcleo (`hidden`); aqui só o desenho. */
+.queue-actions{display:flex;gap:var(--space-1);justify-content:flex-end;padding:1px var(--space-2) 0}
+.queue-actions button{font-size:var(--fs-xs);padding:2px 8px;box-shadow:none}
+.queue-actions button:hover{background:var(--hover);color:var(--fg)}
+.queue-actions .queue-clear{color:var(--muted)}
 
 /* ---------- Calculadora ---------- */
 
@@ -659,8 +751,20 @@ kbd{
 #toast .toast-item{animation:mesa-in-up var(--t-base) var(--ease-out)}
 #ctx-tip{animation:mesa-fade var(--t-fast) var(--ease-out)}
 #quote-btn{animation:mesa-fade var(--t-fast) var(--ease-out)}
+.queue-strip{animation:mesa-in-up var(--t-base) var(--ease-out)}
 .nav-pop{animation:mesa-in var(--t-base) var(--ease-out)}
 .toast-item.closing{opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity var(--t-fast) var(--ease-out),transform var(--t-fast) var(--ease-out)}
+.queue-strip.closing{opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity var(--t-fast) var(--ease-out),transform var(--t-fast) var(--ease-out)}
+/* Cartão do registro do Encerrar (Retomar/Dispensar): fica acima do resumo de
+   contexto, com a mesma entrada da faixa e as ações à direita. Cada linha para
+   em duas linhas de texto — o resto (se houver) está no arquivo. */
+.resume-card{display:flex;flex-direction:column;gap:var(--space-1);margin:0 0 var(--space-2);padding:var(--space-2);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--side);animation:mesa-in-up var(--t-base) var(--ease-out)}
+.resume-card-title{font-size:var(--fs-sm);font-weight:600;color:var(--fg)}
+.resume-card-line{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:var(--fs-xs);color:var(--muted)}
+.resume-card-actions{display:flex;gap:var(--space-1);justify-content:flex-end;padding-top:1px}
+.resume-card-actions button{font-size:var(--fs-xs);padding:2px 8px;box-shadow:none}
+.resume-card-actions button:hover{background:var(--hover);color:var(--fg)}
+.resume-card-actions .resume-dismiss{color:var(--muted)}
 .nav-menu.closing .nav-pop{opacity:0;transform:translateY(-3px) scale(.995);pointer-events:none;transition:opacity var(--t-fast) var(--ease-out),transform var(--t-fast) var(--ease-out)}
 .pdf-find.closing{opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity var(--t-fast) var(--ease-out),transform var(--t-fast) var(--ease-out)}
 
@@ -668,7 +772,9 @@ kbd{
    "dense" aperta o fio da Mesa sem mexer no tamanho da fonte. */
 body.dense header{padding:0 var(--space-2)}
 body.dense .chat-head{padding:var(--space-2) var(--space-3) var(--space-0)}
-body.dense .pi-settings{padding:0 var(--space-3) var(--space-2)}
+body.dense .settings-panel{margin:0 var(--space-3) var(--space-2)}
+body.dense .settings-toggle{padding:var(--space-1) var(--space-2)}
+body.dense .settings-body{padding:var(--space-1) var(--space-2) var(--space-2)}
 body.dense #study-context{padding:var(--space-0) var(--space-3) var(--space-1)}
 body.dense #messages{padding:var(--space-3)}
 body.dense .work{margin-bottom:var(--space-2)}
@@ -752,3 +858,24 @@ body.dense .foot-status{height:22px}
 .component-hint{flex-basis:100%;font-size:var(--fs-xs);color:var(--faint)}
 .component-link,.component-update{font-size:var(--fs-xs)}
 #components-refresh{margin:0 0 var(--space-4)}
+
+/* ---------- caderno de revisão (aba) ---------- */
+#references.review #pdf-grid{visibility:hidden}
+#references.review .pdf-divider{display:none}
+#review-bar{padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border)}
+.review-head{display:flex;align-items:center;gap:var(--space-2)}
+.review-head h2{margin:0;flex:1;font-size:var(--fs-sm);font-weight:600;color:var(--fg)}
+.review-count{font-size:var(--fs-xs);color:var(--faint)}
+.review-close{font-size:var(--fs-xs);padding:var(--space-1) var(--space-3)}
+#review-view{flex:1;min-height:0;overflow:auto;padding:var(--space-3)}
+.review-item{display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-2);border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.review-open{align-self:flex-start;background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--fg);text-align:left;cursor:pointer}
+.review-open:hover{color:var(--primary)}
+.review-trouble{margin:0;font-size:var(--fs-xs);color:var(--primary)}
+.review-attempt{margin:0;font-size:var(--fs-xs);color:var(--muted)}
+.review-ref{align-self:flex-start;background:none;border:0;padding:0;font:inherit;font-size:var(--fs-xs);color:var(--faint);text-decoration:underline;cursor:pointer}
+.review-actions{display:flex;gap:var(--space-2);margin-top:var(--space-1)}
+.review-actions button{font-size:var(--fs-xs);padding:var(--space-1) var(--space-2)}
+.review-actions .review-remove{color:var(--faint)}
+.review-empty{margin:var(--space-3);font-size:var(--fs-sm);color:var(--faint)}
+body.dense .review-item{padding:var(--space-1) var(--space-2);margin-bottom:var(--space-1)}

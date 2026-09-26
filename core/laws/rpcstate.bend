@@ -197,6 +197,41 @@ law rpc_respond_dead:
   {R.onRespond(False{}, stopped, pending, seq)
     == R.RpcOut{False{}, stopped, pending, seq, R.ActNone{}, False{}} : R.RpcOut}
 
+# LAW: linha ilegível no stdout não mexe na ponte — não derruba, não resolve
+# nem rejeita pendente (o aviso ao usuário é do host).
+law rpc_garbage_keeps:
+  for alive: Bool
+  for stopped: Bool
+  for pending: Nat
+  for seq: Nat
+  {R.onGarbage(alive, stopped, pending, seq)
+    == R.RpcOut{alive, stopped, pending, seq, R.ActNone{}, False{}} : R.RpcOut}
+
+# O pendente que estava na fila continua pendente (a linha torta não o consome
+# nem o recusa).
+law rpc_garbage_pending_kept:
+  for alive: Bool
+  for stopped: Bool
+  for pending: Nat
+  for seq: Nat
+  {R.pendingOf(R.onGarbage(alive, stopped, pending, seq)) == pending : Nat}
+
+# A ponte continua viva: lixo no stdout não é o mesmo golpe de um erro de escrita.
+law rpc_garbage_alive:
+  for alive: Bool
+  for stopped: Bool
+  for pending: Nat
+  for seq: Nat
+  {R.aliveOf(R.onGarbage(alive, stopped, pending, seq)) == alive : Bool}
+
+law rpc_step_garbage:
+  for alive: Bool
+  for stopped: Bool
+  for pending: Nat
+  for seq: Nat
+  {R.step(alive, stopped, pending, seq, R.EvGarbage{})
+    == R.onGarbage(alive, stopped, pending, seq) : R.RpcOut}
+
 # Despacho: step é a tabela dos on*.
 law rpc_step_timeout:
   for known: Bool

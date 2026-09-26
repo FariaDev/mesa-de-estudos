@@ -119,8 +119,10 @@ await withArtifacts('hunt-pdf',async ctx=>{
  const settle=ms=>page.waitForTimeout(ms);
  const field=(idx,sel)=>page.locator('.pdf-panel').nth(idx).locator(sel);
  const num=(idx,sel)=>page.locator('.pdf-panel').nth(idx).locator(sel).inputValue();
- const waitNum=(idx,value)=>page.waitForFunction(([i,v])=>document.querySelectorAll('.pdf-panel')[i]?.querySelector('.page-number')?.value===String(v),[idx,value],{timeout:30000});
- const waitCanvas=(idx,n)=>page.waitForFunction(([i,p])=>{const panel=document.querySelectorAll('.pdf-panel')[i];const el=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page===String(p));return !!el&&!!el.querySelector('canvas');},[idx,n],{timeout:30000});
+ /* 45s (e não 30s): a suíte roda hunts em paralelo e o doc de 220 páginas
+    atrasa a pintura sob carga — o timeout curto virava falso negativo. */
+ const waitNum=(idx,value)=>page.waitForFunction(([i,v])=>document.querySelectorAll('.pdf-panel')[i]?.querySelector('.page-number')?.value===String(v),[idx,value],{timeout:45000});
+ const waitCanvas=(idx,n)=>page.waitForFunction(([i,p])=>{const panel=document.querySelectorAll('.pdf-panel')[i];const el=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page===String(p));return !!el&&!!el.querySelector('canvas');},[idx,n],{timeout:45000});
  const waitFindText=(idx,text)=>page.waitForFunction(([i,t])=>{const panel=document.querySelectorAll('.pdf-panel')[i];const c=panel?.querySelector('.find-count');return !!c&&!c.hidden&&c.textContent.trim()===t;},[idx,text],{timeout:60000});
 
  try{

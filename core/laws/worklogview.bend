@@ -56,6 +56,17 @@ law worklogview_detail_aberto:
 law worklogview_detail_fechado:
   {W.detailHidden(False{}, True{}) == True{} : Bool}
 
+# ---------- fold do preview (o "correndo" some com o passo aberto) ----------
+
+law worklogview_preview_aberto:
+  {W.previewHidden(True{}, False{}) == True{} : Bool}
+
+law worklogview_preview_fechado_com_preview:
+  {W.previewHidden(False{}, False{}) == False{} : Bool}
+
+law worklogview_preview_fechado_vazio:
+  {W.previewHidden(False{}, True{}) == True{} : Bool}
+
 # ---------- artigo / cabeça: tag e attrs ----------
 
 law worklogview_tag:

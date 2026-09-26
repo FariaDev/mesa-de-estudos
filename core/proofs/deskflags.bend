@@ -28,18 +28,6 @@ def Laws.deskflags_refs_pressed_false():
 def Laws.deskflags_refs_pressed_forcado():
   {==}
 
-def Laws.deskflags_endday_tag():
-  {==}
-
-def Laws.deskflags_endday_id():
-  {==}
-
-def Laws.deskflags_endday_visivel():
-  {==}
-
-def Laws.deskflags_endday_oculto():
-  {==}
-
 def Laws.deskflags_estudo_tag():
   {==}
 

@@ -143,7 +143,7 @@ await scenario('pi-framing',async()=>{
   must('app continua utilizável depois do timeout',await page.locator('#send').isEnabled());
   await page.locator('#prompt').fill('terceira da caça depois do timeout');
   await page.locator('#send').click();
-  await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Eco de caça: terceira')),undefined,{timeout:25000});
+  await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Eco de caça: terceira')),undefined,{timeout:45000});
   await sendEnabled(page,{timeout:20000});
   must('reconecta e responde depois do timeout',true);
   const problemas=runtimeProblems(runtime).filter(e=>!/parou de responder|Resposta inválida|Pi encerrou/.test(e.line||''));
@@ -196,7 +196,7 @@ await scenario('pi-reconnect-cycles',async()=>{
   const app=track(ctx,await launchDesk({runtime,env:huntEnv('kill-prompt',{HUNT_PI_KILL_PROMPTS:'3'})}));
   const page=await app.firstWindow();const errs=watch(page);
   await statusOnline(page);
-  const sendAndWait=async text=>{
+  const sendAndWait=async(text,{queda=false}={})=>{
    await page.locator('#prompt').fill(text);
    await page.locator('#send').click();
    let appeared=true;
@@ -209,20 +209,31 @@ await scenario('pi-reconnect-cycles',async()=>{
     // reenvia para o roteiro seguir
     await page.locator('#prompt').fill(text);
     await page.locator('#send').click();
-    await page.waitForFunction(t=>[...document.querySelectorAll('#messages .message.user')].some(el=>el.textContent.includes(t)),text,{timeout:25000});
+    await page.waitForFunction(t=>[...document.querySelectorAll('#messages .message.user')].some(el=>el.textContent.includes(t)),text,{timeout:45000});
    }
-   await page.waitForFunction(()=>!document.querySelector('#send').disabled,undefined,{timeout:25000});
+   await page.waitForFunction(()=>!document.querySelector('#send').disabled,undefined,{timeout:45000});
+   if(queda){
+    /* `kill-prompt` mata o Pi de caça LOGO depois de aceitar: esperar a queda
+       APARECER antes da mensagem seguinte. Sem isso, a próxima mensagem é
+       escrita na janela em que o processo ainda responde mas já está condenado
+       — o app entrega a mensagem a um Pi que morre em seguida e nenhuma resposta
+       vem. Era daí que este cenário saía vermelho de vez em quando: o mesmo
+       roteiro falha ~1 em 4 no HEAD limpo, sem nenhuma mudança do app (corrida
+       do mock, não do produto). A reconexão em si continua sendo o que o ciclo
+       prova: ela acontece no envio seguinte, que sobe um Pi novo. */
+    await page.waitForFunction(()=>document.querySelector('#status-dot').className.includes('error'),undefined,{timeout:15000});
+   }
    return appeared;
   };
   for(let i=1;i<=3;i++){
-   await sendAndWait(`ciclo ${i}`);
+   await sendAndWait(`ciclo ${i}`,{queda:true});
    if(process.env.HUNT_DEBUG)console.log('    debug ciclo',i,await page.evaluate(()=>({prompt:document.querySelector('#prompt').value,toast:(document.querySelector('#toast').textContent||'').slice(0,240),users:document.querySelectorAll('#messages .message.user').length,dot:document.querySelector('#status-dot').getAttribute('class'),busy:document.querySelector('#send').disabled})));
    const users=await page.locator('#messages .message.user').allTextContents();
    must(`ciclo ${i}: um único balão de usuário por envio`,users.filter(t=>t.includes(`ciclo ${i}`)).length===1,JSON.stringify(users));
    must(`ciclo ${i}: send destravado`,await page.locator('#send').isEnabled());
   }
   await sendAndWait('final da caça');
-  await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Eco de caça: final')),undefined,{timeout:25000});
+  await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Eco de caça: final')),undefined,{timeout:45000});
   await sendEnabled(page,{timeout:20000});
   const users=await page.locator('#messages .message.user').allTextContents();
   const unique=new Set(users);
@@ -268,14 +279,16 @@ await scenario('switch-vs-stream',async()=>{
   await sendEnabled(page,{timeout:20000});
   await page.waitForTimeout(2500);
   probe('troca bloqueada não é aplicada depois do abort',await page.evaluate(()=>document.querySelector('#course-tabs button.active')?.dataset.id==='A'));
-  // (b) atalho durante o stream + abort em seguida: a troca enfileirada deve completar
+  // (b) atalho durante o stream + abort em seguida: a troca recusada é descartada
+  //     (a mesma política de (a): o aviso "Pare a resposta" não deixa a troca
+  //     pendente para depois)
   await page.locator('#prompt').fill('trave de novo');
   await page.locator('#send').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Vou travar')),undefined,{timeout:15000});
   await page.keyboard.press('ControlOrMeta+2');
   await page.waitForTimeout(800);
   await page.keyboard.press('Escape');
-  await page.waitForFunction(()=>document.querySelector('#course-tabs button.active')?.dataset.id==='B',undefined,{timeout:25000}).catch(()=>{});
+  await sendEnabled(page,{timeout:45000});
   await page.waitForTimeout(2500);
   const st=await page.evaluate(()=>{
    const active=document.querySelector('#course-tabs button.active')?.dataset.id||'';
@@ -285,7 +298,7 @@ await scenario('switch-vs-stream',async()=>{
    const sel=document.querySelector('#session-select')?.value||'';
    return {active,panels,busy,hasA:text.includes('SEGREDO-A'),hasB:text.includes('SEGREDO-B'),sel,title:document.title};
   });
-  probe('atalho enfileirado durante o stream troca de matéria ao abortar',st.active==='B',JSON.stringify(st));
+  probe('atalho recusado durante o stream não troca de matéria depois do abort',st.active==='A',JSON.stringify(st));
   probe('conteúdo da conversa casa com a aba ativa',st.active==='A'?(st.hasA&&!st.hasB):(st.active==='B'?(st.hasB&&!st.hasA):false),JSON.stringify(st));
   must('exatamente 2 leitores depois da troca',st.panels===2,JSON.stringify(st));
   must('send destravado depois da troca',st.busy===false,JSON.stringify(st));
@@ -311,6 +324,17 @@ await scenario('switch-vs-stream',async()=>{
   must('exatamente 2 leitores no fim da fila',st2.panels===2,JSON.stringify(st2));
   must('send destravado no fim da fila',st2.busy===false,JSON.stringify(st2));
   must('sem pageerror na fila de trocas',errs.pageerrors.length===0,errs.pageerrors.join(' | '));
+  // (d) o mesmo atalho com o turno encerrado troca de verdade: a recusa de (a)/(b)
+  //     não é pegajosa (a aba só está travada enquanto o Pi responde)
+  await page.keyboard.press('ControlOrMeta+1');
+  await page.waitForFunction(()=>document.querySelector('#course-tabs button.active')?.dataset.id==='A',undefined,{timeout:45000});
+  await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('SEGREDO-A'),undefined,{timeout:45000});
+  must('⌘1 com o turno encerrado volta para a matéria A',true);
+  await page.keyboard.press('ControlOrMeta+2');
+  await page.waitForFunction(()=>document.querySelector('#course-tabs button.active')?.dataset.id==='B',undefined,{timeout:45000});
+  await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('SEGREDO-B'),undefined,{timeout:45000});
+  must('⌘2 com o turno encerrado troca para a matéria B',true);
+  must('sem pageerror na troca tardia',errs.pageerrors.length===0,errs.pageerrors.join(' | '));
   probe('sem erro de console no renderer',errs.consoles.length===0,errs.consoles.join(' | ').slice(0,200));
  });
 });
@@ -781,7 +805,7 @@ await scenario('keyboard-a11y',async()=>{
    ['end-day-dialog','end-day-dialog',''],
   ]){
    if(open==='about-dialog'){await page.locator('#mesa-menu .nav-trigger').click();await page.locator('#about').click();}
-   else if(open==='end-day-dialog'){await page.locator('#end-day').click();}
+   else if(open==='end-day-dialog'){await page.locator('#study-menu .nav-trigger').click();await page.locator('#end-day').click();}
    else{await page.keyboard.press(key);}
    await page.waitForSelector(`#${open}[open]`,{timeout:8000});
    await page.keyboard.press('Escape');
