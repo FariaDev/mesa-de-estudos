@@ -20,7 +20,7 @@ const quiz=(over={})=>({
 });
 
 test('bolha vem do Bend com role, body HTML opaco, imagem e ações por Bool',()=>{
- const tree=core.message(true,html('<p>Olá</p>'),list('data:image/png;base64,AA'),true,true);
+ const tree=core.message(true,html('<p>Olá</p>'),list('data:image/png;base64,AA'),true,true,false);
  assert.equal(tree.tag,'article');
  assert.deepEqual(attrs(tree),{class:'message user','data-role':'user'});
  assert.equal(text(findClass(tree,'role')),'Você');
@@ -35,7 +35,7 @@ test('bolha vem do Bend com role, body HTML opaco, imagem e ações por Bool',()
 });
 
 test('assistente mantém DOM 1:1 e pode ocultar copiar/citar',()=>{
- const tree=core.message(false,html('<p>Resposta</p>'),Nil,false,false);
+ const tree=core.message(false,html('<p>Resposta</p>'),Nil,false,false,false);
  assert.deepEqual(attrs(tree),{class:'message assistant','data-role':'assistant'});
  assert.equal(text(findClass(tree,'role')),'Pi');
  assert.equal(findClass(tree,'msg-copy'),null);

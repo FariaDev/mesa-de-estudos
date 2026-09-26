@@ -21,6 +21,11 @@ import view.bend as V
 #   - `guideOpen`: o `<details>` estava aberto (o host lê o DOM antes de
 #     re-renderizar, como faz com o texto digitado).
 #
+# `calcHelpText()` é a lista de nomes que a ajuda anuncia e os parágrafos do
+# guia são o texto do `index.html`; quem aceita cada nome é o
+# `desk/calculator.mjs` (um teste em `desk/tests/calcview.test.mjs` garante que
+# todo nome anunciado existe no avaliador).
+#
 # Convenções de attr: as mesmas do `core/view.bend` (o host pula `class`/`id`
 # vazios e liga `on:<evento>` na tabela de handlers). O ícone do título é
 # asset do host (`icons.mjs`), como nas abas: a view só diz o texto.
@@ -51,7 +56,7 @@ def equalsText() -> String:
   "="
 
 def calcHelpText() -> String:
-  "+ − * / ^ · sqrt · sin · cos · tan · ln · log · pi"
+  "+ − * / ^ · sqrt · abs · sin · cos · tan · sec · csc · cot · asin · acos · atan · ln · log · exp · pi · e"
 
 def guideSummaryText() -> String:
   "Como usar"
@@ -87,6 +92,28 @@ def guideParagraph2() -> V.ViewNode:
   ])
 
 def guideParagraph3() -> V.ViewNode:
+  V.viewEl("p", Nil{}, [
+    codeNode("sec"),
+    V.viewText(", "),
+    codeNode("csc"),
+    V.viewText(" e "),
+    codeNode("cot"),
+    V.viewText(" são as recíprocas de cosseno, seno e tangente; "),
+    codeNode("asin"),
+    V.viewText(", "),
+    codeNode("acos"),
+    V.viewText(" e "),
+    codeNode("atan"),
+    V.viewText(" devolvem o ângulo (em GRAUS, "),
+    codeNode("asin(0.5)"),
+    V.viewText(" dá 30). Nos ângulos exatos o resultado sai exato: "),
+    codeNode("cos(90)"),
+    V.viewText(" é 0 e "),
+    codeNode("tan(90)"),
+    V.viewText(" fica indefinido.")
+  ])
+
+def guideParagraph4() -> V.ViewNode:
   V.viewEl("p", Nil{}, [V.viewText("Não resolve equações nem deriva ou integra simbolicamente.")])
 
 def calcGuide(open: Bool) -> V.ViewNode:
@@ -97,7 +124,8 @@ def calcGuide(open: Bool) -> V.ViewNode:
     V.viewEl("summary", Nil{}, [V.viewText(guideSummaryText())]),
     guideParagraph1(),
     guideParagraph2(),
-    guideParagraph3()
+    guideParagraph3(),
+    guideParagraph4()
   ])
 
 # ---------- ângulo ----------

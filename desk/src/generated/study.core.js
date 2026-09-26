@@ -18,167 +18,164 @@ function run_loop(r) {
 function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
-function $endsXopp$(path_0) {
-  return run_jump($String$ends_with$, [run_loop($String$to_lower$(path_0)), ".xopp"]);
+function $endsXopp$(_path_0) {
+  return run_jump($String$ends_with$, [run_loop($String$to_lower$(_path_0)), ".xopp"]);
 }
-function $restore$xopp$(path_0, xopp_0) {
-  if (!xopp_0) {
+function $restore$xopp$(_path_0, _xopp_0) {
+  if (!_xopp_0) {
     return "";
   } else {
-    return path_0;
+    return _path_0;
   }
 }
-function $restore$if$(path_0, exists_0, xopp_0) {
-  if (!exists_0) {
+function $restore$if$(_path_0, _exists_0, _xopp_0) {
+  if (!_exists_0) {
     return "";
   } else {
-    return run_jump($restore$xopp$, [path_0, xopp_0]);
+    return run_jump($restore$xopp$, [_path_0, _xopp_0]);
   }
 }
-function $restore$whenExists$(path_0) {
-  return run_jump($restore$xopp$, [path_0, run_loop($endsXopp$(path_0))]);
+function $restore$whenExists$(_path_0) {
+  return run_jump($restore$xopp$, [_path_0, run_loop($endsXopp$(_path_0))]);
 }
-function $restoreXopp$(path_0, exists_0) {
-  if (!exists_0) {
+function $restoreXopp$(_path_0, _exists_0) {
+  if (!_exists_0) {
     return "";
   } else {
-    return run_jump($restore$whenExists$, [path_0]);
+    return run_jump($restore$whenExists$, [_path_0]);
   }
 }
-function $cleanTitle$(title_0) {
-  return run_jump($String$take$, [run_loop($String$trim$(title_0)), 240n]);
+function $cleanTitle$(_title_0) {
+  return run_jump($String$take$, [run_loop($String$trim$(_title_0)), 240n]);
 }
-function $cleanStudy$(title_0, xopp_0, exists_0) {
-  return { $: "Study", ["title"]: run_loop($cleanTitle$(title_0)), ["xopp"]: run_loop($restoreXopp$(run_loop($String$trim$(xopp_0)), exists_0)) };
+function $cleanStudy$(_title_0, _xopp_0, _exists_0) {
+  return { $: "Study", ["title"]: run_loop($cleanTitle$(_title_0)), ["xopp"]: run_loop($restoreXopp$(run_loop($String$trim$(_xopp_0)), _exists_0)) };
 }
-function $String$ends_with$(s_0, p_0) {
-  return run_jump($String$starts_with$, [run_loop($String$reverse$(s_0)), run_loop($String$reverse$(p_0))]);
+function $String$ends_with$(_s_0, _p_0) {
+  return run_jump($String$starts_with$, [run_loop($String$reverse$(_s_0)), run_loop($String$reverse$(_p_0))]);
 }
-function $String$to_lower$(s_0) {
-  if (s_0 === "") {
+function $String$to_lower$(_s_0) {
+  if (_s_0 === "") {
     return "";
   } else {
-    const h_0 = s_0.codePointAt(0) > 65535 ? s_0.slice(0, 2) : s_0[0];
-    const t_0 = s_0.codePointAt(0) > 65535 ? s_0.slice(2) : s_0.slice(1);
-    return run_loop($Char$to_lower$(h_0)) + run_loop($String$to_lower$(t_0));
+    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
+    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
+    return run_loop($Char$to_lower$(_h_0)) + run_loop($String$to_lower$(_t_0));
   }
 }
-function $String$take$(s_0, n_0) {
-  if (s_0 === "") {
+function $String$take$(_s_0, _n_0) {
+  if (_s_0 === "") {
     return "";
   } else {
-    const h_0 = s_0.codePointAt(0) > 65535 ? s_0.slice(0, 2) : s_0[0];
-    const t_0 = s_0.codePointAt(0) > 65535 ? s_0.slice(2) : s_0.slice(1);
-    if (n_0 === 0n) {
+    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
+    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
+    if (_n_0 === 0n) {
       return "";
     } else {
-      const p_0 = n_0 - 1n;
-      return h_0 + run_loop($String$take$(t_0, p_0));
+      const _p_0 = _n_0 - 1n;
+      return _h_0 + run_loop($String$take$(_t_0, _p_0));
     }
   }
 }
-function $String$trim$(s_0) {
-  return run_jump($String$trim_end$, [run_loop($String$trim_start$(s_0))]);
+function $String$trim$(_s_0) {
+  return run_jump($String$trim_end$, [run_loop($String$trim_start$(_s_0))]);
 }
-function $String$starts_with$(s_0, p_0) {
-  if (s_0 === "") {
-    if (p_0 === "") {
+function $String$starts_with$(_s_0, _p_0) {
+  if (_s_0 === "") {
+    if (_p_0 === "") {
       return true;
     } else {
-      const h_0 = p_0.codePointAt(0) > 65535 ? p_0.slice(0, 2) : p_0[0];
-      const t_0 = p_0.codePointAt(0) > 65535 ? p_0.slice(2) : p_0.slice(1);
+      const _h_0 = _p_0.codePointAt(0) > 65535 ? _p_0.slice(0, 2) : _p_0[0];
+      const _t_0 = _p_0.codePointAt(0) > 65535 ? _p_0.slice(2) : _p_0.slice(1);
       return false;
     }
   } else {
-    const h_1 = s_0.codePointAt(0) > 65535 ? s_0.slice(0, 2) : s_0[0];
-    const t_1 = s_0.codePointAt(0) > 65535 ? s_0.slice(2) : s_0.slice(1);
-    if (p_0 === "") {
+    const _h_1 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
+    const _t_1 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
+    if (_p_0 === "") {
       return true;
     } else {
-      const y_0 = p_0.codePointAt(0) > 65535 ? p_0.slice(0, 2) : p_0[0];
-      const yt_0 = p_0.codePointAt(0) > 65535 ? p_0.slice(2) : p_0.slice(1);
-      return run_jump($String$starts_with$if$, [t_1, yt_0, run_loop($Char$is_eq$(h_1, y_0))]);
+      const _y_0 = _p_0.codePointAt(0) > 65535 ? _p_0.slice(0, 2) : _p_0[0];
+      const _yt_0 = _p_0.codePointAt(0) > 65535 ? _p_0.slice(2) : _p_0.slice(1);
+      return run_jump($String$starts_with$if$, [_t_1, _yt_0, run_loop($Char$is_eq$(_h_1, _y_0))]);
     }
   }
 }
-function $String$reverse$(s_0) {
-  return run_jump($String$reverse$go$, [s_0, ""]);
+function $String$reverse$(_s_0) {
+  return run_jump($String$reverse$go$, [_s_0, ""]);
 }
-function $Char$to_lower$(c_0) {
-  const x_0 = run_loop($Bool$to_u32$(run_loop($Char$is_upper$(c_0))));
-  const x_1 = run_loop($Char$to_u32$(c_0));
-  const x_2 = Math.imul(x_0, 32) >>> 0;
-  return char_new(x_1 + x_2 >>> 0);
+function $Char$to_lower$(_c_0) {
+  const _x_0 = run_loop($Bool$to_u32$(run_loop($Char$is_upper$(_c_0))));
+  const _x_1 = run_loop($Char$to_u32$(_c_0));
+  const _x_2 = Math.imul(_x_0, 32) >>> 0;
+  return char_new(_x_1 + _x_2 >>> 0);
 }
-function $String$trim_end$(s_0) {
-  return run_jump($String$reverse$, [run_loop($String$trim_start$(run_loop($String$reverse$(s_0))))]);
+function $String$trim_end$(_s_0) {
+  return run_jump($String$reverse$, [run_loop($String$trim_start$(run_loop($String$reverse$(_s_0))))]);
 }
-function $String$trim_start$(s_0) {
-  if (s_0 === "") {
+function $String$trim_start$(_s_0) {
+  if (_s_0 === "") {
     return "";
   } else {
-    const h_0 = s_0.codePointAt(0) > 65535 ? s_0.slice(0, 2) : s_0[0];
-    const t_0 = s_0.codePointAt(0) > 65535 ? s_0.slice(2) : s_0.slice(1);
-    const h_1 = h_0;
-    return run_jump($String$trim_start$if$, [h_1, t_0, run_loop($Char$is_space$(h_1))]);
+    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
+    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
+    return run_jump($String$trim_start$if$, [_h_0, _t_0, run_loop($Char$is_space$(_h_0))]);
   }
 }
-function $String$starts_with$if$(t_0, pt_0, same_0) {
-  if (!same_0) {
+function $String$starts_with$if$(_t_0, _pt_0, _same_0) {
+  if (!_same_0) {
     return false;
   } else {
-    return run_jump($String$starts_with$, [t_0, pt_0]);
+    return run_jump($String$starts_with$, [_t_0, _pt_0]);
   }
 }
-function $Char$is_eq$(a_0, b_0) {
-  const x_0 = a_0.codePointAt(0);
-  const y_0 = b_0.codePointAt(0);
-  return x_0 === y_0;
+function $Char$is_eq$(_a_0, _b_0) {
+  const _x_0 = _a_0.codePointAt(0);
+  const _y_0 = _b_0.codePointAt(0);
+  return _x_0 === _y_0;
 }
-function $String$reverse$go$(s_0, acc_0) {
-  if (s_0 === "") {
-    return acc_0;
+function $String$reverse$go$(_s_0, _acc_0) {
+  if (_s_0 === "") {
+    return _acc_0;
   } else {
-    const h_0 = s_0.codePointAt(0) > 65535 ? s_0.slice(0, 2) : s_0[0];
-    const t_0 = s_0.codePointAt(0) > 65535 ? s_0.slice(2) : s_0.slice(1);
-    return run_jump($String$reverse$go$, [t_0, h_0 + acc_0]);
+    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
+    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
+    return run_jump($String$reverse$go$, [_t_0, _h_0 + _acc_0]);
   }
 }
-function $Char$to_u32$(c_0) {
-  const x_0 = c_0.codePointAt(0);
-  return x_0;
+function $Char$to_u32$(_c_0) {
+  const _x_0 = _c_0.codePointAt(0);
+  return _x_0;
 }
-function $Bool$to_u32$(b_0) {
-  if (!b_0) {
+function $Bool$to_u32$(_b_0) {
+  if (!_b_0) {
     return 0;
   } else {
     return 1;
   }
 }
-function $Char$is_upper$(c_0) {
-  const x_0 = c_0.codePointAt(0);
-  const x_1 = x_0;
-  return run_jump($Bool$and$, [x_1 >= 65, x_1 <= 90]);
+function $Char$is_upper$(_c_0) {
+  const _x_0 = _c_0.codePointAt(0);
+  return run_jump($Bool$and$, [_x_0 >= 65, _x_0 <= 90]);
 }
-function $String$trim_start$if$(h_0, t_0, space_0) {
-  if (!space_0) {
-    return h_0 + t_0;
+function $String$trim_start$if$(_h_0, _t_0, _space_0) {
+  if (!_space_0) {
+    return _h_0 + _t_0;
   } else {
-    return run_jump($String$trim_start$, [t_0]);
+    return run_jump($String$trim_start$, [_t_0]);
   }
 }
-function $Char$is_space$(c_0) {
-  const x_0 = c_0.codePointAt(0);
-  const x_1 = x_0;
-  const x_2 = x_1 === 32;
-  const x_3 = run_loop($Bool$and$(x_1 >= 9, x_1 <= 13));
-  return x_2 || x_3;
+function $Char$is_space$(_c_0) {
+  const _x_0 = _c_0.codePointAt(0);
+  const _x_1 = _x_0 === 32;
+  const _x_2 = run_loop($Bool$and$(_x_0 >= 9, _x_0 <= 13));
+  return _x_1 || _x_2;
 }
-function $Bool$and$(a_0, b_0) {
-  if (!a_0) {
+function $Bool$and$(_a_0, _b_0) {
+  if (!_a_0) {
     return false;
   } else {
-    return b_0;
+    return _b_0;
   }
 }
 var study_default = {

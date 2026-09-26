@@ -10,6 +10,12 @@ import path from 'node:path';
 import fs from 'node:fs';
 import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,PLOT_PNG,saveArtifacts} from './helpers.mjs';
 import {icon} from '../icons.mjs';
+import attachCore from '../src/generated/attachments.core.js';
+
+/* Teto de bytes crus de um anexo (16 MB hoje): a lei mora em
+   `core/laws/attachments.bend` e o teto é inclusivo — o arquivo do teste tem de
+   passar dele por um byte para a recusa acontecer. */
+const MAX_RAW_BYTES=Number(attachCore.maxRawBytes());
 
 const WANT=(process.env.HUNT||'').split(',').map(s=>s.trim()).filter(Boolean);
 const EVIDENCE=process.env.EVIDENCE==='1';
@@ -37,6 +43,8 @@ import fs from 'node:fs';
 const MODE=process.env.HUNT_PI_MODE||'error';
 const THINK_MS=Number(process.env.HUNT_PI_THINK_MS)||400;
 const THINK_TEXT=process.env.HUNT_PI_THINK_TEXT||'Vou considerar ';
+const THINK_CHUNKS=Number(process.env.HUNT_PI_THINK_CHUNKS)||1;
+const THINK_GAP=Number(process.env.HUNT_PI_THINK_GAP)||200;
 const model={provider:'test',id:'offline',name:'Pi de teste',input:['text','image']};
 let streaming=false;
 function reply(e,data){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:true,data})+'\\n');}
@@ -68,7 +76,8 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
   emit({type:'agent_start'});
   emit({type:'message_start',message:{role:'assistant'}});
   emit({type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:THINK_TEXT}});
-  setTimeout(()=>{
+  let dripped=1;
+  const after=()=>{
    emit({type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:'com calma.'}});
    emit({type:'tool_execution_start',toolCallId:'hunt-t1',toolName:'web_search',args:{query:'teste do hunt'}});
    setTimeout(()=>{
@@ -79,7 +88,16 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
     emit({type:'message_end',message:{role:'assistant',content:[{type:'text',text:'Terminei.'}]}});
     emit({type:'agent_end'});streaming=false;
    },3000);
-  },THINK_MS);
+  };
+  /* Pensamento em pedaços (HUNT_PI_THINK_CHUNKS): o detalhe aberto precisa ver
+     o texto chegar aos poucos, não numa tacada só. */
+  const drip=()=>{
+   if(dripped>=THINK_CHUNKS){after();return;}
+   dripped+=1;
+   emit({type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:'pedaco '+dripped+' '}});
+   setTimeout(drip,THINK_GAP);
+  };
+  if(THINK_CHUNKS>1)setTimeout(drip,THINK_GAP);else setTimeout(after,THINK_MS);
  }
  else if(e.id)reply(e,{});
 }});
@@ -556,9 +574,10 @@ if(want('dialog-ui'))await withArtifacts('hunt-dialog-ui',async ctx=>{
  log('HUNT dialog-ui PASSED');
 });
 
-/* O relógio do diário vivo não pode repintar a árvore inteira: seleção e
-   rolagem do detalhe aberto precisam sobreviver ao tick de 1s (o pré-rewrite
-   só atualizava o tempo). */
+/* O relógio do diário vivo não pode repintar a árvore inteira: a seleção no
+   detalhe aberto precisa sobreviver ao tick de 1s (o pré-rewrite só atualizava
+   o tempo). E, no turno vivo com o passo aberto, o texto não tem caixa própria
+   (quem rola é a conversa) — com a conversa no topo, o tick não pode puxá-la. */
 if(want('diary-selection'))await withArtifacts('hunt-diary-selection',async ctx=>{
  const runtime=ctx.runtime=newRuntime('hunt-diary-sel');
  seedCourse(runtime,'Calc');
@@ -574,24 +593,92 @@ if(want('diary-selection'))await withArtifacts('hunt-diary-selection',async ctx=
  await page.waitForFunction(()=>{const s=document.querySelector('.work-step[data-kind="thinking"] .step-detail');return s&&!s.hidden;});
  await page.evaluate(()=>{
   const pre=document.querySelector('.work-step[data-kind="thinking"] .step-text');
-  pre.scrollTop=40;
+  const m=document.querySelector('#messages');
+  m.scrollTop=0;m.dispatchEvent(new Event('scroll'));
   const range=document.createRange();range.selectNodeContents(pre);
   const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
  });
- const before=await page.evaluate(()=>({collapsed:getSelection().isCollapsed,scroll:document.querySelector('.work-step[data-kind="thinking"] .step-text').scrollTop,lines:document.querySelector('.work-step[data-kind="thinking"] .step-text').textContent.length}));
+ const before=await page.evaluate(()=>{const pre=document.querySelector('.work-step[data-kind="thinking"] .step-text');return {collapsed:getSelection().isCollapsed,maxHeight:getComputedStyle(pre).maxHeight,innerScroll:pre.scrollHeight-pre.clientHeight,scrollTop:document.querySelector('#messages').scrollTop,lines:pre.textContent.length};});
  await page.waitForTimeout(2400);
- const after=await page.evaluate(()=>({collapsed:getSelection().isCollapsed,scroll:document.querySelector('.work-step[data-kind="thinking"] .step-text').scrollTop,meta:document.querySelector('.work .work-meta')?.textContent??'',open:!document.querySelector('.work-step[data-kind="thinking"] .step-detail').hidden}));
+ const after=await page.evaluate(()=>{const pre=document.querySelector('.work-step[data-kind="thinking"] .step-text');return {collapsed:getSelection().isCollapsed,maxHeight:getComputedStyle(pre).maxHeight,scrollTop:document.querySelector('#messages').scrollTop,meta:document.querySelector('.work .work-meta')?.textContent??'',open:!document.querySelector('.work-step[data-kind="thinking"] .step-detail').hidden};});
  log('[diary-selection] antes:',JSON.stringify(before),'depois:',JSON.stringify(after));
  assert.equal(before.collapsed,false,'seleção montada');
+ assert.equal(before.maxHeight,'none','aberto no turno vivo: o texto não tem teto de 240px');
+ assert.ok(before.innerScroll<=1,`o texto não tem rolagem própria (${before.innerScroll})`);
  assert.equal(after.open,true,'o detalhe continua aberto no tick');
  assert.equal(after.collapsed,false,'o tick de 1s não pode apagar a seleção do detalhe');
- assert.equal(after.scroll,40,'o tick de 1s não pode resetar a rolagem do detalhe');
+ assert.equal(after.maxHeight,'none','o tick mantém o texto sem caixa');
+ assert.equal(after.scrollTop,before.scrollTop,'com a conversa no topo, o tick não puxa para o fim');
  assert.match(after.meta,/^\d+s$/,'o relógio continua andando no tick');
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
  assert.deepEqual(w.errors,[]);
  if(EVIDENCE)await saveArtifacts(ctx);
  log('HUNT diary-selection PASSED');
+});
+
+/* Passo aberto durante o turno vivo (conferir enquanto ele pensa): o preview
+   "correndo" some, o texto completo cresce sem caixa própria e a conversa
+   segue o fim — até você rolar para cima. Encerrado o turno, o teto volta. */
+if(want('thinking-open'))await withArtifacts('hunt-thinking-open',async ctx=>{
+ const runtime=ctx.runtime=newRuntime('hunt-think-open');
+ seedCourse(runtime,'Calc');
+ writeDeskJson(runtime,{courseId:'Calc'});
+ const pi=writeHuntPi(runtime);
+ const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,HUNT_PI_MODE:'stop',HUNT_PI_THINK_MS:'9000',HUNT_PI_THINK_TEXT:'palavra '.repeat(200),HUNT_PI_THINK_CHUNKS:'60',HUNT_PI_THINK_GAP:'150'}});
+ const page=await app.firstWindow();const w=watch(page);
+ await statusOnline(page);
+ await page.locator('#prompt').fill('pense bastante');
+ await page.locator('#send').click();
+ await page.waitForSelector('.work-step[data-kind="thinking"][data-status="running"]',{timeout:15000});
+ await page.locator('.work-step[data-kind="thinking"] .step-toggle').dispatchEvent('click');
+ await page.waitForFunction(()=>{const s=document.querySelector('.work-step[data-kind="thinking"] .step-detail');return s&&!s.hidden;});
+ const snap=()=>page.evaluate(()=>{
+  const step=document.querySelector('.work-step[data-kind="thinking"]');
+  const pre=step.querySelector('.step-text');
+  const m=document.querySelector('#messages');
+  return {live:document.querySelector('#messages .work').dataset.live,
+   previewHidden:step.querySelector('.step-preview').hidden,previewLen:step.querySelector('.step-preview').textContent.length,
+   maxHeight:getComputedStyle(pre).maxHeight,overflow:getComputedStyle(pre).overflow,
+   innerScroll:pre.scrollHeight-pre.clientHeight,len:pre.textContent.length,
+   scrollTop:m.scrollTop,bottomGap:m.scrollHeight-m.scrollTop-m.clientHeight};
+ });
+ const opened=await snap();
+ log('[thinking-open] aberto:',JSON.stringify(opened));
+ assert.equal(opened.live,'true');
+ assert.equal(opened.previewHidden,true,'com o passo aberto o preview "correndo" some');
+ assert.ok(opened.previewLen>0,'o preview segue no DOM (só escondido)');
+ assert.equal(opened.maxHeight,'none','aberto no turno vivo: sem teto de 240px');
+ assert.equal(opened.overflow,'visible','aberto no turno vivo: o texto não rola por dentro');
+ assert.ok(opened.innerScroll<=1,`o texto não tem rolagem própria (${opened.innerScroll})`);
+ await page.waitForTimeout(1200);
+ const follow=await snap();
+ log('[thinking-open] seguindo:',JSON.stringify(follow));
+ assert.ok(follow.len>opened.len,`o pensamento continua chegando (${opened.len} -> ${follow.len})`);
+ assert.ok(follow.scrollTop>opened.scrollTop,`a conversa segue o fim enquanto você está no fim (${opened.scrollTop} -> ${follow.scrollTop})`);
+ assert.ok(follow.bottomGap<=80,`e continua colada no fim (${follow.bottomGap}px)`);
+ await page.evaluate(()=>{const m=document.querySelector('#messages');m.scrollTop=0;m.dispatchEvent(new Event('scroll'));});
+ const up=await snap();
+ await page.waitForTimeout(1200);
+ const held=await snap();
+ log('[thinking-open] rolado para cima:',JSON.stringify(up),'->',JSON.stringify(held));
+ assert.ok(held.len>up.len,`o pensamento segue chegando (${up.len} -> ${held.len})`);
+ assert.equal(held.scrollTop,0,'rolado para cima, a conversa não é puxada de volta');
+ await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
+ if(await page.locator('#messages .work').getAttribute('data-expanded')==='false')await page.locator('#messages .work .work-head').dispatchEvent('click');
+ await page.waitForFunction(()=>document.querySelector('#messages .work').dataset.expanded==='true');
+ if(await page.locator('.work-step[data-kind="thinking"] .step-detail').evaluate(el=>el.hidden))await page.locator('.work-step[data-kind="thinking"] .step-toggle').dispatchEvent('click');
+ await page.waitForFunction(()=>{const s=document.querySelector('.work-step[data-kind="thinking"] .step-detail');return s&&!s.hidden;});
+ const done=await snap();
+ log('[thinking-open] encerrado:',JSON.stringify(done));
+ assert.equal(done.live,'false');
+ assert.equal(done.maxHeight,'240px','encerrado o turno, o teto de 240px volta');
+ assert.equal(done.overflow,'auto','encerrado o turno, o texto rola por dentro de novo');
+ assert.ok(done.innerScroll>10,`o texto volta a ter rolagem própria (${done.innerScroll})`);
+ assert.deepEqual(w.errors,[]);
+ if(EVIDENCE)await saveArtifacts(ctx);
+ log('HUNT thinking-open PASSED');
 });
 
 /* ------------------------------------------------------------------ */
@@ -755,7 +842,8 @@ if(want('composer'))await withArtifacts('hunt-composer',async ctx=>{
  const imgs=[];
  for(let i=1;i<=5;i++){const f=path.join(runtime,`anexo-${i}.png`);fs.writeFileSync(f,png());imgs.push(f);}
  const big=path.join(runtime,'grande-demais.png');
- fs.writeFileSync(big,Buffer.alloc(16*1024*1024,7));
+ // um byte ACIMA do teto: exatamente no teto o anexo entra (o teto é inclusivo)
+ fs.writeFileSync(big,Buffer.alloc(MAX_RAW_BYTES+1,7));
  const txt=path.join(runtime,'nota.txt');fs.writeFileSync(txt,'não é imagem');
  writeDeskJson(runtime,{courseId:'A'});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:path.join(runtime,'learning','Courses','A')},{id:'B',name:'Matéria B',path:path.join(runtime,'learning','Courses','B')}]});
@@ -807,7 +895,7 @@ if(want('composer'))await withArtifacts('hunt-composer',async ctx=>{
 });
 
 /* ------------------------------------------------------------------ */
-/* 5. Composer: citação (truncagem 8000), Cmd+Enter e Enter simples     */
+/* 5. Composer: citação (truncagem 8000), ⏎ envia e ⇧⏎ quebra linha    */
 /* ------------------------------------------------------------------ */
 if(want('quote'))await withArtifacts('hunt-quote',async ctx=>{
  const runtime=ctx.runtime=newRuntime('hunt-quote');
@@ -836,14 +924,14 @@ if(want('quote'))await withArtifacts('hunt-quote',async ctx=>{
  assert.ok(flat.length<=8005,`citação truncada em 8000 (${flat.length})`);
  assert.ok(flat.endsWith('…'),'truncagem marca com reticências');
  assert.equal(await page.locator('#quote-btn').isHidden(),true,'botão some depois de citar');
- // Cmd+Enter envia; Enter simples não
+ // ⏎ envia; ⇧⏎ quebra linha
  await page.locator('#prompt').fill('');
  await page.locator('#prompt').fill('teorema');
- await page.locator('#prompt').press('Enter');
+ await page.locator('#prompt').press('Shift+Enter');
  await page.waitForTimeout(200);
- assert.equal(await page.locator('#messages .message.user').count(),1,'Enter simples não envia');
- assert.match(await page.locator('#prompt').inputValue(),/\n/,'Enter simples quebra linha');
- await page.locator('#prompt').press('Meta+Enter');
+ assert.equal(await page.locator('#messages .message.user').count(),1,'⇧⏎ não envia');
+ assert.match(await page.locator('#prompt').inputValue(),/\n/,'⇧⏎ quebra linha');
+ await page.locator('#prompt').press('Enter');
  await page.waitForFunction(()=>document.querySelectorAll('#messages .message.user').length===2,undefined,{timeout:10000});
  await page.waitForFunction(()=>[...document.querySelectorAll('.message.assistant .body')].some(el=>el.textContent.includes('Pitágoras')),undefined,{timeout:20000});
  assert.deepEqual(w.errors,[]);

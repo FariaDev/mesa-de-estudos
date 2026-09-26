@@ -34,7 +34,7 @@ await withArtifacts('smoke',async ctx=>{
  assert.equal((await page.locator('#calc-toggle > span').first().textContent()).trim(),'Calculadora','o título do toggle vem da view');
  assert.equal(await page.locator('#calc-toggle svg.icon').count(),1,'o ícone do título é asset do host');
  assert.equal(await page.locator('#calc-guide summary').textContent(),'Como usar','a guia vem da view do Bend');
- assert.equal(await page.locator('#calc-guide code').count(),8,'os códigos da guia vêm da view');
+ assert.equal(await page.locator('#calc-guide code').count(),17,'os códigos da guia vêm da view');
  assert.deepEqual(await page.locator('#calc-history button').evaluateAll(es=>es.map(el=>({text:el.textContent,expr:el.dataset.expr}))),[{text:'sin(30) = 0.5',expr:'sin(30)'},{text:'sqrt(16)+sin(pi/2) = 5',expr:'sqrt(16)+sin(pi/2)'}],'histórico do mais novo para o antigo, com o rótulo pronto');
  await page.locator('#calc-history button').last().click();
  await page.waitForFunction(()=>document.querySelector('#expression').value==='sqrt(16)+sin(pi/2)'&&document.activeElement===document.querySelector('#expression'),undefined,{timeout:5000});
@@ -65,8 +65,17 @@ await withArtifacts('smoke',async ctx=>{
  await page.locator('#calc-toggle > span').first().click();
  await page.locator('#calc-toggle > span').first().click();
  assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true,'o open da guia sobrevive ao render');
- assert.equal(await page.locator('#calc-guide code').count(),8,'os códigos continuam na árvore');
+ assert.equal(await page.locator('#calc-guide code').count(),17,'os códigos continuam na árvore');
  await page.locator('#calc-guide summary').click();
+ // recíprocas (sec/csc/cot), inversas (asin/acos/atan) e ângulos exatos
+ await page.locator('#expression').fill('sec(60)');await page.locator('#calc-form button').click();assert.equal(await page.locator('#result').textContent(),'2','sec(60) em GRAUS');
+ await page.locator('#expression').fill('csc(30)');await page.locator('#calc-form button').click();assert.equal(await page.locator('#result').textContent(),'2','csc(30) em GRAUS');
+ await page.locator('#expression').fill('asin(0.5)');await page.locator('#calc-form button').click();assert.equal(await page.locator('#result').textContent(),'30','asin devolve o ângulo em GRAUS');
+ await page.locator('#expression').fill('cos(90)');await page.locator('#calc-form button').click();assert.equal(await page.locator('#result').textContent(),'0','cos(90) sai exato');
+ await page.locator('#expression').fill('tan(90)');await page.locator('#calc-form button').click();assert.equal(await page.locator('#result').textContent(),'—','polo vira —');
+ await toastWait(page,'Resultado indefinido',{timeout:5000});
+ await page.locator('#angle').selectOption('rad');
+ await page.locator('#expression').fill('');
  // com --calc alto nada fica coberto: o composer cede espaço e a calculadora
  // encolhe até caber (o Enviar continua acessível)
  const calcDefault=await page.evaluate(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))||220);
@@ -282,6 +291,27 @@ await withArtifacts('smoke',async ctx=>{
  assert.equal(await page.locator('#attachments .attachment-remove').first().getAttribute('aria-label'),'Remover plot.png');
  assert.equal(await page.locator('#attachments .attachment-remove').first().getAttribute('title'),null,'a Mesa não usa title no ×');
  assert.equal(await page.locator('#attachments').isVisible(),true);
+ assert.equal(await page.locator('#attachments .attachment img').first().getAttribute('loading'),null,'data URL em memória: a miniatura não é lazy (não pisca)');
+ assert.equal(await page.locator('#attachments .attachment img').first().getAttribute('decoding'),null,'sem decoding=async: a miniatura não redesenha em duas fases');
+ /* Digitar não pode recriar a miniatura (era o "pisca" do app instalado): a
+    bandeja só é renderizada em anexar/remover, então o MESMO nó tem de ficar. */
+ await page.evaluate(()=>{document.querySelector('#attachments .attachment img').dataset.marca='viva';});
+ await page.locator('#prompt').fill('digitando com a miniatura na bandeja');
+ await page.waitForTimeout(200);
+ const thumb=await page.evaluate(()=>{
+  const img=document.querySelector('#attachments .attachment img');
+  return {marca:img?.dataset.marca??'',loading:img?.getAttribute('loading')??null,decoding:img?.getAttribute('decoding')??null,src:img?.getAttribute('src')?.slice(0,14)??''};
+ });
+ assert.equal(thumb.marca,'viva','digitar no composer não recria a miniatura (o mesmo nó continua lá)');
+ assert.equal(thumb.loading,null);
+ assert.equal(thumb.decoding,null);
+ assert.match(thumb.src,/^data:image/,'a miniatura segue com a data URL da imagem');
+ await page.locator('#prompt').fill('');
+ await page.locator('#attachments .attachment img').first().click();
+ await page.waitForSelector('#image-dialog[open]');
+ assert.match(await page.locator('#image-preview').getAttribute('src'),/^data:image\/png;base64,/,'clique na miniatura abre a prévia da imagem anexada');
+ await page.locator('#image-dialog .primary').click();
+ await page.waitForFunction(()=>!document.querySelector('#image-dialog').open);
  await page.locator('#attachments .attachment-remove').click();
  await page.waitForFunction(()=>document.querySelector('#attachments').hidden);
  await page.locator('#prompt').focus();
@@ -312,11 +342,14 @@ await withArtifacts('smoke',async ctx=>{
  // flags padrão do `desk`: o botão de referências do composer é view do Bend
  assert.equal(await page.locator('#include-refs').isHidden(),false,'com a flag padrão o botão de referências fica visível');
  assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'true','o aria-pressed acompanha o fato do host');
+ // O Encerrar por hoje saiu do composer e é item do menu Estudar (núcleo).
+ await page.locator('#study-menu .nav-trigger').click();
  await page.locator('#end-day').click();assert.equal(await page.locator('#end-day-dialog').getAttribute('open'),'');
  assert.equal(await page.locator('#end-day-dialog h2').textContent(),'Encerrar por hoje','o miolo do Encerrar vem da view do Bend');
  assert.equal(await page.locator('#end-day-dialog label').first().textContent(),'Onde parei');
  assert.equal(await page.locator('#end-day-save').getAttribute('value'),'ok','o botão de salvar mantém id/value');
  await page.locator('#end-day-dialog button[value="cancel"]').click();await page.waitForFunction(()=>!document.querySelector('#end-day-dialog').open);
+ await page.locator('#study-menu .nav-trigger').click();
  await page.locator('#end-day').click();await page.locator('#end-where').fill('terminei a questão 7b');await page.locator('#end-next').fill('começar a questão 8');await page.locator('#end-day-save').click();
  await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('terminei a questão 7b')&&document.querySelector('#messages').textContent.includes('começar a questão 8'));
  const saved=fs.readdirSync(runtime).filter(name=>name.endsWith('.jsonl')).map(name=>fs.readFileSync(path.join(runtime,name),'utf8')).join('\n');assert.match(saved,/Onde parei: terminei a questão 7b/);assert.match(saved,/Próximo passo: começar a questão 8/);
@@ -526,7 +559,7 @@ await withArtifacts('flags',async ctx=>{
  await page.waitForSelector('.pdf-panel',{timeout:30000});
  assert.equal(await page.locator('#include-refs').isHidden(),true,'refsToggle flag hides the references button');
  assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'true','sem o botão as referências ficam ligadas (view do Bend)');
- assert.equal(await page.locator('#end-day').isHidden(),true,'endDay flag hides the end-of-day button');
+ assert.equal(await page.locator('#end-day').getAttribute('hidden'),'','endDay flag hides the end-of-day menu item');
  assert.equal(await page.locator('#study-context').isHidden(),true,'studyContext flag hides the study context row');
  assert.equal(await page.locator('#calculator').isHidden(),true,'calculator flag hides the calculator section (view do Bend)');
  assert.equal(await page.locator('#calc-divider').isHidden(),true,'calculator flag hides the calc divider');
@@ -583,8 +616,8 @@ await withArtifacts('tabs',async ctx=>{
  assert.equal(await tabs.first().getAttribute('aria-selected'),'true','first course starts active');
  // abas e menus vêm da view do Bend (core/tabsview.bend): ids/ordem e andaime limpo
  assert.equal(await page.locator('#new-tab').getAttribute('title'),'Nova matéria (abre as Configurações)','o "+" é o nó da view');
- assert.deepEqual(await page.locator('#study-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['reference-toggle','xournal'],'itens do menu Estudar na ordem');
- assert.deepEqual(await page.locator('#mesa-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['help','settings','theme-cycle','about'],'itens do menu Mesa na ordem');
+ assert.deepEqual(await page.locator('#study-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['reference-toggle','xournal','review-open','end-day'],'itens do menu Estudar na ordem');
+ assert.deepEqual(await page.locator('#mesa-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['help','settings','theme-cycle','density-cycle','about'],'itens do menu Mesa na ordem');
  assert.equal(await page.locator('#course-tabs [data-icon],#study-pop [data-icon],#mesa-pop [data-icon]').count(),0,'o andaime data-icon sai do DOM');
  assert.match((await page.locator('#theme-cycle').textContent()).trim(),/^Tema: (auto|claro|escuro)$/,'rótulo do tema no item');
  assert.equal(await page.locator('#theme-cycle svg.icon').count(),1,'o item de tema ganhou glifo (auto = contraste)');
@@ -1046,4 +1079,108 @@ await withArtifacts('atualizacao',async ctx=>{
  await page.waitForFunction(()=>!document.querySelector('#about-dialog').open);
  assert.deepEqual(errors,[]);
  console.log('ATUALIZACAO PASSED: linha do updater (vX disponível — o que mudou (Notas da versão) · Atualizar e reiniciar) e painel Componentes (4 linhas nascem Verificando…, estados, Atualizar Pi só no Pi local) vêm do Bend.');
+});
+
+// Fila guardada + bandeja + registro do Encerrar: o estado em que o app abre
+// depois de fechar com trabalho pendente (runtime temporário, fake Pi).
+await withArtifacts('fila-guardada',async ctx=>{
+ const runtime=ctx.runtime=newRuntime('fila-guardada');
+ const course=seedCourse(runtime,'Calc');
+ const pdf=path.join(course,'lista.pdf');fs.writeFileSync(pdf,tinyPdf('Lista 2 · 7b'));
+ const xopp=path.join(runtime,'rascunho.xopp');fs.writeFileSync(xopp,'');
+ const session=seedSession(runtime,[{type:'message',message:{role:'user',content:[{type:'text',text:'corrente'}],timestamp:1700000002000}}]);
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calc',name:'Cálculo I',path:course}]});
+ writeDeskJson(runtime,{session,courseId:'Calc',pdfs:[{path:pdf,page:1}],study:{title:'Lista 2 · 7b',xopp}});
+ fs.writeFileSync(path.join(runtime,'pending.json'),JSON.stringify({
+  [session]:{items:[{id:'fila-1',text:'pendente um',refs:[{path:pdf,page:0}],images:[]}],attachments:[{dataUrl:'data:image/png;base64,'+PLOT_PNG,mimeType:'image/png',name:'captura.png'}],held:false}
+ }));
+ fs.writeFileSync(path.join(runtime,'resume.json'),JSON.stringify({
+  Calc:{stopped:'travei na 3',next:'seguir para a 4',exercise:'Lista 2 · 7b',xopp,pages:[{path:pdf,page:1}]}
+ }));
+ const app=ctx.app=await launchDesk({runtime});
+ const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE',m.text());});
+ await page.waitForSelector('.pdf-panel canvas',{timeout:30000});
+ await statusOnline(page);
+ await page.waitForSelector('.queue-strip');
+ await page.waitForSelector('.resume-card');
+ const order=await page.evaluate(()=>[...document.querySelector('#composer').children].slice(0,4).map(el=>el.id?`#${el.id}`:`.${el.className.split(' ')[0]}`));
+ assert.deepEqual(order,['.queue-strip','.resume-card','#context-summary','#attachments'],'faixa, cartão e resumo na ordem do composer');
+ assert.equal(await page.locator('.queue-label').textContent(),'Recuperadas','a fila guardada diz de onde veio');
+ assert.equal(await page.locator('.queue-send-now').isVisible(),true,'Enviar agora no lugar do envio automático');
+ assert.equal(await page.locator('.queue-clear').isVisible(),true);
+ assert.equal(await page.locator('#attachments .attachment').count(),1,'a bandeja guardada volta com o boot');
+ assert.match(await page.locator('.resume-card-title').textContent(),/^Continuar Cálculo I — Lista 2 · 7b$/,'o cartão leva a matéria e a questão');
+ assert.equal(await page.locator('#prompt').inputValue(),'','nada é escrito sozinho no composer');
+ await page.waitForTimeout(1500);
+ assert.equal(await page.locator('.message.user').count(),1,'só o turno do histórico: a fila não saiu sozinha');
+ await page.locator('.resume-dismiss').click();
+ await page.waitForFunction(()=>!document.querySelector('.resume-card'));
+ assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(runtime,'resume.json'),'utf8'))),[],'Dispensar apaga o registro');
+ assert.equal(await page.locator('.queue-item').count(),1,'Dispensar não mexe na fila');
+ assert.deepEqual(errors,[]);
+ console.log('FILA GUARDADA PASSED: fila recuperada (Enviar agora, nada automático), bandeja de volta e cartão de retomada na ordem do composer; Dispensar limpa só o registro.');
+});
+
+// Hierarquia do composer (pedido 4): o Encerrar por hoje saiu da linha de ações
+// e virou item do menu Estudar; Modelo, Esforço e o `auto` vivem num painel
+// recolhível com a escolha guardada; o Modo compacto entra no menu Mesa e no ⌘/Ctrl⇧D.
+await withArtifacts('composer-hierarquia',async ctx=>{
+ const runtime=ctx.runtime=newRuntime('hierarquia');
+ const course=seedCourse(runtime,'Calc');
+ const pdf=path.join(course,'lista.pdf');fs.writeFileSync(pdf,tinyPdf('Lista 2 · 7b'));
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calc',name:'Cálculo I',path:course}]});
+ writeDeskJson(runtime,{courseId:'Calc',pdfs:[{path:pdf,page:1}]});
+ const app=ctx.app=await launchDesk({runtime});
+ const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE',m.text());});
+ await page.waitForSelector('.pdf-panel canvas',{timeout:30000});
+ assert.equal(await page.locator('.composer-actions #end-day').count(),0,'o Encerrar saiu da linha de ações do composer');
+ assert.equal(await page.locator('#study-pop #end-day').count(),1,'o Encerrar é item do menu Estudar (view do Bend)');
+ assert.equal((await page.locator('#study-pop #end-day').textContent()).trim(),'Encerrar por hoje');
+ // A casca do painel é do Bend; os controles vivos do index.html são MOVIDOS
+ // para dentro do corpo (re-render trocaria o corpo e perderia os controles).
+ const panel=await page.evaluate(()=>{const p=document.querySelector('#pi-settings-panel'),b=document.querySelector('#pi-settings-body'),t=document.querySelector('#settings-toggle');return {panel:!!p,body:!!b,toggle:!!t,aria:t?.getAttribute('aria-expanded'),controls:b?[...b.children].map(el=>el.id||el.className):[],hidden:b?.hidden,icon:t?.querySelector('svg.icon')?1:0,scaffold:document.querySelectorAll('#pi-settings-panel [data-icon]').length};});
+ assert.equal(panel.panel,true,'o painel de ajustes nasce do Bend');
+ assert.equal(panel.aria,'true','o padrão é aberto');
+ assert.equal(panel.hidden,false);
+ assert.deepEqual(panel.controls,['pi-settings','auto-compact'],'Modelo/Esforço e o `auto` são movidos para o corpo do painel');
+ assert.equal(panel.icon,1,'o ícone do toggle é asset do host');
+ assert.equal(panel.scaffold,0,'o andaime data-icon sai do DOM');
+ assert.equal(await page.locator('#settings-toggle').getAttribute('title'),'Modelo, esforço e compactação automática');
+ await page.locator('#settings-toggle').click();
+ await page.waitForFunction(()=>document.querySelector('#pi-settings-body').hidden);
+ assert.equal(await page.locator('#settings-toggle').getAttribute('aria-expanded'),'false','fechar troca o aria-expanded');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('mesa.piPanel')),'fechado','a escolha do painel fica guardada');
+ await page.locator('#settings-toggle').click();
+ await page.waitForFunction(()=>!document.querySelector('#pi-settings-body').hidden);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('mesa.piPanel')),'aberto');
+ // Modo compacto pelo menu Mesa: aperta a coluna e o item vivo acompanha (o
+ // menu fica aberto — o item é trocado no lugar, sem re-render dos filhos).
+ await page.locator('#mesa-menu .nav-trigger').click();
+ assert.equal(await page.locator('#density-cycle').getAttribute('aria-pressed'),'false','nasce desligado');
+ assert.equal(await page.locator('#density-cycle svg.icon').count(),1);
+ await page.locator('#density-cycle').click();
+ await page.waitForFunction(()=>document.body.classList.contains('dense'));
+ assert.equal(await page.locator('#density-cycle').getAttribute('aria-pressed'),'true','o item acompanha o modo');
+ assert.equal(await page.locator('#density-cycle').getAttribute('data-icon'),null,'o andaime data-icon não vaza no item vivo');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('mesa.density')),'compacta');
+ assert.equal(await page.locator('#mesa-pop').isVisible(),true,'o menu continua aberto depois do clique');
+ await page.locator('#density-cycle').click();
+ await page.waitForFunction(()=>!document.body.classList.contains('dense'));
+ assert.equal(await page.locator('#density-cycle').getAttribute('aria-pressed'),'false');
+ // ⌘/Ctrl⇧D (catálogo de atalhos, grupo Visualização) alterna o mesmo modo:
+ // `ControlOrMeta` para o mesmo roteiro valer fora do macOS
+ await page.keyboard.press('ControlOrMeta+Shift+D');
+ await page.waitForFunction(()=>document.body.classList.contains('dense'));
+ assert.equal(await page.evaluate(()=>localStorage.getItem('mesa.density')),'compacta','o atalho grava a mesma escolha');
+ assert.equal(await page.locator('#density-cycle').getAttribute('aria-pressed'),'true','o item vivo segue o atalho');
+ // O select das Configurações mostra o modo corrente (sync da densidade)
+ const menuOpen=await page.evaluate(()=>document.querySelector('#mesa-menu').classList.contains('open'));
+ if(!menuOpen)await page.locator('#mesa-menu .nav-trigger').click();
+ await page.locator('#settings').click();
+ await page.waitForSelector('#settings-dialog[open]');
+ assert.equal(await page.locator('#density-mode').inputValue(),'compacta','o select das Configurações segue o modo');
+ await page.locator('#settings-dialog .help-head .icon-btn').click();
+ await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
+ assert.deepEqual(errors,[]);
+ console.log('COMPOSER HIERARQUIA PASSED: Encerrar no menu Estudar (fora da linha de ações), painel Ajustes recolhível com escolha guardada, Modo compacto no menu Mesa e no ⌘/Ctrl⇧D com o select das Configurações acompanhando.');
 });

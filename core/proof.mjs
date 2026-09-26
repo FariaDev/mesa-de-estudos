@@ -6,7 +6,9 @@ import {fileURLToPath} from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const r = spawnSync(process.env.BEND_BIN || "bend", [join(here, "PROOF.bend")], {
-  env: process.env,
+  // BEND_NO_TELEMETRY=1 desliga a checagem diária do CLI do bend (o único
+  // request que ele faz) — o portão não fala com a rede.
+  env: {...process.env, BEND_NO_TELEMETRY: "1"},
   encoding: "utf8",
 });
 if (r.error?.code === "ENOENT") {

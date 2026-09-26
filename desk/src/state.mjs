@@ -1,5 +1,7 @@
 import {icon} from '../icons.mjs';
-import {showHistory,resetAttachments} from './chat.mjs';
+import {showHistory,resetAttachments,restoreAttachments} from './chat.mjs';
+import {adopt as adoptQueue} from './queue.mjs';
+import {renderResumeCard} from './resume.mjs';
 import {PdfPanel,makePdfDivider,setPdfSplitPct,pdfSplitValue} from './pdf.mjs';
 import {deactivateGeogebra} from './ggb.mjs';
 import {initCalculator} from './calc.mjs';
@@ -12,7 +14,7 @@ import {footValues} from './status-foot.mjs';
 import {applyHelpFlags} from './dialogs.mjs';
 
 export function $(s){return document.querySelector(s);}
-export const S={supportsImages:true,switching:false,modelCatalog:[],library:[],panels:[],pdfDivider:null,connected:false,connecting:null,busy:false,busySince:0,busyStall:0,healthFails:0,refVisible:true,saveTimer:0,currentSession:'',captureOk:false,includeRefs:true,appConfig:{},quizQueue:[],dialogPending:false,activeCourseName:'',currentTheme:'auto',ggbActive:false,currentCourseId:'',autoCompact:false,attachments:[],attachGen:0,deskVersion:''};
+export const S={supportsImages:true,switching:false,modelCatalog:[],library:[],panels:[],pdfDivider:null,connected:false,connecting:null,busy:false,busySince:0,busyStall:0,healthFails:0,refVisible:true,saveTimer:0,currentSession:'',captureOk:false,includeRefs:true,appConfig:{},quizQueue:[],dialogPending:false,activeCourseName:'',currentTheme:'auto',ggbActive:false,currentCourseId:'',autoCompact:false,bookmarks:[],reviewItems:[],reviewActive:false,attachments:[],attachGen:0,deskVersion:''};
 /* Fila de toasts e faixa de atividade desenhadas pelo núcleo provado
    (`core/toastview.bend` → `toastview.core.js`). O host mantém os elementos
    vivos e os timers: a saída é uma transição no nó que já está no DOM, e
@@ -92,6 +94,9 @@ export function followBottom(stick){
 function pdfSnapshot(){return S.panels.map(p=>({path:p.path,page:p.page,zoom:p.zoom,scrollX:p.scrollX||0,scrollY:p.scrollY||0,invert:!!p.invert,minimized:!!p.minimized}));}
 export function calcHeightPx(){return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))||220;}
 export function studySnapshot(){return {title:$('#exercise-title').value.trim(),xopp:$('#pick-xopp').dataset.path||''};}
+/* Páginas abertas (caminho + página) para o registro do Encerrar: os PDFs da
+   mesa na ordem dos painéis — a forma e o teto saem do núcleo (`core/resume.bend`). */
+export function pageRefs(){return S.panels.filter(p=>p.path).map(p=>({path:p.path,page:p.page}));}
 export function layoutSnapshot(){return {draft:$('#prompt').value,study:studySnapshot(),pdfs:pdfSnapshot(),pdfSplit:pdfSplitValue(),referenceVisible:S.refVisible,chatWidth:parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat')),calcHeight:calcHeightPx(),theme:S.currentTheme};}
 export function save(immediate=false){clearTimeout(S.saveTimer);if(immediate){window.desk.save(layoutSnapshot()).catch(e=>toast(e.message));return;}S.saveTimer=setTimeout(()=>window.desk.save(layoutSnapshot()).catch(e=>toast(e.message)),400);}
 export function refs(){return S.includeRefs?S.panels.filter((p,i)=>p.path&&(i===0||S.refVisible)).map(p=>({path:p.path,page:p.page})):[];}
@@ -224,8 +229,19 @@ export function applyStudy(study={}){$('#exercise-title').value=study.title||'';
    só deste applier; o hidden é do `core/deskflags.bend` (flag conferir). */
 function conferirEnabled(){return S.captureOk&&!S.busy;}
 function updateCheckButton(){const el=$('#check');if(!el)return;el.disabled=!conferirEnabled();el.title=S.captureOk?'Anexar a captura do Xournal++ à mensagem':'Conferir Xournal++ indisponível neste computador';}
-export function setBusy(value){S.busy=value;footValues({busy:value});if(value){if(!S.busySince)S.busySince=Date.now();}else{S.busySince=0;S.busyStall=0;}setTabsDisabled(value||!!S.connecting||S.switching);if($('#session-select'))$('#session-select').disabled=value||!!S.connecting||S.switching;$('#model-select').disabled=value||!S.connected;$('#thinking-select').disabled=value||!S.connected;$('#stop').hidden=!value;$('#attach').disabled=value;$('#send').disabled=value;updateCheckButton();if(value)activity('Pi está pensando…');else if(S.connected)activity('');}
+export function setBusy(value){S.busy=value;footValues({busy:value});if(value){if(!S.busySince)S.busySince=Date.now();}else{S.busySince=0;S.busyStall=0;}setTabsDisabled(value||!!S.connecting||S.switching);if($('#session-select'))$('#session-select').disabled=value||!!S.connecting||S.switching;$('#model-select').disabled=value||!S.connected;$('#thinking-select').disabled=value||!S.connected;$('#stop').hidden=!value;$('#attach').disabled=value;$('#send').disabled=value;updateCheckButton();refreshHint();if(value)activity('Pi está pensando…');else if(S.connected)activity('');}
 function setTabsDisabled(value){for(const tab of document.querySelectorAll('#course-tabs button'))tab.disabled=!!value;}
+/* Dica do composer reativa ao estado. Ocupado: o ⏎ enfileira (queue.mjs) e o
+   ⌘/Ctrl+⏎ interrompe e envia (steer) — o mesmo texto da Conversa. */
+const IS_MAC=typeof navigator!=='undefined'&&navigator.userAgent.includes('Mac');
+export function refreshHint(){
+ const hint=$('#composer-hint');
+ if(!hint)return;
+ hint.textContent=S.busy
+  ?`Pi respondendo… ⏎ enfileira · ${IS_MAC?'⌘⏎':'Ctrl+⏎'} interrompe e envia`
+  :`⏎ envia · ⇧⏎ quebra linha · ${IS_MAC?'⌘':'Ctrl+'}⇧C anexa a captura do Xournal++ · ← → muda a página · rolagem contínua`;
+}
+refreshHint();
 function updateSettings(result){const current=result.state?.model;S.supportsImages=!!current?.input?.includes('image');updateMeter(result.contextUsage||result.state?.contextUsage);renderAutoCompact(result.state);updateCheckButton();$('#model-select').replaceChildren(...S.modelCatalog.map(m=>new Option(`${m.name||m.id} · ${m.provider}`,JSON.stringify([m.provider,m.id]))));if(current)$('#model-select').value=JSON.stringify([current.provider,current.id]);const labels={off:'Desligado',minimal:'Mínimo',low:'Baixo',medium:'Médio',high:'Alto',xhigh:'Muito alto',max:'Máximo'};$('#thinking-select').replaceChildren(...(result.levels||[]).map(l=>new Option(labels[l]||l,l)));$('#thinking-select').value=result.state?.thinkingLevel||'off';const level=result.state?.thinkingLevel||'off';const picked=current?S.modelCatalog.find(m=>m.provider===current.provider&&m.id===current.id):null;footValues({model:picked?`${picked.name||picked.id} · ${picked.provider}`:'',level:labels[level]||level});$('#model-select').disabled=S.busy;$('#thinking-select').disabled=S.busy;$('#pi-label').textContent=current?.name||current?.id||'Pi';}
 export async function settings(change){$('#model-select').disabled=true;$('#thinking-select').disabled=true;try{updateSettings(await window.desk.settings(change));}catch(e){toast(e.message);try{updateSettings(await window.desk.settings({}));}catch{}}finally{$('#model-select').disabled=S.busy;$('#thinking-select').disabled=S.busy;}}
 export const THEME_LABELS={auto:'Tema: auto',light:'Tema: claro',dark:'Tema: escuro'};
@@ -297,14 +313,15 @@ function applyDesk(desk){
     host: o clique o atualiza sem re-render. */
  const flags={refsToggle:desk?.refsToggle!==false,endDay:desk?.endDay!==false,studyContext:desk?.studyContext!==false,conferir:desk?.conferir!==false};
  if(!flags.refsToggle)S.includeRefs=true;
- /* Os controles vivos do composer/sidebar (botão de referências, Encerrar,
-    contexto de estudo, Conferir e o divisor da calculadora) são view do
+ /* Os controles vivos do composer/sidebar (botão de referências, contexto de
+    estudo, Conferir e o divisor da calculadora) são view do
     `core/deskflags.bend`: a flag vira `hidden` e, sem o botão de referências,
     o `aria-pressed` fica forçado em true (as referências seguem ligadas). Só
-    atributos entram — texto, ícone e handlers são do index.html. */
- const facts={$:'DeskFlags',refsToggle:flags.refsToggle,includeRefs:!!S.includeRefs,endDay:flags.endDay,studyContext:flags.studyContext,conferir:desk?.conferir!==false,calculator:desk?.calculator!==false};
+    atributos entram — texto, ícone e handlers são do index.html. O `#end-day`
+    saiu daqui: virou item do menu Estudar, decidido pelo `core/tabsview.bend`
+    com o fato `endDay` do `menuFactsOf`. */
+ const facts={$:'DeskFlags',refsToggle:flags.refsToggle,includeRefs:!!S.includeRefs,studyContext:flags.studyContext,conferir:desk?.conferir!==false,calculator:desk?.calculator!==false};
  applyAttrsOn('#include-refs',deskFlagsCore.includeRefsButton(facts));
- applyAttrsOn('#end-day',deskFlagsCore.endDayButton(facts));
  applyAttrsOn('#study-context',deskFlagsCore.studyContextRow(facts));
  applyAttrsOn('#check',deskFlagsCore.conferirButton(facts));
  applyAttrsOn('#calc-divider',deskFlagsCore.calcDivider(facts));
@@ -327,8 +344,17 @@ export async function loadCourse(data){
  $('#prompt').value=data.state.draft||'';
  applyTheme(data.state.theme);
  applyStudy(desk.flags.studyContext?data.state.study:{});
+ /* Fila e bandeja guardadas da conversa: a faixa volta com o que ainda não foi
+    aceito pelo Pi e os anexos pendentes voltam para a bandeja. Fila de outra
+    execução nasce segurada — nada é enviado sozinho. */
+ adoptQueue(data.pending);
+ restoreAttachments(data.pending);
  for(const p of S.panels){p.version++;p.resize.disconnect();clearTimeout(p.resizeTimer);clearTimeout(p.zoomTimer);cancelAnimationFrame(p._visibleFrame);p.cancelRenders();}
  $('#pdf-grid').replaceChildren();S.library=data.library||[];
+ /* Favoritos nomeados da matéria (popover do leitor): a lista inteira vem do
+    main a cada troca de matéria — o nav.mjs monta as linhas do popover com isto. */
+ S.bookmarks=Array.isArray(data.bookmarks)?data.bookmarks:[];
+ S.reviewItems=Array.isArray(data.review)?data.review:[];
  S.panels=desk.specs.map((spec,i)=>new PdfPanel(i,spec.label));
  S.pdfDivider=desk.two?makePdfDivider():null;
  if(desk.two)S.panels[0].el.classList.add('pinned');
@@ -344,6 +370,10 @@ export async function loadCourse(data){
  updateCheckButton();
  updateCourseFacts(data);
  updateWindowTitle();
+ /* Registro do "Encerrar por hoje" (Retomar/Dispensar) acima do resumo de
+    contexto: o título do cartão leva a matéria, então só depois dos fatos da
+    matéria — e nada é enviado aqui. */
+ renderResumeCard(data.resume);
  /* O chrome da matéria (abas + menus) é do `core/tabsview.bend`, aplicado no
     `renderTabsView`/`renderMenus` do main.mjs: avisar aqui fecha o vão antes do
     carregamento dos PDFs — abas e itens de menu ficam prontos no mesmo tick que

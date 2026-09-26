@@ -55,6 +55,7 @@ Consolidação (2026-09-18): caça adversarial (A1–A9) + onda de texto grande 
 
 - DOM: `#references` `desk/index.html:39`; `#pdf-grid` `:45`; `#divider` (largura do chat) `:47`; painéis são criados em `PdfPanel` `desk/src/pdf.mjs:35-97` (markup em `:39`): `.pdf-panel` → `.pdf-title` (`strong`, `select.pdf-select`, `.open`, `.find-toggle`, `.page-shot`, `.collapse`), `.pdf-tools` (`.prev`, `input.page-number`, `.page-total`, `.next`, `.out`, `.zoom-label`, `.in`, `.fit`, `.invert`), `.pdf-stage` (`.pdf-viewport` + `.pdf-foot`), `form.pdf-find` (`input`, `.find-count`, `button`).
 - Layout/classes: `#pdf-grid.single`, `.pdf-panel.pinned`, `#pdf-grid.other-min/has-min/has-other-min`, `.pdf-panel.minimized` `desk/style.css:168-189`; split por `--pdf-left`/`--pdf-other` `desk/style.css:180-184`; `makePdfDivider` + `setPdfSplitPct`/`pdfSplitValue` `desk/src/pdf.mjs:175-188`.
+- Navegação (pedido 5): `button.pdf-ref[data-name][data-page][data-path]` (linkify em `desk/src/chat.mjs`), `button.back`/`button.nav` na `.pdf-title` (núcleo `core/pdfpageview.bend`) e o popover `div.pdf-nav-pop` com favoritos e sumário `desk/src/nav.mjs`; favoritos no disco (`desk/bookmarks.cjs`, IPC `bookmarks-save`).
 - Testes: dois leitores/canvas `desk/tests/ui-smoke.mjs:13-15`; PDFs preferidos `:16`; próxima página + título `:17-19`; rolagem contínua `:152-153`; divisor presente/arrasto/teclado/persistência `:154-156,171-186`; minimizar/restaurar `:157-170`; inverter por arquivo `:207-215`; placeholder de matéria vazia `desk/tests/ui-smoke.mjs:280`; página salva restaurada `desk/tests/subjects-ui.mjs:27-28`; página/zoom restaurados no bundle instalado `desk/tests/installed-smoke.mjs:7-14`.
 
 ### 1.5 Busca no PDF
@@ -70,29 +71,31 @@ Consolidação (2026-09-18): caça adversarial (A1–A9) + onda de texto grande 
 - Modelo/esforço: `.pi-settings` (`#model-select`, `#thinking-select`) `:58-65`; render em `updateSettings` `desk/src/state.mjs:134`; troca `desk/src/main.mjs:92`.
 - Contexto de estudo: `#study-context` (`#exercise-title`, `#pick-xopp`) `desk/index.html:66-69`; `applyStudy` `desk/src/state.mjs:130`; resumo `updateContextSummary` `desk/src/state.mjs:51-56`.
 - Mensagens: `#messages[aria-live=polite]` + `#welcome`+`#connect` `desk/index.html:70-75`; `message`/`paintMessage`/`updateMessage` `desk/src/chat.mjs:62-78`; histórico `showHistory` `:79-102`; markup Markdown/LaTeX + realce `:18-34` (host).
-- Composer: `#composer` (`#context-summary`, `#attachments`, `#prompt`, `#attach`, `#include-refs`, `#check`, `#end-day`, `#stop`, `#send`, `#attach-input`, dica de atalhos) `desk/index.html:77-91`; handlers `desk/src/main.mjs:41-46`; `send`/`conferir` `desk/src/chat.mjs:112-146`.
-- Anexos/citação/imagens: `addAttachments`/drop/paste `desk/src/chat.mjs:163-231`; `#quote-btn` + seleção `:232-325`; diálogo de imagem `:508-557`.
+- Composer: `#composer` (`#context-summary`, `#attachments` — miniatura clicável, `.queue-strip`, `#prompt`, `#attach`, `#include-refs`, `#check`, `#end-day`, `#stop`, `#send`, `#attach-input`, dica de atalhos) `desk/index.html:77-91`; handlers `desk/src/main.mjs:161,166-186`; `send(text, images, {steer, refs})`/`conferir` `desk/src/chat.mjs:166-190`. **Teclas do composer: `⏎` envia (ocupado: enfileira) · `⇧⏎` quebra linha · `⌘/Ctrl+⏎` interrompe e envia (steer)** — o menu `/` consome o `⏎` quando está aberto.
+- Anexos/citação/imagens: `addAttachments`/drop/paste `desk/src/chat.mjs:163-231`; `#quote-btn` + seleção `:232-325`; diálogo de imagem `:508-557`; clique na miniatura da bandeja abre esse diálogo `:296-302`.
 - Quiz e diálogos do Pi: cartões `renderQuizCard`/`decorateQuizCard` `desk/src/chat.mjs:434-500`; `#pi-dialog` `desk/index.html:125-135` + fila `desk/src/chat.mjs:427-507`.
 - Testes: tema/katex `desk/tests/ui-smoke.mjs:57-60`; medidor/`auto-compact`/`/compact` `:61-74`; citação (texto, LaTeX inline/display, PDF) `:76-110`; anexos/redução `:111-138`; contexto de estudo `:139-140`; encerrar por hoje `:141-148`; toasts em fila `:187-190`; collapse do chat `:191-200`; quiz (simples, múltipla, “Não sei”) `:33-56`; cópia de mensagem/código `desk/tests/ui-smoke.mjs:319-328`; Playwright `desk/tests/watchdog-ui.mjs:21-35`.
 
 ### 1.7 Diário de trabalho do turno
 
 - DOM: nasce dinamicamente em `createWorkLogView` `desk/src/worklog-view.mjs:24-193`: `article.work[data-live][data-expanded]`, `button.work-head[aria-expanded]` (`.work-mark`, `.work-title`, `.work-meta`, `.pulse.work-dots`, `.work-chevron`), `.work-steps > .work-step[data-kind][data-status][data-detail] > button.step-toggle` (`.step-icon`, `.step-main > .step-line > .step-label/.step-time`, `.step-preview`, `.step-detail > .step-links + pre.step-text`, `.step-status`).
+- **Passo aberto:** o `.step-preview` (a prévia rápida que corre) fica `hidden` e só o `pre.step-text` aparece — decisão pura `previewHidden` em `core/worklogview.bend` (leis `worklogview_preview_aberto`/`_fechado_com_preview`/`_fechado_vazio`). Fechado, o comportamento é o de sempre: prévia correndo com teto de altura (`style.css`), texto completo só no expandir. Com o turno vivo e o passo aberto, `.work[data-live=true] .step-toggle[aria-expanded=true] .step-text` tira o teto (`max-height:none`) e o `followBottom` do host acompanha o fim — se o usuário rolar para cima, para de seguir.
 - Modelo: `desk/src/worklog.mjs` (adaptador do `core/worklog.bend`) — rótulos `:309-355`, resumo `:357-372`, turnos do histórico `:384-432`.
 - Fiação dos eventos: `desk/src/chat.mjs:326-426` (`openTurnLog`, `paintLive`, `settleTurn`, `onEvent`).
 - Testes: recolhe em “Trabalhou por…” e `.step-label` exatos `desk/tests/ui-smoke.mjs:500-511`; histórico reconstrói recolhido `:529-533`; unidade/paridade `desk/tests/worklog.test.mjs`, `desk/tests/worklog-parity.mjs`.
 
 ### 1.8 Calculadora
 
-- DOM: `#calc-divider` `desk/index.html:93`; `#calculator` `:94-119`: `#calc-toggle[aria-expanded]` (`span` + `.calc-mode > #angle`), `#calc-body`, `#calc-form` (`#expression`, botão `=`), `#result`, `#calc-history`, `.calc-help`, `#calc-guide`.
+- DOM: `#calc-divider` `desk/index.html:93`; `#calculator` `:94-120`: `#calc-toggle[aria-expanded]` (`span` + `.calc-mode > #angle`), `#calc-body`, `#calc-form` (`#expression`, botão `=`), `#result`, `#calc-history`, `.calc-help`, `#calc-guide`.
 - Comportamento: colapso distingue clique no `select` `desk/src/main.mjs:55`; avaliação `:56`; ícone do título `:177`; arrasto/teclado do divisor `:58`; altura em `--calc` `desk/src/state.mjs:46`.
-- Avaliação (pura, hoje JS): `desk/calculator.mjs:2-19` (sem `eval`; `toPrecision(12)`).
-- Testes: `sqrt(16)+sin(pi/2)=5` e `sin(30)` em GRAUS `=0.5` `desk/tests/ui-smoke.mjs:20-21`; `sin(pi/2)=1` + guia `desk/tests/subjects-ui.mjs:29`; `2^3^2=512` (potência associativa à direita) `desk/tests/installed-smoke.mjs:11`; toast repetido do erro `desk/tests/ui-smoke.mjs:187-190`.
+- Avaliação (pura, hoje JS): `desk/calculator.mjs:2-43` (sem `eval`; `toPrecision(12)`; recíprocas `sec`/`csc`/`cot`, inversas `asin`/`acos`/`atan` — que devolvem o ângulo na unidade escolhida — e ângulos exatos por quadrante: `cos(90)` é `0` e o polo `tan(90)`/`sec(90)` é indefinido).
+- Testes: `sqrt(16)+sin(pi/2)=5` e `sin(30)` em GRAUS `=0.5` `desk/tests/ui-smoke.mjs:20-21`; `sin(pi/2)=1` + guia `desk/tests/subjects-ui.mjs:29`; `2^3^2=512` (potência associativa à direita) `desk/tests/installed-smoke.mjs:11`; toast repetido do erro `desk/tests/ui-smoke.mjs:187-190`; recíprocas/inversas e ângulos exatos `desk/tests/core.test.mjs:9-11`, `desk/tests/ui-smoke.mjs:70-78` e a caça `desk/tests/hunt-calc-ggb.mjs:283`.
 
 ### 1.9 GeoGebra
 
 - DOM: `#ggb-bar` (`strong`, `#ggb-shot`, `small`) `desk/index.html:40-44`; `#references.ggb` esconde o `#pdf-grid` e os divisores `desk/style.css:130-131`; aba em `renderTabs` `desk/src/state.mjs:194-199`.
 - Comportamento: `activateGeogebra`/`deactivateGeogebra`/`sendGgbRect` `desk/src/ggb.mjs:3-26`; ponte HTTP e `WebContentsView` no main `desk/main.cjs:590-704`; applet em `desk/ggb.html:19-57`.
+- Caderno de revisão (pedido 6): aba irmã no mesmo canto — `#references.review`, `#review-bar`, `#review-view`/`#review-list` — em `desk/src/review.mjs` (itens no disco por matéria, `desk/review.cjs`, IPC `review-save`); abrir uma aba fecha a outra no `selectTab` `desk/src/main.mjs`.
 - Testes: aba ativa/`#ggb-bar`/grid escondido `desk/tests/ui-smoke.mjs:346-348`; token/JSON da ponte `:350-355`; `⌘⇧G` `:356-360`; sair/voltar `:361-365`; `ggb-shot`/`#ggb-shot` `:366-374`; snapshot ao sair + `ggb/<id>.b64` `:375-386`.
 
 ### 1.10 Rodapé de status, densidade, avisos e tooltip
@@ -112,6 +115,7 @@ Consolidação (2026-09-18): caça adversarial (A1–A9) + onda de texto grande 
 - `#help-dialog` `desk/index.html:159-228` (`#help-version`, tabela `.help-keys` com `tr[data-key]`, `#keys-customize`, `#help-*-li`); `openHelp` `desk/src/main.mjs:115`; tabela sincronizada com atalhos `desk/src/keys.mjs:289-313`.
 - `#settings-dialog` `desk/index.html:229-282` (`#cfg-vault`, `#cfg-pi`, `#cfg-xournal`, `#cfg-courses`, `#cfg-add-course`, `#settings-save`); `openSettings`/`fillSettingsForm`/`readSettingsForm` `desk/src/main.mjs:121-176`.
 - `#about-dialog` `desk/index.html:283-310`.
+- `#review-dialog` `desk/index.html` (`#review-ref`, `#review-question`, `#review-attempt`, `#review-difficulty`, `#review-save`); miolo vindo de `core/review.bend` por `renderReview` `desk/src/dialogs.mjs` e fluxo em `desk/src/review.mjs`.
 - `#keys-dialog` é criado em `desk/src/keys.mjs:416-483` (estilo `desk/style.css:611-634`).
 - Testes: end-day (cancelar, salvar, JSONL) `desk/tests/ui-smoke.mjs:141-148`; Configurações abre/cancela `:216-219`; flags sobrevivem ao diálogo `:243-248`; guia da calculadora `desk/tests/subjects-ui.mjs:29`.
 
@@ -137,7 +141,7 @@ Por região:
 | Abas/matéria | `activeCourseName`, `currentCourseId`, `switching`, `ggbActive` | `state.mjs:7,183-184,266-280` | main (`courseId`, `courseStates`; `desk.json`) |
 | Painéis PDF | cada `PdfPanel` guarda `page/zoom/scrollX/scrollY/invert/minimized/path/doc/findTerm/...` | `pdf.mjs:37` | `pdfs[]` no `desk.json`; `docMemo` por path `pdf.mjs:146` |
 | Busca PDF | `findTerm/findPages/findTotal` + cache de texto `textPages` | `pdf.mjs:86-87,119-125` | não persiste |
-| Chat | `busy`, `connecting`, `attachments`, `quizQueue`, `supportsImages`, `modelCatalog` | `state.mjs:7`; fila do quiz `chat.mjs:392-410` | não persiste (sessão JSONL é a fonte) |
+| Chat | `busy`, `connecting`, `attachments`, `quizQueue`, `supportsImages`, `modelCatalog` | `state.mjs:7`; fila do quiz `chat.mjs:392-410` | mensagens não persistem (a sessão JSONL é a fonte); fila + bandeja em `.runtime/pending.json` (`desk/pending.cjs`) e o registro do Encerrar em `.runtime/resume.json` (`desk/resume.cjs`) |
 | Turno | `turnLog/turnView/assistant/assistantText/stoppedTurn` | `chat.mjs:326-327` | não persiste |
 | Estudo | `study.title/xopp` (DOM + snapshot) | `state.mjs:47,130` | `desk.json`, autorizado pelo main `study.cjs:14-18` |
 | Calculadora | `collapsed` no DOM/`#calc-body.hidden`; `--calc` | `main.mjs:55,58` | `calcHeight` |
@@ -171,7 +175,9 @@ Eventos main → renderer: `pi-event` (`main.cjs:220`; consumido em `chat.mjs:36
 
 - Boot: `main.cjs:353` carrega `index.html` → `main.mjs:179-184` chama `init()` → `loadCourse` (`state.mjs:223-264`): aplica `applyDesk` (flags), recria painéis/divisor, aplica tema, `--chat`/`--calc`, e dispara `connect()`.
 - Troca de matéria: clique na aba (`state.mjs:190`) ou `goToTab` (`state.mjs:281-286`) → `switchCourse` (`state.mjs:266-280`) salva layout, para o bridge, limpa chat (`showWelcome`) e `loadCourse`.
-- Turno: `setBusy` (`state.mjs:132`) habilita/desabilita `#session-select,#model-select,#thinking-select,#attach,#send,#check` e mostra `#stop`; eventos do Pi alimentam o diário (`chat.mjs:368-426`); watchdog de 15 s destrava `busy` (`state.mjs:287-303`; teste `watchdog-ui.mjs:21-38`).
+- Turno: `setBusy` (`state.mjs:229`) habilita/desabilita `#session-select,#model-select,#thinking-select,#attach,#send,#check` e mostra `#stop` (e atualiza a dica do composer via `refreshHint` `state.mjs:234`); eventos do Pi alimentam o diário (`chat.mjs:368-426`); watchdog de 15 s destrava `busy` (`state.mjs:287-303`; teste `watchdog-ui.mjs:21-38`).
+- Fila e steer: `⏎` no `#prompt` com o Pi ocupado enfileira (`onPromptKeydown` em `desk/src/queue.mjs`, captura no `document` para chegar antes do campo); o item guarda o retrato do composer (anexos + referências abertas) e a bandeja esvazia. O turno termina e `chat.mjs` dispara `desk-idle` (`desk-failed` quando o Pi morre no meio) e a fila esvazia em ordem, como `followUp`, pelo mesmo `pi-prompt` (`main.cjs`). A fila é **por conversa e vive no disco** (`runtime/pending.json` via `desk/pending.cjs`, núcleo `core/pending.bend`: itens com anexos, teto de disco e poda) — o item só sai do arquivo depois que `send()` devolve `true`, e a escrita é imediata nas mudanças discretas e com atraso (400 ms) no texto em edição. **Parar** não descarta mais nada: `held` segura o envio automático e a faixa oferece **Enviar agora** (`canSendNow`); quem descarta é o **Limpar** (com `confirm`). Fila lida de outra execução nasce **Recuperadas** e segurada — nunca sai sozinha. `⌘/Ctrl+⏎` não passa pela fila (`main.cjs` manda `streamingBehavior:'steer'`), e um envio à mão (⏎ livre, **Enviar** ou ⌘⏎) chama `queue.release()`. E2E: `desk/tests/hunt-queue.mjs`, unidade `desk/tests/pending.test.mjs`, boot `desk/tests/ui-smoke.mjs` (bloco `fila-guardada`).
+- Ponte: quem decide o estado é `core/rpcstate.bend` (o host só executa a ação). Linha que não é JSON no stdout do Pi **não derruba**: `onGarbage` → evento `desk_warn`, que o main escreve no `desk.log` e o renderer só passa no console. Queda de verdade é `desk_error` — é ele que pinta o ponto de vermelho, zera `S.connected` e destrava a fila. Um `desk_error` para lixo de stdout deixava o ponto vermelho com o turno vivo (achado do `hunt-chaos`).
 
 ---
 
@@ -294,10 +300,12 @@ Host: PDF.js, `textLayer`, `.pdf-hl` (DOM da busca), scroll/medição, `.pdf-doc
 | `View.contextSummary(parts)` | | `#context-summary[title]` `state.mjs:51-56` |
 | `View.messages(turns)` | turnos | `#messages` → `article.message.user/assistant` com `.role/.body/.msg-copy` e figuras/código (HTML do host) `chat.mjs:62-78`; `#welcome` `index.html:70-75` |
 | `View.composer(busy, refsOn, flags, attachments)` | | `#composer` → `#context-summary`, `#attachments[hidden]` (`.attachment > img + button.attachment-remove`), `#prompt`, `.composer-actions` (`#attach`, `#include-refs[aria-pressed]`, `#check`, `#end-day`, `#stop`, `#send`), `#attach-input` `index.html:77-91`; `chat.mjs:187-218` |
+| `View.queueStripView(closing, label, items, canSendNow, canClear)` | `QueueRow{id, text, sending, enabled, editing}` | `.queue-strip` em `#composer` (primeiro filho) → `.queue-label` + `.queue-item[data-id][class sending]` (span com `role="button"`/`aria-label="Editar item da fila" **ou** `input.queue-edit`, + `button` × com `aria-label="Remover da fila"`) + `.queue-actions` (`.queue-send-now` / `.queue-clear`, cada um `hidden` quando o fato é falso); host `desk/src/queue.mjs` (a faixa nasce no host, fora do `index.html`; `.closing` é do host) |
+| `View.resumeCardView(title, stopped, next)` | `ResumeRecord{stopped, next, exercise, xopp, pages}` | `.resume-card` em `#composer` (acima do resumo) → `.resume-card-title` + dois `.resume-card-line` + `.resume-card-actions` (`button.resume-go[title]` / `button.resume-dismiss[title]`); host `desk/src/resume.mjs` (o cartão nasce no host; `renderResumeCard` é chamado pelo `state.mjs` no boot e pelo `main.mjs` no Encerrar) |
 | `View.quizCard(quiz, answered, result)` | args/resultado | `article.message.assistant.quiz[data-tool]` → `.quiz-card > .quiz-question/.quiz-details/.quiz-options > button.quiz-option[role][aria-checked]/.quiz-actions > .quiz-send.primary/.quiz-skip`, e na correção `.quiz-verdict/.quiz-note/.quiz-explain/.quiz-mark/.correct/.wrong/.dim` `chat.mjs:434-500` |
 | `View.piDialog(fields)` | título/mensagem/campos | `#pi-dialog > #dialog-title/#dialog-message/#dialog-fields > #dialog-value/#dialog-ok` `index.html:125-135`; `chat.mjs:501-507` |
 
-Host: `marked`/KaTeX/DOMPurify/realce (`chat.mjs:18-34`), `hydrateAssets` (`:36-61`), clipboard/seleção/citação/diálogo de imagem (`:232-325,508-557`), atalhos `⌘Enter`, `Esc`, `⌘⇧C` (`main.mjs:41,65-91`).
+Host: `marked`/KaTeX/DOMPurify/realce (`chat.mjs:18-34`), `hydrateAssets` (`:36-61`), clipboard/seleção/citação/diálogo de imagem (`:232-325,508-557`), atalhos `⏎` (envia/enfileira), `⇧⏎` (quebra linha), `⌘/Ctrl+⏎` (steer), `Esc`, `⌘⇧C` (`main.mjs:161,166-186`).
 
 ### 4.7 Diálogos restantes
 

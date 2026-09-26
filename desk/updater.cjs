@@ -168,11 +168,35 @@ function sharedFetchJson(url,fetchJson=defaultFetchJson){
  return pending;
 }
 
+/* Notas da release chegam em Markdown do GitHub; o Sobre despeja em texto puro
+   (o botão "Notas da versão" leva ao Markdown bonito no navegador). O essencial
+   é aplainado aqui, na fonte: títulos, negrito, código e link perdem a marca,
+   bullets viram `•` — qualquer renderizador cru fica legível. */
+function plainifyNotes(text){
+ return String(text||'')
+  .replace(/^#{1,6}\s+/gm,'')
+  .replace(/\*\*([^*]+)\*\*/g,'$1')
+  .replace(/__([^_]+)__/g,'$1')
+  .replace(/`{1,3}([^`]+)`{1,3}/g,'$1')
+  .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'$1')
+  .replace(/^\s*[-*+]\s+/gm,'• ')
+  .replace(/\n{3,}/g,'\n\n')
+  .trim();
+}
+
+/* O corte do Sobre é na fronteira de palavra (nada de "dicas" no meio de
+   "dicas de uso") e avisa com reticências que tem mais na página. */
+function clipNotes(text,limit=2000){
+ const s=String(text||'');
+ if(s.length<=limit)return s;
+ return s.slice(0,limit).replace(/\s+\S*$/,'')+'…';
+}
+
 function releaseFromGithub(json){
  if(!json||typeof json!=='object')return null;
  const version=String(json.tag_name||'').replace(/^v/,'').trim();
  if(!semverParse(version))return null;
- return {version,notes:String(json.body||'').slice(0,2000),url:String(json.html_url||'')};
+ return {version,notes:clipNotes(plainifyNotes(json.body)),url:String(json.html_url||'')};
 }
 
 /* Fallback `tags`: pega a maior semver listada (a lista não vem garantida em

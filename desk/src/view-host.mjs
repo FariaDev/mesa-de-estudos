@@ -21,6 +21,18 @@ export function htmlNode(html) {
   return {$: 'Html', html: String(html ?? '')};
 }
 
+/* Andaime `data-icon` do núcleo vira SVG do host (mesma convenção do main.mjs).
+   Inclui o próprio root: o `swapInto` do botão de colapsar passa o botão (e não
+   o painel) e `querySelectorAll` não enxerga o elemento raiz. */
+export function applyIcons(root, icon) {
+  const targets = root.matches?.('[data-icon]') ? [root, ...root.querySelectorAll('[data-icon]')] : [...root.querySelectorAll('[data-icon]')];
+  for (const el of targets) {
+    const name = el.dataset.icon, label = el.textContent;
+    el.removeAttribute('data-icon');
+    el.innerHTML = icon(name) + (label ? ` <span>${label}</span>` : '');
+  }
+}
+
 export function childrenOf(node) {
   const out = [];
   for (let current = node; current && current.$ === 'Con'; current = current.tail) out.push(current.head);

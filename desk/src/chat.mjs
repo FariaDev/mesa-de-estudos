@@ -7,10 +7,12 @@ import {$,S,toast,activity,activityLive,atBottom,connectionState,followBottom,re
 import {beginCaptureLock,captureLockValid,endCaptureLock} from './capture-lock.mjs';
 import {createWorkLogView} from './worklog-view.mjs';
 import {build,htmlNode,preserveFocus,renderChildren} from './view-host.mjs';
+import {openReviewFromMessage} from './review.mjs';
 import {renderImageChrome,renderPiDialog} from './dialogs.mjs';
 import talkCore from './generated/talkview.core.js';
 import attachview from './generated/attachview.core.js';
 import attachCore from './generated/attachments.core.js';
+import refCore from './generated/pdfref.core.js';
 import * as worklog from './worklog.mjs';
 const ASSET_EXT=/\.(?:png|jpe?g|gif|webp|svg)$/i;
 const ASSET_LOCAL=/^(?:file:\/\/|\.{0,2}[\\/]|[\\/]|desk[\\/]|[a-zA-Z]:[\\/])/i;
@@ -80,8 +82,9 @@ function message(role,text,images=[],parent=null){
  let el;
  const handlers={
   CopyMessage:async e=>{e.stopPropagation();try{await navigator.clipboard.writeText(el._raw||el.querySelector('.body').innerText);toast('Mensagem copiada.');}catch(err){toast(err.message);}},
+  SaveForReview:()=>openReviewFromMessage(el),
  };
- el=build(talkCore.message(role==='user',htmlNode(''),bendList(images),true,false),handlers);
+ el=build(talkCore.message(role==='user',htmlNode(''),bendList(images),true,false,role!=='user'),handlers);
  (parent||$('#messages')).append(el);updateMessage(el,text,images);return el;
 }
 function decorateCode(body){
@@ -89,6 +92,88 @@ function decorateCode(body){
   if(pre.parentElement?.classList.contains('codeblock'))continue;
   const lang=(pre.querySelector('code')?.dataset.lang||'').trim();
   pre.replaceWith(build(talkCore.codeBlock(htmlNode(pre.outerHTML),lang.toUpperCase())));
+ }
+}
+/* Citação → link (pedido 5): `Limites.pdf, p. 7` — o que o "Citar" escreve e o
+   que o Pi costuma repetir — vira um botão que abre a página no leitor. Nome e
+   página são decididos no núcleo (`pdfref.bend`); aqui é só o DOM. Nada dentro
+   de código, link, fórmula ou quiz: ali é o texto do Pi, não citação.
+
+   O candidato pode ter ESPAÇO ("Lista 2.pdf") e vem com a frase à esquerda
+   ("veja o arquivo Lista 2.pdf"): por isso a classe aceita espaço (quebras de
+   linha não) e o corte da esquerda é palavra a palavra, sem teto de tentativas
+   — o teto é o tamanho do candidato (`maxCandidate` do núcleo). */
+const REF_HINT=/[^\s()\[\]{}<>",;:][^()\[\]{}<>",;:\n\r\t]{0,199}?\.pdf/gi;
+const NO_REFS='pre,code,a,.codeblock,.katex,.quiz-actions,.quiz-verdict,.quiz-details,.step';
+function bendNameList(names){let out={$:'Nil'};for(let i=names.length-1;i>=0;i--)out={$:'Con',head:names[i],tail:out};return out;}
+/* O candidato do regex pode trazer palavras coladas à esquerda ("veja o
+   Limites.pdf", "e o resumo está no arquivo Lista 2.pdf"): o núcleo só conhece o
+   nome inteiro, então o host encurta da esquerda até casar (ou desiste quando
+   não há mais espaço). O primeiro casamento é o nome MAIS LONGO — "Lista
+   2.pdf" antes de "2.pdf". */
+function matchName(candidate,names){
+ let probe=candidate;
+ for(;;){
+  const known=refCore.knownName(probe,names);
+  if(known.$==='Some')return {name:known.value,offset:candidate.length-probe.length};
+  const cut=probe.indexOf(' ');
+  if(cut<0)return null;
+  probe=probe.slice(cut+1);
+ }
+}
+function linkifyRefs(root){
+ const names=(S.library||[]).map(p=>String(p.name||'')).filter(Boolean);
+ if(!names.length)return;
+ const list=bendNameList(names);
+ const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+ const nodes=[];
+ while(walker.nextNode()){
+  const node=walker.currentNode;
+  if(!node.nodeValue||!node.nodeValue.includes('.pdf'))continue;
+  if(node.parentElement?.closest?.(NO_REFS))continue;
+  nodes.push(node);
+ }
+ for(const node of nodes){
+  const text=node.nodeValue;
+  const found=[];
+  let cursor=0;
+  REF_HINT.lastIndex=0;
+  let hit;
+  while((hit=REF_HINT.exec(text))){
+   const candidate=hit[0];
+   const named=matchName(candidate,list);
+   if(!named)continue;
+   const start=hit.index+named.offset;
+   if(start<cursor)continue;
+   const cue=refCore.cueFrom(text.slice(hit.index+candidate.length));
+   if(cue.$!=='Some')continue;
+   const page=Number(cue.value.page);
+   if(!Number.isFinite(page)||page<1)continue;
+   const end=hit.index+candidate.length+Number(cue.value.length);
+   found.push({start,end,name:named.name,page});
+   cursor=end;
+  }
+  if(!found.length)continue;
+  const frag=document.createDocumentFragment();
+  let at=0;
+  for(const item of found){
+   if(item.start>at)frag.append(text.slice(at,item.start));
+   const page=BigInt(item.page);
+   const button=document.createElement('button');
+   button.type='button';
+   button.className='pdf-ref';
+   button.dataset.name=item.name;
+   button.dataset.page=String(item.page);
+   const entry=(S.library||[]).find(p=>String(p.name||'')===item.name);
+   if(entry)button.dataset.path=entry.path;
+   button.textContent=refCore.refLabel(item.name,page);
+   button.title=refCore.refTitle(item.name,page);
+   button.setAttribute('aria-label',refCore.refAria(item.name,page));
+   frag.append(button);
+   at=item.end;
+  }
+  if(at<text.length)frag.append(text.slice(at));
+  node.replaceWith(frag);
  }
 }
 /* Num lote de histórico a rolagem é medida uma vez (`showHistory`); durante o
@@ -103,6 +188,7 @@ function paintMessage(el,text,images,live){
  renderChildren(body,bodyTree.kids);
  if(!live)hydrateAssets(body);
  decorateCode(body);
+ if(!live)linkifyRefs(body);
  for(const img of body.querySelectorAll('img.shot'))wrapCopy(img);
  if(historyStick===null)followBottom(stick);
 }
@@ -156,23 +242,37 @@ export async function doCompact(text){
   activity('');refreshMeter();
  }catch(e){activity('');toast(e.message);}
 }
-export async function send(text,images){
- if(S.busy)return;
+/* `steer` envia com o Pi ocupado (o main manda `streamingBehavior:'steer'`: o Pi
+   interrompe o turno e trata a mensagem agora) — só o #prompt (⌘/Ctrl+Enter) e a
+   própria fila usam isso; sem steer, ocupado é recusado e quem enfileira é o
+   `queue.mjs`. Devolve true quando a bolha saiu — a fila usa isso para decidir se
+   o item foi embora. `refs` (fila): manda as referências do snapshot do enqueue
+   em vez das páginas abertas agora. `images` explícito pula os atalhos de texto
+   (`/compact`, `/conferir`) e não mexe na bandeja. */
+export async function send(text,images,options={}){
+ const steer=options.steer===true;
+ if(S.busy&&!steer)return false;
  const pending=images===undefined?S.attachments.slice():images;
- if(!text.trim()&&!pending.length)return;
- if(images===undefined&&/^\/compact\b/i.test(text.trim())){if(S.busy){toast('Pare a resposta antes de compactar.');return;}$('#prompt').value='';await doCompact(text.trim());return;}
+ if(!text.trim()&&!pending.length)return false;
+ if(images===undefined&&/^\/compact\b/i.test(text.trim())){if(S.busy){toast('Pare a resposta antes de compactar.');return false;}$('#prompt').value='';await doCompact(text.trim());return false;}
  /* `/conferir` digitado na mão não vai mais para o Pi (evita a captura dupla da
     extensão visual): redireciona para o anexo e devolve a observação como rascunho. */
- if(images===undefined&&/^\/conferir\b/i.test(text.trim())){const note=text.trim().replace(/^\/conferir\b/i,'').trim();$('#prompt').value='';await conferir();if(note)$('#prompt').value=note;return;}
+ if(images===undefined&&/^\/conferir\b/i.test(text.trim())){const note=text.trim().replace(/^\/conferir\b/i,'').trim();$('#prompt').value='';await conferir();if(note)$('#prompt').value=note;return false;}
  try{
   setBusy(true);
   clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());await connect();
-  if(pending.length&&!S.supportsImages){setBusy(false);toast('Escolha um modelo com suporte a imagens para anexar.');return;}
+  if(pending.length&&!S.supportsImages){setBusy(false);toast('Escolha um modelo com suporte a imagens para anexar.');return false;}
   message('user',text,pending.map(item=>item.dataUrl));$('#prompt').value='';
-  const result=await window.desk.prompt({text,refs:refs(),images:pending.map(item=>item.dataUrl)});
+  const result=await window.desk.prompt({text,refs:options.refs||refs(),images:pending.map(item=>typeof item==='string'?item:{dataUrl:item.dataUrl,capturedAt:item.capturedAt,exercise:item.exercise}),steer});
   if(images===undefined)clearAttachments(pending);
-  if(!result?.streaming)setBusy(false);
- }catch(e){setBusy(false);toast(e.message);}
+  /* `streaming` só libera o composer quando o Pi DISSE que não está no turno.
+     Estado desconhecido (a leitura falhou depois do aceite) NÃO é envio falho:
+     o item sai da fila e o aviso aparece — quem fecha o turno, nesse caso, são
+     os eventos do Pi (ou o erro de conexão). */
+  if(result?.streaming===false)setBusy(false);
+  if(result?.warning)toast(result.warning);
+  return true;
+ }catch(e){setBusy(false);toast(e.message);return false;}
 }
 /* dataURL → File sem `fetch` (o CSP do index.html não deixa `connect-src data:`):
    o base64 é decodificado na mão. */
@@ -199,12 +299,16 @@ export async function conferir(){
  if(!S.captureOk){toast('Conferir Xournal++ indisponível neste computador.');return;}
  const lock=beginCaptureLock(S);
  if(!lock)return;
+ /* O exercício anotado é o que estava ativo no momento da captura: se o usuário
+    trocar de exercício antes de enviar, o contexto avisa em vez de deixar a
+    captura passar por tentativa do exercício de agora. */
+ const exerciseAtCapture=S.desk?.flags?.studyContext===false?'':(layoutSnapshot().study?.title||'');
  try{
   const shot=await window.desk.captureReady();
   if(!captureLockValid(S,lock)){toast('A matéria mudou durante a captura — captura descartada.');return;}
   const file=dataUrlFile(shot?.dataUrl,'xournal.png');
   if(!file){toast('A captura não produziu uma imagem válida.');return;}
-  const added=await addAttachments([file]);
+  const added=await addAttachments([file],{capturedAt:Date.now(),exercise:exerciseAtCapture});
   if(!added)return;
   toast('Captura do Xournal++ anexada — escreva e envie.');
   $('#prompt').focus();
@@ -224,7 +328,8 @@ export async function conferirGeogebra(){
   $('#prompt').value='';
   const text=note||'Confira o applet GeoGebra (print anexo): o gráfico/construção está coerente com o problema? Aponte o primeiro problema relevante. Use a ferramenta geogebra (state) se precisar dos detalhes.';
   const result=await window.desk.prompt({text,refs:refs()});
-  if(!result?.streaming)setBusy(false);
+  if(result?.streaming===false)setBusy(false);
+  if(result?.warning)toast(result.warning);
  }catch(e){setBusy(false);toast(e.message);}
 }
 const ATTACH_TYPES=new Set(['image/png','image/jpeg','image/webp','image/gif']);
@@ -266,21 +371,39 @@ const attachmentHandlers={
   if(!item)return;
   S.attachments=S.attachments.filter(other=>other!==item);
   renderAttachments();
+  persistTray();
  }
 };
 function attachmentFacts(){
  return bendList(S.attachments.map((item,at)=>({
   $:'AttachImage',key:`img-${at}`,dataUrl:item.dataUrl,
   alt:item.name?`Anexo: ${item.name}`:'Imagem anexada',
-  removeLabel:`Remover ${item.name||'imagem'}`,removeTitle:'',handler:'RemoveAttachment',lazy:true
+  removeLabel:`Remover ${item.name||'imagem'}`,removeTitle:'',handler:'RemoveAttachment',lazy:false
  })));
 }
 function renderAttachments(){
- const box=$('#attachments');
- renderChildren(box,attachview.imageItemViews(attachmentFacts()),attachmentHandlers);
- box.hidden=!S.attachments.length;
+  const box=$('#attachments');
+  renderChildren(box,attachview.imageItemViews(attachmentFacts()),attachmentHandlers);
+  box.hidden=!S.attachments.length;
 }
-export async function addAttachments(list){
+/* A bandeja sobrevive ao fechamento: as imagens pendentes são guardadas por
+   conversa (`desk/pending.cjs`, núcleo `core/pending.bend`) e voltam no boot.
+   Quem esvazia a bandeja (enfileirar, enviar, remover) também persiste — o
+   arquivo não pode ficar com um anexo que já foi para um item da fila. */
+export function persistTray(){
+ window.desk.traySave({images:S.attachments}).catch(e=>toast(e.message));
+}
+/* Clique na miniatura abre a prévia (o × continua dono do remover): sem isso o
+   clique "mudava" a bandeja quando caía no × sobreposto ao canto da imagem. */
+$('#attachments').addEventListener('click',e=>{
+  if(e.target.closest?.('.attachment-remove'))return;
+  const img=e.target.closest?.('.attachment img');
+  if(img)openImageDialog('',img.src,img.alt||'Imagem anexada');
+});
+/* `provenance` marca de onde o anexo veio (captura do Xournal++: horário e
+   exercício do momento). O main usa isso para avisar que a captura não é do
+   exercício ativo, em vez de deixá-la passar por tentativa de agora. */
+export async function addAttachments(list,provenance){
  const gen=S.attachGen;let added=0;
  for(const file of imageFiles(list)){
   const name=file.name||'imagem';
@@ -293,15 +416,31 @@ export async function addAttachments(list){
   if(gen!==S.attachGen)return 0;
   if(typeof dataUrl!=='string'||!dataUrl.startsWith('data:image/')){toast('Não foi possível ler a imagem.');continue;}
   if(S.attachments.length>=MAX_ATTACH){toast(`Máximo de ${MAX_ATTACH} imagens por mensagem.`);break;}
-  S.attachments.push({dataUrl,mimeType:mime,name});added++;
+  S.attachments.push({dataUrl,mimeType:mime,name,capturedAt:provenance?.capturedAt,exercise:provenance?.exercise});added++;
  }
  if(gen!==S.attachGen)return 0;
  renderAttachments();
+ persistTray();
  if(added&&S.connected&&!S.supportsImages)toast('Este modelo não aceita imagens; escolha um modelo com visão.');
  return added;
 }
-function clearAttachments(items){S.attachments=items?S.attachments.filter(item=>!items.includes(item)):[];renderAttachments();}
+function clearAttachments(items){S.attachments=items?S.attachments.filter(item=>!items.includes(item)):[];renderAttachments();persistTray();}
 export function resetAttachments(){S.attachGen++;S.attachments=[];renderAttachments();}
+/* Anexos guardados de uma conversa (o payload `pending` do main): entram na
+   bandeja depois do `resetAttachments` do boot/troca — sem regravar. */
+export function restoreAttachments(pending){
+ const list=(Array.isArray(pending?.attachments)?pending.attachments:[]).map(item=>({
+  dataUrl:typeof item?.dataUrl==='string'?item.dataUrl:'',
+  mimeType:typeof item?.mimeType==='string'?item.mimeType:'',
+  name:typeof item?.name==='string'?item.name:'',
+  capturedAt:item?.capturedAt,
+  exercise:item?.exercise,
+ })).filter(item=>item.dataUrl);
+ if(!list.length)return;
+ S.attachGen++;
+ S.attachments=list;
+ renderAttachments();
+}
 $('#attach').onclick=()=>$('#attach-input').click();
 $('#attach-input').onchange=()=>{addAttachments($('#attach-input').files);$('#attach-input').value='';};
 document.addEventListener('paste',e=>{
@@ -499,10 +638,20 @@ window.desk.onEvent(e=>{
   const aborted=stoppedTurn;stoppedTurn=false;
   settleTurn({reason:aborted?'stopped':''});
   setBusy(false);refreshMeter();
+  /* Turno terminou: a fila (`queue.mjs`) manda o próximo item. Parada pelo
+     usuário não conta — o `desk-stop` já segurou a fila, que espera o
+     "Enviar agora" da faixa. */
+  if(!aborted)window.dispatchEvent(new Event('desk-idle'));
  }
+ /* Linha ilegível do Pi (`desk_warn`): a ponte segue viva e o turno também, então
+    nada de estado de conexão — o log fica no desk.log (main.cjs) e o console
+    guarda o rastro da Conversa (mesmo tratamento de `pi_warning`). */
+ if(e.type==='desk_warn'){console.warn('Pi:',e.message);}
  if(e.type==='desk_error'){
   if(turnLog){worklog.addError(turnLog,`Erro do Pi: ${e.message}`);settleTurn({reason:'error'});}
   S.connected=false;connectionState('error','Pi desconectado');setBusy(false);$('#auto-compact').hidden=true;activity(`Erro do Pi: ${e.message}`);toast(e.message);
+  /* O turno morreu sem `agent_end`: a fila tenta o que sobrou agora. */
+  window.dispatchEvent(new Event('desk-failed'));
  }
  if(e.type==='extension_ui_request'){
   if(e.method==='notify'){toast(e.message);if(e.notifyType==='error')setBusy(false);}

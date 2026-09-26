@@ -6,6 +6,9 @@ const require2=createRequire(import.meta.url);
 
 test('calculator precedence, functions and angle units',()=>{assert.equal(calculate('2+3*4'),'14');assert.equal(calculate('(2+3)*4'),'20');assert.equal(calculate('2*(3+4*(1+1))'),'22');assert.equal(calculate('-2^2'),'-4');assert.equal(calculate('2^3^2'),'512');assert.equal(calculate('sqrt(16)+sin(pi/2)'),'5');assert.equal(calculate('sin(30)',true),'0.5');assert.equal(calculate('1,5+2'),'3.5');assert.equal(calculate('2^-2'),'0.25');});
 test('calculator rejects executable syntax and undefined results',()=>{for(const x of ['process.exit()','constructor(1)','1/0','sqrt(-1)','2;3','2+','sin(1','x=3'])assert.throws(()=>calculate(x),x);});
+test('calculator answers the reciprocal and the inverse functions',()=>{assert.equal(calculate('sec(0)'),'1');assert.equal(calculate('sec(60)',true),'2');assert.equal(calculate('csc(30)',true),'2');assert.equal(calculate('cot(45)',true),'1');assert.equal(calculate('cot(90)',true),'0');assert.equal(calculate('sec(pi)'),'-1');assert.equal(calculate('csc(pi/2)'),'1');assert.equal(calculate('asin(0.5)'),'0.523598775598');assert.equal(calculate('asin(0.5)',true),'30');assert.equal(calculate('acos(0.5)',true),'60');assert.equal(calculate('atan(1)',true),'45');assert.equal(calculate('atan(1)*4'),'3.14159265359');});
+test('calculator is exact on exact angles and undefined at the poles',()=>{for(const [x,d,w] of [['cos(90)',true,'0'],['sin(180)',true,'0'],['tan(180)',true,'0'],['sec(180)',true,'-1'],['cot(90)',true,'0'],['cos(-90)',true,'0'],['cos(pi/2)',false,'0'],['sin(pi)',false,'0'],['tan(pi)',false,'0'],['sec(pi)',false,'-1'],['cot(pi/2)',false,'0']])assert.equal(calculate(x,d),w,x);for(const [x,d] of [['tan(90)',true],['sec(90)',true],['csc(0)',true],['cot(0)',true],['tan(pi/2)',false],['sec(pi/2)',false],['csc(pi)',false],['1/tan(90)',true],['asin(2)',false],['acos(-2)',true]])assert.throws(()=>calculate(x,d),x);});
+test('calculator keeps small but legit values out of the exact-angle net',()=>{assert.equal(calculate('sin(0.0001)'),'0.0000999999998333');assert.equal(calculate('sin(1e-9)'),'1e-9');assert.equal(calculate('tan(89.9999)',true),'572957.795104');});
 
 // Carrega o main.cjs REAL com um módulo `electron` de mentira, para exercitar os
 // handlers de estado (init/save-state/switch-course → initialData/persist/applyCourse)
@@ -143,6 +146,162 @@ test('desk.json round-trips through init/save-state/switch-course and ggbBase64 
    desk=JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));
    assert.equal('ggbBase64' in desk,false,'switches never write ggbBase64 back into desk.json');
    assert.equal(fs.existsSync(path.join(runtime,'ggb','B.b64')),false,'no snapshot file is invented for B');
+  }finally{quit();}
+ }finally{fs.rmSync(runtime,{recursive:true,force:true});}
+});
+
+test('fila e bandeja guardadas: pending-save/tray-save gravam por conversa e o payload as devolve',async()=>{
+ const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'desk-pending-'));
+ try{
+  const courseA=path.join(runtime,'learning','Courses','A');const courseB=path.join(runtime,'learning','Courses','B');
+  fs.mkdirSync(courseA,{recursive:true});fs.mkdirSync(courseB,{recursive:true});
+  const pdfA=path.join(courseA,'lista.pdf');fs.writeFileSync(pdfA,'pdf');
+  fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:courseA},{id:'B',name:'Matéria B',path:courseB}]}));
+  fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({courseId:'A'}));
+  const dataUrl='data:image/png;base64,QUFBQQ==';
+  const {handlers,quit}=loadMainWithMockElectron(runtime);
+  try{
+   const init=await handlers.get('init')({});
+   assert.deepEqual(init.pending,{items:[],attachments:[],held:false,live:false},'sem nada guardado o payload vem vazio e não-live');
+   fs.writeFileSync(init.session,'');
+
+   const saved=await handlers.get('pending-save')({}, {items:[{id:'fila-1',text:'pendente',refs:[{path:pdfA,page:0}],images:[]},{text:'   ',refs:[],images:[]}],held:true});
+   assert.deepEqual(saved.items.map(i=>i.text),['pendente'],'item sem texto e sem anexo não é guardado');
+   assert.deepEqual(saved.items[0].refs,[{path:pdfA,page:1}],'página 0 vira 1');
+   assert.equal(saved.held,true);
+   const store=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
+   assert.ok(store[init.session],'o arquivo é chaveado pelo caminho da conversa');
+
+   const tray=await handlers.get('tray-save')({}, {images:[{dataUrl,mimeType:'image/png',name:'captura.png'}]});
+   assert.equal(tray.attachments.length,1);
+   assert.deepEqual(tray.items.map(i=>i.text),['pendente'],'o save da bandeja não mexe na fila');
+   assert.equal(tray.held,true,'nem na guarda dela');
+
+   const other=await handlers.get('switch-course')({},'B');
+   assert.deepEqual(other.pending.items,[],'a outra matéria tem a fila dela');
+   const back=await handlers.get('switch-course')({},'A');
+   assert.deepEqual(back.pending.items.map(i=>i.text),['pendente'],'voltar para a matéria devolve a fila guardada');
+   assert.equal(back.pending.attachments.length,1);
+   assert.equal(back.pending.live,true,'gravado por esta execução (não é recuperação)');
+
+   const fresh=await handlers.get('new-session')({});
+   assert.deepEqual(fresh.pending.items,[],'conversa nova não herda a fila da anterior');
+   const reopened=await handlers.get('open-session')({},init.session);
+   assert.deepEqual(reopened.pending.items.map(i=>i.text),['pendente'],'voltar para a conversa devolve a fila dela');
+   assert.equal(reopened.pending.held,true);
+   assert.equal(reopened.pending.live,true);
+
+   await assert.rejects(async()=>handlers.get('pending-save')({}, {items:'nada'}),/Fila inválida/);
+   await assert.rejects(async()=>handlers.get('tray-save')({}, {images:'nada'}),/Anexos inválidos/);
+
+   /* O que era da conversa antiga continua no disco depois de trocar. */
+   await handlers.get('switch-course')({},'B');
+   const stored=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
+   assert.equal(stored[init.session].items.length,1,'a poda não leva a conversa que ainda existe');
+  }finally{quit();}
+ }finally{fs.rmSync(runtime,{recursive:true,force:true});}
+});
+
+test('Encerrar por hoje: end-day-save grava local e o registro volta no init; resume-clear apaga',async()=>{
+ const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'desk-resume-'));
+ try{
+  const courseA=path.join(runtime,'learning','Courses','A');const courseB=path.join(runtime,'learning','Courses','B');
+  fs.mkdirSync(courseA,{recursive:true});fs.mkdirSync(courseB,{recursive:true});
+  const pdfA=path.join(courseA,'lista.pdf');fs.writeFileSync(pdfA,'pdf');
+  const pdfB=path.join(courseB,'apoio.pdf');fs.writeFileSync(pdfB,'pdf');
+  const xopp=path.join(runtime,'rascunho.xopp');fs.writeFileSync(xopp,'');
+  fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:courseA},{id:'B',name:'Matéria B',path:courseB}]}));
+  fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({courseId:'A',pdfs:[{path:pdfA,page:2}],study:{title:'Lista 2 · 7b',xopp}}));
+  const {handlers,quit}=loadMainWithMockElectron(runtime);
+  try{
+   const init=await handlers.get('init')({});
+   assert.equal(init.resume,null,'sem registro não há cartão');
+
+   const saved=await handlers.get('end-day-save')({}, {record:{
+    stopped:'  travei na 3  ',next:'  fazer a 4  ',exercise:'  Lista 2 · 7b  ',xopp,
+    pages:[{path:pdfA,page:0},{path:pdfB,page:3},{path:'/tmp/fora.pdf',page:9}]
+   }});
+   assert.deepEqual(saved,{
+    stopped:'travei na 3',next:'fazer a 4',exercise:'Lista 2 · 7b',xopp,pages:[{path:pdfA,page:1}]
+   },'o núcleo apara os textos e corta as páginas: só as da biblioteca desta matéria ficam');
+   const stored=JSON.parse(fs.readFileSync(path.join(runtime,'resume.json'),'utf8'));
+   assert.deepEqual(Object.keys(stored),['A'],'o arquivo é chaveado pela matéria');
+   assert.deepEqual(stored.A.pages,[{path:pdfA,page:1}],'o disco guarda a página já levantada');
+
+   assert.deepEqual((await handlers.get('init')({})).resume,saved,'o boot seguinte devolve o registro');
+   const other=await handlers.get('switch-course')({},'B');
+   assert.equal(other.resume,null,'o registro é da matéria, não da mesa');
+   assert.deepEqual((await handlers.get('switch-course')({},'A')).resume,saved);
+
+   /* `.xopp` fora do autorizado cai; o da questão (restaurado no boot) fica. */
+   const outside=await handlers.get('end-day-save')({}, {record:{stopped:'onde',next:'próximo',xopp:'/tmp/fora.xopp',pages:[]}});
+   assert.equal(outside.xopp,'');
+   assert.equal((await handlers.get('end-day-save')({}, {record:{stopped:'onde',next:'próximo',xopp,pages:[]}})).xopp,xopp);
+
+   await assert.rejects(async()=>handlers.get('end-day-save')({}, {record:{stopped:'   ',next:''}}),/Preencha onde parei/);
+   await assert.rejects(async()=>handlers.get('end-day-save')({}, {record:'nada'}),/Registro inválido/);
+   assert.equal(JSON.parse(fs.readFileSync(path.join(runtime,'resume.json'),'utf8')).A.next,'próximo','registro recusado não sobrescreve o que estava guardado');
+
+   assert.equal(await handlers.get('resume-clear')({}),true);
+   assert.equal((await handlers.get('init')({})).resume,null,'Retomar/Dispensar tiram o registro do arquivo');
+   assert.equal(await handlers.get('resume-clear')({}),false,'limpar de novo não é erro');
+  }finally{quit();}
+ }finally{fs.rmSync(runtime,{recursive:true,force:true});}
+});
+
+test('favoritos e caderno: a tela mostra a lista filtrada e editar/remover vai pela identidade',async()=>{
+ const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'desk-identity-'));
+ try{
+  const courseA=path.join(runtime,'learning','Courses','A');
+  fs.mkdirSync(courseA,{recursive:true});
+  const pdfA=path.join(courseA,'Limites.pdf');fs.writeFileSync(pdfA,'pdf');
+  const fora=path.join(runtime,'fora','Sumiu.pdf');
+  fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:courseA}]}));
+  fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({courseId:'A'}));
+  /* O item OCULTO (PDF que saiu da biblioteca) vem PRIMEIRO: na tela o visível
+     é a posição 0, mas no arquivo ele é o segundo. */
+  fs.writeFileSync(path.join(runtime,'bookmarks.json'),JSON.stringify({A:[
+   {name:'Sumido',path:fora,page:1},
+   {name:'Limites',path:pdfA,page:3}
+  ]}));
+  fs.writeFileSync(path.join(runtime,'review.json'),JSON.stringify({A:[
+   {question:'Oculto',attempt:'',difficulty:'',ref:{name:'Sumiu.pdf',page:1,path:fora}},
+   {question:'Visível',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}}
+  ]}));
+  const {handlers,quit}=loadMainWithMockElectron(runtime);
+  try{
+   const init=await handlers.get('init')({});
+   assert.deepEqual(init.bookmarks,[{name:'Limites',path:pdfA,page:3}],'favorito de PDF fora da biblioteca não chega à tela');
+   assert.deepEqual(init.review.map(one=>one.question),['Visível'],'item de PDF fora da biblioteca não chega à tela');
+
+   /* O clique foi na linha 0 da tela (Limites); o arquivo tem ele na posição 1. */
+   const afterRemove=await handlers.get('bookmarks-save')({}, {mode:'remove',item:{name:'Limites',path:pdfA,page:3}});
+   assert.deepEqual(afterRemove,[],'a resposta do remove é a lista filtrada, como o init');
+   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(runtime,'bookmarks.json'),'utf8')).A,
+    [{name:'Sumido',path:fora,page:1}],'remover o visível não toca no favorito oculto');
+
+   const afterAdd=await handlers.get('bookmarks-save')({}, {mode:'add',item:{name:'Limites',path:pdfA,page:5}});
+   assert.deepEqual(afterAdd,[{name:'Limites',path:pdfA,page:5}],'guardar devolve a lista filtrada (o oculto não reaparece na tela)');
+
+   const edited=await handlers.get('review-save')({}, {mode:'edit',
+    key:{question:'Visível',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}},
+    item:{question:'Visível (editado)',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}}});
+   assert.deepEqual(edited.map(one=>one.question),['Visível (editado)'],'editar devolve a lista filtrada');
+   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(runtime,'review.json'),'utf8')).A.map(one=>one.question),
+    ['Oculto','Visível (editado)'],'editar o visível não mexe no oculto (nem na posição dele)');
+
+   const removed=await handlers.get('review-save')({}, {mode:'remove',
+    key:{question:'Visível (editado)',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}}});
+   assert.deepEqual(removed,[],'remover devolve a lista filtrada');
+   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(runtime,'review.json'),'utf8')).A.map(one=>one.question),
+    ['Oculto'],'remover o visível não leva o oculto');
+
+   /* Chave que a tela ainda tem e o arquivo não: nada muda (a tela envelheceu). */
+   const before=fs.readFileSync(path.join(runtime,'review.json'),'utf8');
+   assert.deepEqual(await handlers.get('review-save')({}, {mode:'edit',
+    key:{question:'Fantasma',attempt:'',difficulty:'',ref:{name:'Sumiu.pdf',page:1,path:fora}},
+    item:{question:'Outro',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}}}),[]);
+   assert.equal(fs.readFileSync(path.join(runtime,'review.json'),'utf8'),before,'chave velha não regrava o caderno');
   }finally{quit();}
  }finally{fs.rmSync(runtime,{recursive:true,force:true});}
 });

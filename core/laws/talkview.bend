@@ -24,16 +24,16 @@ law talk_role_assistant:
 
 law talk_message_user_tag:
   for body: V.ViewNode
-  {V.tagOf(T.message(True{}, body, Nil{}, True{}, False{})) == "article" : String}
+  {V.tagOf(T.message(True{}, body, Nil{}, True{}, False{}, False{})) == "article" : String}
 
 law talk_message_user_class:
   for body: V.ViewNode
-  {V.attrGet(V.attrsOf(T.message(True{}, body, Nil{}, True{}, False{})), "class")
+  {V.attrGet(V.attrsOf(T.message(True{}, body, Nil{}, True{}, False{}, False{})), "class")
     == Some{"message user"} : Maybe<&2, String>}
 
 law talk_message_assistant_role:
   for body: V.ViewNode
-  {V.attrGet(V.attrsOf(T.message(False{}, body, Nil{}, True{}, False{})), "data-role")
+  {V.attrGet(V.attrsOf(T.message(False{}, body, Nil{}, True{}, False{}, False{})), "data-role")
     == Some{"assistant"} : Maybe<&2, String>}
 
 law talk_message_copy_handler:
@@ -41,8 +41,16 @@ law talk_message_copy_handler:
     == Some{"CopyMessage"} : Maybe<&2, String>}
 
 law talk_message_actions_bools:
-  {T.messageActions(True{}, False{})
+  {T.messageActions(True{}, False{}, False{})
     == [T.messageAction("msg-copy", "Copiar", "CopyMessage")] : List<&2, V.ViewNode>}
+
+law talk_message_review_handler:
+  {V.attrGet(V.attrsOf(T.messageAction("msg-review", "Guardar para revisar", "SaveForReview")), "on:click")
+    == Some{"SaveForReview"} : Maybe<&2, String>}
+
+law talk_message_actions_review:
+  {T.messageActions(False{}, False{}, True{})
+    == [T.messageAction("msg-review", "Guardar para revisar", "SaveForReview")] : List<&2, V.ViewNode>}
 
 law talk_shots_length:
   for +xs: List<&2, String>

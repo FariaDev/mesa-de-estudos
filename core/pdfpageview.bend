@@ -1,5 +1,6 @@
 import Base
 import view.bend as V
+import pdfnav.bend as N
 import pdfview.bend as P
 
 # ---------------------------------------------------------------------------
@@ -178,6 +179,32 @@ def collapseBtn(+minimized: Bool) -> V.ViewNode:
     [V.attrTitle(title), V.attrBool("aria-pressed", minimized), V.attrOn("click", "ToggleCollapse")]
   ]), Nil{})
 
+# ---------- voltar à página anterior (citação seguida) ----------
+
+def navBackTitle() -> String:
+  N.navBackTitle()
+
+def navBackAria(label: String) -> String:
+  N.navBackAria(label)
+
+# O botão que abre o popover de favoritos/sumário: o corpo do popover é do host
+# (`core/pdfnav.bend` desenha o esqueleto e as linhas).
+def navBtn(label: String) -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    iconBtnAttrs("nav", "book", N.navAria(label)),
+    [ V.attrTitle(N.navButtonTitle())
+    , V.attrBool("aria-expanded", False{})
+    , V.attrOn("click", "ToggleNav")
+    ]
+  ]), Nil{})
+
+# Nasce escondido: o host mostra quando há o que voltar naquele leitor.
+def backBtn(label: String) -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    iconBtnAttrs("back", "chevronLeft", navBackAria(label)),
+    [V.attrTitle(navBackTitle()), V.attrOn("click", "NavBack"), V.attr("hidden", "")]
+  ]), Nil{})
+
 def titleBar(shell: PdfShell) -> V.ViewNode:
   match shell:
     case PdfShell{+label, +options, +path, +minimized, findOpen}:
@@ -187,6 +214,8 @@ def titleBar(shell: PdfShell) -> V.ViewNode:
         openBtn(label),
         findToggleBtn(label, findOpen),
         shotBtn(label),
+        backBtn(label),
+        navBtn(label),
         collapseBtn(minimized)
       ])
 

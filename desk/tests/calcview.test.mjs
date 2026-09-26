@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import core from '../src/generated/calcview.core.js';
+import {calculate} from '../calculator.mjs';
 
 // Árvore do Bend (listas Con/Nil) sem DOM: o aplicador é o view-host (testado
 // em view-host.test.mjs) e o adaptador é exercitado pelo ui-smoke. Aqui o
@@ -142,7 +143,7 @@ test('ajuda e guia: textos idênticos ao index.html', () => {
   const guide = core.calcGuide(false);
   assert.deepEqual(attrs(guide), {id: 'calc-guide'});
   const guideKids = nodes(guide.kids);
-  assert.deepEqual(guideKids.map((n) => n.tag), ['summary', 'p', 'p', 'p']);
+  assert.deepEqual(guideKids.map((n) => n.tag), ['summary', 'p', 'p', 'p', 'p']);
   assert.deepEqual(texts(guideKids[0]), ['Como usar']);
   assert.ok(html.includes('<summary>Como usar</summary>'));
 
@@ -162,5 +163,16 @@ test('guia: cada <code> tem o texto do index.html', () => {
     for (const kid of nodes(node.kids)) walk(kid);
   };
   walk(core.calcGuide(false));
-  assert.deepEqual(codes, ['(2+3)*4', '2*pi', '2^3', 'sqrt(16)', 'sin(pi/2)', 'sin(90)', 'ln', 'log']);
+  assert.deepEqual(codes, [
+    '(2+3)*4', '2*pi', '2^3', 'sqrt(16)', 'sin(pi/2)', 'sin(90)', 'ln', 'log',
+    'sec', 'csc', 'cot', 'asin', 'acos', 'atan', 'asin(0.5)', 'cos(90)', 'tan(90)',
+  ]);
+});
+
+test('ajuda: todo nome de função da linha de ajuda existe no avaliador', () => {
+  const line = texts(core.calcHelp())[0];
+  const names = line.split(' · ').slice(1).filter((name) => /^[a-z]+$/.test(name) && !['pi', 'e'].includes(name));
+  assert.ok(names.includes('sec') && names.includes('csc') && names.includes('cot'), 'as recíprocas aparecem');
+  assert.ok(names.includes('asin') && names.includes('acos') && names.includes('atan'), 'as inversas aparecem');
+  for (const name of names) assert.doesNotThrow(() => calculate(`${name}(1)`), `${name} existe no avaliador`);
 });

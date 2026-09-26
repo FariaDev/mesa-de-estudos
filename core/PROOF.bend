@@ -18,6 +18,8 @@ import ./proofs/find.bend as Find
 import ./proofs/search.bend as Search
 import ./proofs/courses.bend as Courses
 import ./proofs/study.bend as Study
+import ./proofs/studycontext.bend as StudyContext
+import ./proofs/handoff.bend as Handoff
 import ./proofs/framing.bend as Framing
 import ./proofs/rpcstate.bend as RpcState
 import ./proofs/config.bend as Config
@@ -29,6 +31,9 @@ import ./proofs/statusview.bend as StatusView
 import ./proofs/composerview.bend as ComposerView
 import ./proofs/searchview.bend as SearchView
 import ./proofs/worklogview.bend as WorkLogView
+import ./proofs/pdfref.bend as PdfRef
+import ./proofs/pdfnav.bend as PdfNav
+import ./proofs/review.bend as Review
 import ./proofs/pdfview.bend as PdfView
 import ./proofs/tabsview.bend as TabsView
 import ./proofs/toastview.bend as ToastView
@@ -53,3 +58,5 @@ import ./proofs/slashview.bend as SlashView
 import ./proofs/toolpolicy.bend as ToolPolicy
 import ./proofs/deskflags.bend as DeskFlags
 import ./proofs/attachview.bend as AttachView
+import ./proofs/pending.bend as Pending
+import ./proofs/resume.bend as Resume

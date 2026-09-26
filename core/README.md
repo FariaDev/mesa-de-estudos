@@ -34,23 +34,34 @@ veio.
 Atualizar o Bend **não é rotina**: o build depende do **plugin TypeScript**
 (`bun` importa `bend2/main.ts` no `Bun.build`), e os releases **2.0.8+ não o
 distribuem** — viraram um executável único, cujo `-o .js` emite um *programa*
-com `main` (sem `export`), não a biblioteca ESM que os hosts consomem. Migrar
-exige refazer a integração dos dois apps, não trocar um caminho.
+com `main` (sem `export`), não a biblioteca ESM que os hosts consomem. Mas o
+**fonte do compilador continua no repo upstream**: instalar de um checkout do
+repo (`cp -R bend2 guide`, abaixo) preserva o plugin, e a integração não muda —
+foi assim o update para a 2.0.27, com os artefatos regenerados e as provas
+verdes sem tocar em nenhuma lei. Duas diferenças de CLI que o portão já sabe
+ler: a versão fala pelo subcomando `bend version` (2.0.7 e anteriores: flag
+`--version`) e o CLI tem um *daily version check* (o único request que ele faz)
+que os portões daqui desligam com `BEND_NO_TELEMETRY=1`.
 
-Restaurar a 2.0.7 (o commit pinado):
+Trocar de toolchain fixada (exemplo: a 2.0.27, o commit pinado):
 
 ```sh
-git clone https://github.com/bendlang/bend && cd bend && git checkout fb36663571
-mkdir -p ~/.bend/versions/fb36663571
-cp -R bend2 guide ~/.bend/versions/fb36663571/
-ln -sfn ~/.bend/versions/fb36663571 ~/.bend/current
+git clone https://github.com/bendlang/bend && cd bend && git checkout 63bee70b
+mkdir -p ~/.bend/versions/63bee70b
+cp -R bend2 guide ~/.bend/versions/63bee70b/
+ln -sfn ~/.bend/versions/63bee70b ~/.bend/current
 # o CLI é o próprio main.ts rodando com bun:
 printf '#!/bin/sh\nexec "${BUN_BIN:-$HOME/.bun/bin/bun}" "$HOME/.bend/current/bend2/main.ts" "$@"\n' > ~/.bend/bin/bend
 chmod +x ~/.bend/bin/bend
 ```
 
-Confira com `bend --version` (tem de dizer `bend 2.0.7`) e `node core/verify.mjs`:
-o rebuild tem de sair byte a byte.
+Confira com `bend version` (tem de dizer `bend 2.0.27`) e `node core/verify.mjs`:
+o rebuild tem de sair byte a byte. Para aceitar a nova fixação, escreva
+`version`/`pluginSha256`/`source` à mão em `core/toolchain.json` (o `--pin`
+também aceita, mas a procedência é sempre escrita, nunca inventada). O diretório
+da toolchain anterior (`~/.bend/versions/fb36663571`, a 2.0.7) fica no disco para
+rollback: `ln -sfn ~/.bend/versions/fb36663571 ~/.bend/current` e
+`git restore core/toolchain.json desk/src/generated chat/src/generated`.
 
 ## Fluxo
 
@@ -83,8 +94,8 @@ A revisão humana leve olha os enunciados e as fronteiras, não o JS gerado.
 
 ## Módulos
 
-Hoje o portão importa 43 módulos (43 arquivos de leis, 1.585 declarações
-`law`) e o build gera 42 módulos distintos em 55 saídas (Mesa + Conversa).
+Hoje o portão importa 50 módulos (50 arquivos de leis, 1.959 declarações
+`law`) e o build gera 64 saídas (Mesa + Conversa).
 
 - **`wheel.bend`** — decisão da roda do trackpad (vira página ou acumula).
 - **`worklog.bend`** — máquina de estados do diário do turno: rajadas de
@@ -106,6 +117,15 @@ Hoje o portão importa 43 módulos (43 arquivos de leis, 1.585 declarações
   host). Adaptador `desk/courses.cjs`.
 - **`study.bend`** — restauração do rascunho `.xopp` (título aparado em 240,
   sufixo e existência). Adaptador `desk/study.cjs`.
+- **`pending.bend`** — a fila do composer no disco (Mesa): tetos (50 itens, 2
+  referências por item, 40 MiB no arquivo), o que fica no item e a decisão de a
+  fila lida de outra execução nascer segurada. Adaptador `desk/pending.cjs`
+  (um arquivo por conversa, com a bandeja de anexos, poda e teto de disco).
+- **`resume.bend`** — o registro local do "Encerrar por hoje" e o cartão de
+  retomada: forma do registro (onde parei, próximo passo, questão, `.xopp` e
+  páginas), trim + corte em 240, no máximo 2 PDFs e os textos do cartão.
+  Adaptadores `desk/resume.cjs` (um registro por matéria) e `desk/src/resume.mjs`
+  (o cartão acima do campo).
 - **`framing.bend`** — framing das linhas JSON-RPC do stdout do Pi (split por
   LF, resto no buffer, overflow descarta tudo). Adaptadores `desk/rpc.cjs` e
   `chat/rpc.cjs`.

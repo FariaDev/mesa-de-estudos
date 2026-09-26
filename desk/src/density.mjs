@@ -81,5 +81,20 @@ export function init(){
  }
 }
 
+/* O item "Modo compacto" do menu Mesa (e o ⌘⇧D) alterna o MESMO modo do select
+   das Configurações: grava a escolha, aperta o `body` e o `sync` devolve o
+   `selected` do diálogo. O host do menu só troca ícone/`aria-pressed` do item
+   vivo depois (recriar os filhos no meio do clique desanexaria o alvo). */
+export function compactMode(){
+ return read()==='compacta';
+}
+
+export function toggleDensity(){
+ const next=compactMode()?'padrao':'compacta';
+ try{localStorage.setItem(KEY,next);}catch{}
+ apply(next);
+ sync();
+}
+
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
 else init();

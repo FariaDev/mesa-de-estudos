@@ -9,6 +9,14 @@ const {courseLibrary,mergeCourses}=require('./courses.cjs');
 const {readConfig,writeConfig,seedConfig,needsSetup,normalize,pickPdfs}=require('./config.cjs');
 const {resolvePi,spawnEnv,FALLBACK_LEVELS,loadLevelsModule}=require('./pi.cjs');
 const {cleanStudy,authorizeRestoredStudy}=require('./study.cjs');
+const {buildStudyContext}=require('./studycontext.cjs');
+const pending=require('./pending.cjs');
+const resume=require('./resume.cjs');
+const bookmarks=require('./bookmarks.cjs');
+const review=require('./review.cjs');
+const {pinnedArgs}=require('./profiles.cjs');
+const {claimHand,recoverClaims}=require('./handoff.cjs');
+const {deliverPrompt}=require('./send.cjs');
 const {deskLayout,saveState,MAX_DRAFT}=require('./state-adapter.cjs');
 const updater=require('./updater.cjs');
 const components=require('./components.cjs');
@@ -147,6 +155,36 @@ const allowed=new Set(),allowedXopp=new Set();let win,bridge,lastPersist='',leve
 const TEST_MODE=process.env.DESK_TEST==='1';
 if(!TEST_MODE){if(!app.requestSingleInstanceLock())app.quit();app.on('second-instance',()=>{if(win){if(win.isMinimized())win.restore();win.show();win.focus();}});}
 let session=state.session||path.join(runtime,`pi-${Date.now()}.jsonl`);let ggbRestored=false;
+/* Chave do último bloco de contexto enviado nesta sessão: contexto igual não é
+   reenviado (o histórico já carrega a versão anterior). Zera quando a conversa
+   troca, porque aí o histórico que "já tem" é outro. */
+let lastContextKey='';
+/* Bilhete da Conversa → Mesa. O bilhete fica na MÃO do app (`claimHand`,
+   desk/handoff.cjs) até a entrega ter desfecho: enquanto ele está na mão, a
+   mensagem seguinte leva o mesmo bloco, e uma recusa não o perde. Não existe
+   "checado uma vez por execução": a Conversa pode escrever o bilhete DEPOIS da
+   primeira mensagem da Mesa, então cada prompt procura um pendente — mas só
+   quando nenhum está na mão. Antes de escrever no Pi, `deliverPrompt`
+   (desk/send.cjs) persiste a fase "envio iniciado" no próprio arquivo
+   (`beginDelivery`): a partir daí uma queda no meio do envio não devolve o
+   bilhete à fila. O destino do arquivo em cada desfecho é decidido por
+   `deliverPrompt` sobre `settleDelivery`: é nos dois que isso é testado, não
+   aqui. */
+const hand=claimHand({runtime});
+function handoffProblem(reason){
+ if(!reason)return;
+ console.warn('[bilhete]',reason);
+ if(win&&!win.isDestroyed())win.webContents.send('handoff-problem',{reason});
+}
+function claimHandoff(){
+ const out=hand.take();
+ handoffProblem(out.problem);
+ if(out.fresh&&out.claim&&win&&!win.isDestroyed()){
+  const b=out.claim.bilhete||{};
+  win.webContents.send('handoff-received',{goal:b.goal||'',question:b.question||'',stale:!!out.claim.stale});
+ }
+ return out.claim;
+}
 
 function sessionStudy(file=session){return cleanStudy(courseStates[courseId]?.sessionStudies?.[file]||{});}
 
@@ -280,8 +318,19 @@ function promptFile(){
 function connect(){
  if(!bridge){
   const pi=piBinary();
-  bridge=new PiBridge({cwd:process.env.LEARNING_DESK_PI_CWD||prepareCourse(),session,pi,env:{...spawnEnv(pi),LEARNING_DESK_GGB_BRIDGE:ggbBridgeFile},promptFile:promptFile(),extraArgs:process.env.LEARNING_DESK_TEST_ARGS?JSON.parse(process.env.LEARNING_DESK_TEST_ARGS):[]});
+  const cwd=process.env.LEARNING_DESK_PI_CWD||prepareCourse();
+  /* Perfil fixado (desk/profiles.cjs): a lista de extensões é declarada e
+     verificável em vez de herdada da descoberta global — uma extensão nova não
+     entra calada na Mesa. Medido em `npm run profile`. `pinnedExtensions:false`
+     no config volta a herdar tudo. */
+  const profileExtra=config.desk?.pinnedExtensions===false?[]:pinnedArgs({overlayDirs:[path.join(cwd,'.pi'),path.join(runtime,'learning','.pi')]});
+  const testExtra=process.env.LEARNING_DESK_TEST_ARGS?JSON.parse(process.env.LEARNING_DESK_TEST_ARGS):[];
+  bridge=new PiBridge({cwd,session,pi,env:{...spawnEnv(pi),LEARNING_DESK_GGB_BRIDGE:ggbBridgeFile},promptFile:promptFile(),extraArgs:[...profileExtra,...testExtra]});
   bridge.on('event',e=>{
+   /* Aviso da ponte (linha torta no stdout do Pi): fica no desk.log — o usuário
+      não precisa ver, e o turno segue vivo. Erro de verdade continua em
+      `desk_error`, que a UI trata como queda. */
+   if(e.type==='desk_warn')try{appendLog('rpc',e.message);}catch{}
    if(e.type==='extension_ui_request'&&['select','confirm','input','editor'].includes(e.method)&&typeof e.id==='string'){
     pendingDialogs.add(e.id);
     if(pendingDialogs.size>32){
@@ -327,6 +376,31 @@ function applyCourse(id){
  ggbRestored=false;
 }
 
+/* Registro de retomada da matéria ativa (o cartão do "Encerrar por hoje"). O
+   `.xopp` guardado volta a ser autorizado como o da questão — sem o arquivo, o
+   Retomar não o traz de volta — e só entram as páginas que a biblioteca desta
+   matéria conhece. Nunca escreve. */
+function resumePayload(){
+ const saved=resume.readResume(runtime,courseId);
+ if(!saved)return null;
+ const xopp=saved.xopp?cleanStudy({title:'',xopp:saved.xopp}).xopp:'';
+ if(xopp)allowedXopp.add(xopp);
+ return {...saved,xopp,pages:saved.pages.filter(ref=>allowed.has(ref.path))};
+}
+
+/* Favoritos nomeados da matéria ativa — só os documentos que a biblioteca (ou
+   o estado) autoriza, como o resume faz com as páginas. O popover do leitor sai
+   daqui. Nunca escreve. */
+/* O caderno é da matéria, como os favoritos; item que aponta para um PDF que
+   não está mais na biblioteca fica de fora da tela (o arquivo guarda tudo). */
+function reviewPayload(){
+ return review.readItems(runtime,courseId).filter(item=>!item.ref?.path||allowed.has(item.ref.path));
+}
+
+function bookmarksPayload(){
+ return bookmarks.readBookmarks(runtime,courseId).filter(item=>allowed.has(item.path));
+}
+
 function initialData(){
  const library=course?courseLibrary(course):[];
  allowed.clear();
@@ -339,6 +413,13 @@ function initialData(){
   course:courses.find(c=>c.id===courseId)?.name||'',
   courseId,courses:courses.map(({id,name})=>({id,name})),
   session,sessions:courseSessions(),
+  /* Fila e bandeja guardadas desta conversa: o renderer hidrata a faixa e os
+     anexos com isto (a troca de conversa devolve o que era da outra). */
+  pending:pending.readPending(runtime,session),
+  /* Registro do Encerrar da matéria: o cartão de retomada sai daqui. */
+  resume:resumePayload(),
+  bookmarks:bookmarksPayload(),
+  review:reviewPayload(),
   config:cfg,
   preferred:(pickPdfs(library,cfg.desk.panels)||[]).map(p=>p?.path||null),
   needsSetup:needsSetup(config,courses),
@@ -413,6 +494,15 @@ function buildMenu(){
 }
 
 app.whenReady().then(()=>{
+ /* Fecha o ciclo do bilhete de uma execução anterior antes de qualquer coisa:
+   `reivindicado-*` (envio comprovadamente não começado) volta a pendente,
+   `enviando-*` (envio iniciado sem confirmação) vai para `duvida/` — nunca para
+   a fila — e `entregue-*` vai para o arquivo. Só mexe em disco: não toca no Pi. */
+ try{
+  const recovery=recoverClaims({runtime});
+  if(recovery.requeued||recovery.archived||recovery.doubtful)console.warn('[bilhete] recuperação:',recovery.requeued,'de volta a pendente,',recovery.archived,'arquivado(s),',recovery.doubtful,'em dúvida');
+  for(const detail of recovery.details)if(detail.reason)console.warn('[bilhete] recuperação:',detail.name,detail.action,detail.reason);
+ }catch(e){console.warn('[bilhete] recuperação falhou:',e?.message||e);}
  if(TEST_MODE&&process.platform==='darwin'){try{app.setActivationPolicy('accessory');}catch{}try{app.dock?.hide();}catch{}}
  else if(process.platform==='darwin')app.dock.setIcon(path.join(__dirname,'assets','mesa-1024.png'));
  app.setAboutPanelOptions({applicationName:'Mesa de Estudos',applicationVersion:app.getVersion(),copyright:'© 2026 Lucas Faria. Licença MIT.',iconPath:path.join(__dirname,'assets','mesa-1024.png')});
@@ -503,8 +593,53 @@ ipcMain.handle('save-state',(_e,value)=>{
  if(win&&!win.isDestroyed())win.setBackgroundColor(theme==='dark'?'#0a0a0a':'#fcfcfc');
  persist();
 });
-ipcMain.handle('export-chat',async()=>{
- const courseName=courses.find(c=>c.id===courseId)?.name||courseId||'matéria';
+/* Fila e bandeja guardadas (`desk/pending.cjs`, núcleo `core/pending.bend`): o
+   renderer manda o que tem — e o `held` da fila — e recebe de volta o que foi
+   guardado; os cortes do teto de disco voltam como `dropped`/`trayDropped` para
+   a faixa avisar. */
+ipcMain.handle('pending-save',(_e,payload)=>{
+ const items=payload?.items;
+ if(!Array.isArray(items)||items.length>200)throw Error('Fila inválida.');
+ return pending.saveQueue(runtime,session,items,payload?.held===true);
+});
+ipcMain.handle('tray-save',(_e,payload)=>{
+ const images=payload?.images;
+ if(!Array.isArray(images)||images.length>16)throw Error('Anexos inválidos.');
+ return pending.saveTray(runtime,session,images);
+});
+/* Registro do "Encerrar por hoje": grava LOCAL primeiro (é o ponto do módulo) e
+   o host só aceita o que é da matéria: páginas da biblioteca aberta e `.xopp`
+   já autorizado, como no `save-state`. Erro de IO sobe — o renderer mantém o
+   diálogo aberto com o texto. */
+ipcMain.handle('end-day-save',(_e,payload)=>{
+ const raw=payload?.record;
+ if(!isPlainObject(raw))throw Error('Registro inválido.');
+ const pages=(Array.isArray(raw.pages)?raw.pages:[]).filter(ref=>isPlainObject(ref)&&typeof ref.path==='string'&&allowed.has(ref.path));
+ const xopp=typeof raw.xopp==='string'&&raw.xopp&&allowedXopp.has(raw.xopp)?raw.xopp:'';
+ return resume.saveResume(runtime,courseId,{...raw,pages,xopp});
+});
+ipcMain.handle('resume-clear',()=>resume.clearResume(runtime,courseId));
+/* Favorito guardado ou removido no popover do leitor. `mode` diz o que fazer:
+   `add` recebe o item do diálogo, `remove` recebe o REGISTRO clicado (a
+   identidade — o host acha o favorito onde ele estiver). A resposta é a mesma
+   lista FILTRADA que o `init` manda: o renderer guarda o que vê, e um favorito
+   de PDF fora da biblioteca não reaparece na tela depois de um save. */
+ipcMain.handle('bookmarks-save',(_e,payload)=>{
+ const raw=isPlainObject(payload)?payload:{};
+ if(raw.mode==='remove')bookmarks.removeBookmark(runtime,courseId,raw.item);
+ else bookmarks.addBookmark(runtime,courseId,raw.item);
+ return bookmarksPayload();
+});
+/* `add` e `edit` recebem o item do diálogo (o `edit` também a `key`, o registro
+   de origem), `remove` recebe a `key`/o `item` — o núcleo acha o item por
+   identidade, nunca pela posição. Como nos favoritos, a resposta é a lista
+   FILTRADA (a tela é a biblioteca da matéria; o arquivo guarda tudo). */
+ipcMain.handle('review-save',(_e,payload)=>{
+ const raw=isPlainObject(payload)?payload:{};
+ review.reviewSave(runtime,{...raw,courseId});
+ return reviewPayload();
+});
+ipcMain.handle('export-chat',async()=>{ const courseName=courses.find(c=>c.id===courseId)?.name||courseId||'matéria';
  let records=[];
  try{
   records=fs.readFileSync(session,'utf8').split('\n').filter(Boolean).map(line=>{try{return JSON.parse(line);}catch{return null;}}).filter(Boolean);
@@ -609,17 +744,54 @@ ipcMain.handle('pi-prompt',async(_e,payload)=>{
   return `${validPdf(r.path)}#page=${Math.max(1,Math.trunc(r.page)||1)}`;
  });
  const studyContextOff=config.desk?.studyContext===false;
- const study=studyContextOff?{title:'',xopp:''}:cleanStudy(state.study);const context=[];
- const courseName=courses.find(c=>c.id===courseId)?.name||courseId;
- if(courseName)context.push(`matéria: ${JSON.stringify(courseName)}`);
- if(study.title)context.push(`exercício ativo: ${JSON.stringify(study.title)}`);
- if(study.xopp&&allowedXopp.has(study.xopp))context.push(`rascunho Xournal++: ${JSON.stringify(study.xopp)}`);
- if(context.length)message+='\n\n[Contexto da sessão na Mesa: '+context.join('; ')+'.]';
- if(refs.length)message+='\n\n[Referências abertas na mesa, indicadas pelo usuário como contexto: '+refs.map(r=>JSON.stringify(r)).join('; ')+'. Consulte essas páginas se necessário. A presença do PDF não significa que seu conteúdo já foi lido.]';
- const images=promptImages(payload.images);
- const request={message,streamingBehavior:'followUp'};
- if(images.length)request.images=images;
- const b=connect();await b.request('prompt',request);const current=await b.request('get_state');return {streaming:!!current?.isStreaming};
+ const study=studyContextOff?{title:'',xopp:''}:cleanStudy(state.study);
+ const courseName=courses.find(c=>c.id===courseId)?.name||courseId||'';
+ /* Proveniência do anexo: o renderer marca a captura do Xournal++ com o horário
+    e o exercício que estava ativo quando ela foi feita (é o que permite avisar
+    que uma captura antiga não é do exercício de agora). */
+ const shot=(Array.isArray(payload.images)?payload.images:[]).find(item=>item&&typeof item==='object'&&typeof item.capturedAt==='number');
+ const block=buildStudyContext({
+  course:studyContextOff?'':courseName,
+  study:{title:study.title,xopp:study.xopp&&allowedXopp.has(study.xopp)?study.xopp:''},
+  refs,
+  capture:shot?{capturedAt:shot.capturedAt,exercise:typeof shot.exercise==='string'?shot.exercise:''}:null,
+  previousKey:lastContextKey,
+ });
+ if(block.text)message+='\n\n'+block.text;
+ /* Bilhete da Conversa: acompanha a mensagem. A mão (`claimHand`) devolve o
+    MESMO bilhete enquanto ele não tem desfecho — por isso ele não é solto
+    aqui. */
+ const bilhete=claimHandoff();
+ const bilheteText=bilhete?.block||'';
+ if(bilheteText)message+='\n\n'+bilheteText;
+ /* `steer` (⌘/Ctrl+⏎ com o Pi ocupado): o Pi interrompe o turno e trata esta
+    mensagem agora; sem ele o prompt entra como follow-up — é o que a fila da
+    Mesa manda quando chega a vez de cada item.
+    A ordem do envio (validar anexo → conectar → marcar o envio → escrever →
+    confirmar → ler o estado) e o destino do bilhete em cada desfecho moram em
+    `deliverPrompt` (desk/send.cjs): aqui fica só o que é do app. */
+ return deliverPrompt({
+  request:{message,streamingBehavior:payload.steer===true?'steer':'followUp'},
+  images:payload.images,
+  validateImages:promptImages,
+  claim:bilhete,
+  runtime,
+  connect,
+  /* Aceite confirmado: o contexto do turno e o bilhete só contam como entregues aqui. */
+  onAccepted(){lastContextKey=block.key;hand.release();},
+  onDelivered:handoffProblem,
+  /* Envio aceito com a leitura do estado falhando: o turno vale (a mensagem
+     chegou), o aviso vai para o log e o renderer mostra o mesmo texto — é o que
+     impede a fila de repetir a mensagem. */
+  onWarning(aviso){try{appendLog('rpc',aviso);}catch{}},
+  /* Escrita incerta: o bilhete sai da mão do app (fica em dúvida no disco) e o
+     contexto da Mesa não entra na conta do próximo turno. */
+  onAmbiguous(aviso){hand.release();handoffProblem(aviso);},
+  /* Recusa comprovada (o bridge prova que nada foi escrito): o bilhete continua
+     na mão para a próxima tentativa e a próxima abertura o devolve para a fila.
+     O contexto do turno não conta como enviado. */
+  onRefused:handoffProblem,
+ });
 });
 ipcMain.handle('pi-abort',async()=>{if(bridge){await bridge.request('clear_queue');await bridge.request('abort');}});
 ipcMain.handle('pi-response',(_e,data)=>{
@@ -634,18 +806,18 @@ ipcMain.handle('pi-response',(_e,data)=>{
 });
 ipcMain.handle('new-session',async()=>{
  await assertIdle('Pare a resposta antes de começar outra conversa.');
- rememberSession();stopBridge();session=path.join(runtime,`pi-${Date.now()}.jsonl`);state={...state,draft:'',study:{title:'',xopp:''}};persist();
- return {session,sessions:courseSessions(),state};
+ rememberSession();stopBridge();session=path.join(runtime,`pi-${Date.now()}.jsonl`);lastContextKey='';state={...state,draft:'',study:{title:'',xopp:''}};persist();
+ return {session,sessions:courseSessions(),state,pending:pending.readPending(runtime,session),resume:resumePayload(),bookmarks:bookmarksPayload(),review:reviewPayload()};
 });
 ipcMain.handle('open-session',async(_e,file)=>{
  if(typeof file!=='string')throw Error('Sessão inválida.');
- if(file===session)return {session,sessions:courseSessions()};
+ if(file===session)return {session,sessions:courseSessions(),pending:pending.readPending(runtime,session),resume:resumePayload(),bookmarks:bookmarksPayload()};
  const allowedSessions=courseSessions();
  if(!allowedSessions.some(s=>s.path===file))throw Error('Sessão não encontrada nesta matéria.');
  if(!fs.existsSync(file))throw Error('Arquivo da sessão não existe mais.');
  await assertIdle('Pare a resposta antes de trocar de conversa.');
- rememberSession();stopBridge();session=file;allowedXopp.clear();state={...state,draft:'',study:authorizeRestoredStudy(sessionStudy(file),allowedXopp)};persist();
- return {session,sessions:courseSessions(),state};
+ rememberSession();stopBridge();session=file;lastContextKey='';allowedXopp.clear();state={...state,draft:'',study:authorizeRestoredStudy(sessionStudy(file),allowedXopp)};persist();
+ return {session,sessions:courseSessions(),state,pending:pending.readPending(runtime,session),resume:resumePayload(),bookmarks:bookmarksPayload()};
 });
 ipcMain.handle('capture-ready',async()=>{
  /* Windows: janela do Xournal++ via PowerShell/.NET do sistema (capture-win.cjs)

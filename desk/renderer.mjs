@@ -6,5 +6,6 @@ import './src/notify.mjs';
 import './src/keys.mjs';
 import './src/status-foot.mjs';
 import './src/density.mjs';
+import './src/settings-panel.mjs';
 import './src/tooltip.mjs';
 import './src/main.mjs';

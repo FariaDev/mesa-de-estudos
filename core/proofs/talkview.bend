@@ -106,3 +106,9 @@ def Laws.talk_codeblock_sem_lang():
 
 def Laws.talk_codeblock_com_lang():
   {==}
+
+def Laws.talk_message_review_handler():
+  {==}
+
+def Laws.talk_message_actions_review():
+  {==}

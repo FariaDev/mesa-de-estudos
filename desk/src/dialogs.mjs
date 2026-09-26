@@ -1,4 +1,5 @@
 import dialogsCore from './generated/dialogsview.core.js';
+import reviewCore from './generated/review.core.js';
 import {build, htmlNode, renderChildren, renderInto} from './view-host.mjs';
 
 /* Aplicadores dos diálogos da Mesa (o núcleo é `core/dialogsview.bend`).
@@ -49,6 +50,32 @@ export function renderEndDay(where = '', next = '') {
 /* Depois de salvar: o formulário volta vazio (como o `value=''` antigo). */
 export function clearEndDay() {
   renderEndDay('', '');
+}
+
+/* ---------- bookmark-dialog (nav.mjs) ---------- */
+
+/* Filhos do `#bookmark-form`: título, dica (documento + página), campo do nome
+   já preenchido e ações. O `<form>` e o submit são do main; o nav.mjs só abre o
+   diálogo com o nome sugerido e lê o campo depois. */
+export function renderBookmark(name = '', hint = '') {
+  const form = $('#bookmark-form');
+  if (!form) return;
+  renderChildren(form, dialogsCore.bookmarkChildren(String(name), String(hint)), dialogsHandlers);
+}
+
+/* ---------- review-dialog (caderno de revisão) ---------- */
+
+/* O miolo do `#review-dialog`: a referência fixa do item em edição e os três
+   campos, com as ações do molde (Salvar com value `ok`, mais o cancelar). Vem
+   do núcleo (`core/review.bend`); o host só repõe os valores. */
+export function renderReview(question = '', attempt = '', difficulty = '', hint = '') {
+  const form = $('#review-form');
+  if (!form) return;
+  renderChildren(
+    form,
+    reviewCore.reviewDialogChildren(String(question), String(attempt), String(difficulty), String(hint)),
+    dialogsHandlers
+  );
 }
 
 /* ---------- welcome-dialog (primeira abertura) ---------- */

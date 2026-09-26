@@ -7,34 +7,34 @@ import ../view.bend as V
 # flag e o `aria-pressed` do botão de referências. Cenários concretos, como as
 # leis do status — o host entrega os fatos já normalizados (`Bool`).
 #
+# O Encerrar por hoje saiu do composer e virou item do menu Estudar: a flag
+# `endDay` dele é do `core/tabsview.bend` (`tabs_endday_*`), não daqui.
+#
 # Sem fato de plataforma: o Conferir Xournal++ é de todas as suportadas (macOS
 # e Windows capturam a janela do Xournal++) e só a flag `conferir` o desliga.
 # ---------------------------------------------------------------------------
 
 # Tudo ligado (o cenário padrão do app, em qualquer plataforma).
 def ligado() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, True{}}
+  D.DeskFlags{True{}, True{}, True{}, True{}, True{}}
 
 # Só o botão de referências em jogo: `includeRefs` corrente, resto ligado.
 def soRefs(includeRefs: Bool) -> D.DeskFlags:
-  D.DeskFlags{True{}, includeRefs, True{}, True{}, True{}, True{}}
+  D.DeskFlags{True{}, includeRefs, True{}, True{}, True{}}
 
 # refsToggle desligado: o botão some e as referências ficam ligadas na view.
 def semBotaoRefs(includeRefs: Bool) -> D.DeskFlags:
-  D.DeskFlags{False{}, includeRefs, True{}, True{}, True{}, True{}}
+  D.DeskFlags{False{}, includeRefs, True{}, True{}, True{}}
 
 # Uma flag desligada por vez (para os `hidden`).
-def semEndDay() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, False{}, True{}, True{}, True{}}
-
 def semEstudo() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, False{}, True{}, True{}}
+  D.DeskFlags{True{}, True{}, False{}, True{}, True{}}
 
 def semConferir() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, True{}, False{}, True{}}
+  D.DeskFlags{True{}, True{}, True{}, False{}, True{}}
 
 def semCalculadora() -> D.DeskFlags:
-  D.DeskFlags{True{}, True{}, True{}, True{}, True{}, False{}}
+  D.DeskFlags{True{}, True{}, True{}, True{}, False{}}
 
 # ---------- referências do composer ----------
 
@@ -59,20 +59,6 @@ law deskflags_refs_pressed_false:
 # Sem o botão, as referências seguem ligadas mesmo com o fato corrente false.
 law deskflags_refs_pressed_forcado:
   {V.attrGet(V.attrsOf(D.includeRefsButton(semBotaoRefs(False{}))), "aria-pressed") == Some{"true"} : Maybe<&2, String>}
-
-# ---------- encerrar por hoje ----------
-
-law deskflags_endday_tag:
-  {V.tagOf(D.endDayButton(ligado())) == "button" : String}
-
-law deskflags_endday_id:
-  {V.attrGet(V.attrsOf(D.endDayButton(ligado())), "id") == Some{"end-day"} : Maybe<&2, String>}
-
-law deskflags_endday_visivel:
-  {V.attrGet(V.attrsOf(D.endDayButton(ligado())), "hidden") == None{} : Maybe<&2, String>}
-
-law deskflags_endday_oculto:
-  {V.attrGet(V.attrsOf(D.endDayButton(semEndDay())), "hidden") == Some{""} : Maybe<&2, String>}
 
 # ---------- contexto de estudo ----------
 

@@ -12,6 +12,63 @@ import ../view.bend as V
 
 # ---------- pi-dialog: título, ok, campos ----------
 
+def kidAt(xs: List<&2, V.ViewNode>, n: Nat) -> V.ViewNode:
+  match xs:
+    case Nil{}:
+      V.viewText("")
+    case Con{h, t}:
+      match n:
+        case 0n:
+          h
+        case 1n+p:
+          kidAt(t, p)
+
+def first(xs: List<&2, V.ViewNode>) -> V.ViewNode:
+  match xs:
+    case Nil{}:
+      V.viewText("")
+    case Con{h, t}:
+      h
+
+def bkKids() -> List<&2, V.ViewNode>:
+  D.bookmarkChildren("Revisão", "Limites.pdf, p. 12")
+
+def bkKid(n: Nat) -> V.ViewNode:
+  kidAt(bkKids(), n)
+
+def bkActions() -> V.ViewNode:
+  bkKid(3n)
+
+def bkAction(n: Nat) -> V.ViewNode:
+  kidAt(V.kidsOf(bkActions()), n)
+
+law dlg_bookmark_kids:
+  {List.length(&2, V.ViewNode, bkKids()) == 4n : Nat}
+
+law dlg_bookmark_titulo:
+  {V.textOf(first(V.kidsOf(bkKid(0n)))) == "Guardar esta página" : String}
+
+law dlg_bookmark_dica:
+  {V.textOf(first(V.kidsOf(bkKid(1n)))) == "Limites.pdf, p. 12" : String}
+
+law dlg_bookmark_campo_id:
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(bkKid(2n)), 1n)), "id") == Some{"bookmark-name"} : Maybe<&2, String>}
+
+law dlg_bookmark_campo_valor:
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(bkKid(2n)), 1n)), "value") == Some{"Revisão"} : Maybe<&2, String>}
+
+law dlg_bookmark_salvar_id:
+  {V.attrGet(V.attrsOf(bkAction(1n)), "id") == Some{"bookmark-save"} : Maybe<&2, String>}
+
+law dlg_bookmark_salvar_texto:
+  {V.textOf(first(V.kidsOf(bkAction(1n)))) == "Salvar" : String}
+
+law dlg_bookmark_cancelar:
+  {V.textOf(first(V.kidsOf(bkAction(0n)))) == "Cancelar" : String}
+
+law dlg_bookmark_cancelar_valor:
+  {V.attrGet(V.attrsOf(bkAction(0n)), "value") == Some{"cancel"} : Maybe<&2, String>}
+
 law dlg_pi_titulo_vazio:
   {D.piTitle("") == "Pi" : String}
 

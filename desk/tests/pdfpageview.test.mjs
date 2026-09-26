@@ -66,7 +66,7 @@ test('panelShell monta a section e as quatro regiões do leitor', () => {
   assert.deepEqual(classes, ['pdf-title', 'pdf-tools', 'pdf-stage', 'pdf-find']);
 });
 
-test('titleBar: rótulo, select, botões de ícone e estado de minimizar/busca', () => {
+test('titleBar: rótulo, select, botões de ícone (Voltar incluso) e estado de minimizar/busca', () => {
   const built = build(pdfPage.titleBar(shell()), {});
   assert.equal(attr(built, 'class'), 'pdf-title');
   assert.equal(built.children[0].tag, 'strong');
@@ -74,7 +74,7 @@ test('titleBar: rótulo, select, botões de ícone e estado de minimizar/busca',
   const select = built.children[1];
   assert.equal(attr(select, 'class'), 'pdf-select');
   assert.equal(attr(select, 'aria-label'), 'Documento de Enunciado');
-  const open = built.children[2], toggle = built.children[3], shot = built.children[4], collapse = built.children[5];
+  const open = built.children[2], toggle = built.children[3], shot = built.children[4], back = built.children[5], nav = built.children[6], collapse = built.children[7];
   assert.equal(attr(open, 'class'), 'open icon-btn');
   assert.equal(attr(open, 'data-icon'), 'plus');
   assert.equal(attr(open, 'title'), 'Abrir outro PDF');
@@ -84,11 +84,21 @@ test('titleBar: rótulo, select, botões de ícone e estado de minimizar/busca',
   assert.equal(attr(toggle, 'aria-pressed'), 'false');
   assert.equal(attr(shot, 'class'), 'page-shot icon-btn');
   assert.equal(attr(shot, 'title'), 'Mandar esta página como imagem no chat');
+  assert.equal(attr(back, 'class'), 'back icon-btn');
+  assert.equal(attr(back, 'data-icon'), 'chevronLeft');
+  assert.equal(attr(back, 'title'), 'Voltar à página anterior');
+  assert.equal(attr(back, 'aria-label'), 'Voltar à página anterior de Enunciado');
+  assert.equal(attr(back, 'hidden'), '');
+  assert.equal(attr(nav, 'class'), 'nav icon-btn');
+  assert.equal(attr(nav, 'data-icon'), 'book');
+  assert.equal(attr(nav, 'title'), 'Favoritos e sumário');
+  assert.equal(attr(nav, 'aria-label'), 'Navegar em Enunciado');
+  assert.equal(attr(nav, 'aria-expanded'), 'false');
   assert.equal(attr(collapse, 'class'), 'collapse icon-btn');
   assert.equal(attr(collapse, 'title'), 'Minimizar este leitor');
   assert.equal(attr(collapse, 'data-icon'), 'chevronDown');
   const minimized = build(pdfPage.titleBar(shell({minimized: true, findOpen: true})), {});
-  const collapsed = minimized.children[5], pressed = minimized.children[3];
+  const collapsed = minimized.children[7], pressed = minimized.children[3];
   assert.equal(attr(collapsed, 'aria-pressed'), 'true');
   assert.equal(attr(collapsed, 'title'), 'Restaurar este leitor');
   assert.equal(attr(collapsed, 'data-icon'), 'chevronUp');
@@ -206,7 +216,7 @@ test('renderInto aplica a moldura no viewport como o host faz', () => {
 
 test('os handlers do painel vêm ligados na árvore (tabela do host)', () => {
   const handlers = {
-    OpenFile() {}, ToggleFind() {}, PageShot() {}, ToggleCollapse() {},
+    OpenFile() {}, ToggleFind() {}, PageShot() {}, ToggleCollapse() {}, NavBack() {}, ToggleNav() {},
     OpenDoc() {}, GotoPage() {}, Prev() {}, Next() {}, ZoomOut() {}, ZoomIn() {},
     Fit() {}, ToggleInvert() {}, Find() {},
   };
@@ -216,7 +226,9 @@ test('os handlers do painel vêm ligados na árvore (tabela do host)', () => {
   assert.equal(title.children[2].listeners.get('click'), handlers.OpenFile);
   assert.equal(title.children[3].listeners.get('click'), handlers.ToggleFind);
   assert.equal(title.children[4].listeners.get('click'), handlers.PageShot);
-  assert.equal(title.children[5].listeners.get('click'), handlers.ToggleCollapse);
+  assert.equal(title.children[5].listeners.get('click'), handlers.NavBack);
+  assert.equal(title.children[6].listeners.get('click'), handlers.ToggleNav);
+  assert.equal(title.children[7].listeners.get('click'), handlers.ToggleCollapse);
   assert.equal(tools.children[0].listeners.get('click'), handlers.Prev);
   assert.equal(tools.children[1].listeners.get('change'), handlers.GotoPage);
   assert.equal(tools.children[3].listeners.get('click'), handlers.Next);

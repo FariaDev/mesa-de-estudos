@@ -112,10 +112,45 @@ law pdfpage_title_class:
   {V.attrGet(V.attrsOf(G.titleBar(shellConcrete())), "class") == Some{"pdf-title"} : Maybe<&2, String>}
 
 law pdfpage_title_kids:
-  {List.length(&2, V.ViewNode, V.kidsOf(G.titleBar(shellConcrete()))) == 6n : Nat}
+  {List.length(&2, V.ViewNode, V.kidsOf(G.titleBar(shellConcrete()))) == 8n : Nat}
 
 law pdfpage_title_strong:
   {V.tagOf(kidAt(V.kidsOf(G.titleBar(shellConcrete())), 0n)) == "strong" : String}
+
+# O Voltar nasce escondido e é do host (a pilha de páginas é dele).
+law pdfpage_back_class:
+  {V.attrGet(V.attrsOf(G.backBtn("Enunciado")), "class") == Some{"back icon-btn"} : Maybe<&2, String>}
+
+law pdfpage_back_oculto:
+  {V.attrGet(V.attrsOf(G.backBtn("Enunciado")), "hidden") == Some{""} : Maybe<&2, String>}
+
+law pdfpage_back_clique:
+  {V.attrGet(V.attrsOf(G.backBtn("Enunciado")), "on:click") == Some{"NavBack"} : Maybe<&2, String>}
+
+law pdfpage_back_aria:
+  {V.attrGet(V.attrsOf(G.backBtn("Enunciado")), "aria-label") == Some{"Voltar à página anterior de Enunciado"} : Maybe<&2, String>}
+
+law pdfpage_back_rotulo:
+  {String.eq(G.navBackTitle(), "Voltar à página anterior") == True{} : Bool}
+
+# O Navegar (favoritos/sumário) nasce fechado e é do host.
+law pdfpage_nav_class:
+  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "class") == Some{"nav icon-btn"} : Maybe<&2, String>}
+
+law pdfpage_nav_icon:
+  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "data-icon") == Some{"book"} : Maybe<&2, String>}
+
+law pdfpage_nav_titulo:
+  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "title") == Some{"Favoritos e sumário"} : Maybe<&2, String>}
+
+law pdfpage_nav_aria:
+  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "aria-label") == Some{"Navegar em Enunciado"} : Maybe<&2, String>}
+
+law pdfpage_nav_clique:
+  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "on:click") == Some{"ToggleNav"} : Maybe<&2, String>}
+
+law pdfpage_nav_expandido:
+  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "aria-expanded") == Some{"false"} : Maybe<&2, String>}
 
 law pdfpage_open_btn:
   {V.attrGet(V.attrsOf(G.openBtn("Enunciado")), "class") == Some{"open icon-btn"} : Maybe<&2, String>}

@@ -8,6 +8,8 @@ import fs from 'node:fs';
 // - rpc-timeout:  atrasa UMA resposta de get_state além do timeout do ping de saúde; o atraso
 //                 pode ser encurtado por FAKE_PI_TIMEOUT_MS (default 30000, mínimo 21000 para
 //                 continuar acima do timeout real de 20s do pi-health);
+// - state-fail:   aceita o prompt e recusa UMA leitura de get_state logo depois (a leitura que
+//                 o main faz após o aceite): a entrega está feita e a falha é só do estado;
 // - stall:        responde o prompt, reporta streaming por 65s e depois fica mudo (nenhum
 //                 agent_end); o watchdog destrava por volta de 105s — modo do test:watchdog.
 const CHAOS=String(process.env.FAKE_PI_CHAOS||'').split(',').map(v=>v.trim()).filter(Boolean);
@@ -28,9 +30,50 @@ function chaosArmed(key){
  return true;
 }
 let stallUntil=0,timeoutPending=false;
+/* `state-fail`: armado quando um prompt é ACEITO; a próxima leitura de estado
+   (a que o main faz logo depois do aceite) é recusada uma vez. */
+let stateFailArmed=false;
+
+/* Modo fila/steer (FAKE_PI_QUEUE_LOG, usado pelo hunt-queue): grava cada prompt
+   com o `streamingBehavior` recebido, segura o turno aberto por
+   FAKE_PI_QUEUE_HOLD_MS (default 1200) e responde `eco: <texto>`; um prompt com
+   `steer` derruba o turno em curso (agent_end) e responde na hora, e `abort`
+   encerra o turno segurado — como o Pi real. Um prompt com `«cai»` mata o
+   processo com o pedido em voo (a Mesa precisa recusar o envio sem perder a
+   fila). Fora desse modo nada muda. */
+const QUEUE_LOG=process.env.FAKE_PI_QUEUE_LOG||'';
+const QUEUE_HOLD=Number(process.env.FAKE_PI_QUEUE_HOLD_MS)||1200;
+let streaming=false,holdTimer=0;
+function queueRecord(e){
+ if(!QUEUE_LOG)return;
+ /* `images` entra na conta para o hunt-queue provar que o anexo do item
+    guardado chegou ao Pi depois de fechar/reabrir o app. */
+ try{fs.appendFileSync(QUEUE_LOG,JSON.stringify({message:e.message,streamingBehavior:e.streamingBehavior||'',inFlight:!!holdTimer||streaming,images:Array.isArray(e.images)?e.images.length:0})+'\n');}catch{}
+}
+function queuePrompt(e){
+ const text=String(e.message||'');
+ const steer=e.streamingBehavior==='steer';
+ queueRecord(e);
+ if(session&&text)fs.appendFileSync(session,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text}]}})+'\n');
+ if(steer&&holdTimer){clearTimeout(holdTimer);holdTimer=0;}
+ if(steer&&streaming){streaming=false;emit({type:'agent_end'});}
+ reply(e,{});
+ stateFailArmed=chaosArmed('state-fail');
+ if(text.includes('«cai»')){setTimeout(()=>process.exit(7),120);return;}
+ /* `streaming` ligado já na resposta: o `get_state` que o main pede logo depois
+    do prompt é o que decide se a Mesa segue ocupada. */
+ streaming=true;
+ const body=`eco: ${text.split('\n')[0]}`;
+ holdTimer=setTimeout(()=>{
+  holdTimer=0;streaming=false;
+  emit({type:'agent_start'});
+  emitText(body);
+ },steer?80:QUEUE_HOLD);
+}
 
 const model={provider:'test',id:'offline',name:'Pi de teste',input:['text','image']};
 function reply(e,data){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:true,data})+'\n');}
+function refuse(e,error){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:false,error})+'\n');}
 function emit(event){process.stdout.write(JSON.stringify(event)+'\n');}
 function emitText(text){
  emit({type:'message_start',message:{role:'assistant'}});
@@ -123,23 +166,35 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
  if(e.type==='extension_ui_response'){if(pendingQuiz&&e.id===pendingQuiz.uiId)gradeQuiz(e);continue;}
  if(e.type==='get_commands')reply(e,{commands:[{name:'help',description:'Mostrar os comandos',argumentHint:'[assunto]'}]});
  else if(e.type==='get_state'){
+  if(stateFailArmed){
+   stateFailArmed=false;
+   refuse(e,'estado da sessão indisponível (teste)');
+   return;
+  }
   const late=(CHAOS.includes('rpc-timeout')&&!chaosWas('rpc-timeout')&&Date.now()-bootAt>10000)||timeoutPending;
   if(late){
    timeoutPending=true;
    setTimeout(()=>{timeoutPending=false;reply(e,{model,thinkingLevel:'off',isStreaming:stallUntil>Date.now(),pendingMessageCount:0,autoCompactionEnabled:autoCompaction});},TIMEOUT_DELAY);
    return;
   }
-  reply(e,{model,thinkingLevel:'off',isStreaming:stallUntil>Date.now(),pendingMessageCount:0,autoCompactionEnabled:autoCompaction});
+  reply(e,{model,thinkingLevel:'off',isStreaming:streaming||stallUntil>Date.now(),pendingMessageCount:0,autoCompactionEnabled:autoCompaction});
  }
  else if(e.type==='set_auto_compaction'){autoCompaction=!!e.enabled;reply(e,{});}
  else if(e.type==='get_session_stats'){const n=messages().length;const tokens=12000+n*5000;reply(e,{contextUsage:{tokens,contextWindow:200000,percent:Math.min(99,tokens/1000)}});}
  else if(e.type==='get_messages')reply(e,{messages:messages()});
  else if(e.type==='get_available_models')reply(e,{models:[model]});
  else if(e.type==='compact')reply(e,{summary:'Resumo da conversa de teste.',firstKeptEntryId:'x',tokensBefore:12000+messages().length*180});
+ else if(QUEUE_LOG&&e.type==='abort'){
+  reply(e,{});
+  if(holdTimer){clearTimeout(holdTimer);holdTimer=0;}
+  if(streaming){streaming=false;setTimeout(()=>emit({type:'agent_end'}),80);}
+ }
  else if(e.type==='prompt'){
+  if(QUEUE_LOG){queuePrompt(e);return;}
   const content=[{type:'text',text:e.message}];
   if(Array.isArray(e.images))content.push(...e.images);
   fs.appendFileSync(session,JSON.stringify({type:'message',message:{role:'user',content}})+'\n');reply(e,{});
+  stateFailArmed=chaosArmed('state-fail');
   if(chaosArmed('stream-abort'))abortMidStream();
   else if(chaosArmed('desk-error'))deskErrorMidStream();
   else if(chaosArmed('stall'))stallMidStream();

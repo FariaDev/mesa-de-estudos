@@ -18,324 +18,324 @@ function run_loop(r) {
 function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
-function $usedAt$(used_0, i_0) {
-  if (used_0.$ === "Nil") {
+function $usedAt$(_used_0, _i_0) {
+  if (_used_0.$ === "Nil") {
     return false;
   } else {
-    const u_0 = used_0.head;
-    const t_0 = used_0.tail;
-    if (i_0 === 0n) {
-      return u_0;
+    const _u_0 = _used_0["head"];
+    const _t_0 = _used_0["tail"];
+    if (_i_0 === 0n) {
+      return _u_0;
     } else {
-      const p_0 = i_0 - 1n;
-      return run_jump($usedAt$, [t_0, p_0]);
+      const _p_0 = _i_0 - 1n;
+      return run_jump($usedAt$, [_t_0, _p_0]);
     }
   }
 }
-function $markAt$(used_0, i_0) {
-  if (used_0.$ === "Nil") {
+function $markAt$(_used_0, _i_0) {
+  if (_used_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
-    const u_0 = used_0.head;
-    const t_0 = used_0.tail;
-    if (i_0 === 0n) {
-      return { $: "Con", ["head"]: true, ["tail"]: t_0 };
+    const _u_0 = _used_0["head"];
+    const _t_0 = _used_0["tail"];
+    if (_i_0 === 0n) {
+      return { $: "Con", ["head"]: true, ["tail"]: _t_0 };
     } else {
-      const p_0 = i_0 - 1n;
-      return { $: "Con", ["head"]: u_0, ["tail"]: run_loop($markAt$(t_0, p_0)) };
+      const _p_0 = _i_0 - 1n;
+      return { $: "Con", ["head"]: _u_0, ["tail"]: run_loop($markAt$(_t_0, _p_0)) };
     }
   }
 }
-function $inRange$(used_0, i_0) {
-  if (used_0.$ === "Nil") {
+function $inRange$(_used_0, _i_0) {
+  if (_used_0.$ === "Nil") {
     return false;
   } else {
-    const u_0 = used_0.head;
-    const t_0 = used_0.tail;
-    if (i_0 === 0n) {
+    const _u_0 = _used_0["head"];
+    const _t_0 = _used_0["tail"];
+    if (_i_0 === 0n) {
       return true;
     } else {
-      const p_0 = i_0 - 1n;
-      return run_jump($inRange$, [t_0, p_0]);
+      const _p_0 = _i_0 - 1n;
+      return run_jump($inRange$, [_t_0, _p_0]);
     }
   }
 }
-function $bump$(m_0) {
-  if (m_0.$ === "None") {
+function $bump$(_m_0) {
+  if (_m_0.$ === "None") {
     return { $: "None" };
   } else {
-    const i_0 = m_0.value;
-    return { $: "Some", ["value"]: nat_chk(i_0 + 1n) };
+    const _i_0 = _m_0["value"];
+    return { $: "Some", ["value"]: nat_chk(_i_0 + 1n) };
   }
 }
-function $selfOf$(x_0) {
-  const s_0 = x_0.self;
-  const o_0 = x_0.other;
-  return s_0;
+function $selfOf$(_x_0) {
+  const _s_0 = _x_0["self"];
+  const _o_0 = _x_0["other"];
+  return _s_0;
 }
-function $otherOf$(x_0) {
-  const s_0 = x_0.self;
-  const o_0 = x_0.other;
-  return o_0;
+function $otherOf$(_x_0) {
+  const _s_0 = _x_0["self"];
+  const _o_0 = _x_0["other"];
+  return _o_0;
 }
-function $selfAt$(xs_0, i_0) {
-  if (xs_0.$ === "Nil") {
+function $selfAt$(_xs_0, _i_0) {
+  if (_xs_0.$ === "Nil") {
     return false;
   } else {
-    const x_0 = xs_0.head;
-    const t_0 = xs_0.tail;
-    if (i_0 === 0n) {
-      return run_jump($selfOf$, [x_0]);
+    const _x_0 = _xs_0["head"];
+    const _t_0 = _xs_0["tail"];
+    if (_i_0 === 0n) {
+      return run_jump($selfOf$, [_x_0]);
     } else {
-      const p_0 = i_0 - 1n;
-      return run_jump($selfAt$, [t_0, p_0]);
+      const _p_0 = _i_0 - 1n;
+      return run_jump($selfAt$, [_t_0, _p_0]);
     }
   }
 }
-function $otherAt$(xs_0, i_0) {
-  if (xs_0.$ === "Nil") {
+function $otherAt$(_xs_0, _i_0) {
+  if (_xs_0.$ === "Nil") {
     return false;
   } else {
-    const x_0 = xs_0.head;
-    const t_0 = xs_0.tail;
-    if (i_0 === 0n) {
-      return run_jump($otherOf$, [x_0]);
+    const _x_0 = _xs_0["head"];
+    const _t_0 = _xs_0["tail"];
+    if (_i_0 === 0n) {
+      return run_jump($otherOf$, [_x_0]);
     } else {
-      const p_0 = i_0 - 1n;
-      return run_jump($otherAt$, [t_0, p_0]);
+      const _p_0 = _i_0 - 1n;
+      return run_jump($otherAt$, [_t_0, _p_0]);
     }
   }
 }
-function $hasFreeSelf$(xs_0, used_0) {
-  if (xs_0.$ === "Nil") {
+function $hasFreeSelf$(_xs_0, _used_0) {
+  if (_xs_0.$ === "Nil") {
     return false;
   } else {
-    const __0 = xs_0.head;
-    const __1 = xs_0.tail;
-    if (used_0.$ === "Nil") {
+    const __0 = _xs_0["head"];
+    const __1 = _xs_0["tail"];
+    if (_used_0.$ === "Nil") {
       return false;
     } else {
-      const u_0 = used_0.head;
-      const ut_0 = used_0.tail;
-      const x_0 = run_loop($Bool$and$(run_loop($Bool$not$(u_0)), run_loop($selfOf$(__0))));
-      const x_1 = run_loop($hasFreeSelf$(__1, ut_0));
-      return x_0 || x_1;
+      const _u_0 = _used_0["head"];
+      const _ut_0 = _used_0["tail"];
+      const _x_0 = run_loop($Bool$and$(run_loop($Bool$not$(_u_0)), run_loop($selfOf$(__0))));
+      const _x_1 = run_loop($hasFreeSelf$(__1, _ut_0));
+      return _x_0 || _x_1;
     }
   }
 }
-function $hasFreeOther$(xs_0, used_0) {
-  if (xs_0.$ === "Nil") {
+function $hasFreeOther$(_xs_0, _used_0) {
+  if (_xs_0.$ === "Nil") {
     return false;
   } else {
-    const __0 = xs_0.head;
-    const __1 = xs_0.tail;
-    if (used_0.$ === "Nil") {
+    const __0 = _xs_0["head"];
+    const __1 = _xs_0["tail"];
+    if (_used_0.$ === "Nil") {
       return false;
     } else {
-      const u_0 = used_0.head;
-      const ut_0 = used_0.tail;
-      const x_0 = run_loop($Bool$and$(run_loop($Bool$not$(u_0)), run_loop($Bool$not$(run_loop($otherOf$(__0))))));
-      const x_1 = run_loop($hasFreeOther$(__1, ut_0));
-      return x_0 || x_1;
+      const _u_0 = _used_0["head"];
+      const _ut_0 = _used_0["tail"];
+      const _x_0 = run_loop($Bool$and$(run_loop($Bool$not$(_u_0)), run_loop($Bool$not$(run_loop($otherOf$(__0))))));
+      const _x_1 = run_loop($hasFreeOther$(__1, _ut_0));
+      return _x_0 || _x_1;
     }
   }
 }
-function $hasFree$(xs_0, used_0) {
-  if (xs_0.$ === "Nil") {
+function $hasFree$(_xs_0, _used_0) {
+  if (_xs_0.$ === "Nil") {
     return false;
   } else {
-    const __0 = xs_0.head;
-    const __1 = xs_0.tail;
-    if (used_0.$ === "Nil") {
+    const __0 = _xs_0["head"];
+    const __1 = _xs_0["tail"];
+    if (_used_0.$ === "Nil") {
       return false;
     } else {
-      const u_0 = used_0.head;
-      const ut_0 = used_0.tail;
-      const x_0 = run_loop($Bool$not$(u_0));
-      const x_1 = run_loop($hasFree$(__1, ut_0));
-      return x_0 || x_1;
+      const _u_0 = _used_0["head"];
+      const _ut_0 = _used_0["tail"];
+      const _x_0 = run_loop($Bool$not$(_u_0));
+      const _x_1 = run_loop($hasFree$(__1, _ut_0));
+      return _x_0 || _x_1;
     }
   }
 }
-function $pickSelf$(xs_0, used_0) {
-  if (xs_0.$ === "Nil") {
+function $pickSelf$(_xs_0, _used_0) {
+  if (_xs_0.$ === "Nil") {
     return { $: "None" };
   } else {
-    const _t_0 = xs_0.head;
-    const _t_1 = _t_0.self;
+    const _t_0 = _xs_0["head"];
+    const _t_1 = _t_0["self"];
     if (_t_1) {
-      const o_0 = _t_0.other;
-      const t_0 = xs_0.tail;
-      if (used_0.$ === "Nil") {
+      const _o_0 = _t_0["other"];
+      const _t_2 = _xs_0["tail"];
+      if (_used_0.$ === "Nil") {
         return { $: "None" };
       } else {
-        const _t_2 = used_0.head;
-        if (_t_2) {
-          const ut_0 = used_0.tail;
-          return run_jump($bump$, [run_loop($pickSelf$(t_0, ut_0))]);
+        const _t_3 = _used_0["head"];
+        if (_t_3) {
+          const _ut_0 = _used_0["tail"];
+          return run_jump($bump$, [run_loop($pickSelf$(_t_2, _ut_0))]);
         } else {
-          const ut_1 = used_0.tail;
+          const _ut_1 = _used_0["tail"];
           return { $: "Some", ["value"]: 0n };
         }
       }
     } else {
-      const o_1 = _t_0.other;
-      const t_1 = xs_0.tail;
-      if (used_0.$ === "Nil") {
+      const _o_1 = _t_0["other"];
+      const _t_4 = _xs_0["tail"];
+      if (_used_0.$ === "Nil") {
         return { $: "None" };
       } else {
-        const u_0 = used_0.head;
-        const ut_2 = used_0.tail;
-        return run_jump($bump$, [run_loop($pickSelf$(t_1, ut_2))]);
+        const _u_0 = _used_0["head"];
+        const _ut_2 = _used_0["tail"];
+        return run_jump($bump$, [run_loop($pickSelf$(_t_4, _ut_2))]);
       }
     }
   }
 }
-function $pickOther$(xs_0, used_0) {
-  if (xs_0.$ === "Nil") {
+function $pickOther$(_xs_0, _used_0) {
+  if (_xs_0.$ === "Nil") {
     return { $: "None" };
   } else {
-    const _t_0 = xs_0.head;
-    const s_0 = _t_0.self;
-    const _t_1 = _t_0.other;
+    const _t_0 = _xs_0["head"];
+    const _s_0 = _t_0["self"];
+    const _t_1 = _t_0["other"];
     if (!_t_1) {
-      const t_0 = xs_0.tail;
-      if (used_0.$ === "Nil") {
+      const _t_2 = _xs_0["tail"];
+      if (_used_0.$ === "Nil") {
         return { $: "None" };
       } else {
-        const _t_2 = used_0.head;
-        if (_t_2) {
-          const ut_0 = used_0.tail;
-          return run_jump($bump$, [run_loop($pickOther$(t_0, ut_0))]);
+        const _t_3 = _used_0["head"];
+        if (_t_3) {
+          const _ut_0 = _used_0["tail"];
+          return run_jump($bump$, [run_loop($pickOther$(_t_2, _ut_0))]);
         } else {
-          const ut_1 = used_0.tail;
+          const _ut_1 = _used_0["tail"];
           return { $: "Some", ["value"]: 0n };
         }
       }
     } else {
-      const t_1 = xs_0.tail;
-      if (used_0.$ === "Nil") {
+      const _t_4 = _xs_0["tail"];
+      if (_used_0.$ === "Nil") {
         return { $: "None" };
       } else {
-        const u_0 = used_0.head;
-        const ut_2 = used_0.tail;
-        return run_jump($bump$, [run_loop($pickOther$(t_1, ut_2))]);
+        const _u_0 = _used_0["head"];
+        const _ut_2 = _used_0["tail"];
+        return run_jump($bump$, [run_loop($pickOther$(_t_4, _ut_2))]);
       }
     }
   }
 }
-function $pickFree$(xs_0, used_0) {
-  if (xs_0.$ === "Nil") {
+function $pickFree$(_xs_0, _used_0) {
+  if (_xs_0.$ === "Nil") {
     return { $: "None" };
   } else {
-    const x_0 = xs_0.head;
-    const t_0 = xs_0.tail;
-    if (used_0.$ === "Nil") {
+    const _x_0 = _xs_0["head"];
+    const _t_0 = _xs_0["tail"];
+    if (_used_0.$ === "Nil") {
       return { $: "None" };
     } else {
-      const _t_0 = used_0.head;
-      if (_t_0) {
-        const ut_0 = used_0.tail;
-        return run_jump($bump$, [run_loop($pickFree$(t_0, ut_0))]);
+      const _t_1 = _used_0["head"];
+      if (_t_1) {
+        const _ut_0 = _used_0["tail"];
+        return run_jump($bump$, [run_loop($pickFree$(_t_0, _ut_0))]);
       } else {
-        const ut_1 = used_0.tail;
+        const _ut_1 = _used_0["tail"];
         return { $: "Some", ["value"]: 0n };
       }
     }
   }
 }
-function $pickStep$choice$after$(other_0, free_0) {
-  if (other_0.$ === "Some") {
-    const i_0 = other_0.value;
-    return { $: "Some", ["value"]: i_0 };
+function $pickStep$choice$after$(_other_0, _free_0) {
+  if (_other_0.$ === "Some") {
+    const _i_0 = _other_0["value"];
+    return { $: "Some", ["value"]: _i_0 };
   } else {
-    return free_0;
+    return _free_0;
   }
 }
-function $pickStep$choice$(self_0, other_0, free_0) {
-  if (self_0.$ === "Some") {
-    const i_0 = self_0.value;
-    return { $: "Some", ["value"]: i_0 };
+function $pickStep$choice$(_self_0, _other_0, _free_0) {
+  if (_self_0.$ === "Some") {
+    const _i_0 = _self_0["value"];
+    return { $: "Some", ["value"]: _i_0 };
   } else {
-    return run_jump($pickStep$choice$after$, [other_0, free_0]);
+    return run_jump($pickStep$choice$after$, [_other_0, _free_0]);
   }
 }
-function $pickStep$after$(at_0, used_0) {
-  if (at_0.$ === "None") {
-    return { $: "Step", ["at"]: { $: "None" }, ["used"]: used_0 };
+function $pickStep$after$(_at_0, _used_0) {
+  if (_at_0.$ === "None") {
+    return { $: "Step", ["at"]: { $: "None" }, ["used"]: _used_0 };
   } else {
-    const i_0 = at_0.value;
-    return { $: "Step", ["at"]: { $: "Some", ["value"]: i_0 }, ["used"]: run_loop($markAt$(used_0, i_0)) };
+    const _i_0 = _at_0["value"];
+    return { $: "Step", ["at"]: { $: "Some", ["value"]: _i_0 }, ["used"]: run_loop($markAt$(_used_0, _i_0)) };
   }
 }
-function $pickStep$(xs_0, used_0) {
-  return run_jump($pickStep$after$, [run_loop($pickStep$choice$(run_loop($pickSelf$(xs_0, used_0)), run_loop($pickOther$(xs_0, used_0)), run_loop($pickFree$(xs_0, used_0)))), used_0]);
+function $pickStep$(_xs_0, _used_0) {
+  return run_jump($pickStep$after$, [run_loop($pickStep$choice$(run_loop($pickSelf$(_xs_0, _used_0)), run_loop($pickOther$(_xs_0, _used_0)), run_loop($pickFree$(_xs_0, _used_0)))), _used_0]);
 }
-function $stepAcc$after$(step_0, acc_0) {
-  const at_0 = step_0.at;
-  const used1_0 = step_0.used;
-  return { $: "Acc", ["used"]: used1_0, ["at"]: { $: "Con", ["head"]: at_0, ["tail"]: acc_0 } };
+function $stepAcc$after$(_step_0, _acc_0) {
+  const _at_0 = _step_0["at"];
+  const _used1_0 = _step_0["used"];
+  return { $: "Acc", ["used"]: _used1_0, ["at"]: { $: "Con", ["head"]: _at_0, ["tail"]: _acc_0 } };
 }
-function $stepAcc$(panel_0, st_0) {
-  const used_0 = st_0.used;
-  const at_0 = st_0.at;
-  return run_jump($stepAcc$after$, [run_loop($pickStep$(panel_0, used_0)), at_0]);
+function $stepAcc$(_panel_0, _st_0) {
+  const _used_0 = _st_0["used"];
+  const _at_0 = _st_0["at"];
+  return run_jump($stepAcc$after$, [run_loop($pickStep$(_panel_0, _used_0)), _at_0]);
 }
-function $pickAll$rev$(st_0) {
-  const used_0 = st_0.used;
-  const at_0 = st_0.at;
-  return { $: "Picks", ["at"]: run_loop($List$reverse$(at_0)), ["used"]: used_0 };
+function $pickAll$rev$(_st_0) {
+  const _used_0 = _st_0["used"];
+  const _at_0 = _st_0["at"];
+  return { $: "Picks", ["at"]: run_loop($List$reverse$(_at_0)), ["used"]: _used_0 };
 }
-function $pickAll$go$(panels_0, st_0) {
-  if (panels_0.$ === "Nil") {
-    return st_0;
+function $pickAll$go$(_panels_0, _st_0) {
+  if (_panels_0.$ === "Nil") {
+    return _st_0;
   } else {
-    const p_0 = panels_0.head;
-    const rest_0 = panels_0.tail;
-    return run_jump($pickAll$go$, [rest_0, run_loop($stepAcc$(p_0, st_0))]);
+    const _p_0 = _panels_0["head"];
+    const _rest_0 = _panels_0["tail"];
+    return run_jump($pickAll$go$, [_rest_0, run_loop($stepAcc$(_p_0, _st_0))]);
   }
 }
-function $pickAll$(panels_0, used_0) {
-  return run_jump($pickAll$rev$, [run_loop($pickAll$go$(panels_0, { $: "Acc", ["used"]: used_0, ["at"]: { $: "Nil" } }))]);
+function $pickAll$(_panels_0, _used_0) {
+  return run_jump($pickAll$rev$, [run_loop($pickAll$go$(_panels_0, { $: "Acc", ["used"]: _used_0, ["at"]: { $: "Nil" } }))]);
 }
-function $emptyMask$(n_0) {
-  return run_jump($List$replicate$, [n_0, false]);
+function $emptyMask$(_n_0) {
+  return run_jump($List$replicate$, [_n_0, false]);
 }
-function $pickFresh$(panels_0, n_0) {
-  return run_jump($pickAll$, [panels_0, run_loop($emptyMask$(n_0))]);
+function $pickFresh$(_panels_0, _n_0) {
+  return run_jump($pickAll$, [_panels_0, run_loop($emptyMask$(_n_0))]);
 }
-function $Bool$and$(a_0, b_0) {
-  if (!a_0) {
+function $Bool$and$(_a_0, _b_0) {
+  if (!_a_0) {
     return false;
   } else {
-    return b_0;
+    return _b_0;
   }
 }
-function $Bool$not$(b_0) {
-  if (!b_0) {
+function $Bool$not$(_b_0) {
+  if (!_b_0) {
     return true;
   } else {
     return false;
   }
 }
-function $List$reverse$(xs_0) {
-  return run_jump($List$reverse$go$, [xs_0, { $: "Nil" }]);
+function $List$reverse$(_xs_0) {
+  return run_jump($List$reverse$go$, [_xs_0, { $: "Nil" }]);
 }
-function $List$replicate$(n_0, x_0) {
-  if (n_0 === 0n) {
+function $List$replicate$(_n_0, _x_0) {
+  if (_n_0 === 0n) {
     return { $: "Nil" };
   } else {
-    const p_0 = n_0 - 1n;
-    return { $: "Con", ["head"]: x_0, ["tail"]: run_loop($List$replicate$(p_0, x_0)) };
+    const _p_0 = _n_0 - 1n;
+    return { $: "Con", ["head"]: _x_0, ["tail"]: run_loop($List$replicate$(_p_0, _x_0)) };
   }
 }
-function $List$reverse$go$(xs_0, acc_0) {
-  if (xs_0.$ === "Nil") {
-    return acc_0;
+function $List$reverse$go$(_xs_0, _acc_0) {
+  if (_xs_0.$ === "Nil") {
+    return _acc_0;
   } else {
-    const h_0 = xs_0.head;
-    const t_0 = xs_0.tail;
-    return run_jump($List$reverse$go$, [t_0, { $: "Con", ["head"]: h_0, ["tail"]: acc_0 }]);
+    const _h_0 = _xs_0["head"];
+    const _t_0 = _xs_0["tail"];
+    return run_jump($List$reverse$go$, [_t_0, { $: "Con", ["head"]: _h_0, ["tail"]: _acc_0 }]);
   }
 }
 var library_default = {
