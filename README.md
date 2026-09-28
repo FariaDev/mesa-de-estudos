@@ -8,9 +8,9 @@ Mesa de Estudos ("Study Desk") is a local Electron app built around a simple stu
 
 ## The desk
 
-<a href="docs/images/study-workspace.png"><img src="docs/images/study-workspace.png" alt="Mesa de Estudos with a practice PDF, a reference PDF, and a tutor conversation side by side"></a>
+<a href="docs/images/study-workspace.png"><img src="docs/images/study-workspace.png" alt="Mesa de Estudos with real calculus exercise and formula PDFs beside a tutor conversation with a rendered equation"></a>
 
-*Click the image to enlarge. This is the actual app with fictional PDFs and a scripted Pi test session. The interface is currently in Portuguese; the panel titles and sample materials here were configured for this demo.*
+*Click the image to enlarge. This is the actual app showing the author's calculus PDFs and a scripted Pi test session with rendered LaTeX. Only the screenshots are included here, not the PDF files. The interface is currently in Portuguese; the panel titles were configured for this demo.*
 
 The left reader holds the exercise. The middle reader holds a formula sheet or another reference. Each PDF has its own navigation, search, zoom, and page position. The conversation on the right knows the active subject, exercise, and open references when you choose to include them. A numeric calculator is available below it.
 
@@ -23,13 +23,13 @@ The left reader holds the exercise. The middle reader holds a formula sheet or a
 
 <img src="docs/images/tutor-and-context.png" alt="A demo conversation with the active exercise, PDF context, and a clickable page citation" width="480">
 
-*In this demo, the tutor points back to `Practice problems.pdf, p. 1`. The screenshot uses a test Pi session, not a claim about any model's accuracy.*
+*In this demo, the tutor renders a worked equation and points back to `Limites.pdf, p. 3`. The exchange uses a test Pi session, not a claim about any model's accuracy.*
 
 ### Save the sticking point
 
 The review notebook keeps a question, your attempt, what was difficult, and a link back to the page. From there you can ask for a similar problem or try again. “End for today” separately saves a local checkpoint with the next step, active exercise, and open pages so you can resume deliberately.
 
-<img src="docs/images/review-notebook.png" alt="A review notebook entry tied to the practice PDF" width="850">
+<img src="docs/images/review-notebook.png" alt="A review notebook entry tied to page 3 of the limits PDF" width="850">
 
 ## How it fits together
 
