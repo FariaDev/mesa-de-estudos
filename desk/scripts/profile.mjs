@@ -27,7 +27,7 @@ const profile = require(join(desk, 'profiles.cjs'));
 const {readConfig} = require(join(desk, 'config.cjs'));
 
 const asJson = process.argv.includes('--json');
-const pinned = process.argv.includes('--pinned');
+const pinned = !process.argv.includes('--inherited');
 
 function courseFlag() {
   const index = process.argv.indexOf('--course');
@@ -140,7 +140,10 @@ try {
   process.exit(1);
 }
 
-const {missing, extra} = profile.compare(profile.EXPECTED_ACTIVE, measured.activeTools);
+const native = name => name === 'codemode' || name === 'tool_search' || name.startsWith('mcp__') || ['list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource'].includes(name);
+const {missing, extra} = profile.compare(profile.EXPECTED_ACTIVE, measured.activeTools.filter(name => !native(name)));
+if (measured.tools.some(t => t.name.startsWith('mcp__') && ['codemode', 'deferred'].includes(t.exposure)) &&
+    !measured.activeTools.some(name => name === 'codemode' || name === 'tool_search')) missing.push('codemode ou tool_search (catálogo MCP inacessível)');
 const bySource = new Map();
 for (const tool of measured.tools) {
   const source = String(tool.source ?? '(sem origem)').replace(process.env.HOME || '', '~');

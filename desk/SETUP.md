@@ -8,6 +8,21 @@ A Mesa é um app Electron local: dois leitores de PDF, calculadora e Pi na mesma
 
 1. Node 22.19 ou mais novo (exigência do Pi).
 2. Uma pasta com os PDFs da matéria (enunciados, formulário, o que for).
+3. Pi **0.99.1 ou mais novo**. Os perfis usam `builtin:mcp`, `builtin:codemode` e `builtin:tool-search` explicitamente.
+
+### Migrar um Pi com pi-mcp-adapter
+
+Os servidores continuam em `~/.pi/agent/mcp.json`. Em `desk/`, rode
+`node scripts/migrate-native-mcp.mjs` para conferir e acrescente `--apply`
+para aplicar: o script guarda as settings originais em `~/.pi/agent/backups/`,
+remove apenas o pacote do adapter, habilita Codemode e descoberta com adições
+em `defaultTools` (mantendo a seleção existente) e instala uma política que preserva
+`approveTools` (incluindo chamadas dentro de Codemode). Não muda os servidores,
+o modelo, o esforço nem as credenciais. Reabra o app ou crie uma nova conexão.
+
+Para desfazer, restaure o `settings.json` do backup e remova apenas os arquivos
+listados em `migration.json` como criados pela migração. Não remova a pasta de
+servidores nem sessões. Sessões já abertas não são interrompidas pelo script.
 
 Não peça Homebrew nem o vault Obsidian de outra pessoa.
 

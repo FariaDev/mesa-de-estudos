@@ -8,6 +8,15 @@ import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
 const profile = require('../profiles.cjs');
+const {isReplaceable}=require('../updater.cjs');
+
+test('a política MCP viaja no ZIP reconhecido pelo updater da v0.4.4',()=>{
+  const policy=join(import.meta.dirname,'..','src','extensions','mcp-policy');
+  for(const name of ['index.ts','lib.mjs']){
+    assert.ok(existsSync(join(policy,name)));
+    assert.ok(isReplaceable(`desk/src/extensions/mcp-policy/${name}`));
+  }
+});
 
 /* Perfil da Mesa: a lista declarada é o contrato. O que estes testes garantem é
    a forma da lista e o recorte por existência — a fidelidade ao que o Pi carrega
@@ -29,7 +38,8 @@ test('pinnedArgs desliga a descoberta e declara cada extensão que existe', () =
     assert.ok(args.includes(join(root, 'ask-user', 'index.ts')), 'a extensão que existe entra');
     assert.ok(args.includes(join(root, 'browser', 'index.ts')), 'a segunda também');
     assert.ok(!args.some((a) => a.includes('subagents')), 'o que não existe fica de fora da linha de comando');
-    assert.ok(args.includes('npm:pi-mcp-adapter'), 'o pacote declarado nas settings entra');
+    assert.ok(!args.includes('npm:pi-mcp-adapter'), 'o adapter não pode substituir o MCP nativo');
+    for (const name of profile.BUILTIN_EXTENSIONS) assert.ok(args.includes(name));
   } finally {
     rmSync(home, {recursive: true, force: true});
   }
@@ -97,12 +107,13 @@ test('a lista declarada aponta para dentro da raiz de extensões', () => {
 
 test('o que não existe fica de fora da linha de comando', () => {
   /* Portável por construção: raiz inexistente ⇒ nada de `--extension`, e a
-     linha de comando continua válida (só `--no-extensions`). */
+     linha de comando usa apenas as extensões nativas e a política do app. */
   const home = mkdtempSync(join(tmpdir(), 'mesa-profile-clean-'));
   try {
     const args = profile.pinnedArgs({home, overlayDirs: [], settingsPath: join(home, 'settings.json')});
     assert.equal(args[0], '--no-extensions');
-    assert.ok(!args.includes('--extension'), 'checkout limpo não inventa caminho');
+    const loaded = args.filter((a, i) => args[i - 1] === '--extension');
+    assert.deepEqual(loaded, [...profile.BUILTIN_EXTENSIONS, join(import.meta.dirname, '..', 'src', 'extensions', 'mcp-policy')]);
   } finally {
     rmSync(home, {recursive: true, force: true});
   }

@@ -14,7 +14,7 @@ Mesa de Estudos                         Xournal++
 ## Requisitos
 
 - Node 22.19+ (exigência do Pi)
-- [Pi](https://github.com/earendil-works/pi) (o `npm run setup` tenta instalar)
+- [Pi](https://github.com/earendil-works/pi) **0.99.1+** (MCP e Codemode nativos; o `npm run setup` tenta instalar)
 - PDFs da matéria numa pasta qualquer
 
 ## Começar

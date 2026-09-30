@@ -148,6 +148,19 @@ law tp_mcp:
 law tp_mcp_script:
   {P.toolAllowed("mcpScript") == True{} : Bool}
 
+# Orquestrador nativo exato; não abre nomes arbitrários contendo codemode.
+law tp_codemode:
+  {P.toolAllowed("codemode") == True{} : Bool}
+
+law tp_codemode_shell:
+  {P.toolAllowed("codemode_shell") == False{} : Bool}
+
+law tp_native_search:
+  {P.toolAllowed("tool_search") == True{} : Bool}
+
+law tp_native_resource:
+  {P.toolAllowed("read_mcp_resource") == True{} : Bool}
+
 law tp_skill:
   {P.toolAllowed("skill:pdf-reader") == False{} : Bool}
 

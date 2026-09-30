@@ -43,7 +43,7 @@ There is no Mesa account or app telemetry. Study state and Pi session files are 
 
 ## Run it locally (optional)
 
-This repository shares the source; the GitHub release does not include a downloadable app installer. You need Node.js **22.19+**, PDFs for a subject, and a Pi provider login or API key. From the repository root:
+This repository shares the source; the GitHub release does not include a downloadable app installer. You need Node.js **22.19+**, PDFs for a subject, Pi **0.99.1+** (native MCP and Codemode), and a provider login or API key. From the repository root:
 
 ```sh
 cd desk
