@@ -2,7 +2,7 @@
 
 Aplicativo local de apoio ao Xournal++: dois PDFs independentes, calculadora e Pi na mesma janela. O Xournal++ continua separado, como editor de escrita. No Windows os PDFs, a calculadora, o Pi e o Conferir Xournal++ funcionam (a captura usa o PowerShell do sistema).
 
-Definição da Mesa: referências + Xournal++, sem canvas de tinta dentro do app. Veja a [apresentação com capturas](../README.md) e as [instruções para agentes](../AGENTS.md).
+Definição fechada em 2026-09-06: mesa de referências + Xournal++, não um canvas de tinta dentro do app. Ver [`../docs/START-HERE.md`](../docs/START-HERE.md) e [`../docs/DECISIONS.md`](../docs/DECISIONS.md).
 
 ## Uso
 

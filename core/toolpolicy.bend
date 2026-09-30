@@ -244,7 +244,8 @@ def isBrowser(+compact: String, +low: String) -> Bool:
   )
 
 def toolAllowed.keywords(n: String) -> Bool:
-  anyContains(strLower(n), allowedNeedles())
+  +low = strLower(n)
+  Bool.or(String.eq(low, "codemode"), anyContains(low, allowedNeedles()))
 
 def toolAllowed.browser.if(+n: String, blocked: Bool) -> Bool:
   match blocked:

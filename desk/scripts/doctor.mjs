@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
+import {spawnSync} from 'node:child_process';
 
 const require=createRequire(import.meta.url);
 const {readConfig,seedConfig}=require('../config.cjs');
@@ -26,6 +27,12 @@ const dependenciesReady=fs.existsSync(path.join(desk,'node_modules','electron'))
 check('Dependências da Mesa',dependenciesReady,dependenciesReady?'instaladas':'rode npm ci');
 const pi=resolvePi({configPath:config.piPath,deskDir:desk,envPath:process.env.LEARNING_DESK_PI||''});
 check('Executável do Pi',pi,pi||'rode npm run setup ou configure o caminho');
+if(pi){
+ const result=spawnSync(pi,['--version'],{encoding:'utf8',timeout:10000,shell:process.platform==='win32'&&/\.(cmd|bat)$/i.test(pi)});
+ const version=String(result.stdout||'').trim();
+ const [major,minor,patch]=version.split('.').map(Number);
+ check('Pi 0.99.1+ (MCP nativo)',result.status===0&&Number.isInteger(major)&&(major>0||minor>99||(minor===99&&patch>=1)),version||'não respondeu; atualize o Pi');
+}
 const vault=config.vaultPath;
 check('Vault / pasta de dados',vault&&fs.existsSync(vault),vault||'não configurado');
 for(const name of ['TUTOR.md','LEARNER.md'])check(`Política ${name}`,vault&&fs.existsSync(path.join(vault,name)),vault?path.join(vault,name):'vault não configurado');

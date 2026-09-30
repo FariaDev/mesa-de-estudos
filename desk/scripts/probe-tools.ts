@@ -8,7 +8,8 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const delay = Number(process.env.PROBE_DELAY_MS || "1500");
+// MCP conecta em segundo plano: não medir o catálogo no meio do handshake.
+const delay = Number(process.env.PROBE_DELAY_MS || "12000");
 
 export default function probe(pi: ExtensionAPI) {
 	pi.on("session_start", async () => {
@@ -17,6 +18,7 @@ export default function probe(pi: ExtensionAPI) {
 			try {
 				tools = pi.getAllTools().map((t: any) => ({
 					name: t.name,
+					exposure: t.exposure,
 					source: t.sourceInfo?.path ?? t.sourceInfo?.source ?? t.sourceInfo ?? null,
 				}));
 			} catch (error) {

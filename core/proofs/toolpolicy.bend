@@ -100,6 +100,18 @@ def Laws.tp_mcp():
 def Laws.tp_mcp_script():
   {==}
 
+def Laws.tp_codemode():
+  {==}
+
+def Laws.tp_codemode_shell():
+  {==}
+
+def Laws.tp_native_search():
+  {==}
+
+def Laws.tp_native_resource():
+  {==}
+
 def Laws.tp_skill():
   {==}
 

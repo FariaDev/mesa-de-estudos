@@ -13,8 +13,8 @@
  *
  * A trava vem LIGADA e `desk.pinnedExtensions: false` em config.json volta a
  * herdar a descoberta inteira. O default é este porque foi medido: o perfil
- * fixado reproduz exatamente o mesmo conjunto de ferramentas (36 registradas,
- * 21 ativas) da descoberta herdada — ver `npm run profile`. A descoberta de
+ * fixado preserva as extensões escolhidas pelo autor. Desde Pi 0.99.1, o MCP
+ * usa as extensões nativas, sem os proxies do adapter. A descoberta de
  * skills e de arquivos de contexto não passa por `--no-extensions`.
  */
 
@@ -52,16 +52,14 @@ const OVERLAY_EXTENSIONS = [
   'visual-check.ts',
 ];
 
-/* Pacotes das settings que a Mesa precisa (o `--no-extensions` os desliga junto). */
-const PACKAGES = ['npm:pi-mcp-adapter'];
+/* Pi >= 0.99.1: --no-extensions também desliga as extensões nativas. */
+const BUILTIN_EXTENSIONS = ['builtin:mcp', 'builtin:codemode', 'builtin:tool-search'];
+const PACKAGES = [];
 
-/* Medido numa sessão real de curso (sonda de diagnóstico, 2026-09-23): 36
-   ferramentas registradas, 21 ativas. Serve de linha de base para o verificador
-   — se a lista mudar, o relatório mostra. */
+/* Ferramentas próprias do perfil. O catálogo MCP é assíncrono e depende dos
+   servidores do usuário; a sonda o informa separado, sem fixar nomes locais. */
 const EXPECTED_ACTIVE = [
-  'ask_user', 'bash', 'edit', 'geogebra', 'mcp', 'mcpScript',
-  'mcp__anki', 'mcp__apple_mail', 'mcp__apple_notes', 'mcp__calendar',
-  'mcp__obsidian', 'mcp__youtube', 'obsidian-note', 'quiz', 'read',
+  'ask_user', 'bash', 'edit', 'geogebra', 'obsidian-note', 'quiz', 'read',
   'subagent_cancel', 'subagent_check', 'subagent_list', 'subagent_spawn',
   'subagent_wait', 'write',
 ];
@@ -112,6 +110,8 @@ function declaredPackages(settingsPath) {
 function pinnedArgs({home, overlayDirs, settingsPath} = {}) {
   const declared = declaredPackages(settingsPath || path.join(home || os.homedir(), '.pi', 'agent', 'settings.json'));
   const args = ['--no-extensions'];
+  for (const name of BUILTIN_EXTENSIONS) args.push('--extension', name);
+  args.push('--extension', path.join(__dirname, 'src', 'extensions', 'mcp-policy'));
   for (const file of [...globalExtensionPaths(home), ...overlayExtensionPaths(overlayDirs)]) {
     if (fs.existsSync(file)) args.push('--extension', file);
   }
@@ -130,7 +130,7 @@ function compare(expectedActive, observedActive) {
 }
 
 module.exports = {
-  GLOBAL_EXTENSIONS, PACKAGES, OVERLAY_EXTENSIONS,
+  GLOBAL_EXTENSIONS, PACKAGES, BUILTIN_EXTENSIONS, OVERLAY_EXTENSIONS,
   EXPECTED_ACTIVE, EXPECTED_INACTIVE,
   extensionsRoot, globalExtensionPaths, overlayExtensionPaths,
   declaredPackages, pinnedArgs, compare,

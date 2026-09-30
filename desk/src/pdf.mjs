@@ -30,7 +30,9 @@ async function cachedPdf(file){
  if(pdfInflight.has(file))return pdfInflight.get(file);
  const job=(async()=>{
   const bytes=await window.desk.readPDF(file);
-  const loading=pdfjs.getDocument({data:bytes,standardFontDataUrl:new URL('../node_modules/pdfjs-dist/standard_fonts/',import.meta.url).href,cMapUrl:new URL('../node_modules/pdfjs-dist/cmaps/',import.meta.url).href,cMapPacked:true});
+  // JBIG2/JPEG 2000 e perfis ICC precisam dos decodificadores locais. Sem
+  // wasmUrl o PDF.js pode concluir a página omitindo partes da imagem.
+  const loading=pdfjs.getDocument({data:bytes,standardFontDataUrl:new URL('../node_modules/pdfjs-dist/standard_fonts/',import.meta.url).href,cMapUrl:new URL('../node_modules/pdfjs-dist/cmaps/',import.meta.url).href,cMapPacked:true,wasmUrl:new URL('../node_modules/pdfjs-dist/wasm/',import.meta.url).href});
   const doc=await loading.promise;
   const hit={doc,loading};
   pdfCache.set(file,hit);

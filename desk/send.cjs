@@ -85,10 +85,12 @@ async function deliverPrompt({
     }
     claim.path = started.path;
   }
+  let disposition;
   let outcome = 'refused';
   let motivoDoEnvio = '';
   try {
-    await bridge.request('prompt', pedido);
+    const accepted = await bridge.request('prompt', pedido);
+    disposition = accepted?.disposition;
     outcome = 'accepted';
   } catch (error) {
     motivoDoEnvio = error?.message || String(error);
@@ -141,7 +143,7 @@ async function deliverPrompt({
     if (typeof onWarning === 'function') onWarning(aviso);
     return {streaming: undefined, warning: aviso};
   }
-  return {streaming: !!current?.isStreaming};
+  return {streaming: !!current?.isStreaming, ...(disposition ? {disposition} : {})};
 }
 
 module.exports = {deliverPrompt, avisoSemMarca, avisoPreservado, avisoDuvida};
