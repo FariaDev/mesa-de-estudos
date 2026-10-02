@@ -263,7 +263,8 @@ export async function send(text,images,options={}){
   setBusy(true);
   clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());stage='connect';await connect();stage='prompt';
   if(pending.length&&!S.supportsImages){setBusy(false);toast('Escolha um modelo com suporte a imagens para anexar.');return false;}
-  userMessage=message('user',text,pending.map(item=>item.dataUrl));$('#prompt').value='';
+  userMessage=message('user',text,pending.map(item=>item.dataUrl));
+  if(images===undefined&&$('#prompt').value===text)$('#prompt').value='';
   const result=await window.desk.prompt({text,refs:options.refs||refs(),images:pending.map(item=>typeof item==='string'?item:{dataUrl:item.dataUrl,capturedAt:item.capturedAt,exercise:item.exercise}),steer});
   if(result?.sent===false){knownNotSent=result.retryable===true;throw Error(result.error||'O Pi recusou a mensagem.');}
   if(images===undefined)clearAttachments(pending);

@@ -54,7 +54,6 @@ const OVERLAY_EXTENSIONS = [
 
 /* Pi >= 0.99.1: --no-extensions também desliga as extensões nativas. */
 const BUILTIN_EXTENSIONS = ['builtin:mcp', 'builtin:codemode', 'builtin:tool-search'];
-const PACKAGES = [];
 
 /* Ferramentas próprias do perfil. O catálogo MCP é assíncrono e depende dos
    servidores do usuário; a sonda o informa separado, sem fixar nomes locais. */
@@ -93,29 +92,18 @@ function overlayExtensionPaths(overlayDirs) {
   return out;
 }
 
-function declaredPackages(settingsPath) {
-  try {
-    const packages = JSON.parse(fs.readFileSync(settingsPath, 'utf8'))?.packages;
-    return Array.isArray(packages) ? packages.filter((p) => typeof p === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Argumentos de lançamento do perfil fixado. Só devolve as entradas que existem
  * — caminho inexistente na linha de comando é ruído, não intenção.
- * @param {{home?: string, overlayDirs?: string[], settingsPath?: string}} options
+ * @param {{home?: string, overlayDirs?: string[]}} options
  */
-function pinnedArgs({home, overlayDirs, settingsPath} = {}) {
-  const declared = declaredPackages(settingsPath || path.join(home || os.homedir(), '.pi', 'agent', 'settings.json'));
+function pinnedArgs({home, overlayDirs} = {}) {
   const args = ['--no-extensions'];
   for (const name of BUILTIN_EXTENSIONS) args.push('--extension', name);
   args.push('--extension', path.join(__dirname, 'src', 'extensions', 'mcp-policy'));
   for (const file of [...globalExtensionPaths(home), ...overlayExtensionPaths(overlayDirs)]) {
     if (fs.existsSync(file)) args.push('--extension', file);
   }
-  for (const pkg of PACKAGES) if (declared.includes(pkg)) args.push('--extension', pkg);
   return args;
 }
 
@@ -130,8 +118,8 @@ function compare(expectedActive, observedActive) {
 }
 
 module.exports = {
-  GLOBAL_EXTENSIONS, PACKAGES, BUILTIN_EXTENSIONS, OVERLAY_EXTENSIONS,
+  GLOBAL_EXTENSIONS, BUILTIN_EXTENSIONS, OVERLAY_EXTENSIONS,
   EXPECTED_ACTIVE, EXPECTED_INACTIVE,
   extensionsRoot, globalExtensionPaths, overlayExtensionPaths,
-  declaredPackages, pinnedArgs, compare,
+  pinnedArgs, compare,
 };
