@@ -45,7 +45,7 @@ function take(key,times=1){
 const model={provider:'test',id:'offline',name:'Pi de caça',input:['text','image']};
 function write(obj){process.stdout.write(JSON.stringify(obj)+'\n');}
 function reply(id,data){write({type:'response',id,success:true,data});}
-function emit(e){write(e);}
+function emit(e){write(e);if(e.type==='agent_end'&&!e.willRetry)write({type:'agent_settled'});}
 function writeSplit(line,parts=3,done=null){
  const buf=Buffer.from(line,'utf8');
  const size=Math.max(2,Math.ceil(buf.length/parts));

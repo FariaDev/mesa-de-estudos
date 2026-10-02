@@ -445,7 +445,7 @@ setInterval(async()=>{
  }
  S.healthFails=0;
  if(data.contextUsage)updateMeter(data.contextUsage);
- if(data.isStreaming||data.pendingMessageCount){S.busyStall=0;return;}
+ if(data.isRunning||data.isStreaming||data.isCompacting||data.pendingMessageCount){S.busyStall=0;return;}
  if(!S.busySince||Date.now()-S.busySince<=60000)return;
  S.busyStall++;
  if(S.busyStall>=3){S.busyStall=0;setBusy(false);toast('A resposta do Pi não estava ativa; a interface foi destravada.');}

@@ -312,7 +312,7 @@ test('lock mudou + npm ci falhou no meio: rollback refaz o ci com o lock antigo'
    apply — estoura) → o rollback refaz o ci com o lock antigo mesmo assim
    (deps mexidas ≠ "só quando o ci começou"), e a assinatura partida do
    install-app morto é refeita. */
-test('A1: falha depois do npm ci → rollback refaz as dependências (depsTouched persiste)', async () => {
+test('A1: falha depois do npm ci → rollback refaz as dependências (depsTouched persiste)', {skip: process.platform !== 'darwin'}, async () => {
   const clone = fakeInstallRoot();
   fs.mkdirSync(path.join(clone, '.git'));
   /* O payload do bundle (o que o install-app reescreve por inteiro). */

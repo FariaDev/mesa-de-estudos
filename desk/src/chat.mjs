@@ -275,7 +275,7 @@ export async function send(text,images,options={}){
   if(result?.warning)toast(result.warning);
   return true;
  }catch(e){
-  const safe=stage==='connect'||knownNotSent;
+  const safe=stage==='save'||stage==='connect'||knownNotSent;
   if(knownNotSent)userMessage?.remove();
   if(images===undefined&&!$('#prompt').value){$('#prompt').value=text;save();}
   options.onFailure?.(safe);
@@ -651,7 +651,7 @@ window.desk.onEvent(e=>{
   window.dispatchEvent(new Event('desk-failed'));
   toast('As tentativas do Pi terminaram. Confira o erro e tente novamente quando quiser.');
  }
- if(e.type==='agent_end'){
+ if(e.type==='agent_settled'){
   const aborted=stoppedTurn;stoppedTurn=false;
   settleTurn({reason:aborted?'stopped':''});
   setBusy(false);refreshMeter();

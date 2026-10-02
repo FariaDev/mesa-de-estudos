@@ -19,10 +19,14 @@ try {
  const handled = await bridge.request('prompt',{message:'/mcp'});
  assert.equal(handled.disposition,'handled');
  assert.equal((await bridge.request('get_state')).isStreaming,false);
+ const queued=await bridge.request('follow_up',{message:'Entrada técnica a cancelar antes de executar.'});
+ assert.equal(queued.disposition,'queued');assert.equal(bridge.runActive,false);
+ assert.equal(bridge.isRunning(await bridge.request('get_state')),true);
+ await bridge.request('clear_queue');assert.equal(bridge.isRunning(await bridge.request('get_state')),false);
  let userEnded;
  const userMessage = new Promise(resolve => userEnded = resolve);
  bridge.on('event',e=>{if(e.type==='message_end'&&e.message?.role==='user')userEnded();});
- const accepted = await bridge.request('prompt',{message:'Responda somente EARLY-NATIVE. Não use ferramentas.'});
+ const accepted = await bridge.request('prompt',{message:'Primeira etapa técnica: se responder a esta mensagem, responda somente EARLY-NATIVE. Esta etapa não impõe regras às mensagens seguintes.'});
  assert.equal(accepted.disposition,'started');
  let userTimer;
  try {await Promise.race([userMessage,new Promise((_,reject)=>userTimer=setTimeout(()=>reject(Error('Mensagem não entrou na sessão')),10000))]);}finally{clearTimeout(userTimer);}
@@ -36,12 +40,13 @@ try {
  const events=[];
  let finish;
  const settled=new Promise(resolve=>finish=resolve);
- bridge.on('event',e=>{events.push(e);if(e.type==='agent_end')finish();});
- const result = await bridge.request('prompt',{message:'Use a ferramenta codemode para executar JavaScript que retorna a string "NATIVE-RPC-OK". Não chame outras ferramentas dentro do código. Depois responda apenas NATIVE-RPC-OK.'});
+ bridge.on('event',e=>{events.push(e);if(e.type==='agent_settled')finish();});
+ const result = await bridge.request('prompt',{message:'A etapa EARLY-NATIVE foi encerrada sem aguardar resposta. Esta é uma nova etapa, com autorização explícita para a ferramenta. Use a ferramenta codemode para executar JavaScript que retorna a string "NATIVE-RPC-OK". Não chame outras ferramentas dentro do código. Depois responda apenas NATIVE-RPC-OK.'});
  assert.equal(result.disposition,'started');
  let timer;
  try {await Promise.race([settled,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Rodada real excedeu 60s')),60000);})]);}finally{clearTimeout(timer);}
- assert.ok(events.some(e=>e.type==='tool_execution_start'&&e.toolName==='codemode'),'modelo chamou Codemode');
+ assert.ok(events.some(e=>e.type==='tool_execution_start'&&e.toolName==='codemode'),
+  'modelo chamou Codemode; diagnóstico: '+JSON.stringify(events.filter(e=>e.type==='message_end').map(e=>({role:e.message?.role,stopReason:e.message?.stopReason,error:e.message?.errorMessage,content:e.message?.content}))).slice(0,2000));
  assert.ok(events.some(e=>e.type==='message_end'&&e.message?.role==='assistant'&&JSON.stringify(e.message.content).includes('NATIVE-RPC-OK')),'resposta do modelo');
  assert.equal((await bridge.request('get_state')).isStreaming,false);
  console.log('Pi/provedor reais: sessão retomada, Codemode executado e resposta final recebida via RPC da Conversa');

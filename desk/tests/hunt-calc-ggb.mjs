@@ -80,7 +80,7 @@ function start(){
  for(const line of queue)child.stdin.write(line+'\\n');
  queue.length=0;
  readline.createInterface({input:child.stdout}).on('line',line=>{
-  if(holdMs&&/"type":"agent_end"/.test(line)){held++;setTimeout(()=>{held--;forward(line);},holdMs);return;}
+  if(holdMs&&/"type":"agent_(end|settled)"/.test(line)){held++;setTimeout(()=>{held--;forward(line);},holdMs);return;}
   forward(line);
  });
  child.on('exit',(code,signal)=>process.exit(code==null?(signal?1:0):code));

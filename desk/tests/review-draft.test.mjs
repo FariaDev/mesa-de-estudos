@@ -19,7 +19,7 @@ test('draft validates model JSON, applies limits and preserves only the supplied
 });
 test('completed model draft stops worker and removes listeners',async()=>{
  const b=new Bridge(),p=generateReviewDraft({bridge:b,context:{},ref});
- b.emit('event',{type:'message_end',message:{role:'assistant',content:[{type:'text',text:JSON.stringify(result)}]}});b.emit('event',{type:'agent_end'});
+ b.emit('event',{type:'message_end',message:{role:'assistant',content:[{type:'text',text:JSON.stringify(result)}]}});b.emit('event',{type:'agent_settled'});
  assert.deepEqual(await p,{...result,ref});assert.equal(b.stopped,1);assert.equal(b.listenerCount('event'),0);
 });
 test('cancel, timeout and native retry abort drafts rather than leaving workers running',async()=>{
@@ -33,4 +33,13 @@ test('cancel, timeout and native retry abort drafts rather than leaving workers 
 test('late model results cannot overwrite edits, cancelled dialogs or another draft',()=>{
  assert.equal(core.canFillDraft(true,true,true),true);
  for(const facts of [[false,true,true],[true,false,true],[true,true,false]])assert.equal(core.canFillDraft(...facts),false);
+});
+
+test('draft waits for settled across end/compaction and uses the final authoritative message',async()=>{
+ const b=new Bridge(),p=generateReviewDraft({bridge:b,context:{},ref});
+ b.emit('event',{type:'message_end',message:{role:'assistant',content:[{type:'text',text:'interrupted JSON'}]}});
+ b.emit('event',{type:'agent_end',willRetry:false});b.emit('event',{type:'compaction_start'});
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(b.stopped,0,'end cannot settle the draft');
+ b.emit('event',{type:'message_end',message:{role:'assistant',content:[{type:'text',text:JSON.stringify(result)}]}});
+ b.emit('event',{type:'agent_settled'});assert.deepEqual(await p,{...result,ref});
 });

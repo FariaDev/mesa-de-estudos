@@ -145,7 +145,7 @@ async function deliverPrompt({
     if (typeof onWarning === 'function') onWarning(aviso);
     return {streaming: undefined, warning: aviso};
   }
-  return {streaming: !!current?.isStreaming, ...(disposition ? {disposition} : {})};
+  return {streaming: bridge.isRunning?bridge.isRunning(current):!!(current?.isStreaming||current?.isCompacting||current?.pendingMessageCount), ...(disposition ? {disposition} : {})};
 }
 
 module.exports = {deliverPrompt, avisoSemMarca, avisoPreservado, avisoDuvida};
