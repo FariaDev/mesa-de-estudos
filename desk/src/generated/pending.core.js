@@ -70,6 +70,19 @@ function $overStored$(_bytes_0) {
   const _x_0 = run_loop($maxStoredBytes$());
   return _bytes_0 > _x_0;
 }
+function $maxAutoRetries$() {
+  return 3n;
+}
+function $retryAllowed$(_safe_0, _belowLimit_0) {
+  if (!_safe_0) {
+    return false;
+  } else {
+    return _belowLimit_0;
+  }
+}
+function $retryDelay$(_retry_0) {
+  return TAB_0[Math.min(Number(_retry_0), 4)];
+}
 function $Nat$is_eq$(_a_0, _b_0) {
   return run_jump($Cmp$is_eq$, [cmp_new(_a_0, _b_0)]);
 }
@@ -164,6 +177,7 @@ function $Bool$and$(_a_0, _b_0) {
     return _b_0;
   }
 }
+var TAB_0 = [0, 2000, 4000, 8000, 0];
 var pending_default = {
   maxItems: run_lib($maxItems$, 0),
   maxRefs: run_lib($maxRefs$, 0),
@@ -176,7 +190,10 @@ var pending_default = {
   cutText: run_lib($cutText$, 2),
   keepAt: run_lib($keepAt$, 1),
   heldOnLoad: run_lib($heldOnLoad$, 2),
-  overStored: run_lib($overStored$, 1)
+  overStored: run_lib($overStored$, 1),
+  maxAutoRetries: run_lib($maxAutoRetries$, 0),
+  retryAllowed: run_lib($retryAllowed$, 2),
+  retryDelay: run_lib($retryDelay$, 1)
 };
 export {
   pending_default as default

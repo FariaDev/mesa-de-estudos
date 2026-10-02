@@ -177,3 +177,15 @@ def Laws.review_ref_suffix_empty():
 
 def Laws.review_save_action_label():
   {==}
+
+def Laws.review_draft_fill():
+  {==}
+
+def Laws.review_draft_closed():
+  {==}
+
+def Laws.review_draft_stale():
+  {==}
+
+def Laws.review_draft_edited():
+  {==}

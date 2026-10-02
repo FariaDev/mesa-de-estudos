@@ -645,6 +645,20 @@ function $redoPrompt$(_item_0) {
   return `Vou refazer este exercício:
 ` + _x_5;
 }
+function $canFillDraft$(_open_0, _current_0, _untouched_0) {
+  if (!_open_0) {
+    return false;
+  } else {
+    if (!_current_0) {
+      return false;
+    } else {
+      return _untouched_0;
+    }
+  }
+}
+function $draftStatus$(_text_0) {
+  return run_jump($view$viewEl$, ["p", { $: "Con", ["head"]: run_loop($view$attrId$("review-draft-status")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attr$("role", "status")), ["tail"]: { $: "Nil" } } }, { $: "Con", ["head"]: run_loop($view$viewText$(_text_0)), ["tail"]: { $: "Nil" } }]);
+}
 function $String$eq$(_a_0, _b_0) {
   return run_jump($String$eq$fin$, [run_loop($String$cmp$(_a_0, _b_0))]);
 }
@@ -991,7 +1005,9 @@ var review_default = {
   "refSuffix.if": run_lib($refSuffix$if$, 3),
   refSuffix: run_lib($refSuffix$, 1),
   similarPrompt: run_lib($similarPrompt$, 1),
-  redoPrompt: run_lib($redoPrompt$, 1)
+  redoPrompt: run_lib($redoPrompt$, 1),
+  canFillDraft: run_lib($canFillDraft$, 3),
+  draftStatus: run_lib($draftStatus$, 1)
 };
 export {
   review_default as default

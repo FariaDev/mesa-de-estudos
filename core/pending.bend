@@ -83,3 +83,27 @@ def heldOnLoad(stored: Bool, recovered: Bool) -> Bool:
 
 def overStored(bytes: U32) -> Bool:
   U32.is_gt(bytes, maxStoredBytes())
+
+# Falhas só podem repetir quando o host comprovou que nada foi enviado.
+# O limite vale por item; o host mede tentativas, cancela timers e compara.
+def maxAutoRetries() -> Nat:
+  3n
+
+def retryAllowed(safe: Bool, belowLimit: Bool) -> Bool:
+  match safe:
+    case False{}:
+      False{}
+    case True{}:
+      belowLimit
+
+# Número da repetição (1, 2, 3): 2s, 4s, 8s. Outros valores não agendam.
+def retryDelay(retry: Nat) -> U32:
+  match retry:
+    case 1n:
+      2000
+    case 2n:
+      4000
+    case 3n:
+      8000
+    case _:
+      0

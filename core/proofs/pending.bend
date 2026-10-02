@@ -60,3 +60,27 @@ def Laws.pending_stored_fits():
 
 def Laws.pending_stored_over():
   {==}
+
+def Laws.pending_retry_limit():
+  {==}
+
+def Laws.pending_retry_safe():
+  {==}
+
+def Laws.pending_retry_ambiguous():
+  {==}
+
+def Laws.pending_retry_exhausted():
+  {==}
+
+def Laws.pending_retry_first():
+  {==}
+
+def Laws.pending_retry_second():
+  {==}
+
+def Laws.pending_retry_third():
+  {==}
+
+def Laws.pending_retry_outside():
+  {==}
