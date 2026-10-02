@@ -101,3 +101,30 @@ def Laws.rpc_step_error(flag, alive, stopped, pending, seq):
 
 def Laws.rpc_boot():
   {==}
+
+def Laws.rpc_run_end_keeps(active):
+  match active:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+def Laws.rpc_run_settled(active, starts):
+  {==}
+def Laws.rpc_late_acceptance(accepted):
+  match accepted:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+def Laws.rpc_active_busy(streaming, compacting, queued):
+  {==}
+def Laws.rpc_compaction_busy():
+  {==}
+def Laws.rpc_run_idle():
+  {==}
+def Laws.rpc_queued_keeps(active, sameSettlement):
+  match active:
+    case True{}:
+      {==}
+    case False{}:
+      {==}

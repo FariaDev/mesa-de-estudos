@@ -35,8 +35,9 @@ class PiBridge extends EventEmitter {
  constructor({cwd,session,pi='',extraArgs=[],env,promptFile=''}={}){
   super();
   Object.assign(this,{cwd,session,pi,extraArgs,env,promptFile});
-  this.pending=new Map();this.seq=0;this.stopped=false;
+  this.pending=new Map();this.seq=0;this.stopped=false;this.runActive=false;this.settledEpoch=0;
  }
+ isRunning(state={}){return rpcstate.runBusy(this.runActive,!!state?.isStreaming,!!state?.isCompacting,Number(state?.pendingMessageCount)>0);}
  facts(){return [!!this.child,this.stopped,nat(this.pending.size),nat(this.seq)];}
  apply(out,ctx={}){
   this.seq=Number(out.seq);
@@ -44,7 +45,11 @@ class PiBridge extends EventEmitter {
    case 'ActKill':this.breakConnection(ctx.err);return;
    case 'ActExit':this.child=null;this.fail(ctx.err);return;
    case 'ActStop':{this.stopped=true;const child=this.child;this.child=null;if(child){child.removeAllListeners('exit');try{child.kill();}catch{}}this.fail(Error('stopped'));return;}
-   case 'ActResolve':case 'ActRefuse':{const p=this.pending.get(ctx.id);if(!p)return;clearTimeout(p.timer);this.pending.delete(ctx.id);out.act.$==='ActResolve'?p.resolve(ctx.data):p.reject(ctx.replyRejected&&['prompt','steer','follow_up'].includes(p.type)?notSent(ctx.error||'Pi recusou a mensagem antes do aceite.'):Error(ctx.error||'Pi recusou a solicitação.'));return;}
+   case 'ActResolve':case 'ActRefuse':{const p=this.pending.get(ctx.id);if(!p)return;clearTimeout(p.timer);this.pending.delete(ctx.id);
+   if(out.act.$==='ActResolve'&&['prompt','steer','follow_up'].includes(p.type)){
+    this.runActive=rpcstate.runAfterAcceptance(this.runActive,ctx.data?.disposition==='started',p.settledEpoch===this.settledEpoch);
+   }
+   out.act.$==='ActResolve'?p.resolve(ctx.data):p.reject(ctx.replyRejected&&['prompt','steer','follow_up'].includes(p.type)?notSent(ctx.error||'Pi recusou a mensagem antes do aceite.'):Error(ctx.error||'Pi recusou a solicitação.'));return;}
    default:return;
   }
  }
@@ -69,6 +74,9 @@ class PiBridge extends EventEmitter {
    this.emit('event',{type:'desk_warn',message:'Resposta inválida do processo Pi.'});
    continue;
   }
+   if(this.child!==child)return;
+   this.runActive=rpcstate.runAfterEvent(this.runActive,['agent_start','auto_retry_start'].includes(e.type),e.type==='agent_settled');
+   if(e.type==='agent_settled')this.settledEpoch++;
    if(e.type==='response'){const out=rpcstate.onReply(this.pending.has(e.id),...this.facts(),!!e.success);this.apply(out,{id:e.id,data:e.data,error:e.error,replyRejected:e.success===false});}
    this.emit('event',e);
   }});
@@ -78,6 +86,7 @@ class PiBridge extends EventEmitter {
  }
  breakConnection(e){const child=this.child;this.child=null;if(child){child.removeAllListeners('exit');try{child.kill();}catch{}}this.fail(e);}
  fail(e){
+  this.runActive=false;this.settledEpoch++;
   const err=Error(missingPiMessage(e));
   err.code=e?.code;
   for(const p of this.pending.values()){clearTimeout(p.timer);p.reject(err);}
@@ -96,7 +105,7 @@ class PiBridge extends EventEmitter {
        a resposta, e um Pi morto é detectado pelo health. */
     this.apply(rpcstate.onTimeout(this.pending.has(id),...this.facts()),{id,error:'Pi demorou demais para responder a este pedido. Ele foi cancelado; a conexão continua.'});
    },timeoutMs);
-   this.pending.set(id,{resolve,reject,timer,type});
+   this.pending.set(id,{resolve,reject,timer,type,settledEpoch:this.settledEpoch});
    try{this.child.stdin.write(JSON.stringify({id,type,...args})+'\n');}
    catch(e){
     /* A escrita em si falhou: este pedido não foi transmitido. O erro marcado

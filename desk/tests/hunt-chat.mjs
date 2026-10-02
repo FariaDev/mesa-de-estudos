@@ -48,7 +48,7 @@ const THINK_GAP=Number(process.env.HUNT_PI_THINK_GAP)||200;
 const model={provider:'test',id:'offline',name:'Pi de teste',input:['text','image']};
 let streaming=false;
 function reply(e,data){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:true,data})+'\\n');}
-function emit(ev){process.stdout.write(JSON.stringify(ev)+'\\n');}
+function emit(ev){process.stdout.write(JSON.stringify(ev)+'\\n');if(ev.type==='agent_end'&&!ev.willRetry)process.stdout.write(JSON.stringify({type:'agent_settled'})+'\\n');}
 function uiLog(entry){try{if(process.env.HUNT_PI_LOG)fs.appendFileSync(process.env.HUNT_PI_LOG,JSON.stringify(entry)+'\\n');}catch{}}
 process.stdin.setEncoding('utf8');let buffer='';
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const raw=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!raw.trim())continue;let e;try{e=JSON.parse(raw);}catch{continue;}

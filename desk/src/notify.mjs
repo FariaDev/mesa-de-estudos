@@ -177,7 +177,7 @@ function onFocus(){
 function onEvent(e){
  if(!e||typeof e!=='object')return;
  if(e.type==='agent_start'){errored=false;return;} // turno novo: o erro antigo não engole mais um aviso
- if(e.type==='agent_end'){
+ if(e.type==='agent_settled'){
   if(errored){errored=false;return;} // desk_error já avisou; o agent_end logo depois não duplica
   onIdle();
   return;

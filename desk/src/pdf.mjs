@@ -1,3 +1,4 @@
+import {bindPointerDrag} from './pointer-drag.mjs';
 import * as pdfjs from '../node_modules/pdfjs-dist/build/pdf.mjs';
 import {icon} from '../icons.mjs';
 import {$,S,toast,save,updateContextSummary,updateWindowTitle} from './state.mjs';
@@ -284,11 +285,7 @@ export function makePdfDivider(){
  const div=build(pdfPage.divider(),{});
  const first=$('#pdf-grid').firstElementChild;
  if(first)first.after(div);else $('#pdf-grid').append(div);
- let drag=false;
- div.addEventListener('pointerdown',e=>{drag=true;div.setPointerCapture(e.pointerId);});
- div.addEventListener('pointermove',e=>{if(!drag)return;const grid=$('#pdf-grid').getBoundingClientRect();setPdfSplitPct((e.clientX-grid.left)/grid.width);});
- div.addEventListener('pointerup',()=>{drag=false;save();});
- div.addEventListener('pointercancel',()=>{drag=false;});
+ bindPointerDrag(div,e=>{const grid=$('#pdf-grid').getBoundingClientRect();setPdfSplitPct((e.clientX-grid.left)/grid.width);},save);
  div.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();setPdfSplitPct(pdfSplitValue()+(e.key==='ArrowLeft'?-.02:.02));save();});
  return div;
 }

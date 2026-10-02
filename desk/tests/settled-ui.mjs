@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,tinyPdf,statusOnline} from './helpers.mjs';
+await withArtifacts('settled',async ctx=>{
+ const runtime=ctx.runtime=newRuntime('settled'),course=seedCourse(runtime,'Test'),log=path.join(runtime,'queue.jsonl');
+ fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdf('Exercise'));
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Teste',path:course}],desk:{pinnedExtensions:false}});
+ ctx.app=await launchDesk({runtime,env:{FAKE_PI_QUEUE_LOG:log,FAKE_PI_SETTLED_GAP:'1'}});
+ const page=await ctx.app.firstWindow();await statusOnline(page);
+ await page.locator('#prompt').fill('settle-test');await page.locator('#send').click();
+ await page.locator('#prompt').fill('item seguinte');await page.locator('#prompt').press('Enter');
+ await page.waitForFunction(()=>document.querySelector('#activity')?.textContent.includes('Tentativa'));
+ assert.equal(fs.readFileSync(log,'utf8').trim().split('\n').length,1,'queue must not advance after low-level agent_end');
+ assert.equal(await page.locator('#stop').isVisible(),true,'UI remains busy during retry gap');
+ await page.waitForFunction(()=>[...document.querySelectorAll('.message.assistant .body')].some(n=>n.textContent.includes('item seguinte')));
+ const records=fs.readFileSync(log,'utf8').trim().split('\n').map(JSON.parse);
+ assert.equal(records.length,2,'exactly one submission for queued item');
+ assert.match(records[1].message,/item seguinte/);
+ console.log('PASS: low-level end leaves UI busy; queue submits once after settled');
+});
