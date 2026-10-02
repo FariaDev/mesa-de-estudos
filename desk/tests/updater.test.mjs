@@ -321,3 +321,32 @@ test('releaseFromGithub: notas viram texto puro e cortam na palavra', () => {
   assert.ok(longo.notes.endsWith('…'), 'reticências dizem que tem mais');
   assert.equal(/[^\s…]$/.test(longo.notes.slice(0, -1)), true, 'o corte não parte palavra no meio');
 });
+
+// Exercise the default transport policy, including failures while reading JSON.
+test('GET de metadados repete uma vez falhas transitórias e respeita recusas definitivas', async t => {
+ let calls=0;
+ let replies=[];
+ t.mock.method(globalThis,'fetch',async()=>{
+  calls++;
+  const reply=replies.shift();
+  if(reply instanceof Error)throw reply;
+  return reply;
+ });
+ const json=()=>new Response('{"version":"1.0.0"}',{headers:{'content-type':'application/json'}});
+ for(const status of [408,429,502,503,504]){
+  calls=0;replies=[new Response('',{status,headers:{'retry-after':'0'}}),json()];
+  assert.deepEqual(await updater.defaultFetchJson('https://example.test/version'),{version:'1.0.0'});
+  assert.equal(calls,2);
+ }
+ calls=0;replies=[new TypeError('socket disconnected'),json()];
+ assert.deepEqual(await updater.defaultFetchJson('https://example.test/version'),{version:'1.0.0'});
+ assert.equal(calls,2);
+ for(const [response,pattern] of [[new Response('',{status:401}),/HTTP 401/],[new Response('',{status:429,headers:{'retry-after':'60'}}),/HTTP 429/],[new Response('invalid JSON'),/JSON/]]){
+  calls=0;replies=[response,json()];
+  await assert.rejects(updater.defaultFetchJson('https://example.test/version'),pattern);
+  assert.equal(calls,1,'não insiste em recusa, cooldown longo ou payload inválido');
+ }
+ calls=0;replies=[new Response('',{status:503,headers:{'retry-after':'0'}}),new Response('',{status:503})];
+ await assert.rejects(updater.defaultFetchJson('https://example.test/version'),/HTTP 503/);
+ assert.equal(calls,2,'orçamento esgota depois de uma repetição');
+});

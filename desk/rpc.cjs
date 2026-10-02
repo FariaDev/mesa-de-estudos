@@ -103,7 +103,7 @@ class PiBridge extends EventEmitter {
    const timer=setTimeout(()=>{
     /* Recusa só este pedido e mantém a ponte viva: um turno longo pode segurar
        a resposta, e um Pi morto é detectado pelo health. */
-    this.apply(rpcstate.onTimeout(this.pending.has(id),...this.facts()),{id,error:'Pi demorou demais para responder a este pedido. Ele foi cancelado; a conexão continua.'});
+    this.apply(rpcstate.onTimeout(this.pending.has(id),...this.facts()),{id,error:'Pi demorou demais para confirmar este pedido. Ele ainda pode estar em andamento; confira a conversa antes de reenviar.'});
    },timeoutMs);
    this.pending.set(id,{resolve,reject,timer,type,settledEpoch:this.settledEpoch});
    try{this.child.stdin.write(JSON.stringify({id,type,...args})+'\n');}
