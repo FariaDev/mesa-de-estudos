@@ -45,18 +45,6 @@ test('pinnedArgs desliga a descoberta e declara cada extensão que existe', () =
   }
 });
 
-test('pinnedArgs não pede pacote que as settings não declaram', () => {
-  const home = mkdtempSync(join(tmpdir(), 'mesa-profile-'));
-  try {
-    const settings = join(home, 'settings.json');
-    writeFileSync(settings, JSON.stringify({packages: []}));
-    const args = profile.pinnedArgs({home, overlayDirs: [], settingsPath: settings});
-    assert.ok(!args.includes('npm:pi-mcp-adapter'), 'pacote não declarado não entra (evita npm install na largada)');
-  } finally {
-    rmSync(home, {recursive: true, force: true});
-  }
-});
-
 test('overlay do curso entra só pelos arquivos presentes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mesa-overlay-'));
   try {

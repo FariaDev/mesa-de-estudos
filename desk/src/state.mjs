@@ -422,8 +422,11 @@ export async function switchCourse(id){
   setBusy(false);await loadCourse(data);connect().catch(()=>{});
  }catch(e){toast(e.message);}finally{S.switching=false;setTabsDisabled(false);}
 }
+let healthPending=false;
 setInterval(async()=>{
- if(!S.connected||S.connecting||document.hidden)return;
+ if(healthPending||!S.connected||S.connecting||document.hidden)return;
+ healthPending=true;
+ try{
  if(!S.busy){
   S.busyStall=0;
   try{const data=await window.desk.health();S.healthFails=0;connectionState('online','Pi conectado');if(data?.contextUsage)updateMeter(data.contextUsage);}
@@ -449,6 +452,7 @@ setInterval(async()=>{
  if(!S.busySince||Date.now()-S.busySince<=60000)return;
  S.busyStall++;
  if(S.busyStall>=3){S.busyStall=0;setBusy(false);toast('A resposta do Pi não estava ativa; a interface foi destravada.');}
+ }finally{healthPending=false;}
 },15000);
 function deskLogError(line){try{window.desk.logError(String(line??'').slice(0,4000)).catch(()=>{});}catch{}}
 window.addEventListener('error',e=>deskLogError(e?.error?.stack||e?.message||e));

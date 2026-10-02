@@ -71,7 +71,6 @@ check('Persistência da Mesa',persistence,why);
    objetivo é tornar visível o que ele vai aplicar, para que uma superfície de
    permissão quebrada apareça no doctor em vez de só no log da sessão. */
 const agentDir=path.join(os.homedir(),'.pi','agent');
-const settingsPath=path.join(agentDir,'settings.json');
 const profileOn=config.desk?.pinnedExtensions!==false;
 const declaredPaths=profile.globalExtensionPaths();
 const presentPaths=declaredPaths.filter(f=>fs.existsSync(f));
@@ -81,11 +80,6 @@ if(!profileOn){
 }else{
  const missing=declaredPaths.filter(f=>!fs.existsSync(f));
  check('Perfil de carregamento',missing.length===0,`${presentPaths.length}/${declaredPaths.length} extensões globais + ${overlayCount} do overlay${missing.length?` · ausentes: ${missing.map(f=>path.basename(path.dirname(f))).join(', ')}`:''}`);
-}
-for(const pkg of profile.PACKAGES){
- const declared=profile.declaredPackages(settingsPath).includes(pkg);
- /* Sem o pacote nas settings o perfil fixado derruba as integrações MCP junto. */
- check(`Pacote exigido · ${pkg}`,declared,declared?settingsPath:`falta em ${settingsPath} — o perfil fixado não carrega`);
 }
 const mcpPath=path.join(agentDir,'mcp.json');
 let mcpCount=0;

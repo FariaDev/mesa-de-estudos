@@ -256,35 +256,6 @@ function onPromptKeydown(e){
  el.dispatchEvent(new Event('input'));
 }
 
-/* send() zera o #prompt depois do Pi aceitar. Se o usuário já estiver
-   digitando o próximo rascunho, esse texto não pode sumir. */
-function holdDraft(el){
- if(!el)return ()=>{};
- let draft=el.value;
- let caret=el.selectionEnd;
- const onInput=()=>{draft=el.value;caret=el.selectionEnd;};
- el.addEventListener('input',onInput);
- let live=true;
- const restore=()=>{
-  if(el.value===draft)return;
-  if(el.value!==''){draft=el.value;caret=el.selectionEnd;return;}
-  if(!draft)return;
-  el.value=draft;
-  if(document.activeElement===el){
-   const pos=Math.min(Math.max(0,caret),el.value.length);
-   try{el.setSelectionRange(pos,pos);}catch{}
-  }
-  el.dispatchEvent(new Event('input'));
- };
- const tick=setInterval(()=>{if(live)restore();},16);
- return ()=>{
-  live=false;
-  clearInterval(tick);
-  el.removeEventListener('input',onInput);
-  restore();
- };
-}
-
 async function flushQueue(){
  if(flushing||!queue.length||S.busy||held||retries.pending)return;
  /* A linha da vez aberta para edição: salva o que está no input antes de enviar
@@ -298,13 +269,11 @@ async function flushQueue(){
  sendingId=item.id;
  if(editingId===item.id)editingId='';
  renderQueue();
- const release=holdDraft($('#prompt'));
  let posted=false,retryable=false;
  const generationOwner=owner;
  try{
   posted=await send(item.text,item.payload.images,{refs:item.payload.refs,onFailure:safe=>{retryable=safe;}})===true;
  }finally{
-  release();
   sendingId='';
   flushing=false;
  }
