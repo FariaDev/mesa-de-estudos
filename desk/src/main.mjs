@@ -1,3 +1,4 @@
+import {bindPointerDrag} from './pointer-drag.mjs';
 import {icon} from '../icons.mjs';
 import {$,S,toast,connectionState,save,calcHeightPx,studySnapshot,pageRefs,layoutSnapshot,updateContextSummary,fillSessions,applyStudy,applyTheme,THEME_LABELS,labelBtn,settings,connect,loadCourse,markCourseTab,switchCourse} from './state.mjs';
 import {conferir,conferirGeogebra,send,resetAttachments,restoreAttachments,hideQuoteButton} from './chat.mjs';
@@ -244,8 +245,10 @@ $('#include-refs').onclick=()=>{S.includeRefs=!S.includeRefs;$('#include-refs').
    colapso, ângulo, avaliação, histórico e guia saem de lá; o divisor abaixo
    continua aqui (arrasto/medição são fatos de host). */
 initCalculator();
-let dragging=false;$('#divider').onpointerdown=e=>{dragging=true;$('#divider').setPointerCapture(e.pointerId);};$('#divider').onpointermove=e=>{if(dragging){document.documentElement.style.setProperty('--chat',Math.max(310,Math.min(650,innerWidth-e.clientX))+'px');}};$('#divider').onpointerup=()=>{dragging=false;save();};$('#divider').onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){const w=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat'));document.documentElement.style.setProperty('--chat',Math.max(310,Math.min(650,w+(e.key==='ArrowLeft'?20:-20)))+'px');save();}};
-let calcDrag=false;$('#calc-divider').onpointerdown=e=>{calcDrag=true;$('#calc-divider').setPointerCapture(e.pointerId);};$('#calc-divider').onpointermove=e=>{if(!calcDrag)return;const side=$('#sidebar').getBoundingClientRect();const height=Math.max(72,Math.min(side.height*0.7,side.bottom-e.clientY));document.documentElement.style.setProperty('--calc',Math.round(height)+'px');expandCalculator();};$('#calc-divider').onpointerup=()=>{calcDrag=false;save();};$('#calc-divider').onkeydown=e=>{if(['ArrowUp','ArrowDown'].includes(e.key)){const h=calcHeightPx();document.documentElement.style.setProperty('--calc',Math.max(72,Math.min(700,h+(e.key==='ArrowUp'?20:-20)))+'px');save();}};
+bindPointerDrag($('#divider'),e=>{document.documentElement.style.setProperty('--chat',Math.max(310,Math.min(650,innerWidth-e.clientX))+'px');},save);
+$('#divider').onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){const w=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat'));document.documentElement.style.setProperty('--chat',Math.max(310,Math.min(650,w+(e.key==='ArrowLeft'?20:-20)))+'px');save();}};
+bindPointerDrag($('#calc-divider'),e=>{const side=$('#sidebar').getBoundingClientRect();const height=Math.max(72,Math.min(side.height*0.7,side.bottom-e.clientY));document.documentElement.style.setProperty('--calc',Math.round(height)+'px');expandCalculator();},save);
+$('#calc-divider').onkeydown=e=>{if(['ArrowUp','ArrowDown'].includes(e.key)){const h=calcHeightPx();document.documentElement.style.setProperty('--calc',Math.max(72,Math.min(700,h+(e.key==='ArrowUp'?20:-20)))+'px');save();}};
 let chatCollapsed=false,lastChatToggle=0;
 function setChatCollapsed(value){chatCollapsed=!!value;document.body.classList.toggle('chat-collapsed',chatCollapsed);$('#chat-restore').hidden=!chatCollapsed;if(S.ggbActive)sendGgbRect();}
 function toggleChat(){const now=Date.now();if(now-lastChatToggle<150)return;lastChatToggle=now;setChatCollapsed(!chatCollapsed);}

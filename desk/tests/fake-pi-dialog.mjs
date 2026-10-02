@@ -7,7 +7,7 @@
 const args=process.argv.slice(2);const session=args[args.indexOf('--session')+1];
 const model={provider:'test',id:'dialog',name:'Pi de diálogo',input:['text','image']};
 function reply(e,data){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:true,data})+'\n');}
-function emit(event){process.stdout.write(JSON.stringify(event)+'\n');}
+function emit(event){process.stdout.write(JSON.stringify(event)+'\n');if(event.type==='agent_end'&&!event.willRetry)process.stdout.write(JSON.stringify({type:'agent_settled'})+'\n');}
 function emitText(text){
  emit({type:'message_start',message:{role:'assistant'}});
  emit({type:'message_update',assistantMessageEvent:{type:'text_delta',delta:text}});

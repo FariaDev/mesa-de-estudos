@@ -8,8 +8,9 @@ await withArtifacts('improvements',async ctx=>{
  fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdf('Exercise'));
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Teste',path:course}],desk:{pinnedExtensions:false}});
  const refusalLog=path.join(runtime,'refusals.jsonl'),queueLog=path.join(runtime,'queue.jsonl');
+ const stateFailureFile=path.join(runtime,'state-failure');
  const draft={question:'Limite lateral',attempt:'Dividi por x',difficulty:'Sinal pela direita'};
- ctx.app=await launchDesk({runtime,env:{FAKE_PI_REVIEW_DRAFT:JSON.stringify(draft),FAKE_PI_REVIEW_DELAY:'900',FAKE_PI_REFUSAL_LOG:refusalLog,FAKE_PI_QUEUE_LOG:queueLog,FAKE_PI_QUEUE_HOLD_MS:'1500'}});
+ ctx.app=await launchDesk({runtime,env:{FAKE_PI_STATE_FAILURE_FILE:stateFailureFile,FAKE_PI_REVIEW_DRAFT:JSON.stringify(draft),FAKE_PI_REVIEW_DELAY:'900',FAKE_PI_REFUSAL_LOG:refusalLog,FAKE_PI_QUEUE_LOG:queueLog,FAKE_PI_QUEUE_HOLD_MS:'1500'}});
  const page=await ctx.app.firstWindow();await statusOnline(page);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  // Hover and focus cannot open a menu; click/keyboard and Escape own its state.
  for(const id of ['study','mesa']){
@@ -25,6 +26,7 @@ await withArtifacts('improvements',async ctx=>{
  // and is saved only after explicit confirmation.
  await page.locator('#prompt').fill('primeiro');await page.locator('#send').click();
  await page.waitForSelector('.message.assistant button.msg-review');
+ fs.writeFileSync(stateFailureFile,'fail once');
  await page.locator('.message.assistant button.msg-review').first().click();
  await page.waitForSelector('#review-dialog[open]');
  await page.locator('#review-question').fill('Minha questão editada');

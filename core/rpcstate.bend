@@ -249,3 +249,18 @@ def emitOf(o: RpcOut) -> Bool:
 
 def boot() -> RpcOut:
   RpcOut{False{}, False{}, 0n, 0n, ActNone{}, False{}}
+
+# agent_end fecha só uma execução. O ciclo da sessão só termina em settled.
+def runAfterEvent(active: Bool, starts: Bool, settled: Bool) -> Bool:
+  match settled:
+    case True{}:
+      False{}
+    case False{}:
+      Bool.or(active, starts)
+
+# Um aceite atrasado não pode reabrir um ciclo que já emitiu settled.
+def runAfterAcceptance(active: Bool, accepted: Bool, sameSettlement: Bool) -> Bool:
+  Bool.or(active, Bool.and(accepted, sameSettlement))
+
+def runBusy(active: Bool, streaming: Bool, compacting: Bool, queued: Bool) -> Bool:
+  Bool.or(active, Bool.or(streaming, Bool.or(compacting, queued)))

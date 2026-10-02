@@ -210,6 +210,29 @@ function $emitOf$(_o_0) {
 function $boot$() {
   return { $: "RpcOut", ["alive"]: false, ["stopped"]: false, ["pending"]: 0n, ["seq"]: 0n, ["act"]: { $: "ActNone" }, ["emit"]: false };
 }
+function $runAfterEvent$(_active_0, _starts_0, _settled_0) {
+  if (_settled_0) {
+    return false;
+  } else {
+    return _active_0 || _starts_0;
+  }
+}
+function $runAfterAcceptance$(_active_0, _accepted_0, _sameSettlement_0) {
+  const _x_0 = run_loop($Bool$and$(_accepted_0, _sameSettlement_0));
+  return _active_0 || _x_0;
+}
+function $runBusy$(_active_0, _streaming_0, _compacting_0, _queued_0) {
+  const _x_0 = _compacting_0 || _queued_0;
+  const _x_1 = _streaming_0 || _x_0;
+  return _active_0 || _x_1;
+}
+function $Bool$and$(_a_0, _b_0) {
+  if (!_a_0) {
+    return false;
+  } else {
+    return _b_0;
+  }
+}
 var rpcstate_default = {
   emitUnless: run_lib($emitUnless$, 1),
   keep: run_lib($keep$, 4),
@@ -239,7 +262,10 @@ var rpcstate_default = {
   seqOf: run_lib($seqOf$, 1),
   actOf: run_lib($actOf$, 1),
   emitOf: run_lib($emitOf$, 1),
-  boot: run_lib($boot$, 0)
+  boot: run_lib($boot$, 0),
+  runAfterEvent: run_lib($runAfterEvent$, 3),
+  runAfterAcceptance: run_lib($runAfterAcceptance$, 3),
+  runBusy: run_lib($runBusy$, 4)
 };
 export {
   rpcstate_default as default

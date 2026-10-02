@@ -182,14 +182,15 @@ test('D2: update real da Mesa (git) deixa o Pi local intacto e resolvível', asy
   fs.chmodSync(path.join(piHome, 'node_modules', '.bin', 'pi'), 0o755);
   const runtime = tmp();
   const {resolvePi} = require('../pi.cjs');
-  const antes = resolvePi({deskDir: work});
+  const antes = resolvePi({deskDir: path.join(work, 'desk')});
+  assert.equal(antes, path.join(piHome, 'node_modules', '.bin', 'pi'), 'resolve o Pi da instalação testada');
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
     announcedVersion: '0.4.1', reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, true);
   assert.equal(fs.existsSync(antes), true, 'o binário do Pi continua lá depois do update');
-  assert.equal(resolvePi({deskDir: work}), antes, 'resolvePi continua achando o mesmo Pi');
+  assert.equal(resolvePi({deskDir: path.join(work, 'desk')}), antes, 'resolvePi continua achando o mesmo Pi');
   /* E o clone segue limpo nos manifestos (o .pi-local é ignorado via
      .gitignore — aqui o clone de teste não o tem; o resto fica limpo). */
   const sujo = git(['status', '--porcelain'], work).split('\n').filter((l) => l.trim() && !l.startsWith('??'));

@@ -56,13 +56,24 @@ function queuePrompt(e){
  queueRecord(e);
  if(session&&text)fs.appendFileSync(session,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text}]}})+'\n');
  if(steer&&holdTimer){clearTimeout(holdTimer);holdTimer=0;}
- if(steer&&streaming){streaming=false;emit({type:'agent_end'});}
+ if(steer&&streaming){streaming=false;emit({type:'agent_end',willRetry:true});}
  reply(e,{});
  stateFailArmed=chaosArmed('state-fail');
  if(text.includes('«cai»')){setTimeout(()=>process.exit(7),120);return;}
  /* `streaming` ligado já na resposta: o `get_state` que o main pede logo depois
     do prompt é o que decide se a Mesa segue ocupada. */
  streaming=true;
+
+ if(process.env.FAKE_PI_SETTLED_GAP&&text.includes('settle-test')){
+  emit({type:'agent_start'});
+  holdTimer=setTimeout(()=>{
+   streaming=false;
+   process.stdout.write(JSON.stringify({type:'agent_end',willRetry:false})+'\n');
+   emit({type:'auto_retry_start',attempt:1,maxAttempts:3,delayMs:2200});
+   holdTimer=setTimeout(()=>{holdTimer=0;emit({type:'agent_start'});emitText('Resposta após continuação.');},2200);
+  },500);
+  return;
+ }
  const body=`eco: ${text.split('\n')[0]}`;
  holdTimer=setTimeout(()=>{
   holdTimer=0;streaming=false;
@@ -74,7 +85,7 @@ function queuePrompt(e){
 const model={provider:'test',id:'offline',name:'Pi de teste',input:['text','image']};
 function reply(e,data){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:true,data})+'\n');}
 function refuse(e,error){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:false,error})+'\n');}
-function emit(event){process.stdout.write(JSON.stringify(event)+'\n');}
+function emit(event){process.stdout.write(JSON.stringify(event)+'\n');if(event.type==='agent_end'&&!event.willRetry)process.stdout.write(JSON.stringify({type:'agent_settled'})+'\n');}
 function emitText(text){
  emit({type:'message_start',message:{role:'assistant'}});
  emit({type:'message_update',assistantMessageEvent:{type:'text_delta',delta:text}});
@@ -166,6 +177,8 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
  if(e.type==='extension_ui_response'){if(pendingQuiz&&e.id===pendingQuiz.uiId)gradeQuiz(e);continue;}
  if(e.type==='get_commands')reply(e,{commands:[{name:'help',description:'Mostrar os comandos',argumentHint:'[assunto]'}]});
  else if(e.type==='get_state'){
+  const failFile=process.env.FAKE_PI_STATE_FAILURE_FILE;
+  if(failFile&&fs.existsSync(failFile)){fs.rmSync(failFile);refuse(e,'Estado indisponível (teste)');return;}
   if(stateFailArmed){
    stateFailArmed=false;
    refuse(e,'estado da sessão indisponível (teste)');

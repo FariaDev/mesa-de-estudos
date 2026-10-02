@@ -330,7 +330,7 @@ function connect(){
   const testExtra=process.env.LEARNING_DESK_TEST_ARGS?JSON.parse(process.env.LEARNING_DESK_TEST_ARGS):[];
   bridge=new PiBridge({cwd,session,pi,env:{...spawnEnv(pi),LEARNING_DESK_GGB_BRIDGE:ggbBridgeFile},promptFile:promptFile(),extraArgs:[...profileExtra,...testExtra]});
   bridge.on('event',e=>{
-   if(e.type==='auto_retry_start'&&Number(e.attempt)>Number(pendingCore.maxAutoRetries())){
+   if(['auto_retry_start','summarization_retry_scheduled'].includes(e.type)&&Number(e.attempt)>Number(pendingCore.maxAutoRetries())){
     bridge.breakConnection(Error('Limite de tentativas do Pi atingido. A conversa foi preservada.'));return;
    }
    /* Aviso da ponte (linha torta no stdout do Pi): fica no desk.log — o usuário
@@ -353,7 +353,7 @@ function connect(){
 async function assertIdle(message){
  if(!bridge)return;
  const current=await bridge.request('get_state');
- if(current.isStreaming||current.pendingMessageCount)throw Error(message);
+ if(bridge.isRunning(current))throw Error(message);
 }
 function stopBridge(){bridge?.removeAllListeners();bridge?.stop();bridge=null;pendingDialogs.clear();}
 function trimMessageImages(messages,keep=6){
@@ -649,7 +649,7 @@ ipcMain.handle('review-draft',async(_e,payload)=>{
  let folder,worker;
  try{
   // Match the selected conversation model without changing that conversation.
-  const current=bridge?await bridge.request('get_state',{},5000):{};
+  const current=bridge?await bridge.request('get_state',{},5000).catch(error=>{appendLog('review-draft',`Estado indisponível; usando o modelo padrão do Pi: ${error.message}`);return {};}):{};
   if(controller.signal.aborted)throw Error('Sugestão cancelada.');
   fs.mkdirSync(runtime,{recursive:true});folder=fs.mkdtempSync(path.join(runtime,'.review-draft-'));
   const file=path.join(folder,'prompt.md');fs.writeFileSync(file,DRAFT_PROMPT);
@@ -750,7 +750,7 @@ async function statsUsage(){
  }catch{}
  return null;
 }
-ipcMain.handle('pi-health',async()=>{const state=await connect().request('get_state',{},20000);return {ok:true,isStreaming:!!state?.isStreaming,pendingMessageCount:Number(state?.pendingMessageCount)||0,contextUsage:await statsUsage()};});
+ipcMain.handle('pi-health',async()=>{const state=await connect().request('get_state',{},20000);return {ok:true,isRunning:bridge.isRunning(state),isCompacting:!!state?.isCompacting,isStreaming:!!state?.isStreaming,pendingMessageCount:Number(state?.pendingMessageCount)||0,contextUsage:await statsUsage()};});
 ipcMain.handle('pi-compact',async(_e,instructions)=>{
  await assertIdle('Pare a resposta antes de compactar.');
  const b=connect();
@@ -764,7 +764,7 @@ async function levelsFor(model){
  if(!levelsMod?.getSupportedThinkingLevels)return FALLBACK_LEVELS;
  return model?levelsMod.getSupportedThinkingLevels(model):['off'];
 }
-ipcMain.handle('pi-settings',async(_e,change)=>{const b=connect();let current=await b.request('get_state');if(current.isStreaming||current.pendingMessageCount)throw Error('Aguarde ou pare a resposta antes de mudar o modelo.');if(change.model){const catalog=await b.request('get_available_models');const found=catalog.models?.find(m=>m.provider===change.model.provider&&m.id===change.model.id);if(!found)throw Error('Modelo não disponível no Pi.');await b.request('set_model',{provider:found.provider,modelId:found.id});}if(change.level){current=await b.request('get_state');if(!(await levelsFor(current.model)).includes(change.level))throw Error('Este esforço não é suportado pelo modelo.');await b.request('set_thinking_level',{level:change.level});}current=await b.request('get_state');return {state:current,levels:await levelsFor(current.model),contextUsage:await statsUsage()};});
+ipcMain.handle('pi-settings',async(_e,change)=>{const b=connect();let current=await b.request('get_state');if(bridge.isRunning(current))throw Error('Aguarde ou pare a resposta antes de mudar o modelo.');if(change.model){const catalog=await b.request('get_available_models');const found=catalog.models?.find(m=>m.provider===change.model.provider&&m.id===change.model.id);if(!found)throw Error('Modelo não disponível no Pi.');await b.request('set_model',{provider:found.provider,modelId:found.id});}if(change.level){current=await b.request('get_state');if(!(await levelsFor(current.model)).includes(change.level))throw Error('Este esforço não é suportado pelo modelo.');await b.request('set_thinking_level',{level:change.level});}current=await b.request('get_state');return {state:current,levels:await levelsFor(current.model),contextUsage:await statsUsage()};});
 
 ipcMain.handle('pi-prompt',async(_e,payload)=>{
  if(typeof payload.text!=='string'||payload.text.length>MAX_DRAFT)throw Error('Mensagem inválida.');
