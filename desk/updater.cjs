@@ -146,10 +146,27 @@ function timedFetch(url,{timeout=15000,headers}={}){
  return fetch(url,{headers,signal:AbortSignal.timeout(timeout)});
 }
 
+/* Metadata GETs may repeat once after a transient failure. Prompts and ZIP
+   downloads are not part of this policy; uncertain delivery never retries here. */
 async function defaultFetchJson(url){
- const res=await timedFetch(url,{timeout:10000,headers:{'user-agent':'mesa-de-estudos',accept:'application/json'}});
- if(!res.ok)throw Error('HTTP '+res.status);
- return res.json();
+ for(let attempt=0;attempt<2;attempt++){
+  let res;
+  try{
+   res=await timedFetch(url,{timeout:10000,headers:{'user-agent':'mesa-de-estudos',accept:'application/json'}});
+   if(!res.ok){const error=Error('HTTP '+res.status);error.status=res.status;throw error;}
+   return await res.json();
+  }catch(error){
+   const transient=error instanceof TypeError||['TimeoutError','AbortError'].includes(error.name)||[408,429,502,503,504].includes(error.status);
+   if(attempt||!transient)throw error;
+   const after=res?.headers.get('retry-after');
+   const seconds=after===null||after===undefined?NaN:Number(after);
+   const delay=after?(Number.isFinite(seconds)?seconds*1000:Date.parse(after)-Date.now()):1000;
+   // A long server cooldown belongs to a later manual check, not a sleeping UI.
+   if(!Number.isFinite(delay)||delay>3000)throw error;
+   await res?.body?.cancel().catch(()=>{});
+   await new Promise(resolve=>setTimeout(resolve,Math.max(0,delay)));
+  }
+ }
 }
 
 async function defaultFetchBuffer(url){
