@@ -14,6 +14,9 @@ const pending=require('./pending.cjs');
 const resume=require('./resume.cjs');
 const bookmarks=require('./bookmarks.cjs');
 const review=require('./review.cjs');
+const {DRAFT_PROMPT,draftContext,generateReviewDraft}=require('./review-draft.cjs');
+const pendingCore=require('./src/generated/pending.core.js').default;
+let activeReviewDraft=null;
 const {pinnedArgs}=require('./profiles.cjs');
 const {claimHand,recoverClaims}=require('./handoff.cjs');
 const {deliverPrompt}=require('./send.cjs');
@@ -327,6 +330,9 @@ function connect(){
   const testExtra=process.env.LEARNING_DESK_TEST_ARGS?JSON.parse(process.env.LEARNING_DESK_TEST_ARGS):[];
   bridge=new PiBridge({cwd,session,pi,env:{...spawnEnv(pi),LEARNING_DESK_GGB_BRIDGE:ggbBridgeFile},promptFile:promptFile(),extraArgs:[...profileExtra,...testExtra]});
   bridge.on('event',e=>{
+   if(e.type==='auto_retry_start'&&Number(e.attempt)>Number(pendingCore.maxAutoRetries())){
+    bridge.breakConnection(Error('Limite de tentativas do Pi atingido. A conversa foi preservada.'));return;
+   }
    /* Aviso da ponte (linha torta no stdout do Pi): fica no desk.log — o usuário
       não precisa ver, e o turno segue vivo. Erro de verdade continua em
       `desk_error`, que a UI trata como queda. */
@@ -634,6 +640,30 @@ ipcMain.handle('bookmarks-save',(_e,payload)=>{
    de origem), `remove` recebe a `key`/o `item` — o núcleo acha o item por
    identidade, nunca pela posição. Como nos favoritos, a resposta é a lista
    FILTRADA (a tela é a biblioteca da matéria; o arquivo guarda tudo). */
+ipcMain.handle('review-draft',async(_e,payload)=>{
+ const raw=isPlainObject(payload)?payload:{};
+ if(typeof raw.id!=='string'||!raw.id||raw.id.length>80)throw Error('Pedido de revisão inválido.');
+ const context=draftContext(raw);
+ activeReviewDraft?.controller.abort();
+ const controller=new AbortController(),task={id:raw.id,controller};activeReviewDraft=task;
+ let folder,worker;
+ try{
+  // Match the selected conversation model without changing that conversation.
+  const current=bridge?await bridge.request('get_state',{},5000):{};
+  if(controller.signal.aborted)throw Error('Sugestão cancelada.');
+  fs.mkdirSync(runtime,{recursive:true});folder=fs.mkdtempSync(path.join(runtime,'.review-draft-'));
+  const file=path.join(folder,'prompt.md');fs.writeFileSync(file,DRAFT_PROMPT);
+  const extraArgs=['--no-tools','--no-extensions','--no-skills','--no-prompt-templates','--no-session'];
+  if(current.model?.provider&&current.model?.id)extraArgs.push('--provider',current.model.provider,'--model',current.model.id);
+  worker=new PiBridge({cwd:folder,session:path.join(folder,'session.jsonl'),pi:piBinary(),env:spawnEnv(piBinary()),promptFile:file,extraArgs});
+  const source=review.normalizeOne({question:context.question||'Revisão',ref:raw.ref});
+  return await generateReviewDraft({bridge:worker,context,ref:source.ref,signal:controller.signal});
+ }finally{
+  worker?.stop();if(folder)fs.rmSync(folder,{recursive:true,force:true});
+  if(activeReviewDraft===task)activeReviewDraft=null;
+ }
+});
+ipcMain.handle('review-draft-cancel',(_e,id)=>{if(activeReviewDraft?.id===id)activeReviewDraft.controller.abort();});
 ipcMain.handle('review-save',(_e,payload)=>{
  const raw=isPlainObject(payload)?payload:{};
  review.reviewSave(runtime,{...raw,courseId});
@@ -791,6 +821,9 @@ ipcMain.handle('pi-prompt',async(_e,payload)=>{
      na mão para a próxima tentativa e a próxima abertura o devolve para a fila.
      O contexto do turno não conta como enviado. */
   onRefused:handoffProblem,
+ }).catch(error=>{
+  if(error?.notSent===true)return {sent:false,retryable:true,error:error.message};
+  throw error;
  });
 });
 ipcMain.handle('pi-abort',async()=>{if(bridge){await bridge.request('clear_queue');await bridge.request('abort');}});
@@ -1089,4 +1122,4 @@ function startGgbBridge(){
  });
 }
 
-app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>{bridge?.removeAllListeners();bridge?.stop();try{if(ggbServer){ggbServer.close();ggbServer=null;}}catch{}try{fs.rmSync(ggbBridgeFile,{force:true});}catch{}persist();});
+app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>{activeReviewDraft?.controller.abort();bridge?.removeAllListeners();bridge?.stop();try{if(ggbServer){ggbServer.close();ggbServer=null;}}catch{}try{fs.rmSync(ggbBridgeFile,{force:true});}catch{}persist();});

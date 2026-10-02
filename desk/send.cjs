@@ -127,7 +127,9 @@ async function deliverPrompt({
     if (typeof onRefused === 'function') {
       onRefused(`nada foi enviado ao Pi (${motivoDoEnvio}) — o bilhete da Conversa continua na fila`);
     }
-    throw Error(`Nada foi enviado ao Pi: ${motivoDoEnvio}`);
+    const refused=Error(`Nada foi enviado ao Pi: ${motivoDoEnvio}`);
+    refused.notSent=true;
+    throw refused;
   }
   /* `get_state` vem DEPOIS de um prompt já aceito: a resposta está entregue e
      essa leitura é acessória. Falhar aqui NÃO pode virar erro do envio — o

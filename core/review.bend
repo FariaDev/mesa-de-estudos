@@ -506,3 +506,19 @@ def redoPrompt(item: ReviewItem) -> String:
       ++ attemptSuffix(attempt)
       ++ troubleSuffix(difficulty)
       ++ refSuffix(ref)
+
+# Resposta do modelo só pode preencher um campo ainda intocado do diálogo atual.
+# O host mede a identidade do pedido e acompanha input (inclusive editar e apagar).
+def canFillDraft(open: Bool, current: Bool, untouched: Bool) -> Bool:
+  match open:
+    case False{}:
+      False{}
+    case True{}:
+      match current:
+        case False{}:
+          False{}
+        case True{}:
+          untouched
+
+def draftStatus(text: String) -> V.ViewNode:
+  V.viewEl("p", [V.attrId("review-draft-status"), V.attr("role", "status")], [V.viewText(text)])

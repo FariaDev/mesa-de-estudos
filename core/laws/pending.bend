@@ -78,3 +78,20 @@ law pending_stored_fits:
 
 law pending_stored_over:
   {P.overStored((41943041 : U32)) == True{} : Bool}
+
+law pending_retry_limit:
+  {P.maxAutoRetries() == 3n : Nat}
+law pending_retry_safe:
+  {P.retryAllowed(True{}, True{}) == True{} : Bool}
+law pending_retry_ambiguous:
+  {P.retryAllowed(False{}, True{}) == False{} : Bool}
+law pending_retry_exhausted:
+  {P.retryAllowed(True{}, False{}) == False{} : Bool}
+law pending_retry_first:
+  {P.retryDelay(1n) == 2000 : U32}
+law pending_retry_second:
+  {P.retryDelay(2n) == 4000 : U32}
+law pending_retry_third:
+  {P.retryDelay(3n) == 8000 : U32}
+law pending_retry_outside:
+  {P.retryDelay(4n) == 0 : U32}

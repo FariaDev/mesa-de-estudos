@@ -190,6 +190,8 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
   if(streaming){streaming=false;setTimeout(()=>emit({type:'agent_end'}),80);}
  }
  else if(e.type==='prompt'){
+  if(process.env.FAKE_PI_REVIEW_DRAFT&&args.includes('--no-tools')){reply(e,{});setTimeout(()=>emitText(process.env.FAKE_PI_REVIEW_DRAFT),Number(process.env.FAKE_PI_REVIEW_DELAY)||0);return;}
+  if(process.env.FAKE_PI_REFUSAL_LOG&&String(e.message).startsWith('falhar')){fs.appendFileSync(process.env.FAKE_PI_REFUSAL_LOG,JSON.stringify({at:Date.now(),message:e.message})+'\n');emit({type:'response',id:e.id,success:false,error:'Recusa de teste antes do aceite'});return;}
   if(QUEUE_LOG){queuePrompt(e);return;}
   const content=[{type:'text',text:e.message}];
   if(Array.isArray(e.images))content.push(...e.images);

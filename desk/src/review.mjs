@@ -1,5 +1,5 @@
 import {$,S,toast,markCourseTab,updateContextSummary} from './state.mjs';
-import {renderChildren} from './view-host.mjs';
+import {build,renderChildren} from './view-host.mjs';
 import {renderReview} from './dialogs.mjs';
 import {openRef} from './nav.mjs';
 import reviewCore from './generated/review.core.js';
@@ -16,9 +16,9 @@ import reviewCore from './generated/review.core.js';
    (`core/review.bend`); o arquivo e o IPC ficam no `desk/review.cjs`. Este
    módulo só monta o DOM, liga os cliques e leva os prompts ao `#prompt`.
 
-   Guardar de uma resposta do Pi passa pelo `#review-dialog` pré-preenchido:
-   questão do `#exercise-title`, tentativa da última mensagem sua, dificuldade
-   do trecho selecionado (se houver) e referência da página aberta.
+   Guardar abre um rascunho editável e pede ao Pi uma sugestão em sessão
+   separada, sem ferramentas. Campos que o usuário editou nunca são substituídos;
+   cancelar o diálogo cancela a sugestão. A referência vem da página aberta.
    --------------------------------------------------------------------------- */
 
 const MAX_PROMPT_CHARS = 4000;
@@ -147,6 +147,8 @@ async function removeItem(index){
 export function openReviewDialog({mode='add',item,ref}={}){
  const dialog=dialogOf();
  if(!dialog)return;
+ window.desk.reviewDraftCancel?.(dialog._draftId).catch(()=>{});
+ dialog._draftId='';dialog._dirty=new Set();
  const source=item||{};
  const reference=ref||source.ref||openRefOf();
  dialog._mode=mode;
@@ -161,7 +163,7 @@ export function openReviewDialog({mode='add',item,ref}={}){
   String(source.difficulty||''),
   reviewCore.refHint(coreRef(reference))
  );
- dialog.showModal();
+ if(!dialog.open)dialog.showModal();
 }
 
 /* A tentativa vem da mensagem DO USUÁRIO que aquela resposta do Pi estava
@@ -180,21 +182,43 @@ function attemptFrom(node){
 
 /* Guardar a partir de uma mensagem do Pi: o que já existe na tela vira o
    rascunho do item. */
+function draftStatus(text){
+ const dialog=dialogOf(),form=dialog?.querySelector('#review-form');
+ if(!form)return;
+ const current=form.querySelector('#review-draft-status');
+ if(current)current.textContent=text;
+ else form.insertBefore(build(reviewCore.draftStatus(text)),form.lastElementChild);
+}
+
 export function openReviewFromMessage(node=null){
  const selection=String(window.getSelection?.()?.toString()||'').trim();
- openReviewDialog({
-  mode:'add',
-  item:{
-   question:String($('#exercise-title')?.value||'').trim(),
-   attempt:attemptFrom(node).trim().slice(0,400),
-   difficulty:selection.slice(0,240),
-   ref:openRefOf()
+ const attempt=attemptFrom(node).trim(),ref=openRefOf();
+ const question=String($('#exercise-title')?.value||'').trim();
+ openReviewDialog({mode:'add',item:{question,attempt:attempt.slice(0,400),difficulty:selection.slice(0,240),ref}});
+ const dialog=dialogOf();
+ const answer=String(node?._raw||node?.querySelector('.body')?.innerText||'');
+ if(!dialog||!answer.trim()||!window.desk.reviewDraft)return;
+ const id=`review-${Date.now()}-${++draftSequence}`;dialog._draftId=id;
+ draftStatus('Preparando sugestão do Pi… Você pode editar os campos.');
+ window.desk.reviewDraft({id,question,attempt,answer,selection,ref}).then(item=>{
+  for(const key of ['question','attempt','difficulty']){
+   const field=dialog.querySelector(`#review-${key}`);
+   if(field&&reviewCore.canFillDraft(dialog.open,dialog._draftId===id,!dialog._dirty.has(key)))field.value=String(item[key]||'');
   }
+  if(dialog.open&&dialog._draftId===id)draftStatus('Sugestão do Pi pronta. Revise ou edite antes de guardar.');
+ }).catch(error=>{
+  if(dialog.open&&dialog._draftId===id)draftStatus(`Não foi possível preparar a sugestão: ${error.message} Preencha os campos para guardar.`);
  });
 }
+let draftSequence=0;
+$('#review-dialog')?.addEventListener('input',event=>{
+ const key=event.target?.id?.replace(/^review-/,'');
+ if(['question','attempt','difficulty'].includes(key))dialogOf()._dirty?.add(key);
+});
 
 $('#review-dialog')?.addEventListener('close',event=>{
  const dialog=event.currentTarget;
+ window.desk.reviewDraftCancel?.(dialog._draftId).catch(()=>{});dialog._draftId='';
  if(dialog.returnValue!=='ok')return;
  const item={
   question:String(dialog.querySelector('#review-question')?.value||''),
