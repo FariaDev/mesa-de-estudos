@@ -3,7 +3,7 @@
 // O app empacotado não depende do Bend — só do arquivo gerado.
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from "node:fs";
 import {homedir} from "node:os";
-import {join} from "node:path";
+import {join, dirname} from "node:path";
 import {pathToFileURL} from "node:url";
 
 const BEND_HOME = process.env.BEND_HOME || join(homedir(), ".bend");
@@ -85,6 +85,8 @@ const BUILD = [
 ];
 
 for (const job of BUILD) {
+  // O snapshot público não contém Conversa: não invente o app ausente.
+  if (!existsSync(join(dirname(dirname(job.out)), "package.json"))) continue;
   mkdirSync(job.out, {recursive: true});
   writeFileSync(join(job.out, "package.json"), JSON.stringify({type: "module"}, null, 2) + "\n");
   const result = await Bun.build({

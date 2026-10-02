@@ -279,3 +279,12 @@ law review_ref_suffix_empty:
 
 law review_save_action_label:
   {N.saveActionLabel() == "Guardar para revisar" : String}
+
+law review_draft_fill:
+  {N.canFillDraft(True{}, True{}, True{}) == True{} : Bool}
+law review_draft_closed:
+  {N.canFillDraft(False{}, True{}, True{}) == False{} : Bool}
+law review_draft_stale:
+  {N.canFillDraft(True{}, False{}, True{}) == False{} : Bool}
+law review_draft_edited:
+  {N.canFillDraft(True{}, True{}, False{}) == False{} : Bool}

@@ -14,6 +14,9 @@ const pending=require('./pending.cjs');
 const resume=require('./resume.cjs');
 const bookmarks=require('./bookmarks.cjs');
 const review=require('./review.cjs');
+const {DRAFT_PROMPT,draftContext,generateReviewDraft}=require('./review-draft.cjs');
+const pendingCore=require('./src/generated/pending.core.js').default;
+let activeReviewDraft=null;
 const {pinnedArgs}=require('./profiles.cjs');
 const {claimHand,recoverClaims}=require('./handoff.cjs');
 const {deliverPrompt}=require('./send.cjs');
@@ -327,6 +330,9 @@ function connect(){
   const testExtra=process.env.LEARNING_DESK_TEST_ARGS?JSON.parse(process.env.LEARNING_DESK_TEST_ARGS):[];
   bridge=new PiBridge({cwd,session,pi,env:{...spawnEnv(pi),LEARNING_DESK_GGB_BRIDGE:ggbBridgeFile},promptFile:promptFile(),extraArgs:[...profileExtra,...testExtra]});
   bridge.on('event',e=>{
+   if(['auto_retry_start','summarization_retry_scheduled'].includes(e.type)&&Number(e.attempt)>Number(pendingCore.maxAutoRetries())){
+    bridge.breakConnection(Error('Limite de tentativas do Pi atingido. A conversa foi preservada.'));return;
+   }
    /* Aviso da ponte (linha torta no stdout do Pi): fica no desk.log — o usuário
       não precisa ver, e o turno segue vivo. Erro de verdade continua em
       `desk_error`, que a UI trata como queda. */
@@ -347,7 +353,7 @@ function connect(){
 async function assertIdle(message){
  if(!bridge)return;
  const current=await bridge.request('get_state');
- if(current.isStreaming||current.pendingMessageCount)throw Error(message);
+ if(bridge.isRunning(current))throw Error(message);
 }
 function stopBridge(){bridge?.removeAllListeners();bridge?.stop();bridge=null;pendingDialogs.clear();}
 function trimMessageImages(messages,keep=6){
@@ -634,6 +640,30 @@ ipcMain.handle('bookmarks-save',(_e,payload)=>{
    de origem), `remove` recebe a `key`/o `item` — o núcleo acha o item por
    identidade, nunca pela posição. Como nos favoritos, a resposta é a lista
    FILTRADA (a tela é a biblioteca da matéria; o arquivo guarda tudo). */
+ipcMain.handle('review-draft',async(_e,payload)=>{
+ const raw=isPlainObject(payload)?payload:{};
+ if(typeof raw.id!=='string'||!raw.id||raw.id.length>80)throw Error('Pedido de revisão inválido.');
+ const context=draftContext(raw);
+ activeReviewDraft?.controller.abort();
+ const controller=new AbortController(),task={id:raw.id,controller};activeReviewDraft=task;
+ let folder,worker;
+ try{
+  // Match the selected conversation model without changing that conversation.
+  const current=bridge?await bridge.request('get_state',{},5000).catch(error=>{appendLog('review-draft',`Estado indisponível; usando o modelo padrão do Pi: ${error.message}`);return {};}):{};
+  if(controller.signal.aborted)throw Error('Sugestão cancelada.');
+  fs.mkdirSync(runtime,{recursive:true});folder=fs.mkdtempSync(path.join(runtime,'.review-draft-'));
+  const file=path.join(folder,'prompt.md');fs.writeFileSync(file,DRAFT_PROMPT);
+  const extraArgs=['--no-tools','--no-extensions','--no-skills','--no-prompt-templates','--no-session'];
+  if(current.model?.provider&&current.model?.id)extraArgs.push('--provider',current.model.provider,'--model',current.model.id);
+  worker=new PiBridge({cwd:folder,session:path.join(folder,'session.jsonl'),pi:piBinary(),env:spawnEnv(piBinary()),promptFile:file,extraArgs});
+  const source=review.normalizeOne({question:context.question||'Revisão',ref:raw.ref});
+  return await generateReviewDraft({bridge:worker,context,ref:source.ref,signal:controller.signal});
+ }finally{
+  worker?.stop();if(folder)fs.rmSync(folder,{recursive:true,force:true});
+  if(activeReviewDraft===task)activeReviewDraft=null;
+ }
+});
+ipcMain.handle('review-draft-cancel',(_e,id)=>{if(activeReviewDraft?.id===id)activeReviewDraft.controller.abort();});
 ipcMain.handle('review-save',(_e,payload)=>{
  const raw=isPlainObject(payload)?payload:{};
  review.reviewSave(runtime,{...raw,courseId});
@@ -720,7 +750,7 @@ async function statsUsage(){
  }catch{}
  return null;
 }
-ipcMain.handle('pi-health',async()=>{const state=await connect().request('get_state',{},20000);return {ok:true,isStreaming:!!state?.isStreaming,pendingMessageCount:Number(state?.pendingMessageCount)||0,contextUsage:await statsUsage()};});
+ipcMain.handle('pi-health',async()=>{const state=await connect().request('get_state',{},20000);return {ok:true,isRunning:bridge.isRunning(state),isCompacting:!!state?.isCompacting,isStreaming:!!state?.isStreaming,pendingMessageCount:Number(state?.pendingMessageCount)||0,contextUsage:await statsUsage()};});
 ipcMain.handle('pi-compact',async(_e,instructions)=>{
  await assertIdle('Pare a resposta antes de compactar.');
  const b=connect();
@@ -734,7 +764,7 @@ async function levelsFor(model){
  if(!levelsMod?.getSupportedThinkingLevels)return FALLBACK_LEVELS;
  return model?levelsMod.getSupportedThinkingLevels(model):['off'];
 }
-ipcMain.handle('pi-settings',async(_e,change)=>{const b=connect();let current=await b.request('get_state');if(current.isStreaming||current.pendingMessageCount)throw Error('Aguarde ou pare a resposta antes de mudar o modelo.');if(change.model){const catalog=await b.request('get_available_models');const found=catalog.models?.find(m=>m.provider===change.model.provider&&m.id===change.model.id);if(!found)throw Error('Modelo não disponível no Pi.');await b.request('set_model',{provider:found.provider,modelId:found.id});}if(change.level){current=await b.request('get_state');if(!(await levelsFor(current.model)).includes(change.level))throw Error('Este esforço não é suportado pelo modelo.');await b.request('set_thinking_level',{level:change.level});}current=await b.request('get_state');return {state:current,levels:await levelsFor(current.model),contextUsage:await statsUsage()};});
+ipcMain.handle('pi-settings',async(_e,change)=>{const b=connect();let current=await b.request('get_state');if(bridge.isRunning(current))throw Error('Aguarde ou pare a resposta antes de mudar o modelo.');if(change.model){const catalog=await b.request('get_available_models');const found=catalog.models?.find(m=>m.provider===change.model.provider&&m.id===change.model.id);if(!found)throw Error('Modelo não disponível no Pi.');await b.request('set_model',{provider:found.provider,modelId:found.id});}if(change.level){current=await b.request('get_state');if(!(await levelsFor(current.model)).includes(change.level))throw Error('Este esforço não é suportado pelo modelo.');await b.request('set_thinking_level',{level:change.level});}current=await b.request('get_state');return {state:current,levels:await levelsFor(current.model),contextUsage:await statsUsage()};});
 
 ipcMain.handle('pi-prompt',async(_e,payload)=>{
  if(typeof payload.text!=='string'||payload.text.length>MAX_DRAFT)throw Error('Mensagem inválida.');
@@ -791,6 +821,9 @@ ipcMain.handle('pi-prompt',async(_e,payload)=>{
      na mão para a próxima tentativa e a próxima abertura o devolve para a fila.
      O contexto do turno não conta como enviado. */
   onRefused:handoffProblem,
+ }).catch(error=>{
+  if(error?.notSent===true)return {sent:false,retryable:true,error:error.message};
+  throw error;
  });
 });
 ipcMain.handle('pi-abort',async()=>{if(bridge){await bridge.request('clear_queue');await bridge.request('abort');}});
@@ -1089,4 +1122,4 @@ function startGgbBridge(){
  });
 }
 
-app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>{bridge?.removeAllListeners();bridge?.stop();try{if(ggbServer){ggbServer.close();ggbServer=null;}}catch{}try{fs.rmSync(ggbBridgeFile,{force:true});}catch{}persist();});
+app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>{activeReviewDraft?.controller.abort();bridge?.removeAllListeners();bridge?.stop();try{if(ggbServer){ggbServer.close();ggbServer=null;}}catch{}try{fs.rmSync(ggbBridgeFile,{force:true});}catch{}persist();});

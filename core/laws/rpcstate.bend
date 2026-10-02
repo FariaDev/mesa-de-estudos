@@ -261,3 +261,27 @@ law rpc_step_error:
 
 law rpc_boot:
   {R.boot() == R.RpcOut{False{}, False{}, 0n, 0n, R.ActNone{}, False{}} : R.RpcOut}
+
+law rpc_run_end_keeps:
+  for active: Bool
+  {R.runAfterEvent(active, False{}, False{}) == active : Bool}
+law rpc_run_settled:
+  for active: Bool
+  for starts: Bool
+  {R.runAfterEvent(active, starts, True{}) == False{} : Bool}
+law rpc_late_acceptance:
+  for accepted: Bool
+  {R.runAfterAcceptance(False{}, accepted, False{}) == False{} : Bool}
+law rpc_active_busy:
+  for streaming: Bool
+  for compacting: Bool
+  for queued: Bool
+  {R.runBusy(True{}, streaming, compacting, queued) == True{} : Bool}
+law rpc_compaction_busy:
+  {R.runBusy(False{}, False{}, True{}, False{}) == True{} : Bool}
+law rpc_run_idle:
+  {R.runBusy(False{}, False{}, False{}, False{}) == False{} : Bool}
+law rpc_queued_keeps:
+  for active: Bool
+  for sameSettlement: Bool
+  {R.runAfterAcceptance(active, False{}, sameSettlement) == active : Bool}

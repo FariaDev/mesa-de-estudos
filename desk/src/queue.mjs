@@ -2,6 +2,7 @@ import {$,S,toast,refs} from './state.mjs';
 import {send,resetAttachments,persistTray} from './chat.mjs';
 import core from './generated/composerview.core.js';
 import pendingCore from './generated/pending.core.js';
+import {createQueueRetry} from './queue-retry.mjs';
 import {build,renderChildren,preserveFocus} from './view-host.mjs';
 
 /* Fila de mensagens da Mesa — espelho da Conversa (`chat/src/features/queue.mjs`)
@@ -23,6 +24,16 @@ let rendering=false,removeIntent=false;
    ("Recuperadas · N"). `saveTimer`/`saveSeq` seguram a escrita no texto em
    edição (o arquivo pode ter MBs de anexo; cada tecla não pode virar uma). */
 let held=false,recovered=false,saveTimer=0,saveSeq=0;
+function holdQueue(reason){
+ retries.reset();
+ held=true;
+ renderQueue();persist(true);
+ if(queue.length&&reason)toast(reason);
+}
+const retries=createQueueRetry({
+ retry:()=>flushQueue(),hold:holdQueue,
+ waiting:(count,delay)=>toast(`Falha no envio. Nova tentativa ${count}/${Number(pendingCore.maxAutoRetries())} em ${delay/1000}s.`)
+});
 
 const Nil={$:'Nil'};
 function listOf(xs){
@@ -104,6 +115,7 @@ const handlers={
  sendNow(){
   if(!queue.length)return;
   if(S.busy){toast('O Pi está respondendo — pare ou espere para enviar a fila.');return;}
+  retries.reset();
   held=false;
   recovered=false;
   renderQueue();
@@ -122,6 +134,7 @@ const handlers={
    quem manda — e a escrita fica travada enquanto a conversa do main não é a de
    `owner` (uma troca sem `adopt` não pode gravar a fila na conversa errada). */
 function dropQueue(reason){
+ retries.reset();
  if(!queue.length)return;
  queue.splice(0);
  sendingId='';
@@ -273,7 +286,7 @@ function holdDraft(el){
 }
 
 async function flushQueue(){
- if(flushing||!queue.length||S.busy||held)return;
+ if(flushing||!queue.length||S.busy||held||retries.pending)return;
  /* A linha da vez aberta para edição: salva o que está no input antes de enviar
     (o envio troca os nós e o texto digitado se perderia). */
  if(editingId===queue[0].id){
@@ -286,26 +299,31 @@ async function flushQueue(){
  if(editingId===item.id)editingId='';
  renderQueue();
  const release=holdDraft($('#prompt'));
- let posted=false;
+ let posted=false,retryable=false;
+ const generationOwner=owner;
  try{
-  posted=await send(item.text,item.payload.images,{refs:item.payload.refs})===true;
+  posted=await send(item.text,item.payload.images,{refs:item.payload.refs,onFailure:safe=>{retryable=safe;}})===true;
  }finally{
   release();
   sendingId='';
   flushing=false;
  }
  /* O item só sai da fila — e do disco — depois que o Pi aceitou. */
- if(posted&&queue[0]===item){
+ if(owner!==generationOwner||queue[0]!==item)return;
+ if(posted){
+  retries.reset();
   queue.shift();
   persist(true);
  }
  renderQueue();
+ if(!posted&&!held)retries.fail(retryable);
  if(posted&&queue.length&&!S.busy&&!held)queueMicrotask(flushQueue);
 }
 
 /* O usuário voltou ao comando (⏎/Enviar/⌘⏎ no composer): a fila segurada pode
    voltar ao fluxo normal. Chamado pelo `main.mjs`. */
 export function release(){
+ retries.reset();
  if(!held&&!recovered)return;
  held=false;
  recovered=false;
@@ -318,6 +336,7 @@ export function release(){
    segurada — nada é enviado sozinho. */
 export function adopt(data){
  if(!data||typeof data!=='object')return;
+ retries.reset();
  const next=String(data.session||S.currentSession||'');
  if(next!==owner&&queue.length)persist(true);
  owner=next;
@@ -346,10 +365,11 @@ export function init(){
  document.addEventListener('pointerdown',e=>{removeIntent=!!e.target?.closest?.('.queue-item button');},true);
  document.addEventListener('pointerup',()=>{removeIntent=false;},true);
  window.addEventListener('desk-idle',flushQueue);
- window.addEventListener('desk-failed',flushQueue);
+ window.addEventListener('desk-failed',()=>{if(!flushing)holdQueue('O Pi falhou — a fila ficou guardada.');});
  /* Parar interrompe a resposta: a fila fica, segurada, e a faixa passa a
     oferecer "Enviar agora" (o aviso diz isso — antes, Parar descartava). */
  window.addEventListener('desk-stop',()=>{
+  retries.reset();
   if(!queue.length)return;
   held=true;
   renderQueue();
@@ -357,5 +377,5 @@ export function init(){
   toast('Resposta interrompida — a fila ficou segurada.');
  });
  /* Fechar a janela não pode perder o que ainda está no atraso da edição. */
- window.addEventListener('beforeunload',()=>{if(saveTimer)persist(true);});
+ window.addEventListener('beforeunload',()=>{retries.reset();if(saveTimer)persist(true);});
 }

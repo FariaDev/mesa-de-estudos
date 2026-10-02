@@ -258,12 +258,14 @@ export async function send(text,images,options={}){
  /* `/conferir` digitado na mão não vai mais para o Pi (evita a captura dupla da
     extensão visual): redireciona para o anexo e devolve a observação como rascunho. */
  if(images===undefined&&/^\/conferir\b/i.test(text.trim())){const note=text.trim().replace(/^\/conferir\b/i,'').trim();$('#prompt').value='';await conferir();if(note)$('#prompt').value=note;return false;}
+ let stage='save',userMessage=null,knownNotSent=false;
  try{
   setBusy(true);
-  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());await connect();
+  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());stage='connect';await connect();stage='prompt';
   if(pending.length&&!S.supportsImages){setBusy(false);toast('Escolha um modelo com suporte a imagens para anexar.');return false;}
-  message('user',text,pending.map(item=>item.dataUrl));$('#prompt').value='';
+  userMessage=message('user',text,pending.map(item=>item.dataUrl));$('#prompt').value='';
   const result=await window.desk.prompt({text,refs:options.refs||refs(),images:pending.map(item=>typeof item==='string'?item:{dataUrl:item.dataUrl,capturedAt:item.capturedAt,exercise:item.exercise}),steer});
+  if(result?.sent===false){knownNotSent=result.retryable===true;throw Error(result.error||'O Pi recusou a mensagem.');}
   if(images===undefined)clearAttachments(pending);
   /* `streaming` só libera o composer quando o Pi DISSE que não está no turno.
      Estado desconhecido (a leitura falhou depois do aceite) NÃO é envio falho:
@@ -272,7 +274,13 @@ export async function send(text,images,options={}){
   if(result?.streaming===false)setBusy(false);
   if(result?.warning)toast(result.warning);
   return true;
- }catch(e){setBusy(false);toast(e.message);return false;}
+ }catch(e){
+  const safe=stage==='save'||stage==='connect'||knownNotSent;
+  if(knownNotSent)userMessage?.remove();
+  if(images===undefined&&!$('#prompt').value){$('#prompt').value=text;save();}
+  options.onFailure?.(safe);
+  setBusy(false);toast(e.message);return false;
+ }
 }
 /* dataURL → File sem `fetch` (o CSP do index.html não deixa `connect-src data:`):
    o base64 é decodificado na mão. */
@@ -634,7 +642,16 @@ window.desk.onEvent(e=>{
    renderTurn();
   }
  }
- if(e.type==='agent_end'){
+ if(e.type==='auto_retry_start'){
+  S.busyStall=0;setBusy(true);
+  activityLive(`Tentativa ${e.attempt}/${e.maxAttempts} em ${Math.ceil((e.delayMs||0)/1000)}s…`);
+ }
+ if(e.type==='auto_retry_end'&&e.success===false){
+  stoppedTurn=true;
+  window.dispatchEvent(new Event('desk-failed'));
+  toast('As tentativas do Pi terminaram. Confira o erro e tente novamente quando quiser.');
+ }
+ if(e.type==='agent_settled'){
   const aborted=stoppedTurn;stoppedTurn=false;
   settleTurn({reason:aborted?'stopped':''});
   setBusy(false);refreshMeter();
