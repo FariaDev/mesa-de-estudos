@@ -50,7 +50,11 @@ Na primeira abertura:
 
 Depois disso, **Mesa → Configurações** (⌘ ,) altera pastas, nomes das matérias e o caminho do Pi.
 
-Para personalizar rótulos dos PDFs, PDF que abre primeiro, um só leitor, esconder calculadora/Xournal: edite o bloco `desk` do `config.json`. Contrato completo em [`../AGENTS.md`](../AGENTS.md) (seção Customizar) e exemplo em [`config.example.json`](config.example.json). Não mude os defaults em `config.cjs` — isso é o jeito do autor.
+Em **Configurações → Recursos da mesa**, escolha o nome e quais recursos aparecem. Encerrar por hoje também controla o cartão de retomada; Lista/questão e rascunho `.xopp` são controlados juntos. As escolhas são aplicadas ao salvar.
+
+**Layout dos leitores** permite um ou dois leitores, nomes, termos de preferência do PDF inicial e o nome do botão do segundo leitor. **Aparência** oferece tema Sistema, Claro ou Escuro. Cancelar mantém as escolhas salvas. As abas da área de apoio reabrem o Formulário ou o Chat lateral sem precisar procurar no menu.
+
+Para personalizar rótulos dos PDFs, PDF que abre primeiro ou um só leitor, edite o bloco `desk` do `config.json`. Contrato completo em [`../AGENTS.md`](../AGENTS.md) (seção Customizar) e exemplo em [`config.example.json`](config.example.json). Não mude os defaults em `config.cjs` — isso é o jeito do autor.
 
 ## Windows
 
@@ -66,7 +70,8 @@ PDFs, calculadora e o chat com o Pi funcionam. **Conferir Xournal++** captura a 
 ### Checklist de teste manual (máquina Windows real)
 
 - [ ] Abrir com `npm start` e ver a boas-vindas da primeira abertura → **Configurar agora**.
-- [ ] Matérias/PDFs: abrir, busca com contagem, zoom/scroll, minimizar o leitor.
+- [ ] Ícone da Mesa na janela e na barra de tarefas; fixar na barra, fechar e reabrir pelo botão fixado (inclusive em uma pasta com espaços no caminho).
+- [ ] Matérias/PDFs: abrir, busca com contagem, zoom/scroll, minimizar o leitor, girar 90° (a orientação volta ao reabrir).
 - [ ] Calculadora (expressões e histórico).
 - [ ] Conectar o Pi (as credenciais são pedidas pelo próprio Pi).
 - [ ] Anexos: colar (Ctrl+V), arrastar para o chat e câmera do leitor; enviar com imagem.

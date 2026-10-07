@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
+import runtimeBundle from '../bundle-runtime.cjs';
 
 const desk=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.resolve(desk,'..');
@@ -25,14 +26,6 @@ if(process.platform!=='darwin'){
 
 if(!fs.existsSync(app))throw new Error('Mesa de Estudos.app não encontrada — rode npm run setup antes.');
 
-/* Módulos de topo por varredura, não lista à mão: `state-adapter.cjs` nasceu depois
-   da lista e ficou de fora do bundle — o app morria no primeiro `require`. */
-const modules=fs.readdirSync(desk).filter(f=>/\.(cjs|mjs)$/.test(f)&&fs.statSync(path.join(desk,f)).isFile()).sort();
-const files=[...modules,'index.html','ggb.html','style.css','package.json','config.example.json'];
-const dirs=['src','assets','templates'];
-// Importadas pelo index.html/renderer via `node_modules/...` — precisam viajar no bundle.
-const runtimeDeps=['marked','katex','dompurify','pdfjs-dist'];
-
 function setPlist(key,value){
  const plist=path.join(app,'Contents','Info.plist');
  try{
@@ -44,12 +37,7 @@ function setPlist(key,value){
 setPlist('CFBundleShortVersionString',pkg.version||'0.0.0');
 
 /* 1. Código do app. */
-fs.mkdirSync(dest,{recursive:true});
-for(const file of files){
- const from=path.join(desk,file);
- if(!fs.existsSync(from))throw new Error('Arquivo ausente: '+file);
- fs.copyFileSync(from,path.join(dest,file));
-}
+const managed=runtimeBundle.stageBundlePayload(desk,dest);
 /* Procedência do bundle: o updater dele (modo bundle) atualiza o clone que o
    originou e re-sincroniza — sem isto não há como voltar à fonte. Fora de um
    clone git não há o que registrar. */
@@ -58,33 +46,6 @@ if(fs.existsSync(path.join(root,'.git'))){
  try{remote=execFileSync('git',['-C',root,'remote','get-url','origin'],{encoding:'utf8'}).trim();}catch{}
  fs.writeFileSync(path.join(dest,'install-source.json'),JSON.stringify({path:root,remote},null,2)+'\n');
 }
-/* Apaga antes de copiar: mesclar deixa arquivo órfão da versão anterior no bundle. */
-for(const dir of dirs){
- const from=path.join(desk,dir);
- if(!fs.existsSync(from))continue;
- fs.rmSync(path.join(dest,dir),{recursive:true,force:true});
- fs.cpSync(from,path.join(dest,dir),{recursive:true});
-}
-fs.mkdirSync(path.join(dest,'scripts'),{recursive:true});
-fs.copyFileSync(path.join(desk,'scripts','install-app.mjs'),path.join(dest,'scripts','install-app.mjs'));
-
-/* 2. Dependências de runtime do renderer (recopiadas do zero a cada instalação). */
-const nm=path.join(dest,'node_modules');
-fs.rmSync(nm,{recursive:true,force:true});
-fs.mkdirSync(nm,{recursive:true});
-const managed=[];
-const addManaged=(rel)=>{if(rel&&!managed.includes(rel))managed.push(rel);};
-for(const file of files)addManaged(file);
-for(const dir of dirs)addManaged(dir);
-addManaged('scripts/install-app.mjs');
-
-for(const dep of runtimeDeps){
- const from=path.join(desk,'node_modules',dep);
- if(!fs.existsSync(from))throw new Error('Dependência ausente: '+dep+' — rode npm ci antes.');
- fs.cpSync(from,path.join(nm,dep),{recursive:true});
- addManaged(path.join('node_modules',dep));
-}
-
 /* Manifesto da instalação (A1/B1, no espírito do modo zip): o que ESTE payload
    considera gerenciado, gravado no disco. Órfão = estava gerenciado e a
    versão nova não tem — sai do bundle; arquivo local (nunca no manifesto)

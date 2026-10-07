@@ -216,11 +216,11 @@ if(only('menus')){
    await page.waitForFunction(()=>!document.querySelector('#mesa-menu').classList.contains('open'));
   });
 
-  await s.step('⌘2 troca para a segunda matéria',async()=>{
-   await page.keyboard.press('ControlOrMeta+2');
+  await s.step('⌘3 troca para a segunda matéria',async()=>{
+   await page.keyboard.press('ControlOrMeta+3');
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="B"]')?.classList.contains('active'),undefined,{timeout:30000});
    assert.match(await page.title(),/B/);
-   await page.keyboard.press('ControlOrMeta+1');
+   await page.keyboard.press('ControlOrMeta+2');
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="A"]')?.classList.contains('active'),undefined,{timeout:30000});
   });
  }finally{await s.close();}
@@ -776,8 +776,8 @@ if(only('tabs')){
    await page.waitForTimeout(1500);
   });
 
-  await s.step('⌘1 volta e o título/página acompanham',async()=>{
-   await page.keyboard.press('ControlOrMeta+1');
+  await s.step('⌘2 volta e o título/página acompanham',async()=>{
+   await page.keyboard.press('ControlOrMeta+2');
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="A"]')?.classList.contains('active'),undefined,{timeout:30000});
    await statusOnline(page,{timeout:30000});
    await page.waitForFunction(()=>document.title.includes('Matéria A'),undefined,{timeout:15000});
@@ -792,14 +792,14 @@ if(only('tabs')){
    await sendEnabled(page,{timeout:15000});
    // o fake fica esperando a resposta (sem agent_end) com o busy já solto: o
    // quiz pendente é "não ocioso" e a troca tem de ser recusada na hora
-   await page.keyboard.press('ControlOrMeta+2');
+   await page.keyboard.press('ControlOrMeta+3');
    await toastWait(page,'responda antes de trocar de matéria',{timeout:5000});
    assert.equal(await page.locator('#course-tabs button[data-id="A"]').evaluate(el=>el.classList.contains('active')),true,'a matéria não troca com o quiz pendente');
    assert.ok(await page.locator('.message.quiz .quiz-option').count()>=1,'o card do quiz continua na tela (o Pi segue esperando)');
    // responde para soltar o turno; aí a troca é permitida
    await page.locator('.message.quiz .quiz-option').first().click();
    await sendEnabled(page,{timeout:30000});
-   await page.keyboard.press('ControlOrMeta+2');
+   await page.keyboard.press('ControlOrMeta+3');
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="B"]')?.classList.contains('active'),undefined,{timeout:60000});
    await statusOnline(page,{timeout:30000});
    await page.waitForTimeout(800);
@@ -1087,14 +1087,14 @@ if(only('busy')){
   });
 
   await s.step('atalhos de aba durante o turno travado (documenta o herdado)',async()=>{
-   // atalho não respeita o disabled das abas (herdado): ⌘3 liga o GeoGebra no meio do turno
-   await page.keyboard.press('ControlOrMeta+3');
+   // atalho não respeita o disabled das abas (herdado): ⌘4 liga o GeoGebra no meio do turno
+   await page.keyboard.press('ControlOrMeta+4');
    await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
-   s.note('⌘3 liga o GeoGebra mesmo com as abas desabilitadas (atalho ignora o disabled; herdado do Electron)');
-   await page.keyboard.press('ControlOrMeta+1');
-   await page.waitForFunction(()=>!document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
-   // ⌘2 espera o turno (waitIdle ~12s) e o host recusa com o Pi ainda streamando
+   s.note('⌘4 liga o GeoGebra mesmo com as abas desabilitadas (atalho ignora o disabled; herdado do Electron)');
    await page.keyboard.press('ControlOrMeta+2');
+   await page.waitForFunction(()=>!document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
+   // ⌘3 espera o turno (waitIdle ~12s) e o host recusa com o Pi ainda streamando
+   await page.keyboard.press('ControlOrMeta+3');
    await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Pare a resposta antes de trocar'),undefined,{timeout:25000});
    assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].find(b=>b.classList.contains('active'))?.dataset.id),'A');
    assert.equal(await page.locator('#send').isDisabled(),true,'o turno continua preso (o stop é do usuário)');

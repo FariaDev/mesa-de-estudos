@@ -106,3 +106,26 @@ test('o que não existe fica de fora da linha de comando', () => {
     rmSync(home, {recursive: true, force: true});
   }
 });
+
+
+test('Livre dentro do vault não carrega modo/contexto de matéria e mantém ferramentas independentes',()=>{
+ const home=mkdtempSync(join(tmpdir(),'mesa-profile-free-'));
+ try{
+  const root=join(home,'.pi','agent','extensions');
+  for(const name of ['context-mode','workspace-guard','ask-user']){mkdirSync(join(root,name),{recursive:true});writeFileSync(join(root,name,'index.ts'),'');}
+  const overlay=join(home,'vault-overlay');mkdirSync(join(overlay,'extensions'),{recursive:true});
+  for(const name of ['learning-session.ts','code-study-guard.ts','anki-cards.ts','quiz.ts','visual-check.ts'])writeFileSync(join(overlay,'extensions',name),'');
+  const normal=profile.pinnedArgs({home,overlayDirs:[overlay]});
+  const free=profile.pinnedArgs({home,overlayDirs:[overlay],freeWorkspace:true});
+  assert.ok(normal.includes(join(root,'context-mode','index.ts')));
+  assert.ok(normal.includes(join(overlay,'extensions','learning-session.ts')));
+  assert.ok(!normal.includes('--no-context-files'),'perfil de matéria preservado');
+  assert.ok(free.includes('--no-context-files'),'ancestrais não são contexto da sessão avulsa');
+  const loaded=free.filter((_,i)=>free[i-1]==='--extension');
+  assert.ok(!loaded.includes(join(root,'context-mode','index.ts')));
+  for(const name of ['learning-session.ts','code-study-guard.ts','anki-cards.ts'])assert.ok(!loaded.includes(join(overlay,'extensions',name)));
+  for(const name of ['quiz.ts','visual-check.ts'])assert.ok(loaded.includes(join(overlay,'extensions',name)));
+  assert.ok(loaded.includes(join(root,'workspace-guard','index.ts')),'guarda de acesso preservada');
+  assert.ok(loaded.includes('builtin:mcp'),'MCP nativo preservado');
+ }finally{rmSync(home,{recursive:true,force:true});}
+});

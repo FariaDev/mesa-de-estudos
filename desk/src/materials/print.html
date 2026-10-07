@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<!-- Página de impressão offline: nada de rede, nada de script inline. O
+     material chega por IPC, vira HTML pela mesma `markup` do chat (com
+     allowAssets=false) e só depois o main chama o printToPDF. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; font-src 'self' file:; img-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<title>Mesa de Estudos</title>
+<link rel="stylesheet" href="../../node_modules/katex/dist/katex.min.css">
+<link rel="stylesheet" href="print.css">
+</head>
+<body>
+<main id="doc" class="doc"></main>
+<script type="module" src="print.mjs"></script>
+</body>
+</html>

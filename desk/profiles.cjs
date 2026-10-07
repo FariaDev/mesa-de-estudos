@@ -95,13 +95,17 @@ function overlayExtensionPaths(overlayDirs) {
 /**
  * Argumentos de lançamento do perfil fixado. Só devolve as entradas que existem
  * — caminho inexistente na linha de comando é ruído, não intenção.
- * @param {{home?: string, overlayDirs?: string[]}} options
+ * @param {{home?: string, overlayDirs?: string[], freeWorkspace?: boolean}} options
  */
-function pinnedArgs({home, overlayDirs} = {}) {
+function pinnedArgs({home, overlayDirs, freeWorkspace=false} = {}) {
   const args = ['--no-extensions'];
+  /* Livre pode estar dentro do vault no disco; isso não autoriza descobrir
+     AGENTS/TUTOR nem ativar o modo da matéria nos ancestrais. */
+  if(freeWorkspace)args.push('--no-context-files');
   for (const name of BUILTIN_EXTENSIONS) args.push('--extension', name);
   args.push('--extension', path.join(__dirname, 'src', 'extensions', 'mcp-policy'));
   for (const file of [...globalExtensionPaths(home), ...overlayExtensionPaths(overlayDirs)]) {
+    if(freeWorkspace&&(file.endsWith(path.join('context-mode','index.ts'))||['learning-session.ts','code-study-guard.ts','anki-cards.ts'].includes(path.basename(file))))continue;
     if (fs.existsSync(file)) args.push('--extension', file);
   }
   return args;

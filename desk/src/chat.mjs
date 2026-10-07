@@ -1,49 +1,22 @@
-import {marked} from '../node_modules/marked/lib/marked.esm.js';
-import katex from '../node_modules/katex/dist/katex.mjs';
-import DOMPurify from '../node_modules/dompurify/dist/purify.es.mjs';
 import {displayUserText,contentParts} from '../text.mjs';
-import {highlightCode} from '../highlight.mjs';
-import {$,S,toast,activity,activityLive,atBottom,connectionState,followBottom,refs,save,layoutSnapshot,setBusy,refreshMeter,connect} from './state.mjs';
+import {$,S,toast,activity,activityLive,atBottom,connectionState,followBottom,refs,save,layoutSnapshot,setBusy,refreshMeter,connect,supportsCapability,syncChatScrollMode} from './state.mjs';
 import {beginCaptureLock,captureLockValid,endCaptureLock} from './capture-lock.mjs';
 import {createWorkLogView} from './worklog-view.mjs';
 import {build,htmlNode,preserveFocus,renderChildren} from './view-host.mjs';
 import {openReviewFromMessage} from './review.mjs';
 import {renderImageChrome,renderPiDialog} from './dialogs.mjs';
+import {claudeActivityNotice,claudeLimitNotice,deskErrorIsFatal,limitNoticeState,MAX_ANSWER_CHARS,questionRequest,questionSubmitAction} from './claude-questions.mjs';
 import talkCore from './generated/talkview.core.js';
 import attachview from './generated/attachview.core.js';
 import attachCore from './generated/attachments.core.js';
 import refCore from './generated/pdfref.core.js';
 import * as worklog from './worklog.mjs';
-const ASSET_EXT=/\.(?:png|jpe?g|gif|webp|svg)$/i;
-const ASSET_LOCAL=/^(?:file:\/\/|\.{0,2}[\\/]|[\\/]|desk[\\/]|[a-zA-Z]:[\\/])/i;
-const ASSET_MARKDOWN=/!\[([^\]]*)\]\(\s*(?:<([^<>]+)>|((?:file:\/\/|\.{0,2}[\\/]|[\\/]|desk[\\/]|[a-zA-Z]:[\\/])[^)]*?\.(?:png|jpe?g|gif|webp|svg))(?:\s+"[^"]*")?)\s*\)/gi;
-function assetSource(value){const text=String(value||'').trim();return ASSET_LOCAL.test(text)&&ASSET_EXT.test(text.split(/[?#]/)[0]);}
-function assetLocalPath(value){const text=String(value||'').trim();if(!text||text.length>4096||/[\n\r]/.test(text)||!assetSource(text))return '';return text;}
-function attrValue(value){return String(value).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
-/* O marked entrega o código já escapado (&gt;, &amp;) e o realce escapa de novo — sem isso
-   o bloco mostra "=&gt;" e "&amp;&amp;" na tela. Desescape único (o inverso exato do marked). */
-function unescHtml(value){return String(value).replace(/&(amp|lt|gt|quot|apos|#39|#x27);/g,(_,e)=>({amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",'#39':"'",'#x27':"'"}[e]));}
-function markup(text,allowAssets=true){
- const math=[],assets=[];
- const withMath=text.replace(/\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)|(?<!\$)\$([^\n$]+)\$(?!\$)/g,(match,a,b,c,d)=>{const n=math.length,tex=a??b??c??d,display=a!==undefined||b!==undefined;try{const source=display?`$$${tex}$$`:`$${tex}$`;math.push(katex.renderToString(tex,{displayMode:display,throwOnError:false,trust:false}).replace('<span',()=>`<span data-tex="${attrValue(source)}"`));}catch{math.push(match);}return `MATHPLACEHOLDER${n}END`;});
- const protectedText=withMath.replace(ASSET_MARKDOWN,(match,alt,bracketed,plain)=>{const source=(bracketed??plain??'').trim();if(!assetSource(source))return match;if(!allowAssets)return `\`${source}\``;assets.push({source,alt:(alt||'').trim()});return `ASSETPLACEHOLDER${assets.length-1}END`;});
- let html=marked.parse(protectedText,{breaks:true});
- // realce dos blocos de código: fora do DOMPurify via placeholder (os spans não são tags seguras lá)
- const codes=[];
- html=html.replace(/<pre><code(?: class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g,(all,lang,code)=>{
-  codes.push(`<pre class="hl"><code data-lang="${attrValue(lang||'')}">${highlightCode(unescHtml(code),lang)}</code></pre>`);
-  return `CODEPLACEHOLDER${codes.length-1}END`;
- });
- html=html.replace(/MATHPLACEHOLDER(\d+)END/g,(_,n)=>math[n]);
- const figure=n=>{const asset=assets[Number(n)];return `<figure class="asset" data-asset="${attrValue(asset.source)}"${asset.alt?` data-caption="${attrValue(asset.alt)}"`:''}></figure>`;};
- html=html.replace(/<p>\s*ASSETPLACEHOLDER(\d+)END\s*<\/p>/g,(_,n)=>figure(n)).replace(/ASSETPLACEHOLDER(\d+)END/g,(_,n)=>figure(n));
- return DOMPurify.sanitize(html,{FORBID_TAGS:['style','iframe','form','input','button'],FORBID_ATTR:['srcset']})
-  .replace(/CODEPLACEHOLDER(\d+)END/g,(_,n)=>codes[Number(n)]||'');
-}
+import {markup,markupInline,assetLocalPath,attrValue,decorateCode} from './markdown.mjs';
+/* O renderer Markdown+LaTeX vive em `markdown.mjs` (compartilhado com o chat
+   lateral); o realce de código e o pipeline do antigo `chat.mjs` são os mesmos.
+   `markup` é reexportado pela compatibilidade dos imports antigos. */
+export {markup,markupInline};
 function assetFallback(source){return build(talkCore.assetFallback(source));}
-/* Markdown+LaTeX de um trecho curto (opção de quiz, observação): sem o <p>
-   externo quando é um parágrafo só. Sem assets — é rótulo, não figura. */
-function markupInline(text){const html=markup(text,false);const single=/^<p>([\s\S]*?)<\/p>\s*$/.exec(html);return single?single[1]:html;}
 /* Fronteira dos assets: `markup` continua dono do HTML do Markdown — a figura
    nasce como placeholder (`figure.asset[data-asset]`) e o `<pre>` realçado sai
    do CODEPLACEHOLDER. A **forma** hidratada (img.plot + figcaption, o `code` de
@@ -85,14 +58,8 @@ function message(role,text,images=[],parent=null){
   SaveForReview:()=>openReviewFromMessage(el),
  };
  el=build(talkCore.message(role==='user',htmlNode(''),bendList(images),true,false,role!=='user'),handlers);
+ if(role!=='user')el.querySelector('.role').textContent=S.agentLabel;
  (parent||$('#messages')).append(el);updateMessage(el,text,images);return el;
-}
-function decorateCode(body){
- for(const pre of body.querySelectorAll('pre')){
-  if(pre.parentElement?.classList.contains('codeblock'))continue;
-  const lang=(pre.querySelector('code')?.dataset.lang||'').trim();
-  pre.replaceWith(build(talkCore.codeBlock(htmlNode(pre.outerHTML),lang.toUpperCase())));
- }
 }
 /* Citação → link (pedido 5): `Limites.pdf, p. 7` — o que o "Citar" escreve e o
    que o Pi costuma repetir — vira um botão que abre a página no leitor. Nome e
@@ -198,6 +165,7 @@ function updateMessage(el,text,images,live){
  el._live=text;if(el._tick)return;el._tick=setTimeout(()=>{el._tick=0;if(selectionInsideMessages())return;paintMessage(el,el._live,[],true);},80);
 }
 export function showHistory(messages){
+ clearNotices();
  const turns=worklog.historyTurns(messages||[]);
  /* As últimas 6 imagens ficam; as mais antigas saem (mesma regra de antes). */
  let keep=6;
@@ -214,7 +182,10 @@ export function showHistory(messages){
     num DocumentFragment e entra no DOM de uma vez. O padrão antigo (medir/rolar
     por mensagem) forçava um layout síncrono por mensagem: com um token sem
     espaço a quebra de linha patológica do Blink (~850 ms por layout) multiplicava
-    pelas 102 mensagens e congelava o renderer por minutos. */
+    pelas 102 mensagens e congelava o renderer por minutos. O modo de rolagem
+    (classe `chat-scroll`) é acertado ANTES da medida para o `atBottom()` olhar o
+    scroller de verdade já no primeiro render. */
+ syncChatScrollMode();
  const stick=atBottom();
  $('#messages').replaceChildren();
  const frag=document.createDocumentFragment();
@@ -234,6 +205,7 @@ export function showHistory(messages){
  followBottom(stick);
 }
 export async function doCompact(text){
+ if(!supportsCapability('compact')){toast('Compactar o contexto não está disponível neste motor.');return;}
  if(S.busy){toast('Pare a resposta antes de compactar.');return;}
  const instructions=text.replace(/^\/compact\b/i,'').trim();
  try{activity('Compactando o contexto da conversa…');const result=await window.desk.compact(instructions);
@@ -250,11 +222,15 @@ export async function doCompact(text){
    em vez das páginas abertas agora. `images` explícito pula os atalhos de texto
    (`/compact`, `/conferir`) e não mexe na bandeja. */
 export async function send(text,images,options={}){
- const steer=options.steer===true;
+ /* Steer só existe onde o motor oferece (capabilities.steer). Sem ele, ocupado
+    é recusado: quem enfileira é o `queue.mjs`/o `#prompt` do main — a Mesa
+    nunca finge interromper e reenviar. */
+ const steer=options.steer===true&&supportsCapability('steer');
+ if(options.steer===true&&!steer&&S.busy){toast(`${S.agentLabel} não interrompe a resposta — use a fila (⏎) ou espere.`);return false;}
  if(S.busy&&!steer)return false;
  const pending=images===undefined?S.attachments.slice():images;
  if(!text.trim()&&!pending.length)return false;
- if(images===undefined&&/^\/compact\b/i.test(text.trim())){if(S.busy){toast('Pare a resposta antes de compactar.');return false;}$('#prompt').value='';await doCompact(text.trim());return false;}
+ if(images===undefined&&/^\/compact\b/i.test(text.trim())){if(!supportsCapability('compact')){toast('Compactar o contexto não está disponível neste motor.');return false;}if(S.busy){toast('Pare a resposta antes de compactar.');return false;}$('#prompt').value='';await doCompact(text.trim());return false;}
  /* `/conferir` digitado na mão não vai mais para o Pi (evita a captura dupla da
     extensão visual): redireciona para o anexo e devolve a observação como rascunho. */
  if(images===undefined&&/^\/conferir\b/i.test(text.trim())){const note=text.trim().replace(/^\/conferir\b/i,'').trim();$('#prompt').value='';await conferir();if(note)$('#prompt').value=note;return false;}
@@ -266,7 +242,7 @@ export async function send(text,images,options={}){
   userMessage=message('user',text,pending.map(item=>item.dataUrl));
   if(images===undefined&&$('#prompt').value===text)$('#prompt').value='';
   const result=await window.desk.prompt({text,refs:options.refs||refs(),images:pending.map(item=>typeof item==='string'?item:{dataUrl:item.dataUrl,capturedAt:item.capturedAt,exercise:item.exercise}),steer});
-  if(result?.sent===false){knownNotSent=result.retryable===true;throw Error(result.error||'O Pi recusou a mensagem.');}
+  if(result?.sent===false){knownNotSent=result.retryable===true;throw Error(result.error||`O ${S.agentLabel} recusou a mensagem.`);}
   if(images===undefined)clearAttachments(pending);
   /* `streaming` só libera o composer quando o Pi DISSE que não está no turno.
      Estado desconhecido (a leitura falhou depois do aceite) NÃO é envio falho:
@@ -311,7 +287,7 @@ export async function conferir(){
  /* O exercício anotado é o que estava ativo no momento da captura: se o usuário
     trocar de exercício antes de enviar, o contexto avisa em vez de deixar a
     captura passar por tentativa do exercício de agora. */
- const exerciseAtCapture=S.desk?.flags?.studyContext===false?'':(layoutSnapshot().study?.title||'');
+ const exerciseAtCapture=S.appConfig.desk?.studyContext===false?'':(layoutSnapshot().study?.title||'');
  try{
   const shot=await window.desk.captureReady();
   if(!captureLockValid(S,lock)){toast('A matéria mudou durante a captura — captura descartada.');return;}
@@ -326,7 +302,10 @@ export async function conferir(){
 }
 export async function conferirGeogebra(){
  if(S.busy||S.connecting||S.switching)return;
- if(!S.connected){toast('Conecte ao Pi antes de conferir o GeoGebra.');return;}
+ /* O applet manual continua na aba GeoGebra; o que depende do agente (a
+    ferramenta geogebra) só existe onde o motor oferece. */
+ if(!supportsCapability('geogebra')){toast('Conferir o GeoGebra com o agente não está disponível neste motor — o applet manual continua na aba GeoGebra.');return;}
+ if(!S.connected){toast(`Conecte ao ${S.agentLabel} antes de conferir o GeoGebra.`);return;}
  if(!S.supportsImages){toast('Este modelo não aceita imagens; escolha um modelo com visão.');return;}
  try{
   setBusy(true);
@@ -552,14 +531,35 @@ function insertQuote(){
  prompt.setSelectionRange(prompt.value.length,prompt.value.length);
  save();hideQuoteButton();window.getSelection()?.removeAllRanges();
 }
+/* Chat lateral → principal: insere o texto no rascunho SEM enviar e SEM tocar no
+   que já estava digitado (append previsível — separador só quando já há texto).
+   O envio continua sendo decisão do usuário; nenhum prompt sai daqui. */
+export function insertMainDraft(text){
+ const prompt=$('#prompt');
+ const body=String(text||'').trim();
+ if(!prompt||!body)return false;
+ const base=prompt.value;
+ const sep=!base?'':(base.endsWith('\n\n')?'':(base.endsWith('\n')?'\n':'\n\n'));
+ prompt.value=`${base}${sep}${body}\n\n`;
+ prompt.focus();
+ prompt.setSelectionRange(prompt.value.length,prompt.value.length);
+ save();
+ return true;
+}
 document.addEventListener('selectionchange',updateQuoteButton);
 $('#messages').addEventListener('scroll',hideQuoteButton,{passive:true});
+/* No modo rolagem quem rola é o #chat (o #messages cresce com o conteúdo):
+   o botão de citar some do mesmo jeito quando a conversa anda. */
+$('#chat')?.addEventListener('scroll',hideQuoteButton,{passive:true});
 $('#quote-btn').addEventListener('mousedown',e=>{e.preventDefault();quotePending=selectionQuote();});
 $('#quote-btn').addEventListener('mouseleave',()=>{quotePending='';});
 $('#quote-btn').addEventListener('click',()=>insertQuote());
-let assistant=null,assistantText='';
+let assistant=null,assistantText='',assistantId=null;
 let turnLog=null,turnView=null,liveTick=0,renderTimer=0,stoppedTurn=false;
-window.addEventListener('desk-stop',()=>{stoppedTurn=true;});
+/* Fatos que a fila consulta (via `mayAdvanceQueue` em state.mjs): o
+   cancelamento é do turno (some no turno novo / no comando do usuário) e a
+   incerteza é da conversa (o host a mantém até outra conversa). */
+window.addEventListener('desk-stop',()=>{stoppedTurn=true;S.turnCancelled=true;});
 
 /* Diário do turno: nasce no agent_start, é alimentado pelos eventos e recolhe no
    agent_end. O quiz fica fora dele — o card do quiz já é a interface da espera. */
@@ -575,8 +575,11 @@ function openTurnLog(){
 function paintLive(){
  if(!turnLog)return;
  if(S.quizQueue&&S.quizQueue.length)return; /* o quiz manda na linha do composer */
+ /* Um aviso de limite visível manda na faixa: o relógio do turno não apaga o
+    motivo da pausa a cada segundo (a limpeza é do `agent_settled`/RESUMED). */
+ if(limitShown)return;
  const step=worklog.runningStep(turnLog);
- const text=step?worklog.liveLabel(step):'Pi está pensando…';
+ const text=step?worklog.liveLabel(step):`${S.agentLabel} está pensando…`;
  activityLive(`${text} · ${worklog.formatDuration(Date.now()-turnLog.startedAt)}`);
 }
 function renderTurn(note=''){
@@ -599,10 +602,69 @@ function settleTurn({reason=''}={}){
  clearTimeout(renderTimer);renderTimer=0;
 }
 
+/* Avisos visíveis desta conversa (o adaptador avisa por `warning`→`desk_warn`;
+   o serviço repassa `code`/`rateLimit`/`detail`). O limite é guardado POR
+   JANELA (tipo + reset) num passo puro (`limitNoticeState`): `allowed`/
+   CLAUDE_RATE_LIMIT_RESUMED limpa só a janela liberada e o aviso mais grave
+   que restar volta à faixa — uma janela liberada nunca esconde outra janela
+   rejeitada. A faixa fica com a mensagem nativa e o toast sai quando o aviso
+   visível MUDA. Aviso nenhum marca idle/desconexão nem reenvia: o turno segue
+   como o adaptador decretar. O fim do turno, erro fatal e troca de conversa
+   (o `showHistory` da carga) zeram tudo. */
+let limitEntries=[];
+let limitShown='';
+let limitBandText='';
+let activityNotice=null;
+function limitConversation(e){return typeof e?.conversationId==='string'?e.conversationId:(S.currentSession||'');}
+function clearLimitBand(){
+ const box=$('#activity');
+ if(box&&limitBandText&&box.textContent===limitBandText&&!S.busy)activity('');
+ limitBandText='';
+}
+function paintLimitNotice(visible){
+ const shown=visible?`${visible.conversationId}\u0000${visible.window}\u0000${visible.key}`:'';
+ if(shown===limitShown)return;
+ limitShown=shown;
+ if(visible){limitBandText=visible.message;activity(visible.message);toast(visible.message);}
+ else clearLimitBand();
+}
+function clearNotices(){
+ const box=$('#activity');
+ if(activityNotice?.message&&box?.textContent===activityNotice.message&&!S.busy)activity('');
+ limitEntries=[];limitShown='';activityNotice=null;clearLimitBand();
+}
+window.addEventListener('desk-conversation-changed',clearNotices);
+function applyLimitNotice(notice,e){
+ const state=limitNoticeState(limitEntries,notice,limitConversation(e));
+ limitEntries=state.entries;
+ paintLimitNotice(state.visible);
+}
+/* Retry/overload/recusa/fallback: faixa e toast uma vez por aviso; NÃO mexem
+   em busy/conexão/fila. A remoção da bolha parcial do fallback fica para
+   quando o host souber evictar com segurança (adiada de propósito). */
+function applyActivityNotice(notice,e){
+ const conversationId=limitConversation(e);
+ if(activityNotice&&activityNotice.conversationId===conversationId&&activityNotice.key===notice.key)return;
+ activityNotice={conversationId,key:notice.key,message:notice.message};
+ if(!limitShown)activity(notice.message); /* bloqueio visível não é encoberto */
+ toast(notice.message);
+}
+
 window.desk.onEvent(e=>{
+ if(!e||typeof e!=='object')return;
+ /* Identidade da conversa: evento explícito de OUTRA conversa (troca de
+    matéria/conversa em andamento) é descartado por identidade — nunca pinta
+    no DOM da conversa errada. Eventos sem `conversationId` (Pi atual) seguem. */
+ if(typeof e.conversationId==='string'&&e.conversationId&&S.currentSession&&e.conversationId!==S.currentSession)return;
  if(['agent_start','message_start','message_update','message_end','tool_execution_start','tool_execution_end'].includes(e.type))S.busyStall=0;
- if(e.type==='agent_start'){stoppedTurn=false;openTurnLog();setBusy(true);paintLive();}
- if(e.type==='message_start'&&e.message?.role==='assistant'){assistant=null;assistantText='';}
+ if(e.type==='agent_start'){stoppedTurn=false;S.turnCancelled=false;openTurnLog();setBusy(true);paintLive();}
+ if(e.type==='message_start'&&e.message?.role==='assistant'){
+  /* O mesmo bloco pode chegar em dois message_start (stream + mensagem final):
+     o `id` do bloco é a identidade — não recomeça a bolha em curso. Sem id
+     (Pi), vale o comportamento de sempre. */
+  const id=e.message.id??null;
+  if(!(assistant&&id!==null&&assistantId===id)){assistant=null;assistantText='';assistantId=id;}
+ }
  if(e.type==='message_update'&&e.assistantMessageEvent?.type==='thinking_delta'){
   openTurnLog();
   worklog.thinkingDelta(turnLog,e.assistantMessageEvent.delta||'');
@@ -617,9 +679,12 @@ window.desk.onEvent(e=>{
  }
  if(e.type==='message_end'&&e.message?.role==='assistant'){
   const {text,images}=contentParts(e.message);
-  if(assistant)updateMessage(assistant,text,images);
+  const id=e.message.id??null;
+  /* Só atualiza a bolha em curso quando o bloco é o mesmo; um id novo (ou
+     ausente) vira mensagem própria, como antes. */
+  if(assistant&&(id===null||assistantId===null||id===assistantId))updateMessage(assistant,text,images);
   else if(text||images.length)message('assistant',text,images);
-  assistant=null;assistantText='';
+  assistant=null;assistantText='';assistantId=null;
   if(turnLog){worklog.closeThinking(turnLog);scheduleTurn();}
   if(e.message.errorMessage)toast(e.message.errorMessage);
  }
@@ -650,36 +715,103 @@ window.desk.onEvent(e=>{
  if(e.type==='auto_retry_end'&&e.success===false){
   stoppedTurn=true;
   window.dispatchEvent(new Event('desk-failed'));
-  toast('As tentativas do Pi terminaram. Confira o erro e tente novamente quando quiser.');
+  toast(`As tentativas do ${S.agentLabel} terminaram. Confira o erro e tente novamente quando quiser.`);
  }
  if(e.type==='agent_settled'){
+  /* `cancelled`/`isError`/`uncertain` (tradução dos motores novos) NÃO são
+     sucesso: sem `desk-idle`, a fila não drena; falha/incerteza também seguram
+     a fila e a entrega incerta nunca é repetida sozinha. */
+  clearNotices();
   const aborted=stoppedTurn;stoppedTurn=false;
-  settleTurn({reason:aborted?'stopped':''});
+  const cancelled=e.cancelled===true||aborted;
+  /* Cancelamento não é falha: o `desk-stop` já segurou a fila e avisou; tratar
+     `isError` do interrupt como erro geraria um segundo aviso e uma segunda
+     guarda. */
+  const failed=e.isError===true&&!cancelled;
+  const uncertain=e.uncertain===true;
+  /* Fatos para a guarda da fila: cancelamento veta o avanço até o turno novo
+     (ou o comando explícito do usuário); incerteza veta até outra conversa. */
+  if(cancelled)S.turnCancelled=true;
+  if(uncertain)S.uncertain=true;
+  settleTurn({reason:cancelled?'stopped':(failed||uncertain?'error':'')});
   setBusy(false);refreshMeter();
-  /* Turno terminou: a fila (`queue.mjs`) manda o próximo item. Parada pelo
-     usuário não conta — o `desk-stop` já segurou a fila, que espera o
-     "Enviar agora" da faixa. */
-  if(!aborted)window.dispatchEvent(new Event('desk-idle'));
+  if(!cancelled&&!failed&&!uncertain)window.dispatchEvent(new Event('desk-idle'));
+  else if(failed||uncertain)window.dispatchEvent(new Event('desk-failed'));
+  if(cancelled&&!aborted)window.dispatchEvent(new CustomEvent('desk-held',{detail:{message:'A resposta foi cancelada — a fila ficou guardada.'}}));
+  if(uncertain)toast('Entrega incerta: a mensagem pode ter sido recebida. Confira a conversa antes de reenviar.');
  }
  /* Linha ilegível do Pi (`desk_warn`): a ponte segue viva e o turno também, então
     nada de estado de conexão — o log fica no desk.log (main.cjs) e o console
-    guarda o rastro da Conversa (mesmo tratamento de `pi_warning`). */
- if(e.type==='desk_warn'){console.warn('Pi:',e.message);}
+    guarda o rastro da Conversa (mesmo tratamento de `pi_warning`).
+    Aviso NATIVO de limite de uso do Claude (`code`/`rateLimit` no evento) ganha
+    também faixa de atividade e toast, por janela/reset. Avisos nativos de
+    retry/overload/recusa/fallback (`claudeActivityNotice`) ganham faixa e toast
+    concisos, deduplicados por aviso. É só visibilidade — nada aqui mexe em
+    busy, conexão, fila nem reenvia; o console genérico (inclusive Pi) continua
+    igual para o que não for reconhecido. */
+ if(e.type==='desk_warn'){
+  console.warn(`${S.agentLabel}:`,e.message);
+  const limit=claudeLimitNotice(e);
+  if(limit)applyLimitNotice(limit,e);
+  else{
+   const notice=claudeActivityNotice(e);
+   if(notice)applyActivityNotice(notice,e);
+  }
+ }
+ /* `fatal:false` nativo = a consulta continua utilizável (retry/result à
+    frente): o erro fica visível no diário/faixa/toast, mas conexão, busy e
+    fila NÃO mudam e o `desk-failed` não sai — o `agent_settled` (isError) é
+    quem encerra o turno e segura a fila. Ausente/true preserva o tratamento
+    fatal de sempre (Pi e falha de transporte). */
  if(e.type==='desk_error'){
-  if(turnLog){worklog.addError(turnLog,`Erro do Pi: ${e.message}`);settleTurn({reason:'error'});}
-  S.connected=false;connectionState('error','Pi desconectado');setBusy(false);$('#auto-compact').hidden=true;activity(`Erro do Pi: ${e.message}`);toast(e.message);
-  /* O turno morreu sem `agent_end`: a fila tenta o que sobrou agora. */
-  window.dispatchEvent(new Event('desk-failed'));
+  clearNotices();
+  const fatal=deskErrorIsFatal(e);
+  if(turnLog)worklog.addError(turnLog,`Erro do ${S.agentLabel}: ${e.message}`);
+  toast(e.message);
+  if(fatal){
+   if(turnLog)settleTurn({reason:'error'});
+   S.connected=false;connectionState('error',`${S.agentLabel} desconectado`);setBusy(false);$('#auto-compact').hidden=true;
+   activity(`Erro do ${S.agentLabel}: ${e.message}`);
+   /* O turno morreu sem `agent_end`: a fila tenta o que sobrou agora. */
+   window.dispatchEvent(new Event('desk-failed'));
+  }else{
+   activity(`Erro do ${S.agentLabel}: ${e.message}`);
+  }
  }
  if(e.type==='extension_ui_request'){
   if(e.method==='notify'){toast(e.message);if(e.notifyType==='error')setBusy(false);}
-  else if(['select','confirm','input','editor'].includes(e.method))showDialog(e);
+  else if(['select','confirm','input','editor','question'].includes(e.method))showDialog(e);
   else if(e.method==='set_editor_text'&&e.text)$('#prompt').value=e.text;
  }
+ /* Pedido interativo vencido (cancelamento/perda da execução): o diálogo daquele
+    id sai da fila e o aberto é fechado SEM resposta — nada de responder um pedido
+    que não existe mais. */
+ if(e.type==='agent_request_cancelled'){
+  const id=String(e.id||'');
+  let removed=false;
+  for(let i=dialogQueue.length-1;i>=0;i--)if(dialogQueue[i].id===id){dialogQueue.splice(i,1);removed=true;}
+  if(currentDialog&&currentDialog.id===id){
+   const dialog=$('#pi-dialog');
+   currentDialog=null;
+   if(dialog){dialog._requestId='';dialog._questionDraft=null;if(dialog.open){ignoredDialogCloses++;dialog.returnValue='cancel';dialog.close();}}
+   nextDialog();
+   removed=true;
+  }
+  if(removed)S.dialogPending=!!currentDialog||dialogQueue.length>0;
+  cancelQuiz(id);
+ }
 });
-const dialogQueue=[];let currentDialog=null;
+const dialogQueue=[];let currentDialog=null,ignoredDialogCloses=0;
 function showDialog(e){dialogQueue.push(e);if(currentDialog)return;nextDialog();}
-function respondDialog(data){window.desk.respond(data);currentDialog=null;nextDialog();}
+function respondDialog(data){window.desk.respond(data).catch(()=>{});currentDialog=null;nextDialog();}
+function cancelQuiz(id){
+ for(const entry of S.quizQueue){
+  if(!entry.card||entry.card._talkQuiz?.dialogId!==id)continue;
+  const state=entry.card._talkQuiz;
+  state.answered=true;state.result={details:{status:'cancelled'}};
+  paintQuiz(state);
+ }
+}
 function currentQuiz(){return S.quizQueue.find(entry=>!entry.card)||null;}
 function quizSelect(e){return e.method==='select'&&Array.isArray(e.options)&&(!!currentQuiz()||/^Quiz\b/i.test(e.title||''));}
 function quizMulti(e){return /^Quiz \(múltipla escolha\)/.test(e.title||'')||!!currentQuiz()?.args?.multiSelect;}
@@ -753,7 +885,7 @@ function renderQuizCard(e){
  $('#welcome')?.remove();
  const quiz=currentQuiz();
  const state={dialogId:e.id,toolId:quiz?.id||'',multi:quizMulti(e),question:quizQuestion(e),details:quiz?.args?.details||'',labels:(e.options||[]).map(String),chosen:new Set(),answered:false,result:null,card:null};
- const card=paintQuiz(state,{append:true});$('#messages').scrollTop=$('#messages').scrollHeight;
+ const card=paintQuiz(state,{append:true});followBottom(true);
  if(quiz)quiz.card=card;
  card.querySelector('.quiz-option')?.focus();
  activity('Quiz aguardando sua resposta…');
@@ -773,11 +905,154 @@ function dialogField(e){
  if(e.method==='input')return {$:'FieldText',label:'',value:String(e.prefill||''),hint:String(e.placeholder||'')};
  return null;
 }
+/* Perguntas estruturadas (AskUserQuestion) no MESMO casco do #pi-dialog: o
+   formulário vive no #dialog-fields, rótulos/descrições entram como TEXTO
+   (nunca HTML) e as respostas saem por `compileQuestionAnswers` (módulo puro).
+   Texto livre e opções marcadas são excludentes nos dois sentidos: digitar
+   limpa as opções, marcar limpa o texto — a resposta nunca mistura os dois. */
+function questionBlock(question,index){
+ const block=document.createElement('section');
+ block.className='cq-question';
+ block.dataset.cqIndex=String(index);
+ if(question.header){
+  const header=document.createElement('h3');header.className='cq-header';header.textContent=question.header;block.append(header);
+ }
+ const text=document.createElement('p');text.className='cq-text';text.textContent=question.question;block.append(text);
+ const group=document.createElement('div');
+ group.className='cq-options';
+ group.setAttribute('role',question.multiSelect?'group':'radiogroup');
+ group.setAttribute('aria-label',question.question);
+ for(const option of question.options){
+  const label=document.createElement('label');label.className='cq-option';
+  const input=document.createElement('input');
+  input.type=question.multiSelect?'checkbox':'radio';
+  input.name=`cq-${index}`;
+  input.value=option.label;
+  label.append(input);
+  const body=document.createElement('span');body.className='cq-option-body';
+  const name=document.createElement('span');name.className='cq-option-label';name.textContent=option.label;body.append(name);
+  if(option.description){const desc=document.createElement('span');desc.className='cq-option-desc';desc.textContent=option.description;body.append(desc);}
+  label.append(body);group.append(label);
+ }
+ block.append(group);
+ const other=document.createElement('label');other.className='cq-other';
+ const otherLabel=document.createElement('span');otherLabel.className='cq-other-label';otherLabel.textContent='Outra resposta';
+ const free=document.createElement('input');
+ free.type='text';free.className='cq-text-input';free.maxLength=MAX_ANSWER_CHARS;free.autocomplete='off';
+ free.placeholder=question.multiSelect?'Digite outra resposta':'Digite uma resposta';
+ other.append(otherLabel,free);block.append(other);
+ free.addEventListener('input',()=>{
+  if(free.value)for(const input of group.querySelectorAll('input'))input.checked=false;
+  clearQuestionError(block);
+ });
+ group.addEventListener('change',()=>{
+  if(free.value)free.value='';
+  clearQuestionError(block);
+ });
+ return block;
+}
+function clearQuestionError(block){
+ block.classList.remove('cq-invalid');
+ block.querySelector('.cq-error')?.remove();
+ for(const input of block.querySelectorAll('[aria-invalid]'))input.removeAttribute('aria-invalid');
+}
+function focusQuestionErrors(errors){
+ let first=null;
+ for(const error of errors){
+  const block=$('#dialog-fields').querySelector(`.cq-question[data-cq-index="${error.index}"]`);
+  if(!block)continue;
+  block.classList.add('cq-invalid');
+  let note=block.querySelector('.cq-error');
+  if(!note){note=document.createElement('p');note.className='cq-error';note.setAttribute('role','alert');block.append(note);}
+  note.textContent=error.message;
+  if(!first)first=block.querySelector('.cq-option input,.cq-text-input');
+ }
+ first?.focus();
+}
+function collectQuestionPicks(questions){
+ const box=$('#dialog-fields');
+ return questions.map((question,index)=>{
+  const block=box.querySelector(`.cq-question[data-cq-index="${index}"]`);
+  if(!block)return {selected:[],text:''};
+  return {selected:[...block.querySelectorAll('.cq-option input:checked')].map(input=>input.value),text:block.querySelector('.cq-text-input')?.value||''};
+ });
+}
+function showQuestionDialog(e,questions){
+ const dialog=$('#pi-dialog');
+ dialog.dataset.permission='true';
+ dialog.dataset.question='true';
+ dialog._questionList=questions;
+ renderPiDialog({title:e.title||`Pergunta do ${S.agentLabel}`,message:e.message||'',field:null},{inline:markupInline});
+ $('#dialog-fields').replaceChildren(...questions.map(questionBlock));
+ $('#dialog-ok').textContent='Responder';
+ dialog._requestId=String(e.id||'');
+ dialog._questionDraft=null;
+ dialog.returnValue='';
+ dialog.showModal();
+ $('#dialog-fields').querySelector('.cq-option input,.cq-text-input')?.focus();
+}
+/* O submit do casco é o único caminho que fecha com `returnValue='ok'`; a
+   validação mora aqui para o diálogo NÃO fechar sem resposta (o adaptador
+   recusa faltantes). Só o botão Responder (`value='ok'`) exige respostas: o
+   Cancelar submete pelo mesmo evento e precisa fechar SEMPRE, mesmo com o
+   formulário vazio — sem botão identificado, mantém o caminho exigente. Enter
+   em campo do formulário clica o `#dialog-ok` (keydown acima), então cai no
+   mesmo caminho do Responder. */
+$('#pi-dialog form')?.addEventListener('submit',event=>{
+ if(!currentDialog||currentDialog.method!=='question')return;
+ const dialog=$('#pi-dialog');
+ const questions=Array.isArray(dialog._questionList)?dialog._questionList:[];
+ const action=questionSubmitAction(questions,collectQuestionPicks(questions),event.submitter?event.submitter.value:null);
+ if(action.action==='cancel')return;
+ if(action.action==='invalid'){event.preventDefault();focusQuestionErrors(action.errors);return;}
+ dialog._questionDraft={id:String(currentDialog.id||''),answers:action.answers};
+});
+$('#dialog-fields')?.addEventListener('keydown',event=>{
+ if(!currentDialog||currentDialog.method!=='question')return;
+ if(event.key!=='Enter'||event.shiftKey||event.isComposing)return;
+ if(!(event.target instanceof HTMLInputElement))return;
+ event.preventDefault();
+ $('#dialog-ok').click();
+});
 function nextDialog(){const e=dialogQueue.shift();S.dialogPending=!!e;if(!e)return;currentDialog=e;
+ const dialog=$('#pi-dialog');
+ dialog._questionDraft=null;
+ dialog._questionList=null;
  if(quizSelect(e)){renderQuizCard(e);return;}
- renderPiDialog({title:e.title||'Pi',message:e.message||'',field:dialogField(e)},{inline:markupInline});
- $('#pi-dialog').showModal();}
-$('#pi-dialog').addEventListener('close',()=>{const e=currentDialog;if(!e)return;const ok=$('#pi-dialog').returnValue==='ok';respondDialog(ok?{id:e.id,...(e.method==='confirm'?{confirmed:true}:{value:$('#dialog-value')?.value})}:{id:e.id,cancelled:true});});
+ if(e.method==='question'){
+  const request=questionRequest(e.questions);
+  if(!request.ok){respondDialog({id:e.id,cancelled:true});return;}
+  showQuestionDialog(e,request.questions);
+  return;
+ }
+ delete dialog.dataset.question;
+ $('#dialog-ok').textContent='Continuar';
+ dialog.dataset.permission=e.permission===true?'true':'false';
+ renderPiDialog({title:e.title||(e.permission===true?'Permissão':S.agentLabel),message:e.message||'',field:dialogField(e)},{inline:markupInline});
+ dialog._requestId=String(e.id||'');
+ dialog.returnValue='';
+ dialog.showModal();}
+/* O fechamento só responde ao pedido que ESTE diálogo estava mostrando: um
+   `agent_request_cancelled` pode abrir o diálogo seguinte antes do evento de
+   close do anterior, e a resposta não pode vazar para o pedido novo. */
+$('#pi-dialog').addEventListener('close',()=>{
+ // Native close events are queued. Revoking A may already have opened B on
+ // this same element; A's delayed close must not read or clear B's identity.
+ if(ignoredDialogCloses){ignoredDialogCloses--;return;}
+ const dialog=$('#pi-dialog');
+ const requestId=dialog._requestId||'';
+ dialog._requestId='';
+ const e=currentDialog&&currentDialog.id===requestId?currentDialog:null;
+ if(!e){dialog._questionDraft=null;return;}
+ const ok=dialog.returnValue==='ok';
+ if(e.method==='question'){
+  const draft=dialog._questionDraft;
+  dialog._questionDraft=null;
+  respondDialog(ok&&draft&&draft.id===e.id&&draft.answers?{id:e.id,answers:draft.answers}:{id:e.id,cancelled:true});
+  return;
+ }
+ respondDialog(ok?{id:e.id,...(e.method==='confirm'?{confirmed:true}:{value:$('#dialog-value')?.value})}:{id:e.id,cancelled:true});
+});
 function dataUrlToBlob(dataUrl){
  const head=dataUrl.slice(0,dataUrl.indexOf(',')),body=dataUrl.slice(dataUrl.indexOf(',')+1);
  const bin=atob(body),bytes=new Uint8Array(bin.length);

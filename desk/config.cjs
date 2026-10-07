@@ -60,7 +60,7 @@ const fromDesk=desk=>({
 });
 
 const fromConfig=config=>({
- vaultPath:config.vaultPath,runtimePath:config.runtimePath,piPath:config.piPath,xournalPath:config.xournalPath,
+ vaultPath:config.vaultPath,runtimePath:config.runtimePath,piPath:config.piPath,claudePath:config.claudePath,xournalPath:config.xournalPath,
  courses:coreListToArray(config.courses).map(c=>({id:c.id,name:c.name,path:c.path})),
  desk:fromDesk(config.desk)
 });
@@ -69,7 +69,7 @@ function defaultDesk(){return fromDesk(configCore.defaultDesk());}
 
 function normalizeDesk(raw){return fromDesk(configCore.normalizeDesk(deskFacts(raw)));}
 
-function emptyConfig(){return {vaultPath:'',runtimePath:'',piPath:'',xournalPath:'',courses:[],desk:defaultDesk()};}
+function emptyConfig(){return {vaultPath:'',runtimePath:'',piPath:'',claudePath:'',xournalPath:'',courses:[],desk:defaultDesk()};}
 
 function normalize(raw={}){
  return fromConfig(configCore.normalize({
@@ -77,6 +77,7 @@ function normalize(raw={}){
   vaultPath:stringFact(raw.vaultPath),
   runtimePath:stringFact(raw.runtimePath),
   piPath:stringFact(raw.piPath),
+  claudePath:stringFact(raw.claudePath),
   xournalPath:stringFact(raw.xournalPath),
   courses:toCoreList(Array.isArray(raw.courses)?raw.courses:[],entry=>{
    const c=entry&&typeof entry==='object'?entry:{};

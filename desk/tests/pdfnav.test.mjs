@@ -116,9 +116,9 @@ test('navPopover sem favoritos e sem sumário mostra as duas notas de vazio', ()
 });
 
 test('os rótulos dos botões e do diálogo vêm do núcleo', () => {
-  assert.equal(navCore.navButtonLabel(), 'Navegar');
-  assert.equal(navCore.navButtonTitle(), 'Favoritos e sumário');
-  assert.equal(navCore.navAria('Enunciado'), 'Navegar em Enunciado');
+  assert.equal(navCore.navButtonLabel(), 'Sumário e favoritos');
+  assert.equal(navCore.navButtonTitle(), 'Sumário e favoritos');
+  assert.equal(navCore.navAria('Enunciado'), 'Sumário e favoritos de Enunciado');
   assert.equal(navCore.navBackTitle(), 'Voltar à página anterior');
   assert.equal(navCore.navBackAria('Enunciado'), 'Voltar à página anterior de Enunciado');
   assert.equal(navCore.bookmarkDialogTitle(), 'Guardar esta página');

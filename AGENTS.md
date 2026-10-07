@@ -2,7 +2,7 @@
 
 Produto: mesa de referências local (Electron) ao lado do Xournal++. Código em `desk/` (app) e `visual-check/` (captura macOS).
 
-Há um app irmão em `chat/` (**Conversa**): chat geral com o Pi, sem pasta de projeto, sem PDF e sem tinta. Não misture features da Conversa na Mesa, nem o contrário.
+Há um app irmão em `chat/` (**Conversa**): chat geral com o Pi, sem pasta de projeto, sem PDF e sem tinta. Não embuta o app Conversa na Mesa, nem o contrário. A aba Livre da Mesa foi aprovada pelo usuário em 2026-10-06: usa as sessões e os leitores da Mesa para estudo avulso, geração revisada de PDF e criação de matéria; o código de `chat/` permanece separado.
 
 A mesa do autor já está no jeito dele. **Não altere os defaults em `desk/config.cjs`** para “melhorar” o app dele. Para outra pessoa, personalize o `config.json` **dela**.
 
@@ -99,7 +99,10 @@ IPC liga ao main; os testes cobrem os dois lados.**
 | Caderno de revisão | `core/review.bend` (+`laws/`+`proofs/`) | `desk/src/generated/review.core.js` | `desk/review.cjs` (disco por matéria), `desk/src/review.mjs` (aba), `desk/src/dialogs.mjs` (diálogo) | `review-save` | `tests/review.test.mjs`, `tests/hunt-review.mjs`, `ui-smoke` |
 | Calculadora (ajuda, guia, ângulo) | `core/calcview.bend` (+`laws/`+`proofs/`) | `desk/src/generated/calcview.core.js` | `desk/src/calc.mjs` (aplica a árvore), `desk/calculator.mjs` (avalia: recíprocas, inversas e ângulos exatos; precisão dupla, sem `eval`) | — | `tests/calcview.test.mjs`, `tests/core.test.mjs`, `ui-smoke`, `tests/hunt-calc-ggb.mjs` |
 | Matérias/biblioteca | `core/courses.bend`/`library.bend` | idem | `desk/courses.cjs`, `desk/config.cjs` | `get/save-config` | `tests/lib*.test.mjs`, `subjects.test.mjs` |
+| Sessões Livre e criação de matéria | `core/freeworkspaces.bend` + `laws/`+`proofs/` | `desk/src/generated/freeworkspaces.core.js` | `desk/free-workspaces.cjs`, `free-promotion.cjs`, `material-pdf.cjs`, `src/free-study.mjs` | `free-open-pdf`, `free-save-material`, `free-rename`, `free-promote` | `tests/free-*.test.mjs`, `free-study-ui.mjs`, `free-study-integration-ui.mjs` |
 | Estado/tema | `core/state.bend`/`statusview`/`toastview` | idem | `desk/src/state.mjs`, `state-adapter.cjs` | `save-state` | `tests/state-parity.mjs`, `toast-view.test.mjs` |
+| Chat lateral (escopo, entrega e contexto explícito) | `core/sidechat.bend` + `laws/`+`proofs/` | `desk/src/generated/sidechat.core.js` | `desk/sidechat.cjs`, `sidechat-engine.cjs`, `src/sidechat.mjs`, `src/support.mjs` | `sidechat-*`, `sidechat-event` | `tests/sidechat*.test.mjs`, `sidechat-ipc-smoke.mjs`, `sidechat-ui.mjs` |
+| Configurações de recursos e leitores | `core/config.bend` + `laws/`+`proofs/` | `desk/src/generated/config.core.js` | `desk/config.cjs`, `src/main.mjs`, `src/layout-settings.mjs` | `get/save-config` | `tests/config.test.mjs`, `layout-settings.test.mjs`, `settings-resources-ui.mjs` |
 | Perfil de carregamento da Mesa | — (host puro) | — | `desk/profiles.cjs` | — | `tests/profiles.test.mjs`, `npm run profile` |
 | Bilhete Conversa → Mesa | `core/handoff.bend` + `laws/`+`proofs/` | `desk/src/generated/handoff.core.js` **e** `chat/src/generated/handoff.core.js` | `desk/handoff.cjs` (protocolo: reivindica, marca o envio, entrega, arquiva; `claimHand` mantém um bilhete na mão por vez), `desk/send.cjs` (ciclo do envio: validar → conectar → marcar → escrever → confirmar), `chat/handoff.cjs` (escreve) | `handoff` (chat) | `tests/handoff.test.mjs`, `tests/send.test.mjs`, `tests/hunt-handoff.mjs`, `appcontract.test.mjs` |
 
@@ -145,7 +148,7 @@ Onde está o arquivo:
 - Windows: `%APPDATA%/Mesa de Estudos/config.json`
 - Se `LEARNING_DESK_RUNTIME` estiver definido: `<runtime>/config.json`
 
-A UI **Mesa → Configurações** muda pastas e nomes de matéria e **preserva** o bloco `desk`. Depois de editar `desk` no JSON, peça para reabrir o app.
+A UI **Mesa → Configurações** muda pastas, nomes de matéria, título e flags do bloco `desk`, além de um ou dois leitores, seus nomes, termos de preferência e botão do segundo leitor. O tema Sistema/Claro/Escuro fica em Aparência e é estado de interface, não campo do `config.json`. As mudanças pela UI entram ao salvar; cancelar descarta as edições. Após editar o JSON externamente, reabra o app.
 
 ### Schema (`desk`)
 
@@ -182,6 +185,8 @@ Defaults (o jeito do autor — deixe assim se o usuário não pediu o contrário
 
 `courses` (já na Configurações): `id`, `name` (rótulo), `path` (pasta de PDFs, com ou sem `_state.md`).
 
+O editor de leitores preserva campos extras ao salvar. Campos vazios de nome, preferência e botão herdam os defaults normalizados; não representam preferência vazia. A barra Formulário/Chat lateral conserva o leitor quando alterna; o chat lateral pode abrir também com um leitor. Seu histórico/rascunho ficam em `runtime/sidechats/`, escopados à conversa principal e matéria. Retomar não deve renovar o contexto herdado: use a ação explícita de atualização. Não reutilize a ponte, fila, permissões ou estado de envio do principal.
+
 Tutor: copie e edite `desk/templates/TUTOR.md` e `LEARNER.md` para a pasta de dados do usuário (ou a matéria). Não edite os templates do repo salvo pedido explícito.
 
 ### Exemplos de pedido
@@ -193,4 +198,4 @@ Tutor: copie e edite `desk/templates/TUTOR.md` e `LEARNER.md` para a pasta de da
 
 ### O que não cabe no JSON
 
-Traduzir a UI inteira, mudar o número de painéis para 3+, tema, ou colocar tinta dentro da mesa. Explique o limite e, se o usuário insistir, altere o mínimo em `desk/index.html` / `desk/style.css` / `desk/renderer.mjs` numa cópia local — não force isso no default do autor.
+Traduzir a UI inteira, mudar o número de painéis para 3+, ou colocar tinta dentro da mesa. Explique o limite e, se o usuário insistir, altere o mínimo em `desk/index.html` / `desk/style.css` / `desk/renderer.mjs` numa cópia local — não force isso no default do autor.

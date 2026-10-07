@@ -1,0 +1,76 @@
+/* Capturas da UI real com conteúdo sintético. Não acessa cursos pessoais,
+   provedor autenticado, updater de rede nem instalação do usuário. */
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {DESK,FAKE_PI,launchDesk,withArtifacts} from './helpers.mjs';
+const out=path.resolve(DESK,'../docs/reviews/2026-10-07/ui');fs.mkdirSync(out,{recursive:true});
+const markdown='# Teorema de Pitágoras\n\nEm um triângulo retângulo, os catetos $a$ e $b$ e a hipotenusa $c$ satisfazem:\n\n$$a^2+b^2=c^2$$\n\n## Exemplo resolvido\n\nPara $a=3$ cm e $b=4$ cm:\n\n$$c=\\sqrt{3^2+4^2}=\\sqrt{25}=5\\text{ cm}$$\n\n## Para conferir\n\n1. Identifique o ângulo reto.\n2. Confira se o maior lado é a hipotenusa.\n3. Substitua os valores e mantenha a unidade.\n\n**Exercício:** calcule a hipotenusa quando os catetos medem 5 cm e 12 cm.';
+const shots=[];
+await withArtifacts('capture-new-ui',async ctx=>{
+ const runtime=ctx.runtime=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-ui-gallery-')));
+ const demoPi=path.join(runtime,'pi-demo.mjs');
+ const original='A identidade de Pitágoras: $a^2 + b^2 = c^2$ vale em triângulos retângulos.\\n\\n$$E = mc^2$$';
+ const reply='O **teorema de Pitágoras** vale em triângulos retângulos.\\n\\n$$a^2+b^2=c^2$$\\n\\nCom catetos de 3 cm e 4 cm, temos $c=\\\\sqrt{9+16}=5$ cm.\\n\\nConfira no material ao lado o exemplo e tente o exercício com catetos de 5 cm e 12 cm.';
+ const fake=fs.readFileSync(FAKE_PI,'utf8');assert.ok(fake.includes(original));
+ fs.writeFileSync(demoPi,fake.replace(original,reply).replace('function emitText(text){',"function emitText(text){\n if(session)fs.appendFileSync(session,JSON.stringify({type:'message',message:{role:'assistant',content:[{type:'text',text}]}})+'\\n');"));fs.chmodSync(demoPi,0o755);
+ fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({runtimePath:runtime,vaultPath:runtime,courses:[],desk:{title:'Mesa de Estudos',panels:[{label:'Material',prefer:[],toggle:''},{label:'Formulário',prefer:[],toggle:'Formulário'}]}}));
+ ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:demoPi}});
+ const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ await page.waitForSelector('#free-bar');
+ await ctx.app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1500,960));
+ if(await page.locator('#welcome-dialog').evaluate(el=>el.open))await page.keyboard.press('Escape');
+ await page.evaluate(async()=>{const {S,applyTheme,connect}=await import('./src/state.mjs');window.__mesaState=S;applyTheme('light');if(!S.connected)await connect();});
+ await page.waitForFunction(()=>window.__mesaState.connected&&!window.__mesaState.busy);
+ await page.locator('#settings-toggle').click();await page.locator('#calc-toggle').click();
+ const shot=async(name,title)=>{await page.waitForTimeout(4600);await page.screenshot({path:path.join(out,name+'.png')});shots.push({file:name+'.png',title});};
+ await page.locator('#free-title').fill('Geometria — estudo avulso');await page.locator('#free-title').press('Enter');
+ await shot('01-livre','Aba Livre: começar um estudo sem matéria');
+ await page.locator('#free-generate-pdf').click();await page.locator('#free-pdf-title').fill('Teorema de Pitágoras');await page.locator('#free-pdf-content').fill(markdown);
+ await page.waitForSelector('#free-pdf-preview .katex');await page.locator('#free-pdf-content').evaluate(el=>el.scrollTop=0);await shot('02-previa-pdf','Material em PDF: edição e prévia com fórmulas');
+ await page.locator('#free-pdf-save').click();
+ await page.waitForFunction(()=>!document.querySelector('#free-pdf-dialog').open&&!!document.querySelector('.pdf-page[data-rendered] canvas'),undefined,{timeout:60000});
+ await page.locator('#prompt').fill('Explique o teorema de Pitágoras usando catetos de 3 cm e 4 cm.');await page.locator('#send').click();
+ await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('5 cm')&&!window.__mesaState.busy,undefined,{timeout:30000});
+ await page.locator('#free-promote').click();await page.locator('#free-promote-name').fill('Geometria');
+ await shot('03-criar-materia','Criar matéria a partir da conversa e dos materiais');
+ const parent=path.join(runtime,'materias');fs.mkdirSync(parent);
+ await ctx.app.evaluate(({dialog},parent)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[parent]});},parent);
+ await page.locator('#free-promote-save').click();
+ await page.waitForFunction(()=>window.__mesaState.workspace?.kind==='course'&&window.__mesaState.connected&&!window.__mesaState.connecting,undefined,{timeout:30000});
+ await page.locator('#support-collapse').click();await shot('04-materia','Matéria criada com conversa e PDF preservados');
+ await page.locator('.pdf-panel .rotate').first().click();await page.waitForFunction(()=>window.__mesaState.panels[0].rotation===90);
+ await shot('05-rotacao','Rotação do PDF no leitor');await page.locator('.pdf-panel .rotate').first().click({clickCount:3});
+ const settings=async()=>{await page.locator('#mesa-menu .nav-trigger').click();await page.locator('#settings').click();await page.waitForSelector('#settings-dialog[open]');await page.locator('#settings-title').click();};
+ await settings();await page.locator('[data-sec="mesa"]').evaluate(el=>el.scrollIntoView({block:'start'}));await shot('06-recursos','Configurações: recursos da mesa');await page.keyboard.press('Escape');
+ await settings();await page.locator('[data-sec="layout"]').evaluate(el=>el.scrollIntoView({block:'start'}));await shot('07-layout','Configurações: leitores e PDF inicial');await page.keyboard.press('Escape');
+ // O canal controlado fornece apenas estado de demonstração; o renderer é o real.
+ await page.evaluate(async()=>{
+  const mod=await import('./src/sidechat.mjs');mod.resetSidechat();
+  const listeners=[];
+  const context={refs:[{path:'Teorema de Pitágoras.pdf',page:1}],study:{title:'Catetos e hipotenusa'},at:new Date().toISOString()};
+  mod.setSidechatBridge({sidechatOpen:async()=>({id:'ui-demo',engine:'claude',messages:[{role:'user',text:'Qual lado entra como c na fórmula?'},{role:'assistant',text:'A **hipotenusa** é o lado oposto ao ângulo reto e o maior lado do triângulo. Na fórmula $a^2+b^2=c^2$, ela corresponde a $c$.'}],context,draft:'',busy:false}),sidechatSave:async()=>({ok:true}),onSidechatEvent:fn=>listeners.push(fn),sidechatRespond:async()=>({ok:true}),sidechatContext:async()=>({context})});
+  window.uiDemoEmit=event=>listeners.forEach(fn=>fn({id:'ui-demo',event}));
+ });
+ await page.locator('#support-tab-chat').click();await page.waitForFunction(()=>document.querySelector('#sidechat-engine').textContent.includes('Claude'));
+ await shot('08-chat-lateral','Chat lateral independente com copiar e levar ao principal');
+ await page.locator('#sidechat-context').click();await shot('09-contexto','Contexto do lateral e atualização a partir do principal');await page.locator('#sidechat-context').click();
+ await page.evaluate(()=>window.uiDemoEmit({type:'extension_ui_request',id:'topics',method:'question',questions:[{question:'Quais tópicos você quer revisar?',multiSelect:true,options:[{label:'Identificar a hipotenusa',description:'Reconhecer o lado oposto ao ângulo reto.'},{label:'Aplicar a fórmula',description:'Substituir os catetos e calcular c.'}]}]}));
+ await page.locator('.sidechat-option-input').first().check();await page.locator('.sidechat-option-input').nth(1).check();
+ await page.locator('.sidechat-request').scrollIntoViewIfNeeded();await shot('10-pergunta-lateral','Perguntas no lateral: seleção múltipla e resposta livre');
+ await page.locator('.sidechat-request-action[data-answer="cancel"]').click();
+ await page.evaluate(async()=>{(await import('./src/state.mjs')).applyTheme('dark');});await shot('11-tema-escuro','Leitor e conversa no tema escuro');
+ await page.evaluate(async()=>{(await import('./src/state.mjs')).applyTheme('light');});
+ await ctx.app.evaluate(({ipcMain,BrowserWindow})=>{ipcMain.removeHandler('update-check');ipcMain.handle('update-check',()=>({status:'update',version:'0.4.8',notes:'Estado de demonstração',url:''}));BrowserWindow.getAllWindows()[0].webContents.send('update-available',{version:'0.4.8'});});
+ await page.locator('#update-notice').waitFor({state:'visible'});await page.waitForTimeout(4500);await shot('12-atualizacao','Aviso persistente de atualização no cabeçalho (simulado)');
+ await ctx.app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,700));
+ assert.equal(await page.locator('.sidechat-head').evaluate(el=>{
+  const title=el.querySelector('.sidechat-head-title').getBoundingClientRect(),actions=el.querySelector('.sidechat-head-actions').getBoundingClientRect(),engine=el.querySelector('.sidechat-engine').getBoundingClientRect(),header=el.getBoundingClientRect();
+  return !(title.left<actions.right&&title.right>actions.left&&title.top<actions.bottom&&title.bottom>actions.top)&&engine.right<=header.right&&engine.left>=header.left;
+ }),true,'cabeçalho do lateral não sobrepõe título, motor e ações na janela menor');
+ await shot('13-janela-menor','Layout em janela menor');
+ assert.deepEqual(errors,[],'sem erros do renderer durante as capturas');
+ fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify({description:'UI real em Electron; runtime, conteúdo, provedor e aviso de atualização de demonstração.',shots},null,2)+'\n');
+});
+console.log('PASS: '+shots.length+' capturas em '+out);

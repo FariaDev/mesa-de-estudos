@@ -60,3 +60,7 @@ import ./proofs/deskflags.bend as DeskFlags
 import ./proofs/attachview.bend as AttachView
 import ./proofs/pending.bend as Pending
 import ./proofs/resume.bend as Resume
+import ./proofs/agentcaps.bend as AgentCaps
+import ./proofs/agentdelivery.bend as AgentDelivery
+import ./proofs/sidechat.bend as Sidechat
+import ./proofs/freeworkspaces.bend as FreeWorkspaces
