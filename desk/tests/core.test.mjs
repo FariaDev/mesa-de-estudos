@@ -108,15 +108,18 @@ test('desk.json round-trips through init/save-state/switch-course and ggbBase64 
 
    await handlers.get('save-state')({},{
     draft:'novo rascunho',study:{title:'Lista 3 · q8',xopp},
-    pdfs:[{path:pdfA,page:3,zoom:1.2,scrollX:1,scrollY:2,invert:true,minimized:true},{path:pdfB,page:1,zoom:1,scrollX:0,scrollY:0,invert:false}],
+    pdfs:[{path:pdfA,page:3,zoom:1.2,rotation:90,scrollX:1,scrollY:2,invert:true,minimized:true},{path:pdfB,page:1,zoom:1,rotation:360,scrollX:0,scrollY:0,invert:false}],
+    pdfRotations:{[pdfA]:90,[pdfB]:45,'':270},
     referenceVisible:true,chatWidth:420,calcHeight:260,pdfSplit:.62,theme:'light'
    });
    let desk=JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));
    assert.equal(desk.draft,'novo rascunho');
    assert.deepEqual(desk.pdfs,[
-    {path:pdfA,page:3,zoom:1.2,scrollX:1,scrollY:2,invert:true,minimized:true},
-    {path:pdfB,page:1,zoom:1,scrollX:0,scrollY:0,invert:false,minimized:false}
-   ],'both pdfs persist with invert e minimized');
+    {path:pdfA,page:3,zoom:1.2,rotation:90,scrollX:1,scrollY:2,invert:true,minimized:true},
+    {path:pdfB,page:1,zoom:1,rotation:0,scrollX:0,scrollY:0,invert:false,minimized:false}
+   ],'both pdfs persist with invert, minimized e rotação (inválida vira 0)');
+   assert.deepEqual(desk.pdfRotations,{[pdfA]:90},'o mapa de rotações por caminho só guarda orientação válida');
+   assert.deepEqual(desk.courseStates.A.pdfRotations,{[pdfA]:90},'o estado da matéria carrega o mapa de rotações');
    assert.equal(desk.theme,'light');assert.equal(desk.chatWidth,420);assert.equal(desk.calcHeight,260);assert.equal(desk.pdfSplit,.62);
    assert.equal(desk.session,session);assert.equal(desk.courseId,'A');
    assert.deepEqual(desk.courseStates.A.study,{title:'Lista 3 · q8',xopp},'course state carries the live study');

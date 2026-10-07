@@ -108,13 +108,13 @@ law pdfnav_page_label:
 # ---------- botões ----------
 
 law pdfnav_nav_label:
-  {N.navButtonLabel() == "Navegar" : String}
+  {N.navButtonLabel() == "Sumário e favoritos" : String}
 
 law pdfnav_nav_title:
-  {N.navButtonTitle() == "Favoritos e sumário" : String}
+  {N.navButtonTitle() == "Sumário e favoritos" : String}
 
 law pdfnav_nav_aria:
-  {N.navAria("Enunciado") == "Navegar em Enunciado" : String}
+  {N.navAria("Enunciado") == "Sumário e favoritos de Enunciado" : String}
 
 law pdfnav_back_label:
   {N.navBackLabel() == "Voltar" : String}

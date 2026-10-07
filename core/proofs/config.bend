@@ -149,3 +149,17 @@ def Laws.config_vault_sem_trim():
 
 def Laws.config_paths_presentes():
   {==}
+
+# ---------- claudePath (novo, mesmo contrato dos outros paths do topo) ----------
+
+def Laws.config_claude_ausente():
+  {==}
+
+def Laws.config_claude_ausente_com_paths():
+  {==}
+
+def Laws.config_claude_path_presente():
+  {==}
+
+def Laws.config_claude_sem_trim():
+  {==}

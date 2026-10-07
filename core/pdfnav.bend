@@ -3,8 +3,8 @@ import view.bend as V
 
 # ---------------------------------------------------------------------------
 # Navegação do leitor (pedido 5): favoritos nomeados, sumário do documento e o
-# popover "Navegar" que os oferece — mais os rótulos do botão que o abre e do
-# Voltar (o `core/pdfpageview.bend` monta os dois botões).
+# popover "Sumário e favoritos" que os oferece — mais os rótulos do botão que o
+# abre e do Voltar (o `core/pdfpageview.bend` monta os dois botões).
 #
 # O host entrega fatos já resolvidos: os favoritos da matéria (`Bookmark`, na
 # ordem em que o JSON os guarda) e o sumário do documento (`OutlineEntry`, do
@@ -118,13 +118,13 @@ def outlineEmpty() -> String:
   "Este PDF não tem sumário."
 
 def navButtonLabel() -> String:
-  "Navegar"
+  "Sumário e favoritos"
 
 def navButtonTitle() -> String:
-  "Favoritos e sumário"
+  "Sumário e favoritos"
 
 def navAria(label: String) -> String:
-  "Navegar em " ++ label
+  "Sumário e favoritos de " ++ label
 
 def navBackLabel() -> String:
   "Voltar"

@@ -1,4 +1,4 @@
-import {$,S,toast,refs} from './state.mjs';
+import {$,S,toast,refs,mayAdvanceQueue} from './state.mjs';
 import {send,resetAttachments,persistTray} from './chat.mjs';
 import core from './generated/composerview.core.js';
 import pendingCore from './generated/pending.core.js';
@@ -26,9 +26,12 @@ let rendering=false,removeIntent=false;
 let held=false,recovered=false,saveTimer=0,saveSeq=0;
 function holdQueue(reason){
  retries.reset();
+ /* Já segurada: repetir o aviso só faria eco (desk_error + settled de falha,
+   por exemplo); o motivo novo entra no log do estado, não em outro toast. */
+ const wasHeld=held;
  held=true;
  renderQueue();persist(true);
- if(queue.length&&reason)toast(reason);
+ if(queue.length&&reason&&!wasHeld)toast(reason);
 }
 const retries=createQueueRetry({
  retry:()=>flushQueue(),hold:holdQueue,
@@ -111,16 +114,22 @@ const handlers={
   finishEdit(true);
  },
  /* "Enviar agora": a fila estava segurada (recuperada do disco ou parada pelo
-    usuário); o usuário assume o comando e o envio começa pelo primeiro item. */
+    usuário); o usuário assume o comando e o envio começa pelo primeiro item.
+    Nunca vira steer nem cancelamento: cada item sai como turno normal
+    (followUp), motor sem steer inclusive. */
  sendNow(){
   if(!queue.length)return;
-  if(S.busy){toast('O Pi está respondendo — pare ou espere para enviar a fila.');return;}
+  if(S.busy){toast(`${S.agentLabel} está respondendo — pare ou espere para enviar a fila.`);return;}
   retries.reset();
   held=false;
   recovered=false;
+  /* Comando explícito do usuário: o cancelamento do último turno deixa de
+     vetar o avanço (a incerteza continua sendo fato do host — o envio tenta e
+     o host recusa, nunca repete sozinho). */
+  S.turnCancelled=false;
   renderQueue();
   persist(true);
-  flushQueue();
+  flushQueue({force:true});
  },
  /* A única ação que descarta — separada do Parar. */
  clear(){
@@ -256,8 +265,13 @@ function onPromptKeydown(e){
  el.dispatchEvent(new Event('input'));
 }
 
-async function flushQueue(){
- if(flushing||!queue.length||S.busy||held||retries.pending)return;
+async function flushQueue({force=false}={}){
+ if(flushing||!queue.length||held||retries.pending)return;
+ /* O avanço da fila é a decisão provada do núcleo (`core/agentdelivery.bend`
+    → `mayAdvanceQueue`): turno aberto, permissão pendente, entrega incerta ou
+    cancelamento vetam. `force` é o comando explícito do usuário em "Enviar
+    agora" — aí o envio tenta (e o host recusa, se for o caso), sem auto-retry. */
+ if(!force&&!mayAdvanceQueue())return;
  /* A linha da vez aberta para edição: salva o que está no input antes de enviar
     (o envio troca os nós e o texto digitado se perderia). */
  if(editingId===queue[0].id){
@@ -289,10 +303,25 @@ async function flushQueue(){
  if(posted&&queue.length&&!S.busy&&!held)queueMicrotask(flushQueue);
 }
 
+/* Cmd/Ctrl+⏎ com o motor sem steer: em vez de prometer interromper e reenviar,
+   a mensagem enfileira — o mesmo caminho do ⏎ ocupado (o `#prompt` chama daqui
+   quando `capabilities.steer` é false). */
+export function enqueueFromComposer(){
+ const el=$('#prompt');
+ if(!el)return false;
+ const text=el.value.trim();
+ if(!text)return false;
+ enqueue(text);
+ el.value='';
+ el.dispatchEvent(new Event('input'));
+ return true;
+}
+
 /* O usuário voltou ao comando (⏎/Enviar/⌘⏎ no composer): a fila segurada pode
    voltar ao fluxo normal. Chamado pelo `main.mjs`. */
 export function release(){
  retries.reset();
+ S.turnCancelled=false;
  if(!held&&!recovered)return;
  held=false;
  recovered=false;
@@ -333,8 +362,11 @@ export function init(){
     debaixo do clique e a linha só sai no segundo clique). */
  document.addEventListener('pointerdown',e=>{removeIntent=!!e.target?.closest?.('.queue-item button');},true);
  document.addEventListener('pointerup',()=>{removeIntent=false;},true);
- window.addEventListener('desk-idle',flushQueue);
- window.addEventListener('desk-failed',()=>{if(!flushing)holdQueue('O Pi falhou — a fila ficou guardada.');});
+ window.addEventListener('desk-idle',()=>flushQueue());
+ window.addEventListener('desk-failed',()=>{if(!flushing)holdQueue(`O ${S.agentLabel} falhou — a fila ficou guardada.`);});
+ /* Cancelamento que NÃO veio do usuário (ex.: o motor encerrou o turno): a
+    fila fica segurada, sem drenar no próximo evento por acidente. */
+ window.addEventListener('desk-held',event=>{if(!flushing)holdQueue(event?.detail?.message||'A fila ficou guardada.');});
  /* Parar interrompe a resposta: a fila fica, segurada, e a faixa passa a
     oferecer "Enviar agora" (o aviso diz isso — antes, Parar descartava). */
  window.addEventListener('desk-stop',()=>{

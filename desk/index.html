@@ -15,7 +15,9 @@
     <strong>Mesa de Estudos</strong>
   </div>
   <div class="header-actions">
+    <button type="button" id="update-notice" hidden aria-live="polite" title="Ver atualização e o que mudou"></button>
     <div id="course-tabs" role="tablist" aria-label="Matérias"></div>
+    <button type="button" id="review-tab" title="Abrir o caderno de revisão" aria-label="Abrir o caderno de revisão">Caderno <span id="review-count">0</span></button>
     <button type="button" id="new-tab" title="Nova matéria (abre as Configurações)" aria-label="Nova matéria (abre as Configurações)">+</button>
     <div class="nav-menu" id="study-menu">
       <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="study-pop">Estudar</button>
@@ -46,27 +48,77 @@
     <div id="review-view" hidden>
       <div id="review-list" aria-label="Itens guardados para revisar"></div>
     </div>
+    <!-- Sessão livre (aba Livre, src/free-study.mjs): cabeçalho da sessão e o
+         vazio orientado. O módulo mostra a barra e a área só com o workspace
+         `mesa-free`; na matéria normal tudo isto fica oculto. -->
+    <div id="free-bar" hidden>
+      <strong>Livre</strong>
+      <label class="free-field" for="free-title">Título
+        <input id="free-title" type="text" maxlength="120" autocomplete="off" placeholder="Sessão livre">
+      </label>
+      <label class="free-field" for="free-materials">Materiais
+        <select id="free-materials" aria-label="Materiais desta sessão">
+          <option value="">Nenhum material ainda</option>
+        </select>
+      </label>
+      <span class="free-bar-spacer"></span>
+      <button type="button" id="free-open-pdf">Abrir PDF</button>
+      <button type="button" id="free-tutor-pdf" class="primary">PDF pelo tutor</button>
+      <button type="button" id="free-generate-pdf">Montar PDF</button>
+      <button type="button" id="free-promote">Criar matéria</button>
+    </div>
+    <p id="free-guide" hidden>Peça um PDF ao tutor: ele escreve o conteúdo; você revisa a prévia e salva. “Montar PDF” permite escrever ou revisar por conta própria.</p>
+    <p id="tutor-material-status" role="status" hidden></p>
+    <div id="free-empty">
+      <h2>O que você quer estudar?</h2>
+      <p class="free-empty-text">Comece sem configurar uma matéria. A conversa e os materiais ficam guardados nesta sessão.</p>
+      <div class="free-start-actions">
+        <div><strong>Já tenho um material</strong><p>Abra um PDF para ler e perguntar ao tutor.</p><button type="button" id="free-empty-open">Abrir PDF</button></div>
+        <div><strong>Quero um material do tutor</strong><p>Peça um resumo, exemplos ou exercícios em PDF.</p><button type="button" id="free-empty-tutor" class="primary">PDF pelo tutor</button></div>
+        <div><strong>Quero organizar este estudo</strong><p>Leve a conversa e os PDFs para uma nova matéria.</p><button type="button" id="free-empty-promote">Criar matéria</button></div>
+      </div>
+    </div>
+    <!-- Controle sempre visível da área de apoio: Formulário (2º leitor) e
+         Chat lateral, com recolher/reabrir. A barra fica ate em matéria com um
+         leitor só; o conteúdo (painel 2 ou chat) é montado pelo `support.mjs`. -->
+    <div id="support-bar" role="tablist" aria-label="Área de apoio">
+      <button type="button" id="support-tab-form" role="tab" aria-selected="true">Formulário</button>
+      <button type="button" id="support-tab-chat" role="tab" aria-selected="false">Chat lateral</button>
+      <span class="support-spacer"></span>
+      <button type="button" id="support-collapse" aria-expanded="true" title="Recolher a área de apoio" aria-label="Recolher a área de apoio"></button>
+    </div>
     <div id="pdf-grid"></div>
   </section>
-  <div id="divider" role="separator" aria-label="Redimensionar conversa" tabindex="0"></div>
+  <div id="divider" role="separator" aria-label="Redimensionar conversa" title="Arraste para redimensionar a conversa" tabindex="0"></div>
   <aside id="sidebar">
     <section id="chat">
       <div class="chat-head">
         <h2><span id="pi-label">Pi</span> <span id="status-dot" role="img"></span> <span id="ctx-meter" hidden data-no-tip title=""><span class="bar"><i></i></span><em></em></span><button type="button" id="auto-compact" title="Compactação automática quando o contexto enche" aria-pressed="false" hidden>auto</button></h2><span id="ctx-tip" hidden></span>
         <div class="chat-head-actions">
+          <button id="conversations-toggle" type="button" class="icon-btn" title="Conversas da matéria" aria-label="Conversas da matéria" aria-haspopup="dialog" aria-expanded="false"></button>
           <select id="session-select" aria-label="Conversa"></select>
+          <select id="new-session-engine" aria-label="Motor da próxima conversa" title="Motor da próxima conversa (a conversa atual não muda)" style="max-width:118px;height:28px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--bg);color:var(--fg);font-size:var(--fs-xs);padding:0 var(--space-2)">
+            <option value="pi">Pi</option>
+            <option value="claude">Claude Code (experimental)</option>
+          </select>
           <button id="new-session" class="icon-btn" title="Nova conversa" aria-label="Nova conversa"></button>
           <button id="export-chat" class="icon-btn" title="Exportar conversa em Markdown" aria-label="Exportar conversa em Markdown"></button>
+          <button id="chat-collapse" class="icon-btn" title="Recolher o chat (⌘\)" aria-label="Recolher o chat" aria-expanded="true"></button>
         </div>
+      </div>
+      <div id="conversations-pop" role="dialog" aria-label="Conversas da matéria" hidden>
+        <div class="conv-head"><strong>Conversas da matéria</strong><button type="button" id="conv-close" class="icon-btn" aria-label="Fechar">×</button></div>
+        <p class="fine">Título, data, trecho e motor de cada conversa. A escolha mantém rascunho, fila e anexos.</p>
+        <div id="conv-list"></div>
       </div>
       <!-- O painel de ajustes (Modelo, Esforço e o `auto` da compactação) é
            montado pelo Bend em src/settings-panel.mjs: esta linha e o
            #auto-compact são MOVIDOS para dentro do corpo recolhível. -->
-      <div class="pi-settings">
-        <label>Modelo
+      <div class="pi-settings" id="pi-settings">
+        <label id="model-field">Modelo
           <select id="model-select" disabled><option>Conecte ao Pi</option></select>
         </label>
-        <label>Esforço
+        <label id="effort-field">Esforço
           <select id="thinking-select" disabled><option>—</option></select>
         </label>
       </div>
@@ -88,6 +140,7 @@
         <div class="composer-actions">
           <button id="attach" type="button" title="Anexar imagem (ou cole com ⌘V, ou arraste para o chat; ⌘⇧C anexa a captura do Xournal++)">Anexar</button>
           <button id="include-refs" aria-pressed="true" title="Incluir referências das páginas abertas">Referências</button>
+          <button id="refs-state" type="button" title="Ver o que vai nas referências" aria-haspopup="dialog" aria-expanded="false">Sem referências</button>
           <button id="check" title="Anexar a captura do Xournal++ à mensagem">Conferir Xournal++</button>
           <button id="stop" hidden>Parar</button>
           <button id="send" class="primary" aria-label="Enviar mensagem">Enviar</button>
@@ -96,7 +149,7 @@
         <small id="composer-hint">⏎ envia · ⇧⏎ quebra linha · ⌘⇧C anexa a captura do Xournal++ · ← → muda a página · rolagem contínua</small>
       </div>
     </section>
-    <div id="calc-divider" role="separator" aria-label="Redimensionar calculadora" tabindex="0"></div>
+    <div id="calc-divider" role="separator" aria-label="Redimensionar calculadora" title="Arraste para redimensionar a calculadora" tabindex="0"></div>
     <section id="calculator">
       <button id="calc-toggle" aria-expanded="true">
         <span>Calculadora</span>
@@ -127,6 +180,7 @@
   </aside>
 </main>
 <div id="toast" role="status"></div>
+<div id="refs-pop" role="dialog" aria-label="Referências enviadas" hidden></div>
 <button id="chat-restore" type="button" hidden title="Mostrar o chat (⌘\)">‹ chat</button>
 <button id="quote-btn" type="button" hidden title="Citar a seleção na mensagem" aria-label="Citar a seleção na mensagem">Citar</button>
 <dialog id="pi-dialog">
@@ -217,6 +271,11 @@
       <h3>Detalhes</h3>
       <ul>
         <li>A mesa conecta ao Pi sozinha. As matérias ficam em abas no topo; o seletor ao lado de <strong>＋</strong> reabre conversas da matéria, inclusive o exercício associado.</li>
+        <li><strong>Área de apoio</strong>: a barra acima dos leitores alterna <strong>Formulário</strong> e <strong>Chat lateral</strong> e recolhe/reabre a área sem perder documento, página ou rascunho. Mesmo com um leitor só, o chat lateral abre por essa barra.</li>
+        <li>O <strong>Chat lateral</strong> é uma conversa independente da principal: começa com um recorte recente do contexto (trechos da conversa principal, PDFs abertos e questão ativa) e tem histórico e rascunho próprios. <strong>Atualizar contexto do principal</strong> recopia o recorte atual; <strong>Levar ao chat principal</strong> insere a resposta no rascunho do principal sem enviar.</li>
+        <li><strong>Conversas da matéria</strong> (botão na cabeça do chat) lista título, data, trecho e motor; escolher por lá mantém rascunho, fila e anexos, como no seletor.</li>
+        <li>A etiqueta ao lado de <strong>Referências</strong> mostra o estado ("PDF e página incluídos" ou "Sem referências") e abre os detalhes dos caminhos e páginas. Referências enviam caminho e página; a <strong>câmera</strong> do leitor envia uma imagem da página.</li>
+        <li>No seletor <strong>Pi / Claude Code</strong> do topo da conversa você escolhe o motor da <strong>próxima</strong> conversa (Claude Code é experimental e usa o login feito no próprio Claude Code). A conversa atual continua no motor que a criou — cada conversa conserva o motor, sem conversão.</li>
         <li id="help-study-li">Preencha <strong>Lista / questão ativa</strong> e associe o <code>.xopp</code> para manter o contexto da sessão.</li>
         <li id="help-endday-li">No menu <strong>Estudar</strong>, <strong>Encerrar por hoje</strong> grava o registro local da matéria (onde você parou, o próximo passo, a questão, as páginas e o <code>.xopp</code>) e só depois avisa o Pi — sem Pi o registro fica igual. Na abertura seguinte o cartão <b>Continuar …</b> aparece acima do campo: <b>Retomar</b> restaura a questão, a página e o <code>.xopp</code> e pré-preenche a mensagem; <b>Dispensar</b> só apaga o registro.</li>
         <li id="help-refs-li"><strong>Referências</strong> manda caminho e página, não o PDF inteiro.</li>
@@ -275,6 +334,12 @@
             <button type="button" id="cfg-pi-browse">Escolher</button>
           </span>
         </label>
+        <label>Executável do Claude Code
+          <span class="path-row">
+            <input id="cfg-claude" type="text" spellcheck="false" placeholder="detectar automaticamente">
+            <button type="button" id="cfg-claude-browse">Escolher</button>
+          </span>
+        </label>
         <label id="cfg-xournal-wrap">Xournal++
           <span class="path-row">
             <input id="cfg-xournal" type="text" spellcheck="false">
@@ -288,8 +353,32 @@
         <div id="cfg-courses"></div>
         <button type="button" id="cfg-add-course">Adicionar matéria</button>
       </section>
+      <section class="set-sec" data-sec="layout" aria-labelledby="set-layout">
+        <h3 id="set-layout">Layout</h3>
+        <p class="help-lead">Quantos leitores de PDF, o nome de cada painel e qual arquivo abre em cada um.</p>
+        <div id="cfg-layout"></div>
+      </section>
+      <section class="set-sec" data-sec="mesa" aria-labelledby="set-mesa">
+        <h3 id="set-mesa">Recursos da mesa</h3>
+        <label>Nome da mesa<input id="cfg-title" type="text" placeholder="Mesa de Estudos"></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-endDay"><span>Encerrar por hoje e retomada</span></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-studyContext"><span>Lista/questão ativa e rascunho .xopp</span></label>
+        <p class="fine">Lista/questão e rascunho são ativados juntos. Desativar exclui esse contexto das próximas mensagens ao tutor.</p>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-calculator"><span>Calculadora</span></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-xournal"><span>Botão para abrir o Xournal++</span></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-conferir"><span>Conferir Xournal++</span></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-refsToggle"><span>Botão para incluir referências no tutor</span></label>
+        <p class="fine">Ao esconder o botão de referências, os PDFs continuam incluídos nas mensagens.</p>
+      </section>
       <section class="set-sec" data-sec="avisos" aria-labelledby="set-avisos">
         <h3 id="set-avisos">Aparência e avisos</h3>
+        <label>Tema
+          <select id="theme-mode">
+            <option value="auto">Sistema</option>
+            <option value="light">Claro</option>
+            <option value="dark">Escuro</option>
+          </select>
+        </label>
         <label>Densidade<select id="density-mode"><option value="padrao">Padrão</option><option value="compacta">Compacta</option></select></label>
         <div id="notify-mode" class="set-group" role="group" aria-label="Avisos de conclusão">
           <span class="set-group-label">Avisos de conclusão</span>
@@ -297,7 +386,7 @@
           <label class="set-check"><input type="checkbox" id="notify-desktop"><span>Notificação</span></label>
           <label class="set-check"><input type="checkbox" id="notify-focused"><span>Avisar mesmo com a janela em foco</span></label>
         </div>
-        <p class="fine">O tema fica em Mesa → Tema.</p>
+        <p class="fine">O tema também pode ser trocado em Mesa → Tema; aqui ele só entra ao salvar.</p>
       </section>
     </div>
     <div class="dialog-actions">
@@ -338,6 +427,68 @@
     </div>
     <div class="dialog-actions">
       <button value="cancel" class="primary">Fechar</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="free-pdf-dialog">
+  <form method="dialog" id="free-pdf-form">
+    <div class="help-head">
+      <h2>Montar PDF</h2>
+      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+    </div>
+    <div class="free-dialog-body">
+      <p class="help-lead">Escolha uma resposta (ou cole o texto), ajuste o conteúdo e confira a prévia. O PDF fica entre os materiais desta sessão.</p>
+      <label>Origem
+        <select id="free-pdf-source"></select>
+      </label>
+      <label>Título do PDF
+        <input id="free-pdf-title" type="text" maxlength="160" placeholder="Material da sessão livre">
+      </label>
+      <label>Conteúdo (Markdown e LaTeX)
+        <textarea id="free-pdf-content" rows="8" spellcheck="false"></textarea>
+      </label>
+      <div id="free-pdf-preview" class="free-pdf-preview" aria-label="Prévia do PDF"></div>
+      <p id="free-pdf-error" class="free-error" role="alert" hidden></p>
+    </div>
+    <div class="dialog-actions">
+      <button value="cancel">Cancelar</button>
+      <button type="submit" id="free-pdf-save" class="primary">Salvar PDF e abrir</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="tutor-pdf-dialog">
+  <form method="dialog" id="tutor-pdf-form">
+    <div class="help-head"><h2>PDF pelo tutor</h2><button value="cancel" class="icon-btn" aria-label="Fechar">×</button></div>
+    <div class="free-dialog-body">
+      <p class="help-lead">Conte o que você quer estudar. O tutor escreve o conteúdo e preenche a prévia. Você revisa, pode editar e salva o PDF, que abre no leitor.</p>
+      <label>O que deve entrar no PDF?<textarea id="tutor-pdf-request" rows="4" maxlength="4000" placeholder="Ex.: resumo de Pitágoras, dois exemplos resolvidos e cinco exercícios"></textarea></label>
+      <p class="fine">Você também pode pedir diretamente no chat: “gere um PDF com…”</p>
+      <p id="tutor-pdf-error" class="free-error" role="alert" hidden></p>
+    </div>
+    <div class="dialog-actions"><button value="cancel">Cancelar</button><button type="submit" id="tutor-pdf-send" class="primary">Enviar ao tutor</button></div>
+  </form>
+</dialog>
+<dialog id="free-promote-dialog">
+  <form method="dialog" id="free-promote-form">
+    <div class="help-head">
+      <h2>Criar matéria</h2>
+      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+    </div>
+    <div class="free-dialog-body">
+      <p class="help-lead">A conversa desta sessão passa a ser a conversa da nova matéria, com o histórico, o rascunho e os materiais. Nada é copiado para outra sessão.</p>
+      <label>Nome da matéria
+        <input id="free-promote-name" type="text" maxlength="160" placeholder="Nome da nova matéria">
+      </label>
+      <div class="free-promote-preview">
+        <p><strong>Conversa</strong> — <span id="free-promote-session"></span></p>
+        <p><strong>Materiais</strong> — <span id="free-promote-materials"></span></p>
+        <p><strong>Pasta</strong> — na confirmação, a Mesa pergunta a pasta onde criar a nova matéria.</p>
+      </div>
+      <p id="free-promote-error" class="free-error" role="alert" hidden></p>
+    </div>
+    <div class="dialog-actions">
+      <button value="cancel">Cancelar</button>
+      <button type="submit" id="free-promote-save" class="primary">Criar matéria</button>
     </div>
   </form>
 </dialog>

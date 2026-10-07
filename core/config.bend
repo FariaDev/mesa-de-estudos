@@ -21,9 +21,10 @@ import Base
 # "Mesa de Estudos"; flags true; painéis Enunciado (prefer Limites) e
 # "Formulário & apoio" (prefer Formul, toggle Formulário).
 #
-# Quirk preservado: os quatro paths do topo NÃO são aparados — o app sempre fez
+# Quirk preservado: os cinco paths do topo NÃO são aparados — o app sempre fez
 # `String(raw.vaultPath || '')` sem trim (path com espaço nas pontas continua
-# valendo); só o bloco desk e os cursos passam por trim.
+# valendo); só o bloco desk e os cursos passam por trim. O `claudePath` entrou
+# com o mesmo contrato (default vazio, sem trim).
 #
 # I/O (ler/escrever JSON, fs.existsSync) fica no adaptador.
 # Sem referência para frente: helpers antes de quem chama.
@@ -67,6 +68,7 @@ type ConfigFacts is Data:
     vaultPath: Maybe<&2, String>,
     runtimePath: Maybe<&2, String>,
     piPath: Maybe<&2, String>,
+    claudePath: Maybe<&2, String>,
     xournalPath: Maybe<&2, String>,
     courses: +List<CourseFacts>,
     desk: Maybe<&2, DeskFacts>
@@ -97,6 +99,7 @@ type Config is Data:
     vaultPath: String,
     runtimePath: String,
     piPath: String,
+    claudePath: String,
     xournalPath: String,
     courses: +List<Course>,
     desk: Desk
@@ -288,11 +291,12 @@ def needsSetup(vaultUsable: Bool, courses: List<&2, Course>) -> Bool:
 
 def normalize(facts: ConfigFacts) -> Config:
   match facts:
-    case ConfigFacts{vaultPath, runtimePath, piPath, xournalPath, courses, desk}:
+    case ConfigFacts{vaultPath, runtimePath, piPath, claudePath, xournalPath, courses, desk}:
       Config{
         orElse(vaultPath, ""),
         orElse(runtimePath, ""),
         orElse(piPath, ""),
+        orElse(claudePath, ""),
         orElse(xournalPath, ""),
         normalizeCourses(courses),
         normalizeDesk(desk)

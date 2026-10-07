@@ -204,6 +204,10 @@ law composer_settings_toggle_id:
 law composer_settings_toggle_rotulo:
   {kidText(kid(C.settingsPanel(True{}), 0n), 0n) == "Ajustes" : String}
 
+law composer_settings_toggle_titulo:
+  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "title")
+    == Some{"Modelo, esforço e resumo automático"} : Maybe<&2, String>}
+
 law composer_settings_toggle_clique:
   {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "on:click")
     == Some{"ToggleSettings"} : Maybe<&2, String>}

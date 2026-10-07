@@ -1,9 +1,54 @@
 const {contextBridge,ipcRenderer}=require('electron');
 const MAX_NOTIFY=200,MAX_KEYMAP=40,MAX_KEY=40,MAX_ACCEL=40;
+/* Tetos da aba Livre (mesmos do núcleo `core/freeworkspaces.bend`): o preload
+   corta cedo; o main revalida e quem decide é o store. */
+const MAX_FREE_TITLE=120,MAX_FREE_NAME=240,MAX_FREE_MARKDOWN=262144;
 
 function fail(message){throw Error(message);}
 function asPlain(value,message){if(value==null)return {};if(typeof value!=='object'||Array.isArray(value))fail(message);return value;}
 function asString(value,message,max){if(typeof value!=='string')fail(message);if(value.length>max)fail(message);return value;}
+
+/* ---------- chat lateral: validação do preload ----------
+   O preload corta cedo o que é obviamente inválido (id, refs, tamanho do texto/
+   rascunho); o main revalida e decide escopo/limites de domínio. */
+const MAX_SIDE_TEXT=200000,MAX_SIDE_REFS=2,MAX_SIDE_PATH=4096;
+const SIDE_ID=/^sc-[0-9a-f-]{1,80}$/;
+function sidechatId(value,message){
+ const id=asString(value,message,80);
+ if(!SIDE_ID.test(id))fail(message);
+ return id;
+}
+function sidechatRefs(raw){
+ if(raw==null)return [];
+ if(!Array.isArray(raw)||raw.length>MAX_SIDE_REFS)fail('Referências inválidas.');
+ return raw.map(item=>{
+  const ref=asPlain(item,'Referência inválida.');
+  const path=asString(ref.path||'','Referência inválida.',MAX_SIDE_PATH);
+  if(!path)fail('Referência inválida.');
+  const page=ref.page==null?1:Number(ref.page);
+  if(!Number.isFinite(page)||page<1)fail('Referência inválida.');
+  return {path,page:Math.trunc(page)};
+ });
+}
+function sidechatArgs(value,{refs=false,fresh=false}={}){
+ const raw=asPlain(value,'Pedido inválido.');
+ const out={id:sidechatId(raw.id,'Chat lateral inválido.')};
+ if(refs)out.refs=sidechatRefs(raw.refs);
+ if(fresh&&raw.fresh!==undefined){if(typeof raw.fresh!=='boolean')fail('Pedido inválido.');out.fresh=raw.fresh;}
+ return out;
+}
+/* `sidechatOpen` não tem id: ele abre/retoma o chat da conversa principal. */
+function sidechatOpenArgs(value){
+ const raw=asPlain(value,'Pedido inválido.');
+ const out={refs:sidechatRefs(raw.refs)};
+ if(raw.fresh!==undefined){if(typeof raw.fresh!=='boolean')fail('Pedido inválido.');out.fresh=raw.fresh;}
+ return out;
+}
+function sidechatText(value,message){
+ const text=asString(value,message,MAX_SIDE_TEXT);
+ if(!text.trim())fail(message);
+ return text;
+}
 
 /* ---------- IPC: mensagem limpa e um aviso por erro ---------- */
 
@@ -201,13 +246,55 @@ ipcRenderer.on('mesa-key',(_e,raw)=>{const init=normalizeInit(raw);if(init)dispa
 
 contextBridge.exposeInMainWorld('desk',{
  init:()=>invoke('init'),switchCourse:id=>invoke('switch-course',id),settings:change=>invoke('pi-settings',change),openPDF:()=>invoke('open-pdf'),readPDF:p=>invoke('read-pdf',p),readImage:p=>invoke('read-image',p),openImage:p=>invoke('open-image',p),ggbShow:p=>invoke('ggb-view',p),ggbShot:()=>invoke('ggb-shot'),ggbSnapshot:()=>invoke('ggb-snapshot'),save:s=>invoke('save-state',s),
- connect:()=>invoke('pi-connect'),health:()=>invoke('pi-health'),prompt:p=>invoke('pi-prompt',p),abort:()=>invoke('pi-abort'),compact:i=>invoke('pi-compact',i),commands:()=>invoke('pi-commands'),autoCompaction:e=>invoke('pi-auto-compaction',e),respond:d=>invoke('pi-response',d),newSession:()=>invoke('new-session'),openSession:p=>invoke('open-session',p),captureReady:()=>invoke('capture-ready'),openXournal:()=>invoke('open-xournal'),exportChat:()=>invoke('export-chat'),
+ connect:()=>invoke('pi-connect'),health:()=>invoke('pi-health'),prompt:p=>invoke('pi-prompt',p),abort:()=>invoke('pi-abort'),compact:i=>invoke('pi-compact',i),commands:()=>invoke('pi-commands'),autoCompaction:e=>invoke('pi-auto-compaction',e),respond:d=>invoke('pi-response',d),newSession:engine=>invoke('new-session',{engine}),openSession:p=>invoke('open-session',p),captureReady:()=>invoke('capture-ready'),openXournal:()=>invoke('open-xournal'),exportChat:()=>invoke('export-chat'),
+ /* Aba Livre: sessões avulsas do workspace virtual `mesa-free`. O renderer não
+    passa escopo nem caminho — o main captura o workspace ativo, guarda o
+    escopo antes/depois dos awaits nativos e revalida antes de gravar. */
+ freeOpenPdf:()=>invoke('free-open-pdf'),
+ freeSaveMaterial:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('free-save-material',{title:asString(raw.title||'','Título inválido.',MAX_FREE_TITLE),markdown:asString(raw.markdown||'','Conteúdo inválido.',MAX_FREE_MARKDOWN),draftId:asString(raw.draftId||'','Rascunho inválido.',64)});},
+ freePromote:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('free-promote',{name:asString(raw.name||'','Nome inválido.',MAX_FREE_NAME)});},
+ freeRename:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('free-rename',{title:asString(raw.title||'','Título inválido.',MAX_FREE_TITLE)});},
+ onTutorMaterial:fn=>ipcRenderer.on('tutor-material',(_e,data)=>{if(typeof fn==='function')fn(data);}),
+ /* Chat lateral: canais próprios, escopados à conversa principal atual. */
+ sidechatOpen:p=>invoke('sidechat-open',sidechatOpenArgs(p)),
+ sidechatRead:p=>invoke('sidechat-read',sidechatArgs(p)),
+ sidechatPrompt:p=>invoke('sidechat-prompt',{...sidechatArgs(p),text:sidechatText(asPlain(p,'Pedido inválido.').text,'Mensagem inválida.')}),
+ sidechatAbort:p=>invoke('sidechat-abort',sidechatArgs(p)),
+ sidechatSave:p=>invoke('sidechat-save',{...sidechatArgs(p),draft:asString(asPlain(p,'Pedido inválido.').draft??'','Rascunho inválido.',MAX_SIDE_TEXT)}),
+ sidechatContext:p=>invoke('sidechat-context',sidechatArgs(p,{refs:true})),
+ sidechatRespond:p=>{
+  const raw=asPlain(p,'Pedido inválido.');
+  const value=sidechatArgs(raw);
+  const response=asPlain(raw.response,'Resposta inválida.');
+  const responseId=asString(response.id||'','Resposta inválida.',200);
+  if(!responseId)fail('Resposta inválida.');
+  const clean={id:responseId};
+  if(typeof response.value==='string')clean.value=asString(response.value,'Resposta inválida.',4000);
+  if(response.confirmed===true)clean.confirmed=true;
+  if(response.cancelled===true)clean.cancelled=true;
+  if(response.answers!==undefined){
+   const answers=asPlain(response.answers,'Resposta inválida.');
+   const entries=Object.entries(answers);
+   if(entries.length>16)fail('Resposta inválida.');
+   const out=Object.create(null);
+   for(const [question,item] of entries){
+    if(!question||question.length>4000)fail('Resposta inválida.');
+    if(typeof item==='string')out[question]=asString(item,'Resposta inválida.',4000);
+    else if(Array.isArray(item)&&item.length<=32&&item.every(entry=>typeof entry==='string'&&entry.length<=4000))out[question]=item;
+    else fail('Resposta inválida.');
+   }
+   clean.answers=out;
+  }
+  return invoke('sidechat-respond',{...value,response:clean});
+ },
+ onSidechatEvent:fn=>ipcRenderer.on('sidechat-event',(_e,data)=>{if(typeof fn==='function')fn(data);}),
  getConfig:()=>invoke('get-config'),saveConfig:c=>invoke('save-config',c),pickFolder:()=>invoke('pick-folder'),pickFile:()=>invoke('pick-file'),pickXopp:()=>invoke('pick-xopp'),detectPi:()=>invoke('detect-pi'),logError:line=>invoke('desk-log',line),
  /* Fila e bandeja guardadas: `{items, held}` / `{images, held}`. */
  pendingSave:p=>invoke('pending-save',p),traySave:p=>invoke('tray-save',p),
  endDaySave:p=>invoke('end-day-save',p),resumeClear:()=>invoke('resume-clear'),bookmarksSave:p=>invoke('bookmarks-save',p),reviewSave:p=>invoke('review-save',p),reviewDraft:p=>invoke('review-draft',p),reviewDraftCancel:id=>invoke('review-draft-cancel',id),
  updateCheck:o=>invoke('update-check',o),updateApply:()=>invoke('update-apply'),updatePi:()=>invoke('update-pi'),updateResult:()=>invoke('update-result'),components:o=>invoke('components',o),openExternal:url=>invoke('open-external',url),openLog:()=>invoke('open-log'),
  testMode:()=>invoke('test-mode'),
+ conversations:()=>invoke('conversation-list'),
  notify:payload=>{const value=asPlain(payload,'Aviso inválido.');asString(value.body||'','Aviso inválido.',MAX_NOTIFY);return invoke('notify',value);},
  badge:value=>{if(value!=null&&(typeof value!=='number'||!Number.isFinite(value)))fail('Selo inválido.');return invoke('badge',value);},
  setKeymap:payload=>{

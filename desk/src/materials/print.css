@@ -1,0 +1,112 @@
+/* Estilo de impressão do material da aba Livre. Página A4, margens pelo @page,
+   breaks explícitos e o mesmo realce de código do chat ([data-hl]). Sem cor de
+   tela que não imprima: tudo em cinza/preto com acentos legíveis. */
+
+:root{
+  --ink:#141414;
+  --muted:#57534e;
+  --line:#d6d3d1;
+  --code-bg:#f6f5f4;
+  --kw:#6d28d9;
+  --str:#15803d;
+  --comment:#78716c;
+  --num:#b45309;
+  --fn:#1d4ed8;
+  --type:#0f766e;
+}
+
+@page{
+  size:A4;
+  margin:18mm 16mm 20mm;
+}
+
+html,body{
+  margin:0;
+  padding:0;
+  background:#fff;
+  color:var(--ink);
+  font:11.5pt/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+}
+
+.doc{max-width:100%;overflow:visible}
+
+.doc > :first-child{margin-top:0}
+
+h1,h2,h3,h4,h5,h6{
+  line-height:1.25;
+  margin:1.2em 0 .5em;
+  break-after:avoid;
+  page-break-after:avoid;
+}
+h1{font-size:1.55em}
+h2{font-size:1.3em}
+h3{font-size:1.12em}
+h4,h5,h6{font-size:1em}
+
+p{margin:.55em 0}
+ul,ol{margin:.55em 0;padding-left:1.4em}
+li{margin:.18em 0}
+blockquote{
+  margin:.7em 0;
+  padding:.1em 0 .1em .9em;
+  border-left:3px solid var(--line);
+  color:var(--muted);
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+hr{border:0;border-top:1px solid var(--line);margin:1.1em 0}
+a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+
+pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+code{font-size:.9em;background:var(--code-bg);border-radius:3px;padding:0 .18em}
+pre{
+  margin:.7em 0;
+  padding:.6em .75em;
+  border:1px solid var(--line);
+  border-radius:5px;
+  background:var(--code-bg);
+  font-size:.86em;
+  line-height:1.45;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+pre code{background:none;padding:0;border-radius:0;font-size:1em}
+
+[data-hl="kw"]{color:var(--kw);font-weight:600}
+[data-hl="str"]{color:var(--str)}
+[data-hl="comment"]{color:var(--comment);font-style:italic}
+[data-hl="num"]{color:var(--num)}
+[data-hl="fn"]{color:var(--fn)}
+[data-hl="type"]{color:var(--type)}
+
+table{
+  border-collapse:collapse;
+  margin:.7em 0;
+  max-width:100%;
+  font-size:.95em;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+th,td{border:1px solid var(--line);padding:.28em .55em;text-align:left;vertical-align:top}
+th{background:#f2f1f0}
+
+/* Fórmulas: nunca cortadas nem com barra de rolagem no papel. */
+.katex{font-size:1.03em}
+.katex-display{
+  margin:.75em 0;
+  overflow:visible;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+
+/* Assets ficam desligados no material impresso (allowAssets=false). */
+img,figure,svg{display:none !important}
+/* O KaTeX desenha radicais e outros símbolos por SVG; são parte da fórmula. */
+.katex svg{display:block !important}
+
+.task-list-item{list-style:none}
+.task-list-item input{display:none}

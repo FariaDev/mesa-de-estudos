@@ -1,4 +1,4 @@
-import {$,S,toast,markCourseTab,updateContextSummary} from './state.mjs';
+import {$,S,toast,markCourseTab,updateContextSummary,supportsCapability} from './state.mjs';
 import {build,renderChildren} from './view-host.mjs';
 import {renderReview} from './dialogs.mjs';
 import {openRef} from './nav.mjs';
@@ -197,15 +197,22 @@ export function openReviewFromMessage(node=null){
  openReviewDialog({mode:'add',item:{question,attempt:attempt.slice(0,400),difficulty:selection.slice(0,240),ref}});
  const dialog=dialogOf();
  const answer=String(node?._raw||node?.querySelector('.body')?.innerText||'');
- if(!dialog||!answer.trim()||!window.desk.reviewDraft)return;
+ if(!dialog||!answer.trim())return;
+ /* Motor sem geração auxiliar (Claude nesta versão): o caderno manual continua,
+    mas a sugestão automática não é pedida — nada de fallback silencioso no Pi. */
+ if(!supportsCapability('reviewDraft')){
+  if(window.desk.reviewDraft)draftStatus('Sugestão automática indisponível neste motor — preencha os campos para guardar.');
+  return;
+ }
+ if(!window.desk.reviewDraft)return;
  const id=`review-${Date.now()}-${++draftSequence}`;dialog._draftId=id;
- draftStatus('Preparando sugestão do Pi… Você pode editar os campos.');
+ draftStatus(`Preparando sugestão do ${S.agentLabel}… Você pode editar os campos.`);
  window.desk.reviewDraft({id,question,attempt,answer,selection,ref}).then(item=>{
   for(const key of ['question','attempt','difficulty']){
    const field=dialog.querySelector(`#review-${key}`);
    if(field&&reviewCore.canFillDraft(dialog.open,dialog._draftId===id,!dialog._dirty.has(key)))field.value=String(item[key]||'');
   }
-  if(dialog.open&&dialog._draftId===id)draftStatus('Sugestão do Pi pronta. Revise ou edite antes de guardar.');
+  if(dialog.open&&dialog._draftId===id)draftStatus(`Sugestão do ${S.agentLabel} pronta. Revise ou edite antes de guardar.`);
  }).catch(error=>{
   if(dialog.open&&dialog._draftId===id)draftStatus(`Não foi possível preparar a sugestão: ${error.message} Preencha os campos para guardar.`);
  });

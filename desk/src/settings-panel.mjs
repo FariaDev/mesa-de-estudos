@@ -1,5 +1,6 @@
-import {$,labelBtn} from './state.mjs';
+import {$,labelBtn,supportsCapability,syncChatScrollMode} from './state.mjs';
 import {build} from './view-host.mjs';
+import {doCompact} from './chat.mjs';
 import composerCore from './generated/composerview.core.js';
 
 /* Painel de ajustes do composer (Mesa): Modelo, Esforço e o `auto` da
@@ -27,6 +28,48 @@ function readOpen(){
 function panel(){return $('#pi-settings-panel');}
 function body(){return $('#pi-settings-body');}
 
+/* Resumo do contexto (pedido 6): o rótulo explícito "Resumir automaticamente"
+   com descrição, o `auto` do núcleo ao lado e a ação manual "Resumir contexto".
+   O botão manual é desabilitado com explicação REAL onde o motor não oferece a
+   capacidade (Claude experimental) — nada de chamar o Pi no lugar. O bloco vive
+   DENTRO do `.pi-settings` para não mudar os filhos do corpo (contrato dos
+   smokes antigos). */
+function mountCompactTools(){
+ const anchor=$('.pi-settings');
+ if(!anchor||$('#compact-now'))return;
+ const tools=document.createElement('div');
+ tools.className='compact-tools';
+ const label=document.createElement('span');
+ label.className='compact-auto-label';
+ label.textContent='Resumir automaticamente';
+ const desc=document.createElement('span');
+ desc.className='fine';
+ desc.id='compact-auto-desc';
+ const manual=document.createElement('button');
+ manual.type='button';
+ manual.id='compact-now';
+ manual.textContent='Resumir contexto';
+ manual.addEventListener('click',()=>doCompact(''));
+ tools.append(label,desc,manual);
+ anchor.append(tools);
+ syncCompactTools();
+}
+export function syncCompactTools(){
+ const manual=$('#compact-now');
+ if(manual){
+  const canCompact=supportsCapability('compact');
+  manual.disabled=!canCompact;
+  manual.title=canCompact?'Resumir o contexto da conversa principal agora':'Indisponível neste motor: o Claude Code (experimental) não expõe compactação pela Mesa.';
+ }
+ const desc=$('#compact-auto-desc');
+ if(desc){
+  desc.textContent=supportsCapability('autoCompaction')
+   ?'Com ela ligada, o contexto é resumido sozinho quando enche (botão auto).'
+   :'Este motor não oferece resumo automático pela Mesa; o resumo manual também fica indisponível.';
+ }
+}
+window.addEventListener('desk-engine-facts',syncCompactTools);
+
 function apply(){
  const box=body();
  const toggle=$('#settings-toggle');
@@ -35,6 +78,9 @@ function apply(){
   toggle.setAttribute('aria-expanded',open?'true':'false');
  }
  if(box)box.hidden=!open;
+ /* O painel muda a altura da coluna: acerta o modo de rolagem na hora, sem
+    esperar o ResizeObserver (o composer não pode vazar na calculadora). */
+ syncChatScrollMode();
 }
 
 function toggle(){
@@ -61,6 +107,7 @@ function mount(){
   const auto=$('#auto-compact');
   if(auto)box.append(auto);
  }
+ mountCompactTools();
  apply();
 }
 

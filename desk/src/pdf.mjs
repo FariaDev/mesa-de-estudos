@@ -51,6 +51,33 @@ async function cachedPdf(file){
 }
 // Lista do artefato Bend (`Con`/`Nil`) a partir de um array JS.
 function bendList(items){let out={$:'Nil'};for(let i=items.length-1;i>=0;i--)out={$:'Con',head:items[i],tail:out};return out;}
+// Orientação por documento (voltas do USUÁRIO, 90° cada): o mapa fica no
+// runtime/per-curso e sobrevive à troca de leitor e de matéria; o `docMemo`
+// cobre o retorno ao mesmo PDF na mesma sessão. A normalização/validação mora
+// no núcleo (`core/pdfpageview.bend`): aqui só entra o que o ciclo aceita.
+const pdfRotations=new Map();
+// Mesmo contrato estrito do main (`sanitizeRotation`): só número inteiro do
+// ciclo entra; string ("90"), fração (90.5) ou qualquer lixo vira 0, sem
+// exceção — o snapshot legado de `pdfs[]` chega cru aqui (o main não o sanea).
+function normalizeRotation(value){
+ if(typeof value!=='number'||!Number.isInteger(value)||value<0||value>270)return 0;
+ try{return Number(pdfPage.rotationNormalize(BigInt(value)));}catch{return 0;}
+}
+export function pdfRotationsSnapshot(){const out={};for(const [path,rotation] of pdfRotations)out[path]=rotation;return out;}
+export function restorePdfRotations(value){
+ pdfRotations.clear();
+ if(!value||typeof value!=='object'||Array.isArray(value))return;
+ for(const [path,rotation] of Object.entries(value)){
+  if(!path||path==='__proto__')continue;
+  const r=normalizeRotation(rotation);
+  if(r)pdfRotations.set(path,r);
+ }
+}
+function rememberPdfRotation(path,rotation){
+ if(!path)return;
+ const r=normalizeRotation(rotation);
+ if(r)pdfRotations.set(path,r);else pdfRotations.delete(path);
+}
 // Andaime `data-icon` do núcleo vira SVG do host (o aplicador compartilhado
 // com o popover de navegação: `view-host.mjs`).
 const iconize=root=>applyIcons(root,icon);
@@ -58,7 +85,7 @@ const iconize=root=>applyIcons(root,icon);
 function swapInto(oldEl,node,handlers){const next=build(node,handlers);oldEl.replaceWith(next);iconize(next);return next;}
 export class PdfPanel {
  constructor(index,label){
-  Object.assign(this,{index,label,page:1,zoom:1,scrollX:0,scrollY:0,invert:false,minimized:false,findOpen:false,loading:false,path:null,doc:null,renderTasks:new Map(),pageEls:[],version:0,_renderSeq:0,docMemo:new Map(),findTerm:'',findPages:[],findTotal:0,textDoc:null,textPages:null});
+  Object.assign(this,{index,label,page:1,zoom:1,scrollX:0,scrollY:0,invert:false,minimized:false,findOpen:false,loading:false,path:null,doc:null,rotation:0,renderTasks:new Map(),pageEls:[],version:0,_renderSeq:0,docMemo:new Map(),findTerm:'',findPages:[],findTotal:0,textDoc:null,textPages:null});
   this.handlers={
    OpenDoc:e=>this.load(e.currentTarget.value),
    OpenFile:()=>this.openFile(),
@@ -66,6 +93,7 @@ export class PdfPanel {
    PageShot:()=>this.pageShot(),
    ToggleCollapse:()=>this.toggleMinimized(),
    ToggleInvert:()=>this.toggleInvert(),
+   Rotate:()=>this.toggleRotation(),
    Prev:()=>this.goto(this.page-1),
    Next:()=>this.goto(this.page+1),
    // Voltar da citação seguida (a pilha é de nav.mjs, por painel).
@@ -96,7 +124,7 @@ export class PdfPanel {
  }
  // Fatos do painel para o núcleo: rótulo, biblioteca, documento atual e os
  // estados de minimizar/busca (a `pinned` é do `state.mjs`, depois do build).
- shellFacts(){return{$:'PdfShell',label:this.label,options:this.optionList(),path:this.path||'',minimized:!!this.minimized,findOpen:!!this.findOpen};}
+ shellFacts(){return{$:'PdfShell',label:this.label,options:this.optionList(),path:this.path||'',minimized:!!this.minimized,findOpen:!!this.findOpen,rotation:BigInt(this.rotation)};}
  optionList(){return bendList((S.library||[]).map(p=>({$:'PdfOption',name:String(p.name??''),path:String(p.path??'')})));}
  readerState(){return this.loading?{$:'PdfLoading'}:this.doc?{$:'PdfReady'}:{$:'PdfEmpty'};}
  // Estado → miolo (`None` = carregando/erro não mexem no documento, como no Electron).
@@ -189,6 +217,30 @@ export class PdfPanel {
   finally{button.disabled=false;button.textContent='Buscar';}
  }
  toggleInvert(){this.invert=!this.invert;this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));save(true);}
+ // Gira 90° o documento DESTE leitor (ciclo 0→90→180→270→0). A volta entra no
+ // viewport do PDF.js somada à rotação nativa da página; fica guardada por
+ // caminho (mapa do runtime + snapshot) e o render reancora a página atual
+ // depois do novo layout — a chave de render carrega a rotação, então nenhum
+ // canvas da orientação antiga sobrevive à troca.
+ toggleRotation(){
+  if(!this.doc)return;
+  this.rememberScroll();
+  this.rotation=Number(pdfPage.rotationNext(BigInt(this.rotation)));
+  rememberPdfRotation(this.path,this.rotation);
+  this.paintRotationBtn();
+  toast(pdfPage.rotateToast(BigInt(this.rotation)));
+  save(true);
+  this.render();
+ }
+ // Só o botão de girar muda com a rotação: trocá-lo preserva o foco do teclado
+ // (o mesmo motivo do `collapse` no `toggleMinimized`).
+ paintRotationBtn(){
+  const btn=this.q('.rotate');
+  if(!btn)return;
+  const hadFocus=document.activeElement===btn;
+  swapInto(btn,pdfPage.rotateBtn(this.label,BigInt(this.rotation)),this.handlers);
+  if(hadFocus)this.q('.rotate')?.focus();
+ }
  toggleMinimized(value){
   this.minimized=value===undefined?!this.minimized:!!value;
   const other=S.panels.find(p=>p!==this);
@@ -214,7 +266,11 @@ export class PdfPanel {
  }
  nudgeZoom(delta){this.rememberScroll();const before=this.zoom;this.zoom=Math.max(.5,Math.min(4,+(this.zoom+delta).toFixed(2)));this.scrollY*=this.zoom/before;this.q('.zoom-label').textContent=`${Math.round(this.zoom*100)}%`;save(true);clearTimeout(this.zoomTimer);this.zoomTimer=setTimeout(()=>this.render(),50);}
  rememberScroll(){const box=this.q('.pdf-viewport');if(!box)return;this.scrollX=box.scrollLeft;this.scrollY=box.scrollTop;}
- async load(path,settings={}){if(!path)return;if(this.path&&this.doc)this.docMemo.set(this.path,{page:this.page,zoom:this.zoom,scrollX:this.scrollX,scrollY:this.scrollY,invert:this.invert});const id=++this.version;this.cancelRenders();this.textDoc=null;this.textPages=null;const memo=Object.prototype.hasOwnProperty.call(settings,'zoom')||Object.prototype.hasOwnProperty.call(settings,'page')?null:this.docMemo.get(path);const use=memo||settings;this.loading=true;this.path=path;this.page=Math.max(1,use.page||1);this.zoom=use.zoom||1;this.scrollX=use.scrollX||0;this.scrollY=use.scrollY||0;this.invert=!!use.invert;this.findTerm='';this.findPages=[];this.findTotal=0;this.q('.pdf-select').value=path;this.updateFindCount();this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintViewport();renderInto(this.q('.pdf-foot'),pdfView.footLoading());try{const {doc}=await cachedPdf(path);if(id!==this.version)return;this.doc=doc;this.page=Math.max(1,Math.min(doc.numPages,this.page));await this.render();this.loading=false;updateWindowTitle();save();}catch(e){this.loading=false;renderInto(this.q('.pdf-foot'),pdfView.footError());toast(e.message);}}
+ async load(path,settings={}){if(!path)return;if(this.path&&this.doc)this.docMemo.set(this.path,{page:this.page,zoom:this.zoom,scrollX:this.scrollX,scrollY:this.scrollY,invert:this.invert,rotation:this.rotation});const id=++this.version;this.cancelRenders();this.textDoc=null;this.textPages=null;const memo=Object.prototype.hasOwnProperty.call(settings,'zoom')||Object.prototype.hasOwnProperty.call(settings,'page')?null:this.docMemo.get(path);const use=memo||settings;/* Prioridade da orientação: memo do painel > rotação explícita do snapshot
+   (0 incluído) > mapa por caminho. O mapa é compartilhado entre leitores; o
+   snapshot é de cada painel — com o mesmo PDF nos dois, cada um volta na sua
+   orientação. O mapa só decide quando o snapshot é legado (sem o campo). */
+const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation');this.loading=true;this.path=path;this.page=Math.max(1,use.page||1);this.zoom=use.zoom||1;this.rotation=normalizeRotation(memo?memo.rotation:explicitRotation?settings.rotation:(pdfRotations.get(path)??0));this.scrollX=use.scrollX||0;this.scrollY=use.scrollY||0;this.invert=!!use.invert;this.findTerm='';this.findPages=[];this.findTotal=0;this.q('.pdf-select').value=path;this.updateFindCount();this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintRotationBtn();this.paintViewport();renderInto(this.q('.pdf-foot'),pdfView.footLoading());try{const {doc}=await cachedPdf(path);if(id!==this.version)return;this.doc=doc;this.page=Math.max(1,Math.min(doc.numPages,this.page));await this.render();this.loading=false;updateWindowTitle();save();}catch(e){this.loading=false;renderInto(this.q('.pdf-foot'),pdfView.footError());toast(e.message);}}
  // Sumário do documento (pdf.js `getOutline` com o destino resolvido): lista
  // de `{title, page, depth}` com a página 1-based. Cache por doc — o teto de 40
  // linhas é o `maxOutline()` do núcleo. Papelão sem `/Outlines` devolve [].
@@ -238,13 +294,17 @@ export class PdfPanel {
   this._outlineDoc=doc;this._outline=out;
   return out;
  }
- goto(n){if(!this.doc)return;const page=Math.max(1,Math.min(this.doc.numPages,Math.trunc(n)||1));this.page=page;const target=this.pageEls[page-1];if(target&&target.isConnected&&target.offsetTop>0){const box=this.q('.pdf-viewport');box.scrollTo({top:Math.max(0,target.offsetTop-4),left:0,behavior:'auto'});this.scrollY=box.scrollTop;this.updatePageUI();this.renderVisible();save(true);return;}this.updatePageUI();this.renderVisible();save(true);}
+ goto(n){if(!this.doc)return;const page=Math.max(1,Math.min(this.doc.numPages,Math.trunc(n)||1));this.page=page;const target=this.pageEls[page-1];if(target&&target.isConnected&&target.offsetTop>0){const box=this.q('.pdf-viewport');box.scrollTo({top:Math.max(0,target.offsetTop-4),left:0,behavior:'auto'});this.scrollY=box.scrollTop;this.updatePageUI(true);this.renderVisible();save(true);return;}this.updatePageUI(true);this.renderVisible();save(true);}
  cancelRenders(){for(const task of this.renderTasks.values())try{task.cancel();}catch{}this.renderTasks.clear();}
- updatePageUI(){
+ updatePageUI(force=false){
   if(!this.doc)return;
   const page=BigInt(this.page),total=BigInt(this.doc.numPages),file=this.path.split(/[/\\]/).at(-1)||'';
-  this.q('.page-number').value=pdfView.pageNumberValue(page);
-  this.q('.page-number').max=pdfView.pageNumberMax(total);
+  const pageInput=this.q('.page-number');
+  /* Um render atrasado (janela/ResizeObserver) não sobrescreve a página que o
+     usuário está digitando: o valor fica até o Enter/blur confirmar; aí o
+     `goto` (force) alinha o campo com a página real. */
+  if(force||document.activeElement!==pageInput)pageInput.value=pdfView.pageNumberValue(page);
+  pageInput.max=pdfView.pageNumberMax(total);
   renderInto(this.q('.page-total'),pdfView.pageTotal(total));
   renderInto(this.q('.zoom-label'),pdfView.zoomLabel(BigInt(Math.round(this.zoom*100))));
   renderInto(this.q('.pdf-foot'),pdfView.footReady(page,total,pdfView.modeContinuous(),file));
@@ -274,10 +334,13 @@ export class PdfPanel {
    renderChildren(span,pdfPage.hlSegments(text,lower,term),{});
   }
  }
- updateCurrentPage(){if(!this.pageEls.length||!this.el.isConnected)return;const box=this.q('.pdf-viewport');const center=box.scrollTop+box.clientHeight/2;let nearest=0,distance=Infinity;for(let i=0;i<this.pageEls.length;i++){const el=this.pageEls[i];const d=Math.abs(el.offsetTop+el.offsetHeight/2-center);if(d<distance){distance=d;nearest=i;}}const page=nearest+1;if(page!==this.page){this.page=page;this.updatePageUI();}}
- async render(){if(!this.doc||!this.el.offsetWidth)return;const seq=++this._renderSeq,doc=this.doc,box=this.q('.pdf-viewport');this.cancelRenders();const width=box.clientWidth;const style=getComputedStyle(box);const available=width-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight)-2;const boxes=[],viewports=[];try{for(let n=1;n<=doc.numPages;n++){const page=await doc.getPage(n);if(seq!==this._renderSeq||doc!==this.doc)return;const base=page.getViewport({scale:1});const scale=Math.max(.1,available/base.width)*this.zoom;const viewport=page.getViewport({scale});viewports.push(viewport);boxes.push({$:'PdfPageBox',n:BigInt(n),width:`${viewport.width}px`,height:`${viewport.height}px`});}if(seq!==this._renderSeq)return;this._layingOut=true;const frame=pdfPage.viewport({$:'PdfReady'},bendList(boxes));if(frame.$==='Some')renderInto(box,frame.value);this.pageEls=[...box.querySelectorAll('.pdf-page')];for(let i=0;i<this.pageEls.length;i++)this.pageEls[i]._viewport=viewports[i];box.scrollLeft=this.scrollX;box.scrollTop=this.scrollY;const target=this.pageEls[this.page-1];if(target){const top=Math.max(0,target.offsetTop-4),bottom=target.offsetTop+target.offsetHeight;if(box.scrollTop<top-1||box.scrollTop>bottom){box.scrollTop=top;this.scrollY=box.scrollTop;}}this.updatePageUI();this.renderVisible();requestAnimationFrame(()=>{this._layingOut=false;this.updateCurrentPage();});}catch(e){this._layingOut=false;if(e.name!=='RenderingCancelledException')toast('Erro ao preparar PDF: '+e.message);}}
+ updateCurrentPage(){if(!this.pageEls.length||!this.el.isConnected)return;const box=this.q('.pdf-viewport');const center=box.scrollTop+box.clientHeight/2;let nearest=0,distance=Infinity;for(let i=0;i<this.pageEls.length;i++){const el=this.pageEls[i];const d=Math.abs(el.offsetTop+el.offsetHeight/2-center);if(d<distance){distance=d;nearest=i;}}const page=nearest+1;if(page!==this.page){this.page=page;this.updatePageUI(true);}}
+ // Mede todas as páginas de uma vez. A rotação efetiva é nativa do PDF mais a
+ // volta do usuário: entra na base (fit), no viewport final e na chave de
+ // render — o PDF.js cuida da geometria; nada de `transform` CSS na página.
+ async render(){if(!this.doc||!this.el.offsetWidth)return;const seq=++this._renderSeq,doc=this.doc,box=this.q('.pdf-viewport');this.cancelRenders();const width=box.clientWidth;const style=getComputedStyle(box);const available=width-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight)-2;const boxes=[],viewports=[];try{for(let n=1;n<=doc.numPages;n++){const page=await doc.getPage(n);if(seq!==this._renderSeq||doc!==this.doc)return;const rotation=(page.rotate+this.rotation)%360;const base=page.getViewport({scale:1,rotation});const scale=Math.max(.1,available/base.width)*this.zoom;const viewport=page.getViewport({scale,rotation});viewports.push(viewport);boxes.push({$:'PdfPageBox',n:BigInt(n),width:`${viewport.width}px`,height:`${viewport.height}px`});}if(seq!==this._renderSeq)return;this._layingOut=true;const frame=pdfPage.viewport({$:'PdfReady'},bendList(boxes));if(frame.$==='Some')renderInto(box,frame.value);this.pageEls=[...box.querySelectorAll('.pdf-page')];for(let i=0;i<this.pageEls.length;i++)this.pageEls[i]._viewport=viewports[i];box.scrollLeft=this.scrollX;box.scrollTop=this.scrollY;const target=this.pageEls[this.page-1];if(target){const top=Math.max(0,target.offsetTop-4),bottom=target.offsetTop+target.offsetHeight;if(box.scrollTop<top-1||box.scrollTop>bottom){box.scrollTop=top;this.scrollY=box.scrollTop;}}this.updatePageUI();this.renderVisible();requestAnimationFrame(()=>{this._layingOut=false;this.updateCurrentPage();});}catch(e){this._layingOut=false;if(e.name!=='RenderingCancelledException')toast('Erro ao preparar PDF: '+e.message);}}
  renderVisible(){if(!this.doc||!this.pageEls.length)return;cancelAnimationFrame(this._visibleFrame);this._visibleFrame=requestAnimationFrame(()=>{if(!this.el.isConnected)return;const box=this.q('.pdf-viewport'),top=box.scrollTop-box.clientHeight,bottom=box.scrollTop+box.clientHeight*2;for(let i=0;i<this.pageEls.length;i++){const el=this.pageEls[i];if(el.offsetTop+el.offsetHeight>=top&&el.offsetTop<=bottom)this.renderPage(i+1,el);}});}
- async renderPage(n,el){if(!this.el.isConnected||!el.isConnected)return;const key=`${this.version}:${this.zoom}:${window.devicePixelRatio||1}`;if(el.dataset.rendered===key||el.dataset.rendering===key)return;el.dataset.rendering=key;try{const page=await this.doc.getPage(n),viewport=el._viewport,dpr=window.devicePixelRatio||1;let output=Math.max(dpr,2);const maxPx=16777216,need=viewport.width*output*viewport.height*output;if(need>maxPx)output=Math.sqrt(maxPx/(viewport.width*viewport.height));const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width*output);canvas.height=Math.ceil(viewport.height*output);canvas.style.width=`${viewport.width}px`;canvas.style.height=`${viewport.height}px`;const task=page.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport,transform:output===1?null:[output,0,0,output,0,0],intent:'display'});this.renderTasks.set(n,task);await task.promise;if(this.renderTasks.get(n)===task)this.renderTasks.delete(n);if(el.dataset.rendering!==key||!el.isConnected)return;let layer=null;try{layer=document.createElement('div');layer.className='textLayer';layer.style.setProperty('--total-scale-factor',String(viewport.scale));const tl=new pdfjs.TextLayer({textContentSource:await page.getTextContent(),container:layer,viewport});await tl.render();if(!layer.querySelector('span'))layer=null;}catch{layer=null;}if(el.dataset.rendering!==key||!el.isConnected)return;el.replaceChildren(canvas);if(layer){if(this.findTerm)this.highlightLayer(layer);el.append(layer);}el.dataset.rendered=key;}catch(e){if(e.name!=='RenderingCancelledException')toast(`Erro ao renderizar a página ${n}: ${e.message}`);}finally{if(el.dataset.rendering===key)delete el.dataset.rendering;}}
+ async renderPage(n,el){if(!this.el.isConnected||!el.isConnected)return;const key=`${this.version}:${this.zoom}:${this.rotation}:${window.devicePixelRatio||1}`;if(el.dataset.rendered===key||el.dataset.rendering===key)return;el.dataset.rendering=key;try{const page=await this.doc.getPage(n);if(el.dataset.rendering!==key||!el.isConnected)return;const viewport=el._viewport,dpr=window.devicePixelRatio||1;let output=Math.max(dpr,2);const maxPx=16777216,need=viewport.width*output*viewport.height*output;if(need>maxPx)output=Math.sqrt(maxPx/(viewport.width*viewport.height));const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width*output);canvas.height=Math.ceil(viewport.height*output);canvas.style.width=`${viewport.width}px`;canvas.style.height=`${viewport.height}px`;const task=page.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport,transform:output===1?null:[output,0,0,output,0,0],intent:'display'});this.renderTasks.set(n,task);await task.promise;if(this.renderTasks.get(n)===task)this.renderTasks.delete(n);if(el.dataset.rendering!==key||!el.isConnected)return;let layer=null;try{layer=document.createElement('div');layer.className='textLayer';layer.style.setProperty('--total-scale-factor',String(viewport.scale));const tl=new pdfjs.TextLayer({textContentSource:await page.getTextContent(),container:layer,viewport});await tl.render();if(!layer.querySelector('span'))layer=null;}catch{layer=null;}if(el.dataset.rendering!==key||!el.isConnected)return;el.replaceChildren(canvas);if(layer){if(this.findTerm)this.highlightLayer(layer);el.append(layer);}el.dataset.rendered=key;}catch(e){if(e.name!=='RenderingCancelledException')toast(`Erro ao renderizar a página ${n}: ${e.message}`);}finally{if(el.dataset.rendering===key)delete el.dataset.rendering;}}
 }
 export function pdfSplitValue(){const raw=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pdf-left'));return Number.isFinite(raw)?Math.round(raw*1000)/100000:0.5;}
 export function setPdfSplitPct(value){document.documentElement.style.setProperty('--pdf-left',`${Math.round(Math.max(.2,Math.min(.8,value))*1000)/10}%`);}
