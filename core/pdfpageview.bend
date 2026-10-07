@@ -16,7 +16,7 @@ import pdfview.bend as P
 # Contrato do smoke preservado (tags/classes/attrs 1:1 com o Electron):
 #   section.pdf-panel > .pdf-title (strong, select.pdf-select, .open,
 #   .find-toggle, .page-shot, .collapse) + .pdf-tools (prev, .page-number,
-#   .page-total, next, out, .zoom-label, in, fit, invert) + .pdf-stage
+#   .page-total, next, out, .zoom-label, in, fit, invert, rotate) + .pdf-stage
 #   (.pdf-viewport + .pdf-foot) + form.pdf-find
 #   .pdf-viewport > .pdf-document > .pdf-page[data-page][style]
 #   .textLayer span > i.pdf-hl (destaque da busca)
@@ -43,14 +43,17 @@ type PdfReader is Data:
   PdfFailed{}
   PdfReady{}
 
-# A cabeça do painel como o host a conhece (fatos já resolvidos).
+# A cabeça do painel como o host a conhece (fatos já resolvidos). `rotation`
+# é a volta do USUÁRIO (0/90/180/270) — a rotação nativa da página (`/Rotate`
+# do PDF) é somada pelo host na hora do viewport, não é fato da moldura.
 type PdfShell is Data:
   PdfShell{
     label: String,
     options: +List<PdfOption>,
     path: String,
     minimized: Bool,
-    findOpen: Bool
+    findOpen: Bool,
+    rotation: Nat
   }
 
 # Um trecho de texto de um `span` do textLayer: `hit=True` vira `.pdf-hl`.
@@ -112,6 +115,51 @@ def findAria(label: String) -> String:
 
 def pageAria(label: String) -> String:
   "Página de " ++ label
+
+# ---------- rotação do leitor (ciclo de 90° por documento) ----------
+
+# Passo do ciclo e próxima orientação: 0→90→180→270→0. A volta é do usuário,
+# somada à rotação nativa da página pelo host (viewport do PDF.js).
+def rotationStep() -> Nat:
+  90n
+
+def rotationNext(+rotation: Nat) -> Nat:
+  Nat.mod(Nat.add(rotation, rotationStep()), 360n)
+
+# Só as quatro orientações do ciclo são válidas. Qualquer outra coisa (dado
+# antigo, corrompido ou editado à mão) não vira rotação: normaliza para 0 —
+# o documento nasce em pé, como os PDFs legados.
+def rotationValid(+rotation: Nat) -> Bool:
+  match rotation:
+    case 0n:
+      True{}
+    case 90n:
+      True{}
+    case 180n:
+      True{}
+    case 270n:
+      True{}
+    case _:
+      False{}
+
+def rotationNormalize.if(+rotation: Nat, valid: Bool) -> Nat:
+  match valid:
+    case True{}:
+      rotation
+    case False{}:
+      0n
+
+def rotationNormalize(+rotation: Nat) -> Nat:
+  rotationNormalize.if(rotation, rotationValid(rotation))
+
+def rotateTitle(+rotation: Nat) -> String:
+  "Girar 90° — orientação atual: " ++ Nat.show(rotation) ++ "°"
+
+def rotateAria(label: String, +rotation: Nat) -> String:
+  "Girar página de " ++ label ++ " (atual: " ++ Nat.show(rotation) ++ "°)"
+
+def rotateToast(+rotation: Nat) -> String:
+  "Orientação: " ++ Nat.show(rotation) ++ "°"
 
 # ---------- select da biblioteca ----------
 
@@ -207,7 +255,7 @@ def backBtn(label: String) -> V.ViewNode:
 
 def titleBar(shell: PdfShell) -> V.ViewNode:
   match shell:
-    case PdfShell{+label, +options, +path, +minimized, findOpen}:
+    case PdfShell{+label, +options, +path, +minimized, findOpen, rotation}:
       V.viewEl("div", [V.attrClass("pdf-title")], [
         V.viewEl("strong", Nil{}, [V.viewText(label)]),
         selectNode(label, options, path),
@@ -227,6 +275,15 @@ def iconBtn(cls: String, iconName: String, aria: String, handler: String) -> V.V
 def titleIconBtn(cls: String, iconName: String, title: String, aria: String, handler: String) -> V.ViewNode:
   V.viewEl("button", V.attrJoin([iconBtnAttrs(cls, iconName, aria), [V.attrTitle(title), V.attrOn("click", handler)]]), Nil{})
 
+# Girar 90°: um botão que cicla 0→90→180→270→0 por leitor. `title`/`aria-label`
+# dizem a orientação corrente (o host troca só este botão a cada giro, como o
+# colapsar, para não perder o foco do teclado).
+def rotateBtn(label: String, +rotation: Nat) -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    iconBtnAttrs("rotate", "rotateCw", rotateAria(label, rotation)),
+    [V.attrTitle(rotateTitle(rotation)), V.attrOn("click", "Rotate")]
+  ]), [V.viewText("Girar")])
+
 def pageInput(label: String) -> V.ViewNode:
   V.viewEl("input", [
     V.attrClass("page-number"),
@@ -237,7 +294,7 @@ def pageInput(label: String) -> V.ViewNode:
     V.attrOn("change", "GotoPage")
   ], Nil{})
 
-def toolsBar(label: String) -> V.ViewNode:
+def toolsBar(+label: String, +rotation: Nat) -> V.ViewNode:
   V.viewEl("div", [V.attrClass("pdf-tools")], [
     iconBtn("prev", "chevronLeft", prevAria(), "Prev"),
     pageInput(label),
@@ -247,7 +304,8 @@ def toolsBar(label: String) -> V.ViewNode:
     V.viewEl("span", [V.attrClass("zoom-label")], Nil{}),
     iconBtn("in", "plus", inAria(), "ZoomIn"),
     titleIconBtn("fit", "unfold", fitTitle(), fitTitle(), "Fit"),
-    titleIconBtn("invert", "contrast", invertTitle(), invertAria(), "ToggleInvert")
+    titleIconBtn("invert", "contrast", invertTitle(), invertAria(), "ToggleInvert"),
+    rotateBtn(label, rotation)
   ])
 
 # ---------- palco, busca e divisores ----------
@@ -273,14 +331,14 @@ def findForm(label: String) -> V.ViewNode:
 # `pinned` é do host (o `state.mjs` marca o primeiro painel depois de criar).
 def panelShell(shell: PdfShell) -> V.ViewNode:
   match shell:
-    case PdfShell{+label, +options, +path, +minimized, findOpen}:
+    case PdfShell{+label, +options, +path, +minimized, findOpen, +rotation}:
       V.viewEl("section", [
         P.panelClass(minimized, False{}),
         V.attrAria("label", label),
         V.ViewAttr{"tabindex", "0"}
       ], [
-        titleBar(PdfShell{label, options, path, minimized, findOpen}),
-        toolsBar(label),
+        titleBar(PdfShell{label, options, path, minimized, findOpen, rotation}),
+        toolsBar(label, rotation),
         stage(),
         findForm(label)
       ])

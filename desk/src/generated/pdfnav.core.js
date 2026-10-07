@@ -338,13 +338,13 @@ function $outlineEmpty$() {
   return "Este PDF não tem sumário.";
 }
 function $navButtonLabel$() {
-  return "Navegar";
+  return "Sumário e favoritos";
 }
 function $navButtonTitle$() {
-  return "Favoritos e sumário";
+  return "Sumário e favoritos";
 }
 function $navAria$(_label_0) {
-  return "Navegar em " + _label_0;
+  return "Sumário e favoritos de " + _label_0;
 }
 function $navBackLabel$() {
   return "Voltar";

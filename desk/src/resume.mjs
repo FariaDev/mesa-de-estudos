@@ -48,7 +48,7 @@ const handlers={
    do composer. Idempotente: o boot, a troca de matéria e o próprio Encerrar
    chamam a mesma função. */
 export function renderResumeCard(data){
- record=data&&typeof data==='object'?data:null;
+ record=S.appConfig.desk?.endDay!==false&&data&&typeof data==='object'?data:null;
  const composer=$('#composer');
  if(!composer)return;
  const current=cardEl();

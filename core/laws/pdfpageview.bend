@@ -29,7 +29,7 @@ def hl(text: String) -> V.ViewNode:
   V.viewEl("i", [V.attrClass("pdf-hl")], Con{V.viewText(text), Nil{}})
 
 def shellConcrete() -> G.PdfShell:
-  G.PdfShell{"Enunciado", [G.PdfOption{"Limites.pdf", "/x/Limites.pdf"}], "/x/Limites.pdf", False{}, False{}}
+  G.PdfShell{"Enunciado", [G.PdfOption{"Limites.pdf", "/x/Limites.pdf"}], "/x/Limites.pdf", False{}, False{}, 0n}
 
 # ---------- rótulos ----------
 
@@ -84,6 +84,74 @@ law pdfpage_find_aria:
 law pdfpage_page_aria:
   {G.pageAria("Enunciado") == "Página de Enunciado" : String}
 
+# ---------- rotação (ciclo de 90°) ----------
+
+law pdfpage_rotation_step:
+  {G.rotationStep() == 90n : Nat}
+
+law pdfpage_rotation_next_0:
+  {G.rotationNext(0n) == 90n : Nat}
+
+law pdfpage_rotation_next_90:
+  {G.rotationNext(90n) == 180n : Nat}
+
+law pdfpage_rotation_next_180:
+  {G.rotationNext(180n) == 270n : Nat}
+
+law pdfpage_rotation_next_270:
+  {G.rotationNext(270n) == 0n : Nat}
+
+law pdfpage_rotation_valid_0:
+  {G.rotationValid(0n) == True{} : Bool}
+
+law pdfpage_rotation_valid_90:
+  {G.rotationValid(90n) == True{} : Bool}
+
+law pdfpage_rotation_valid_180:
+  {G.rotationValid(180n) == True{} : Bool}
+
+law pdfpage_rotation_valid_270:
+  {G.rotationValid(270n) == True{} : Bool}
+
+law pdfpage_rotation_valid_45:
+  {G.rotationValid(45n) == False{} : Bool}
+
+law pdfpage_rotation_valid_360:
+  {G.rotationValid(360n) == False{} : Bool}
+
+law pdfpage_rotation_normalize_valid:
+  {G.rotationNormalize(270n) == 270n : Nat}
+
+law pdfpage_rotation_normalize_invalid:
+  {G.rotationNormalize(45n) == 0n : Nat}
+
+law pdfpage_rotate_title_zero:
+  {G.rotateTitle(0n) == "Girar 90° — orientação atual: 0°" : String}
+
+law pdfpage_rotate_title_90:
+  {G.rotateTitle(90n) == "Girar 90° — orientação atual: 90°" : String}
+
+law pdfpage_rotate_aria:
+  {G.rotateAria("Enunciado", 90n) == "Girar página de Enunciado (atual: 90°)" : String}
+
+law pdfpage_rotate_toast:
+  {G.rotateToast(180n) == "Orientação: 180°" : String}
+
+law pdfpage_rotate_class:
+  {V.attrGet(V.attrsOf(G.rotateBtn("Enunciado", 0n)), "class") == Some{"rotate icon-btn"} : Maybe<&2, String>}
+
+law pdfpage_rotate_icon:
+  {V.attrGet(V.attrsOf(G.rotateBtn("Enunciado", 0n)), "data-icon") == Some{"rotateCw"} : Maybe<&2, String>}
+
+law pdfpage_rotate_title_attr:
+  {V.attrGet(V.attrsOf(G.rotateBtn("Enunciado", 90n)), "title") == Some{"Girar 90° — orientação atual: 90°"} : Maybe<&2, String>}
+
+law pdfpage_rotate_aria_attr:
+  {V.attrGet(V.attrsOf(G.rotateBtn("Enunciado", 90n)), "aria-label") == Some{"Girar página de Enunciado (atual: 90°)"} : Maybe<&2, String>}
+
+law pdfpage_rotate_click:
+  {V.attrGet(V.attrsOf(G.rotateBtn("Enunciado", 0n)), "on:click") == Some{"Rotate"} : Maybe<&2, String>}
+
 # ---------- select da biblioteca ----------
 
 law pdfpage_options_empty_concrete:
@@ -133,7 +201,7 @@ law pdfpage_back_aria:
 law pdfpage_back_rotulo:
   {String.eq(G.navBackTitle(), "Voltar à página anterior") == True{} : Bool}
 
-# O Navegar (favoritos/sumário) nasce fechado e é do host.
+# O Sumário e favoritos (favoritos + sumário) nasce fechado e é do host.
 law pdfpage_nav_class:
   {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "class") == Some{"nav icon-btn"} : Maybe<&2, String>}
 
@@ -141,10 +209,10 @@ law pdfpage_nav_icon:
   {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "data-icon") == Some{"book"} : Maybe<&2, String>}
 
 law pdfpage_nav_titulo:
-  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "title") == Some{"Favoritos e sumário"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "title") == Some{"Sumário e favoritos"} : Maybe<&2, String>}
 
 law pdfpage_nav_aria:
-  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "aria-label") == Some{"Navegar em Enunciado"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "aria-label") == Some{"Sumário e favoritos de Enunciado"} : Maybe<&2, String>}
 
 law pdfpage_nav_clique:
   {V.attrGet(V.attrsOf(G.navBtn("Enunciado")), "on:click") == Some{"ToggleNav"} : Maybe<&2, String>}
@@ -185,16 +253,16 @@ law pdfpage_collapse_title:
 # ---------- ferramentas ----------
 
 law pdfpage_tools_kids:
-  {List.length(&2, V.ViewNode, V.kidsOf(G.toolsBar("Enunciado"))) == 9n : Nat}
+  {List.length(&2, V.ViewNode, V.kidsOf(G.toolsBar("Enunciado", 0n))) == 10n : Nat}
 
 law pdfpage_tools_first:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 0n)), "class") == Some{"prev icon-btn"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 0n)), "class") == Some{"prev icon-btn"} : Maybe<&2, String>}
 
 law pdfpage_tools_page_number:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 1n)), "class") == Some{"page-number"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 1n)), "class") == Some{"page-number"} : Maybe<&2, String>}
 
 law pdfpage_tools_page_total:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 2n)), "class") == Some{"page-total"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 2n)), "class") == Some{"page-total"} : Maybe<&2, String>}
 
 law pdfpage_page_input:
   {V.attrGet(V.attrsOf(G.pageInput("Enunciado")), "aria-label") == Some{"Página de Enunciado"} : Maybe<&2, String>}
@@ -206,7 +274,13 @@ law pdfpage_fit_btn:
   {V.attrGet(V.attrsOf(G.titleIconBtn("fit", "unfold", G.fitTitle(), G.fitTitle(), "Fit")), "data-icon") == Some{"unfold"} : Maybe<&2, String>}
 
 law pdfpage_zoom_label_span:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 5n)), "class") == Some{"zoom-label"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 5n)), "class") == Some{"zoom-label"} : Maybe<&2, String>}
+
+law pdfpage_tools_rotate:
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 9n)), "class") == Some{"rotate icon-btn"} : Maybe<&2, String>}
+
+law pdfpage_tools_rotate_title:
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 90n)), 9n)), "title") == Some{"Girar 90° — orientação atual: 90°"} : Maybe<&2, String>}
 
 # ---------- palco, busca e divisor ----------
 
@@ -258,10 +332,10 @@ law pdfpage_panel_kids:
   {List.length(&2, V.ViewNode, V.kidsOf(G.panelShell(shellConcrete()))) == 4n : Nat}
 
 law pdfpage_panel_minimized_true:
-  {V.attrGet(V.attrsOf(G.panelShell(G.PdfShell{"Enunciado", Nil{}, "", True{}, False{}})), "class") == Some{"pdf-panel minimized"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(G.panelShell(G.PdfShell{"Enunciado", Nil{}, "", True{}, False{}, 0n})), "class") == Some{"pdf-panel minimized"} : Maybe<&2, String>}
 
 law pdfpage_panel_minimized_false:
-  {V.attrGet(V.attrsOf(G.panelShell(G.PdfShell{"Enunciado", Nil{}, "", False{}, False{}})), "class") == Some{"pdf-panel"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(G.panelShell(G.PdfShell{"Enunciado", Nil{}, "", False{}, False{}, 0n})), "class") == Some{"pdf-panel"} : Maybe<&2, String>}
 
 # ---------- páginas: âncoras medidas pelo host ----------
 
@@ -351,19 +425,23 @@ law pdfpage_page_input_change:
   {V.attrGet(V.attrsOf(G.pageInput("Enunciado")), "on:change") == Some{"GotoPage"} : Maybe<&2, String>}
 
 law pdfpage_prev_click:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 0n)), "on:click") == Some{"Prev"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 0n)), "on:click") == Some{"Prev"} : Maybe<&2, String>}
 
 law pdfpage_next_click:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 3n)), "on:click") == Some{"Next"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 3n)), "on:click") == Some{"Next"} : Maybe<&2, String>}
 
 law pdfpage_out_click:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 4n)), "on:click") == Some{"ZoomOut"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 4n)), "on:click") == Some{"ZoomOut"} : Maybe<&2, String>}
 
 law pdfpage_in_click:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 6n)), "on:click") == Some{"ZoomIn"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 6n)), "on:click") == Some{"ZoomIn"} : Maybe<&2, String>}
 
 law pdfpage_fit_click:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 7n)), "on:click") == Some{"Fit"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 7n)), "on:click") == Some{"Fit"} : Maybe<&2, String>}
 
 law pdfpage_invert_click:
-  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado")), 8n)), "on:click") == Some{"ToggleInvert"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kidAt(V.kidsOf(G.toolsBar("Enunciado", 0n)), 8n)), "on:click") == Some{"ToggleInvert"} : Maybe<&2, String>}
+
+# O controle aparece com nome legivel, sem depender de hover.
+law pdfpage_rotate_label:
+  {V.kidsOf(G.rotateBtn("Enunciado", 0n)) == Con{V.viewText("Girar"), Nil{}} : List<&2, V.ViewNode>}

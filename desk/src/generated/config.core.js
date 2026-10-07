@@ -179,10 +179,11 @@ function $normalize$(_facts_0) {
   const _vaultPath_0 = _facts_0["vaultPath"];
   const _runtimePath_0 = _facts_0["runtimePath"];
   const _piPath_0 = _facts_0["piPath"];
+  const _claudePath_0 = _facts_0["claudePath"];
   const _xournalPath_0 = _facts_0["xournalPath"];
   const _courses_0 = _facts_0["courses"];
   const _desk_0 = _facts_0["desk"];
-  return { $: "Config", ["vaultPath"]: run_loop($orElse$(_vaultPath_0, "")), ["runtimePath"]: run_loop($orElse$(_runtimePath_0, "")), ["piPath"]: run_loop($orElse$(_piPath_0, "")), ["xournalPath"]: run_loop($orElse$(_xournalPath_0, "")), ["courses"]: run_loop($normalizeCourses$(_courses_0)), ["desk"]: run_loop($normalizeDesk$(_desk_0)) };
+  return { $: "Config", ["vaultPath"]: run_loop($orElse$(_vaultPath_0, "")), ["runtimePath"]: run_loop($orElse$(_runtimePath_0, "")), ["piPath"]: run_loop($orElse$(_piPath_0, "")), ["claudePath"]: run_loop($orElse$(_claudePath_0, "")), ["xournalPath"]: run_loop($orElse$(_xournalPath_0, "")), ["courses"]: run_loop($normalizeCourses$(_courses_0)), ["desk"]: run_loop($normalizeDesk$(_desk_0)) };
 }
 function $String$trim$(_s_0) {
   return run_jump($String$trim_end$, [run_loop($String$trim_start$(_s_0))]);

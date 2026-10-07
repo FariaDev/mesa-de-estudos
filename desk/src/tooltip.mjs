@@ -147,11 +147,20 @@ function onEnter(e){
  if(!(node instanceof Element))return;
  const el=targetOf(node);
  if(el===target)return;
+ /* `pointerover` num elemento sem tip não derruba o balão armado pelo foco: o
+    ponteiro pode pousar em outro lugar depois do `focusin` (o leave do alvo é
+    quem esconde). `focusin` sem tip continua limpando, como antes. */
+ if(!el&&e.type==='pointerover')return;
  switchTo(el);
 }
 
 function onLeave(e){
  if(!target)return;
+ /* Um `pointerout` de OUTRO elemento (o ponteiro saiu de um alvo antigo depois
+    de o foco armar o balão atual) não pode derrubar o balão em uso: só o leave
+    do próprio alvo (ou de um filho/container dele) decide. */
+ const from=e.target;
+ if(from instanceof Element&&from!==target&&!target.contains(from)&&!from.contains(target))return;
  const to=e.relatedTarget;
  if(to instanceof Element){
   const next=targetOf(to);

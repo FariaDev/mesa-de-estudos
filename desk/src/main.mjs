@@ -1,7 +1,10 @@
 import {bindPointerDrag} from './pointer-drag.mjs';
 import {icon} from '../icons.mjs';
-import {$,S,toast,connectionState,save,calcHeightPx,studySnapshot,pageRefs,layoutSnapshot,updateContextSummary,fillSessions,applyStudy,applyTheme,THEME_LABELS,labelBtn,settings,connect,loadCourse,markCourseTab,switchCourse} from './state.mjs';
-import {conferir,conferirGeogebra,send,resetAttachments,restoreAttachments,hideQuoteButton} from './chat.mjs';
+import {$,S,toast,connectionState,save,calcHeightPx,studySnapshot,pageRefs,layoutSnapshot,updateContextSummary,fillSessions,applyStudy,applyTheme,THEME_LABELS,labelBtn,settings,connect,loadCourse,markCourseTab,switchCourse,supportsCapability,refs} from './state.mjs';
+import {conferir,conferirGeogebra,send,resetAttachments,restoreAttachments,hideQuoteButton,showHistory} from './chat.mjs';
+import {initSupport,toggleReferencePanel} from './support.mjs';
+import {initSidechat} from './sidechat.mjs';
+import {initFreeStudy} from './free-study.mjs';
 import {renderResumeCard} from './resume.mjs';
 import resumeCore from './generated/resume.core.js';
 
@@ -150,14 +153,9 @@ function cycleToTab(dir){
  selectTab(tabs[((i<0?0:i)+dir+tabs.length)%tabs.length].dataset.id);
 }
 function openXournal(){window.desk.openXournal().catch(e=>toast(e.message));}
-function toggleReference(){
- S.refVisible=!S.refVisible;
- if(S.panels[1])S.panels[1].el.hidden=!S.refVisible;
- if(S.pdfDivider)S.pdfDivider.hidden=!S.refVisible;
- $('#pdf-grid').classList.toggle('single',!S.refVisible);
- $('#reference-toggle').setAttribute('aria-pressed',String(S.refVisible));
- updateContextSummary();save();
-}
+/* O menu Estudar → Formulário delega à área de apoio (mesma semântica de antes:
+   alterna o painel 2; se o Chat lateral está à frente, traz o Formulário). */
+function toggleReference(){toggleReferencePanel();}
 function cycleTheme(){
  const order=['auto','light','dark'];
  const next=order[(order.indexOf(S.currentTheme)+1)%order.length];
@@ -201,7 +199,13 @@ $('#prompt').onkeydown=e=>{
  if(e.shiftKey&&!steer)return;
  e.preventDefault();
  const value=$('#prompt').value;
- if(steer){if(value.trim()||S.attachments.length)send(value,undefined,{steer:true});return;}
+ if(steer){
+  /* Motor sem steer: ⌘/Ctrl+⏎ com o turno aberto enfileira — a Mesa não promete
+     interromper e reenviar onde o transporte não oferece. */
+  if(S.busy&&!supportsCapability('steer')){queue.enqueueFromComposer();return;}
+  if(value.trim()||S.attachments.length)send(value,undefined,{steer:true});
+  return;
+ }
  if(!S.busy){queue.release();send(value);}
 };
 $('#check').onclick=()=>conferir();$('#connect').onclick=()=>connect().catch(()=>{});$('#stop').onclick=()=>{window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));};
@@ -232,15 +236,166 @@ $('#end-day-form').addEventListener('submit',async e=>{
  $('#end-day-dialog').close();
  clearEndDay();
  renderResumeCard(saved);
- if(!(await send(resumeCore.endDayDraft(stopped,next),[])))toast('Registro guardado localmente — o envio ao Pi falhou.');
+ if(!(await send(resumeCore.endDayDraft(stopped,next),[])))toast(`Registro guardado localmente — o envio ao ${S.agentLabel} falhou.`);
 });
 window.desk.onMenuCheck(()=>conferir());
 window.desk.onMenuGeogebra(()=>conferirGeogebra());
 window.desk.onMenuStop(()=>{if(S.busy&&!$('#pi-dialog').open){window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));}});
 window.desk.onMenuChatToggle(()=>toggleChat());
-$('#new-session').onclick=async()=>{if(S.busy||S.connecting||S.switching){toast('Aguarde: o Pi está conectando.');return;}if(!confirm('Começar uma nova conversa? A sessão atual continuará salva.'))return;try{clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());const data=await window.desk.newSession();S.connected=false;connectionState('','Pi desconectado');fillSessions(data);applyStudy(data.state?.study);$('#prompt').value=data.state?.draft||'';$('#messages').replaceChildren();resetAttachments();queue.adopt(data.pending);restoreAttachments(data.pending);renderResumeCard(data.resume);await connect();toast('Nova conversa iniciada.');}catch(e){toast(e.message);}};
-$('#session-select').onchange=async()=>{const file=$('#session-select').value;if(!file||file===S.currentSession)return;if(S.busy||S.connecting||S.switching){toast('Aguarde o Pi terminar de conectar.');$('#session-select').value=S.currentSession;return;}try{clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());const data=await window.desk.openSession(file);S.connected=false;connectionState('','Pi desconectado');fillSessions(data);applyStudy(data.state?.study);$('#prompt').value=data.state?.draft||'';$('#messages').replaceChildren();resetAttachments();queue.adopt(data.pending);restoreAttachments(data.pending);renderResumeCard(data.resume);await connect();}catch(e){toast(e.message);$('#session-select').value=S.currentSession;}};
+/* Nova conversa: o seletor `#new-session-engine` escolhe o motor SÓ desta
+   conversa nova — a atual continua no motor dela até aqui. O host devolve os
+   metadados do motor criado e o `fillSessions` reajusta rótulo/capacidades. */
+$('#new-session').onclick=async()=>{
+ if(S.busy||S.connecting||S.switching){toast(`Aguarde: ${S.agentLabel} está conectando.`);return;}
+ const picker=$('#new-session-engine');
+ const engine=picker?.value==='claude'?'claude':'pi';
+ const question=engine==='claude'?'Começar uma nova conversa com o Claude Code (experimental)? A conversa atual continuará salva.':'Começar uma nova conversa? A sessão atual continuará salva.';
+ if(!confirm(question))return;
+ try{
+  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
+  const data=await window.desk.newSession(engine);
+  S.connected=false;
+  if(data.workspace){$('#messages').replaceChildren();await loadCourse(data);}
+  else fillSessions(data);
+  connectionState('',`${S.agentLabel} desconectado`);
+  if(!data.workspace){
+   applyStudy(data.state?.study);
+   $('#prompt').value=data.state?.draft||'';
+   $('#messages').replaceChildren();
+   /* Cache do descritor antes do connect: offline/sem login, a conversa Claude
+      continua visível (nada de cair para o Pi). */
+   if(Array.isArray(data.messages)&&data.messages.length)showHistory(data.messages);
+   resetAttachments();
+   queue.adopt(data.pending);
+   restoreAttachments(data.pending);
+   renderResumeCard(data.resume);
+  }
+  await connect();
+  toast('Nova conversa iniciada.');
+ }catch(e){toast(e.message);}
+};
+/* Conversas da matéria (pedido 3): o seletor continua (compatibilidade), e o
+   painel visível lista título/data/trecho/motor. A escolha passa pelo MESMO
+   caminho do seletor — rascunho, fila e anexos são salvos/restaurados como
+   sempre, e nada é enviado sozinho. Leitura pura: a lista não renomeia/apaga. */
+async function openConversation(file){
+ if(!file||file===S.currentSession)return false;
+ if(S.busy||S.connecting||S.switching){toast(`Aguarde ${S.agentLabel} terminar de conectar.`);$('#session-select').value=S.currentSession;return false;}
+ try{
+  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
+  const data=await window.desk.openSession(file);
+  S.connected=false;
+  if(data.workspace){$('#messages').replaceChildren();await loadCourse(data);}
+  else fillSessions(data);
+  connectionState('',`${S.agentLabel} desconectado`);
+  if(!data.workspace){
+   applyStudy(data.state?.study);
+   $('#prompt').value=data.state?.draft||'';
+   $('#messages').replaceChildren();
+   if(Array.isArray(data.messages)&&data.messages.length)showHistory(data.messages);
+   resetAttachments();queue.adopt(data.pending);restoreAttachments(data.pending);renderResumeCard(data.resume);
+  }
+  await connect();
+  return true;
+ }catch(e){toast(e.message);$('#session-select').value=S.currentSession;return false;}
+}
+$('#session-select').onchange=()=>openConversation($('#session-select').value);
+function conversationWhen(value){
+ const stamp=Number(value)||0;if(!stamp)return '';
+ const date=new Date(stamp),today=new Date();
+ const sameDay=date.toDateString()===today.toDateString();
+ return date.toLocaleString('pt-BR',sameDay?{hour:'2-digit',minute:'2-digit'}:{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+function conversationEngineLabel(engine){return engine==='claude'?'Claude Code (experimental)':engine==='pi'?'Pi':(engine||S.engine||'pi');}
+function fallbackConversations(){
+ return [...document.querySelectorAll('#session-select option')].map(option=>({id:option.value,title:option.textContent,preview:'',at:0,engine:S.engine}));
+}
+async function renderConversations(){
+ const list=$('#conv-list');if(!list)return;
+ let items=null;
+ try{if(typeof window.desk.conversations==='function')items=await window.desk.conversations();}catch{}
+ if(!Array.isArray(items)||!items.length)items=fallbackConversations();
+ list.replaceChildren();
+ if(!items.length){const empty=document.createElement('p');empty.className='conv-empty';empty.textContent='Nenhuma conversa nesta matéria ainda.';list.append(empty);return;}
+ for(const item of items){
+  const entry={...item,id:String(item.id||item.path||''),title:String(item.title||item.label||'(sem título)'),preview:String(item.preview||''),engine:item.engine||S.engine,at:Number(item.at||item.started||0)};
+  const button=document.createElement('button');
+  button.type='button';button.className='conv-row'+(entry.id===S.currentSession?' current':'');
+  button.dataset.id=entry.id;
+  const head=document.createElement('span');head.className='conv-title';head.textContent=entry.title;
+  const meta=document.createElement('span');meta.className='conv-meta';meta.textContent=[conversationWhen(entry.at),conversationEngineLabel(entry.engine)].filter(Boolean).join(' · ');
+  const preview=document.createElement('span');preview.className='conv-preview';preview.textContent=entry.preview||'Sem prévia';
+  button.append(head,meta,preview);
+  button.addEventListener('click',async()=>{closeConversations();await openConversation(entry.id);});
+  list.append(button);
+ }
+}
+function closeConversations(){const pop=$('#conversations-pop');if(!pop)return;pop.hidden=true;$('#conversations-toggle')?.setAttribute('aria-expanded','false');}
+$('#conversations-toggle').onclick=async()=>{
+ const pop=$('#conversations-pop');if(!pop)return;
+ if(!pop.hidden){closeConversations();return;}
+ await renderConversations();
+ pop.hidden=false;
+ $('#conversations-toggle').setAttribute('aria-expanded','true');
+};
+$('#conv-close').onclick=()=>closeConversations();
+document.addEventListener('click',event=>{
+ const pop=$('#conversations-pop');if(!pop||pop.hidden)return;
+ if(event.target?.closest?.('#conversations-pop, #conversations-toggle'))return;
+ closeConversations();
+});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')closeConversations();});
 $('#include-refs').onclick=()=>{S.includeRefs=!S.includeRefs;$('#include-refs').setAttribute('aria-pressed',String(S.includeRefs));updateContextSummary();};
+/* Estado das referências (pedido 4): a etiqueta ao lado do toggle diz o que vai
+   junto ("PDF e página incluídos" / "Sem referências") e abre os detalhes —
+   caminho+página versus a câmera, que envia imagem. O toggle não muda. */
+function closeRefsPop(){
+ const pop=$('#refs-pop');
+ if(pop)pop.hidden=true;
+ $('#refs-state')?.setAttribute('aria-expanded','false');
+}
+function placeRefsPop(){
+ const pop=$('#refs-pop'),button=$('#refs-state');
+ if(!pop||!button||pop.hidden)return;
+ const rect=button.getBoundingClientRect();
+ pop.style.left=Math.round(Math.max(8,Math.min(rect.left,innerWidth-pop.offsetWidth-8)))+'px';
+ pop.style.top=Math.round(Math.max(8,rect.top-pop.offsetHeight-8))+'px';
+}
+window.addEventListener('resize',placeRefsPop);
+function refsPopRow(text,className=''){
+ const row=document.createElement('p');row.className=className;row.textContent=text;return row;
+}
+function renderRefsPop(){
+ const pop=$('#refs-pop');if(!pop)return;
+ const list=refs();
+ pop.replaceChildren();
+ const title=document.createElement('strong');title.textContent='Referências desta mensagem';
+ pop.append(title);
+ if(S.includeRefs&&list.length){
+  for(const ref of list)pop.append(refsPopRow(`${String(ref.path).split(/[/\\]/).pop()||'PDF'} — página ${ref.page}`,'refs-item'));
+  pop.append(refsPopRow('Vai o caminho do arquivo e a página; o PDF inteiro não é enviado.','fine'));
+ }else{
+  pop.append(refsPopRow(S.includeRefs?'Nenhum PDF aberto agora.':'O botão Referências está desligado — nenhuma referência vai junto.','fine'));
+ }
+ pop.append(refsPopRow('A câmera do leitor é separada: ela anexa uma imagem da página à mensagem.','fine'));
+ const close=document.createElement('button');close.type='button';close.className='primary';close.textContent='Fechar';
+ close.addEventListener('click',closeRefsPop);
+ const actions=document.createElement('div');actions.className='dialog-actions';actions.append(close);pop.append(actions);
+}
+$('#refs-state').onclick=()=>{
+ const pop=$('#refs-pop');if(!pop)return;
+ if(!pop.hidden){closeRefsPop();return;}
+ renderRefsPop();
+ pop.hidden=false;
+ placeRefsPop();
+ $('#refs-state').setAttribute('aria-expanded','true');
+};
+document.addEventListener('click',event=>{
+ const pop=$('#refs-pop');if(!pop||pop.hidden)return;
+ if(event.target?.closest?.('#refs-pop, #refs-state'))return;
+ closeRefsPop();
+});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')closeRefsPop();});
 /* A calculadora é view do Bend (`core/calcview.bend` → `desk/src/calc.mjs`):
    colapso, ângulo, avaliação, histórico e guia saem de lá; o divisor abaixo
    continua aqui (arrasto/medição são fatos de host). */
@@ -250,10 +405,24 @@ $('#divider').onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){const
 bindPointerDrag($('#calc-divider'),e=>{const side=$('#sidebar').getBoundingClientRect();const height=Math.max(72,Math.min(side.height*0.7,side.bottom-e.clientY));document.documentElement.style.setProperty('--calc',Math.round(height)+'px');expandCalculator();},save);
 $('#calc-divider').onkeydown=e=>{if(['ArrowUp','ArrowDown'].includes(e.key)){const h=calcHeightPx();document.documentElement.style.setProperty('--calc',Math.max(72,Math.min(700,h+(e.key==='ArrowUp'?20:-20)))+'px');save();}};
 let chatCollapsed=false,lastChatToggle=0;
-function setChatCollapsed(value){chatCollapsed=!!value;document.body.classList.toggle('chat-collapsed',chatCollapsed);$('#chat-restore').hidden=!chatCollapsed;if(S.ggbActive)sendGgbRect();}
+function setChatCollapsed(value){
+ chatCollapsed=!!value;
+ document.body.classList.toggle('chat-collapsed',chatCollapsed);
+ $('#chat-restore').hidden=!chatCollapsed;
+ const collapse=$('#chat-collapse');
+ if(collapse){
+  collapse.setAttribute('aria-expanded',String(!chatCollapsed));
+  collapse.title=chatCollapsed?'Mostrar o chat (⌘\\)':'Recolher o chat (⌘\\)';
+ }
+ if(S.ggbActive)sendGgbRect();
+}
 function toggleChat(){const now=Date.now();if(now-lastChatToggle<150)return;lastChatToggle=now;setChatCollapsed(!chatCollapsed);}
 function focusPdfFind(){(S.panels.find(p=>p.el.contains(document.activeElement))||S.panels[0])?.setFind(true);}
 $('#chat-restore').onclick=()=>setChatCollapsed(false);
+/* Botão visível de recolher (pedido 7): mesmo caminho do atalho ⌘\; o botão de
+   restaurar continua flutuando com o chat recolhido. */
+$('#chat-collapse').onclick=()=>toggleChat();
+labelBtn($('#chat-collapse'),'chevronRight');
 function typingTarget(el){return el?.closest?.('input,textarea,select')||['INPUT','TEXTAREA','SELECT'].includes(el?.tagName);}
 window.addEventListener('keydown',e=>{
  /* Guard de modal no topo do handler: com um diálogo aberto, nenhum atalho pode
@@ -290,6 +459,7 @@ window.addEventListener('keydown',e=>{
 });
 $('#model-select').onchange=()=>{const [provider,id]=JSON.parse($('#model-select').value);settings({model:{provider,id}});};$('#thinking-select').onchange=()=>settings({level:$('#thinking-select').value});
 labelBtn($('#new-session'),'plus');
+labelBtn($('#conversations-toggle'),'chevronDown');
 labelBtn($('#check'),'scan','Conferir Xournal++');
 labelBtn($('#stop'),'square','Parar');
 labelBtn($('#send'),'arrowUp','Enviar');
@@ -297,15 +467,32 @@ labelBtn($('#connect'),'plug','Conectar ao Pi');
 labelBtn($('#include-refs'),'columns','Referências');
 labelBtn($('#attach'),'paperclip','Anexar');
 labelBtn($('#quote-btn'),'textQuote','Citar');
-labelBtn($('#export-chat'),'download','');
+labelBtn($('#export-chat'),'download','Exportar');
 $('#export-chat').onclick=async()=>{try{const r=await window.desk.exportChat();if(r?.saved)toast('Conversa exportada: '+String(r.file).split(/[/\\]/).at(-1));}catch(e){toast(e.message);}};
+/* Caderno de revisão (pedido 5): acesso visível no cabeçalho com a contagem de
+   itens — atualiza com a carga da matéria e quando a barra do caderno (núcleo)
+   é redesenhada por salvar/remover. */
+function updateReviewBadge(){
+ const count=Array.isArray(S.reviewItems)?S.reviewItems.length:0;
+ const badge=$('#review-count');if(badge)badge.textContent=String(count);
+ const button=$('#review-tab');
+ if(button){
+  button.title=count?`Abrir o caderno de revisão — ${count} ${count===1?'item':'itens'}`:'Abrir o caderno de revisão';
+  button.setAttribute('aria-label',button.title);
+  button.classList.toggle('has-items',count>0);
+ }
+}
+$('#review-tab').onclick=()=>selectTab('review');
+const reviewBar=$('#review-bar');
+if(reviewBar)new MutationObserver(updateReviewBadge).observe(reviewBar,{childList:true,subtree:true,characterData:true});
 function openHelp(){if($('#help-dialog').open)return;renderHelpVersion(S.deskVersion);$('#help-dialog').showModal();}
 /* Sobre: a linha de atualização e o painel "Componentes" são do núcleo
    (`core/dialogsview.bend`); aqui só se liga o updater (IPC do main) e os
    cliques (verificar / Release notes / Atualizar e reiniciar / Atualizar Pi).
    Node e Xournal++ são checados só sob demanda (Verificar agora); a checagem
-   automática 1×/dia cobre Mesa + Pi e avisa com um toast por versão. */
+   automática 1×/dia cobre Mesa + Pi e mantém o aviso no cabeçalho. */
 function updateStateOf(result){
+ syncUpdateNotice(result);
  if(result?.status==='update')return {$:'UpdateReady',version:String(result.version||''),notes:String(result.notes||'').replace(/\s+/g,' ').trim().slice(0,400),url:String(result.url||'')};
  if(result?.status==='current')return {$:'UpdateNone',current:String(result.current||'')};
  if(result?.status==='error')return {$:'UpdateFailed'};
@@ -366,7 +553,16 @@ async function openAbout(){
 }
 window.desk.onMenuHelp(openHelp);
 window.desk.onMenuAbout(openAbout);
-window.desk.onUpdateAvailable?.(data=>{if(data?.version)toast(`v${data.version} disponível — Mesa → Sobre para atualizar.`);});
+function syncUpdateNotice(result){
+ const button=$('#update-notice');
+ if(result?.status==='current'){button.hidden=true;button.textContent='';return;}
+ // Uma falha de rede não apaga uma atualização já confirmada.
+ if(result?.status!=='update'||!result.version)return;
+ button.textContent=`Atualização disponível · v${result.version}`;
+ button.hidden=false;
+}
+$('#update-notice').onclick=()=>openAbout();
+window.desk.onUpdateAvailable?.(data=>syncUpdateNotice({status:'update',version:data?.version}));
 /* Bilhete da Conversa: o contexto em si já vai no turno (main.cjs); o aviso
    existe para a resposta não parecer vir do nada. */
 window.desk.onHandoff?.(data=>{
@@ -379,13 +575,36 @@ window.desk.onHandoff?.(data=>{
 window.desk.onHandoffProblem?.(data=>{
  if(data?.reason)toast(`Bilhete da Conversa: ${data.reason}`);
 });
-function fillSettingsForm(cfg){
+const DESK_SETTINGS=['endDay','studyContext','calculator','xournal','conferir','refsToggle'];
+/* Layout (pedido 9): o módulo é do outro agente (`src/layout-settings.mjs`).
+   Import dinâmico: o resto das Configurações funciona mesmo antes do módulo
+   existir, e nada do `desk` é sobrescrito sem o ler/editar dele. */
+let layoutSettings=null;
+const layoutSettingsReady=(async()=>{
+ try{
+  const module=await import('./layout-settings.mjs');
+  module.mountLayoutSettings?.($('#cfg-layout'));
+  layoutSettings=module;
+  return module;
+ }catch{
+  const box=$('#cfg-layout');
+  if(box)box.textContent='Layout indisponível neste build.';
+  return null;
+ }
+})();
+async function fillSettingsForm(cfg){
+ $('#cfg-title').value=cfg.desk?.title||'';
+ for(const key of DESK_SETTINGS)$('#cfg-desk-'+key).checked=cfg.desk?.[key]!==false;
  $('#cfg-vault').value=cfg.vaultPath||'';
  $('#cfg-pi').value=cfg.piPath||'';
+ $('#cfg-claude').value=cfg.claudePath||'';
  $('#cfg-xournal').value=cfg.xournalPath||'';
+ $('#theme-mode').value=S.currentTheme;
  // campo do Xournal++ fica sempre à mostra: sem caminho no Windows é para configurar
  /* As linhas de matéria vêm do Bend (`core/dialogsview.bend`); o casco da
     seção (título, lead, "+") continua no `index.html`. */
+ const layout=await layoutSettingsReady;
+ if(layout?.fillLayoutSettings)layout.fillLayoutSettings(cfg.desk||{});
  renderCourseRows(cfg.courses);
 }
 function readSettingsForm(){
@@ -396,7 +615,12 @@ function readSettingsForm(){
   const id=row.dataset.id||name||folder.split(/[/\\]/).filter(Boolean).at(-1);
   return {id,name:name||id,path:folder};
  }).filter(Boolean);
- return {vaultPath:$('#cfg-vault').value.trim(),runtimePath:S.appConfig.runtimePath||'',piPath:$('#cfg-pi').value.trim(),xournalPath:$('#cfg-xournal').value.trim(),courses,desk:S.appConfig.desk};
+ let desk={...S.appConfig.desk,title:$('#cfg-title').value.trim()};
+ /* O layout lê/edita o `desk` antes das flags: as flags não mexem em `panels` e
+    o módulo nunca sobrescreve o que ele não edita. */
+ if(layoutSettings?.readLayoutSettings)desk=layoutSettings.readLayoutSettings(desk)||desk;
+ for(const key of DESK_SETTINGS)desk[key]=$('#cfg-desk-'+key).checked;
+ return {vaultPath:$('#cfg-vault').value.trim(),runtimePath:S.appConfig.runtimePath||'',piPath:$('#cfg-pi').value.trim(),claudePath:$('#cfg-claude').value.trim(),xournalPath:$('#cfg-xournal').value.trim(),courses,desk};
 }
 /* Primeira abertura: a boas-vindas do núcleo; o "Configurar agora" fecha e abre
    as Configurações com o título de primeira vez. */
@@ -409,13 +633,18 @@ async function openSettings(first){
  const info=await window.desk.getConfig();
  S.appConfig={...S.appConfig,...info.config,platform:info.platform};
  renderSettingsHead(first);
- fillSettingsForm(info.config||{});
+ await fillSettingsForm(info.config||{});
+ /* Dica do campo Claude: o caminho detectado quando o host manda um; senão o
+    placeholder padrão continua. Nada de login/credencial na UI. */
+ const claudeField=$('#cfg-claude');
+ if(claudeField)claudeField.placeholder=info.detectedClaude||'detectar automaticamente';
  if(!$('#settings-dialog').open)$('#settings-dialog').showModal();
 }
 $('#cfg-vault-browse').onclick=async()=>{const folder=await window.desk.pickFolder();if(folder)$('#cfg-vault').value=folder;};
 $('#cfg-pi-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-pi').value=file;};
 $('#cfg-pi-detect').onclick=async()=>{const found=await window.desk.detectPi();if(found){$('#cfg-pi').value=found;toast('Pi encontrado.'); }else toast('Pi não encontrado. Rode npm run setup.');};
 $('#cfg-xournal-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-xournal').value=file;};
+$('#cfg-claude-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-claude').value=file;};
 $('#cfg-add-course').onclick=()=>appendCourseRow();
 $('#components-refresh').onclick=()=>refreshAbout(true);
 window.desk.onMenuSettings(()=>openSettings(false));
@@ -424,13 +653,23 @@ async function saveSettings(){
  if(settingsSaving)return;
  settingsSaving=true;
  try{
+  const pickedTheme=$('#theme-mode')?.value;
   const data=await window.desk.saveConfig(readSettingsForm());
   $('#settings-dialog').close('ok');
-  S.connected=false;connectionState('','Pi desconectado');
+  S.connected=false;
   tabsCourses=data.courses||[];
   await loadCourse(data);
+  /* Tema só entra no Salvar (Cancelar/Esc não aplicam nem persistem) e DEPOIS
+     do loadCourse: a carga re-aplica o tema do estado salvo e sobrescreveria a
+     escolha nova. */
+  if(pickedTheme&&pickedTheme!==S.currentTheme){applyTheme(pickedTheme);save(true);}
+  connectionState('',`${S.agentLabel} desconectado`);
   renderTabsView();renderMenus();
-  if(!data.needsSetup&&data.detectedPi)connect().catch(()=>{});
+  /* Sem Pi configurado a Mesa não tenta conectar sozinha; a conversa Claude
+     segue a mesma regra com o executável detectado (o host manda o caminho ou
+     `''` — sem binário, nada de tentativa nem de toast no save/boot). */
+  const ready=data.engine==='claude'?!!data.detectedClaude:!!data.detectedPi;
+  if(!data.needsSetup&&ready)connect().catch(()=>{});
  }catch(err){toast(err.message);}
  finally{settingsSaving=false;}
 }
@@ -452,18 +691,32 @@ $('#settings-form').addEventListener('submit',e=>{
 });
 $('#prompt').addEventListener('input',save);
 slash.init();
+/* Área de apoio + chat lateral: barra sempre visível, eventos do lateral
+   assinados uma vez. */
+initSupport();
+initSidechat();
+/* Aba Livre (sessão avulsa): módulo próprio que escuta `desk-workspace`/
+   `desk-chrome`; montado antes do `window.desk.init()` do rodapé para pegar o
+   primeiro estado sem perder evento. */
+initFreeStudy();
 /* Fila de mensagens + steer da Mesa (mesma feature da Conversa, sobre o núcleo
    `core/composerview.bend`): ⏎ ocupado enfileira, ⌘/Ctrl+⏎ interrompe e envia. */
 queue.init();
 /* O `loadCourse` avisa quando o `desk` normalizado entra: abas e menus são
    aplicados antes do carregamento dos PDFs — o chrome inteiro fica pronto no
    mesmo tick (abas parciais deixariam o #course-tabs vazio no meio do boot). */
-window.addEventListener('desk-chrome',()=>{renderTabsView();renderMenus();});
+window.addEventListener('desk-workspace',event=>{
+ if(event.detail?.courseId&&event.detail.courseId!==S.currentCourseId)return;
+ if(event.detail?.session&&event.detail.session!==S.currentSession)return;
+ if(Array.isArray(event.detail?.courses))tabsCourses=event.detail.courses;
+ renderTabsView();renderMenus();updateReviewBadge();
+});
+window.addEventListener('desk-chrome',()=>{renderTabsView();renderMenus();updateReviewBadge();});
 try{
  const data=await window.desk.init();
  tabsCourses=data.courses||[];
  await loadCourse(data);
- renderTabsView();renderMenus();
+ renderTabsView();renderMenus();updateReviewBadge();
  if(data.needsSetup)openWelcome();
- else if(data.detectedPi)connect().catch(()=>{});
+ else if(data.engine==='claude'?!!data.detectedClaude:!!data.detectedPi)connect().catch(()=>{});
 }catch(e){toast(e.message);}

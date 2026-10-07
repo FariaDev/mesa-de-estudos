@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const files=[];
-for(const dir of [root,path.join(root,'src'),path.join(root,'tests')]){
+for(const dir of [root,path.join(root,'src','agents'),path.join(root,'src','materials'),path.join(root,'src'),path.join(root,'tests'),path.join(root,'tests','fixtures')]){
  for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
   if(!entry.isFile()||!/\.(cjs|mjs)$/.test(entry.name))continue;
   files.push(path.join(dir,entry.name));

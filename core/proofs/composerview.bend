@@ -150,6 +150,9 @@ def Laws.composer_settings_toggle_id():
 def Laws.composer_settings_toggle_rotulo():
   {==}
 
+def Laws.composer_settings_toggle_titulo():
+  {==}
+
 def Laws.composer_settings_toggle_clique():
   {==}
 

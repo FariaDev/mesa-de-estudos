@@ -4,6 +4,15 @@ const fs=require('node:fs');const path=require('node:path');const os=require('no
 const {promisify}=require('node:util');const {execFile,execFileSync}=require('node:child_process');
 const execFileAsync=promisify(execFile);
 const {PiBridge,DESK_PROMPT}=require('./rpc.cjs');
+const conversations=require('./src/agents/conversations.cjs');
+const {EFFORT_LEVELS:CLAUDE_EFFORT_LEVELS}=require('./src/agents/claude-controls.cjs');
+const {ClaudeService,metadata:agentMetadata}=require('./src/agents/service.cjs');
+const {ClaudeAdapter}=require('./src/agents/claude-adapter.cjs');
+const {DescriptorCache}=require('./src/agents/descriptor-cache.cjs');
+const {CLAUDE_DESK_PROMPT}=require('./src/agents/claude-prompt.cjs');
+const {exportConversationMarkdown}=require('./src/agents/history.cjs');
+const {readNativeHistory}=require('./src/agents/native-history.cjs');
+const {findClaudeLauncher}=require('./src/agents/claude-environment.cjs');
 const {placeWindow,chooseXournal,sessionStartedFromPath,formatSessionLabel,sessionPreviewFromJsonl,imageCandidates}=require('./lib.cjs');
 const {courseLibrary,mergeCourses}=require('./courses.cjs');
 const {readConfig,writeConfig,seedConfig,needsSetup,normalize,pickPdfs}=require('./config.cjs');
@@ -16,16 +25,26 @@ const bookmarks=require('./bookmarks.cjs');
 const review=require('./review.cjs');
 const {DRAFT_PROMPT,draftContext,generateReviewDraft}=require('./review-draft.cjs');
 const pendingCore=require('./src/generated/pending.core.js').default;
+const pdfPageCore=require('./src/generated/pdfpageview.core.js').default;
 let activeReviewDraft=null;
 const {pinnedArgs}=require('./profiles.cjs');
-const {claimHand,recoverClaims}=require('./handoff.cjs');
+const {claimHand,recoverClaims,readHandoff}=require('./handoff.cjs');
 const {deliverPrompt}=require('./send.cjs');
 const {deskLayout,saveState,MAX_DRAFT}=require('./state-adapter.cjs');
 const updater=require('./updater.cjs');
 const components=require('./components.cjs');
 const {captureXournalWindow}=require('./capture-win.cjs');
+const {createSideChatManager,conversationList}=require('./sidechat.cjs');
+const {createPiSideEngine,createClaudeSideEngine}=require('./sidechat-engine.cjs');
+const free=require('./free-workspaces.cjs');
+const freePromotion=require('./free-promotion.cjs');
+const {createTutorMaterialBridge}=require('./tutor-materials.cjs');
+const FREE_ID=free.freeCourseId();
+const TUTOR_PDF_PROMPT='Quando o usuário pedir um PDF na sessão Livre, escreva o título e o conteúdo completo e use a ferramenta de PDF da Mesa. Ela preenche a prévia editável para o usuário revisar; ao clicar em Salvar PDF e abrir, a Mesa gera e salva o arquivo. Não peça para copiar a resposta ou montar o conteúdo manualmente. Após a ferramenta, diga que o material está pronto para revisar, nunca que o PDF já foi salvo.';
 
 app.setName('Mesa de Estudos');
+const WINDOWS_APP_ID='br.com.fariadev.mesa-de-estudos';
+if(process.platform==='win32')app.setAppUserModelId(WINDOWS_APP_ID);
 const deskDir=__dirname;
 const envRuntime=process.env.LEARNING_DESK_RUNTIME;
 const envVault=process.env.LEARNING_VAULT;
@@ -48,6 +67,7 @@ if(!config){
 }
 if(envVault)config.vaultPath=envVault;
 if(process.env.LEARNING_DESK_PI)config.piPath=process.env.LEARNING_DESK_PI;
+if(process.env.LEARNING_DESK_CLAUDE)config.claudePath=process.env.LEARNING_DESK_CLAUDE;
 
 const runtime=envRuntime||config.runtimePath||path.join(configDir,'runtime');
 fs.mkdirSync(runtime,{recursive:true});
@@ -101,6 +121,39 @@ function deskVersionLabel(){
 const IMAGE_MIME={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',svg:'image/svg+xml'};
 app.setPath('userData',path.join(runtime,'electron'));
 
+/* Diário externo da promoção Livre → matéria + promoções de store sem diário.
+   Roda ANTES de ler desk.json/config.json: um crash no meio da promoção deixa
+   arquivos restaurados ou concluídos aqui, e o app nasce consistente. Sessões
+   com diário ainda aberto não são tocadas por esta varredura (o diário decide). */
+try{
+ const actions=freePromotion.recover(runtime,{store:free,patchDescriptor:(file,patch)=>conversations.updateClaudeConversation(file,patch,{runtime}),log:line=>appendLog('free',line)});
+ for(const action of actions)if(action.action!=='completed')appendLog('free',JSON.stringify(action));
+ const pending=freePromotion.sessions(runtime);
+ for(const record of free.listWorkspaces(runtime)){
+  if(!record.nativePath){try{free.setNativePath(runtime,record.id,path.join(free.workspaceDir(runtime,record.id),`pi-${crypto.randomUUID()}.jsonl`));}catch{}}
+  const plan=record.promotion;
+  if(!plan||plan.status==='promoted'||pending.has(record.id))continue;
+  if(plan.status==='prepared'){
+   try{free.rollbackPromotion(runtime,record.id);appendLog('free',`staging órfão removido: ${record.id}`);}catch(error){appendLog('free',`staging órfão preservado: ${error.message}`);}
+   continue;
+  }
+  if(plan.status==='committing'){
+   try{
+    const result=free.recoverPromotion(runtime,record.id);
+    const known=result.promotion&&(config.courses||[]).some(c=>c.id===result.promotion.courseId);
+    if(result.state==='conflict')appendLog('free',`promoção em conflito preservada: ${record.id}`);
+    else if(result.state!=='committed'||!known){free.rollbackPromotion(runtime,record.id);appendLog('free',`promoção sem diário desfeita: ${record.id}`);}
+   }catch(error){try{free.rollbackPromotion(runtime,record.id);}catch{}appendLog('free',`recuperação ${record.id}: ${error.message}`);}
+  }
+ }
+}catch(error){appendLog('free',`recuperação de promoções falhou: ${error.message}`);}
+/* O diário pode ter restaurado/ajustado a config no disco: relê preservando
+   os overrides de ambiente (que valem para esta execução). */
+if(fs.existsSync(configFile)){
+ const disk=readConfig(configFile);
+ if(disk){config=disk;if(envVault)config.vaultPath=envVault;if(process.env.LEARNING_DESK_PI)config.piPath=process.env.LEARNING_DESK_PI;if(process.env.LEARNING_DESK_CLAUDE)config.claudePath=process.env.LEARNING_DESK_CLAUDE;}
+}
+
 const stateFile=path.join(runtime,'desk.json');let state={};try{state=JSON.parse(fs.readFileSync(stateFile,'utf8'));}catch{}
 /* Estado lido é dado não confiável (arquivo editado à mão, versão antiga ou
    gravação interrompida). A normalização de tipos acontece ANTES de
@@ -117,6 +170,40 @@ function asBounds(value){
  if(!finite(x)||!finite(y)||!finite(width)||!finite(height)||width<=0||height<=0)return undefined;
  return {x,y,width,height};
 }
+/* Rotação do leitor (voltas do usuário de 90°): só o que o ciclo do núcleo
+   aceita entra no estado; qualquer outra coisa (dado antigo, corrompido ou
+   editado à mão) cai fora e o documento fica em pé. O mapa é por caminho de
+   PDF — 0 não entra (ausência já é "em pé"). */
+function sanitizeRotation(value){
+ if(typeof value!=='number'||!Number.isInteger(value)||value<0||value>270)return 0;
+ return Number(pdfPageCore.rotationNormalize(BigInt(value)));
+}
+function sanitizePdfRotations(value){
+ const out={};
+ if(!isPlainObject(value))return out;
+ for(const [key,rotation] of Object.entries(value)){
+  if(!key||key==='__proto__')continue;
+  const r=sanitizeRotation(rotation);
+  if(r)out[key]=r;
+ }
+ return out;
+}
+function sanitizeFreeSessions(value){
+ const out={};
+ if(!isPlainObject(value))return out;
+ for(const [id,entry] of Object.entries(value)){
+  if(!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id))continue;
+  if(!isPlainObject(entry))continue;
+  out[id]=sanitizeCourseState(entry);
+ }
+ return out;
+}
+function sanitizeFreeState(value){
+ const source=isPlainObject(value)?value:{};
+ const sessions=sanitizeFreeSessions(source.sessions);
+ const activeId=typeof source.activeId==='string'&&sessions[source.activeId]?source.activeId:(Object.keys(sessions)[0]||'');
+ return {activeId,sessions};
+}
 function sanitizeCourseState(value){
  const source=isPlainObject(value)?value:{};
  return {...source,
@@ -125,6 +212,7 @@ function sanitizeCourseState(value){
   session:asString(source.session),
   sessionStudies:isPlainObject(source.sessionStudies)?source.sessionStudies:{},
   study:isPlainObject(source.study)?source.study:{},
+  pdfRotations:sanitizePdfRotations(source.pdfRotations),
   ggbBase64:asString(source.ggbBase64)};
 }
 function sanitizeState(value){
@@ -133,7 +221,9 @@ function sanitizeState(value){
   pdfs:asArray(source.pdfs),
   session:asString(source.session),
   study:isPlainObject(source.study)?source.study:{},
+  pdfRotations:sanitizePdfRotations(source.pdfRotations),
   ggbBase64:asString(source.ggbBase64),
+  free:sanitizeFreeState(source.free),
   courseStates:{}};
  const states=isPlainObject(source.courseStates)?source.courseStates:{};
  for(const [id,entry] of Object.entries(states)){if(id==='__proto__')continue;out.courseStates[id]=sanitizeCourseState(entry);}
@@ -149,7 +239,9 @@ state=sanitizeState(state);
 }
 const pendingDialogs=new Set();const liveNotifications=new Set();
 let courses=mergeCourses(config);
-let courseId=courses.some(c=>c.id===state.courseId)?state.courseId:(courses.find(c=>c.id==='Calculus I')?.id||courses[0]?.id||'');
+/* `needsSetup` continua sendo o das matérias de verdade: a aba Livre é virtual
+   (id reservado), nunca entra no config/defaults e não desliga a boas-vindas. */
+let courseId=state.courseId===FREE_ID?FREE_ID:(courses.some(c=>c.id===state.courseId)?state.courseId:(courses.find(c=>c.id==='Calculus I')?.id||courses[0]?.id||FREE_ID));
 let course=courses.find(c=>c.id===courseId)?.path||'';
 const courseStates=state.courseStates||{};
 state.ggbBase64=state.ggbBase64||readGgbFile(courseId);
@@ -158,6 +250,9 @@ const allowed=new Set(),allowedXopp=new Set();let win,bridge,lastPersist='',leve
 const TEST_MODE=process.env.DESK_TEST==='1';
 if(!TEST_MODE){if(!app.requestSingleInstanceLock())app.quit();app.on('second-instance',()=>{if(win){if(win.isMinimized())win.restore();win.show();win.focus();}});}
 let session=state.session||path.join(runtime,`pi-${Date.now()}.jsonl`);let ggbRestored=false;
+let freeSessionId='';
+const bootFree=courseId===FREE_ID?ensureFreeRecord():null;
+if(bootFree)hydrateFreeRecord(bootFree);
 /* Chave do último bloco de contexto enviado nesta sessão: contexto igual não é
    reenviado (o histórico já carrega a versão anterior). Zera quando a conversa
    troca, porque aí o histórico que "já tem" é outro. */
@@ -174,6 +269,8 @@ let lastContextKey='';
    `deliverPrompt` sobre `settleDelivery`: é nos dois que isso é testado, não
    aqui. */
 const hand=claimHand({runtime});
+let claudeHandoffNotified=false;
+let hasClaimedHandoff=false;
 function handoffProblem(reason){
  if(!reason)return;
  console.warn('[bilhete]',reason);
@@ -181,6 +278,7 @@ function handoffProblem(reason){
 }
 function claimHandoff(){
  const out=hand.take();
+ hasClaimedHandoff=!!out.claim;
  handoffProblem(out.problem);
  if(out.fresh&&out.claim&&win&&!win.isDestroyed()){
   const b=out.claim.bilhete||{};
@@ -192,15 +290,71 @@ function claimHandoff(){
 function sessionStudy(file=session){return cleanStudy(courseStates[courseId]?.sessionStudies?.[file]||{});}
 
 function piBinary(){return resolvePi({configPath:config.piPath,deskDir,envPath:process.env.LEARNING_DESK_PI||''});}
+function engine(file=session){
+ // A missing/corrupt managed descriptor stays Claude for display and is
+ // blocked by prepareClaude. It must never start Pi as a recovery fallback.
+ if(/^claude-[0-9a-f-]{36}\.json$/.test(path.basename(file||'')))return 'claude';
+ return conversations.conversationEngine(file,{runtime});
+}
+function claudeBinary(){
+ return findClaudeLauncher({configuredPath:config.claudePath});
+}
+const descriptorCache=new DescriptorCache({read:file=>conversations.readClaudeConversation(file,{runtime})});
+function conversationData({messages=true}={}){
+ const kind=engine();let record=null;
+ if(kind==='claude')try{record=descriptorCache.get(session,{messages});if(!bridge&&['accepted','transmitting'].includes(record?.delivery?.status)){conversations.recoverClaudeConversation(session,{runtime});record=descriptorCache.get(session,{messages});}}catch{}
+ return {...agentMetadata(kind,kind==='claude'?bridge?.adapter?.controlsSnapshot?.():null),conversationStatus:kind==='claude'?{uncertain:record?.delivery?.status==='uncertain'||!!bridge?.uncertain,invalid:!record}:null,detectedClaude:claudeBinary(),...(kind==='claude'&&messages?{messages:record?.messages||[]}:{})};
+}
+function sessionInfo(file){
+ const kind=engine(file);
+ const record=kind==='claude'?descriptorCache.get(file):null;
+ return record?{engine:kind,started:record.started,preview:record.preview}:{engine:kind,...(kind==='claude'?{preview:'Conversa indisponível — arquivo preservado'}:{})};
+}
+/* System prompt do Claude selecionado explicitamente (TUTOR/LEARNER da matéria,
+   do vault ou dos templates): principal e chat lateral usam o MESMO texto. */
+function claudeSystemPrompt(){
+ let systemPrompt=CLAUDE_DESK_PROMPT;
+ /* Livre: prompt genérico — nada de TUTOR/LEARNER da matéria nem do vault. */
+ if(courseId===FREE_ID)return systemPrompt;
+ for(const name of ['TUTOR.md','LEARNER.md']){
+  const selected=[course&&path.join(course,name),config.vaultPath&&path.join(config.vaultPath,name),path.join(deskDir,'templates',name)].filter(Boolean).find(p=>fs.existsSync(p));
+  if(selected){const st=fs.statSync(selected);if(st.isFile()&&st.size<=65536)systemPrompt+='\n\n'+name+'\n'+fs.readFileSync(selected,'utf8');}
+ }
+ return systemPrompt;
+}
+function prepareClaude(){
+ const record=conversations.readClaudeConversation(session,{runtime});
+ if(!record)throw Error('O registro desta conversa Claude está indisponível. O arquivo foi preservado; comece outra conversa.');
+ if(record.courseId!==courseId)throw Error('Conversa Claude não pertence a esta matéria.');
+ const cwd=path.join(runtime,'claude-workspaces',record.id);fs.mkdirSync(cwd,{recursive:true});
+ // Context is selected explicitly; no vault symlink or inherited Pi profile.
+ return {cwd,systemPrompt:claudeSystemPrompt(),record};
+}
+/* Preparação do chat lateral Claude: workspace PRÓPRIO (record.id do descritor
+   lateral), mesmo system prompt e mesma recusa de matéria — nunca inicia o Pi
+   como fallback. */
+function prepareClaudeSide(record){
+ if(!record||record.courseId!==courseId)throw Error('Conversa Claude não pertence a esta matéria.');
+ const cwd=path.join(runtime,'claude-workspaces',record.id);fs.mkdirSync(cwd,{recursive:true});
+ return {cwd,systemPrompt:claudeSystemPrompt()};
+}
+function testClaudeSdkLoader(){
+ if(!TEST_MODE||!process.env.LEARNING_DESK_CLAUDE_SDK_FACTORY)return undefined;
+ const fixture=process.env.LEARNING_DESK_CLAUDE_SDK_FACTORY;
+ if(!fs.realpathSync(fixture).startsWith(path.join(deskDir,'tests','fixtures')+path.sep))throw Error('SDK simulado fora dos fixtures.');
+ return ()=>import(require('node:url').pathToFileURL(fixture).href);
+}
 function captureHelper(){return [path.join(__dirname,'..','visual-check','windows'),config.vaultPath&&path.join(config.vaultPath,'Code','learning-canvas','visual-check','windows')].filter(Boolean).find(p=>fs.existsSync(p));}
 /* A captura existe no macOS (helper visual-check + screencapture -l) e no
    Windows (PowerShell/.NET do sistema — capture-win.cjs); fora disso, some. */
 function captureAvailable(){return process.platform==='win32'||(process.platform==='darwin'&&!!captureHelper());}
 
 function previewFile(file){
+ if(engine(file)==='claude')return descriptorCache.get(file)?.preview||'';
  try{return sessionPreviewFromJsonl(fs.readFileSync(file,'utf8').slice(0,200000));}catch{return '';}
 }
 function courseSessions(){
+ if(courseId===FREE_ID)return freeSessionList();
  const map=new Map();
  for(const s of courseStates[courseId]?.sessions||[]){
   if(s?.path&&fs.existsSync(s.path))map.set(s.path,{path:s.path,started:s.started||sessionStartedFromPath(s.path),preview:s.preview||''});
@@ -210,7 +364,7 @@ function courseSessions(){
   const exists=fs.existsSync(session);
   map.set(session,{path:session,started:prev?.started||sessionStartedFromPath(session)||Date.now(),preview:prev?.preview||(exists?previewFile(session):'')});
  }
- return [...map.values()].sort((a,b)=>(b.started||0)-(a.started||0)).map(s=>({...s,label:formatSessionLabel(s)}));
+ return [...map.values()].map(s=>({...s,...sessionInfo(s.path)})).sort((a,b)=>(b.started||0)-(a.started||0)).map(s=>({...s,label:(s.engine==='claude'?'Claude Code · ':'')+formatSessionLabel(s)}));
 }
 function rememberSession(){
  if(!session)return;
@@ -219,13 +373,18 @@ function rememberSession(){
  courseStates[courseId]={...(courseStates[courseId]||{}),sessions:list};
 }
 function persist(){
- if(courseId){
+ if(freeMutation){deferredPersist=true;return;}
+ if(courseId===FREE_ID){
+  /* O store é um arquivo externo: um workspace.json ilegível não pode derrubar
+     o save do app inteiro — o erro fica no log e o boot/`recover` cuida. */
+  try{persistFreeSession();}catch(error){appendLog('free',`persist da sessão Livre falhou: ${error.message}`);}
+ }else if(courseId){
   const previous=courseStates[courseId]||{};
   const sessionStudies={...(previous.sessionStudies||{}),[session]:cleanStudy(state.study)};
-  courseStates[courseId]={pdfs:state.pdfs,referenceVisible:state.referenceVisible,chatWidth:state.chatWidth,calcHeight:state.calcHeight,pdfSplit:state.pdfSplit,draft:state.draft,study:cleanStudy(state.study),sessionStudies,session,sessions:courseSessions()};
+  courseStates[courseId]={pdfs:state.pdfs,referenceVisible:state.referenceVisible,chatWidth:state.chatWidth,calcHeight:state.calcHeight,pdfSplit:state.pdfSplit,draft:state.draft,study:cleanStudy(state.study),pdfRotations:state.pdfRotations||{},sessionStudies,session,sessions:courseSessions()};
   persistGgb(courseId,typeof state.ggbBase64==='string'?state.ggbBase64:'');
  }
- const payload=JSON.stringify({...state,ggbBase64:undefined,session,courseId,courseStates,bounds:win&&!win.isDestroyed()?win.getBounds():state.bounds});
+ const payload=deskPayload();
  if(payload===lastPersist)return;
  lastPersist=payload;
  try{fs.writeFileSync(stateFile,payload);}catch(e){console.error(e);}
@@ -313,23 +472,67 @@ function prepareCourse(){
  if(course)for(const name of ['_state.md','Sources','TUTOR.md','LEARNER.md','.pi'])link(path.join(course,name),path.join(target,name));
  return target;
 }
-function promptFile(){
- const file=path.join(runtime,'desk-prompt.md');
- try{fs.writeFileSync(file,DESK_PROMPT);}catch{}
+function promptFile(materialTools=false){
+ const file=path.join(runtime,materialTools?'desk-prompt-material.md':'desk-prompt.md');
+ try{fs.writeFileSync(file,DESK_PROMPT+(isFree()&&materialTools?'\n\n'+TUTOR_PDF_PROMPT:''));}catch{}
  return file;
 }
+/* Parâmetros de lançamento do Pi (principal e chat lateral usam o MESMO binário,
+   pasta, perfil fixado e prompt de sistema; só a sessão é própria de cada um). */
+function piLaunch({materialTools=false}={}){
+ const pi=piBinary();
+ /* Livre: cwd é o workspace da PRÓPRIA conversa (nunca a pasta de uma
+    matéria) e o prompt fixado é o genérico — sem TUTOR/LEARNER, sem fontes
+    de outro curso. O perfil exclui as extensões que ativam o modo da matéria
+    e desliga a descoberta de arquivos de contexto dos ancestrais. */
+ const freeMode=courseId===FREE_ID&&!!freeSessionId;
+ const cwd=process.env.LEARNING_DESK_PI_CWD||(freeMode?free.workspaceDir(runtime,freeSessionId):prepareCourse());
+ if(freeMode)fs.mkdirSync(cwd,{recursive:true});
+ /* Perfil fixado (desk/profiles.cjs): a lista de extensões é declarada e
+    verificável em vez de herdada da descoberta global — uma extensão nova não
+    entra calada na Mesa. Medido em `npm run profile`. `pinnedExtensions:false`
+    no config volta a herdar tudo nas matérias; Livre mantém o isolamento. */
+ const overlayDirs=[path.join(cwd,'.pi'),path.join(runtime,'learning','.pi')];
+ const profileExtra=freeMode?pinnedArgs({overlayDirs,freeWorkspace:true}):(config.desk?.pinnedExtensions===false?[]:pinnedArgs({overlayDirs}));
+ const materialEnv={LEARNING_DESK_MATERIAL_BRIDGE:''};
+ if(freeMode&&materialTools){
+  tutorMaterialGrant=tutorMaterialBridge.grant({courseId,session,freeSessionId});
+  materialEnv.LEARNING_DESK_MATERIAL_BRIDGE=JSON.stringify(tutorMaterialGrant);
+  profileExtra.push('--extension',path.join(deskDir,'src','extensions','tutor-pdf'));
+ }
+ const testExtra=process.env.LEARNING_DESK_TEST_ARGS?JSON.parse(process.env.LEARNING_DESK_TEST_ARGS):[];
+ return {pi,cwd,env:{...spawnEnv(pi),...materialEnv,LEARNING_DESK_GGB_BRIDGE:ggbBridgeFile},promptFile:promptFile(freeMode&&materialTools),extraArgs:[...profileExtra,...testExtra]};
+}
 function connect(){
+ if(!bridge&&engine()==='claude'){
+  conversations.recoverClaudeConversation(session,{runtime});
+  const {cwd,systemPrompt,record}=prepareClaude();
+  const sdkLoader=testClaudeSdkLoader();
+  const descriptor=session;
+  const materialScope={courseId,session,freeSessionId};
+  const toolPolicy={readPaths:[],readRoots:[cwd]};
+  const adapter=new ClaudeAdapter({conversationId:descriptor,sessionId:record.nativeSessionId,resume:record.nativeEstablished,cwd,claudePath:record.pinnedExecutable||claudeBinary(),systemPrompt:systemPrompt+(isFree()?'\n\n'+TUTOR_PDF_PROMPT:''),sdkLoader,deliveryUncertain:record.delivery?.status==='uncertain',selection:{model:record.model||null,effort:record.effort||null},
+   createMaterial:isFree()?payload=>prepareTutorMaterial(materialScope,payload):null,
+   toolPolicy,
+   persistDelivery(delivery){conversations.updateClaudeConversation(descriptor,{delivery,...(delivery.status==='accepted'?{nativeEstablished:true}:{})},{runtime});}
+  });
+  bridge=new ClaudeService({adapter,uncertain:record.delivery?.status==='uncertain',messages:record.messages||[],
+   onMessages(messages){conversations.updateClaudeConversation(descriptor,{messages,preview:messages.find(m=>m.role==='user')?.content?.find(p=>p.type==='text')?.text?.slice(0,160)||record.preview},{runtime});},
+   onSelection(patch){conversations.updateClaudeConversation(descriptor,patch,{runtime});},
+   onInit(e){const patch={};if(e.executable&&fs.existsSync(e.executable))patch.pinnedExecutable=fs.realpathSync(e.executable);if(Object.keys(patch).length)conversations.updateClaudeConversation(descriptor,patch,{runtime});}
+  });
+  bridge.toolPolicy=toolPolicy;
+ }
  if(!bridge){
-  const pi=piBinary();
-  const cwd=process.env.LEARNING_DESK_PI_CWD||prepareCourse();
-  /* Perfil fixado (desk/profiles.cjs): a lista de extensões é declarada e
-     verificável em vez de herdada da descoberta global — uma extensão nova não
-     entra calada na Mesa. Medido em `npm run profile`. `pinnedExtensions:false`
-     no config volta a herdar tudo. */
-  const profileExtra=config.desk?.pinnedExtensions===false?[]:pinnedArgs({overlayDirs:[path.join(cwd,'.pi'),path.join(runtime,'learning','.pi')]});
-  const testExtra=process.env.LEARNING_DESK_TEST_ARGS?JSON.parse(process.env.LEARNING_DESK_TEST_ARGS):[];
-  bridge=new PiBridge({cwd,session,pi,env:{...spawnEnv(pi),LEARNING_DESK_GGB_BRIDGE:ggbBridgeFile},promptFile:promptFile(),extraArgs:[...profileExtra,...testExtra]});
+  const launch=piLaunch({materialTools:true});
+  bridge=new PiBridge({cwd:launch.cwd,session,pi:launch.pi,env:launch.env,promptFile:launch.promptFile,extraArgs:launch.extraArgs});
+ }
+ if(!bridge._mesaBound){
+  bridge._mesaBound=true;const sourceSession=session;
   bridge.on('event',e=>{
+   if(bridge==null||sourceSession!==session)return;
+   e={...e,conversationId:sourceSession};
+   if(e.type==='agent_request_cancelled')pendingDialogs.delete(e.id);
    if(['auto_retry_start','summarization_retry_scheduled'].includes(e.type)&&Number(e.attempt)>Number(pendingCore.maxAutoRetries())){
     bridge.breakConnection(Error('Limite de tentativas do Pi atingido. A conversa foi preservada.'));return;
    }
@@ -337,7 +540,7 @@ function connect(){
       não precisa ver, e o turno segue vivo. Erro de verdade continua em
       `desk_error`, que a UI trata como queda. */
    if(e.type==='desk_warn')try{appendLog('rpc',e.message);}catch{}
-   if(e.type==='extension_ui_request'&&['select','confirm','input','editor'].includes(e.method)&&typeof e.id==='string'){
+   if(e.type==='extension_ui_request'&&['select','confirm','input','editor','question'].includes(e.method)&&typeof e.id==='string'){
     pendingDialogs.add(e.id);
     if(pendingDialogs.size>32){
      const evicted=pendingDialogs.values().next().value;pendingDialogs.delete(evicted);
@@ -346,16 +549,17 @@ function connect(){
    }
    if(win&&!win.isDestroyed())win.webContents.send('pi-event',e);
   });
-  bridge.on('stderr',text=>{try{appendLog('pi',text);}catch{}});
+  bridge.on('stderr',text=>{try{appendLog(engine(),text);}catch{}});
  }
  return bridge;
 }
 async function assertIdle(message){
  if(!bridge)return;
+ if(engine()==='claude'){if(bridge.isRunning())throw Error(message);return;}
  const current=await bridge.request('get_state');
  if(bridge.isRunning(current))throw Error(message);
 }
-function stopBridge(){bridge?.removeAllListeners();bridge?.stop();bridge=null;pendingDialogs.clear();}
+function stopBridge(){if(tutorMaterialGrant){tutorMaterialBridge.revoke(tutorMaterialGrant.token);tutorMaterialGrant=null;}sidechatManager?.suspend('troca de conversa ou matéria');bridge?.removeAllListeners();bridge?.stop();bridge=null;pendingDialogs.clear();}
 function trimMessageImages(messages,keep=6){
  const list=Array.isArray(messages)?messages:[];
  let left=keep;
@@ -368,7 +572,396 @@ function trimMessageImages(messages,keep=6){
  return list;
 }
 
+/* ---------- chat lateral (segundo chat) ----------
+   O contexto que o lateral copia do principal na abertura: histórico curto
+   ATÉ AGORA, referências PDF/página, questão/rascunho — tudo já validado pela
+   biblioteca da matéria. O digest fica no descritor em disco (nunca no IPC);
+   a chave estável decide se o bloco precisa ir de novo (núcleo sidechat.bend). */
+function mainHistoryLines(limit=12){
+ const lines=[];
+ const push=(role,text)=>{
+  const clean=String(text||'').replace(/\s+/g,' ').trim();
+  if(clean)lines.push(`${role}: ${clean.slice(0,800)}`);
+ };
+ try{
+  if(engine()==='claude'){
+   const record=(bridge?descriptorCache.get(session,{messages:true}):conversations.readClaudeConversation(session,{runtime}))||null;
+   for(const message of (record?.messages||[]).slice(-limit)){
+    const text=(Array.isArray(message?.content)?message.content:[]).filter(p=>p&&p.type==='text').map(p=>p.text||'').join(' ');
+    push(message?.role==='user'?'você':'assistente',text);
+   }
+  }else if(fs.existsSync(session)){
+   const rows=fs.readFileSync(session,'utf8').slice(-200000).split('\n').filter(Boolean);
+   for(const row of rows.slice(-limit)){
+    let message;
+    try{message=JSON.parse(row)?.message;}catch{continue;}
+    if(!message||!['user','assistant'].includes(message.role))continue;
+    const text=(Array.isArray(message.content)?message.content:[]).filter(p=>p&&p.type==='text').map(p=>p.text||'').join(' ');
+    push(message.role==='user'?'você':'assistente',text);
+   }
+  }
+ }catch{}
+ return lines.slice(-limit);
+}
+function sidechatSnapshot(refs){
+ const formatted=(Array.isArray(refs)?refs:[]).slice(0,2).map(ref=>({path:validPdf(ref.path),page:Math.max(1,Math.trunc(Number(ref.page))||1)}));
+ const studyContextOff=config.desk?.studyContext===false;
+ const study=studyContextOff?{title:'',xopp:''}:cleanStudy(state.study);
+ const courseName=courseId===FREE_ID?'':(courses.find(c=>c.id===courseId)?.name||courseId||'');
+ const block=buildStudyContext({
+  course:studyContextOff?'':courseName,
+  study:{title:study.title,xopp:study.xopp&&allowedXopp.has(study.xopp)?study.xopp:''},
+  refs:formatted,
+  previousKey:'',
+ });
+ const lines=mainHistoryLines(12);
+ const at=Date.now();
+ const header=`[Contexto do chat lateral]\n- conversa principal: ${session}\n- copiado em: ${new Date(at).toISOString()}`;
+ const history=lines.length?`[Chat principal até aqui]\n${lines.join('\n')}`:'';
+ const digest=[header,history,block.text].filter(Boolean).join('\n\n');
+ const key=JSON.stringify([session,courseId,block.key,at,crypto.createHash('sha1').update(digest).digest('hex').slice(0,16)]);
+ return {mainSession:session,refs:formatted,study,at,digest,key};
+}
+const sidechatManager=createSideChatManager({
+ runtime,
+ current:()=>({session,courseId,engine:engine(),courseName:courseId===FREE_ID?'':(courses.find(c=>c.id===courseId)?.name||'')}),
+ /* O manager chama `snapshot({refs})` (objeto), não o array solto: sem o
+    destructuring o `Array.isArray` de `sidechatSnapshot` zerava TODAS as refs
+    PDF do snapshot. O contrato é objeto com `refs` já validado. */
+ snapshot:({refs})=>sidechatSnapshot(refs),
+ validPdf:p=>validPdf(p),
+ createEngine:({engine,id,descriptor,onEvent})=>{
+  if(engine==='claude'){
+   return createClaudeSideEngine({id,descriptor:descriptor.claude,runtime,prepare:record=>prepareClaudeSide(record),sdkLoader:testClaudeSdkLoader(),claudePath:claudeBinary(),onEvent,log:(src,line)=>appendLog(src,line)});
+  }
+  const launch=piLaunch();
+  return createPiSideEngine({id,sessionPath:descriptor.session,cwd:launch.cwd,pi:launch.pi,env:launch.env,extraArgs:launch.extraArgs,promptFile:launch.promptFile,onEvent,log:(src,line)=>appendLog(src,line)});
+ },
+ emit:payload=>{if(win&&!win.isDestroyed())win.webContents.send('sidechat-event',payload);},
+ log:(src,line)=>appendLog(src,line),
+});
+
+/* ---------- aba Livre (workspace virtual `mesa-free`) ----------
+   Cada conversa Livre tem workspace próprio no store (`free-workspaces.cjs`):
+   título/rascunho/materiais/nativePath ficam lá; layout, estudo e rotações
+   ficam por sessão em `desk.json` (`state.free.sessions`). A sessão ativa é
+   sempre um `sessionId` do store; `session` é o caminho nativo (JSONL do Pi
+   ou descritor Claude), e é ele que a fila/`pending` usa como chave. */
+let freeMutation=false,navInFlight=false,deferredPersist=false;
+const freeJobs=new Set();
+let tutorMaterialGrant=null,quitting=false;
+const tutorMaterialBridge=createTutorMaterialBridge({createMaterial:prepareTutorMaterial});
+function materialEvent(scope,payload){if(win&&!win.isDestroyed())win.webContents.send('tutor-material',{courseId:scope.courseId,conversationId:scope.session,...payload});}
+async function prepareTutorMaterial(scope,{title,markdown,signal}={}){
+ return freeMutate('tutor-pdf',async()=>{
+  if(!isFree()||scope.courseId!==courseId||scope.session!==session||scope.freeSessionId!==freeSessionId)throw Error('A conversa mudou; prepare o PDF na conversa atual.');
+  if(signal?.aborted)throw Error('Preparação cancelada.');
+  const draft={id:crypto.randomUUID(),title,markdown};
+  const workspace=free.updateWorkspace(runtime,scope.freeSessionId,{pdfDraft:draft});
+  materialEvent(scope,{status:'prepared',draft,workspace:freeWorkspacePayload(workspace)});
+  return {prepared:true,reviewRequired:true,title:draft.title,message:'Conteúdo pronto no diálogo de PDF. O usuário deve revisar e clicar em Salvar PDF e abrir. O arquivo PDF ainda não foi salvo.'};
+ });
+}
+function isFree(){return courseId===FREE_ID;}
+function isPromotedRecord(record){return !!(record&&record.promotion&&record.promotion.status==='promoted');}
+function assertNoFreeMutation(){if(freeMutation)throw Error('Aguarde a operação da sessão Livre terminar.');}
+function assertNoNav(){if(navInFlight)throw Error('Aguarde a troca de sessão terminar.');}
+function beginFreeMutation(label){
+ if(freeMutation||navInFlight)throw Error('Aguarde a operação em andamento terminar.');
+ freeMutation=true;
+ return label;
+}
+function endFreeMutation(){
+ freeMutation=false;
+ if(deferredPersist){deferredPersist=false;try{persist();}catch(error){appendLog('free',`persist adiado falhou: ${error.message}`);}}
+}
+async function freeMutate(label,fn){
+ beginFreeMutation(label);
+ try{return await fn();}
+ finally{endFreeMutation();}
+}
+async function withHostNav(fn){
+ assertNoFreeMutation();
+ if(navInFlight)throw Error('Aguarde a troca de sessão terminar.');
+ navInFlight=true;
+ try{return await fn();}
+ finally{navInFlight=false;}
+}
+function freeRecordForToken(file){
+ if(typeof file!=='string'||!file)return null;
+ for(const record of free.listWorkspaces(runtime))if(record.nativePath&&record.nativePath===file)return record;
+ const prefix='free-session:';
+ if(file.startsWith(prefix))return free.findWorkspace(runtime,file.slice(prefix.length));
+ return null;
+}
+function newFreeNativePath(id,engine){return engine==='claude'?conversations.createClaudeConversation({runtime,courseId:FREE_ID}):path.join(free.workspaceDir(runtime,id),`pi-${crypto.randomUUID()}.jsonl`);}
+function ensureFreeNativePath(record){
+ if(record.nativePath)return record;
+ const native=newFreeNativePath(record.id,'pi');
+ free.setNativePath(runtime,record.id,native);
+ return free.findWorkspace(runtime,record.id)||record;
+}
+/* Cria workspace + caminho nativo + entrada de layout. Não hidrata: quem chama
+   decide quando a sessão vira a ativa. */
+function createFreeRecord(engine='pi'){
+ const id=crypto.randomUUID();
+ free.ensureWorkspace(runtime,{sessionId:id,title:free.defaultTitle()});
+ const nativePath=newFreeNativePath(id,engine==='claude'?'claude':'pi');
+ free.setNativePath(runtime,id,nativePath);
+ const sessions={...(state.free?.sessions||{}),[id]:{nativePath,engine:engine==='claude'?'claude':'pi',draft:'',study:{title:'',xopp:''}}};
+ state.free={activeId:id,sessions};
+ return free.findWorkspace(runtime,id);
+}
+/* Sessão ativa ao abrir o Livre: a última usada; senão a que casa com o
+   `session` salvo; senão a mais recente; senão uma nova. Promovidas ficam de
+   fora — não podem continuar nos dois escopos. */
+function ensureFreeRecord(){
+ const list=free.listWorkspaces(runtime).filter(record=>!isPromotedRecord(record));
+ let record=list.find(entry=>entry.id===state.free?.activeId)||list.find(entry=>entry.nativePath&&entry.nativePath===state.session)||list[0]||null;
+ if(record&&!record.nativePath)record=ensureFreeNativePath(record);
+ if(!record)record=createFreeRecord('pi');
+ return record;
+}
+function createFreeSession(engine){const record=createFreeRecord(engine);hydrateFreeRecord(record);return record;}
+function freeEntryOf(id){return (state.free&&state.free.sessions&&state.free.sessions[id])||{};}
+function hydrateFreeRecord(record){
+ const entry=freeEntryOf(record.id);
+ const saved=sanitizeCourseState(entry);
+ const layout=deskLayout({...saved,theme:state.theme});
+ state={...state,
+  pdfs:saved.pdfs||[],
+  pdfRotations:saved.pdfRotations||{},
+  referenceVisible:layout.referenceVisible,
+  chatWidth:layout.chatWidth,
+  calcHeight:layout.calcHeight,
+  pdfSplit:layout.pdfSplit,
+  draft:typeof entry.draft==='string'?entry.draft:(record.draft||''),
+  theme:layout.theme,
+  study:cleanStudy(saved.study||{}),
+  ggbBase64:typeof saved.ggbBase64==='string'?saved.ggbBase64:''};
+ let kind='pi';
+ try{kind=record.nativePath&&engine(record.nativePath)==='claude'?'claude':'pi';}catch{}
+ state.free={...(state.free||{}),activeId:record.id,sessions:{...(state.free?.sessions||{}),[record.id]:{...entry,nativePath:record.nativePath||entry.nativePath||'',engine:entry.engine||kind}} };
+ freeSessionId=record.id;
+ session=record.nativePath||session;
+ ggbRestored=false;
+}
+/* Grava o rascunho/nativePath no store e o layout por sessão no desk.json. O
+   título só muda no `free-rename`. */
+function persistFreeSession(){
+ if(!freeSessionId)return;
+ let record=free.findWorkspace(runtime,freeSessionId);
+ if(!record)return;
+ const draft=free.cutDraft(typeof state.draft==='string'?state.draft:'');
+ const native=session||record.nativePath;
+ if(record.draft!==draft||(native&&record.nativePath!==native)){
+  try{record=free.updateWorkspace(runtime,freeSessionId,{draft,nativePath:native},{expectRev:record.rev});}
+  catch(error){
+   if(error&&error.code==='STALE')record=free.findWorkspace(runtime,freeSessionId)||record;
+   else throw error;
+  }
+ }
+ let kind='pi';
+ try{kind=engine(record.nativePath||session);}catch{}
+ const entry={...freeEntryOf(freeSessionId),nativePath:record.nativePath||native||'',engine:kind,draft,pdfs:state.pdfs||[],pdfRotations:state.pdfRotations||{},study:cleanStudy(state.study),referenceVisible:state.referenceVisible,chatWidth:state.chatWidth,calcHeight:state.calcHeight,pdfSplit:state.pdfSplit,ggbBase64:typeof state.ggbBase64==='string'?state.ggbBase64:''};
+ state.free={...(state.free||{}),activeId:freeSessionId,sessions:{...(state.free?.sessions||{}),[freeSessionId]:entry}};
+}
+function freeSessionList(){
+ return free.listWorkspaces(runtime).map(record=>{
+  const path=record.nativePath;
+  if(!path)return null;
+  let kind='pi';
+  try{kind=conversations.conversationEngine(path,{runtime});}catch{kind='pi';}
+  const started=Date.parse(record.createdAt)||Date.parse(record.updatedAt)||Date.now();
+  let preview='';
+  try{preview=fs.existsSync(path)?previewFile(path):'';}catch{}
+  const promoted=isPromotedRecord(record);
+  const label=(kind==='claude'?'Claude Code · ':'')+(record.title||formatSessionLabel({path,started,preview}));
+  return {path,started,preview,engine:kind,label,promoted,promotedCourseId:promoted?record.promotion.courseId:''};
+ }).filter(Boolean).sort((a,b)=>(b.started||0)-(a.started||0));
+}
+function freeWorkspacePayload(record){
+ if(record)return free.workspacePayload(record);
+ return {kind:'free',id:FREE_ID,sessionId:'',title:free.defaultTitle(),materials:[],promotedCourseId:''};
+}
+/* Material recém-importado/gerado aparece no PRIMEIRO leitor antes do
+   initialData (o `loadCourse` do renderer abre o que está em `state.pdfs`); o
+   segundo leitor e o resto do layout ficam intocados. */
+function focusFreeMaterial(material){
+ if(!material||typeof material.path!=='string'||!material.path)return;
+ const current=Array.isArray(state.pdfs)?state.pdfs:[null,null];
+ const first={path:material.path,page:1,zoom:1,rotation:0,scrollX:0,scrollY:0,invert:false,minimized:false};
+ state={...state,pdfs:[first,...current.slice(1,2)]};
+}
+function allCourses(){
+ return [{id:FREE_ID,name:free.freeCourseName(),kind:'free'},...courses.map(course=>({id:course.id,name:course.name,kind:'course'}))];
+}
+/* Payload do desk.json com um courseStates explícito (a promoção grava o
+   estado da matéria nova ANTES do commit e restaura byte a byte em falha). */
+function deskPayload(states){
+ return JSON.stringify({...state,ggbBase64:undefined,session,courseId,courseStates:states||courseStates,bounds:win&&!win.isDestroyed()?win.getBounds():state.bounds});
+}
+/* Snapshot do desk.json como se a matéria nova já fosse a ATIVA: o crash entre
+   o journal e a adoção em memória precisa acordar no curso promovido, com os
+   caminhos mapeados — nunca com o estado solto da sessão Livre. */
+function deskSnapshotForCourse(courseIdValue,courseStateValue,states){
+ const saved=sanitizeCourseState(courseStateValue);
+ const layout=deskLayout({...saved,theme:state.theme});
+ return JSON.stringify({...state,ggbBase64:undefined,
+  session:saved.session||'',
+  courseId:courseIdValue,
+  draft:layout.draft,
+  study:cleanStudy(saved.study),
+  pdfs:saved.pdfs||[],
+  pdfRotations:saved.pdfRotations||{},
+  referenceVisible:layout.referenceVisible,
+  chatWidth:layout.chatWidth,
+  calcHeight:layout.calcHeight,
+  pdfSplit:layout.pdfSplit,
+  theme:layout.theme,
+  courseStates:states||courseStates,
+  bounds:win&&!win.isDestroyed()?win.getBounds():state.bounds});
+}
+/* Escrita da config preservando chaves que o schema não modela (extras do
+   usuário) e os defaults do autor (normalize). */
+function writeConfigPreservingExtras(file,next){
+ const normalized=normalize(next);
+ let raw=null;try{raw=JSON.parse(fs.readFileSync(file,'utf8'));}catch{}
+ const merged=isPlainObject(raw)?{...raw,...normalized}:normalized;
+ /* Extras de desk/leitores também pertencem ao usuário: a normalização
+    resolve os campos suportados, sem consumir metadados de versões futuras. */
+ if(isPlainObject(raw?.desk)){
+  merged.desk={...raw.desk,...normalized.desk};
+  if(Array.isArray(raw.desk.panels))merged.desk.panels=normalized.desk.panels.map((panel,index)=>({...((isPlainObject(raw.desk.panels[index])&&raw.desk.panels[index])||{}),...panel}));
+ }
+ if(isPlainObject(raw)&&Array.isArray(raw.courses)){
+  const extras=new Map();
+  for(const item of raw.courses)if(isPlainObject(item)&&typeof item.id==='string')extras.set(item.id,item);
+  merged.courses=normalized.courses.map(course=>({...(extras.get(course.id)||{}),...course}));
+ }
+ fs.mkdirSync(path.dirname(file),{recursive:true});
+ fs.writeFileSync(file,JSON.stringify(merged,null,2)+'\n');
+}
+function uniqueCourseId(){
+ for(let attempt=0;attempt<8;attempt++){
+  const id=crypto.randomUUID();
+  if(courses.some(course=>course.id===id))continue;
+  if(free.findByCourseId(runtime,id))continue;
+  return id;
+ }
+ throw Error('Não foi possível reservar um identificador para a matéria.');
+}
+function applyFreeCourse(){
+ courseId=FREE_ID;course='';
+ const record=ensureFreeRecord();
+ hydrateFreeRecord(record);
+}
+
+/* Promoção Livre → matéria: transação com o diário externo. Ordem: prepare do
+   store (staging + destino novo) → diário com backups byte a byte → config +
+   descritor Claude + desk.json → commit do store (rename + recibo) → diário
+   concluído. Qualquer falha desfaz SÓ o destino novo e restaura os arquivos. */
+async function runFreePromotion({record,parentDir,name}){
+ const plan=free.preparePromotion(runtime,record.id,{parentDir,name});
+ let txn=null,committed=false;
+ let courseId='',courseName='',folderPath='',nativePath='',canWriteConfig=false,courseEntry=null,courseState=null;
+ try{
+  courseId=uniqueCourseId();
+  courseName=name.trim().slice(0,free.maxName())||plan.folderName;
+  folderPath=plan.folderPath;
+  const materialMap=new Map();
+  record.materials.forEach((material,index)=>{
+   const staged=plan.materials[index];
+   if(staged)materialMap.set(material.path,path.join(folderPath,free.MATERIALS_DIR,staged.name));
+  });
+  const entry=freeEntryOf(record.id);
+  const saved=sanitizeCourseState(entry);
+  const pdfs=[];
+  const seen=new Set();
+  for(const item of saved.pdfs||[]){
+   const target=item?.path?materialMap.get(item.path):'';
+   if(!target||seen.has(target))continue;
+   seen.add(target);
+   pdfs.push({...item,path:target});
+  }
+  const pdfRotations={};
+  for(const [from,rotation] of Object.entries(saved.pdfRotations||{})){
+   const target=materialMap.get(from);
+   if(target)pdfRotations[target]=rotation;
+  }
+  nativePath=record.nativePath||session;
+  const started=Date.parse(record.createdAt)||Date.now();
+  let preview='';
+  try{if(nativePath&&fs.existsSync(nativePath))preview=previewFile(nativePath);}catch{}
+  const study=cleanStudy(state.study);
+  courseState={
+   pdfs,pdfRotations,
+   session:nativePath,
+   sessions:[{path:nativePath,started,preview}],
+   sessionStudies:{[nativePath]:study},
+   draft:typeof state.draft==='string'?state.draft:'',
+   study,
+   referenceVisible:state.referenceVisible,
+   chatWidth:state.chatWidth,
+   calcHeight:state.calcHeight,
+   pdfSplit:state.pdfSplit,
+   ggbBase64:typeof state.ggbBase64==='string'?state.ggbBase64:''
+  };
+  courseEntry={id:courseId,name:courseName,path:folderPath};
+  const kind=engine();
+  const descriptorFile=kind==='claude'?nativePath:'';
+  canWriteConfig=persistConfig||fs.existsSync(configFile);
+  const files=[{label:'desk',file:stateFile}];
+  if(canWriteConfig)files.push({label:'config',file:configFile});
+  if(descriptorFile)files.push({label:'descriptor',file:descriptorFile});
+  txn=freePromotion.begin(runtime,{
+   token:plan.token,freeSessionId:record.id,courseId,courseName,
+   folderPath,folderName:plan.folderName,stagingPath:plan.stagingPath,parentDir:plan.parentDir,
+   nativePath,engine:kind,descriptorFile,configFile:canWriteConfig?configFile:'',deskFile:stateFile,
+   activeCourseId:courseId,activeSession:nativePath,
+   courseEntry,courseState,files
+  });
+  txn.mark('applying');
+  if(canWriteConfig)writeConfigPreservingExtras(configFile,{...config,courses:[...config.courses,courseEntry]});
+  if(descriptorFile)conversations.updateClaudeConversation(descriptorFile,{courseId},{runtime});
+  fs.writeFileSync(stateFile,deskSnapshotForCourse(courseId,courseState,{...courseStates,[courseId]:courseState}));
+  txn.mark('committing');
+  free.commitPromotion(runtime,record.id,{token:plan.token,courseId,courseName});
+  /* Ponto de virada durável: depois do recibo do store a promoção está feita.
+     Nada aqui pode voltar atrás — se o diário não puder ser removido/finalizado,
+     o boot conclui para frente (`recover` em `committing`/`committed`). */
+  committed=true;
+  try{txn.mark('committed');}catch(error){appendLog('free',`diário da promoção ${plan.token} não avançou: ${error.message}`);}
+  try{txn.finish();}catch(error){appendLog('free',`diário da promoção ${plan.token} não foi removido: ${error.message}`);}
+ }catch(error){
+  if(!committed){
+   if(txn){try{txn.rollback({store:free});}catch{}}
+   else{try{free.rollbackPromotion(runtime,record.id);}catch{}}
+  }
+  throw error;
+ }
+ /* Adoção em memória pós-commit, best-effort: matéria na config, `courseState`
+    com os caminhos NOVOS (inclusive `pdfRotations`) e o curso ativo passa a ser
+    a matéria nova. Erro aqui NÃO pode virar rollback (o diário já foi
+    consumido); o boot lê o snapshot já coerente escrito antes do commit. */
+ try{
+  config=canWriteConfig?normalize({...config,courses:[...config.courses,courseEntry]}):{...config,courses:[...config.courses,courseEntry]};
+  courses=mergeCourses(config);
+  courseStates[courseId]=sanitizeCourseState(courseState);
+  /* A ponte da sessão Livre não pode sobreviver à promoção: reutilizá-la
+     manteria cwd/prompt/descritor do Livre no motor da matéria nova. Para e
+     deixa o renderer reconectar com o contexto da matéria (mesma sessão). */
+  stopBridge();lastContextKey='';allowedXopp.clear();applyCourse(courseId);
+  try{persistGgb(courseId,typeof courseState.ggbBase64==='string'?courseState.ggbBase64:'');}catch{}
+  persist();
+ }catch(error){
+  appendLog('free',`promoção concluída; adoção parcial: ${error.message}`);
+ }
+ return {course:{id:courseId,name:courseName,path:folderPath}};
+}
+
 function applyCourse(id){
+ if(id===FREE_ID){applyFreeCourse();return;}
  const selected=courses.find(c=>c.id===id);
  courseId=selected?id:'';
  course=selected?.path||'';
@@ -378,7 +971,7 @@ function applyCourse(id){
  const ggbSaved=readGgbFile(courseId)||saved.ggbBase64||'';
  ggbWritten.set(courseId,ggbSaved);
  const layout=deskLayout({...saved,theme:state.theme});
- state={...state,pdfs:saved.pdfs||[],referenceVisible:layout.referenceVisible,chatWidth:layout.chatWidth,calcHeight:layout.calcHeight,pdfSplit:layout.pdfSplit,draft:layout.draft,theme:layout.theme,ggbBase64:ggbSaved,study:config.desk?.studyContext===false?{title:'',xopp:''}:restoredStudy};
+ state={...state,pdfs:saved.pdfs||[],pdfRotations:saved.pdfRotations||{},referenceVisible:layout.referenceVisible,chatWidth:layout.chatWidth,calcHeight:layout.calcHeight,pdfSplit:layout.pdfSplit,draft:layout.draft,theme:layout.theme,ggbBase64:ggbSaved,study:restoredStudy};
  ggbRestored=false;
 }
 
@@ -408,7 +1001,11 @@ function bookmarksPayload(){
 }
 
 function initialData(){
- const library=course?courseLibrary(course):[];
+ const freeActive=courseId===FREE_ID;
+ const record=freeActive?free.findWorkspace(runtime,freeSessionId):null;
+ /* Em Livre a biblioteca é SÓ o manifesto da sessão: nada de varrer pasta de
+   matéria nem herdar fontes de outro curso. */
+ const library=freeActive?((record?.materials||[]).map(material=>({name:material.name,path:material.path}))):(course?courseLibrary(course):[]);
  allowed.clear();
  for(const p of library)allowed.add(p.path);
  for(const p of state.pdfs||[])if(p?.path&&fs.existsSync(p.path))allowed.add(p.path);
@@ -416,18 +1013,20 @@ function initialData(){
  const cfg=normalize(config);
  return {
   library,state,
-  course:courses.find(c=>c.id===courseId)?.name||'',
-  courseId,courses:courses.map(({id,name})=>({id,name})),
-  session,sessions:courseSessions(),
+  course:freeActive?free.freeCourseName():(courses.find(c=>c.id===courseId)?.name||''),
+  courseId,courses:allCourses(),
+  workspace:freeActive?freeWorkspacePayload(record):{kind:'course',id:courseId},
+  session,sessions:courseSessions(),...conversationData(),
   /* Fila e bandeja guardadas desta conversa: o renderer hidrata a faixa e os
      anexos com isto (a troca de conversa devolve o que era da outra). */
   pending:pending.readPending(runtime,session),
-  /* Registro do Encerrar da matéria: o cartão de retomada sai daqui. */
-  resume:resumePayload(),
-  bookmarks:bookmarksPayload(),
-  review:reviewPayload(),
+  /* Registro do Encerrar da matéria: o cartão de retomada sai daqui. Em Livre
+     não há matéria, então o cartão e os favoritos ficam vazios. */
+  resume:freeActive?null:resumePayload(),
+  bookmarks:freeActive?[]:bookmarksPayload(),
+  review:freeActive?[]:reviewPayload(),
   config:cfg,
-  preferred:(pickPdfs(library,cfg.desk.panels)||[]).map(p=>p?.path||null),
+  preferred:freeActive?[]:(pickPdfs(library,cfg.desk.panels)||[]).map(p=>p?.path||null),
   needsSetup:needsSetup(config,courses),
   captureAvailable:captureAvailable(),
   detectedPi:piBinary(),
@@ -489,7 +1088,14 @@ ipcMain.handle('set-keymap',(_e,raw)=>{
 });
 
 function buildMenu(){
- const study=[{label:'Conferir Xournal++',...accelProps('check'),enabled:captureAvailable(),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-check');}},{label:'Conferir GeoGebra',...accelProps('ggb-check'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-geogebra');}},{label:'Alternar chat',...accelProps('chat-toggle'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-chat-toggle');}},{label:'Parar',...accelProps('stop'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-stop');}}];
+ /* `conferir:false` esconde o Conferir Xournal++ TAMBÉM no menu nativo (o item
+    sai da lista e o atalho deixa de ser registrado): a flag é o único
+    interruptor, como no botão do composer. Os outros itens do menu Estudar
+    não dependem dela. `save-config` chama este buildMenu, então ligar/desligar
+    nas Configurações reflete no menu na hora. */
+ const study=[];
+ if(config.desk?.conferir!==false)study.push({label:'Conferir Xournal++',...accelProps('check'),enabled:captureAvailable(),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-check');}});
+ study.push({label:'Conferir GeoGebra',...accelProps('ggb-check'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-geogebra');}},{label:'Alternar chat',...accelProps('chat-toggle'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-chat-toggle');}},{label:'Parar',...accelProps('stop'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-stop');}});
  Menu.setApplicationMenu(Menu.buildFromTemplate([
   {label:'Mesa de Estudos',submenu:[{label:'Sobre a Mesa de Estudos',click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-about');}},{label:'Configurações…',...accelProps('settings'),click:()=>{if(win&&!win.isDestroyed())win.webContents.send('menu-settings');}},{type:'separator'},{role:'quit'}]},
   {label:'Editar',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
@@ -499,7 +1105,9 @@ function buildMenu(){
  ]));
 }
 
-app.whenReady().then(()=>{
+app.whenReady().then(async()=>{
+ await tutorMaterialBridge.start().catch(error=>appendLog('tutor-pdf',error.message));
+ if(quitting)return;
  /* Fecha o ciclo do bilhete de uma execução anterior antes de qualquer coisa:
    `reivindicado-*` (envio comprovadamente não começado) volta a pendente,
    `enviando-*` (envio iniciado sem confirmação) vai para `duvida/` — nunca para
@@ -514,7 +1122,14 @@ app.whenReady().then(()=>{
  app.setAboutPanelOptions({applicationName:'Mesa de Estudos',applicationVersion:app.getVersion(),copyright:'© 2026 Lucas Faria. Licença MIT.',iconPath:path.join(__dirname,'assets','mesa-1024.png')});
  const displays=screen.getAllDisplays();
  const placed=placeWindow(displays,screen.getPrimaryDisplay().id,state.bounds);
- win=new BrowserWindow({width:placed.width,height:placed.height,...(placed.x!=null?{x:placed.x,y:placed.y}:{}),minWidth:900,minHeight:650,title:'Mesa de Estudos',backgroundColor:state.theme==='dark'?'#0a0a0a':'#fcfcfc',show:!TEST_MODE,backgroundThrottling:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,spellcheck:false}});
+ win=new BrowserWindow({width:placed.width,height:placed.height,...(placed.x!=null?{x:placed.x,y:placed.y}:{}),minWidth:900,minHeight:650,title:'Mesa de Estudos',icon:path.join(__dirname,'assets',process.platform==='win32'?'mesa.ico':'mesa-1024.png'),backgroundColor:state.theme==='dark'?'#0a0a0a':'#fcfcfc',show:!TEST_MODE,backgroundThrottling:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,spellcheck:false}});
+ if(process.platform==='win32'){
+  // O botão da barra de tarefas também precisa da identidade/ícone próprios.
+  // Em npm start, relançar o Electron exige o caminho absoluto da Mesa;
+  // num executável empacotado, basta relançar o próprio executável.
+  const args=process.defaultApp?[process.execPath,app.getAppPath()]:[process.execPath];
+  win.setAppDetails({appId:WINDOWS_APP_ID,appIconPath:path.join(__dirname,'assets','mesa.ico'),appIconIndex:0,relaunchCommand:args.map(arg=>'"'+arg+'"').join(' '),relaunchDisplayName:'Mesa de Estudos'});
+ }
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',(e,url)=>{if(url!==win.webContents.getURL())e.preventDefault();});
  buildMenu();
  startGgbBridge();
@@ -560,12 +1175,12 @@ ipcMain.handle('badge',(_e,value)=>{
  setBadge(value);
 });
 ipcMain.handle('desk-log',(_e,line)=>{appendLog('renderer',typeof line==='string'?line:(line&&(line.stack||line.message))||String(line));});
-ipcMain.handle('switch-course',async(_e,id)=>{
- const selected=courses.find(c=>c.id===id);if(!selected)throw Error('Matéria não encontrada.');
+ipcMain.handle('switch-course',async(_e,id)=>withHostNav(async()=>{
+ if(typeof id!=='string'||(id!==FREE_ID&&!courses.some(c=>c.id===id)))throw Error('Matéria não encontrada.');
  await assertIdle('Pare a resposta antes de trocar de matéria.');
  persist();stopBridge();applyCourse(id);persist();return initialData();
-});
-ipcMain.handle('open-pdf',async()=>{const r=await dialog.showOpenDialog(win,{filters:[{name:'PDF',extensions:['pdf']}],properties:['openFile']});if(r.canceled)return null;const p=r.filePaths[0];allowed.add(p);return {name:path.basename(p),path:p};});
+}));
+ipcMain.handle('open-pdf',async()=>{if(courseId===FREE_ID)throw Error('Na sessão Livre, use “Abrir PDF” para copiar o arquivo para a sessão.');const r=await dialog.showOpenDialog(win,{filters:[{name:'PDF',extensions:['pdf']}],properties:['openFile']});if(r.canceled)return null;const p=r.filePaths[0];allowed.add(p);return {name:path.basename(p),path:p};});
 ipcMain.handle('read-pdf',(_e,p)=>{
  p=validPdf(p);
  const st=fs.statSync(p);
@@ -588,14 +1203,15 @@ ipcMain.handle('open-image',async(_e,input)=>{
  if(error)throw Error(error);
 });
 ipcMain.handle('save-state',(_e,value)=>{
- const pdfs=(value.pdfs||[]).slice(0,2).filter(p=>!p?.path||allowed.has(p.path)).map(p=>({path:p.path,page:p.page,zoom:p.zoom,scrollX:Number(p.scrollX)||0,scrollY:Number(p.scrollY)||0,invert:!!p.invert,minimized:!!p.minimized}));
+ const pdfs=(value.pdfs||[]).slice(0,2).filter(p=>!p?.path||allowed.has(p.path)).map(p=>({path:p.path,page:p.page,zoom:p.zoom,rotation:sanitizeRotation(p.rotation),scrollX:Number(p.scrollX)||0,scrollY:Number(p.scrollY)||0,invert:!!p.invert,minimized:!!p.minimized}));
+ const pdfRotations=sanitizePdfRotations(value.pdfRotations);
  const study=cleanStudy(value.study);
  if(study.xopp&&!allowedXopp.has(study.xopp))study.xopp='';
  /* O adaptador monta os fatos e o núcleo decide (fallbacks por campo
     documentados em state-adapter.cjs). */
  const layout=saveState(state,value);
  const theme=layout.theme;
- state={...state,draft:layout.draft,study,pdfs,referenceVisible:layout.referenceVisible,chatWidth:layout.chatWidth,calcHeight:layout.calcHeight,pdfSplit:layout.pdfSplit,theme};
+ state={...state,draft:layout.draft,study,pdfs,pdfRotations,referenceVisible:layout.referenceVisible,chatWidth:layout.chatWidth,calcHeight:layout.calcHeight,pdfSplit:layout.pdfSplit,theme};
  if(win&&!win.isDestroyed())win.setBackgroundColor(theme==='dark'?'#0a0a0a':'#fcfcfc');
  persist();
 });
@@ -641,6 +1257,7 @@ ipcMain.handle('bookmarks-save',(_e,payload)=>{
    identidade, nunca pela posição. Como nos favoritos, a resposta é a lista
    FILTRADA (a tela é a biblioteca da matéria; o arquivo guarda tudo). */
 ipcMain.handle('review-draft',async(_e,payload)=>{
+ if(engine()==='claude')throw Error('Sugestão de revisão ainda indisponível para Claude Code.');
  const raw=isPlainObject(payload)?payload:{};
  if(typeof raw.id!=='string'||!raw.id||raw.id.length>80)throw Error('Pedido de revisão inválido.');
  const context=draftContext(raw);
@@ -686,7 +1303,18 @@ ipcMain.handle('export-chat',async()=>{ const courseName=courses.find(c=>c.id===
   if(!text.trim())continue;
   parts.push(`## ${m.role==='user'?'Você':'Pi'}\n\n${text.trim()}`);
  }
- const body=`# Mesa de Estudos — ${courseName}\n\nExportado em ${new Date().toISOString()}\n\n`+(parts.length?parts.join('\n\n')+'\n':'');
+ let body=`# Mesa de Estudos — ${courseName}\n\nExportado em ${new Date().toISOString()}\n\n`+(parts.length?parts.join('\n\n')+'\n':'');
+ if(engine()==='claude'){
+  const record=bridge?conversations.readClaudeConversation(session,{runtime}):conversations.recoverClaudeConversation(session,{runtime});
+  if(!record)throw Error('O registro desta conversa Claude está indisponível; o arquivo foi preservado.');
+  let messages=record.messages||[];
+  if(record.nativeEstablished){
+   const dir=path.join(runtime,'claude-workspaces',record.id);
+   const native=await readNativeHistory({sessionId:record.nativeSessionId,dir,sdkLoader:testClaudeSdkLoader()||(()=>import('@anthropic-ai/claude-agent-sdk'))});
+   if(native.length)messages=native;
+  }
+  body=exportConversationMarkdown({courseName,engine:'claude',messages});
+ }
  const safe=courseName.replace(/[\\/:*?"<>|]+/g,'-').replace(/^[\s.]+|[\s.]+$/g,'').trim()||'materia';
  const now=new Date(),pad=n=>String(n).padStart(2,'0');
  const name=`Mesa — ${safe} — ${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}.${pad(now.getMinutes())}.md`;
@@ -703,33 +1331,36 @@ ipcMain.handle('export-chat',async()=>{ const courseName=courses.find(c=>c.id===
  shell.showItemInFolder(r.filePath);
  return {saved:true,file:r.filePath};
 });
-ipcMain.handle('get-config',()=>({config:normalize(config),detectedPi:piBinary(),captureAvailable:captureAvailable(),platform:process.platform,needsSetup:needsSetup(config,courses),deskVersion:deskVersionLabel()}));
+ipcMain.handle('get-config',()=>({config:normalize(config),detectedPi:piBinary(),...conversationData({messages:false}),captureAvailable:captureAvailable(),platform:process.platform,needsSetup:needsSetup(config,courses),deskVersion:deskVersionLabel()}));
 ipcMain.handle('pick-folder',async()=>{const r=await dialog.showOpenDialog(win,{properties:['openDirectory']});return r.canceled?null:r.filePaths[0];});
 ipcMain.handle('pick-file',async()=>{const r=await dialog.showOpenDialog(win,{properties:['openFile']});return r.canceled?null:r.filePaths[0];});
 ipcMain.handle('pick-xopp',async()=>{const r=await dialog.showOpenDialog(win,{filters:[{name:'Xournal++',extensions:['xopp']}],properties:['openFile']});if(r.canceled)return null;const file=r.filePaths[0];allowedXopp.add(file);return file;});
 ipcMain.handle('detect-pi',()=>piBinary());
-ipcMain.handle('save-config',async(_e,next)=>{
+ipcMain.handle('save-config',async(_e,next)=>withHostNav(async()=>{
  await assertIdle('Pare a resposta antes de mudar as configurações.');
  const incoming=normalize(next||{});
  if(incoming.runtimePath&&path.resolve(incoming.runtimePath)!==path.resolve(runtime)){
   throw Error('A pasta de dados em uso não pode mudar agora. Reabra o aplicativo depois de alterar o runtime.');
  }
- if(persistConfig)writeConfig(configFile,incoming);
+ if(persistConfig)writeConfigPreservingExtras(configFile,incoming);
  config=incoming;
  courses=mergeCourses(config);
  persist();stopBridge();
- if(!courses.some(c=>c.id===courseId))applyCourse(courses[0]?.id||'');
+ if(courseId===FREE_ID)applyFreeCourse();
+ else if(!courses.some(c=>c.id===courseId))applyCourse(courses[0]?.id||FREE_ID);
  persist();buildMenu();
  return initialData();
-});
+}));
 
 ipcMain.handle('pi-connect',async()=>{
  persist();
  const b=connect();
+ if(engine()==='claude'&&!b.uncertain)await b.request('initialize_controls');
  const s=await b.request('get_state');
  const messages=await b.request('get_messages');
  const models=await b.request('get_available_models');
- return {state:s,models:models?.models||[],levels:await levelsFor(s.model),messages:trimMessageImages(messages?.messages||[]),session,sessions:courseSessions(),captureAvailable:captureAvailable(),contextUsage:await statsUsage()};
+ const controls=engine()==='claude'?await b.request('get_controls'):null;
+ return {state:s,models:models?.models||[],levels:controls?(controls.effort?['default',...(controls.levels||[])]:[]):await levelsFor(s.model),messages:trimMessageImages(messages?.messages||[]),session,sessions:courseSessions(),...conversationData({messages:false}),captureAvailable:captureAvailable(),contextUsage:await statsUsage()};
 });
 ipcMain.handle('pi-commands',async()=>{
  try{
@@ -743,6 +1374,7 @@ ipcMain.handle('pi-commands',async()=>{
  }catch{return [];}
 });
 async function statsUsage(){
+ if(engine()==='claude')return null;
  try{const stats=await connect().request('get_session_stats',{},30000);
   const usage=stats?.contextUsage;
   if(usage)return usage;
@@ -750,21 +1382,52 @@ async function statsUsage(){
  }catch{}
  return null;
 }
-ipcMain.handle('pi-health',async()=>{const state=await connect().request('get_state',{},20000);return {ok:true,isRunning:bridge.isRunning(state),isCompacting:!!state?.isCompacting,isStreaming:!!state?.isStreaming,pendingMessageCount:Number(state?.pendingMessageCount)||0,contextUsage:await statsUsage()};});
+ipcMain.handle('pi-health',async()=>{const state=await connect().request('get_state',{},20000);return {...conversationData({messages:false}),ok:true,isRunning:bridge.isRunning(state),isCompacting:!!state?.isCompacting,isStreaming:!!state?.isStreaming,pendingMessageCount:Number(state?.pendingMessageCount)||0,contextUsage:await statsUsage()};});
 ipcMain.handle('pi-compact',async(_e,instructions)=>{
+ if(engine()==='claude')throw Error('Compactação manual ainda indisponível para Claude Code.');
  await assertIdle('Pare a resposta antes de compactar.');
  const b=connect();
  const result=await b.request('compact',{customInstructions:typeof instructions==='string'&&instructions.trim()?instructions.trim().slice(0,2000):undefined},240000);
  return {summary:typeof result?.summary==='string'?result.summary.slice(0,300):'',tokensBefore:Number(result?.tokensBefore)||0};
 });
-ipcMain.handle('pi-auto-compaction',async(_e,enabled)=>{const b=connect();await b.request('set_auto_compaction',{enabled:!!enabled});const s=await b.request('get_state');return {autoCompactionEnabled:!!s.autoCompactionEnabled,contextUsage:await statsUsage()};});
+ipcMain.handle('pi-auto-compaction',async(_e,enabled)=>{if(engine()==='claude')throw Error('Controle de compactação indisponível para Claude Code.');const b=connect();await b.request('set_auto_compaction',{enabled:!!enabled});const s=await b.request('get_state');return {autoCompactionEnabled:!!s.autoCompactionEnabled,contextUsage:await statsUsage()};});
 
 async function levelsFor(model){
  if(!levelsMod)levelsMod=await loadLevelsModule(piBinary(),deskDir);
  if(!levelsMod?.getSupportedThinkingLevels)return FALLBACK_LEVELS;
  return model?levelsMod.getSupportedThinkingLevels(model):['off'];
 }
-ipcMain.handle('pi-settings',async(_e,change)=>{const b=connect();let current=await b.request('get_state');if(bridge.isRunning(current))throw Error('Aguarde ou pare a resposta antes de mudar o modelo.');if(change.model){const catalog=await b.request('get_available_models');const found=catalog.models?.find(m=>m.provider===change.model.provider&&m.id===change.model.id);if(!found)throw Error('Modelo não disponível no Pi.');await b.request('set_model',{provider:found.provider,modelId:found.id});}if(change.level){current=await b.request('get_state');if(!(await levelsFor(current.model)).includes(change.level))throw Error('Este esforço não é suportado pelo modelo.');await b.request('set_thinking_level',{level:change.level});}current=await b.request('get_state');return {state:current,levels:await levelsFor(current.model),contextUsage:await statsUsage()};});
+ipcMain.handle('pi-settings',async(_e,change={})=>{
+ if(!isPlainObject(change))throw Error('Controles inválidos.');
+ const b=connect();let current=await b.request('get_state');
+ if(bridge.isRunning(current))throw Error('Aguarde ou pare a resposta antes de mudar o modelo.');
+ if(engine()==='claude'){
+  if((Object.hasOwn(change,'model')||Object.hasOwn(change,'level'))&&(b.uncertain||conversations.readClaudeConversation(session,{runtime})?.delivery?.status==='uncertain'))throw Error('A entrega anterior está incerta; comece outra conversa para mudar os controles.');
+  const controls=await b.request('get_controls');
+  const selection={model:controls.selection?.model||null,effort:controls.selection?.effort||null};
+  const hasModel=Object.hasOwn(change,'model'),hasLevel=Object.hasOwn(change,'level');
+  if(hasModel){
+   if(!isPlainObject(change.model)||change.model.provider!=='anthropic'||typeof change.model.id!=='string')throw Error('Modelo não disponível no Claude.');
+   const catalog=await b.request('get_available_models');
+   if(!catalog.models.some(m=>m.provider==='anthropic'&&m.id===change.model.id))throw Error('Modelo não disponível no Claude.');
+   selection.model=change.model.id||null;selection.effort=null;
+  }
+  if(hasLevel){
+   // A combined patch targets the NEW model: the adapter validates its native
+   // catalog atomically before applying either value. Old levels only govern
+   // effort-only patches, never a simultaneous model change.
+   if(typeof change.level!=='string'||!['default',...CLAUDE_EFFORT_LEVELS].includes(change.level)||(!hasModel&&change.level!=='default'&&!controls.levels?.includes(change.level)))throw Error('Este esforço não é suportado pelo modelo.');
+   selection.effort=change.level==='default'?null:change.level;
+  }
+  if(hasModel||hasLevel)await b.request('set_controls',{selection});
+  current=await b.request('get_state');
+  const next=await b.request('get_controls'),catalog=await b.request('get_available_models');
+  return {state:current,models:catalog.models,levels:next.effort?['default',...(next.levels||[])]:[],...conversationData({messages:false}),contextUsage:null};
+ }
+ if(change.model){const catalog=await b.request('get_available_models');const found=catalog.models?.find(m=>m.provider===change.model.provider&&m.id===change.model.id);if(!found)throw Error('Modelo não disponível no Pi.');await b.request('set_model',{provider:found.provider,modelId:found.id});}
+ if(change.level){current=await b.request('get_state');if(!(await levelsFor(current.model)).includes(change.level))throw Error('Este esforço não é suportado pelo modelo.');await b.request('set_thinking_level',{level:change.level});}
+ current=await b.request('get_state');return {state:current,levels:await levelsFor(current.model),contextUsage:await statsUsage()};
+});
 
 ipcMain.handle('pi-prompt',async(_e,payload)=>{
  if(typeof payload.text!=='string'||payload.text.length>MAX_DRAFT)throw Error('Mensagem inválida.');
@@ -775,23 +1438,28 @@ ipcMain.handle('pi-prompt',async(_e,payload)=>{
  });
  const studyContextOff=config.desk?.studyContext===false;
  const study=studyContextOff?{title:'',xopp:''}:cleanStudy(state.study);
- const courseName=courses.find(c=>c.id===courseId)?.name||courseId||'';
+ const courseName=courseId===FREE_ID?'':(courses.find(c=>c.id===courseId)?.name||courseId||'');
  /* Proveniência do anexo: o renderer marca a captura do Xournal++ com o horário
     e o exercício que estava ativo quando ela foi feita (é o que permite avisar
     que uma captura antiga não é do exercício de agora). */
  const shot=(Array.isArray(payload.images)?payload.images:[]).find(item=>item&&typeof item==='object'&&typeof item.capturedAt==='number');
+ /* `studyContext:false` desliga o bloco de estudo inteiro. A captura continua
+    indo (imagem + horário), mas o nome do exercício gravado no anexo NÃO vai:
+    a captura pode ter sido feita antes de a flag ser desligada, então o nome
+    antigo não é o contexto atual. */
+ const capture=shot?{capturedAt:shot.capturedAt,exercise:studyContextOff?'':(typeof shot.exercise==='string'?shot.exercise:'')}:null;
  const block=buildStudyContext({
   course:studyContextOff?'':courseName,
   study:{title:study.title,xopp:study.xopp&&allowedXopp.has(study.xopp)?study.xopp:''},
   refs,
-  capture:shot?{capturedAt:shot.capturedAt,exercise:typeof shot.exercise==='string'?shot.exercise:''}:null,
+  capture,
   previousKey:lastContextKey,
  });
  if(block.text)message+='\n\n'+block.text;
  /* Bilhete da Conversa: acompanha a mensagem. A mão (`claimHand`) devolve o
     MESMO bilhete enquanto ele não tem desfecho — por isso ele não é solto
     aqui. */
- const bilhete=claimHandoff();
+ const bilhete=engine()==='pi'?claimHandoff():null;
  const bilheteText=bilhete?.block||'';
  if(bilheteText)message+='\n\n'+bilheteText;
  /* `steer` (⌘/Ctrl+⏎ com o Pi ocupado): o Pi interrompe o turno e trata esta
@@ -800,6 +1468,20 @@ ipcMain.handle('pi-prompt',async(_e,payload)=>{
     A ordem do envio (validar anexo → conectar → marcar o envio → escrever →
     confirmar → ler o estado) e o destino do bilhete em cada desfecho moram em
     `deliverPrompt` (desk/send.cjs): aqui fica só o que é do app. */
+ if(engine()==='claude'){
+  const record=conversations.readClaudeConversation(session,{runtime});
+  if(!record)return {sent:false,retryable:false,error:'O registro desta conversa Claude está indisponível. Comece uma nova conversa; o arquivo existente foi preservado.'};
+  const hasHandoff=hasClaimedHandoff||!!readHandoff({runtime}).bilhete;
+  if(hasHandoff&&!claudeHandoffNotified){handoffProblem('O bilhete da Conversa está guardado. A entrega de bilhetes ainda exige uma conversa Pi.');claudeHandoffNotified=true;}
+  if(!hasHandoff)claudeHandoffNotified=false;
+  const recovered=!bridge?conversations.recoverClaudeConversation(session,{runtime}):record;
+  if(recovered.delivery?.status==='uncertain'||bridge?.uncertain)return {sent:false,retryable:false,error:'O envio anterior ficou incerto. Abra outra conversa para continuar sem repetir a mensagem.'};
+  const images=promptImages(payload.images);
+  const b=connect();
+  const toolPolicy={readPaths:(payload.refs||[]).slice(0,2).map(r=>validPdf(r.path)),readRoots:b.toolPolicy.readRoots};
+  try{await b.request('prompt',{message,images,toolPolicy,streamingBehavior:payload.steer===true?'steer':'followUp'});lastContextKey=block.key;return {streaming:!!b.adapter.snapshot().busy};}
+  catch(error){return {sent:false,retryable:error.notSent===true,error:error.message,uncertain:error.notSent!==true};}
+ }
  return deliverPrompt({
   request:{message,streamingBehavior:payload.steer===true?'steer':'followUp'},
   images:payload.images,
@@ -808,7 +1490,7 @@ ipcMain.handle('pi-prompt',async(_e,payload)=>{
   runtime,
   connect,
   /* Aceite confirmado: o contexto do turno e o bilhete só contam como entregues aqui. */
-  onAccepted(){lastContextKey=block.key;hand.release();},
+  onAccepted(){lastContextKey=block.key;hand.release();hasClaimedHandoff=false;},
   onDelivered:handoffProblem,
   /* Envio aceito com a leitura do estado falhando: o turno vale (a mensagem
      chegou), o aviso vai para o log e o renderer mostra o mesmo texto — é o que
@@ -816,7 +1498,7 @@ ipcMain.handle('pi-prompt',async(_e,payload)=>{
   onWarning(aviso){try{appendLog('rpc',aviso);}catch{}},
   /* Escrita incerta: o bilhete sai da mão do app (fica em dúvida no disco) e o
      contexto da Mesa não entra na conta do próximo turno. */
-  onAmbiguous(aviso){hand.release();handoffProblem(aviso);},
+  onAmbiguous(aviso){hand.release();hasClaimedHandoff=false;handoffProblem(aviso);},
   /* Recusa comprovada (o bridge prova que nada foi escrito): o bilhete continua
      na mão para a próxima tentativa e a próxima abertura o devolve para a fila.
      O contexto do turno não conta como enviado. */
@@ -830,27 +1512,164 @@ ipcMain.handle('pi-abort',async()=>{if(bridge){await bridge.request('clear_queue
 ipcMain.handle('pi-response',(_e,data)=>{
  const id=typeof data?.id==='string'?data.id:'';
  if(!id||!pendingDialogs.has(id))throw Error('Não há diálogo pendente para esta resposta.');
- pendingDialogs.delete(id);
  const payload={id};
  if(typeof data.value==='string')payload.value=data.value;
  if(data.confirmed===true)payload.confirmed=true;
  if(data.cancelled===true)payload.cancelled=true;
- connect().respond(payload);
+ if(engine()==='claude'&&data.answers!==undefined){
+  if(!isPlainObject(data.answers)||Object.keys(data.answers).length>16)throw Error('Respostas inválidas.');
+  const answers=Object.create(null);
+  for(const [question,value] of Object.entries(data.answers)){
+   if(!question||question.length>4000)throw Error('Pergunta inválida.');
+   if(typeof value==='string'&&value.length<=4000)answers[question]=value;
+   else if(Array.isArray(value)&&value.length<=32&&value.every(v=>typeof v==='string'&&v.length<=4000))answers[question]=value;
+   else throw Error('Resposta inválida.');
+  }
+  payload.answers=answers;
+ }
+ const result=connect().respond(payload);
+ if(engine()==='claude'&&result?.ok===false)throw Error('A resposta não foi aceita pelo pedido atual. Confira as opções e tente novamente.');
+ pendingDialogs.delete(id);
+ return result;
 });
-ipcMain.handle('new-session',async()=>{
+/* ---------- chat lateral: IPC e listagem de conversas ----------
+   O manager valida escopo (conversa principal + matéria) e limites; o preload
+   já corta o que é obviamente inválido. A listagem é SÓ leitura do que o main
+   já tem em memória (`courseSessions`), sem iniciar agente nem escrever nada. */
+ipcMain.handle('sidechat-open',(_e,payload)=>sidechatManager.open(payload||{}));
+ipcMain.handle('sidechat-read',(_e,payload)=>sidechatManager.read(payload||{}));
+ipcMain.handle('sidechat-prompt',(_e,payload)=>sidechatManager.prompt(payload||{}));
+ipcMain.handle('sidechat-abort',(_e,payload)=>sidechatManager.abort(payload||{}));
+ipcMain.handle('sidechat-save',(_e,payload)=>sidechatManager.save(payload||{}));
+ipcMain.handle('sidechat-context',(_e,payload)=>sidechatManager.context(payload||{}));
+ipcMain.handle('sidechat-respond',(_e,payload)=>sidechatManager.respond(payload||{}));
+ipcMain.handle('conversation-list',()=>conversationList(courseSessions()));
+ipcMain.handle('new-session',async(_e,options={})=>withHostNav(async()=>{
+ if(options.engine!=null&&!['pi','claude'].includes(options.engine))throw Error('Agente inválido.');
  await assertIdle('Pare a resposta antes de começar outra conversa.');
- rememberSession();stopBridge();session=path.join(runtime,`pi-${Date.now()}.jsonl`);lastContextKey='';state={...state,draft:'',study:{title:'',xopp:''}};persist();
- return {session,sessions:courseSessions(),state,pending:pending.readPending(runtime,session),resume:resumePayload(),bookmarks:bookmarksPayload(),review:reviewPayload()};
-});
-ipcMain.handle('open-session',async(_e,file)=>{
- if(typeof file!=='string')throw Error('Sessão inválida.');
- if(file===session)return {session,sessions:courseSessions(),pending:pending.readPending(runtime,session),resume:resumePayload(),bookmarks:bookmarksPayload()};
+ if(courseId===FREE_ID){
+  /* Conversa Livre nova: workspace/vazio próprio, caminho nativo único (Pi
+     nasce sem JSONL — o store lista mesmo assim) e caminho pelo seletor. */
+  persist();stopBridge();
+  createFreeSession(options.engine==='claude'?'claude':'pi');
+  lastContextKey='';allowedXopp.clear();state={...state,draft:'',study:{title:'',xopp:''}};
+  persist();
+  return initialData();
+ }
+ rememberSession();stopBridge();session=options.engine==='claude'?conversations.createClaudeConversation({runtime,courseId}):path.join(runtime,`pi-${Date.now()}.jsonl`);lastContextKey='';state={...state,draft:'',study:{title:'',xopp:''}};persist();
+ return initialData();
+}));
+ipcMain.handle('open-session',async(_e,file)=>withHostNav(async()=>{
+ if(typeof file!=='string'||!file)throw Error('Sessão inválida.');
+ if(courseId===FREE_ID){
+  const record=freeRecordForToken(file);
+  if(!record)throw Error('Sessão não encontrada nesta matéria.');
+  /* Conversa promovida não pode continuar em dois escopos: a lista do Livre
+     continua mostrando o título, mas abrir leva para a matéria de destino. */
+  if(isPromotedRecord(record)){
+   const promoted=courses.find(c=>c.id===record.promotion.courseId);
+   if(!promoted)throw Error('Esta conversa já foi promovida para uma matéria que não está configurada.');
+   await assertIdle('Pare a resposta antes de trocar de conversa.');
+   persist();stopBridge();applyCourse(promoted.id);persist();
+   return initialData();
+  }
+  if(record.nativePath&&record.nativePath===session)return initialData();
+  await assertIdle('Pare a resposta antes de trocar de conversa.');
+  const target=record.nativePath?record:ensureFreeNativePath(record);
+  persist();stopBridge();hydrateFreeRecord(target);lastContextKey='';allowedXopp.clear();persist();
+  return initialData();
+ }
+ if(file===session)return initialData();
  const allowedSessions=courseSessions();
  if(!allowedSessions.some(s=>s.path===file))throw Error('Sessão não encontrada nesta matéria.');
  if(!fs.existsSync(file))throw Error('Arquivo da sessão não existe mais.');
  await assertIdle('Pare a resposta antes de trocar de conversa.');
  rememberSession();stopBridge();session=file;lastContextKey='';allowedXopp.clear();state={...state,draft:'',study:authorizeRestoredStudy(sessionStudy(file),allowedXopp)};persist();
- return {session,sessions:courseSessions(),state,pending:pending.readPending(runtime,session),resume:resumePayload(),bookmarks:bookmarksPayload()};
+ return initialData();
+}));
+/* ---------- APIs da aba Livre (preload: freeOpenPdf/freeSaveMaterial/…) ----------
+   Todas capturam o escopo no começo, rechecam depois de cada await (diálogo
+   nativo/render) e só então gravam; a mutação bloqueia troca/nova conversa/abrir
+   e o save de config. O resultado é SEMPRE o initialData integral — o renderer
+   reaplica com `loadCourse` sem perder tema/rascunho/fila/leitores. */
+ipcMain.handle('free-open-pdf',async()=>{
+ const out=await freeMutate('open-pdf',async()=>{
+  if(!isFree()||!freeSessionId)throw Error('A sessão Livre não está ativa.');
+  const record=free.findWorkspace(runtime,freeSessionId);
+  if(!record)throw Error('A sessão Livre não está disponível.');
+  const scope=free.captureScope(runtime,freeSessionId);
+  await assertIdle('Pare a resposta antes de abrir um PDF.');
+  const picked=await dialog.showOpenDialog(win,{title:'Abrir PDF na sessão Livre',filters:[{name:'PDF',extensions:['pdf']}],properties:['openFile']});
+  if(picked.canceled||!picked.filePaths[0])return {cancelled:true};
+  free.assertScope(runtime,scope);
+  if(!isFree()||freeSessionId!==record.id)throw Error('A sessão Livre mudou; o PDF não foi importado.');
+  const imported=free.importPdf(runtime,record.id,{sourcePath:picked.filePaths[0],name:path.basename(picked.filePaths[0])});
+  focusFreeMaterial(imported.material);
+  persist();
+  return {cancelled:false};
+ });
+ if(out.cancelled)return {cancelled:true};
+ return initialData();
+});
+ipcMain.handle('free-save-material',async(_e,payload)=>{
+ const title=typeof payload?.title==='string'?payload.title.slice(0,free.maxTitle()):'';
+ const markdown=typeof payload?.markdown==='string'?payload.markdown:'';
+ const material=await freeMutate('save-material',async()=>{
+  if(!isFree()||!freeSessionId)throw Error('A sessão Livre não está ativa.');
+  const record=free.findWorkspace(runtime,freeSessionId);
+  if(!record)throw Error('A sessão Livre não está disponível.');
+  const scope=free.captureScope(runtime,freeSessionId);
+  free.assertScope(runtime,scope);
+  await assertIdle('Pare a resposta antes de gerar o PDF.');
+  const controller=new AbortController();
+  freeJobs.add(controller);
+  try{
+   const saved=await free.saveMaterial(runtime,record.id,{title,markdown,signal:controller.signal,timeoutMs:60000});
+   /* O próprio `saveMaterial` bumpa o `rev` ao registrar o material; o que
+      precisa continuar verdadeiro depois do render é o ESCOPO (a sessão ativa
+      não trocou). Troca/nova conversa/abrir ficam bloqueadas pela mutação. */
+   if(!isFree()||freeSessionId!==record.id)throw Error('A sessão Livre mudou; o PDF não foi vinculado.');
+   if(typeof payload?.draftId==='string'&&free.findWorkspace(runtime,record.id)?.pdfDraft?.id===payload.draftId){
+    try{free.updateWorkspace(runtime,record.id,{pdfDraft:null});}catch(error){appendLog('tutor-pdf',`PDF salvo; não foi possível limpar o rascunho: ${error.message}`);}
+   }
+   focusFreeMaterial(saved.material);
+   persist();
+   return saved.material;
+  }finally{freeJobs.delete(controller);}
+ });
+ return {saved:true,material,data:initialData()};
+});
+ipcMain.handle('free-rename',async(_e,payload)=>{
+ const title=typeof payload?.title==='string'?payload.title.slice(0,free.maxTitle()):'';
+ await freeMutate('rename',async()=>{
+  if(!isFree()||!freeSessionId)throw Error('A sessão Livre não está ativa.');
+  const record=free.findWorkspace(runtime,freeSessionId);
+  if(!record)throw Error('A sessão Livre não está disponível.');
+  free.renameWorkspace(runtime,record.id,title);
+  persist();
+ });
+ return initialData();
+});
+ipcMain.handle('free-promote',async(_e,payload)=>{
+ const name=typeof payload?.name==='string'?payload.name.trim():'';
+ if(!name)throw Error('Dê um nome à nova matéria.');
+ const out=await freeMutate('promote',async()=>{
+  if(!isFree()||!freeSessionId)throw Error('A sessão Livre não está ativa.');
+  const record=free.findWorkspace(runtime,freeSessionId);
+  if(!record)throw Error('A sessão Livre não está disponível.');
+  if(isPromotedRecord(record))throw Error('Esta conversa já foi promovida para uma matéria.');
+  const scope=free.captureScope(runtime,freeSessionId);
+  await assertIdle('Pare a resposta antes de criar a matéria.');
+  /* A prévia/confirmação fica na UI; aqui só a escolha NATIVA da pasta-mãe. */
+  const picked=await dialog.showOpenDialog(win,{title:'Escolha a pasta que vai receber a matéria',properties:['openDirectory','createDirectory']});
+  if(picked.canceled||!picked.filePaths[0])return {cancelled:true};
+  free.assertScope(runtime,scope);
+  if(!isFree()||freeSessionId!==record.id)throw Error('A sessão Livre mudou; nada foi criado.');
+  const created=await runFreePromotion({record,parentDir:picked.filePaths[0],name});
+  return {cancelled:false,course:created.course};
+ });
+ if(out.cancelled)return {cancelled:true};
+ return {created:true,course:out.course,data:initialData()};
 });
 ipcMain.handle('capture-ready',async()=>{
  /* Windows: janela do Xournal++ via PowerShell/.NET do sistema (capture-win.cjs)
@@ -969,16 +1788,16 @@ ipcMain.handle('open-external',(_e,url)=>{
  return shell.openExternal(url);
 });
 /* Checagem automática 1×/dia (Mesa + Pi): silenciosa, não bloqueante, cache no
-   runtime. O aviso é discreto — um toast por versão + a linha do Sobre. */
+   runtime. O aviso fica no cabeçalho em toda abertura enquanto houver atualização. */
 function scheduleUpdateCheck(){
  if(TEST_MODE)return;
  setTimeout(async()=>{
   try{
    const r=await updater.checkForUpdates({current:app.getVersion(),manual:false,cacheFile:updateCacheFile});
-   await updater.piLatest({cacheFile:updateCacheFile});
-   if(r.status==='update'&&r.version&&await updater.markToasted(updateCacheFile,r.version)&&win&&!win.isDestroyed()){
+   if(r.status==='update'&&r.version&&win&&!win.isDestroyed()){
     win.webContents.send('update-available',{version:r.version});
    }
+   await updater.piLatest({cacheFile:updateCacheFile});
   }catch{}
  },5000);
 }
@@ -1122,4 +1941,4 @@ function startGgbBridge(){
  });
 }
 
-app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>{activeReviewDraft?.controller.abort();bridge?.removeAllListeners();bridge?.stop();try{if(ggbServer){ggbServer.close();ggbServer=null;}}catch{}try{fs.rmSync(ggbBridgeFile,{force:true});}catch{}persist();});
+app.on('window-all-closed',()=>app.quit());app.on('before-quit',()=>{quitting=true;tutorMaterialBridge.close().catch(()=>{});try{sidechatManager?.suspend('encerrando o aplicativo');}catch{}activeReviewDraft?.controller.abort();for(const controller of freeJobs)try{controller.abort();}catch{}bridge?.removeAllListeners();bridge?.stop();try{if(ggbServer){ggbServer.close();ggbServer=null;}}catch{}try{fs.rmSync(ggbBridgeFile,{force:true});}catch{}persist();});

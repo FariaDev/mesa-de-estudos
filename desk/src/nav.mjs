@@ -101,6 +101,19 @@ function panelOfNode(node){
 function navButtonOf(panel){return panel?.el?.querySelector?.('.pdf-title button.nav')||null;}
 function popoverOf(panel){return panel?.el?.querySelector?.('.pdf-nav-pop')||null;}
 
+/* Rótulo do botão do livro (pedido 5): o texto canônico é do núcleo
+   (`pdfnav.bend`); este reforço garante "Sumário e favoritos" no título e no
+   nome acessível mesmo em artefato antigo — sem duplicar ícone/botão. */
+function labelNavButton(panel){
+ const button=navButtonOf(panel);
+ if(!button)return;
+ const label=String(panel?.label||'').trim();
+ const wanted=label?`Sumário e favoritos de ${label}`:'Sumário e favoritos';
+ const aria=button.getAttribute('aria-label')||'';
+ if(!aria.includes('Sumário'))button.setAttribute('aria-label',wanted);
+ if(button.getAttribute('title')!=='Sumário e favoritos')button.title='Sumário e favoritos';
+}
+
 /* As listas do host viram as listas do núcleo (`Bookmark`/`OutlineEntry`) —
    Nat é BigInt, como em todo artefato. */
 function bendBooks(items){
@@ -147,6 +160,7 @@ function mountPopover(panel){
 export async function toggleNav(panel){
  if(!panel?.el)return;
  mountPopover(panel);
+ labelNavButton(panel);
  const pop=popoverOf(panel);
  if(!pop)return;
  pop.hidden=!pop.hidden;
@@ -247,3 +261,7 @@ document.addEventListener('keydown',event=>{
 document.addEventListener('change',event=>{
  if(event.target?.classList?.contains('pdf-select'))clearNavStacks();
 },true);
+
+/* Os leitores nascem a cada matéria; o rótulo do livro entra junto com o chrome
+   (o painel 2 pode estar no slot da área de apoio, mas continua em S.panels). */
+window.addEventListener('desk-chrome',()=>{for(const panel of S.panels||[])labelNavButton(panel);});

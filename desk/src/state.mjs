@@ -2,9 +2,10 @@ import {icon} from '../icons.mjs';
 import {showHistory,resetAttachments,restoreAttachments} from './chat.mjs';
 import {adopt as adoptQueue} from './queue.mjs';
 import {renderResumeCard} from './resume.mjs';
-import {PdfPanel,makePdfDivider,setPdfSplitPct,pdfSplitValue} from './pdf.mjs';
+import {PdfPanel,makePdfDivider,setPdfSplitPct,pdfSplitValue,pdfRotationsSnapshot,restorePdfRotations} from './pdf.mjs';
 import {deactivateGeogebra} from './ggb.mjs';
 import {initCalculator} from './calc.mjs';
+import {beginCourse as beginSupport,attachPanels as attachSupport} from './support.mjs';
 import toastCore from './generated/toastview.core.js';
 import statusCore from './generated/statusview.core.js';
 import deskFlagsCore from './generated/deskflags.core.js';
@@ -12,9 +13,88 @@ import welcomeCore from './generated/welcomeview.core.js';
 import {build,childrenOf,preserveFocus,renderChildren,renderInto} from './view-host.mjs';
 import {footValues} from './status-foot.mjs';
 import {applyHelpFlags} from './dialogs.mjs';
+import deliveryCore from './generated/agentdelivery.core.js';
 
 export function $(s){return document.querySelector(s);}
-export const S={supportsImages:true,switching:false,modelCatalog:[],library:[],panels:[],pdfDivider:null,connected:false,connecting:null,busy:false,busySince:0,busyStall:0,healthFails:0,refVisible:true,saveTimer:0,currentSession:'',captureOk:false,includeRefs:true,appConfig:{},quizQueue:[],dialogPending:false,activeCourseName:'',currentTheme:'auto',ggbActive:false,currentCourseId:'',autoCompact:false,bookmarks:[],reviewItems:[],reviewActive:false,attachments:[],attachGen:0,deskVersion:''};
+export const S={supportsImages:true,switching:false,modelCatalog:[],library:[],panels:[],pdfDivider:null,connected:false,connecting:null,busy:false,busySince:0,busyStall:0,healthFails:0,refVisible:true,saveTimer:0,currentSession:'',captureOk:false,includeRefs:true,appConfig:{},quizQueue:[],dialogPending:false,activeCourseName:'',currentTheme:'auto',ggbActive:false,currentCourseId:'',workspace:null,autoCompact:false,bookmarks:[],reviewItems:[],reviewActive:false,attachments:[],attachGen:0,deskVersion:'',engine:'pi',agentLabel:'Pi',capabilities:null,conversationStatus:null,uncertain:false,turnCancelled:false};
+/* Motor da conversa corrente e capacidades do transporte (contrato do host:
+   `engine`, `agentLabel`, `capabilities` vêm em initialData/connect/troca de
+   conversa). Sem metadados, vale o comportamento atual do Pi — a UI não pode
+   esconder recurso de um motor só porque o host é mais antigo. A escolha do
+   motor da PRÓXIMA conversa mora no `#new-session-engine`; o rótulo e o status
+   seguem a conversa, nunca o seletor. */
+const CAP_KEYS=['images','permissions','steer','compact','autoCompaction','modelSelection','effort','reviewDraft','handoff','commands','geogebra','quiz','contextUsage'];
+const ENGINE_LABELS={pi:'Pi',claude:'Claude Code'};
+export function engineLabel(engine){return ENGINE_LABELS[engine==='claude'?'claude':'pi'];}
+function defaultCapabilities(engine){const out={};for(const key of CAP_KEYS)out[key]=engine!=='claude';return out;}
+function normalizeCapabilities(raw,engine){
+ const source=raw&&typeof raw==='object'?raw:null;
+ const out={};
+ for(const key of CAP_KEYS)out[key]=source&&Object.prototype.hasOwnProperty.call(source,key)?source[key]===true:engine!=='claude';
+ return out;
+}
+export function capabilities(){return S.capabilities||defaultCapabilities(S.engine);}
+export function supportsCapability(key){return capabilities()[key]===true;}
+/* A fila só avança com a decisão provada do núcleo (`core/agentdelivery.bend` →
+   `mayAdvanceQueue`): sem turno aberto, sem pedido de permissão pendente, sem
+   entrega incerta e sem cancelamento recente. Os fatos são reais — `busy` do
+   turno, `dialogPending` do diálogo aberto/fila, a incerteza fixada pela
+   conversa e o cancelamento do último turno. */
+export function mayAdvanceQueue(){return deliveryCore.mayAdvanceQueue(!!S.busy,!!S.dialogPending,!!S.uncertain,!!S.turnCancelled);}
+/* Metadados do motor chegam em initialData/connect/new-session/open-session/
+   switch-course. `capabilities` é o nome congelado; `caps` é aceito por
+   compatibilidade com o serviço em transição. */
+function applyEngineData(data){
+ if(!data||typeof data!=='object'||(data.engine!=='pi'&&data.engine!=='claude'))return false;
+ S.engine=data.engine;
+ S.agentLabel=String(data.agentLabel||engineLabel(S.engine));
+ S.capabilities=normalizeCapabilities(data.capabilities||data.caps,S.engine);
+ if(data.conversationStatus!==undefined)S.conversationStatus=data.conversationStatus&&typeof data.conversationStatus==='object'?data.conversationStatus:null;
+ else if(typeof data.session==='string')S.conversationStatus=null;
+ /* Fatos da fila por conversa: a incerteza vem do registro (o host a mantém
+    até outra conversa) e o cancelamento é do turno, não da conversa — some na
+    troca e no primeiro turno novo. */
+ S.uncertain=!!(S.conversationStatus&&S.conversationStatus.uncertain);
+ if(typeof data.session==='string'&&data.session!==S.currentSession)S.turnCancelled=false;
+ const picker=$('#new-session-engine');
+ if(picker)picker.value=S.engine;
+ applyEngineFacts();
+ return true;
+}
+/* O que o motor permite esconde/mostra na interface viva. Idempotente: pode ser
+   chamado no boot, em cada troca e a cada connect. */
+function applyEngineFacts(){
+ const caps=capabilities();
+ const prompt=$('#prompt');
+ if(prompt)prompt.setAttribute('aria-label',`Mensagem para ${S.agentLabel}`);
+ const connectButton=$('#connect');
+ if(connectButton)labelBtn(connectButton,'plug',`Conectar ao ${S.agentLabel}`);
+ /* Rótulo do topo sem conexão (offline/sem login/sem binário): vale o rótulo
+    do motor — a conversa Claude nunca aparece como "Pi" só porque o connect
+    falhou. Com o Pi conectado, o `updateSettings` troca pelo nome do modelo. */
+ if(S.engine!=='pi'||!S.connected){const label=$('#pi-label');if(label)label.textContent=S.agentLabel;}
+ const modelField=$('#model-field');if(modelField)modelField.hidden=caps.modelSelection!==true;
+ const effortField=$('#effort-field');if(effortField)effortField.hidden=caps.effort!==true;
+ const modelSelect=$('#model-select');if(modelSelect&&caps.modelSelection!==true)modelSelect.disabled=true;
+ const effortSelect=$('#thinking-select');if(effortSelect&&caps.effort!==true)effortSelect.disabled=true;
+ const auto=$('#auto-compact');if(auto&&caps.autoCompaction!==true)auto.hidden=true;
+ /* "Resumir contexto" manual: só existe onde o motor compacta; a explicação é
+    real (Claude experimental não oferece a compactação pela Mesa — nada de
+    chamar o Pi no lugar). O botão vive no painel Ajustes (settings-panel). */
+ const compactNow=$('#compact-now');
+ if(compactNow){
+  const canCompact=caps.compact===true;
+  compactNow.disabled=!canCompact;
+  compactNow.title=canCompact
+   ?'Resumir o contexto da conversa principal agora'
+   :'Indisponível neste motor: o Claude Code (experimental) não expõe compactação pela Mesa.';
+ }
+ if(caps.contextUsage!==true)updateMeter(null);
+ /* Avisa o painel Ajustes (settings-panel) para re-sincronizar os controles de
+    resumo; o evento evita o ciclo de imports state ↔ settings-panel. */
+ try{window.dispatchEvent(new Event('desk-engine-facts'));}catch{}
+ refreshHint();
+}
 /* Fila de toasts e faixa de atividade desenhadas pelo núcleo provado
    (`core/toastview.bend` → `toastview.core.js`). O host mantém os elementos
    vivos e os timers: a saída é uma transição no nó que já está no DOM, e
@@ -80,31 +160,113 @@ export function connectionState(state,label){
 export function activity(text){const box=$('#activity');if(box)applyView(box,toastCore.activityView(String(text||'')));}
 /* Passo ao vivo no lugar da linha simples: ponto pulsante + rótulo curto. */
 export function activityLive(text){const box=$('#activity');if(box)applyView(box,toastCore.activityLiveView(String(text||'')));}
-/* Rolagem: seguir só quando o usuário já está no fim (medido antes da mutação). */
+/* Rolagem: seguir só quando o usuário já está no fim (medido antes da mutação).
+   Em janelas baixas (media query `max-height:700px`) o `#chat` vira o scroller
+   e o `#messages` cresce com o conteúdo; nos tamanhos normais o `#messages`
+   continua sendo o scroller — até que o conteúdo deixe de caber (Ajustes
+   aberto, calculadora grande, anexos…). Aí o host liga `body.chat-scroll` e a
+   conversa entra no MESMO modo da janela baixa: o `#chat` rola, o `#messages`
+   cresce; nesse modo adaptativo o composer fica ao fim, sem cobrir mensagens.
+   O que decide é o overflow real da coluna,
+   não a altura da janela: o composer nunca mais vaza por cima da calculadora. */
+function messageScroller(){
+ const chat=$('#chat'),messages=$('#messages');
+ if(chat&&messages&&chat.scrollHeight>chat.clientHeight+1)return chat;
+ return messages;
+}
+/* Mede se a coluna precisa do modo de rolagem e liga/desliga
+   `body.chat-scroll`. Em coluna normal o painel Ajustes encolhe sozinho
+   (flex) — o overflow real só aparece quando nem o piso do painel basta; aí o
+   modo rolagem liga. No modo rolagem o painel fica inteiro e o #messages cresce
+   com o conteúdo, então o modo sai quando o normal caberia de novo com o painel
+   no piso (32px = o toggle) e o #messages nos 84px mínimos — os dois modos
+   medem o mesmo composer, então a conta fecha sem piscar. Entrar leva a
+   conversa ao fim quando ela já estava no fim (o composer não deve nascer
+   escondendo a última mensagem). Em `max-height:700px` quem manda é a media
+   query — a classe não é usada. */
+export function syncChatScrollMode(){
+ const chat=$('#chat');if(!chat)return;
+ const compact=window.matchMedia?.('(max-height:700px)')?.matches===true;
+ const on=document.body.classList.contains('chat-scroll');
+ if(compact){if(on)document.body.classList.remove('chat-scroll');return;}
+ const messages=$('#messages');
+ if(on&&messages){
+  const panel=$('#pi-settings-panel');
+  const panelH=panel?panel.getBoundingClientRect().height:0;
+  const panelFloor=panel?32:0;
+  const chrome=chat.scrollHeight-messages.getBoundingClientRect().height;
+  if(chrome-panelH+panelFloor+84>chat.clientHeight+1)return;
+  document.body.classList.remove('chat-scroll');
+  return;
+ }
+ if(chat.scrollHeight>chat.clientHeight+1){
+  const stick=!messages||messages.scrollHeight-messages.scrollTop-messages.clientHeight<=80;
+  document.body.classList.add('chat-scroll');
+  if(stick)chat.scrollTop=chat.scrollHeight;
+ }
+}
+let chatScrollWatch=null,chatScrollFrame=0;
+/* O ResizeObserver entrega no meio do próprio layout: ligar/desligar
+   `body.chat-scroll` ali dentro re-dispara notificações ainda na mesma entrega
+   ("ResizeObserver loop completed with undelivered notifications"). O sync do
+   observador vai para o próximo frame (singular); as chamadas explícitas
+   (histórico/Ajustes) continuam síncronas, que é o contrato delas. */
+function scheduleChatScrollMode(){
+ cancelAnimationFrame(chatScrollFrame);
+ chatScrollFrame=requestAnimationFrame(()=>{chatScrollFrame=0;syncChatScrollMode();});
+}
+/* A coluna muda de tamanho por causa dela mesma (janela/divisória) ou do que
+   entra nela (Ajustes, estudo, anexos, fila, mensagens). Observar o #chat e os
+   filhos cobre os dois: o RO avisa quando qualquer um desses caixas muda. */
+function watchChatScroll(){
+ const chat=$('#chat');if(!chat||chatScrollWatch)return;
+ chatScrollWatch=new ResizeObserver(scheduleChatScrollMode);
+ chatScrollWatch.observe(chat);
+ for(const el of [chat.querySelector('.chat-head'),$('#pi-settings-panel'),$('#study-context'),$('#messages'),$('#activity'),$('#composer')]){
+  if(el)chatScrollWatch.observe(el);
+ }
+ syncChatScrollMode();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watchChatScroll,{once:true});else watchChatScroll();
 export function atBottom(threshold=80){
- const el=$('#messages');
+ const el=messageScroller();
  if(!el)return true;
  return el.scrollHeight-el.scrollTop-el.clientHeight<=threshold;
 }
 export function followBottom(stick){
  if(!stick)return;
- const el=$('#messages');
+ const el=messageScroller();
  if(el)el.scrollTop=el.scrollHeight;
 }
-function pdfSnapshot(){return S.panels.map(p=>({path:p.path,page:p.page,zoom:p.zoom,scrollX:p.scrollX||0,scrollY:p.scrollY||0,invert:!!p.invert,minimized:!!p.minimized}));}
+function pdfSnapshot(){return S.panels.map(p=>({path:p.path,page:p.page,zoom:p.zoom,rotation:p.rotation||0,scrollX:p.scrollX||0,scrollY:p.scrollY||0,invert:!!p.invert,minimized:!!p.minimized}));}
 export function calcHeightPx(){return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))||220;}
 export function studySnapshot(){return {title:$('#exercise-title').value.trim(),xopp:$('#pick-xopp').dataset.path||''};}
 /* Páginas abertas (caminho + página) para o registro do Encerrar: os PDFs da
    mesa na ordem dos painéis — a forma e o teto saem do núcleo (`core/resume.bend`). */
 export function pageRefs(){return S.panels.filter(p=>p.path).map(p=>({path:p.path,page:p.page}));}
-export function layoutSnapshot(){return {draft:$('#prompt').value,study:studySnapshot(),pdfs:pdfSnapshot(),pdfSplit:pdfSplitValue(),referenceVisible:S.refVisible,chatWidth:parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat')),calcHeight:calcHeightPx(),theme:S.currentTheme};}
+export function layoutSnapshot(){return {draft:$('#prompt').value,study:studySnapshot(),pdfs:pdfSnapshot(),pdfRotations:pdfRotationsSnapshot(),pdfSplit:pdfSplitValue(),referenceVisible:S.refVisible,chatWidth:parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat')),calcHeight:calcHeightPx(),theme:S.currentTheme};}
 export function save(immediate=false){clearTimeout(S.saveTimer);if(immediate){window.desk.save(layoutSnapshot()).catch(e=>toast(e.message));return;}S.saveTimer=setTimeout(()=>window.desk.save(layoutSnapshot()).catch(e=>toast(e.message)),400);}
 export function refs(){return S.includeRefs?S.panels.filter((p,i)=>p.path&&(i===0||S.refVisible)).map(p=>({path:p.path,page:p.page})):[];}
+/* Estado das referências no composer (pedido 4): texto claro + detalhes no
+   popover. O toggle continua sendo o `#include-refs`; este botão só informa. */
+function refsStateText(list){if(!S.includeRefs||!list.length)return 'Sem referências';return 'PDF e página incluídos';}
+export function updateRefsState(){
+ const button=$('#refs-state');
+ if(!button)return;
+ const list=refs();
+ const text=refsStateText(list);
+ if(button.textContent!==text)button.textContent=text;
+ button.dataset.state=text==='Sem referências'?'off':'on';
+ button.title=text==='Sem referências'
+  ?'Nenhuma referência de PDF vai junto desta mensagem — clique para ver os detalhes'
+  :'Clique para ver quais caminhos e páginas vão junto desta mensagem';
+}
 export function updateContextSummary(){
- const parts=[];if(S.activeCourseName)parts.push(S.activeCourseName);const study=studySnapshot();if(study.title)parts.push(study.title);if(study.xopp)parts.push(study.xopp.split(/[/\\]/).at(-1));
+ const parts=[];const enabled=S.appConfig.desk?.studyContext!==false;if(enabled&&S.activeCourseName)parts.push(S.activeCourseName);const study=enabled?studySnapshot():{};if(study.title)parts.push(study.title);if(study.xopp)parts.push(study.xopp.split(/[/\\]/).at(-1));
  const open=refs();if(open.length)parts.push(open.map(r=>`${r.path.split(/[/\\]/).at(-1)} p.${r.page}`).join(', '));
  $('#context-summary').textContent='Contexto enviado: '+(parts.length?parts.join(' · '):'nenhum');
  $('#context-summary').title=$('#context-summary').textContent;
+ updateRefsState();
 }
 export function updateWindowTitle(){document.title=[S.appConfig.desk?.title||'Mesa de Estudos',S.activeCourseName,S.panels[0]?.doc?`p. ${S.panels[0].page}`:''].filter(Boolean).join(' — ');}
 function compactCount(value){
@@ -123,6 +285,7 @@ function compactCount(value){
    e vai pelo `#ctx-tip` da onda 4. */
 function updateMeter(usage){
  const meter=$('#ctx-meter');if(!meter)return;
+ if(capabilities().contextUsage!==true)usage=null;
  const visible=!!usage&&Number.isFinite(usage.percent);
  const pct=visible?Math.round(Math.min(100,Math.max(0,Number(usage.percent)))):0;
  const nat=BigInt(pct);
@@ -155,7 +318,7 @@ function setMeterTip(text){
  const meter=$('#ctx-meter'),tip=$('#ctx-tip');
  if(!meter||!tip)return;
  meter._tipText=String(text||'');
- if(tip.textContent===meter._tipText)return;
+ if(tip.textContent===meter._tipText){placeMeterTip();return;}
  paintMeterTip(tip.hidden);
  placeMeterTip();
 }
@@ -180,7 +343,12 @@ export function toggleMeterTip(){
  if(!text)return;
  paintMeterTip(false);setMeterTip(text);
 }
-export async function refreshMeter(){try{const data=await window.desk.health();if(data?.contextUsage)updateMeter(data.contextUsage);}catch{}}
+export async function refreshMeter(){
+ /* O medidor é genérico: quem informa o uso é `health().contextUsage`; motor
+    sem a capacidade não mostra medidor (o host pode responder sem ele). */
+ if(capabilities().contextUsage!==true){updateMeter(null);return;}
+ try{const data=await window.desk.health();if(data?.contextUsage)updateMeter(data.contextUsage);}catch{}
+}
 /* O botão é árvore do núcleo (`statusview.autoCompact`): `hidden` sem conexão,
    `aria-pressed` + `.on` e o tooltip em `data-tip`. O elemento do index.html
    fica (o texto e o `onclick` são dele); o `title` estático vira o `data-tip`
@@ -190,9 +358,11 @@ const AUTO_COMPACT_TIP=$('#auto-compact')?.getAttribute('title')||'';
 function renderAutoCompact(piState){
  const button=$('#auto-compact');if(!button)return;
  S.autoCompact=!!piState?.autoCompactionEnabled;
- applyAttrs(button,statusCore.autoCompact(!!S.connected,S.autoCompact,AUTO_COMPACT_TIP),['class','hidden','title']);
+ const canAuto=capabilities().autoCompaction===true;
+ applyAttrs(button,statusCore.autoCompact(!!S.connected&&canAuto,S.autoCompact,AUTO_COMPACT_TIP),['class','hidden','title']);
 }
 $('#auto-compact').onclick=async()=>{
+ if(capabilities().autoCompaction!==true){toast('A compactação automática não está disponível neste motor.');return;}
  const button=$('#auto-compact');
  try{
   const r=await window.desk.autoCompaction(button.getAttribute('aria-pressed')!=='true');
@@ -215,9 +385,15 @@ function sessionChoices(sessions){
  return out;
 }
 export function fillSessions(data){
+ /* Metadados do motor (engine/agentLabel/capabilities) entram ANTES do
+    connect: o rótulo, o seletor da próxima conversa e os controles gated
+    dependem da conversa que está abrindo. */
+ if(data&&typeof data==='object')applyEngineData(data);
  const sel=$('#session-select');if(!sel)return;
+ const previousSession=S.currentSession;
  S.currentSession=data.session||S.currentSession;
- const node=statusCore.sessionSelect(S.currentSession,!!sel.disabled,sessionChoices(data.sessions));
+ if(previousSession!==S.currentSession)window.dispatchEvent(new Event('desk-conversation-changed'));
+ const node=statusCore.sessionSelect(S.currentSession,!!(S.busy||S.connecting||S.switching),sessionChoices(data.sessions));
  applyAttrs(sel,node);
  renderChildren(sel,childrenOf(node.kids));
  /* Caminho fora da lista: o app zera a seleção (o browser escolheria a 1ª). */
@@ -229,21 +405,66 @@ export function applyStudy(study={}){$('#exercise-title').value=study.title||'';
    só deste applier; o hidden é do `core/deskflags.bend` (flag conferir). */
 function conferirEnabled(){return S.captureOk&&!S.busy;}
 function updateCheckButton(){const el=$('#check');if(!el)return;el.disabled=!conferirEnabled();el.title=S.captureOk?'Anexar a captura do Xournal++ à mensagem':'Conferir Xournal++ indisponível neste computador';}
-export function setBusy(value){S.busy=value;footValues({busy:value});if(value){if(!S.busySince)S.busySince=Date.now();}else{S.busySince=0;S.busyStall=0;}setTabsDisabled(value||!!S.connecting||S.switching);if($('#session-select'))$('#session-select').disabled=value||!!S.connecting||S.switching;$('#model-select').disabled=value||!S.connected;$('#thinking-select').disabled=value||!S.connected;$('#stop').hidden=!value;$('#attach').disabled=value;$('#send').disabled=value;updateCheckButton();refreshHint();if(value)activity('Pi está pensando…');else if(S.connected)activity('');}
-function setTabsDisabled(value){for(const tab of document.querySelectorAll('#course-tabs button'))tab.disabled=!!value;}
+export function setBusy(value){S.busy=value;footValues({busy:value});if(value){if(!S.busySince)S.busySince=Date.now();}else{S.busySince=0;S.busyStall=0;}setTabsDisabled(value||!!S.connecting||S.switching);const locked=value||!!S.connecting||S.switching;if($('#session-select'))$('#session-select').disabled=locked;if($('#new-session-engine'))$('#new-session-engine').disabled=locked;$('#model-select').disabled=value||S.uncertain||!S.connected||capabilities().modelSelection!==true;$('#thinking-select').disabled=value||S.uncertain||!S.connected||capabilities().effort!==true;$('#stop').hidden=!value;$('#attach').disabled=value;$('#send').disabled=value;updateCheckButton();refreshHint();if(value)activity(`${S.agentLabel} está pensando…`);else if(S.connected)activity('');}
+function setTabsDisabled(value){
+ for(const control of document.querySelectorAll('#course-tabs button,#session-select,#new-session-engine,#new-session'))control.disabled=!!value;
+}
 /* Dica do composer reativa ao estado. Ocupado: o ⏎ enfileira (queue.mjs) e o
-   ⌘/Ctrl+⏎ interrompe e envia (steer) — o mesmo texto da Conversa. */
+   ⌘/Ctrl+⏎ interrompe e envia (steer) — o mesmo texto da Conversa. Motor sem
+   steer não promete interrupção: só anuncia que o ⏎ enfileira. */
 const IS_MAC=typeof navigator!=='undefined'&&navigator.userAgent.includes('Mac');
 export function refreshHint(){
  const hint=$('#composer-hint');
  if(!hint)return;
- hint.textContent=S.busy
-  ?`Pi respondendo… ⏎ enfileira · ${IS_MAC?'⌘⏎':'Ctrl+⏎'} interrompe e envia`
-  :`⏎ envia · ⇧⏎ quebra linha · ${IS_MAC?'⌘':'Ctrl+'}⇧C anexa a captura do Xournal++ · ← → muda a página · rolagem contínua`;
+ /* A dica só anuncia a captura quando o recurso existe: flag `conferir` ligada
+    E captura disponível neste computador (o menu nativo segue a mesma flag). */
+ const capture=S.appConfig.desk?.conferir!==false&&!!S.captureOk;
+ const capturePart=capture?` · ${IS_MAC?'⌘':'Ctrl+'}⇧C anexa a captura do Xournal++`:'';
+ if(S.busy){
+  if(capabilities().steer!==true){hint.textContent=`${S.agentLabel} respondendo… ⏎ enfileira`;return;}
+  hint.textContent=`${S.agentLabel} respondendo… ⏎ enfileira · ${IS_MAC?'⌘⏎':'Ctrl+⏎'} interrompe e envia`;
+  return;
+ }
+ hint.textContent=`⏎ envia · ⇧⏎ quebra linha${capturePart} · ← → muda a página · rolagem contínua`;
 }
 refreshHint();
-function updateSettings(result){const current=result.state?.model;S.supportsImages=!!current?.input?.includes('image');updateMeter(result.contextUsage||result.state?.contextUsage);renderAutoCompact(result.state);updateCheckButton();$('#model-select').replaceChildren(...S.modelCatalog.map(m=>new Option(`${m.name||m.id} · ${m.provider}`,JSON.stringify([m.provider,m.id]))));if(current)$('#model-select').value=JSON.stringify([current.provider,current.id]);const labels={off:'Desligado',minimal:'Mínimo',low:'Baixo',medium:'Médio',high:'Alto',xhigh:'Muito alto',max:'Máximo'};$('#thinking-select').replaceChildren(...(result.levels||[]).map(l=>new Option(labels[l]||l,l)));$('#thinking-select').value=result.state?.thinkingLevel||'off';const level=result.state?.thinkingLevel||'off';const picked=current?S.modelCatalog.find(m=>m.provider===current.provider&&m.id===current.id):null;footValues({model:picked?`${picked.name||picked.id} · ${picked.provider}`:'',level:labels[level]||level});$('#model-select').disabled=S.busy;$('#thinking-select').disabled=S.busy;$('#pi-label').textContent=current?.name||current?.id||'Pi';}
-export async function settings(change){$('#model-select').disabled=true;$('#thinking-select').disabled=true;try{updateSettings(await window.desk.settings(change));}catch(e){toast(e.message);try{updateSettings(await window.desk.settings({}));}catch{}}finally{$('#model-select').disabled=S.busy;$('#thinking-select').disabled=S.busy;}}
+function updateSettings(result){
+ if(result?.engine)applyEngineData(result);
+ if(Array.isArray(result?.models))S.modelCatalog=result.models;
+ const current=result?.state?.model;
+ /* Imagem: a capacidade do motor é estrutural (Claude transporte) e o modelo,
+    quando conhecido, ainda precisa listar `image` — nunca dizemos "visão
+    validada". Sem modelo conhecido (ex.: Claude), vale a capacidade. */
+ const known=!!current&&Array.isArray(current.input);
+ S.supportsImages=capabilities().images===true&&(!known||current.input.includes('image'));
+ updateMeter(result?.contextUsage||result?.state?.contextUsage);
+ renderAutoCompact(result?.state);
+ updateCheckButton();
+ $('#model-select').replaceChildren(...S.modelCatalog.map(m=>new Option(`${m.name||m.id} · ${m.provider}`,JSON.stringify([m.provider,m.id]))));
+ if(S.engine==='claude'&&result?.state?.selection)$('#model-select').value=JSON.stringify(['anthropic',result.state.selection.model||'']);
+ else if(current)$('#model-select').value=JSON.stringify([current.provider,current.id]);
+ const labels={default:'Padrão do Claude',off:'Desligado',minimal:'Mínimo',low:'Baixo',medium:'Médio',high:'Alto',xhigh:'Muito alto',max:'Máximo'};
+ $('#thinking-select').replaceChildren(...(result?.levels||[]).map(l=>new Option(labels[l]||l,l)));
+ $('#thinking-select').value=result?.state?.thinkingLevel||(S.engine==='claude'?'default':'off');
+ const level=result?.state?.thinkingLevel||(S.engine==='claude'?'default':'off');
+ const picked=current?S.modelCatalog.find(m=>m.provider===current.provider&&m.id===current.id):null;
+ footValues({model:picked?`${picked.name||picked.id} · ${picked.provider}`:'',level:labels[level]||level});
+ $('#model-select').disabled=S.busy||S.uncertain||capabilities().modelSelection!==true;
+ $('#thinking-select').disabled=S.busy||S.uncertain||capabilities().effort!==true;
+ /* O rótulo do topo segue a conversa: com modelo conhecido (Pi), o nome do
+    modelo; sem ele (Claude), o rótulo do motor. */
+ $('#pi-label').textContent=(S.engine==='pi'&&(current?.name||current?.id))||S.agentLabel||'Pi';
+ /* A dica anuncia a captura conforme a flag/disponibilidade medidas agora. */
+ refreshHint();
+}
+export async function settings(change){
+ if(S.uncertain&&(change?.model||change?.level)){toast('A entrega anterior está incerta; comece outra conversa para mudar os controles.');return;}
+ if(change?.model&&capabilities().modelSelection!==true){toast('A escolha de modelo não está disponível neste motor.');return;}
+ if(change?.level&&capabilities().effort!==true){toast('A escolha de esforço não está disponível neste motor.');return;}
+ $('#model-select').disabled=true;$('#thinking-select').disabled=true;
+ try{updateSettings(await window.desk.settings(change));}catch(e){toast(e.message);try{updateSettings(await window.desk.settings({}));}catch{}}
+ finally{$('#model-select').disabled=S.busy||S.uncertain||capabilities().modelSelection!==true;$('#thinking-select').disabled=S.busy||S.uncertain||capabilities().effort!==true;}
+}
 export const THEME_LABELS={auto:'Tema: auto',light:'Tema: claro',dark:'Tema: escuro'};
 /* O glifo do item de tema acompanha o estado (mesmo mapa do `themeIcon` do
    núcleo): auto = contraste, claro = sol, escuro = lua. */
@@ -253,6 +474,8 @@ export function applyTheme(value){
  if(S.currentTheme==='auto')delete document.documentElement.dataset.theme;
  else document.documentElement.dataset.theme=S.currentTheme;
  const btn=$('#theme-cycle');if(btn)labelBtn(btn,THEME_ICONS[S.currentTheme],THEME_LABELS[S.currentTheme]);
+ /* O select das Configurações acompanha a troca pelo menu (o Salvar manda). */
+ const mode=$('#theme-mode');if(mode)mode.value=S.currentTheme;
 }
 export function labelBtn(el,name,text){if(!el)return;el.innerHTML=`${icon(name)}${text?` <span>${text}</span>`:''}`;}
 /* O vazio da conversa é árvore do núcleo (`core/welcomeview.bend`): o título é
@@ -261,28 +484,33 @@ export function labelBtn(el,name,text){if(!el)return;el.innerHTML=`${icon(name)}
 export function showWelcome(title){
  const box=$('#messages');if(!box)return;
  renderInto(box,welcomeCore.welcomeView(String(title||'')),{Connect:()=>connect().catch(()=>{})});
- labelBtn($('#connect'),'plug','Conectar ao Pi');
+ labelBtn($('#connect'),'plug',`Conectar ao ${S.agentLabel}`);
 }
 export async function connect(){
  if(S.connected)return;
  if(S.connecting)return S.connecting;
- setTabsDisabled(true);$('#pi-label').textContent='Conectando…';connectionState('connecting','Conectando ao Pi');activity('Abrindo a sessão do Pi…');
+ setTabsDisabled(true);$('#pi-label').textContent='Conectando…';connectionState('connecting',`Conectando ao ${S.agentLabel}`);activity(`Abrindo a sessão do ${S.agentLabel}…`);
+ const picker=$('#new-session-engine');if(picker)picker.disabled=true;
  let hung=0;
  S.connecting=(async()=>{
   const timer=setTimeout(()=>{hung=1;},90000);
   try{
    const result=await window.desk.connect();
-   S.connected=true;S.healthFails=0;S.modelCatalog=result.models||[];if(result.captureAvailable!=null)S.captureOk=!!result.captureAvailable;updateSettings(result);fillSessions(result);updateWindowTitle();connectionState('online','Pi conectado');activity('Pi conectado.');
-   setTimeout(()=>{if(S.connected&&!S.busy&&$('#activity').textContent==='Pi conectado.')activity('');},2500);
-   $('#pi-label').textContent=result.state?.model?.name||result.state?.model?.id||'Pi';
+   /* Metadados do motor ANTES de qualquer gating/estado: o host roteia o
+      connect pelo motor da conversa (nunca inicia Pi numa conversa Claude). */
+   applyEngineData(result);
+   S.connected=true;S.healthFails=0;S.modelCatalog=result.models||[];if(result.captureAvailable!=null)S.captureOk=!!result.captureAvailable;updateSettings(result);fillSessions(result);updateWindowTitle();connectionState('online',`${S.agentLabel} conectado`);activity(`${S.agentLabel} conectado.`);
+   setTimeout(()=>{if(S.connected&&!S.busy&&$('#activity').textContent===`${S.agentLabel} conectado.`)activity('');},2500);
+   if(result.conversationStatus?.uncertain)toast('Há uma entrega incerta nesta conversa — confira antes de reenviar.');
    if(result.messages?.length)showHistory(result.messages);else $('#welcome')?.remove();
   }catch(e){
-   toast(hung?'A conexão do Pi demorou demais; a interface foi destravada. Tente de novo.':e.message);
-   S.connected=false;$('#pi-label').textContent='Pi';connectionState('error','Falha ao conectar ao Pi');activity(hung?'A conexão do Pi demorou demais.':`Erro de conexão: ${e.message}`);
+   toast(hung?`A conexão do ${S.agentLabel} demorou demais; a interface foi destravada. Tente de novo.`:e.message);
+   S.connected=false;$('#pi-label').textContent=S.agentLabel;connectionState('error',`Falha ao conectar ao ${S.agentLabel}`);activity(hung?`A conexão do ${S.agentLabel} demorou demais.`:`Erro de conexão: ${e.message}`);
    throw e;
   }finally{
    clearTimeout(timer);
-   S.connecting=null;setTabsDisabled(S.busy);
+   S.connecting=null;setTabsDisabled(S.busy||S.switching);
+   if(picker)picker.disabled=S.busy||S.switching;
   }
  })();
  return S.connecting;
@@ -333,7 +561,13 @@ function applyDesk(desk){
  initCalculator();
  return {title,specs,two,flags};
 }
-export async function loadCourse(data){
+let courseLoadGeneration=0;
+export async function loadCourse(data,{publishWorkspace=true}={}){
+ const loadGeneration=++courseLoadGeneration;
+ const previousCourseId=S.currentCourseId;
+ const previousSession=S.currentSession;
+ S.workspace=data.workspace||{kind:data.courseId==='mesa-free'?'free':'course',id:data.courseId||''};
+ updateCourseFacts(data);
  S.quizQueue=[];
  resetAttachments();
  S.captureOk=!!data.captureAvailable;
@@ -341,9 +575,14 @@ export async function loadCourse(data){
  S.deskVersion=data.deskVersion||S.deskVersion;
  const desk=applyDesk(S.appConfig.desk);
  fillSessions(data);
+ /* Matéria diferente com a MESMA sessão (promoção Livre→matéria transfere a
+    conversa): o `fillSessions` avisa na troca de sessão; aqui o escopo também
+    mudou para quem congela matéria+sessão (chat lateral/avisos). */
+ if(previousCourseId!==S.currentCourseId&&previousSession===S.currentSession)window.dispatchEvent(new Event('desk-conversation-changed'));
  $('#prompt').value=data.state.draft||'';
  applyTheme(data.state.theme);
- applyStudy(desk.flags.studyContext?data.state.study:{});
+ // Esconder o recurso não apaga a questão nem o arquivo associado.
+ applyStudy(data.state.study);
  /* Fila e bandeja guardadas da conversa: a faixa volta com o que ainda não foi
     aceito pelo Pi e os anexos pendentes voltam para a bandeja. Fila de outra
     execução nasce segurada — nada é enviado sozinho. */
@@ -351,12 +590,21 @@ export async function loadCourse(data){
  restoreAttachments(data.pending);
  for(const p of S.panels){p.version++;p.resize.disconnect();clearTimeout(p.resizeTimer);clearTimeout(p.zoomTimer);cancelAnimationFrame(p._visibleFrame);p.cancelRenders();}
  $('#pdf-grid').replaceChildren();S.library=data.library||[];
+ /* Orientação por caminho: o mapa da matéria volta antes dos painéis, então o
+    `load` de cada leitor já encontra a volta salva (legado sem mapa = 0). */
+ restorePdfRotations(data.state.pdfRotations);
+ /* Histórico Claude cacheado no descritor: o `init`/troca de conversa já o
+    entrega e ele NÃO depende do connect ter dado certo — offline ou sem login,
+    o que já foi conversado continua na tela (nunca um fallback para o Pi). O
+    connect bem-sucedido reaplica a mesma lista depois. */
+ if(Array.isArray(data.messages))showHistory(data.messages);
  /* Favoritos nomeados da matéria (popover do leitor): a lista inteira vem do
     main a cada troca de matéria — o nav.mjs monta as linhas do popover com isto. */
  S.bookmarks=Array.isArray(data.bookmarks)?data.bookmarks:[];
  S.reviewItems=Array.isArray(data.review)?data.review:[];
  S.panels=desk.specs.map((spec,i)=>new PdfPanel(i,spec.label));
  S.pdfDivider=desk.two?makePdfDivider():null;
+ if(S.pdfDivider)S.pdfDivider.title='Arraste para redimensionar os leitores';
  if(desk.two)S.panels[0].el.classList.add('pinned');
  /* Visibilidade do 2º painel ANTES do primeiro await: junto com o chrome
     (desk-chrome) o boot fica visível inteiro de uma vez — teste e usuário não
@@ -378,6 +626,10 @@ export async function loadCourse(data){
     `renderTabsView`/`renderMenus` do main.mjs: avisar aqui fecha o vão antes do
     carregamento dos PDFs — abas e itens de menu ficam prontos no mesmo tick que
     os controles do composer (chrome pela metade deixa o #course-tabs vazio). */
+ /* Publicar antes dos awaits invalida resultados da conversa anterior e
+    atualiza as abas junto com os fatos do host. Ações livres publicam depois
+    de aplicar, para não invalidar a própria geração que as protege. */
+ if(publishWorkspace)window.dispatchEvent(new CustomEvent('desk-workspace',{detail:data}));
  window.dispatchEvent(new Event('desk-chrome'));
  const preferred=data.preferred||[];
  const loads=[];
@@ -388,11 +640,18 @@ export async function loadCourse(data){
   if(saved?.minimized)S.panels[i].toggleMinimized(true);
   if(path)loads.push(S.panels[i].load(path,saved||{}));
  }
+ /* A área de apoio entra depois dos painéis (e com os caminhos já definidos):
+    por matéria ela decide Formulário×Chat lateral e move o painel 2 para o slot
+    — o estado do leitor vive no painel, nenhum PDF recarrega por causa disso. */
+ beginSupport({courseId:S.currentCourseId,two:desk.two,formLabel:desk.specs[1]?.label,referenceVisible:S.refVisible});
+ attachSupport(S.panels,S.pdfDivider);
  await Promise.all(loads);
+ if(loadGeneration!==courseLoadGeneration)return false;
  updateContextSummary();
  document.documentElement.style.setProperty('--chat',(data.state.chatWidth||390)+'px');
  document.documentElement.style.setProperty('--calc',(data.state.calcHeight||220)+'px');
  save();
+ return true;
 }
 /* O Pi esperando resposta (quiz na tela ou `#pi-dialog` aberto) não é ocioso
    mesmo com o `busy` solto: trocar de matéria embora abandonaria a pergunta. */
@@ -403,24 +662,28 @@ export async function switchCourse(id){
  /* Com o turno aberto a troca é recusada pelo host; avisar antes do `waitIdle`
     evita 12 s de silêncio no atalho (⌘2) até o toast de recusa. */
  if(S.busy){toast('Pare a resposta antes de trocar de matéria.');return;}
- if(piPromptPending()){toast('O Pi está esperando sua resposta: responda antes de trocar de matéria.');return;}
+ if(piPromptPending()){toast(`${S.agentLabel} está esperando sua resposta: responda antes de trocar de matéria.`);return;}
  await waitIdle();
  deactivateGeogebra();
  const tab=document.querySelector(`#course-tabs button[data-id="${CSS.escape(id)}"]`);
  if(!tab||tab.classList.contains('active'))return;
  S.switching=true;setTabsDisabled(true);
+ const picker=$('#new-session-engine');if(picker)picker.disabled=true;
  try{
   clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
   const data=await window.desk.switchCourse(id);
-  S.connected=false;connectionState('','Pi desconectado');showWelcome(data.course);
+  /* A matéria troca junto com a conversa ativa dela: metadados do motor antes
+     do vazio e do connect para o rótulo e as capacidades já serem os novos. */
+  applyEngineData(data);
+  S.connected=false;connectionState('',`${S.agentLabel} desconectado`);showWelcome(data.course);
   /* Fatos da matéria e aba ativos antes dos PDFs montarem (o `loadCourse`
      antigo chamava `renderTabs(data); updateWindowTitle()` logo depois do IPC);
      o `loadCourse` abaixo refaz os mesmos fatos com a biblioteca pronta. */
   updateCourseFacts(data);
   markCourseTab(id);
-  $('#pi-label').textContent='Pi';$('#model-select').replaceChildren(new Option('Conecte ao Pi',''));$('#thinking-select').replaceChildren(new Option('—',''));footValues({model:'',level:''});
+  $('#pi-label').textContent=S.agentLabel;$('#model-select').replaceChildren(new Option('Conecte ao Pi',''));$('#thinking-select').replaceChildren(new Option('—',''));footValues({model:'',level:''});
   setBusy(false);await loadCourse(data);connect().catch(()=>{});
- }catch(e){toast(e.message);}finally{S.switching=false;setTabsDisabled(false);}
+ }catch(e){toast(e.message);}finally{S.switching=false;setTabsDisabled(S.busy||!!S.connecting);if(picker)picker.disabled=S.busy||!!S.connecting;}
 }
 let healthPending=false;
 setInterval(async()=>{
@@ -429,8 +692,8 @@ setInterval(async()=>{
  try{
  if(!S.busy){
   S.busyStall=0;
-  try{const data=await window.desk.health();S.healthFails=0;connectionState('online','Pi conectado');if(data?.contextUsage)updateMeter(data.contextUsage);}
-  catch(e){S.connected=false;connectionState('error','Pi desconectado');activity(`Conexão perdida: ${e.message}`);toast(e.message);}
+  try{const data=await window.desk.health();S.healthFails=0;connectionState('online',`${S.agentLabel} conectado`);if(capabilities().contextUsage===true&&data?.contextUsage)updateMeter(data.contextUsage);}
+  catch(e){S.connected=false;connectionState('error',`${S.agentLabel} desconectado`);activity(`Conexão perdida: ${e.message}`);toast(e.message);}
   return;
  }
  let data=null;
@@ -441,17 +704,17 @@ setInterval(async()=>{
   S.healthFails=(S.healthFails||0)+1;
   if(S.healthFails>=2){
    S.healthFails=0;S.connected=false;
-   connectionState('error','Pi desconectado');setBusy(false);
-   activity('Conexão perdida: o Pi não respondeu.');toast('O Pi parou de responder; a interface foi destravada.');
+   connectionState('error',`${S.agentLabel} desconectado`);setBusy(false);
+   activity(`Conexão perdida: o ${S.agentLabel} não respondeu.`);toast(`O ${S.agentLabel} parou de responder; a interface foi destravada.`);
   }
   return;
  }
  S.healthFails=0;
- if(data.contextUsage)updateMeter(data.contextUsage);
+ if(capabilities().contextUsage===true&&data.contextUsage)updateMeter(data.contextUsage);
  if(data.isRunning||data.isStreaming||data.isCompacting||data.pendingMessageCount){S.busyStall=0;return;}
  if(!S.busySince||Date.now()-S.busySince<=60000)return;
  S.busyStall++;
- if(S.busyStall>=3){S.busyStall=0;setBusy(false);toast('A resposta do Pi não estava ativa; a interface foi destravada.');}
+ if(S.busyStall>=3){S.busyStall=0;setBusy(false);toast(`A resposta do ${S.agentLabel} não estava ativa; a interface foi destravada.`);}
  }finally{healthPending=false;}
 },15000);
 function deskLogError(line){try{window.desk.logError(String(line??'').slice(0,4000)).catch(()=>{});}catch{}}

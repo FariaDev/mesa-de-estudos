@@ -286,19 +286,21 @@ def editBannerView(visible: Bool, closing: Bool) -> V.ViewNode:
   )
 
 # ---------------------------------------------------------------------------
-# Painel de ajustes do chat (Mesa): Modelo, Esforço e compactação automática
-# atrás de um toggle, para a coluna do chat sobrar para o estudo. O host monta
-# este andaime no boot e MOVE para dentro do corpo os nós que já existem
-# (`.pi-settings` e `#auto-compact`) — aqui ficam o rótulo, o `aria-expanded`,
-# o `aria-controls` e o `hidden` do corpo; o host guarda o estado aberto
-# (localStorage `mesa.piPanel`) e mantém os dois atributos sincronizados.
+# Painel de ajustes do chat (Mesa): Modelo, Esforço e o resumo automático do
+# contexto atrás de um toggle, para a coluna do chat sobrar para o estudo. O
+# host monta este andaime no boot e MOVE para dentro do corpo os nós que já
+# existem (`.pi-settings` e `#auto-compact`) — aqui ficam o rótulo, o
+# `aria-expanded`, o `aria-controls` e o `hidden` do corpo; o host guarda o
+# estado aberto (localStorage `mesa.piPanel`) e mantém os dois atributos
+# sincronizados. O resumo manual ("Resumir contexto") e a explicação de
+# capacidade são do host, no mesmo corpo.
 # ---------------------------------------------------------------------------
 
 def settingsPanelLabel() -> String:
   "Ajustes"
 
 def settingsPanelTitle() -> String:
-  "Modelo, esforço e compactação automática"
+  "Modelo, esforço e resumo automático"
 
 def settingsPanelBodyId() -> String:
   "pi-settings-body"
