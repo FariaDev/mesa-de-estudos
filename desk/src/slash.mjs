@@ -1,6 +1,7 @@
 import {icon} from '../icons.mjs';
 import {build, htmlNode, renderChildren} from './view-host.mjs';
 import core from './generated/slashview.core.js';
+import {supportsCapability} from './state.mjs';
 
 /* Menu de comandos slash do Pi na Mesa (mesma mecânica do app Conversa):
    digitar "/" abre a lista filtrada pelo trecho digitado; ↑↓ navega com wrap,
@@ -124,6 +125,7 @@ function load(){
 }
 
 function ensure(){
+ if(!supportsCapability('commands')&&!supportsCapability('compact'))return;
  if(inflight)return;
  if(commands&&Date.now()-fetchedAt<=TTL)return;
  load();
@@ -148,7 +150,7 @@ function render(){
  const keep=query===lastQuery&&hits[active]?hits[active].name:'';
  lastQuery=query;
  const needle=fold(query);
- hits=commands.filter(item=>fold(item.name).includes(needle));
+ hits=commands.filter(item=>(supportsCapability('commands')||(item.name==='compact'&&supportsCapability('compact')))&&fold(item.name).includes(needle));
  const at=keep?hits.findIndex(item=>item.name===keep):-1;
  active=hits.length?(at<0?0:at):-1;
  renderChildren(list,materializeList(core.slashItemViews(itemFacts(),activeKey())),ITEM_HANDLERS);

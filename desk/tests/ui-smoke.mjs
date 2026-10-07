@@ -17,7 +17,7 @@ await withArtifacts('smoke',async ctx=>{
  // a moldura do leitor e o documento vêm da view do Bend (core/pdfpageview.bend)
  const shell=await page.evaluate(()=>{const doc=document.querySelector('.pdf-panel .pdf-document'),pages=doc?[...doc.children]:[];return {titles:[...document.querySelectorAll('.pdf-panel > .pdf-title > strong')].map(el=>el.textContent),tools:[...document.querySelector('.pdf-panel .pdf-tools').children].map(el=>el.className.split(' ')[0]),scaffold:document.querySelectorAll('.pdf-panel [data-icon]').length,cls:doc?doc.className:'',pageCls:pages[0]?pages[0].className:'',first:pages[0]?pages[0].dataset.page:'',style:pages[0]?pages[0].getAttribute('style'):'',count:pages.length};});
  assert.deepEqual(shell.titles,['Enunciado','Formulário & apoio'],'títulos dos leitores vêm da view do Bend');
- assert.deepEqual(shell.tools,['prev','page-number','page-total','next','out','zoom-label','in','fit','invert'],'ferramentas na ordem da view do Bend');
+ assert.deepEqual(shell.tools,['prev','page-number','page-total','next','out','zoom-label','in','fit','invert','rotate'],'ferramentas na ordem da view do Bend');
  assert.equal(shell.scaffold,0,'o andaime data-icon sai do DOM');
  assert.equal(shell.cls,'pdf-document');assert.equal(shell.pageCls,'pdf-page');assert.equal(shell.first,'1');
  assert.match(shell.style,/^width:\d+(\.\d+)?px;height:\d+(\.\d+)?px$/,'a página é a âncora medida (style do Bend)');
@@ -607,13 +607,14 @@ await withArtifacts('tabs',async ctx=>{
  page.on('console',m=>{if(m.text().startsWith('[dbg]'))console.log('[page]',m.text());});
  await page.waitForSelector('.pdf-panel',{timeout:30000});
  const tabs=page.locator('#course-tabs button');
- await page.waitForFunction(()=>{const tabs=[...document.querySelectorAll('#course-tabs button')];return tabs.length===3&&tabs.every(tab=>!tab.disabled);},{timeout:30000});
+ await page.waitForFunction(()=>{const tabs=[...document.querySelectorAll('#course-tabs button')];return tabs.length===4&&tabs.every(tab=>!tab.disabled);},{timeout:30000});
  // deixa a conexão automática do boot assentar: clicar durante o connect inicial é a corrida que o waitIdle cobre, mas o teste não precisa dela
  await statusOnline(page);
  await page.waitForTimeout(2500);
- assert.equal(await tabs.count(),3,'two courses plus the GeoGebra tab');
- assert.equal(await tabs.nth(2).textContent(),'GeoGebra','last tab is GeoGebra');
- assert.equal(await tabs.first().getAttribute('aria-selected'),'true','first course starts active');
+ assert.equal(await tabs.count(),4,'Livre, two courses and the GeoGebra tab');
+ assert.equal(await page.locator('#course-tabs button[data-id="mesa-free"]').textContent(),'Livre','the fixed Livre tab is present');
+ assert.equal(await tabs.last().textContent(),'GeoGebra','last tab is GeoGebra');
+ assert.equal(await page.locator('#course-tabs button[data-id="A"]').getAttribute('aria-selected'),'true','saved course starts active');
  // abas e menus vêm da view do Bend (core/tabsview.bend): ids/ordem e andaime limpo
  assert.equal(await page.locator('#new-tab').getAttribute('title'),'Nova matéria (abre as Configurações)','o "+" é o nó da view');
  assert.deepEqual(await page.locator('#study-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['reference-toggle','xournal','review-open','end-day'],'itens do menu Estudar na ordem');
@@ -622,24 +623,24 @@ await withArtifacts('tabs',async ctx=>{
  assert.match((await page.locator('#theme-cycle').textContent()).trim(),/^Tema: (auto|claro|escuro)$/,'rótulo do tema no item');
  assert.equal(await page.locator('#theme-cycle svg.icon').count(),1,'o item de tema ganhou glifo (auto = contraste)');
  assert.equal(await page.locator('#course-tabs [data-id="geogebra"] svg.icon').count(),1,'a aba GeoGebra tem o glifo graph (eixos + parábola)');
- await tabs.nth(1).click();
- await page.waitForFunction(()=>{const tab=document.querySelectorAll('#course-tabs button')[1];return tab?.classList.contains('active')&&tab?.getAttribute('aria-selected')==='true';},{timeout:15000});
+ await page.locator('#course-tabs button[data-id="B"]').click();
+ await page.waitForFunction(()=>{const tab=document.querySelector('#course-tabs button[data-id="B"]');return tab?.classList.contains('active')&&tab?.getAttribute('aria-selected')==='true';},{timeout:15000});
  assert.match(await page.title(),/Matéria B/,'document title follows the active tab');
  assert.equal(await page.locator('.pdf-placeholder').count(),2,'empty course shows the PDF placeholders');
  await statusOnline(page);
  await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button')].every(tab=>!tab.disabled),{timeout:30000});
- await page.keyboard.press('ControlOrMeta+1');
- await page.waitForFunction(()=>{const tab=document.querySelectorAll('#course-tabs button')[0];return tab?.classList.contains('active')&&tab?.getAttribute('aria-selected')==='true';},{timeout:15000});
- assert.match(await page.title(),/Matéria A/,'⌘1 returns to the first tab');
+ await page.keyboard.press('ControlOrMeta+2');
+ await page.waitForFunction(()=>{const tab=document.querySelector('#course-tabs button[data-id="A"]');return tab?.classList.contains('active')&&tab?.getAttribute('aria-selected')==='true';},{timeout:15000});
+ assert.match(await page.title(),/Matéria A/,'⌘2 returns to the first configured course');
  await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button')].every(tab=>!tab.disabled),{timeout:30000});
  // roving tabindex vem do núcleo: ativa `0`, demais `-1`; as setas movem o
- // foco e ativam como o clique (⌘1..9 e clique seguem iguais)
+ // foco e ativam como o clique (⌘1..9 (Livre occupies ⌘1) e clique seguem iguais)
  const rovingInitial=await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].map(t=>[t.dataset.id,t.getAttribute('tabindex'),t.classList.contains('active')]));
- assert.deepEqual(rovingInitial,[['A','0',true],['B','-1',false],['geogebra','-1',false]],'o tablist usa roving tabindex vindo da view do Bend');
+ assert.deepEqual(rovingInitial,[['mesa-free','-1',false],['A','0',true],['B','-1',false],['geogebra','-1',false]],'o tablist usa roving tabindex vindo da view do Bend');
  await page.locator('#course-tabs button[data-id="A"]').focus();
  await page.keyboard.press('ArrowRight');
  await page.waitForFunction(()=>{const t=document.querySelector('#course-tabs button[data-id="B"]');return document.activeElement===t&&t.classList.contains('active');},{timeout:15000});
- assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].map(t=>[t.dataset.id,t.getAttribute('tabindex'),t.classList.contains('active')])),[['A','-1',false],['B','0',true],['geogebra','-1',false]],'a seta move o foco e ativa a aba (roving atualizado)');
+ assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].map(t=>[t.dataset.id,t.getAttribute('tabindex'),t.classList.contains('active')])),[['mesa-free','-1',false],['A','-1',false],['B','0',true],['geogebra','-1',false]],'a seta move o foco e ativa a aba (roving atualizado)');
  await page.keyboard.press('ArrowLeft');
  await page.waitForFunction(()=>{const t=document.querySelector('#course-tabs button[data-id="A"]');return document.activeElement===t&&t.classList.contains('active');},{timeout:15000});
  assert.match(await page.title(),/Matéria A/,'a seta de volta reativa a matéria');
@@ -1145,7 +1146,7 @@ await withArtifacts('composer-hierarquia',async ctx=>{
  assert.deepEqual(panel.controls,['pi-settings','auto-compact'],'Modelo/Esforço e o `auto` são movidos para o corpo do painel');
  assert.equal(panel.icon,1,'o ícone do toggle é asset do host');
  assert.equal(panel.scaffold,0,'o andaime data-icon sai do DOM');
- assert.equal(await page.locator('#settings-toggle').getAttribute('title'),'Modelo, esforço e compactação automática');
+ assert.equal(await page.locator('#settings-toggle').getAttribute('title'),'Modelo, esforço e resumo automático');
  await page.locator('#settings-toggle').click();
  await page.waitForFunction(()=>document.querySelector('#pi-settings-body').hidden);
  assert.equal(await page.locator('#settings-toggle').getAttribute('aria-expanded'),'false','fechar troca o aria-expanded');

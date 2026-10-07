@@ -422,7 +422,7 @@ function $settingsPanelLabel$() {
   return "Ajustes";
 }
 function $settingsPanelTitle$() {
-  return "Modelo, esforço e compactação automática";
+  return "Modelo, esforço e resumo automático";
 }
 function $settingsPanelBodyId$() {
   return "pi-settings-body";

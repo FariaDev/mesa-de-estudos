@@ -50,7 +50,7 @@ const rawAttr = (node, name) => {
   return undefined;
 };
 const shell = (patch = {}) => ({
-  $: 'PdfShell', label: 'Enunciado', options: {$: 'Nil'}, path: '', minimized: false, findOpen: false, ...patch,
+  $: 'PdfShell', label: 'Enunciado', options: {$: 'Nil'}, path: '', minimized: false, findOpen: false, rotation: 0n, ...patch,
 });
 const optionList = (items) => items.reduceRight((tail, head) => ({$: 'Con', head, tail}), {$: 'Nil'});
 
@@ -91,8 +91,8 @@ test('titleBar: rótulo, select, botões de ícone (Voltar incluso) e estado de 
   assert.equal(attr(back, 'hidden'), '');
   assert.equal(attr(nav, 'class'), 'nav icon-btn');
   assert.equal(attr(nav, 'data-icon'), 'book');
-  assert.equal(attr(nav, 'title'), 'Favoritos e sumário');
-  assert.equal(attr(nav, 'aria-label'), 'Navegar em Enunciado');
+  assert.equal(attr(nav, 'title'), 'Sumário e favoritos');
+  assert.equal(attr(nav, 'aria-label'), 'Sumário e favoritos de Enunciado');
   assert.equal(attr(nav, 'aria-expanded'), 'false');
   assert.equal(attr(collapse, 'class'), 'collapse icon-btn');
   assert.equal(attr(collapse, 'title'), 'Minimizar este leitor');
@@ -106,12 +106,12 @@ test('titleBar: rótulo, select, botões de ícone (Voltar incluso) e estado de 
 });
 
 test('toolsBar mantém a ordem, o page-number e os espaços que o host preenche', () => {
-  const built = build(pdfPage.toolsBar('Enunciado'), {});
+  const built = build(pdfPage.toolsBar('Enunciado', 0n), {});
   assert.equal(attr(built, 'class'), 'pdf-tools');
-  assert.equal(built.children.length, 9);
+  assert.equal(built.children.length, 10);
   assert.deepEqual(built.children.map((kid) => attr(kid, 'class')), [
     'prev icon-btn', 'page-number', 'page-total', 'next icon-btn', 'out icon-btn',
-    'zoom-label', 'in icon-btn', 'fit icon-btn', 'invert icon-btn',
+    'zoom-label', 'in icon-btn', 'fit icon-btn', 'invert icon-btn', 'rotate icon-btn',
   ]);
   const page = built.children[1];
   assert.equal(attr(page, 'type'), 'number');
@@ -124,6 +124,28 @@ test('toolsBar mantém a ordem, o page-number e os espaços que o host preenche'
   assert.equal(attr(built.children[8], 'aria-label'), 'Inverter cores da página');
   assert.equal(built.children[2].children.length, 0);
   assert.equal(built.children[5].children.length, 0);
+});
+
+test('rotateBtn: um botão por leitor, com a orientação corrente no title/aria', () => {
+  const built = build(pdfPage.rotateBtn('Enunciado', 90n), {});
+  assert.equal(attr(built, 'class'), 'rotate icon-btn');
+  assert.equal(attr(built, 'data-icon'), 'rotateCw');
+  assert.equal(attr(built, 'title'), 'Girar 90° — orientação atual: 90°');
+  assert.equal(attr(built, 'aria-label'), 'Girar página de Enunciado (atual: 90°)');
+  assert.equal(rawAttr(pdfPage.rotateBtn('Enunciado', 0n), 'on:click'), 'Rotate');
+});
+
+test('rotação: ciclo 0→90→180→270→0, validação e normalização do núcleo', () => {
+  assert.equal(pdfPage.rotationStep(), 90n);
+  assert.equal(pdfPage.rotationNext(0n), 90n);
+  assert.equal(pdfPage.rotationNext(90n), 180n);
+  assert.equal(pdfPage.rotationNext(180n), 270n);
+  assert.equal(pdfPage.rotationNext(270n), 0n);
+  for (const ok of [0n, 90n, 180n, 270n]) assert.equal(pdfPage.rotationValid(ok), true);
+  for (const bad of [45n, 360n]) assert.equal(pdfPage.rotationValid(bad), false);
+  assert.equal(pdfPage.rotationNormalize(270n), 270n);
+  assert.equal(pdfPage.rotationNormalize(45n), 0n);
+  assert.equal(pdfPage.rotateToast(180n), 'Orientação: 180°');
 });
 
 test('select da biblioteca: opção vazia, nome/path e selected', () => {
@@ -216,9 +238,10 @@ test('renderInto aplica a moldura no viewport como o host faz', () => {
 
 test('os handlers do painel vêm ligados na árvore (tabela do host)', () => {
   const handlers = {
-    OpenFile() {}, ToggleFind() {}, PageShot() {}, ToggleCollapse() {}, NavBack() {}, ToggleNav() {},
+    OpenFile() {}, ToggleFind() {}, PageShot() {}, ToggleCollapse() {}, ToggleInvert() {}, Rotate() {},
+    NavBack() {}, ToggleNav() {},
     OpenDoc() {}, GotoPage() {}, Prev() {}, Next() {}, ZoomOut() {}, ZoomIn() {},
-    Fit() {}, ToggleInvert() {}, Find() {},
+    Fit() {}, Find() {},
   };
   const panel = build(pdfPage.panelShell(shell()), handlers);
   const title = panel.children[0], tools = panel.children[1], form = panel.children[3];
@@ -236,5 +259,6 @@ test('os handlers do painel vêm ligados na árvore (tabela do host)', () => {
   assert.equal(tools.children[6].listeners.get('click'), handlers.ZoomIn);
   assert.equal(tools.children[7].listeners.get('click'), handlers.Fit);
   assert.equal(tools.children[8].listeners.get('click'), handlers.ToggleInvert);
+  assert.equal(tools.children[9].listeners.get('click'), handlers.Rotate);
   assert.equal(form.listeners.get('submit'), handlers.Find);
 });

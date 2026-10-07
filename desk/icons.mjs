@@ -25,6 +25,7 @@ const icons={
  shapes:svg('<path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.618.618 0 0 1 1.198 0l2.628 3.92a.618.618 0 0 1-.626 1.079Z"/><path d="m3 21 6-8h8z" transform="translate(0 .5)"/><circle cx="16.5" cy="6.5" r="2.5"/>'),
  graph:svg('<path d="M4 3v17h17"/><path d="M7 16c2-9 8-9 10 0"/>'),
  contrast:svg('<circle cx="12" cy="12" r="10"/><path d="M12 6a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/>'),
+ rotateCw:svg('<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>'),
  sun:svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>'),
  moon:svg('<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>'),
  check:svg('<path d="M20 6 9 17l-5-5"/>'),

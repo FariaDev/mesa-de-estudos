@@ -1,49 +1,21 @@
 # Mesa de Estudos
 
-**A desktop study desk that keeps the exercise, a reference, and an AI tutor in view while you work things out by hand.**
+App local (Electron) de apoio ao estudo: dois PDFs independentes, calculadora numérica e Pi na mesma janela. A escrita continua no [Xournal++](https://xournalpp.github.io/).
 
-Mesa de Estudos ("Study Desk") is a local Electron app built around a simple study loop: read a problem, try it in [Xournal++](https://xournalpp.github.io/), ask for help when you need it, and return to the exact page you were reading. The AI conversation runs through [Pi](https://github.com/earendil-works/pi); the PDFs and your study state stay in your local workspace.
+```
+Mesa de Estudos                         Xournal++
+  enunciado + formulário (PDF)            escrita à mão
+  calculadora local                       tentativa
+  chat com o Pi
+```
 
-**Want the idea without installing anything?** Start with the screenshots and the workflow below. [Leia em português →](README.pt-BR.md)
+## Requisitos
 
-## The desk
+- Node 22.19+ (exigência do Pi)
+- [Pi](https://github.com/earendil-works/pi) **0.99.1+** (MCP e Codemode nativos; o `npm run setup` tenta instalar)
+- PDFs da matéria numa pasta qualquer
 
-<a href="docs/images/study-workspace.png"><img src="docs/images/study-workspace.png" alt="Mesa de Estudos with real calculus exercise and formula PDFs beside a tutor conversation with a rendered equation"></a>
-
-*Click the image to enlarge. This is the actual app showing the author's calculus PDFs and a scripted Pi test session with rendered LaTeX. Only the screenshots are included here, not the PDF files. The interface is currently in Portuguese; the panel titles were configured for this demo.*
-
-The left reader holds the exercise. The middle reader holds a formula sheet or another reference. Each PDF has its own navigation, search, zoom, and page position. The conversation on the right knows the active subject, exercise, and open references when you choose to include them. A numeric calculator is available below it.
-
-## The study loop
-
-1. **Keep the source visible.** Put the problem and a reference side by side. The original PDFs are opened read-only.
-2. **Make your own attempt.** Write in Xournal++, which stays a separate, full-featured handwriting app.
-3. **Ask a specific question.** The active exercise and PDF pages can travel with your prompt. You can explicitly attach a screenshot of the visible Xournal++ window for visual feedback; nothing is captured or sent continuously.
-4. **Go back to the material.** A page citation in a Pi answer can open that PDF at the cited page. You can save a difficulty to the review notebook or record where you stopped for the next session.
-
-<img src="docs/images/tutor-and-context.png" alt="A demo conversation with the active exercise, PDF context, and a clickable page citation" width="480">
-
-*In this demo, the tutor renders a worked equation and points back to `Limites.pdf, p. 3`. The exchange uses a test Pi session, not a claim about any model's accuracy.*
-
-### Save the sticking point
-
-The review notebook keeps a question, your attempt, what was difficult, and a link back to the page. From there you can ask for a similar problem or try again. “End for today” separately saves a local checkpoint with the next step, active exercise, and open pages so you can resume deliberately.
-
-<img src="docs/images/review-notebook.png" alt="A review notebook entry tied to page 3 of the limits PDF" width="850">
-
-## How it fits together
-
-| Piece | Role |
-| --- | --- |
-| Mesa de Estudos | Local desktop workspace for PDFs, study context, conversation, review, and a calculator |
-| Xournal++ | Handwritten problem solving in a separate window |
-| Pi | The AI conversation and model/provider connection; Mesa talks to it through RPC |
-
-There is no Mesa account or app telemetry. Study state and Pi session files are stored locally. **Questions and any images you choose to send go to the provider configured in Pi**, so the AI conversation is not an offline feature.
-
-## Run it locally (optional)
-
-This repository shares the source; the GitHub release does not include a downloadable app installer. You need Node.js **22.19+**, PDFs for a subject, Pi **0.99.1+** (native MCP and Codemode), and a provider login or API key. From the repository root:
+## Começar
 
 ```sh
 cd desk
@@ -53,10 +25,47 @@ npm run doctor
 npm start
 ```
 
-On first launch, choose a data folder and add a subject with a folder of PDFs. Pi handles provider authentication. See the [setup guide](desk/SETUP.md) for more detail; that guide and the app UI are currently in Portuguese. The source supports macOS and Windows; Xournal++ is optional.
+Na primeira abertura: pasta de dados + pelo menos uma matéria (nome e pasta de PDFs). O Pi pede as credenciais do provedor na primeira conexão; elas ficam no Pi, não neste app.
 
-## Project notes
+`npm run doctor` confere Pi, políticas, fontes, extensão visual e persistência sem abrir o app.
 
-This is a personal, open-source study tool by Lucas Faria. It is designed to sit beside a real writing surface. The source is licensed under [MIT](LICENSE).
+Instruções para um agente configurar o computador: [`desk/SETUP.md`](desk/SETUP.md).
 
-If you are building a study app too, I would be especially interested in how you connect a conversation to the student's actual materials and their own attempts. [Questions and feedback are welcome](https://github.com/FariaDev/mesa-de-estudos/issues).
+## O que entra / o que não entra
+
+- **Entra:** PDFs, calculadora, conversa com o Pi, configurações de pastas e nomes.
+- **macOS:** botão Conferir Xournal++ (captura a janela do Xournal++ e anexa à mensagem; você escreve e envia quando quiser).
+- **Windows:** PDFs, calculadora, Pi e Conferir Xournal++ (captura a janela do Xournal++ pelo PowerShell do sistema; Ctrl+V cola prints também).
+- **Não entra:** canvas de tinta, edição de PDF, telemetria, conta na nuvem.
+
+## Configurações
+
+**Mesa → Configurações** (⌘ , / Ctrl+,): pastas, matérias, executáveis, nome da mesa e recursos visíveis (Encerrar por hoje/retomada, Lista/questão e rascunho `.xopp`, calculadora, Xournal++, Conferir e botão de referências). Lista/questão e rascunho são controlados juntos; desativar preserva os dados salvos e deixa esse contexto fora dos próximos envios.
+
+Em **Layout dos leitores**, escolha um ou dois leitores, seus nomes e os termos usados para escolher o PDF inicial. **Aparência** oferece tema Sistema, Claro ou Escuro. As mudanças entram ao salvar. Ver também [`AGENTS.md`](AGENTS.md) e [`desk/config.example.json`](desk/config.example.json). O default do repositório permanece o da mesa do autor.
+
+As abas **Formulário** e **Chat lateral** mantêm a área de apoio fácil de reabrir. O lateral tem conversa e rascunho próprios, usa o mesmo motor da conversa principal e recebe um contexto inicial com PDFs, páginas, questão e trechos recentes do principal. **Atualizar contexto do principal** renova esse contexto; **Levar ao chat principal** só acrescenta texto ao rascunho principal. Atualizações disponíveis ficam indicadas no cabeçalho, com acesso ao Sobre.
+
+A aba **Livre** reúne estudo avulso sem criar matéria: conversas salvas com PDFs opcionais, geração de PDF após revisar Markdown/LaTeX e **Criar matéria** para levar conversa e materiais a uma nova aba. O original dos PDFs permanece intacto. O botão **Girar** do leitor muda a orientação em passos de 90°, com restauração por leitor e documento. Veja o [uso e os dados locais](desk/README.md).
+
+O app irmão **Conversa** (`chat/`) substitui o ChatGPT web no dia a dia: só chat, busca e histórico, sem matéria nem pasta de trabalho. Ver [`chat/README.md`](chat/README.md).
+
+## Desenvolvimento
+
+```sh
+cd desk
+npm test
+node tests/ui-smoke.mjs
+```
+
+No Mac, se `Mesa de Estudos.app` já existir ao lado de `desk/`:
+
+```sh
+npm run install-app
+```
+
+## Créditos
+
+- **Lucas Faria** — autor
+
+Licença [MIT](LICENSE).

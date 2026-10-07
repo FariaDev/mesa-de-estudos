@@ -58,6 +58,74 @@ def Laws.pdfpage_find_aria():
 def Laws.pdfpage_page_aria():
   {==}
 
+# ---------- rotação (ciclo de 90°) ----------
+
+def Laws.pdfpage_rotation_step():
+  {==}
+
+def Laws.pdfpage_rotation_next_0():
+  {==}
+
+def Laws.pdfpage_rotation_next_90():
+  {==}
+
+def Laws.pdfpage_rotation_next_180():
+  {==}
+
+def Laws.pdfpage_rotation_next_270():
+  {==}
+
+def Laws.pdfpage_rotation_valid_0():
+  {==}
+
+def Laws.pdfpage_rotation_valid_90():
+  {==}
+
+def Laws.pdfpage_rotation_valid_180():
+  {==}
+
+def Laws.pdfpage_rotation_valid_270():
+  {==}
+
+def Laws.pdfpage_rotation_valid_45():
+  {==}
+
+def Laws.pdfpage_rotation_valid_360():
+  {==}
+
+def Laws.pdfpage_rotation_normalize_valid():
+  {==}
+
+def Laws.pdfpage_rotation_normalize_invalid():
+  {==}
+
+def Laws.pdfpage_rotate_title_zero():
+  {==}
+
+def Laws.pdfpage_rotate_title_90():
+  {==}
+
+def Laws.pdfpage_rotate_aria():
+  {==}
+
+def Laws.pdfpage_rotate_toast():
+  {==}
+
+def Laws.pdfpage_rotate_class():
+  {==}
+
+def Laws.pdfpage_rotate_icon():
+  {==}
+
+def Laws.pdfpage_rotate_title_attr():
+  {==}
+
+def Laws.pdfpage_rotate_aria_attr():
+  {==}
+
+def Laws.pdfpage_rotate_click():
+  {==}
+
 # ---------- select da biblioteca ----------
 
 def Laws.pdfpage_options_empty_concrete():
@@ -176,6 +244,12 @@ def Laws.pdfpage_fit_btn():
   {==}
 
 def Laws.pdfpage_zoom_label_span():
+  {==}
+
+def Laws.pdfpage_tools_rotate():
+  {==}
+
+def Laws.pdfpage_tools_rotate_title():
   {==}
 
 # ---------- palco, busca e divisor ----------
@@ -337,4 +411,7 @@ def Laws.pdfpage_fit_click():
   {==}
 
 def Laws.pdfpage_invert_click():
+  {==}
+
+def Laws.pdfpage_rotate_label():
   {==}

@@ -18,9 +18,10 @@ import ../config.bend as C
 #
 # O que não saiu (e por quê): igualdade genérica de `Config` para fatos
 # arbitrários não reduz (Maybe/String livres são valor computado, o Bend não
-# casa neles); as leis viram cenários concretos do host. O trim dos quatro
+# casa neles); as leis viram cenários concretos do host. O trim dos cinco
 # paths do topo também não: o app nunca aparou, é quirk preservado — a lei
-# fixa o comportamento (espaço nas pontas sobrevive).
+# fixa o comportamento (espaço nas pontas sobrevive), inclusive para o
+# `claudePath` novo.
 # ---------------------------------------------------------------------------
 
 # ---------- vocabulário auxiliar (só para falar do núcleo) ----------
@@ -29,17 +30,22 @@ def emptyDeskFacts() -> C.DeskFacts:
   C.DeskFacts{None{}, None{}, None{}, None{}, None{}, None{}, None{}, Nil{}}
 
 def emptyFacts() -> C.ConfigFacts:
-  C.ConfigFacts{None{}, None{}, None{}, None{}, Nil{}, None{}}
+  C.ConfigFacts{None{}, None{}, None{}, None{}, None{}, Nil{}, None{}}
 
 def deskOf(c: C.Config) -> C.Desk:
   match c:
-    case C.Config{vaultPath, runtimePath, piPath, xournalPath, courses, desk}:
+    case C.Config{vaultPath, runtimePath, piPath, claudePath, xournalPath, courses, desk}:
       desk
 
 def coursesOf(c: C.Config) -> List<&2, C.Course>:
   match c:
-    case C.Config{vaultPath, runtimePath, piPath, xournalPath, courses, desk}:
+    case C.Config{vaultPath, runtimePath, piPath, claudePath, xournalPath, courses, desk}:
       courses
+
+def claudeOf(c: C.Config) -> String:
+  match c:
+    case C.Config{vaultPath, runtimePath, piPath, claudePath, xournalPath, courses, desk}:
+      claudePath
 
 def panelToggle(p: C.Panel) -> String:
   match p:
@@ -51,7 +57,7 @@ def panelToggle(p: C.Panel) -> String:
 # Config sem nenhum fato = defaults do autor inteiros.
 law config_vazio:
   {C.normalize(emptyFacts()) == C.Config{
-    "", "", "", "",
+    "", "", "", "", "",
     Nil{},
     C.defaultDesk()
   } : C.Config}
@@ -66,7 +72,7 @@ law config_desk_vazio:
 
 # normalize delega o bloco desk inteiro: mesmos fatos, mesmo desk.
 law config_desk_delegado:
-  {deskOf(C.normalize(C.ConfigFacts{None{}, None{}, None{}, None{}, Nil{}, Some{emptyDeskFacts()}}))
+  {deskOf(C.normalize(C.ConfigFacts{None{}, None{}, None{}, None{}, None{}, Nil{}, Some{emptyDeskFacts()}}))
     == C.normalizeDesk(Some{emptyDeskFacts()}) : C.Desk}
 
 # ---------- flags ----------
@@ -235,7 +241,7 @@ law config_cursos_preserva_ordem_e_filtra:
 
 # Curso dentro do normalize completo.
 law config_normalize_cursos:
-  {coursesOf(C.normalize(C.ConfigFacts{None{}, None{}, None{}, None{},
+  {coursesOf(C.normalize(C.ConfigFacts{None{}, None{}, None{}, None{}, None{},
     [C.CourseFacts{None{}, None{}, Some{"/p/Álgebra"}, Some{"Álgebra"}}], None{}}))
     == [C.Course{"Álgebra", "", "/p/Álgebra"}] : List<&2, C.Course>}
 
@@ -264,9 +270,27 @@ law config_needsSetup_curso_generico:
 
 # O app sempre fez String(raw.vaultPath||'') sem trim; espaço nas pontas fica.
 law config_vault_sem_trim:
-  {C.normalize(C.ConfigFacts{Some{" /vault "}, None{}, None{}, None{}, Nil{}, None{}})
-    == C.Config{" /vault ", "", "", "", Nil{}, C.defaultDesk()} : C.Config}
+  {C.normalize(C.ConfigFacts{Some{" /vault "}, None{}, None{}, None{}, None{}, Nil{}, None{}})
+    == C.Config{" /vault ", "", "", "", "", Nil{}, C.defaultDesk()} : C.Config}
 
 law config_paths_presentes:
-  {C.normalize(C.ConfigFacts{Some{"/v"}, Some{"/r"}, Some{"/pi"}, Some{"/x"}, Nil{}, None{}})
-    == C.Config{"/v", "/r", "/pi", "/x", Nil{}, C.defaultDesk()} : C.Config}
+  {C.normalize(C.ConfigFacts{Some{"/v"}, Some{"/r"}, Some{"/pi"}, Some{"/c"}, Some{"/x"}, Nil{}, None{}})
+    == C.Config{"/v", "/r", "/pi", "/c", "/x", Nil{}, C.defaultDesk()} : C.Config}
+
+# ---------- claudePath (novo, mesmo contrato dos outros paths do topo) ----------
+
+# Ausente/falso cai em vazio; o resto da config não muda.
+law config_claude_ausente:
+  {claudeOf(C.normalize(emptyFacts())) == "" : String}
+
+law config_claude_ausente_com_paths:
+  {claudeOf(C.normalize(C.ConfigFacts{Some{"/v"}, Some{"/r"}, Some{"/pi"}, None{}, Some{"/x"}, Nil{}, None{}})) == "" : String}
+
+law config_claude_path_presente:
+  {claudeOf(C.normalize(C.ConfigFacts{None{}, None{}, None{}, Some{"/opt/claude"}, None{}, Nil{}, None{}}))
+    == "/opt/claude" : String}
+
+# Quirk preservado: como os outros quatro, o path não apara.
+law config_claude_sem_trim:
+  {claudeOf(C.normalize(C.ConfigFacts{None{}, None{}, None{}, Some{" /claude "}, None{}, Nil{}, None{}}))
+    == " /claude " : String}

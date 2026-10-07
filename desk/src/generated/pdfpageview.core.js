@@ -338,13 +338,13 @@ function $pdfnav$outlineEmpty$() {
   return "Este PDF não tem sumário.";
 }
 function $pdfnav$navButtonLabel$() {
-  return "Navegar";
+  return "Sumário e favoritos";
 }
 function $pdfnav$navButtonTitle$() {
-  return "Favoritos e sumário";
+  return "Sumário e favoritos";
 }
 function $pdfnav$navAria$(_label_0) {
-  return "Navegar em " + _label_0;
+  return "Sumário e favoritos de " + _label_0;
 }
 function $pdfnav$navBackLabel$() {
   return "Voltar";
@@ -704,6 +704,855 @@ function $findAria$(_label_0) {
 function $pageAria$(_label_0) {
   return "Página de " + _label_0;
 }
+function $rotationStep$() {
+  return 90n;
+}
+function $rotationNext$(_rotation_0) {
+  const _x_0 = run_loop($rotationStep$());
+  return run_jump($Nat$mod$, [nat_chk(_rotation_0 + _x_0), BigInt(360)]);
+}
+function $rotationValid$(_rotation_0) {
+  if (_rotation_0 === 0n) {
+    return true;
+  } else if (_rotation_0 === 1n) {
+    const _5_0 = _rotation_0 - 1n;
+    return false;
+  } else if (_rotation_0 === 2n) {
+    const _6_0 = _rotation_0 - 2n;
+    return false;
+  } else if (_rotation_0 === 3n) {
+    const _7_0 = _rotation_0 - 3n;
+    return false;
+  } else if (_rotation_0 === 4n) {
+    const _8_0 = _rotation_0 - 4n;
+    return false;
+  } else if (_rotation_0 === 5n) {
+    const _9_0 = _rotation_0 - 5n;
+    return false;
+  } else if (_rotation_0 === 6n) {
+    const _10_0 = _rotation_0 - 6n;
+    return false;
+  } else if (_rotation_0 === 7n) {
+    const _11_0 = _rotation_0 - 7n;
+    return false;
+  } else if (_rotation_0 === 8n) {
+    const _12_0 = _rotation_0 - 8n;
+    return false;
+  } else if (_rotation_0 === 9n) {
+    const _13_0 = _rotation_0 - 9n;
+    return false;
+  } else if (_rotation_0 === 10n) {
+    const _14_0 = _rotation_0 - 10n;
+    return false;
+  } else if (_rotation_0 === 11n) {
+    const _15_0 = _rotation_0 - 11n;
+    return false;
+  } else if (_rotation_0 === 12n) {
+    const _16_0 = _rotation_0 - 12n;
+    return false;
+  } else if (_rotation_0 === 13n) {
+    const _17_0 = _rotation_0 - 13n;
+    return false;
+  } else if (_rotation_0 === 14n) {
+    const _18_0 = _rotation_0 - 14n;
+    return false;
+  } else if (_rotation_0 === 15n) {
+    const _19_0 = _rotation_0 - 15n;
+    return false;
+  } else if (_rotation_0 === 16n) {
+    const _20_0 = _rotation_0 - 16n;
+    return false;
+  } else if (_rotation_0 === 17n) {
+    const _21_0 = _rotation_0 - 17n;
+    return false;
+  } else if (_rotation_0 === 18n) {
+    const _22_0 = _rotation_0 - 18n;
+    return false;
+  } else if (_rotation_0 === 19n) {
+    const _23_0 = _rotation_0 - 19n;
+    return false;
+  } else if (_rotation_0 === 20n) {
+    const _24_0 = _rotation_0 - 20n;
+    return false;
+  } else if (_rotation_0 === 21n) {
+    const _25_0 = _rotation_0 - 21n;
+    return false;
+  } else if (_rotation_0 === 22n) {
+    const _26_0 = _rotation_0 - 22n;
+    return false;
+  } else if (_rotation_0 === 23n) {
+    const _27_0 = _rotation_0 - 23n;
+    return false;
+  } else if (_rotation_0 === 24n) {
+    const _28_0 = _rotation_0 - 24n;
+    return false;
+  } else if (_rotation_0 === 25n) {
+    const _29_0 = _rotation_0 - 25n;
+    return false;
+  } else if (_rotation_0 === 26n) {
+    const _30_0 = _rotation_0 - 26n;
+    return false;
+  } else if (_rotation_0 === 27n) {
+    const _31_0 = _rotation_0 - 27n;
+    return false;
+  } else if (_rotation_0 === 28n) {
+    const _32_0 = _rotation_0 - 28n;
+    return false;
+  } else if (_rotation_0 === 29n) {
+    const _33_0 = _rotation_0 - 29n;
+    return false;
+  } else if (_rotation_0 === 30n) {
+    const _34_0 = _rotation_0 - 30n;
+    return false;
+  } else if (_rotation_0 === 31n) {
+    const _35_0 = _rotation_0 - 31n;
+    return false;
+  } else if (_rotation_0 === 32n) {
+    const _36_0 = _rotation_0 - 32n;
+    return false;
+  } else if (_rotation_0 === 33n) {
+    const _37_0 = _rotation_0 - 33n;
+    return false;
+  } else if (_rotation_0 === 34n) {
+    const _38_0 = _rotation_0 - 34n;
+    return false;
+  } else if (_rotation_0 === 35n) {
+    const _39_0 = _rotation_0 - 35n;
+    return false;
+  } else if (_rotation_0 === 36n) {
+    const _40_0 = _rotation_0 - 36n;
+    return false;
+  } else if (_rotation_0 === 37n) {
+    const _41_0 = _rotation_0 - 37n;
+    return false;
+  } else if (_rotation_0 === 38n) {
+    const _42_0 = _rotation_0 - 38n;
+    return false;
+  } else if (_rotation_0 === 39n) {
+    const _43_0 = _rotation_0 - 39n;
+    return false;
+  } else if (_rotation_0 === 40n) {
+    const _44_0 = _rotation_0 - 40n;
+    return false;
+  } else if (_rotation_0 === 41n) {
+    const _45_0 = _rotation_0 - 41n;
+    return false;
+  } else if (_rotation_0 === 42n) {
+    const _46_0 = _rotation_0 - 42n;
+    return false;
+  } else if (_rotation_0 === 43n) {
+    const _47_0 = _rotation_0 - 43n;
+    return false;
+  } else if (_rotation_0 === 44n) {
+    const _48_0 = _rotation_0 - 44n;
+    return false;
+  } else if (_rotation_0 === 45n) {
+    const _49_0 = _rotation_0 - 45n;
+    return false;
+  } else if (_rotation_0 === 46n) {
+    const _50_0 = _rotation_0 - 46n;
+    return false;
+  } else if (_rotation_0 === 47n) {
+    const _51_0 = _rotation_0 - 47n;
+    return false;
+  } else if (_rotation_0 === 48n) {
+    const _52_0 = _rotation_0 - 48n;
+    return false;
+  } else if (_rotation_0 === 49n) {
+    const _53_0 = _rotation_0 - 49n;
+    return false;
+  } else if (_rotation_0 === 50n) {
+    const _54_0 = _rotation_0 - 50n;
+    return false;
+  } else if (_rotation_0 === 51n) {
+    const _55_0 = _rotation_0 - 51n;
+    return false;
+  } else if (_rotation_0 === 52n) {
+    const _56_0 = _rotation_0 - 52n;
+    return false;
+  } else if (_rotation_0 === 53n) {
+    const _57_0 = _rotation_0 - 53n;
+    return false;
+  } else if (_rotation_0 === 54n) {
+    const _58_0 = _rotation_0 - 54n;
+    return false;
+  } else if (_rotation_0 === 55n) {
+    const _59_0 = _rotation_0 - 55n;
+    return false;
+  } else if (_rotation_0 === 56n) {
+    const _60_0 = _rotation_0 - 56n;
+    return false;
+  } else if (_rotation_0 === 57n) {
+    const _61_0 = _rotation_0 - 57n;
+    return false;
+  } else if (_rotation_0 === 58n) {
+    const _62_0 = _rotation_0 - 58n;
+    return false;
+  } else if (_rotation_0 === 59n) {
+    const _63_0 = _rotation_0 - 59n;
+    return false;
+  } else if (_rotation_0 === 60n) {
+    const _64_0 = _rotation_0 - 60n;
+    return false;
+  } else if (_rotation_0 === 61n) {
+    const _65_0 = _rotation_0 - 61n;
+    return false;
+  } else if (_rotation_0 === 62n) {
+    const _66_0 = _rotation_0 - 62n;
+    return false;
+  } else if (_rotation_0 === 63n) {
+    const _67_0 = _rotation_0 - 63n;
+    return false;
+  } else if (_rotation_0 === 64n) {
+    const _68_0 = _rotation_0 - 64n;
+    return false;
+  } else if (_rotation_0 === 65n) {
+    const _69_0 = _rotation_0 - 65n;
+    return false;
+  } else if (_rotation_0 === 66n) {
+    const _70_0 = _rotation_0 - 66n;
+    return false;
+  } else if (_rotation_0 === 67n) {
+    const _71_0 = _rotation_0 - 67n;
+    return false;
+  } else if (_rotation_0 === 68n) {
+    const _72_0 = _rotation_0 - 68n;
+    return false;
+  } else if (_rotation_0 === 69n) {
+    const _73_0 = _rotation_0 - 69n;
+    return false;
+  } else if (_rotation_0 === 70n) {
+    const _74_0 = _rotation_0 - 70n;
+    return false;
+  } else if (_rotation_0 === 71n) {
+    const _75_0 = _rotation_0 - 71n;
+    return false;
+  } else if (_rotation_0 === 72n) {
+    const _76_0 = _rotation_0 - 72n;
+    return false;
+  } else if (_rotation_0 === 73n) {
+    const _77_0 = _rotation_0 - 73n;
+    return false;
+  } else if (_rotation_0 === 74n) {
+    const _78_0 = _rotation_0 - 74n;
+    return false;
+  } else if (_rotation_0 === 75n) {
+    const _79_0 = _rotation_0 - 75n;
+    return false;
+  } else if (_rotation_0 === 76n) {
+    const _80_0 = _rotation_0 - 76n;
+    return false;
+  } else if (_rotation_0 === 77n) {
+    const _81_0 = _rotation_0 - 77n;
+    return false;
+  } else if (_rotation_0 === 78n) {
+    const _82_0 = _rotation_0 - 78n;
+    return false;
+  } else if (_rotation_0 === 79n) {
+    const _83_0 = _rotation_0 - 79n;
+    return false;
+  } else if (_rotation_0 === 80n) {
+    const _84_0 = _rotation_0 - 80n;
+    return false;
+  } else if (_rotation_0 === 81n) {
+    const _85_0 = _rotation_0 - 81n;
+    return false;
+  } else if (_rotation_0 === 82n) {
+    const _86_0 = _rotation_0 - 82n;
+    return false;
+  } else if (_rotation_0 === 83n) {
+    const _87_0 = _rotation_0 - 83n;
+    return false;
+  } else if (_rotation_0 === 84n) {
+    const _88_0 = _rotation_0 - 84n;
+    return false;
+  } else if (_rotation_0 === 85n) {
+    const _89_0 = _rotation_0 - 85n;
+    return false;
+  } else if (_rotation_0 === 86n) {
+    const _90_0 = _rotation_0 - 86n;
+    return false;
+  } else if (_rotation_0 === 87n) {
+    const _91_0 = _rotation_0 - 87n;
+    return false;
+  } else if (_rotation_0 === 88n) {
+    const _92_0 = _rotation_0 - 88n;
+    return false;
+  } else if (_rotation_0 === 89n) {
+    const _93_0 = _rotation_0 - 89n;
+    return false;
+  } else if (_rotation_0 === 90n) {
+    return true;
+  } else if (_rotation_0 === 91n) {
+    const _95_0 = _rotation_0 - 91n;
+    return false;
+  } else if (_rotation_0 === 92n) {
+    const _96_0 = _rotation_0 - 92n;
+    return false;
+  } else if (_rotation_0 === 93n) {
+    const _97_0 = _rotation_0 - 93n;
+    return false;
+  } else if (_rotation_0 === 94n) {
+    const _98_0 = _rotation_0 - 94n;
+    return false;
+  } else if (_rotation_0 === 95n) {
+    const _99_0 = _rotation_0 - 95n;
+    return false;
+  } else if (_rotation_0 === 96n) {
+    const _100_0 = _rotation_0 - 96n;
+    return false;
+  } else if (_rotation_0 === 97n) {
+    const _101_0 = _rotation_0 - 97n;
+    return false;
+  } else if (_rotation_0 === 98n) {
+    const _102_0 = _rotation_0 - 98n;
+    return false;
+  } else if (_rotation_0 === 99n) {
+    const _103_0 = _rotation_0 - 99n;
+    return false;
+  } else if (_rotation_0 === 100n) {
+    const _104_0 = _rotation_0 - 100n;
+    return false;
+  } else if (_rotation_0 === 101n) {
+    const _105_0 = _rotation_0 - 101n;
+    return false;
+  } else if (_rotation_0 === 102n) {
+    const _106_0 = _rotation_0 - 102n;
+    return false;
+  } else if (_rotation_0 === 103n) {
+    const _107_0 = _rotation_0 - 103n;
+    return false;
+  } else if (_rotation_0 === 104n) {
+    const _108_0 = _rotation_0 - 104n;
+    return false;
+  } else if (_rotation_0 === 105n) {
+    const _109_0 = _rotation_0 - 105n;
+    return false;
+  } else if (_rotation_0 === 106n) {
+    const _110_0 = _rotation_0 - 106n;
+    return false;
+  } else if (_rotation_0 === 107n) {
+    const _111_0 = _rotation_0 - 107n;
+    return false;
+  } else if (_rotation_0 === 108n) {
+    const _112_0 = _rotation_0 - 108n;
+    return false;
+  } else if (_rotation_0 === 109n) {
+    const _113_0 = _rotation_0 - 109n;
+    return false;
+  } else if (_rotation_0 === 110n) {
+    const _114_0 = _rotation_0 - 110n;
+    return false;
+  } else if (_rotation_0 === 111n) {
+    const _115_0 = _rotation_0 - 111n;
+    return false;
+  } else if (_rotation_0 === 112n) {
+    const _116_0 = _rotation_0 - 112n;
+    return false;
+  } else if (_rotation_0 === 113n) {
+    const _117_0 = _rotation_0 - 113n;
+    return false;
+  } else if (_rotation_0 === 114n) {
+    const _118_0 = _rotation_0 - 114n;
+    return false;
+  } else if (_rotation_0 === 115n) {
+    const _119_0 = _rotation_0 - 115n;
+    return false;
+  } else if (_rotation_0 === 116n) {
+    const _120_0 = _rotation_0 - 116n;
+    return false;
+  } else if (_rotation_0 === 117n) {
+    const _121_0 = _rotation_0 - 117n;
+    return false;
+  } else if (_rotation_0 === 118n) {
+    const _122_0 = _rotation_0 - 118n;
+    return false;
+  } else if (_rotation_0 === 119n) {
+    const _123_0 = _rotation_0 - 119n;
+    return false;
+  } else if (_rotation_0 === 120n) {
+    const _124_0 = _rotation_0 - 120n;
+    return false;
+  } else if (_rotation_0 === 121n) {
+    const _125_0 = _rotation_0 - 121n;
+    return false;
+  } else if (_rotation_0 === 122n) {
+    const _126_0 = _rotation_0 - 122n;
+    return false;
+  } else if (_rotation_0 === 123n) {
+    const _127_0 = _rotation_0 - 123n;
+    return false;
+  } else if (_rotation_0 === 124n) {
+    const _128_0 = _rotation_0 - 124n;
+    return false;
+  } else if (_rotation_0 === 125n) {
+    const _129_0 = _rotation_0 - 125n;
+    return false;
+  } else if (_rotation_0 === 126n) {
+    const _130_0 = _rotation_0 - 126n;
+    return false;
+  } else if (_rotation_0 === 127n) {
+    const _131_0 = _rotation_0 - 127n;
+    return false;
+  } else if (_rotation_0 === 128n) {
+    const _132_0 = _rotation_0 - 128n;
+    return false;
+  } else if (_rotation_0 === 129n) {
+    const _133_0 = _rotation_0 - 129n;
+    return false;
+  } else if (_rotation_0 === 130n) {
+    const _134_0 = _rotation_0 - 130n;
+    return false;
+  } else if (_rotation_0 === 131n) {
+    const _135_0 = _rotation_0 - 131n;
+    return false;
+  } else if (_rotation_0 === 132n) {
+    const _136_0 = _rotation_0 - 132n;
+    return false;
+  } else if (_rotation_0 === 133n) {
+    const _137_0 = _rotation_0 - 133n;
+    return false;
+  } else if (_rotation_0 === 134n) {
+    const _138_0 = _rotation_0 - 134n;
+    return false;
+  } else if (_rotation_0 === 135n) {
+    const _139_0 = _rotation_0 - 135n;
+    return false;
+  } else if (_rotation_0 === 136n) {
+    const _140_0 = _rotation_0 - 136n;
+    return false;
+  } else if (_rotation_0 === 137n) {
+    const _141_0 = _rotation_0 - 137n;
+    return false;
+  } else if (_rotation_0 === 138n) {
+    const _142_0 = _rotation_0 - 138n;
+    return false;
+  } else if (_rotation_0 === 139n) {
+    const _143_0 = _rotation_0 - 139n;
+    return false;
+  } else if (_rotation_0 === 140n) {
+    const _144_0 = _rotation_0 - 140n;
+    return false;
+  } else if (_rotation_0 === 141n) {
+    const _145_0 = _rotation_0 - 141n;
+    return false;
+  } else if (_rotation_0 === 142n) {
+    const _146_0 = _rotation_0 - 142n;
+    return false;
+  } else if (_rotation_0 === 143n) {
+    const _147_0 = _rotation_0 - 143n;
+    return false;
+  } else if (_rotation_0 === 144n) {
+    const _148_0 = _rotation_0 - 144n;
+    return false;
+  } else if (_rotation_0 === 145n) {
+    const _149_0 = _rotation_0 - 145n;
+    return false;
+  } else if (_rotation_0 === 146n) {
+    const _150_0 = _rotation_0 - 146n;
+    return false;
+  } else if (_rotation_0 === 147n) {
+    const _151_0 = _rotation_0 - 147n;
+    return false;
+  } else if (_rotation_0 === 148n) {
+    const _152_0 = _rotation_0 - 148n;
+    return false;
+  } else if (_rotation_0 === 149n) {
+    const _153_0 = _rotation_0 - 149n;
+    return false;
+  } else if (_rotation_0 === 150n) {
+    const _154_0 = _rotation_0 - 150n;
+    return false;
+  } else if (_rotation_0 === 151n) {
+    const _155_0 = _rotation_0 - 151n;
+    return false;
+  } else if (_rotation_0 === 152n) {
+    const _156_0 = _rotation_0 - 152n;
+    return false;
+  } else if (_rotation_0 === 153n) {
+    const _157_0 = _rotation_0 - 153n;
+    return false;
+  } else if (_rotation_0 === 154n) {
+    const _158_0 = _rotation_0 - 154n;
+    return false;
+  } else if (_rotation_0 === 155n) {
+    const _159_0 = _rotation_0 - 155n;
+    return false;
+  } else if (_rotation_0 === 156n) {
+    const _160_0 = _rotation_0 - 156n;
+    return false;
+  } else if (_rotation_0 === 157n) {
+    const _161_0 = _rotation_0 - 157n;
+    return false;
+  } else if (_rotation_0 === 158n) {
+    const _162_0 = _rotation_0 - 158n;
+    return false;
+  } else if (_rotation_0 === 159n) {
+    const _163_0 = _rotation_0 - 159n;
+    return false;
+  } else if (_rotation_0 === 160n) {
+    const _164_0 = _rotation_0 - 160n;
+    return false;
+  } else if (_rotation_0 === 161n) {
+    const _165_0 = _rotation_0 - 161n;
+    return false;
+  } else if (_rotation_0 === 162n) {
+    const _166_0 = _rotation_0 - 162n;
+    return false;
+  } else if (_rotation_0 === 163n) {
+    const _167_0 = _rotation_0 - 163n;
+    return false;
+  } else if (_rotation_0 === 164n) {
+    const _168_0 = _rotation_0 - 164n;
+    return false;
+  } else if (_rotation_0 === 165n) {
+    const _169_0 = _rotation_0 - 165n;
+    return false;
+  } else if (_rotation_0 === 166n) {
+    const _170_0 = _rotation_0 - 166n;
+    return false;
+  } else if (_rotation_0 === 167n) {
+    const _171_0 = _rotation_0 - 167n;
+    return false;
+  } else if (_rotation_0 === 168n) {
+    const _172_0 = _rotation_0 - 168n;
+    return false;
+  } else if (_rotation_0 === 169n) {
+    const _173_0 = _rotation_0 - 169n;
+    return false;
+  } else if (_rotation_0 === 170n) {
+    const _174_0 = _rotation_0 - 170n;
+    return false;
+  } else if (_rotation_0 === 171n) {
+    const _175_0 = _rotation_0 - 171n;
+    return false;
+  } else if (_rotation_0 === 172n) {
+    const _176_0 = _rotation_0 - 172n;
+    return false;
+  } else if (_rotation_0 === 173n) {
+    const _177_0 = _rotation_0 - 173n;
+    return false;
+  } else if (_rotation_0 === 174n) {
+    const _178_0 = _rotation_0 - 174n;
+    return false;
+  } else if (_rotation_0 === 175n) {
+    const _179_0 = _rotation_0 - 175n;
+    return false;
+  } else if (_rotation_0 === 176n) {
+    const _180_0 = _rotation_0 - 176n;
+    return false;
+  } else if (_rotation_0 === 177n) {
+    const _181_0 = _rotation_0 - 177n;
+    return false;
+  } else if (_rotation_0 === 178n) {
+    const _182_0 = _rotation_0 - 178n;
+    return false;
+  } else if (_rotation_0 === 179n) {
+    const _183_0 = _rotation_0 - 179n;
+    return false;
+  } else if (_rotation_0 === 180n) {
+    return true;
+  } else if (_rotation_0 === 181n) {
+    const _185_0 = _rotation_0 - 181n;
+    return false;
+  } else if (_rotation_0 === 182n) {
+    const _186_0 = _rotation_0 - 182n;
+    return false;
+  } else if (_rotation_0 === 183n) {
+    const _187_0 = _rotation_0 - 183n;
+    return false;
+  } else if (_rotation_0 === 184n) {
+    const _188_0 = _rotation_0 - 184n;
+    return false;
+  } else if (_rotation_0 === 185n) {
+    const _189_0 = _rotation_0 - 185n;
+    return false;
+  } else if (_rotation_0 === 186n) {
+    const _190_0 = _rotation_0 - 186n;
+    return false;
+  } else if (_rotation_0 === 187n) {
+    const _191_0 = _rotation_0 - 187n;
+    return false;
+  } else if (_rotation_0 === 188n) {
+    const _192_0 = _rotation_0 - 188n;
+    return false;
+  } else if (_rotation_0 === 189n) {
+    const _193_0 = _rotation_0 - 189n;
+    return false;
+  } else if (_rotation_0 === 190n) {
+    const _194_0 = _rotation_0 - 190n;
+    return false;
+  } else if (_rotation_0 === 191n) {
+    const _195_0 = _rotation_0 - 191n;
+    return false;
+  } else if (_rotation_0 === 192n) {
+    const _196_0 = _rotation_0 - 192n;
+    return false;
+  } else if (_rotation_0 === 193n) {
+    const _197_0 = _rotation_0 - 193n;
+    return false;
+  } else if (_rotation_0 === 194n) {
+    const _198_0 = _rotation_0 - 194n;
+    return false;
+  } else if (_rotation_0 === 195n) {
+    const _199_0 = _rotation_0 - 195n;
+    return false;
+  } else if (_rotation_0 === 196n) {
+    const _200_0 = _rotation_0 - 196n;
+    return false;
+  } else if (_rotation_0 === 197n) {
+    const _201_0 = _rotation_0 - 197n;
+    return false;
+  } else if (_rotation_0 === 198n) {
+    const _202_0 = _rotation_0 - 198n;
+    return false;
+  } else if (_rotation_0 === 199n) {
+    const _203_0 = _rotation_0 - 199n;
+    return false;
+  } else if (_rotation_0 === 200n) {
+    const _204_0 = _rotation_0 - 200n;
+    return false;
+  } else if (_rotation_0 === 201n) {
+    const _205_0 = _rotation_0 - 201n;
+    return false;
+  } else if (_rotation_0 === 202n) {
+    const _206_0 = _rotation_0 - 202n;
+    return false;
+  } else if (_rotation_0 === 203n) {
+    const _207_0 = _rotation_0 - 203n;
+    return false;
+  } else if (_rotation_0 === 204n) {
+    const _208_0 = _rotation_0 - 204n;
+    return false;
+  } else if (_rotation_0 === 205n) {
+    const _209_0 = _rotation_0 - 205n;
+    return false;
+  } else if (_rotation_0 === 206n) {
+    const _210_0 = _rotation_0 - 206n;
+    return false;
+  } else if (_rotation_0 === 207n) {
+    const _211_0 = _rotation_0 - 207n;
+    return false;
+  } else if (_rotation_0 === 208n) {
+    const _212_0 = _rotation_0 - 208n;
+    return false;
+  } else if (_rotation_0 === 209n) {
+    const _213_0 = _rotation_0 - 209n;
+    return false;
+  } else if (_rotation_0 === 210n) {
+    const _214_0 = _rotation_0 - 210n;
+    return false;
+  } else if (_rotation_0 === 211n) {
+    const _215_0 = _rotation_0 - 211n;
+    return false;
+  } else if (_rotation_0 === 212n) {
+    const _216_0 = _rotation_0 - 212n;
+    return false;
+  } else if (_rotation_0 === 213n) {
+    const _217_0 = _rotation_0 - 213n;
+    return false;
+  } else if (_rotation_0 === 214n) {
+    const _218_0 = _rotation_0 - 214n;
+    return false;
+  } else if (_rotation_0 === 215n) {
+    const _219_0 = _rotation_0 - 215n;
+    return false;
+  } else if (_rotation_0 === 216n) {
+    const _220_0 = _rotation_0 - 216n;
+    return false;
+  } else if (_rotation_0 === 217n) {
+    const _221_0 = _rotation_0 - 217n;
+    return false;
+  } else if (_rotation_0 === 218n) {
+    const _222_0 = _rotation_0 - 218n;
+    return false;
+  } else if (_rotation_0 === 219n) {
+    const _223_0 = _rotation_0 - 219n;
+    return false;
+  } else if (_rotation_0 === 220n) {
+    const _224_0 = _rotation_0 - 220n;
+    return false;
+  } else if (_rotation_0 === 221n) {
+    const _225_0 = _rotation_0 - 221n;
+    return false;
+  } else if (_rotation_0 === 222n) {
+    const _226_0 = _rotation_0 - 222n;
+    return false;
+  } else if (_rotation_0 === 223n) {
+    const _227_0 = _rotation_0 - 223n;
+    return false;
+  } else if (_rotation_0 === 224n) {
+    const _228_0 = _rotation_0 - 224n;
+    return false;
+  } else if (_rotation_0 === 225n) {
+    const _229_0 = _rotation_0 - 225n;
+    return false;
+  } else if (_rotation_0 === 226n) {
+    const _230_0 = _rotation_0 - 226n;
+    return false;
+  } else if (_rotation_0 === 227n) {
+    const _231_0 = _rotation_0 - 227n;
+    return false;
+  } else if (_rotation_0 === 228n) {
+    const _232_0 = _rotation_0 - 228n;
+    return false;
+  } else if (_rotation_0 === 229n) {
+    const _233_0 = _rotation_0 - 229n;
+    return false;
+  } else if (_rotation_0 === 230n) {
+    const _234_0 = _rotation_0 - 230n;
+    return false;
+  } else if (_rotation_0 === 231n) {
+    const _235_0 = _rotation_0 - 231n;
+    return false;
+  } else if (_rotation_0 === 232n) {
+    const _236_0 = _rotation_0 - 232n;
+    return false;
+  } else if (_rotation_0 === 233n) {
+    const _237_0 = _rotation_0 - 233n;
+    return false;
+  } else if (_rotation_0 === 234n) {
+    const _238_0 = _rotation_0 - 234n;
+    return false;
+  } else if (_rotation_0 === 235n) {
+    const _239_0 = _rotation_0 - 235n;
+    return false;
+  } else if (_rotation_0 === 236n) {
+    const _240_0 = _rotation_0 - 236n;
+    return false;
+  } else if (_rotation_0 === 237n) {
+    const _241_0 = _rotation_0 - 237n;
+    return false;
+  } else if (_rotation_0 === 238n) {
+    const _242_0 = _rotation_0 - 238n;
+    return false;
+  } else if (_rotation_0 === 239n) {
+    const _243_0 = _rotation_0 - 239n;
+    return false;
+  } else if (_rotation_0 === 240n) {
+    const _244_0 = _rotation_0 - 240n;
+    return false;
+  } else if (_rotation_0 === 241n) {
+    const _245_0 = _rotation_0 - 241n;
+    return false;
+  } else if (_rotation_0 === 242n) {
+    const _246_0 = _rotation_0 - 242n;
+    return false;
+  } else if (_rotation_0 === 243n) {
+    const _247_0 = _rotation_0 - 243n;
+    return false;
+  } else if (_rotation_0 === 244n) {
+    const _248_0 = _rotation_0 - 244n;
+    return false;
+  } else if (_rotation_0 === 245n) {
+    const _249_0 = _rotation_0 - 245n;
+    return false;
+  } else if (_rotation_0 === 246n) {
+    const _250_0 = _rotation_0 - 246n;
+    return false;
+  } else if (_rotation_0 === 247n) {
+    const _251_0 = _rotation_0 - 247n;
+    return false;
+  } else if (_rotation_0 === 248n) {
+    const _252_0 = _rotation_0 - 248n;
+    return false;
+  } else if (_rotation_0 === 249n) {
+    const _253_0 = _rotation_0 - 249n;
+    return false;
+  } else if (_rotation_0 === 250n) {
+    const _254_0 = _rotation_0 - 250n;
+    return false;
+  } else if (_rotation_0 === 251n) {
+    const _255_0 = _rotation_0 - 251n;
+    return false;
+  } else if (_rotation_0 === 252n) {
+    const _256_0 = _rotation_0 - 252n;
+    return false;
+  } else if (_rotation_0 === 253n) {
+    const _257_0 = _rotation_0 - 253n;
+    return false;
+  } else if (_rotation_0 === 254n) {
+    const _258_0 = _rotation_0 - 254n;
+    return false;
+  } else if (_rotation_0 === 255n) {
+    const _259_0 = _rotation_0 - 255n;
+    return false;
+  } else if (_rotation_0 === 256n) {
+    const _260_0 = _rotation_0 - 256n;
+    return false;
+  } else if (_rotation_0 === 257n) {
+    const _261_0 = _rotation_0 - 257n;
+    return false;
+  } else if (_rotation_0 === 258n) {
+    const _262_0 = _rotation_0 - 258n;
+    return false;
+  } else if (_rotation_0 === 259n) {
+    const _263_0 = _rotation_0 - 259n;
+    return false;
+  } else if (_rotation_0 === 260n) {
+    const _264_0 = _rotation_0 - 260n;
+    return false;
+  } else if (_rotation_0 === 261n) {
+    const _265_0 = _rotation_0 - 261n;
+    return false;
+  } else if (_rotation_0 === 262n) {
+    const _266_0 = _rotation_0 - 262n;
+    return false;
+  } else if (_rotation_0 === 263n) {
+    const _267_0 = _rotation_0 - 263n;
+    return false;
+  } else if (_rotation_0 === 264n) {
+    const _268_0 = _rotation_0 - 264n;
+    return false;
+  } else if (_rotation_0 === 265n) {
+    const _269_0 = _rotation_0 - 265n;
+    return false;
+  } else if (_rotation_0 === 266n) {
+    const _270_0 = _rotation_0 - 266n;
+    return false;
+  } else if (_rotation_0 === 267n) {
+    const _271_0 = _rotation_0 - 267n;
+    return false;
+  } else if (_rotation_0 === 268n) {
+    const _272_0 = _rotation_0 - 268n;
+    return false;
+  } else if (_rotation_0 === 269n) {
+    const _273_0 = _rotation_0 - 269n;
+    return false;
+  } else if (_rotation_0 === 270n) {
+    return true;
+  } else {
+    const _274_0 = _rotation_0 - 270n;
+    return false;
+  }
+}
+function $rotationNormalize$if$(_rotation_0, _valid_0) {
+  if (_valid_0) {
+    return _rotation_0;
+  } else {
+    return 0n;
+  }
+}
+function $rotationNormalize$(_rotation_0) {
+  return run_jump($rotationNormalize$if$, [_rotation_0, run_loop($rotationValid$(_rotation_0))]);
+}
+function $rotateTitle$(_rotation_0) {
+  const _x_0 = run_loop($Nat$show$(_rotation_0));
+  const _x_1 = _x_0 + "°";
+  return "Girar 90° — orientação atual: " + _x_1;
+}
+function $rotateAria$(_label_0, _rotation_0) {
+  const _x_0 = run_loop($Nat$show$(_rotation_0));
+  const _x_1 = _x_0 + "°)";
+  const _x_2 = " (atual: " + _x_1;
+  const _x_3 = _label_0 + _x_2;
+  return "Girar página de " + _x_3;
+}
+function $rotateToast$(_rotation_0) {
+  const _x_0 = run_loop($Nat$show$(_rotation_0));
+  const _x_1 = _x_0 + "°";
+  return "Orientação: " + _x_1;
+}
 function $optionKids$(_name_0) {
   return { $: "Con", ["head"]: run_loop($view$viewText$(_name_0)), ["tail"]: { $: "Nil" } };
 }
@@ -771,6 +1620,7 @@ function $titleBar$(_shell_0) {
   const _path_0 = _shell_0["path"];
   const _minimized_0 = _shell_0["minimized"];
   const _findOpen_0 = _shell_0["findOpen"];
+  const _rotation_0 = _shell_0["rotation"];
   return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-title")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewEl$("strong", { $: "Nil" }, { $: "Con", ["head"]: run_loop($view$viewText$(_label_0)), ["tail"]: { $: "Nil" } })), ["tail"]: { $: "Con", ["head"]: run_loop($selectNode$(_label_0, _options_0, _path_0)), ["tail"]: { $: "Con", ["head"]: run_loop($openBtn$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($findToggleBtn$(_label_0, _findOpen_0)), ["tail"]: { $: "Con", ["head"]: run_loop($shotBtn$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($backBtn$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($navBtn$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($collapseBtn$(_minimized_0)), ["tail"]: { $: "Nil" } } } } } } } } }]);
 }
 function $iconBtn$(_cls_0, _iconName_0, _aria_0, _handler_0) {
@@ -779,11 +1629,14 @@ function $iconBtn$(_cls_0, _iconName_0, _aria_0, _handler_0) {
 function $titleIconBtn$(_cls_0, _iconName_0, _title_0, _aria_0, _handler_0) {
   return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$(_cls_0, _iconName_0, _aria_0)), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(_title_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", _handler_0)), ["tail"]: { $: "Nil" } } }, ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
 }
+function $rotateBtn$(_label_0, _rotation_0) {
+  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$("rotate", "rotateCw", run_loop($rotateAria$(_label_0, _rotation_0)))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($rotateTitle$(_rotation_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "Rotate")), ["tail"]: { $: "Nil" } } }, ["tail"]: { $: "Nil" } } })), { $: "Con", ["head"]: run_loop($view$viewText$("Girar")), ["tail"]: { $: "Nil" } }]);
+}
 function $pageInput$(_label_0) {
   return run_jump($view$viewEl$, ["input", { $: "Con", ["head"]: run_loop($view$attrClass$("page-number")), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "type", ["value"]: "number" }, ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "min", ["value"]: "1" }, ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "value", ["value"]: "1" }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($pageAria$(_label_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("change", "GotoPage")), ["tail"]: { $: "Nil" } } } } } } }, { $: "Nil" }]);
 }
-function $toolsBar$(_label_0) {
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-tools")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($iconBtn$("prev", "chevronLeft", run_loop($prevAria$()), "Prev")), ["tail"]: { $: "Con", ["head"]: run_loop($pageInput$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("page-total")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("next", "chevronRight", run_loop($nextAria$()), "Next")), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("out", "minus", run_loop($outAria$()), "ZoomOut")), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("zoom-label")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("in", "plus", run_loop($inAria$()), "ZoomIn")), ["tail"]: { $: "Con", ["head"]: run_loop($titleIconBtn$("fit", "unfold", run_loop($fitTitle$()), run_loop($fitTitle$()), "Fit")), ["tail"]: { $: "Con", ["head"]: run_loop($titleIconBtn$("invert", "contrast", run_loop($invertTitle$()), run_loop($invertAria$()), "ToggleInvert")), ["tail"]: { $: "Nil" } } } } } } } } } }]);
+function $toolsBar$(_label_0, _rotation_0) {
+  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-tools")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($iconBtn$("prev", "chevronLeft", run_loop($prevAria$()), "Prev")), ["tail"]: { $: "Con", ["head"]: run_loop($pageInput$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("page-total")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("next", "chevronRight", run_loop($nextAria$()), "Next")), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("out", "minus", run_loop($outAria$()), "ZoomOut")), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("zoom-label")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("in", "plus", run_loop($inAria$()), "ZoomIn")), ["tail"]: { $: "Con", ["head"]: run_loop($titleIconBtn$("fit", "unfold", run_loop($fitTitle$()), run_loop($fitTitle$()), "Fit")), ["tail"]: { $: "Con", ["head"]: run_loop($titleIconBtn$("invert", "contrast", run_loop($invertTitle$()), run_loop($invertAria$()), "ToggleInvert")), ["tail"]: { $: "Con", ["head"]: run_loop($rotateBtn$(_label_0, _rotation_0)), ["tail"]: { $: "Nil" } } } } } } } } } } }]);
 }
 function $stage$() {
   return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-stage")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewEl$("div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-viewport")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-foot")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Nil" } } }]);
@@ -797,7 +1650,8 @@ function $panelShell$(_shell_0) {
   const _path_0 = _shell_0["path"];
   const _minimized_0 = _shell_0["minimized"];
   const _findOpen_0 = _shell_0["findOpen"];
-  return run_jump($view$viewEl$, ["section", { $: "Con", ["head"]: run_loop($pdfview$panelClass$(_minimized_0, false)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", _label_0)), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "tabindex", ["value"]: "0" }, ["tail"]: { $: "Nil" } } } }, { $: "Con", ["head"]: run_loop($titleBar$({ $: "PdfShell", ["label"]: _label_0, ["options"]: _options_0, ["path"]: _path_0, ["minimized"]: _minimized_0, ["findOpen"]: _findOpen_0 })), ["tail"]: { $: "Con", ["head"]: run_loop($toolsBar$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($stage$()), ["tail"]: { $: "Con", ["head"]: run_loop($findForm$(_label_0)), ["tail"]: { $: "Nil" } } } } }]);
+  const _rotation_0 = _shell_0["rotation"];
+  return run_jump($view$viewEl$, ["section", { $: "Con", ["head"]: run_loop($pdfview$panelClass$(_minimized_0, false)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", _label_0)), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "tabindex", ["value"]: "0" }, ["tail"]: { $: "Nil" } } } }, { $: "Con", ["head"]: run_loop($titleBar$({ $: "PdfShell", ["label"]: _label_0, ["options"]: _options_0, ["path"]: _path_0, ["minimized"]: _minimized_0, ["findOpen"]: _findOpen_0, ["rotation"]: _rotation_0 })), ["tail"]: { $: "Con", ["head"]: run_loop($toolsBar$(_label_0, _rotation_0)), ["tail"]: { $: "Con", ["head"]: run_loop($stage$()), ["tail"]: { $: "Con", ["head"]: run_loop($findForm$(_label_0)), ["tail"]: { $: "Nil" } } } } }]);
 }
 function $divider$() {
   return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-divider")), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "tabindex", ["value"]: "0" }, ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "role", ["value"]: "separator" }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($dividerAria$()))), ["tail"]: { $: "Nil" } } } } }, { $: "Nil" }]);
@@ -1007,6 +1861,9 @@ function $Bool$not$(_b_0) {
     return false;
   }
 }
+function $Nat$mod$(_a_0, _b_0) {
+  return run_jump($Nat$mod$fin$, [nat_divmod(_a_0, _b_0)]);
+}
 function $String$reverse$(_s_0) {
   return run_jump($String$reverse$go$, [_s_0, ""]);
 }
@@ -1118,6 +1975,11 @@ function $Cmp$is_eq$(_c_0) {
   } else {
     return false;
   }
+}
+function $Nat$mod$fin$(_qr_0) {
+  const _q_0 = _qr_0["fst"];
+  const _r_0 = _qr_0["snd"];
+  return _r_0;
 }
 function $String$reverse$go$(_s_0, _acc_0) {
   if (_s_0 === "") {
@@ -1336,6 +2198,14 @@ var pdfpageview_default = {
   openAria: run_lib($openAria$, 1),
   findAria: run_lib($findAria$, 1),
   pageAria: run_lib($pageAria$, 1),
+  rotationStep: run_lib($rotationStep$, 0),
+  rotationNext: run_lib($rotationNext$, 1),
+  rotationValid: run_lib($rotationValid$, 1),
+  "rotationNormalize.if": run_lib($rotationNormalize$if$, 2),
+  rotationNormalize: run_lib($rotationNormalize$, 1),
+  rotateTitle: run_lib($rotateTitle$, 1),
+  rotateAria: run_lib($rotateAria$, 2),
+  rotateToast: run_lib($rotateToast$, 1),
   optionKids: run_lib($optionKids$, 1),
   optionNode: run_lib($optionNode$, 2),
   optionEmpty: run_lib($optionEmpty$, 0),
@@ -1355,8 +2225,9 @@ var pdfpageview_default = {
   titleBar: run_lib($titleBar$, 1),
   iconBtn: run_lib($iconBtn$, 4),
   titleIconBtn: run_lib($titleIconBtn$, 5),
+  rotateBtn: run_lib($rotateBtn$, 2),
   pageInput: run_lib($pageInput$, 1),
-  toolsBar: run_lib($toolsBar$, 1),
+  toolsBar: run_lib($toolsBar$, 2),
   stage: run_lib($stage$, 0),
   findForm: run_lib($findForm$, 1),
   panelShell: run_lib($panelShell$, 1),

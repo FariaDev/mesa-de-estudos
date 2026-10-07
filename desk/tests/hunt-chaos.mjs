@@ -259,14 +259,14 @@ await scenario('switch-vs-stream',async()=>{
   const page=await app.firstWindow();const errs=watch(page);
   await statusOnline(page);
   await page.waitForFunction(()=>document.querySelector('#messages')?.textContent.includes('SEGREDO-A'),undefined,{timeout:20000});
-  // (a) atalho ⌘2 com stream aberto: a aba está disabled para clique, mas o atalho
+  // (a) atalho ⌘3 com stream aberto: a aba está disabled para clique, mas o atalho
   //     não consulta o disabled; mede o tempo até o aviso.
   await page.locator('#prompt').fill('trave aqui');
   await page.locator('#send').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Vou travar')),undefined,{timeout:15000});
   probe('aba fica disabled durante o stream (clique bloqueado)',await page.evaluate(()=>document.querySelector('#course-tabs button[data-id="B"]').disabled));
   const t0=Date.now();
-  await page.keyboard.press('ControlOrMeta+2');
+  await page.keyboard.press('ControlOrMeta+3');
   let toastAt=0;
   try{
    await page.waitForFunction(()=>{const t=document.querySelector('#toast');return !!t&&!t.hidden&&/Pare a resposta/i.test(t.textContent);},undefined,{timeout:18000});
@@ -285,7 +285,7 @@ await scenario('switch-vs-stream',async()=>{
   await page.locator('#prompt').fill('trave de novo');
   await page.locator('#send').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Vou travar')),undefined,{timeout:15000});
-  await page.keyboard.press('ControlOrMeta+2');
+  await page.keyboard.press('ControlOrMeta+3');
   await page.waitForTimeout(800);
   await page.keyboard.press('Escape');
   await sendEnabled(page,{timeout:45000});
@@ -306,9 +306,9 @@ await scenario('switch-vs-stream',async()=>{
   await page.locator('#prompt').fill('trave pela terceira vez');
   await page.locator('#send').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Vou travar')),undefined,{timeout:15000});
-  await page.keyboard.press('ControlOrMeta+1');
-  await page.waitForTimeout(300);
   await page.keyboard.press('ControlOrMeta+2');
+  await page.waitForTimeout(300);
+  await page.keyboard.press('ControlOrMeta+3');
   await page.waitForTimeout(900);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(9000);
@@ -326,14 +326,14 @@ await scenario('switch-vs-stream',async()=>{
   must('sem pageerror na fila de trocas',errs.pageerrors.length===0,errs.pageerrors.join(' | '));
   // (d) o mesmo atalho com o turno encerrado troca de verdade: a recusa de (a)/(b)
   //     não é pegajosa (a aba só está travada enquanto o Pi responde)
-  await page.keyboard.press('ControlOrMeta+1');
+  await page.keyboard.press('ControlOrMeta+2');
   await page.waitForFunction(()=>document.querySelector('#course-tabs button.active')?.dataset.id==='A',undefined,{timeout:45000});
   await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('SEGREDO-A'),undefined,{timeout:45000});
-  must('⌘1 com o turno encerrado volta para a matéria A',true);
-  await page.keyboard.press('ControlOrMeta+2');
+  must('⌘2 com o turno encerrado volta para a matéria A',true);
+  await page.keyboard.press('ControlOrMeta+3');
   await page.waitForFunction(()=>document.querySelector('#course-tabs button.active')?.dataset.id==='B',undefined,{timeout:45000});
   await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('SEGREDO-B'),undefined,{timeout:45000});
-  must('⌘2 com o turno encerrado troca para a matéria B',true);
+  must('⌘3 com o turno encerrado troca para a matéria B',true);
   must('sem pageerror na troca tardia',errs.pageerrors.length===0,errs.pageerrors.join(' | '));
   probe('sem erro de console no renderer',errs.consoles.length===0,errs.consoles.join(' | ').slice(0,200));
  });
@@ -391,9 +391,9 @@ await scenario('dialogs-stream',async()=>{
   must('diálogo do Pi abre no meio do stream',true);
   must('leque mostra as opções do Pi',(await page.locator('#dialog-value option').allTextContents()).join(',')==='Alfa,Beta');
   const activeBefore=await page.evaluate(()=>document.querySelector('#course-tabs button.active')?.dataset.id);
-  await page.keyboard.press('ControlOrMeta+1');
+  await page.keyboard.press('ControlOrMeta+2');
   await page.waitForTimeout(300);
-  must('⌘1 com diálogo aberto não troca de matéria',await page.evaluate(()=>document.querySelector('#course-tabs button.active')?.dataset.id)===activeBefore);
+  must('⌘2 com diálogo aberto não troca de matéria',await page.evaluate(()=>document.querySelector('#course-tabs button.active')?.dataset.id)===activeBefore);
   await page.keyboard.press('ControlOrMeta+\\');
   await page.waitForTimeout(200);
   must('⌘\\ com diálogo aberto não recolhe o chat',await page.evaluate(()=>!document.body.classList.contains('chat-collapsed')));

@@ -130,3 +130,11 @@ test('desk flags survive normalize with sane defaults',()=>{
  assert.equal(partial.desk.panels.length,2);
 });
 
+
+test('Claude executable path survives config normalization without changing Pi defaults',()=>{
+ const config=normalize({claudePath:'/original/claude',piPath:'/original/pi'});
+ assert.equal(config.claudePath,'/original/claude');
+ assert.equal(config.piPath,'/original/pi');
+ assert.equal(normalize({}).claudePath,'');
+ assert.deepEqual(config.desk,defaultDesk());
+});
