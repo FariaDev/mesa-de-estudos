@@ -1,4 +1,4 @@
-/* Os catálogos de idioma da interface (#41): `desk/locales/pt-BR.json` e `en.json`
+/* Os catálogos de idioma da interface (#41): `desk/src/locales/pt-BR.json` e `en.json`
    têm as mesmas chaves e os mesmos argumentos, e toda chave que o código usa
    existe neles. O catálogo é a única fonte das frases, então uma chave que falta
    num idioma só aparece em campo, na troca de idioma. */
@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {placeholderNames} from '../src/i18n.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 
 const deskDir = path.resolve(import.meta.dirname, '..');
 const coreDir = path.resolve(deskDir, '..', 'core');

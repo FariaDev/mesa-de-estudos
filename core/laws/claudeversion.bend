@@ -22,7 +22,7 @@ import ../claudeversion.bend as C
 # O que o enunciado NÃO prova: ler `X.Y.Z` da saída do `--version` (o host
 # entrega `Ver`), que a tabela do repositório tem mínimo ≤ testada na mesma
 # série (teste do host em `tests/claude-environment.test.mjs`) e a tradução da
-# frase (catálogos `desk/locales/*.json`, com teste de paridade).
+# frase (catálogos `desk/src/locales/*.json`, com teste de paridade).
 # ---------------------------------------------------------------------------
 
 def minimo() -> U.Ver:

@@ -44,7 +44,7 @@ const TESTED_VERSIONS = require('../tested-versions.json');
 const versionCore = require('../generated/claudeversion.core.js').default;
 const noticeCore = require('../generated/updatenotice.core.js').default;
 const {createI18n} = require('../i18n.mjs');
-const ptCatalog = require('../../locales/pt-BR.json');
+const ptCatalog = require('../locales/pt-BR.json');
 
 /* A faixa aceita (#51): uma fonte só, a tabela "testada com esta Mesa" (#45).
    A testada é a referência da série; o mínimo é a mais antiga que os testes

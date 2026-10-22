@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 import {createI18n} from '../src/i18n.mjs';
 import {
   STEPS, TOUR, initialSetup, stepId, setupBlocked, nextSetup, backSetup, goToStep, primaryKey, hintKey,

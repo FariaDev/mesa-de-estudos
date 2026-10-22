@@ -22,7 +22,7 @@ import Base
 # constante, reconhece a imagem pelos primeiros bytes, conta os bytes que
 # chegaram e lê o relógio; o núcleo recebe esses fatos já resolvidos. Os textos
 # do popover e da página do celular são interface (ADR 0001) e moram nos
-# catálogos `desk/locales/*.json`, chaves `phone.*`.
+# catálogos `desk/src/locales/*.json`, chaves `phone.*`.
 # ---------------------------------------------------------------------------
 
 # ---------- fluxo ----------

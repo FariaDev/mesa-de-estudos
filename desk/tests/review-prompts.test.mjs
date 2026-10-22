@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createI18n} from '../src/i18n.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 import {reviewPrompt} from '../src/review-prompts.mjs';
 
 const inPortuguese = createI18n({catalogs: {'pt-BR': ptBR, en}, language: 'pt-BR'}).t;

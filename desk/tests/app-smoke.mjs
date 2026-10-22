@@ -32,7 +32,7 @@ function walk(dir,base=dir){
 }
 const modules=fs.readdirSync(desk).filter(f=>/\.(cjs|mjs)$/.test(f)&&fs.statSync(path.join(desk,f)).isFile());
 const named=['index.html','ggb.html','style.css','package.json','config.example.json'].filter(f=>fs.existsSync(path.join(desk,f)));
-const dirs=['src','assets','templates','locales'].filter(d=>fs.existsSync(path.join(desk,d)));
+const dirs=['src','assets','templates'].filter(d=>fs.existsSync(path.join(desk,d)));
 const keyFiles=[...modules,...named,...dirs.flatMap(d=>walk(path.join(desk,d)).map(f=>path.join(d,f))),path.join('scripts','install-app.mjs')];
 
 const stale=[];
