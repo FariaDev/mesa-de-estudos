@@ -27,7 +27,7 @@ law invalid_number_default:
 # Seleção do corte, não a medição: com o fato `overLimit` já resolvido pelo
 # host, as leis fixam qual dos dois valores sai (o texto livre entra por `for`).
 # Quem mede (`length > teto`) e corta (`slice(0, teto)`) continua sendo o host —
-# `desk/state-adapter.cjs` e `chat/state-adapter.cjs` —, mas o teto vem de
+# `desk/state-adapter.cjs` —, mas o teto vem de
 # `S.maxDraftChars()` (lei abaixo), não de um literal repetido.
 law draft_short_preserved:
   for cut: String

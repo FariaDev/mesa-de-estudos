@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {ptMatches, ptText} from './pt-text.mjs';
 
 /* A captura do Windows (PowerShell + .NET do sistema) sem Windows: o script é
    puro (conferido por texto/escapamento) e o runner aceita `exec`/`tmp`
@@ -40,22 +41,22 @@ test('captureXournalWindow: devolve o título e o PNG como data URL', async () =
 test('captureXournalWindow: erros do script viram mensagens que o usuário resolve', async () => {
   /* `tmp` como fábrica: cada captura tem o seu diretório (o finally limpa). */
   const semProcesso = async () => { const e = Error('exit 3'); e.code = 3; throw e; };
-  await assert.rejects(() => captureXournalWindow({exec: semProcesso, tmp}), /Abra o Xournal\+\+ primeiro/);
-  assert.equal(EXIT_MESSAGES[3].includes('Abra o Xournal++'), true);
+  await assert.rejects(() => captureXournalWindow({exec: semProcesso, tmp}), ptMatches(/Abra o Xournal\+\+ primeiro/));
+  assert.equal(ptText(EXIT_MESSAGES[3]).includes('Abra o Xournal++'), true);
   const minimizada = async () => { const e = Error('exit 4'); e.code = 4; throw e; };
-  await assert.rejects(() => captureXournalWindow({exec: minimizada, tmp}), /minimizada/);
+  await assert.rejects(() => captureXournalWindow({exec: minimizada, tmp}), ptMatches(/minimizada/));
   const outro = async () => { const e = Error('powershell sumiu'); throw e; };
-  await assert.rejects(() => captureXournalWindow({exec: outro, tmp}), /A captura do Xournal\+\+ falhou/);
+  await assert.rejects(() => captureXournalWindow({exec: outro, tmp}), ptMatches(/A captura do Xournal\+\+ falhou/));
 });
 
 test('captureXournalWindow: PNG ruim é erro, não anexo — e o temporário sai', async () => {
   const dir = tmp();
   const outFile = path.join(dir, 'attempt.png');
   const exec = async () => { fs.writeFileSync(outFile, 'não é png'); return {stdout: ''}; };
-  await assert.rejects(() => captureXournalWindow({exec, tmp: () => dir}), /não produziu uma imagem PNG válida/);
+  await assert.rejects(() => captureXournalWindow({exec, tmp: () => dir}), ptMatches(/não produziu uma imagem PNG válida/));
   const dir2 = tmp();
   const semArquivo = async () => ({stdout: ''});
-  await assert.rejects(() => captureXournalWindow({exec: semArquivo, tmp: () => dir2}), /não produziu uma imagem PNG válida/);
+  await assert.rejects(() => captureXournalWindow({exec: semArquivo, tmp: () => dir2}), ptMatches(/não produziu uma imagem PNG válida/));
   assert.equal(fs.existsSync(dir), false, 'o temporário é limpo em qualquer saída');
   assert.equal(fs.existsSync(dir2), false, 'o temporário é limpo em qualquer saída');
 });

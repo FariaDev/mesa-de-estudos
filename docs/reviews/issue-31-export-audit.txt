@@ -1,0 +1,36 @@
+Issue #31 — inventário dos 14 módulos compartilhados na base c80a7918d72da229df1db75c3104ff3bf70bb0e2
+Critério: fonte dos módulos, importadores, usos diretos e por nomes/string, helpers internos, leis/provas e testes.
+Ausência de import estático isoladamente não prova código morto.
+
+attachments: 63 def na base
+attachview: 22 def na base
+composerview: 51 def na base
+framing: 14 def na base
+handoff: 16 def na base
+rpcstate: 32 def na base
+sessions: 73 def na base
+slashview: 16 def na base
+state: 21 def na base
+statusview: 33 def na base
+talkview: 48 def na base
+view: 45 def na base
+worklog: 40 def na base
+worklogview: 31 def na base
+
+Candidatos conferidos além dos três itens do ticket:
+Removidos: talkview.citation/talkChip/thinkingChip/toolChip/typingState; attachments.sentReason; rpcstate.stoppedOf/actOf; view.isEl.
+Preservados:
+- attachments.attachFiles/attachReason/sentMimes: core/laws/attachments.bend:279-358.
+- framing.rejoinFrame: desk/tests/framing-parity.mjs:91 e chat/tests/framing-parity.mjs:74.
+- framing.overflowOf: core/laws/framing.bend:30-61.
+- rpcstate.aliveOf/pendingOf/seqOf/emitOf: core/laws/rpcstate.bend:69-225.
+- state.normalizeChat: core/laws/state.bend:116.
+- composerview.editBannerView: reserva provada documentada em chat/UI-PORT.md:49 e testada em chat/tests/composerview.test.mjs.
+- statusview.piLabel/sessionSelect: desk/tests/statusview.test.mjs:111-127, core/laws/statusview.bend:176-185.
+- view.tagOf/attrsOf/kidsOf: core/laws/view.bend:66-78 e leis dos demais módulos.
+As demais definições têm consumidor do app, de outro núcleo, ou chamador interno; os helpers não foram descartados por falta de import direto.
+
+Importadores de talkview: desk/src/chat.mjs, desk/src/markdown.mjs, desk/src/sidechat.mjs, chat/src/chat.mjs, desk/tests/talkview.test.mjs, chat/tests/attachview.test.mjs.
+Importadores de composerview: desk/src/queue.mjs, chat/src/features/queue.mjs, chat/tests/composerview.test.mjs.
+Importadores de statusview: desk/src/state.mjs, chat/src/features/status-foot.mjs, desk/tests/statusview.test.mjs, chat/tests/statusview.test.mjs.
+Nenhum desses importadores despacha os exports removidos por chave dinâmica. A única chamada a emptyState do núcleo estava no teste da Mesa eliminado junto com esse contrato obsoleto.

@@ -1,0 +1,345 @@
+Issue #31 — buscas na base anterior à remoção
+Base: c80a7918d72da229df1db75c3104ff3bf70bb0e2
+As buscas incluem homônimos; as linhas geradas longas são abreviadas.
+
+$ git grep -n -E footStatus c80a7918d72da229df1db75c3104ff3bf70bb0e2 -- core desk chat docs AGENTS.md README.md
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:AGENTS.md:109:| Cabeçalho do tutor (uma linha de 40px: título da sessão — só o nome, sem a data, que fica na lista; a lista mostra a data numa linha e o título noutra, sem repetir a prévia, e o link "Buscar e organizar  [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/UI-PORT.md:632:| `footStatusView(model, effort, context)` | `button#foot-status.foot-status[hidden] > span.fs-item.fs-model + .fs-sep + .fs-eff + .fs-ctx` |
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/features/status-foot.mjs:78:  const next=build(sv.footStatus(model,level,values.context,values.contextTip||'',tip),HANDLERS);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/statusview.core.js:355:function $footStatus$(_model_0, _level_0, _context_0, _detail_0, _override_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/statusview.core.js:684:  footStatus: run_lib($footStatus$, 5),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/statusview.test.mjs:27: const node=sv.footStatus('','','','', '');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/statusview.test.mjs:42: const node=sv.footStatus('Pi de teste','Desligado','0,6%','Contexto: 0,6% usado', '');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/statusview.test.mjs:57: assert.equal(attrsOf(sv.footStatus('','','7%','', '')).get('data-tip'),'7%');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/statusview.test.mjs:58: assert.equal(attrsOf(sv.footStatus('','','','detalhe', '')).has('data-tip'),false);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/statusview.test.mjs:62: const node=sv.footStatus('Pi de teste','','','', '');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/statusview.bend:35:  {V.attrGet(V.attrsOf(SV.footStatus("", "", "", "", "")), "hidden") == Some{""} : Maybe<&2, String>}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/statusview.bend:38:  {V.attrGet(V.attrsOf(SV.footStatus("Pi", "", "", "", "")), "hidden") == None{} : Maybe<&2, String>}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/statusview.bend:41:  {V.attrGet(V.attrsOf(SV.footStatus("Pi", "", "", "", "")), "on:click") == Some{"toggleMeterTip"} : Maybe<&2, String>}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/statusview.bend:62:  {V.attrGet(V.attrsOf(SV.footStatus("Pi", "Alto", "42%", "", "balão pronto")), "data-tip") == Some{"balão pronto"} : Maybe<&2, String>}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/statusview.bend:65:  {V.attrGet(V.attrsOf(SV.footStatus("Pi", "Alto", "42%", "", "")), "data-tip") == Some{"Pi · Alto · 42%"} : Maybe<&2, String>}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/statusview.bend:69:  {V.attrGet(V.attrsOf(SV.footStatus("Pi", "", "", "", "")), "title") == None{} : Maybe<&2, String>}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/statusview.bend:72:  {V.attrGet(V.attrsOf(SV.footStatus("", "", "", "", "")), "aria-label") == Some{"Status do modelo"} : Maybe<&2, String>}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/statusview.bend:152:def footStatus(model: String, level: String, context: String, detail: String, +override: String) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/UI-PORT.md:328:| `View.footStatus(model, level, context)` | **só na Conversa**: `button#foot-status.foot-status` (`.fs-item`, `.fs-model/.fs-eff/.fs-ctx/.fs-sep`); a Mesa não usa (o artefato `statusview` é comparti [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/statusview.core.js:355:function $footStatus$(_model_0, _level_0, _context_0, _detail_0, _override_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/statusview.core.js:684:  footStatus: run_lib($footStatus$, 5),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/statusview.test.mjs:34:  const node = sv.footStatus('', '', '', '', '');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/statusview.test.mjs:47:  const node = sv.footStatus('Pi de teste · test', 'Desligado', '42%', 'Contexto do modelo: 42%', '');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/statusview.test.mjs:63:  assert.equal(attrsOf(sv.footStatus('', '', '7%', '', '')).get('data-tip'), '7%');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/statusview.test.mjs:64:  assert.equal(attrsOf(sv.footStatus('', '', '', 'detalhe', '')).has('data-tip'), false, 'sem contexto o tooltip não vaza');
+exit=0
+
+$ git grep -n -E settingsPanel[a-zA-Z]*|settingsToggle[a-zA-Z]* c80a7918d72da229df1db75c3104ff3bf70bb0e2 -- core desk chat docs AGENTS.md README.md
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:AGENTS.md:109:| Cabeçalho do tutor (uma linha de 40px: título da sessão — só o nome, sem a data, que fica na lista; a lista mostra a data numa linha e o título noutra, sem repetir a prévia, e o link "Buscar e organizar  [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:421:function $settingsPanelLabel$() {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:424:function $settingsPanelTitle$() {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:427:function $settingsPanelBodyId$() {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:430:function $settingsToggleClass$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:433:function $settingsPanelHidden$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:440:function $settingsToggleAttrs$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:441:  return run_jump($view$attrJoin$, [{ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrId$("se [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:443:function $settingsToggleBtn$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:444:  return run_jump($view$viewEl$, ["button", run_loop($settingsToggleAttrs$(_open_0)), { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($settingsPanelLabel$()))), ["tail [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:446:function $settingsPanelBody$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:447:  return run_jump($view$viewEl$, ["div", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrId$(run_loop($settingsPanelBodyId$()))), ["tai [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:449:function $settingsPanel$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:450:  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrId$("pi-settings-panel")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrClass$("setting [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:656:  settingsPanelLabel: run_lib($settingsPanelLabel$, 0),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:657:  settingsPanelTitle: run_lib($settingsPanelTitle$, 0),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:658:  settingsPanelBodyId: run_lib($settingsPanelBodyId$, 0),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:659:  settingsToggleClass: run_lib($settingsToggleClass$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:660:  settingsPanelHidden: run_lib($settingsPanelHidden$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:661:  settingsToggleAttrs: run_lib($settingsToggleAttrs$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:662:  settingsToggleBtn: run_lib($settingsToggleBtn$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:663:  settingsPanelBody: run_lib($settingsPanelBody$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:664:  settingsPanel: run_lib($settingsPanel$, 1)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:299:def settingsPanelLabel() -> String:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:302:def settingsPanelTitle() -> String:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:305:def settingsPanelBodyId() -> String:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:308:def settingsToggleClass(open: Bool) -> V.ViewAttr:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:311:def settingsPanelHidden(open: Bool) -> List<&2, V.ViewAttr>:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:318:def settingsToggleAttrs(+open: Bool) -> List<&2, V.ViewAttr>:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:322:      settingsToggleClass(open),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:324:      V.attrAria("controls", settingsPanelBodyId())
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:326:    [V.attrOn("click", "ToggleSettings"), V.attrTitle(settingsPanelTitle()), V.attrData("icon", "unfold")]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:329:def settingsToggleBtn(open: Bool) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:330:  V.viewEl("button", settingsToggleAttrs(open), [V.viewText(settingsPanelLabel())])
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:332:def settingsPanelBody(open: Bool) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:336:      [V.attrId(settingsPanelBodyId()), V.attrClass("settings-body")],
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:337:      settingsPanelHidden(open)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:342:def settingsPanel(+open: Bool) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/composerview.bend:346:    [settingsToggleBtn(open), settingsPanelBody(open)]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:193:  {V.attrGet(V.attrsOf(C.settingsPanel(True{})), "id")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:197:  {V.attrGet(V.attrsOf(C.settingsPanel(True{})), "class")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:201:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "id")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:205:  {kidText(kid(C.settingsPanel(True{}), 0n), 0n) == "Ajustes" : String}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:208:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "title")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:212:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "on:click")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:216:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "aria-controls")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:220:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "aria-expanded")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:224:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(False{}), 0n)), "aria-expanded")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:228:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "class")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:232:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(False{}), 0n)), "class")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:236:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 1n)), "id")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:240:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 1n)), "class")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:244:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 1n)), "hidden")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/composerview.bend:248:  {V.attrGet(V.attrsOf(kid(C.settingsPanel(False{}), 1n)), "hidden")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:421:function $settingsPanelLabel$() {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:424:function $settingsPanelTitle$() {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:427:function $settingsPanelBodyId$() {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:430:function $settingsToggleClass$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:433:function $settingsPanelHidden$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:440:function $settingsToggleAttrs$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:441:  return run_jump($view$attrJoin$, [{ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrId$("se [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:443:function $settingsToggleBtn$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:444:  return run_jump($view$viewEl$, ["button", run_loop($settingsToggleAttrs$(_open_0)), { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($settingsPanelLabel$()))), ["tail [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:446:function $settingsPanelBody$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:447:  return run_jump($view$viewEl$, ["div", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrId$(run_loop($settingsPanelBodyId$()))), ["tai [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:449:function $settingsPanel$(_open_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:450:  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrId$("pi-settings-panel")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrClass$("setting [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:656:  settingsPanelLabel: run_lib($settingsPanelLabel$, 0),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:657:  settingsPanelTitle: run_lib($settingsPanelTitle$, 0),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:658:  settingsPanelBodyId: run_lib($settingsPanelBodyId$, 0),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:659:  settingsToggleClass: run_lib($settingsToggleClass$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:660:  settingsPanelHidden: run_lib($settingsPanelHidden$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:661:  settingsToggleAttrs: run_lib($settingsToggleAttrs$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:662:  settingsToggleBtn: run_lib($settingsToggleBtn$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:663:  settingsPanelBody: run_lib($settingsPanelBody$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:664:  settingsPanel: run_lib($settingsPanel$, 1)
+exit=0
+
+$ git grep -n -E emptyState c80a7918d72da229df1db75c3104ff3bf70bb0e2 -- core desk chat docs AGENTS.md README.md
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:322:function $emptyState$() {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:668:  emptyState: run_lib($emptyState$, 0),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/talkview.bend:78:  {V.attrGet(V.attrsOf(T.emptyState()), "id") == Some{"welcome"} : Maybe<&2, String>}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:165:def emptyState() -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:322:function $emptyState$() {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:668:  emptyState: run_lib($emptyState$, 0),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/layout-settings.mjs:66:function emptyState(container, doc){
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/layout-settings.mjs:284: const m = emptyState(container, doc);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/talkview.test.mjs:50: const empty=core.emptyState();
+exit=0
+
+$ git grep -n -E citation|talkChip|thinkingChip|toolChip|typingState c80a7918d72da229df1db75c3104ff3bf70bb0e2 -- core desk chat docs AGENTS.md README.md
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/extensions/research/lib.mjs:792:    const citations = Number(work.cited_by_count);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/extensions/research/lib.mjs:795:    if (Number.isFinite(citations) && citations > 0) meta.push(`${citations} citaç${citations === 1 ? 'ão' : 'ões'}`);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:367:function $citationView$(_text_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:368:  return run_jump($view$viewEl$, ["blockquote", { $: "Con", ["head"]: run_loop($view$attrClass$("msg-citation")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$vie [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:370:function $toolChipView$(_label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:373:function $thinkingChipView$(_label_0, _live_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:566:  citationView: run_lib($citationView$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:567:  toolChipView: run_lib($toolChipView$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:568:  thinkingChipView: run_lib($thinkingChipView$, 2)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:310:function $citation$(_text_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:311:  return run_jump($view$viewEl$, ["blockquote", { $: "Con", ["head"]: run_loop($view$attrClass$("citation")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewTe [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:313:function $talkChip$(_kind_0, _label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:316:function $thinkingChip$(_label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:317:  return run_jump($talkChip$, ["thinking", _label_0]);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:319:function $toolChip$(_label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:320:  return run_jump($talkChip$, ["tool", _label_0]);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:325:function $typingState$(_label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:664:  citation: run_lib($citation$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:665:  talkChip: run_lib($talkChip$, 2),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:666:  thinkingChip: run_lib($thinkingChip$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:667:  toolChip: run_lib($toolChip$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:669:  typingState: run_lib($typingState$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/fixtures/arxiv-atom.xml:16:    <summary>  We report studies of the electronic structure and elementary excitations of doped and undoped cuprate chains, ladders and planes. Using high energy spectroscopies suc [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/fixtures/arxiv-atom.xml:54:    <summary>  Surface effects on the electronic energy loss of charged particles entering a metal surface are investigated within linear-response theory, in the framework of time-d [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/msgview.test.mjs:88: assert.equal(text(core.citationView('> trecho')),'> trecho');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/msgview.test.mjs:89: assert.equal(attr(core.toolChipView('Busca'),'class'),'msg-chip tool');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/tests/msgview.test.mjs:90: assert.equal(attr(core.thinkingChipView('Pensando…',true),'class'),'msg-chip thinking pulse');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/mesaqolescape.bend:27:  {E.escapeAction(E.EscapeFacts{False{}, False{}, False{}, False{}, True{}, True{}, True{}}) == "citation" : String}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/talkview.bend:63:law talk_citation_tag:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/talkview.bend:65:  {V.tagOf(T.citation(text)) == "blockquote" : String}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/talkview.bend:69:  {V.attrGet(V.attrsOf(T.thinkingChip(label)), "data-kind")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/talkview.bend:74:  {V.attrGet(V.attrsOf(T.toolChip(label)), "class")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/laws/talkview.bend:82:  {V.attrGet(V.attrsOf(T.typingState(label)), "data-role")
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:13:#   citation botão Citar visível (seleção de texto)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:32:    citation: Bool,
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:55:def afterCitation(citation: Bool, search: Bool, tutor: Bool) -> String:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:56:  match citation:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:58:      "citation"
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:62:def afterPopover(popover: Bool, citation: Bool, search: Bool, tutor: Bool) -> String:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:67:      afterCitation(citation, search, tutor)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:69:def afterMenu(menu: Bool, popover: Bool, citation: Bool, search: Bool, tutor: Bool) -> String:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:74:      afterPopover(popover, citation, search, tutor)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:76:def afterPalette(palette: Bool, menu: Bool, popover: Bool, citation: Bool, search: Bool, tutor: Bool) -> String:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:81:      afterMenu(menu, popover, citation, search, tutor)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:85:    case EscapeFacts{dialog, palette, menu, popover, citation, search, tutor}:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/mesaqolescape.bend:90:          afterPalette(palette, menu, popover, citation, search, tutor)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/msgview.bend:239:def citationView(text: String) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/msgview.bend:240:  V.viewEl("blockquote", [V.attrClass("msg-citation")], [V.viewText(text)])
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/msgview.bend:242:def toolChipView(label: String) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/msgview.bend:245:def thinkingChipView(label: String, live: Bool) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/proofs/talkview.bend:38:def Laws.talk_citation_tag(text):
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:146:def citation(text: String) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:147:  V.viewEl("blockquote", [V.attrClass("citation")], [V.viewText(text)])
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:149:def talkChip(+kind: String, label: String) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:156:def thinkingChip(label: String) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:157:  talkChip("thinking", label)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:159:def toolChip(label: String) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:160:  talkChip("tool", label)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/talkview.bend:178:def typingState(label: String) -> V.ViewNode:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/escape-policy.mjs:18:     citation  #quote-btn visível (seleção de texto)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/escape-policy.mjs:23:export const ESCAPE_ACTIONS = Object.freeze(['modal', 'palette', 'menu', 'popover', 'citation', 'search', 'tutor', 'none']);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/escape-policy.mjs:24:export const ESCAPE_LAYERS = Object.freeze(['dialog', 'palette', 'menu', 'popover', 'citation', 'search', 'tutor']);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/escape-policy.mjs:35:    citation: f.citation === true,
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/escape-policy.mjs:41:/** Decisão pura: fatos → 'modal'|'palette'|'menu'|'popover'|'citation'|'search'|'tutor'|'none'. */
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/escape-policy.mjs:64:    citation: visible(doc, '#quote-btn'),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:38:function $afterCitation$(_citation_0, _search_0, _tutor_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:39:  if (_citation_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:40:    return "citation";
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:45:function $afterPopover$(_popover_0, _citation_0, _search_0, _tutor_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:49:    return run_jump($afterCitation$, [_citation_0, _search_0, _tutor_0]);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:52:function $afterMenu$(_menu_0, _popover_0, _citation_0, _search_0, _tutor_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:56:    return run_jump($afterPopover$, [_popover_0, _citation_0, _search_0, _tutor_0]);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:59:function $afterPalette$(_palette_0, _menu_0, _popover_0, _citation_0, _search_0, _tutor_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:63:    return run_jump($afterMenu$, [_menu_0, _popover_0, _citation_0, _search_0, _tutor_0]);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:72:    const _citation_0 = _f_0["citation"];
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:80:    const _citation_1 = _f_0["citation"];
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolescape.core.js:83:    return run_jump($afterPalette$, [_palette_1, _menu_1, _popover_1, _citation_1, _search_1, _tutor_1]);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:310:function $citation$(_text_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:311:  return run_jump($view$viewEl$, ["blockquote", { $: "Con", ["head"]: run_loop($view$attrClass$("citation")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewTe [linha longa abreviada]
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:313:function $talkChip$(_kind_0, _label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:316:function $thinkingChip$(_label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:317:  return run_jump($talkChip$, ["thinking", _label_0]);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:319:function $toolChip$(_label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:320:  return run_jump($talkChip$, ["tool", _label_0]);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:325:function $typingState$(_label_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:664:  citation: run_lib($citation$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:665:  talkChip: run_lib($talkChip$, 2),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:666:  thinkingChip: run_lib($thinkingChip$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:667:  toolChip: run_lib($toolChip$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:669:  typingState: run_lib($typingState$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/main.mjs:528:  if(action==='citation'){e.preventDefault();hideQuoteButton();window.getSelection()?.removeAllRanges();return;}
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/escape-policy.test.mjs:11:const LAYERS = ['dialog', 'palette', 'menu', 'popover', 'citation', 'search'];
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/escape-policy.test.mjs:12:const EXPECTED = ['modal', 'palette', 'menu', 'popover', 'citation', 'search'];
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/escape-policy.test.mjs:37:  assert.equal(decideEscape({citation: true, tutor: true}), 'citation');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/escape-policy.test.mjs:52:  for (const action of ['modal', 'palette', 'menu', 'popover', 'citation', 'search', 'none']) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/escape-policy.test.mjs:98:    citation: true,
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/escape-policy.test.mjs:132:    citation: false,
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/talkview.test.mjs:46: assert.equal(core.citation('trecho').tag,'blockquote');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/talkview.test.mjs:47: assert.equal(attrs(core.citation('trecho')).class,'citation');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/talkview.test.mjs:48: assert.deepEqual(attrs(core.thinkingChip('Pensando')),{class:'talk-chip thinking','data-kind':'thinking'});
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/talkview.test.mjs:49: assert.deepEqual(attrs(core.toolChip('Busca')),{class:'talk-chip tool','data-kind':'tool'});
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/tests/talkview.test.mjs:53: const typing=core.typingState('Pi está pensando…');
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:docs/TRANSCRIPT.md:610:- source citation;
+exit=0
+
+$ git grep -n -E sentReason|stoppedOf|actOf|isEl c80a7918d72da229df1db75c3104ff3bf70bb0e2 -- core desk chat docs AGENTS.md README.md
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/attachments.core.js:475:function $sentReason$(_r_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/attachments.core.js:694:  sentReason: run_lib($sentReason$, 1)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/attachview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/attachview.core.js:537:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/chatlist.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/chatlist.core.js:707:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/comfortview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/comfortview.core.js:408:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/composerview.core.js:581:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/findbar.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/findbar.core.js:478:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/gaugeview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/gaugeview.core.js:497:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/keysview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/keysview.core.js:485:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/lightboxview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/lightboxview.core.js:533:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/msgview.core.js:512:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/notifyview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/notifyview.core.js:417:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/paletteview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/paletteview.core.js:521:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/popoverview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/popoverview.core.js:809:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/rpcstate.core.js:165:function $stoppedOf$(_o_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/rpcstate.core.js:192:function $actOf$(_o_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/rpcstate.core.js:260:  stoppedOf: run_lib($stoppedOf$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/rpcstate.core.js:263:  actOf: run_lib($actOf$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/searchview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/searchview.core.js:717:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/slashview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/slashview.core.js:471:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/statusview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/statusview.core.js:633:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/talkview.core.js:618:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/view.core.js:89:function $isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/view.core.js:373:  isEl: run_lib($isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/welcomeview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/welcomeview.core.js:421:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/worklogview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:chat/src/generated/worklogview.core.js:990:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/attachments.bend:554:def sentReason(r: SendResult) -> Maybe<&2, AttachError>:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/rpcstate.bend:225:def stoppedOf(o: RpcOut) -> Bool:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/rpcstate.bend:240:def actOf(o: RpcOut) -> RpcAct:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:core/view.bend:91:def isEl(n: ViewNode) -> Bool:
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/activity-runtime.cjs:275:      const isElement = read('nodeType', node) === 1;
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/activity-runtime.cjs:276:      if (isElement && (dangerous(read('localName', node)) || executableScript(node))) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/activity-runtime.cjs:281:        if (isElement) stripAttr(node);
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/activity-runtime.cjs:283:        if (isElement) descend(node, (inner) => { cleanTree(inner); return false; });
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/attachments.core.js:475:function $sentReason$(_r_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/attachments.core.js:694:  sentReason: run_lib($sentReason$, 1)
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/attachview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/attachview.core.js:537:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/auxview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/auxview.core.js:429:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/calcview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/calcview.core.js:514:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/chatlibraryview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/chatlibraryview.core.js:396:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerbox.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerbox.core.js:553:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/composerview.core.js:581:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/deskflags.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/deskflags.core.js:430:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/dialogsview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/dialogsview.core.js:1249:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/firstrun.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/firstrun.core.js:1719:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolpalette.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/mesaqolpalette.core.js:629:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/pdfnav.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/pdfnav.core.js:762:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/pdfpageview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/pdfpageview.core.js:2706:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/pdfview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/pdfview.core.js:568:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/readersheet.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/readersheet.core.js:499:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/resume.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/resume.core.js:577:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/review.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/review.core.js:893:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/rpcstate.core.js:165:function $stoppedOf$(_o_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/rpcstate.core.js:192:function $actOf$(_o_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/rpcstate.core.js:260:  stoppedOf: run_lib($stoppedOf$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/rpcstate.core.js:263:  actOf: run_lib($actOf$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/settingsview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/settingsview.core.js:1406:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/shortcutview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/shortcutview.core.js:550:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/slashview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/slashview.core.js:471:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/statusview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/statusview.core.js:633:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/studytoolsview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/studytoolsview.core.js:379:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/tabsview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/tabsview.core.js:582:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/talkview.core.js:618:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/toastview.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/toastview.core.js:440:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/tutorheader.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/tutorheader.core.js:614:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/tutorstate.core.js:89:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/tutorstate.core.js:673:  "view.isEl": run_lib($view$isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/view.core.js:89:function $isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/view.core.js:373:  isEl: run_lib($isEl$, 1),
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/worklogview.core.js:92:function $view$isEl$(_n_0) {
+c80a7918d72da229df1db75c3104ff3bf70bb0e2:desk/src/generated/worklogview.core.js:990:  "view.isEl": run_lib($view$isEl$, 1),
+exit=0

@@ -7,9 +7,11 @@ import view.bend as V
 # O host entrega fatos já resolvidos — o texto do aviso e se o item já está
 # saindo (`closing`), o rótulo da atividade e se ele é o passo ao vivo — e este
 # núcleo devolve a árvore de nós:
-#   - `#toast[role=status]` com um `.toast-item` por aviso, na ordem (o mais
-#     novo por último). O tom hoje é único; a variante do item é o estado de
-#     saída, que entra no fim da lista de classes: `toast-item closing out`.
+#   - `#toast[role=status]` com um `.toast-item` por aviso. A regra da fila é
+#     "um aviso por vez" (`toastPush`): o aviso novo substitui o que está na
+#     tela e o repetido não acumula nem ganha contador. O tom hoje é único; a
+#     variante do item é o estado de saída, que entra no fim da lista de
+#     classes: `toast-item closing out`.
 #   - `#activity[role=status][title]`: texto simples (`activityView`) ou o
 #     passo ao vivo (`activityLiveView`) com `.pulse[aria-hidden]` +
 #     `.activity-label`. Rótulo vazio deixa a faixa vazia (nem o ponto).
@@ -39,7 +41,16 @@ def toastItem(t: Toast) -> V.ViewNode:
     case Toast{text, closing}:
       V.viewEl("div", [V.classes(toastClasses(closing))], [V.viewText(text)])
 
-# Lista na ordem de inserção (mais novo por último) — quem corta em 3 é o host.
+# Regra da fila: um aviso por vez. O que chega substitui o que estava na tela
+# (igual ou não), sempre aberto — o host reinicia o tempo a partir dele.
+def toastPush(ts: List<&2, Toast>, text: String) -> List<&2, Toast>:
+  match ts:
+    case Nil{}:
+      [Toast{text, False{}}]
+    case Con{h, t}:
+      [Toast{text, False{}}]
+
+# Lista na ordem de inserção; com `toastPush` ela nunca passa de um item.
 def toastItems(ts: List<&2, Toast>) -> List<&2, V.ViewNode>:
   V.viewMap(~Toast, ~toastItem, ts)
 

@@ -1,7 +1,7 @@
 import Base
 
 # ---------------------------------------------------------------------------
-# Estado persistido da Mesa e da Conversa — recorte puro e escalar.
+# Estado persistido da Mesa (e, até a #50, da Conversa) — recorte puro e escalar.
 #
 # O host faz JSON/fs/IPC e converte valores dinâmicos para os registros fechados
 # abaixo. Assim, só estas chaves entram no núcleo; chaves desconhecidas somem na
@@ -20,7 +20,7 @@ import Base
 # `study.bend`; anexos ficam fora por tamanho, MIME e I/O.
 #
 # A Mesa usa defaults 390/220/0.5, limites 300..700, 72..900 e 0.2..0.8.
-# A Conversa usa draft vazio, tema auto e busca desligada.
+# A Conversa (aposentada na #50) usava draft vazio, tema auto e busca desligada.
 # ---------------------------------------------------------------------------
 
 type StateTheme is Data:

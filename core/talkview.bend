@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ def roleName(user: Bool) -> String:
 def roleLabel(user: Bool) -> String:
   match user:
     case True{}:
-      "Você"
+      M.msg("talk.you")
     case False{}:
       "Pi"
 
@@ -87,7 +88,7 @@ def shot(src: String) -> V.ViewNode:
     "img",
     [ V.attrClass("shot")
     , V.attr("src", src)
-    , V.attr("alt", "Imagem enviada")
+    , V.attr("alt", M.msg("talk.imageSent"))
     , V.attr("loading", "lazy")
     , V.attr("decoding", "async")
     ],
@@ -113,9 +114,9 @@ def messageAction(className: String, label: String, handler: String) -> V.ViewNo
 
 def messageActions(canCopy: Bool, canQuote: Bool, canReview: Bool) -> List<&2, V.ViewNode>:
   V.viewJoin([
-    V.viewWhen(canCopy, messageAction("msg-copy", "Copiar", "CopyMessage")),
-    V.viewWhen(canQuote, messageAction("msg-quote", "Citar", "QuoteMessage")),
-    V.viewWhen(canReview, messageAction("msg-review", "Guardar para revisar", "SaveForReview"))
+    V.viewWhen(canCopy, messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage")),
+    V.viewWhen(canQuote, messageAction("msg-quote", M.msg("talk.quote"), "QuoteMessage")),
+    V.viewWhen(canReview, messageAction("msg-review", M.msg("talk.review"), "SaveForReview"))
   ])
 
 def messageKids(
@@ -140,55 +141,6 @@ def message(
   canReview: Bool
 ) -> V.ViewNode:
   V.viewEl("article", messageAttrs(user), messageKids(user, markup, images, canCopy, canQuote, canReview))
-
-# Citação e chips curtos são construtores reutilizáveis para conteúdo já
-# convertido em texto pelo host. O diário detalhado do turno não usa estes nós.
-def citation(text: String) -> V.ViewNode:
-  V.viewEl("blockquote", [V.attrClass("citation")], [V.viewText(text)])
-
-def talkChip(+kind: String, label: String) -> V.ViewNode:
-  V.viewEl(
-    "span",
-    [V.classes([V.classOn("talk-chip", True{}), V.classOn(kind, True{})]), V.attrData("kind", kind)],
-    [V.viewText(label)]
-  )
-
-def thinkingChip(label: String) -> V.ViewNode:
-  talkChip("thinking", label)
-
-def toolChip(label: String) -> V.ViewNode:
-  talkChip("tool", label)
-
-# Estado vazio e estado transitório de digitação. A Mesa mantém o indicador
-# global de atividade no host; estes construtores fixam a forma caso a conversa
-# precise montá-los dentro de `#messages`.
-def emptyState() -> V.ViewNode:
-  V.viewEl(
-    "div",
-    [V.attrId("welcome")],
-    [ V.viewEl(
-        "button",
-        [V.attrId("connect"), V.attrType("button"), V.attrOn("click", "Connect")],
-        [V.viewText("Conectar ao Pi")]
-      )
-    , V.viewEl("p", Nil{}, [V.viewText("Sessão local desta matéria.")])
-    ]
-  )
-
-def typingState(label: String) -> V.ViewNode:
-  V.viewEl(
-    "article",
-    [V.attrClass("message assistant typing"), V.attrData("role", "assistant")],
-    [ roleNode("Pi")
-    , V.viewEl(
-        "div",
-        [V.attrClass("body")],
-        [ V.viewEl("span", [V.attrClass("pulse"), V.attrAria("hidden", "true")], Nil{})
-        , V.viewText(label)
-        ]
-      )
-    ]
-  )
 
 # ---------- assets do corpo (figura hidratada e moldura do código) ----------
 # O Markdown (marked/KaTeX/DOMPurify) e o realce continuam no host: ele resolve
@@ -243,8 +195,8 @@ def assetFallback(source: String) -> V.ViewNode:
 def codeCopy() -> V.ViewNode:
   V.viewEl(
     "button",
-    [V.attrType("button"), V.attrClass("code-copy"), V.attrAria("label", "Copiar código")],
-    [V.viewText("cópia")]
+    [V.attrType("button"), V.attrClass("code-copy"), V.attrAria("label", M.msg("talk.copyCode"))],
+    [V.viewText(M.msg("talk.copyShort"))]
   )
 
 # O rótulo da linguagem chega já em caixa alta (fato do host); vazio, some.
@@ -265,16 +217,16 @@ def codeBlock(pre: V.ViewNode, lang: String) -> V.ViewNode:
 def quizRole(multi: Bool) -> String:
   match multi:
     case True{}:
-      "Quiz · múltipla escolha"
+      M.msg("talk.quizMulti")
     case False{}:
-      "Quiz"
+      M.msg("talk.quiz")
 
 def quizAria(multi: Bool) -> String:
   match multi:
     case True{}:
-      "Quiz de múltipla escolha"
+      M.msg("talk.quizMultiAria")
     case False{}:
-      "Pergunta de quiz"
+      M.msg("talk.quizAria")
 
 def optionRole(multi: Bool) -> String:
   match multi:
@@ -368,7 +320,7 @@ def quizDetails(has: Bool, markup: V.ViewNode) -> List<&2, V.ViewNode>:
 def quizOptionsBox(+multi: Bool, options: List<&2, QuizOptionRow>) -> V.ViewNode:
   V.viewEl(
     "div",
-    [V.attrClass("quiz-options"), V.attr("role", optionsRole(multi)), V.attrAria("label", "Opções")],
+    [V.attrClass("quiz-options"), V.attr("role", optionsRole(multi)), V.attrAria("label", M.msg("talk.quizOptionsAria"))],
     quizOptions(options, multi)
   )
 
@@ -383,14 +335,14 @@ def sendButton(disabled: Bool) -> V.ViewNode:
       ],
       V.attrWhen(disabled, V.attr("disabled", ""))
     ),
-    [V.viewText("Enviar resposta")]
+    [V.viewText(M.msg("talk.quizSend"))]
   )
 
 def skipButton() -> V.ViewNode:
   V.viewEl(
     "button",
     [V.attrType("button"), V.attrClass("quiz-skip"), V.attrOn("click", "SkipQuiz")],
-    [V.viewText("Pular")]
+    [V.viewText(M.msg("talk.quizSkip"))]
   )
 
 def quizActions(+showSend: Bool, sendDisabled: Bool, +showSkip: Bool) -> List<&2, V.ViewNode>:
@@ -410,7 +362,7 @@ def quizTail(
 ) -> List<&2, V.ViewNode>:
   V.viewJoin([
     V.viewWhen(hasVerdict, V.viewEl("div", [V.attrClass("quiz-verdict")], [V.viewText(verdict)])),
-    V.viewWhen(hasNote, V.viewEl("div", [V.attrClass("quiz-note")], [V.viewText("Observação: "), note])),
+    V.viewWhen(hasNote, V.viewEl("div", [V.attrClass("quiz-note")], [V.viewText(M.msg("talk.quizNotePrefix")), note])),
     V.viewWhen(hasExplain, V.viewEl("div", [V.attrClass("quiz-explain")], [explain]))
   ])
 

@@ -1,7 +1,9 @@
 import shortcutCore from './generated/shortcutview.core.js';
 import {build, childrenOf, preserveFocus, preserveScroll, renderChildren} from './view-host.mjs';
+import {onStaticTextApplied, t, LANGUAGE_EVENT} from './ui-text.mjs';
+import {message} from './i18n.mjs';
 
-// Atalhos editáveis da Mesa — catálogo, remapeamento e editor (Como usar → Personalizar…).
+// Atalhos editáveis da Mesa — catálogo, remapeamento e editor (Guia da Mesa → Atalhos → Personalizar…).
 //
 // O remapeamento não toca nos handlers existentes: este módulo envia ao preload o
 // padrão e o atalho atual de cada ação de keydown; o listener do preload (registrado
@@ -20,45 +22,46 @@ const isMac=navigator.userAgent.includes('Mac');
    fixed: contextual — aparece no editor, mas não é editável nesta versão.
    note: o que mostrar na coluna de nota dos atalhos fixos (ex.: '← →'). */
 const CATALOG=[
- {id:'check',label:'Conferir Xournal++',group:'Estudar',combo:'Mod+Shift+C',menu:true,keydown:true},
- {id:'ggb-check',label:'Conferir GeoGebra',group:'Estudar',combo:'Mod+Shift+G',menu:true,keydown:true},
- {id:'chat-toggle',label:'Recolher ou mostrar o chat',group:'Visualização',combo:'Mod+\\',menu:true,keydown:true},
- {id:'pdf-find',label:'Buscar no PDF',group:'Visualização',combo:'Mod+F',keydown:true},
- {id:'invert',label:'Inverter as cores da página',group:'Visualização',combo:'Mod+Shift+I',keydown:true},
- {id:'density',label:'Modo compacto',group:'Visualização',combo:'Mod+Shift+D',keydown:true},
- {id:'help',label:'Como usar',group:'Ajuda',combo:'Mod+/',menu:true,keydown:true},
- {id:'settings',label:'Configurações',group:'Ajuda',combo:'Mod+,',menu:true,keydown:true},
- {id:'new-course',label:'Nova matéria (Configurações)',group:'Arquivo',combo:'Mod+T',keydown:true},
- {id:'send',label:'Enviar mensagem',group:'Conversa',combo:null,fixed:true,note:'⏎'},
- {id:'steer',label:'Interromper e enviar',group:'Conversa',combo:'Mod+Enter',fixed:true},
- {id:'queue',label:'Enfileirar com o Pi ocupado',group:'Conversa',combo:null,fixed:true,note:'⏎'},
- {id:'newline',label:'Quebrar linha na mensagem',group:'Conversa',combo:null,fixed:true,note:'⇧⏎'},
- {id:'stop',label:'Parar a resposta',group:'Conversa',combo:'Esc',fixed:true},
- {id:'page-nav',label:'Página anterior/seguinte',group:'Conversa',combo:null,fixed:true,note:'← →'},
- {id:'tab-cycle',label:'Próxima / anterior matéria',group:'Arquivo',combo:'Mod+Tab',fixed:true},
- {id:'tab-number',label:'Ir para a matéria',group:'Arquivo',combo:null,fixed:true,note:'⌘1…⌘9'},
+ {id:'check',label:'keys.action.check',group:'keys.group.study',combo:'Mod+Shift+C',menu:true,keydown:true},
+ {id:'ggb-check',label:'keys.action.ggb-check',group:'keys.group.study',combo:'Mod+Shift+G',menu:true,keydown:true},
+ {id:'chat-toggle',label:'keys.action.chat-toggle',group:'keys.group.view',combo:'Mod+\\',menu:true,keydown:true},
+ {id:'pdf-find',label:'keys.action.pdf-find',group:'keys.group.view',combo:'Mod+F',keydown:true},
+ {id:'invert',label:'keys.action.invert',group:'keys.group.view',combo:'Mod+Shift+I',keydown:true},
+ {id:'density',label:'keys.action.density',group:'keys.group.view',combo:'Mod+Shift+D',keydown:true},
+ {id:'command-palette',label:'keys.action.command-palette',group:'keys.group.help',combo:'Mod+K',menu:true,keydown:true},
+ {id:'help',label:'keys.action.help',group:'keys.group.help',combo:'Mod+/',menu:true,keydown:true},
+ {id:'settings',label:'keys.action.settings',group:'keys.group.help',combo:'Mod+,',menu:true,keydown:true},
+ {id:'new-course',label:'keys.action.new-course',group:'keys.group.file',combo:'Mod+T',keydown:true},
+ {id:'send',label:'keys.action.send',group:'keys.group.tutor',combo:null,fixed:true,note:'⏎'},
+ {id:'steer',label:'keys.action.steer',group:'keys.group.tutor',combo:'Mod+Enter',fixed:true},
+ {id:'queue',label:'keys.action.queue',group:'keys.group.tutor',combo:null,fixed:true,note:'⏎'},
+ {id:'newline',label:'keys.action.newline',group:'keys.group.tutor',combo:null,fixed:true,note:'⇧⏎'},
+ {id:'stop',label:'keys.action.stop',group:'keys.group.tutor',combo:'Esc',fixed:true},
+ {id:'page-nav',label:'keys.action.page-nav',group:'keys.group.tutor',combo:null,fixed:true,note:'← →'},
+ {id:'tab-cycle',label:'keys.action.tab-cycle',group:'keys.group.file',combo:'Mod+Tab',fixed:true},
+ {id:'tab-number',label:'keys.action.tab-number',group:'keys.group.file',combo:null,fixed:true,note:'⌘1…⌘9'},
 ];
 
 /* Combos de sistema/menu que o editor recusa (comparação ignora Shift). */
 const RESERVED=[
- {combo:'Mod+Q',label:'Encerrar o app'},
- {combo:'Mod+M',label:'Minimizar a janela'},
- {combo:'Mod+H',label:'Ocultar o app'},
- {combo:'Mod+Alt+H',label:'Ocultar as outras janelas'},
- {combo:'Mod+Ctrl+F',label:'Tela cheia'},
- {combo:'Mod+Z',label:'Desfazer'},
- {combo:'Mod+X',label:'Recortar'},
- {combo:'Mod+C',label:'Copiar'},
- {combo:'Mod+V',label:'Colar'},
- {combo:'Mod+A',label:'Selecionar tudo'},
- {combo:'Mod+Plus',label:'Zoom do menu Visualizar'},
- {combo:'Mod+=',label:'Aumentar o zoom (menu)'},
- {combo:'Mod+-',label:'Diminuir o zoom (menu)'},
- {combo:'Mod+0',label:'Zoom padrão (menu)'},
+ {combo:'Mod+Q',label:'keys.reserved.quit'},
+ {combo:'Mod+M',label:'keys.reserved.minimize'},
+ {combo:'Mod+H',label:'keys.reserved.hide'},
+ {combo:'Mod+Alt+H',label:'keys.reserved.hideOthers'},
+ {combo:'Mod+Ctrl+F',label:'keys.reserved.fullscreen'},
+ {combo:'Mod+Z',label:'keys.reserved.undo'},
+ {combo:'Mod+X',label:'keys.reserved.cut'},
+ {combo:'Mod+C',label:'keys.reserved.copy'},
+ {combo:'Mod+V',label:'keys.reserved.paste'},
+ {combo:'Mod+A',label:'keys.reserved.selectAll'},
+ {combo:'Mod+Plus',label:'keys.reserved.zoomMenu'},
+ {combo:'Mod+=',label:'keys.reserved.zoomIn'},
+ {combo:'Mod+-',label:'keys.reserved.zoomOut'},
+ {combo:'Mod+0',label:'keys.reserved.zoomReset'},
 ];
 
 /* Rótulos das teclas no combo exibido. */
-const KEY_LABEL={'=':'+','-':'−',Enter:'⏎',Escape:'Esc',Space:'Espaço',Up:'↑',Down:'↓',Left:'←',Right:'→',Backspace:'⌫',Delete:'⌦',Plus:'+'};
+const KEY_LABEL={'=':'+','-':'−',Enter:'⏎',Escape:'Esc',Up:'↑',Down:'↓',Left:'←',Right:'→',Backspace:'⌫',Delete:'⌦',Plus:'+'};
 /* Combos fixos sem modificador — só exibição; a gravação continua exigindo ⌘/⌥/⌃. */
 const PLAIN_LABEL={Esc:'Esc'};
 const NAMED={ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right'};
@@ -71,6 +74,12 @@ const Nil={$:'Nil'};
 const bendList=xs=>xs.reduceRight((tail,head)=>({$:'Con',head,tail}),Nil);
 
 let overrides={};
+/* Ações que PERDERAM o combo padrão porque outro comando (com override já
+   gravado) usa o mesmo combo. Não é persistido: é recalculado a cada load/apply.
+   Hoje só a `command-palette` entra aqui — o default novo (⌘K) não rouba um
+   atalho que o usuário já tinha, e o editor mostra "Sem atalho" até ele escolher
+   outro sem conflito. */
+let unassigned=new Set();
 let dialog=null,listEl=null,statusEl=null;
 let capturing=null;
 let statusText='',statusKind='info',statusConflict=false;
@@ -81,12 +90,12 @@ function actionOf(id){
 }
 
 function labelOf(id){
- return actionOf(id)?.label||id;
+ return actionOf(id)?.label||id;  /* chave do catálogo; quem mostra traduz */
 }
 
-/** Combo efetivo da ação: override gravado ou padrão do catálogo. */
+/** Combo efetivo da ação: override gravado, default, ou null (sem atalho). */
 export function effective(id){
- return overrides[id]||actionOf(id)?.combo||null;
+ return comboValue(id);
 }
 
 /* ---------- combos ---------- */
@@ -134,7 +143,7 @@ function reservedHit(accel){
 function displayParts(accel){
  const parsed=parseAccel(accel);
  if(!parsed)return PLAIN_LABEL[accel]?[PLAIN_LABEL[accel]]:[];
- const glyph=KEY_LABEL[parsed.token]||(parsed.token.length===1?parsed.token.toUpperCase():parsed.token);
+ const glyph=(parsed.token==='Space'?t('keys.space'):KEY_LABEL[parsed.token])||(parsed.token.length===1?parsed.token.toUpperCase():parsed.token);
  if(isMac){
   const mods=(parsed.mods.includes('Ctrl')?'⌃':'')+(parsed.mods.includes('Alt')?'⌥':'')+(parsed.mods.includes('Shift')?'⇧':'')+(parsed.mods.includes('Mod')?'⌘':'');
   return [...mods,glyph];
@@ -245,14 +254,49 @@ function load(){
    if(same(action,value,action.combo))continue;
    const clash=CATALOG.some(other=>{
     if(other.id===action.id)return false;
-    const current=next[other.id]??other.combo;
-    return !!current&&same(other,current,value);
+    const storedOther=next[other.id];
+    const current=storedOther??other.combo;
+    if(!current||!same(other,current,value))return false;
+    /* O default de um comando NOVO não derruba um override que já existia:
+       o atalho antigo vence e o comando novo fica sem o seu default (sem
+       conflito silencioso no preload). */
+    if(!storedOther&&other.id==='command-palette')return false;
+    return true;
    });
    if(clash)continue;
    next[action.id]=canonical(value);
   }
  }
  overrides=next;
+ recomputeUnassigned();
+}
+
+/* Combo efetivo de uma ação (override > default), com `null` para sem atalho. */
+function comboValue(id){
+ const action=actionOf(id);
+ if(!action)return null;
+ if(overrides[id])return overrides[id];
+ if(unassigned.has(id))return null;
+ return action.combo||null;
+}
+
+/* Quem perdeu o default por colisão com outro comando em uso. Recalculado
+   sempre que o mapa muda (load, gravação, reset) — não vai para o localStorage. */
+function recomputeUnassigned(){
+ const lost=new Set();
+ const palette=actionOf('command-palette');
+ /* O combo da paleta sai do override/default direto: `comboValue` devolveria
+    null por causa do próprio `unassigned` e o conflito nunca seria recalculado
+    (o default não voltaria sozinho quando o outro comando mudasse). */
+ const combo=palette?(overrides['command-palette']||palette.combo||null):null;
+ if(combo){
+  for(const other of CATALOG){
+   if(other.id==='command-palette'||other.fixed)continue;
+   const current=comboValue(other.id);
+   if(current&&same(other,current,combo)){lost.add('command-palette');break;}
+  }
+ }
+ unassigned=lost;
 }
 
 function persist(){
@@ -296,14 +340,14 @@ function setCapture(active){
  }catch{}
 }
 
-/* Tabela “Atalhos” do Como usar: cada linha com data-key mostra o combo atual. */
+/* Seção “Atalhos” do Guia da Mesa: cada linha com data-key mostra o combo atual. */
 function syncHelpKeys(){
  const host=document.getElementById('help-dialog');
  if(!host)return;
- for(const row of host.querySelectorAll('tr[data-key]')){
+ for(const row of host.querySelectorAll('[data-key]')){
   const action=actionOf(row.dataset.key);
   if(!action)continue;
-  const cell=row.querySelector('td:first-child');
+  const cell=row.querySelector('.guide-combo');
   if(!cell)continue;
   const accel=effective(action.id);
   /* Sem combo próprio (ex.: ← →): o markup já explica; não apagar. */
@@ -329,6 +373,7 @@ function sync(){
 }
 
 function applyAll(){
+ recomputeUnassigned();
  apply();
  sync();
 }
@@ -337,11 +382,11 @@ function applyAll(){
 
 function conflictFor(accel,id){
  const reserved=reservedHit(accel);
- if(reserved)return `“${reserved.label}” é reservado pelo app.`;
+ if(reserved)return message('keys.conflict.reserved',{action:reserved.label});
  for(const action of CATALOG){
   if(action.id===id)continue;
   const current=effective(action.id);
-  if(current&&same(action,current,accel))return `“${action.label}” já usa ${format(current)}.`;
+  if(current&&same(action,current,accel))return message('keys.conflict.used',{action:action.label,shortcut:format(current)});
  }
  return '';
 }
@@ -356,7 +401,7 @@ const editorHandlers={
  Record:event=>{
   const id=actionIdFrom(event);
   if(!id)return;
-  if(capturing===id)cancelCapture('Gravação cancelada.');
+  if(capturing===id)cancelCapture(message('keys.status.cancelled'));
   else startCapture(id);
  },
  Reset:event=>{const id=actionIdFrom(event);if(id)restoreOne(id);},
@@ -367,12 +412,12 @@ const editorHandlers={
 function editorSections(){
  const groups=[];
  for(const action of CATALOG){
-  let group=groups.find(item=>item.title===action.group);
-  if(!group){group={title:action.group,rows:[]};groups.push(group);}
+  let group=groups.find(item=>item.title===t(action.group));
+  if(!group){group={title:t(action.group),rows:[]};groups.push(group);}
   const shown=format(effective(action.id));
   group.rows.push(shortcutCore.skRow(
    action.id,
-   action.label,
+   t(action.label),
    shown,
    !!action.fixed,
    action.note||'',
@@ -436,7 +481,7 @@ function ensureEditor(){
  dialog.addEventListener('cancel',e=>{
   if(!capturing)return;
   e.preventDefault();
-  cancelCapture('Gravação cancelada.');
+  cancelCapture(message('keys.status.cancelled'));
  });
  dialog.addEventListener('close',()=>{
   cancelCapture('');
@@ -444,7 +489,7 @@ function ensureEditor(){
  });
 }
 
-/** Abre o editor (usado pelo botão “Personalizar atalhos…” do Como usar). */
+/** Abre o editor (usado pelo botão “Personalizar atalhos…” do Guia da Mesa). */
 export function openEditor(){
  ensureEditor();
  sync();
@@ -454,8 +499,8 @@ export function openEditor(){
  (first||dialog.querySelector('#keys-done'))?.focus();
 }
 
-/* Botão “Personalizar atalhos…” no rodapé do Como usar. Se o markup não o
-   trouxer, cria antes do Fechar — sem ele o editor não teria porta de entrada. */
+/* Botão “Personalizar atalhos…” da seção Atalhos do Guia. Se o markup não o
+   trouxer, cria no rodapé — sem ele o editor não teria porta de entrada. */
 function bindOpenButton(){
  const host=document.getElementById('help-dialog');
  if(!host)return;
@@ -482,7 +527,7 @@ function startCapture(id){
  capturing=id;
  setCapture(true);
  refresh();
- setStatus(`Pressione a nova combinação para “${labelOf(id)}”. Esc cancela.`,'info');
+ setStatus(message('keys.status.press',{action:labelOf(id)}),'info');
 }
 
 function cancelCapture(message=''){
@@ -507,7 +552,7 @@ function commit(id,accel){
  persist();
  stopCapture();
  applyAll();
- setStatus(`“${action.label}” agora é ${format(accel)}.`,'ok');
+ setStatus(message('keys.status.now',{action:action.label,shortcut:format(accel)}),'ok');
 }
 
 function restoreOne(id){
@@ -516,7 +561,7 @@ function restoreOne(id){
  stopCapture();
  applyAll();
  const accel=actionOf(id)?.combo;
- setStatus(accel?`“${labelOf(id)}” voltou ao padrão (${format(accel)}).`:`“${labelOf(id)}” ficou sem atalho.`,'ok');
+ setStatus(accel?message('keys.status.restored',{action:labelOf(id),shortcut:format(accel)}):message('keys.status.cleared',{action:labelOf(id)}),'ok');
 }
 
 function restoreAll(){
@@ -524,27 +569,27 @@ function restoreAll(){
  persist();
  stopCapture();
  applyAll();
- setStatus('Todos os atalhos voltaram ao padrão.','ok');
+ setStatus(message('keys.status.restoredAll'),'ok');
 }
 
 function captureKey(init){
  if(init.key==='Escape'){
-  cancelCapture('Gravação cancelada.');
+  cancelCapture(message('keys.status.cancelled'));
   return;
  }
  if(['Shift','Alt','Meta','Control','AltGraph'].includes(init.key))return;
  const combo=comboFromEvent(init);
  if(!combo){
-  setStatus('Não entendi esta tecla — tente outra.','error');
+  setStatus(message('keys.status.unknownKey'),'error');
   return;
  }
  if(!parseAccel(combo)){
-  setStatus('Use ⌘, ⌥ ou ⌃ junto com uma tecla.','error');
+  setStatus(message('keys.status.needModifier'),'error');
   return;
  }
  const conflict=conflictFor(combo,capturing);
  if(conflict){
-  setStatus(`Conflito: ${conflict}`,'error',true);
+  setStatus(conflict,'error',true);
   return;
  }
  commit(capturing,combo);
@@ -555,7 +600,7 @@ function onCaptureKey(init){
  if(!capturing||!init)return;
  /* Tab continua navegando e cancela a gravação. */
  if(init.key==='Tab'){
-  cancelCapture('Gravação cancelada.');
+  cancelCapture(message('keys.status.cancelled'));
   return;
  }
  captureKey(init);
@@ -568,7 +613,7 @@ window.addEventListener('keydown',e=>{
  if(e.key==='Escape'){
   e.preventDefault();
   e.stopPropagation();
-  cancelCapture('Gravação cancelada.');
+  cancelCapture(message('keys.status.cancelled'));
  }
 },true);
 
@@ -581,18 +626,26 @@ function swapGlyphs(text,kbd){
   ? String(text).replace(/⌘/g,'Ctrl').replace(/⇧/g,'Shift')
   : String(text).replace(/⌘⇧/g,'Ctrl+Shift+').replace(/⌘ /g,'Ctrl+').replace(/⌘/g,'Ctrl+').replace(/⇧/g,'Shift+');
 }
-export function applyPlatformKeys(){
+export function applyPlatformKeys(scope=[document.documentElement]){
  if(isMac||typeof document==='undefined')return;
- const nodes=[];const walker=document.createTreeWalker(document,NodeFilter.SHOW_TEXT);
- while(walker.nextNode())nodes.push(walker.currentNode);
- for(const node of nodes){
-  const inKbd=!!node.parentElement?.closest?.('kbd');
-  node.textContent=swapGlyphs(node.textContent,inKbd);
+ for(const root of scope){
+  const nodes=[];const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  while(walker.nextNode())nodes.push(walker.currentNode);
+  for(const node of nodes){
+   const inKbd=!!node.parentElement?.closest?.('kbd');
+   node.textContent=swapGlyphs(node.textContent,inKbd);
+  }
+  for(const el of [root,...root.querySelectorAll('[title],[aria-label]')]){
+   if(el.hasAttribute('title'))el.setAttribute('title',swapGlyphs(el.getAttribute('title'),false));
+   if(el.hasAttribute('aria-label'))el.setAttribute('aria-label',swapGlyphs(el.getAttribute('aria-label'),false));
+  }
  }
- for(const el of document.querySelectorAll('[title]'))el.title=swapGlyphs(el.title,false);
- for(const el of document.querySelectorAll('[aria-label]'))el.setAttribute('aria-label',swapGlyphs(el.getAttribute('aria-label'),false));
 }
 applyPlatformKeys();
+/* A troca de idioma reescreve o HTML estático com glifos ⌘/⇧ do catálogo (#41): refaz o ajuste só no que mudou. */
+onStaticTextApplied(changed=>applyPlatformKeys(changed));
+/* Os rótulos das linhas do editor são texto montado em JS: a troca de idioma os refaz. */
+window.addEventListener(LANGUAGE_EVENT,()=>refresh());
 
 export function init(){
  if(started)return;

@@ -32,16 +32,16 @@ for await(const line of readline.createInterface({input:process.stdin})){
 fs.writeFileSync(path.join(agentDir,'mcp.json'),JSON.stringify({mcpServers:{contract:{command:process.execPath,args:[server],approveTools:['delete-*']}}}));
 const model = {id:'fixture',name:'Fixture (not called)',provider:'fixture',api:'openai-completions',baseUrl:'http://127.0.0.1:1',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:100000,maxTokens:1000};
 try {
- for (const app of ['desk','chat']) {
-  const appDir = path.resolve(import.meta.dirname,'..','..',app);
+ {
+  const appDir = path.resolve(import.meta.dirname,'..');
   const settingsManager = sdk.SettingsManager.create(root,agentDir);
   settingsManager.applyOverrides({defaultTools:['+codemode','+tool_search']});
   const resourceLoader = new sdk.DefaultResourceLoader({cwd:root,agentDir,settingsManager,noExtensions:true,noSkills:true,noPromptTemplates:true,noProjectContext:true,
-   additionalExtensionPaths:[path.join(appDir,...(app==='desk'?['src']:[]),'extensions','mcp-policy'),...(app==='chat'?[path.join(appDir,'extensions','mcp-guard')]:[])],
+   additionalExtensionPaths:[path.join(appDir,'src','extensions','mcp-policy')],
    extensionFactories:[sdk.createMcpExtension(),sdk.createCodemodeExtension(),sdk.createToolSearchExtension()],
   });
   await resourceLoader.reload();
-  const {session} = await sdk.createAgentSession({cwd:root,agentDir,model,resourceLoader,settingsManager,sessionManager:sdk.SessionManager.inMemory(),...(app==='chat'?{noTools:'builtin'}:{})});
+  const {session} = await sdk.createAgentSession({cwd:root,agentDir,model,resourceLoader,settingsManager,sessionManager:sdk.SessionManager.inMemory()});
   const events=[];
   session.subscribe(e=>events.push(e));
   try {
@@ -60,15 +60,7 @@ try {
    const error=await run('await tools.mcp__contract__error_demo({});return await tools.mcp__contract__error_demo({});');
    assert.match(JSON.stringify(error.content),/fixture-error/,'guarda não perde structuredContent em falhas repetidas');
    assert.ok(events.some(e=>e.type==='tool_execution_end'&&e.parentToolCallId),'eventos de chamadas aninhadas');
-   if(app==='chat'){
-    // Mesmo se outra extensão reativar read, a política do app continua válida.
-    session.setActiveToolsByName([...session.getActiveToolNames(),'read']);
-    const secret=path.join(root,'private.txt');fs.writeFileSync(secret,'NATIVE-PRIVATE-MARKER');
-    const blocked=await run(`return await tools.read({path:${JSON.stringify(secret)}});`);
-    assert.ok(!JSON.stringify(blocked).includes('NATIVE-PRIVATE-MARKER'));
-    assert.match(JSON.stringify(blocked),/disco ou shell/);
-   }
-   console.log(`${app}: MCP stdio, QuickJS paralelo, store/load, structuredContent, aprovação e eventos aninhados OK`);
+   console.log(`desk: MCP stdio, QuickJS paralelo, store/load, structuredContent, aprovação e eventos aninhados OK`);
   }finally{await session._extensionRunner.emit({type:'session_shutdown'});session.dispose();}
  }
 } finally {fs.rmSync(root,{recursive:true,force:true});}

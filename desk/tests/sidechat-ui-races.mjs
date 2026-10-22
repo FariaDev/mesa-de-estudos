@@ -67,7 +67,7 @@ async function installFakeBridge(page){
 }
 
 async function openSidechatTab(page){
- await page.locator('#support-tab-chat').click();
+ await page.locator('#sidechat-toggle').click();
  await page.waitForFunction(()=>{const sc=document.querySelector('#sidechat');return sc&&!sc.hidden;},{timeout:10000});
  await page.waitForFunction(()=>{const fake=window.__sc;return fake&&fake.opens.length>0&&!document.querySelector('#sidechat-prompt').disabled;},undefined,{timeout:10000});
 }
@@ -107,16 +107,16 @@ await withArtifacts('lateral-corridas',async ctx=>{
  assert.equal(live.busy,false,'terminal antes do ACK libera o turno na hora (sem timer de 2,5s)');
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'B','o rascunho B digitado durante o aceite é preservado');
  assert.equal(live.draft,'B','o estado do rascunho é B, não vazio');
- await page.waitForTimeout(650);
+ await page.waitForTimeout(650); // espera fixa: debounce de 500 ms do rascunho — conta os saves depois que ele dispara
  const saves=await page.evaluate(()=>window.__sc.saves.map(save=>save.draft));
  assert.equal(saves[0],'','o clique limpou o rascunho A no backend');
  assert.equal(saves.at(-1),'B','o rascunho B foi persistido (A não ressuscita)');
  assert.equal(await page.locator('#sidechat-messages .sidechat-msg.user').count(),1,'a fala A aparece uma única vez');
  assert.equal(await page.locator('#sidechat-messages .sidechat-msg.assistant').count(),1,'a resposta aparece uma única vez');
  /* Esconder/mostrar não repõe A. */
- await page.locator('#support-tab-form').click();
- await page.locator('#support-tab-chat').click();
- await page.waitForTimeout(150);
+ await page.locator('#sidechat-close').click();
+ await page.locator('#sidechat-toggle').click();
+ await page.waitForTimeout(150); // espera fixa: "nada acontece em 0,15 s" — esconder/mostrar não repõe o rascunho A
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'B','hide/show preserva o rascunho B');
 
  /* ---- 2. Duplo clique: um envio só ---- */
@@ -124,7 +124,7 @@ await withArtifacts('lateral-corridas',async ctx=>{
  await page.locator('#sidechat-prompt').fill('A2');
  await page.locator('#sidechat-send').click();
  await page.locator('#sidechat-send').click();
- await page.waitForTimeout(80);
+ await page.waitForTimeout(80); // espera fixa: "nada acontece em 80 ms" — o segundo clique em enviar não gera outro prompt
  const promptsAfter=await page.evaluate(()=>window.__sc.prompts.length);
  assert.equal(promptsAfter-promptsBefore,1,'o segundo clique não envia de novo');
  assert.equal(await page.locator('#sidechat-messages .sidechat-msg.user').count(),2,'A2 aparece uma vez');
@@ -176,20 +176,20 @@ await withArtifacts('lateral-corridas',async ctx=>{
   window.__sc.emit({type:'message_end',message:{role:'assistant',content:[{type:'toolResult',toolCallId:'t2'}]}});
   window.__sc.emit({type:'message_end',message:{role:'tool',text:'outra-ferramenta'}});
  });
- await page.waitForTimeout(200);
+ await page.waitForTimeout(200); // espera fixa: "nada acontece em 0,2 s" — toolResult não aparece como resposta
  assert.equal(await page.locator('#sidechat-messages').textContent().then(text=>text.includes('saida-da-ferramenta')),false,'toolResult não aparece como resposta');
  assert.equal(await page.locator('#sidechat-messages').textContent().then(text=>text.includes('outra-ferramenta')),false,'papel tool não aparece como resposta');
  assert.equal(await page.locator('#sidechat-messages .sidechat-msg.assistant').count(),assistantsBefore,'nenhum card vazio de ferramenta foi criado');
 
  /* ---- 7. Evento de id obsoleto é ignorado ---- */
  await page.evaluate(()=>window.__sc.emit({type:'message_update',assistantMessageEvent:{type:'text_delta',delta:'NAO-DEVE-APARECER'}},'sc-antigo'));
- await page.waitForTimeout(200);
+ await page.waitForTimeout(200); // espera fixa: "nada acontece em 0,2 s" — evento de id obsoleto é ignorado
  assert.equal(await page.locator('#sidechat-messages').textContent().then(text=>text.includes('NAO-DEVE-APARECER')),false,'evento de id obsoleto é ignorado');
 
  /* ---- 8. Escopo congelado: troca de conversa não cruza draft/evento ---- */
  const oldSession=await page.evaluate(async()=>{const state=await import('./src/state.mjs');return state.S.currentSession;});
  await page.locator('#sidechat-prompt').fill('rascunho antigo');
- await page.waitForTimeout(600);
+ await page.waitForTimeout(600); // espera fixa: debounce de 500 ms do rascunho — o espelho local precisa ter sido gravado
  const oldKey='mesa.sidechat.draft.Test.'+encodeURIComponent(oldSession);
  await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.currentSession='pi-outra.jsonl';window.dispatchEvent(new Event('desk-conversation-changed'));});
  await page.waitForFunction(async()=>{const state=await window.__sc.state();return !!state.id;});
@@ -204,16 +204,16 @@ await withArtifacts('lateral-corridas',async ctx=>{
  await page.locator('#sidechat-prompt').fill('H');
  await page.locator('#sidechat-send').click();
  await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.currentSession='pi-terceira.jsonl';window.dispatchEvent(new Event('desk-conversation-changed'));});
- await page.waitForTimeout(150);
+ await page.waitForTimeout(150); // espera fixa: ordem dos eventos: a troca de conversa precisa ser processada antes do ACK atrasado
  await page.evaluate(()=>window.__sc.resolve({sent:true,id:'sc-antigo',engine:'pi',streaming:false}));
- await page.waitForTimeout(200);
+ await page.waitForTimeout(200); // espera fixa: "nada acontece em 0,2 s" — o ACK antigo não cruza o escopo novo
  scoped=await page.evaluate(()=>window.__sc.state());
  assert.equal(scoped.messages.length,0,'o aceite atrasado do escopo antigo não pinta bolha no novo');
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'','o campo do escopo novo segue vazio');
 
  /* ---- 9. Novo (fresh) começa vazio mesmo com espelho local ---- */
  await page.locator('#sidechat-prompt').fill('novo rascunho');
- await page.waitForTimeout(600);
+ await page.waitForTimeout(600); // espera fixa: debounce de 500 ms do rascunho — o espelho local precisa ter sido gravado
  page.once('dialog',dialog=>dialog.accept());
  await page.locator('#sidechat-new').click();
  await page.waitForFunction(()=>window.__sc.state().then(s=>s.draft===''&&s.messages.length===0));
@@ -221,8 +221,8 @@ await withArtifacts('lateral-corridas',async ctx=>{
  const freshOpens=await page.evaluate(()=>window.__sc.opens.filter(open=>open.fresh===true).length);
  assert.ok(freshOpens>=1,'o fresh foi pedido ao backend');
  /* E um reopen comum (hide/show) também não ressuscita. */
- await page.locator('#support-tab-form').click();
- await page.locator('#support-tab-chat').click();
+ await page.locator('#sidechat-close').click();
+ await page.locator('#sidechat-toggle').click();
  await page.waitForFunction(()=>window.__sc.state().then(s=>s.draft===''&&s.messages.length===0));
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'','reabrir depois do fresh segue vazio');
 

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ícones animados — rodada 2</title>
+<!-- #61, rodada 2. Correções do retorno da rodada 1:
+     - nada de escalar forma (tremia ao reposicionar o pixel): só opacidade, traço
+       (stroke-dashoffset com pathLength=1), raio do círculo e recorte por clipPath;
+     - o estado parado (reduzir movimento) é o estado FINAL da animação, então o CSS
+       base descreve o fim e a animação parte do começo;
+     - o lápis do A2 anda pela própria onda (SMIL animateMotion, rotate="auto"). -->
+<style>
+:root{--acc:#2548c7}
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+h2.part{font-size:16px;margin:32px 0 4px}
+.lead{color:#737373;margin:0 0 16px;max-width:72ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;min-width:0}
+.card h3{font-size:15px;margin:0}
+.card p{margin:2px 0 12px;color:#737373;font-size:13px}
+.big{display:flex;align-items:center;justify-content:center;gap:24px;background:#f6f6f7;border-radius:10px;padding:14px;color:#3f3f46}
+.big svg{width:64px;height:64px}
+.big svg.pq{width:16px;height:16px}
+.thinking{display:flex;align-items:center;gap:8px;margin-top:10px;padding:7px 10px;border-radius:8px;background:#ececee;color:#3f3f46;font-size:13px}
+.thinking.dark{background:#2a2a2a;color:#d4d4d8;--acc:#8ea6ff}
+.thinking svg{width:16px;height:16px;flex:none}
+.thinking .t{margin-left:auto;color:#8a8a8a;font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap}
+label.rm{display:inline-flex;gap:6px;align-items:center;font-size:13px;margin-bottom:12px}
+svg{overflow:visible;shape-rendering:geometricPrecision}
+.acc{stroke:var(--acc)}
+
+/* A1a · Brilho percorrendo: um trecho de luz corre pelo contorno da faísca */
+.a1a .luz{stroke:var(--acc);stroke-dasharray:.22 .78;stroke-dashoffset:0;animation:percorre 1.8s linear infinite}
+.a1a .base{opacity:.45}
+@keyframes percorre{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+
+/* A1b · Cintilar: a faísca fica parada; o miolo acende e duas faíscas pequenas piscam em revezamento */
+.a1b .miolo{fill:currentColor;fill-opacity:.18;animation:acende 2s ease-in-out infinite}
+.a1b .s1{animation:pisca 2s ease-in-out infinite}
+.a1b .s2{opacity:.25;animation:pisca 2s ease-in-out infinite 1s}
+@keyframes acende{0%,100%{fill-opacity:0}50%{fill-opacity:.22}}
+@keyframes pisca{0%,100%{opacity:.15}50%{opacity:1}}
+
+/* A4 · Pontos na folha (igual à rodada 1, sem deslocar o ponto) */
+.a4 .p{animation:ponto 1.2s ease-in-out infinite}
+.a4 .p:nth-of-type(2){animation-delay:.2s}.a4 .p:nth-of-type(3){animation-delay:.4s}
+@keyframes ponto{0%,100%{opacity:.2}40%{opacity:1}}
+
+/* Copiar → copiado. Fim: só o visto. */
+.m-copy .copia{opacity:0;animation:copia 2.4s ease-out infinite}
+.m-copy .check{stroke:var(--acc);stroke-dasharray:1;stroke-dashoffset:0;animation:visto 2.4s ease-out infinite}
+@keyframes copia{0%,12%{opacity:1}26%,88%{opacity:0}100%{opacity:1}}
+@keyframes visto{0%,20%{stroke-dashoffset:1;opacity:1}44%,86%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+
+/* Guardar para revisão. O nível sobe dentro de um recorte com a forma exata do marcador. Fim: cheio. */
+.m-save .nivel{transform:translateY(0);animation:sobe 2.4s cubic-bezier(.3,.7,.4,1) infinite}
+.m-save .cheio{fill:var(--acc);stroke:none}
+.m-save .contorno{stroke:currentColor;transition:stroke .2s}
+@keyframes sobe{0%,12%{transform:translateY(20px)}44%,86%{transform:translateY(0)}100%{transform:translateY(20px)}}
+
+/* Conferir. A íris fecha e abre pelo raio (sem escalar) e um clarão pisca no canto. Fim: câmera parada. */
+.m-shot .iris{fill:var(--acc);stroke:none;r:0;animation:iris 2.4s ease-in-out infinite}
+.m-shot .clarao{stroke:var(--acc);opacity:0;animation:clarao 2.4s ease-out infinite}
+@keyframes iris{0%,15%{r:0}30%{r:3.5}48%,100%{r:0}}
+@keyframes clarao{0%,26%{opacity:0}32%{opacity:1}55%,100%{opacity:0}}
+
+.reduz *{animation:none!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<h1>Ícones animados — rodada 2</h1>
+<p class="lead">Mudou do jeito que vocês pediram. Nenhuma forma escala mais: a animação usa só opacidade, traço, raio e recorte, por isso nada treme. Com "reduzir movimento" ligado, cada ícone mostra o estado final, parado. Cada cartão traz o ícone em 64 px e no tamanho real, 16 px.</p>
+<label class="rm"><input type="checkbox" id="reduz"> Ver como fica com "reduzir movimento" ligado</label>
+
+<h2 class="part">1. "O tutor está pensando…"</h2>
+<p class="lead">O A1 foi refeito em duas versões. O A3 agora depende do mascote novo e aparece em <a href="mascote-r2.html">mascote-r2.html</a>.</p>
+<div class="grid" id="pensando"></div>
+
+<h2 class="part">2. Microinterações escolhidas (tocam uma vez, no clique)</h2>
+<div class="grid" id="micro"></div>
+
+<script>
+const svg=(cls,d)=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const FAISCA='M11 3Q11.8 10.2 19 11Q11.8 11.8 11 19Q10.2 11.8 3 11Q10.2 10.2 11 3Z';
+// A onda do A2: o lápis anda por ela e o traço é desenhado no mesmo relógio (SMIL).
+const ONDA='M3 17q2-2.2 4 0t4 0 4 0 4 0';
+const rel='dur="2s" repeatCount="indefinite" keyTimes="0;.8;1" calcMode="linear"';
+// Lápis em coordenadas locais: ponta na origem, corpo a 65° (para cima e um pouco à direita).
+// O rotate="auto" puro girava ±48° e deitava o lápis para a frente na descida; aqui ele
+// acompanha a tangente pela metade (±25°). A onda tem 4 meias-ondas iguais de 0,4 s:
+// sobe (−), desce (+), sobe, desce; a rotação vai e volta no mesmo ritmo, em volta da ponta.
+const GIRO='<animateTransform attributeName="transform" type="rotate" values="-25;25;-25;25;-25;-25" keyTimes="0;.2;.4;.6;.8;1" dur="2s" repeatCount="indefinite"/>';
+const LAPIS=`<g>${GIRO}<path d="M0 0 2.42-1.64 6.01-9.34 3.29-10.6-.3-2.9Z"/><path d="M2.42-1.64-.3-2.9M5.38-7.98 2.66-9.24"/></g>`;
+const pensando=[
+ ['A1a · Brilho percorrendo','A faísca do Fino fica parada e um trecho de luz corre pelo contorno. Sem pulsar e sem girar.',
+  svg('a1a',`<path class="base" d="${FAISCA}"/><path class="luz" pathLength="1" d="${FAISCA}"/>`)],
+ ['A1b · Cintilar','A faísca parada acende por dentro e duas faíscas pequenas piscam em revezamento.',
+  svg('a1b',`<path class="miolo" d="${FAISCA}"/><path d="${FAISCA}"/><path class="s1 acc" d="M19 2.5v4M17 4.5h4"/><path class="s2 acc" d="M4 18.5v3M2.5 20h3"/>`)],
+ ['A2 · Lápis rabiscando','Agora o lápis anda pela própria onda e gira junto com ela.',
+  svg('a2 smil',`<path class="acc" pathLength="1" stroke-dasharray="1" d="${ONDA}"><animate attributeName="stroke-dashoffset" values="1;0;0" ${rel}/><animate attributeName="opacity" values="1;1;0" ${rel}/></path><g><animateMotion path="${ONDA}" keyPoints="0;1;1" ${rel}/><animate attributeName="opacity" values="1;1;0" ${rel}/>${LAPIS}</g>`)],
+ ['A4 · Pontos na folha','Como na rodada 1, só que os pontos piscam sem pular.',
+  svg('a4','<rect x="5" y="3" width="14" height="18" rx="3"/><g stroke="none" fill="currentColor"><circle class="p" cx="9" cy="12.5" r="1.2"/><circle class="p" cx="12" cy="12.5" r="1.2"/><circle class="p" cx="15" cy="12.5" r="1.2"/></g>')],
+];
+const barra=(icone,tema)=>`<div class="thinking ${tema}">${icone}<span>O tutor está pensando…</span><span class="t">3 s</span></div>`;
+const grande=icone=>`<div class="big">${icone}${icone.replace('<svg class="','<svg class="pq ')}</div>`;
+document.getElementById('pensando').innerHTML=pensando.map(([nome,nota,icone])=>`
+ <section class="card"><h3>${nome}</h3><p>${nota}</p>${grande(icone)}${barra(icone,'')}${barra(icone,'dark')}</section>`).join('');
+
+// Marcador de "guardar": o recorte tem a forma exata do contorno, então o cheio nunca passa da borda.
+const MARCADOR='M7 4h10a1 1 0 0 1 1 1v15l-6-3.6L6 20V5a1 1 0 0 1 1-1z';
+let n=0;
+const guardar=()=>{const id='marca'+(n++);return svg('m-save',`<clipPath id="${id}"><path d="${MARCADOR}"/></clipPath><g clip-path="url(#${id})"><rect class="nivel cheio" x="4" y="2" width="16" height="20"/></g><path class="contorno" d="${MARCADOR}"/>`);};
+const micro=[
+ ['Copiar → copiado','As folhas somem e o visto é desenhado inteiro (na rodada 1 o traço era curto e cortava o fim).',
+  ()=>svg('m-copy','<g class="copia"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></g><path class="check" pathLength="1" d="M6 12.5l4 4 8-9"/>')],
+ ['Guardar para revisão','O marcador enche de baixo para cima por dentro de um recorte, sem esticar a forma, então não vaza pela ponta.',guardar],
+ ['Conferir (captura)','A íris fecha pelo raio, sem escalar, e um clarão pisca no canto. A câmera não fica mais pintada inteira.',
+  ()=>svg('m-shot','<rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8.5 7 10 4.5h4L15.5 7"/><circle cx="12" cy="13.5" r="3.5"/><circle class="iris" cx="12" cy="13.5"/><path class="clarao" d="M18 2.5v2M20.5 4.2l-1.4 1M15.5 4.2l1.4 1"/>')],
+];
+document.getElementById('micro').innerHTML=micro.map(([nome,nota,icone])=>`
+ <section class="card"><h3>${nome}</h3><p>${nota}</p><div class="big">${icone()}${icone().replace('<svg class="','<svg class="pq ')}</div></section>`).join('');
+
+// SMIL não obedece ao CSS: com movimento reduzido, para no fim do traço (t = 1,6 s).
+const reduz=document.getElementById('reduz');
+const media=matchMedia('(prefers-reduced-motion: reduce)');
+const aplica=()=>{const parado=reduz.checked||media.matches;document.body.classList.toggle('reduz',reduz.checked);
+ for(const s of document.querySelectorAll('svg.smil')){if(parado){s.pauseAnimations();s.setCurrentTime(1.6);}else s.unpauseAnimations();}};
+reduz.addEventListener('change',aplica);media.addEventListener('change',aplica);aplica();
+</script>
+</body>
+</html>

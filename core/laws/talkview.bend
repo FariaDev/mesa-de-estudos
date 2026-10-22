@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../talkview.bend as T
 import ../view.bend as V
 
@@ -37,20 +38,20 @@ law talk_message_assistant_role:
     == Some{"assistant"} : Maybe<&2, String>}
 
 law talk_message_copy_handler:
-  {V.attrGet(V.attrsOf(T.messageAction("msg-copy", "Copiar", "CopyMessage")), "on:click")
+  {V.attrGet(V.attrsOf(T.messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage")), "on:click")
     == Some{"CopyMessage"} : Maybe<&2, String>}
 
 law talk_message_actions_bools:
   {T.messageActions(True{}, False{}, False{})
-    == [T.messageAction("msg-copy", "Copiar", "CopyMessage")] : List<&2, V.ViewNode>}
+    == [T.messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage")] : List<&2, V.ViewNode>}
 
 law talk_message_review_handler:
-  {V.attrGet(V.attrsOf(T.messageAction("msg-review", "Guardar para revisar", "SaveForReview")), "on:click")
+  {V.attrGet(V.attrsOf(T.messageAction("msg-review", M.msg("talk.review"), "SaveForReview")), "on:click")
     == Some{"SaveForReview"} : Maybe<&2, String>}
 
 law talk_message_actions_review:
   {T.messageActions(False{}, False{}, True{})
-    == [T.messageAction("msg-review", "Guardar para revisar", "SaveForReview")] : List<&2, V.ViewNode>}
+    == [T.messageAction("msg-review", M.msg("talk.review"), "SaveForReview")] : List<&2, V.ViewNode>}
 
 law talk_shots_length:
   for +xs: List<&2, String>
@@ -58,29 +59,7 @@ law talk_shots_length:
 
 law talk_shot_alt:
   for src: String
-  {V.attrGet(V.attrsOf(T.shot(src)), "alt") == Some{"Imagem enviada"} : Maybe<&2, String>}
-
-law talk_citation_tag:
-  for text: String
-  {V.tagOf(T.citation(text)) == "blockquote" : String}
-
-law talk_thinking_chip_kind:
-  for label: String
-  {V.attrGet(V.attrsOf(T.thinkingChip(label)), "data-kind")
-    == Some{"thinking"} : Maybe<&2, String>}
-
-law talk_tool_chip_class:
-  for label: String
-  {V.attrGet(V.attrsOf(T.toolChip(label)), "class")
-    == Some{"talk-chip tool"} : Maybe<&2, String>}
-
-law talk_empty_id:
-  {V.attrGet(V.attrsOf(T.emptyState()), "id") == Some{"welcome"} : Maybe<&2, String>}
-
-law talk_typing_role:
-  for label: String
-  {V.attrGet(V.attrsOf(T.typingState(label)), "data-role")
-    == Some{"assistant"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(T.shot(src)), "alt") == Some{M.msg("talk.imageSent")} : Maybe<&2, String>}
 
 law talk_quiz_simple_class:
   {V.attrGet(V.attrsOf(T.quizCard(quizSimple())), "class")
@@ -88,7 +67,7 @@ law talk_quiz_simple_class:
 
 law talk_quiz_simple_aria:
   {V.attrGet(V.attrsOf(T.quizCard(quizSimple())), "aria-label")
-    == Some{"Pergunta de quiz"} : Maybe<&2, String>}
+    == Some{M.msg("talk.quizAria")} : Maybe<&2, String>}
 
 law talk_quiz_roles:
   {T.optionRole(True{}) == "checkbox" : String}

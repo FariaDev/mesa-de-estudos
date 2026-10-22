@@ -1,0 +1,2339 @@
+npm notice run learning-desk@0.5.0 pretest
+npm notice run node scripts/core-gate.mjs
+npm notice run learning-desk@0.5.0 check
+npm notice run node tests/syntax-check.mjs
+check: sintaxe ok em 374 arquivos.
+npm notice run learning-desk@0.5.0 build:bend
+npm notice run node ../core/build-safe.mjs
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/mesaqolescape.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/mesaqolpalette.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/mesaqollayout.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/undoview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/wheel.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/worklog.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/library.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/find.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/courses.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/study.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/studytoolsview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/chatlibraryview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/studysearch.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/studyannotations.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/studystats.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/reviewschedule.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/studycontext.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/handoff.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/handoff.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/config.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/agentcaps.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/agentdelivery.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/sidechat.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/freeworkspaces.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/framing.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/rpcstate.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/view.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/view.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/state.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/accent.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/state.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/attachments.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/attachments.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/sessions.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/sessions.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/toolpolicy.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/framing.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/rpcstate.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/worklog.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/search.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/composerview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/composerview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/searchview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/statusview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/statusview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/worklogview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/worklogview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/pdfref.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/pdfnav.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/review.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/pdfview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/tabsview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/tutorheader.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/toastview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/talkview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/dialogsview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/calcview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/auxview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/pdfpageview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/readersheet.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/chatlist.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/paletteview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/msgview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/findbar.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/popoverview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/comfortview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/notifyview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/lightboxview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/gaugeview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/keysview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/shortcutview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/welcomeview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/deskflags.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/composerbox.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/attachview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/attachview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/talkview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/slashview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/chat/src/generated/slashview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/pending.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/resume.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/tutorstate.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/settingsview.core.js
+gerado ~/Developer/learning-canvas/.claude/worktrees/goofy-booth-3464f9/desk/src/generated/firstrun.core.js
+npm notice run learning-desk@0.5.0 test:proof
+npm notice run node ../core/proof.mjs
+All terms check.
+npm notice run learning-desk@0.5.0 test:parity
+npm notice run node tests/parity.mjs
+CORES PASSED (60000 comparações em 20000 casos)
+parity ok cores-parity.mjs (0.3s)
+FIND PASSED (20000 comparações em 20000 casos)
+parity ok find-parity.mjs (0.1s)
+✔ paridade em casos montados: mesmas linhas e mesmo resto (1.129292ms)
+✔ paridade em casos aleatórios (1000) (11.819333ms)
+✔ overflow: os dois descartam tudo acima do limite (0.138584ms)
+✔ regressão: buffers de MB não estouram a pilha e conservam as linhas (3332.27725ms)
+✔ feed no núcleo: limite estrito também em MB (strLength em loop) (3360.788167ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6710.235958
+parity ok framing-parity.mjs (6.9s)
+FREE PASSED (24 comparações)
+parity ok freeworkspaces-parity.mjs (0.1s)
+STATE PASSED (40078 comparações em 20000 casos + bordas)
+parity ok state-parity.mjs (0.3s)
+{
+  "toolKinds": [
+    {
+      "name": "web_search",
+      "kind": "search"
+    },
+    {
+      "name": "Buscar na web",
+      "kind": "search"
+    },
+    {
+      "name": "open_reference",
+      "kind": "reference"
+    },
+    {
+      "name": "REFERENCE",
+      "kind": "reference"
+    },
+    {
+      "name": "web_fetch",
+      "kind": "fetch"
+    },
+    {
+      "name": "reader_x",
+      "kind": "fetch"
+    },
+    {
+      "name": "http_probe",
+      "kind": "fetch"
+    },
+    {
+      "name": "some_url",
+      "kind": "fetch"
+    },
+    {
+      "name": "page-turn",
+      "kind": "fetch"
+    },
+    {
+      "name": "quiz",
+      "kind": "tool"
+    },
+    {
+      "name": "busca",
+      "kind": "search"
+    },
+    {
+      "name": "",
+      "kind": "tool"
+    }
+  ],
+  "toolKindUndefined": "tool",
+  "durations": [
+    {
+      "ms": 0,
+      "label": "1s"
+    },
+    {
+      "ms": 1,
+      "label": "1s"
+    },
+    {
+      "ms": 499,
+      "label": "1s"
+    },
+    {
+      "ms": 900,
+      "label": "1s"
+    },
+    {
+      "ms": 4400,
+      "label": "4s"
+    },
+    {
+      "ms": 59999,
+      "label": "1min"
+    },
+    {
+      "ms": 60000,
+      "label": "1min"
+    },
+    {
+      "ms": 65000,
+      "label": "1min 5s"
+    },
+    {
+      "ms": 119999,
+      "label": "2min"
+    },
+    {
+      "ms": 120000,
+      "label": "2min"
+    },
+    {
+      "ms": 3600000,
+      "label": "60min"
+    }
+  ],
+  "thinking": {
+    "runningOnEmpty": true,
+    "emptyDelta": true,
+    "burst": {
+      "ids": [
+        "pensar-1"
+      ],
+      "d1IsLast": true,
+      "d2IsD1": true,
+      "status": "running",
+      "startedAt": 1200,
+      "endedAt": 0,
+      "text": "Vou procurar o jogo.",
+      "live": {
+        "label": "Pensando…",
+        "preview": "Vou procurar o jogo.",
+        "detail": "Vou procurar o jogo."
+      }
+    },
+    "closeReturn": true,
+    "afterClose": {
+      "running": true,
+      "steps": [
+        {
+          "id": "pensar-1",
+          "kind": "thinking",
+          "status": "done",
+          "startedAt": 1200,
+          "endedAt": 4000,
+          "text": "Vou procurar o jogo.",
+          "toolName": "",
+          "args": null,
+          "query": "",
+          "url": "",
+          "domain": "",
+          "pageTitle": "",
+          "results": [],
+          "resultText": "",
+          "error": ""
+        }
+      ],
+      "label": "Pensou por 3s"
+    },
+    "multiBefore": {
+      "ids": [
+        "pensar-1",
+        "pensar-2",
+        "m1",
+        "pensar-4"
+      ],
+      "running": [
+        "pensar-2",
+        "m1",
+        "pensar-4"
+      ]
+    },
+    "multiAfter": {
+      "steps": [
+        {
+          "id": "pensar-1",
+          "kind": "thinking",
+          "status": "done",
+          "startedAt": 1200,
+          "endedAt": 4000,
+          "text": "Vou procurar o jogo.",
+          "toolName": "",
+          "args": null,
+          "query": "",
+          "url": "",
+          "domain": "",
+          "pageTitle": "",
+          "results": [],
+          "resultText": "",
+          "error": ""
+        },
+        {
+          "id": "pensar-2",
+          "kind": "thinking",
+          "status": "done",
+          "startedAt": 4100,
+          "endedAt": 4400,
+          "text": "segunda rajada",
+          "toolName": "",
+          "args": null,
+          "query": "",
+          "url": "",
+          "domain": "",
+          "pageTitle": "",
+          "results": [],
+          "resultText": "",
+          "error": ""
+        },
+        {
+          "id": "m1",
+          "kind": "tool",
+          "status": "running",
+          "startedAt": 4200,
+          "endedAt": 0,
+          "text": "",
+          "toolName": "quiz",
+          "args": {
+            "q": 1
+          },
+          "query": "",
+          "url": "",
+          "domain": "",
+          "pageTitle": "",
+          "results": [],
+          "resultText": "",
+          "error": ""
+        },
+        {
+          "id": "pensar-4",
+          "kind": "thinking",
+          "status": "done",
+          "startedAt": 4300,
+          "endedAt": 4400,
+          "text": "terceira",
+          "toolName": "",
+          "args": null,
+          "query": "",
+          "url": "",
+          "domain": "",
+          "pageTitle": "",
+          "results": [],
+          "resultText": "",
+          "error": ""
+        }
+      ],
+      "t1Status": "done",
+      "t2Status": "done",
+      "t1EndedAt": 4400,
+      "t2EndedAt": 4400
+    }
+  },
+  "tools": {
+    "searchLive": "Procurando na web: «kojima xbox»",
+    "searchPreviewBefore": "",
+    "unknownFinish": true,
+    "searchAfter": {
+      "id": "s1",
+      "kind": "search",
+      "status": "done",
+      "startedAt": 100,
+      "endedAt": 1600,
+      "text": "",
+      "toolName": "web_search",
+      "args": {
+        "query": "kojima xbox"
+      },
+      "query": "kojima xbox",
+      "url": "",
+      "domain": "",
+      "pageTitle": "",
+      "results": [
+        {
+          "title": "A",
+          "url": "https://a.dev"
+        },
+        {
+          "title": "https://b.dev",
+          "url": "https://b.dev"
+        },
+        {
+          "title": "C",
+          "url": ""
+        },
+        {
+          "title": "D",
+          "url": "https://d.dev"
+        },
+        {
+          "title": "E",
+          "url": "https://e.dev"
+        },
+        {
+          "title": "F",
+          "url": "https://f.dev"
+        }
+      ],
+      "resultText": "1. [OD](https://example.com/od)\nextra",
+      "error": ""
+    },
+    "searchLabel": "Procurou na web: «kojima xbox»",
+    "searchDetail": "",
+    "finishAgain": true,
+    "fetchLiveBefore": "Abrindo a página…",
+    "fetchSource": {
+      "id": "f1",
+      "kind": "fetch",
+      "status": "done",
+      "startedAt": 2000,
+      "endedAt": 2100,
+      "text": "",
+      "toolName": "web_fetch",
+      "args": null,
+      "query": "",
+      "url": "https://www.ign.com/articles/x",
+      "domain": "ign.com",
+      "pageTitle": "IGN",
+      "results": [],
+      "resultText": "conteúdo",
+      "error": ""
+    },
+    "fetchSourceLabel": "Abriu ign.com",
+    "fetchSourceDetail": "",
+    "fetchUrlLive": "Abrindo ign.com…",
+    "fetchUrl": {
+      "id": "f2",
+      "kind": "fetch",
+      "status": "done",
+      "startedAt": 2200,
+      "endedAt": 2300,
+      "text": "",
+      "toolName": "web_fetch",
+      "args": {
+        "url": "https://www.ign.com/articles/y"
+      },
+      "query": "",
+      "url": "https://www.ign.com/articles/y",
+      "domain": "ign.com",
+      "pageTitle": "",
+      "results": [],
+      "resultText": "texto cru",
+      "error": ""
+    },
+    "refLive": "Consultando referências: «tetris effect»",
+    "refAfter": {
+      "id": "r1",
+      "kind": "reference",
+      "status": "done",
+      "startedAt": 2400,
+      "endedAt": 2500,
+      "text": "",
+      "toolName": "open_reference",
+      "args": {
+        "query": "tetris effect"
+      },
+      "query": "tetris effect",
+      "url": "",
+      "domain": "",
+      "pageTitle": "",
+      "results": [],
+      "resultText": "referência: livro X",
+      "error": ""
+    },
+    "refDetail": "referência: livro X",
+    "errorStep": {
+      "id": "e1",
+      "kind": "search",
+      "status": "error",
+      "startedAt": 2600,
+      "endedAt": 2700,
+      "text": "",
+      "toolName": "web_search",
+      "args": {
+        "query": "x"
+      },
+      "query": "x",
+      "url": "",
+      "domain": "",
+      "pageTitle": "",
+      "results": [],
+      "resultText": "rede fora",
+      "error": "rede fora"
+    },
+    "errorDetail": "rede fora",
+    "errorFallback": {
+      "id": "e2",
+      "kind": "search",
+      "status": "error",
+      "startedAt": 2750,
+      "endedAt": 2800,
+      "text": "",
+      "toolName": "web_search",
+      "args": {
+        "query": "y"
+      },
+      "query": "y",
+      "url": "",
+      "domain": "",
+      "pageTitle": "",
+      "results": [],
+      "resultText": "",
+      "error": "A ferramenta falhou."
+    },
+    "toolLive": "Usando quiz…",
+    "toolDetailBefore": "",
+    "autoId": "ferramenta-tool-2950",
+    "autoLive": "Usando ferramenta estranha…",
+    "autoLabel": "Usou ferramenta estranha",
+    "autoAfter": {
+      "id": "ferramenta-tool-2950",
+      "kind": "tool",
+      "status": "done",
+      "startedAt": 2950,
+      "endedAt": 2960,
+      "text": "",
+      "toolName": "ferramenta estranha",
+      "args": null,
+      "query": "",
+      "url": "",
+      "domain": "",
+      "pageTitle": "",
+      "results": [],
+      "resultText": "feito",
+      "error": ""
+    },
+    "autoDetail": "feito",
+    "errorsAdded": [
+      {
+        "id": "erro-9",
+        "kind": "error",
+        "status": "error",
+        "startedAt": 3000,
+        "endedAt": 3000,
+        "text": "",
+        "toolName": "",
+        "args": null,
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": "Ferramenta bloqueada neste app: bash"
+      },
+      {
+        "id": "erro-10",
+        "kind": "error",
+        "status": "error",
+        "startedAt": 3050,
+        "endedAt": 3050,
+        "text": "",
+        "toolName": "",
+        "args": null,
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": "Erro"
+      }
+    ],
+    "finishReturn": true,
+    "finalSteps": [
+      {
+        "id": "s1",
+        "kind": "search",
+        "status": "done",
+        "startedAt": 100,
+        "endedAt": 1600,
+        "text": "",
+        "toolName": "web_search",
+        "args": {
+          "query": "kojima xbox"
+        },
+        "query": "kojima xbox",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [
+          {
+            "title": "A",
+            "url": "https://a.dev"
+          },
+          {
+            "title": "https://b.dev",
+            "url": "https://b.dev"
+          },
+          {
+            "title": "C",
+            "url": ""
+          },
+          {
+            "title": "D",
+            "url": "https://d.dev"
+          },
+          {
+            "title": "E",
+            "url": "https://e.dev"
+          },
+          {
+            "title": "F",
+            "url": "https://f.dev"
+          }
+        ],
+        "resultText": "1. [OD](https://example.com/od)\nextra",
+        "error": ""
+      },
+      {
+        "id": "f1",
+        "kind": "fetch",
+        "status": "done",
+        "startedAt": 2000,
+        "endedAt": 2100,
+        "text": "",
+        "toolName": "web_fetch",
+        "args": null,
+        "query": "",
+        "url": "https://www.ign.com/articles/x",
+        "domain": "ign.com",
+        "pageTitle": "IGN",
+        "results": [],
+        "resultText": "conteúdo",
+        "error": ""
+      },
+      {
+        "id": "f2",
+        "kind": "fetch",
+        "status": "done",
+        "startedAt": 2200,
+        "endedAt": 2300,
+        "text": "",
+        "toolName": "web_fetch",
+        "args": {
+          "url": "https://www.ign.com/articles/y"
+        },
+        "query": "",
+        "url": "https://www.ign.com/articles/y",
+        "domain": "ign.com",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "texto cru",
+        "error": ""
+      },
+      {
+        "id": "r1",
+        "kind": "reference",
+        "status": "done",
+        "startedAt": 2400,
+        "endedAt": 2500,
+        "text": "",
+        "toolName": "open_reference",
+        "args": {
+          "query": "tetris effect"
+        },
+        "query": "tetris effect",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "referência: livro X",
+        "error": ""
+      },
+      {
+        "id": "e1",
+        "kind": "search",
+        "status": "error",
+        "startedAt": 2600,
+        "endedAt": 2700,
+        "text": "",
+        "toolName": "web_search",
+        "args": {
+          "query": "x"
+        },
+        "query": "x",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "rede fora",
+        "error": "rede fora"
+      },
+      {
+        "id": "e2",
+        "kind": "search",
+        "status": "error",
+        "startedAt": 2750,
+        "endedAt": 2800,
+        "text": "",
+        "toolName": "web_search",
+        "args": {
+          "query": "y"
+        },
+        "query": "y",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": "A ferramenta falhou."
+      },
+      {
+        "id": "q1",
+        "kind": "tool",
+        "status": "stopped",
+        "startedAt": 2900,
+        "endedAt": 4000,
+        "text": "",
+        "toolName": "quiz",
+        "args": {
+          "question": "q?",
+          "options": [
+            "a",
+            "b"
+          ]
+        },
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": ""
+      },
+      {
+        "id": "ferramenta-tool-2950",
+        "kind": "tool",
+        "status": "done",
+        "startedAt": 2950,
+        "endedAt": 2960,
+        "text": "",
+        "toolName": "ferramenta estranha",
+        "args": null,
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "feito",
+        "error": ""
+      },
+      {
+        "id": "erro-9",
+        "kind": "error",
+        "status": "error",
+        "startedAt": 3000,
+        "endedAt": 3000,
+        "text": "",
+        "toolName": "",
+        "args": null,
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": "Ferramenta bloqueada neste app: bash"
+      },
+      {
+        "id": "erro-10",
+        "kind": "error",
+        "status": "error",
+        "startedAt": 3050,
+        "endedAt": 3050,
+        "text": "",
+        "toolName": "",
+        "args": null,
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": "Erro"
+      }
+    ],
+    "headLine": "Você parou após 4s · 3 buscas · 1 consulta · 2 páginas · 2 ferramentas",
+    "counts": "3 buscas · 1 consulta · 2 páginas · 2 ferramentas",
+    "liveAfterFinish": true,
+    "identity": {
+      "searchStatus": "done",
+      "searchEndedAt": 1600,
+      "quizStatus": "stopped",
+      "quizEndedAt": 4000,
+      "autoStatus": "done",
+      "autoEndedAt": 2960,
+      "badStatus": "error",
+      "badEndedAt": 2700
+    }
+  },
+  "finishBlocked": {
+    "finishReturn": true,
+    "steps": [
+      {
+        "id": "pensar-1",
+        "kind": "thinking",
+        "status": "done",
+        "startedAt": 100,
+        "endedAt": 2500,
+        "text": "pensa",
+        "toolName": "",
+        "args": null,
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": ""
+      },
+      {
+        "id": "erro-2",
+        "kind": "error",
+        "status": "error",
+        "startedAt": 200,
+        "endedAt": 200,
+        "text": "",
+        "toolName": "",
+        "args": null,
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": "erro qualquer"
+      }
+    ],
+    "headLine": "Turno interrompido após 3s",
+    "counts": "",
+    "returnedThinking": {
+      "isFirst": true,
+      "status": "done",
+      "endedAt": 2500
+    }
+  },
+  "finishQuiet": {
+    "steps": [
+      {
+        "id": "pensar-1",
+        "kind": "thinking",
+        "status": "done",
+        "startedAt": 5100,
+        "endedAt": 6000,
+        "text": "a",
+        "toolName": "",
+        "args": null,
+        "query": "",
+        "url": "",
+        "domain": "",
+        "pageTitle": "",
+        "results": [],
+        "resultText": "",
+        "error": ""
+      }
+    ],
+    "headLine": "Pensou por 1s",
+    "counts": ""
+  },
+  "finishEmpty": {
+    "steps": [],
+    "headLine": "Pensou por 1s",
+    "counts": ""
+  },
+  "countsMixed": "2 buscas · 1 página · 1 ferramenta",
+  "history": {
+    "turns": [
+      {
+        "startedAt": 1000,
+        "endedAt": 4000,
+        "time": 4000,
+        "userTime": 1000,
+        "userText": "qual o jogo?",
+        "userImages": [],
+        "text": "Buscando…\n\nÉ o OD.",
+        "steps": [
+          {
+            "id": "pensar-1",
+            "kind": "thinking",
+            "status": "done",
+            "startedAt": 2000,
+            "endedAt": 0,
+            "text": "Vou buscar.",
+            "toolName": "",
+            "args": null,
+            "query": "",
+            "url": "",
+            "domain": "",
+            "pageTitle": "",
+            "results": [],
+            "resultText": "",
+            "error": ""
+          },
+          {
+            "id": "t1",
+            "kind": "search",
+            "status": "done",
+            "startedAt": 2000,
+            "endedAt": 3000,
+            "text": "",
+            "toolName": "web_search",
+            "args": {
+              "query": "kojima xbox"
+            },
+            "query": "kojima xbox",
+            "url": "",
+            "domain": "",
+            "pageTitle": "",
+            "results": [
+              {
+                "title": "OD",
+                "url": "https://example.com/od"
+              }
+            ],
+            "resultText": "1. [OD](https://example.com/od)",
+            "error": ""
+          }
+        ],
+        "headLine": "Trabalhou por 3s · 1 busca",
+        "counts": "1 busca"
+      },
+      {
+        "startedAt": 5000,
+        "endedAt": 6500,
+        "time": 6000,
+        "userTime": 5000,
+        "userText": "e o preço?",
+        "userImages": [
+          "https://img.example/x.png"
+        ],
+        "text": "",
+        "steps": [
+          {
+            "id": "pensar-1",
+            "kind": "thinking",
+            "status": "done",
+            "startedAt": 6000,
+            "endedAt": 0,
+            "text": "via text",
+            "toolName": "",
+            "args": null,
+            "query": "",
+            "url": "",
+            "domain": "",
+            "pageTitle": "",
+            "results": [],
+            "resultText": "",
+            "error": ""
+          },
+          {
+            "id": "t2",
+            "kind": "fetch",
+            "status": "error",
+            "startedAt": 6000,
+            "endedAt": 6500,
+            "text": "",
+            "toolName": "web_fetch",
+            "args": {
+              "url": "https://x.dev/preco"
+            },
+            "query": "",
+            "url": "https://x.dev/preco",
+            "domain": "x.dev",
+            "pageTitle": "",
+            "results": [],
+            "resultText": "offline",
+            "error": "offline"
+          },
+          {
+            "id": "t3",
+            "kind": "tool",
+            "status": "stopped",
+            "startedAt": 6000,
+            "endedAt": 6000,
+            "text": "",
+            "toolName": "quiz",
+            "args": {
+              "question": "q?"
+            },
+            "query": "",
+            "url": "",
+            "domain": "",
+            "pageTitle": "",
+            "results": [],
+            "resultText": "",
+            "error": ""
+          }
+        ],
+        "headLine": "Trabalhou por 2s · 1 página · 1 ferramenta",
+        "counts": "1 página · 1 ferramenta"
+      },
+      {
+        "startedAt": 7000,
+        "endedAt": 7200,
+        "time": 7200,
+        "userTime": 7000,
+        "userText": "   ",
+        "userImages": [],
+        "text": "",
+        "steps": [],
+        "headLine": "Pensou por 1s",
+        "counts": ""
+      }
+    ],
+    "empty": [],
+    "strings": [
+      {
+        "startedAt": 5,
+        "endedAt": 6,
+        "time": 6,
+        "userTime": 5,
+        "userText": "oi",
+        "userImages": [],
+        "text": "",
+        "steps": [],
+        "headLine": "Pensou por 1s",
+        "counts": ""
+      }
+    ]
+  }
+}
+parity ok worklog-parity.mjs (0.1s)
+test:parity: 6 verificadores de paridade ok.
+portão do núcleo ok: build, provas e paridade (324 arquivos; hash guardado).
+npm notice run learning-desk@0.5.0 test
+npm notice run node --test tests/*.test.mjs
+✔ quem nunca escolheu vê azul (1.052125ms)
+✔ cada um dos seis acentos volta como foi gravado (0.517833ms)
+✔ valor inválido ou de tipo errado volta ao padrão azul na carga (0.288833ms)
+✔ salvar grava a escolha nova (0.634334ms)
+✔ salvar sem acento, ou com acento inválido, mantém o corrente (como o tema) (1.639209ms)
+✔ o acento não mexe nos outros campos do estado (0.593834ms)
+✔ ponte publica com escopo capturado, token e caller; retry é idempotente (81.818125ms)
+✔ ponte recusa token ausente, rota errada, content-type errado e corpo grande (15.3965ms)
+✔ ponte detecta troca de escopo durante a publicação (48.375916ms)
+✔ registry correla callRef, confere escopo/geração/hash e expira (1.580208ms)
+✔ serviço Claude: handler só aceita callRef registrado e valida o hash do input (16.776166ms)
+✔ serviço recusa conversa fora do escopo e chamada sem identidade (2.636375ms)
+✔ pickPayload descarta campos estranhos (nada de caminho/URL do modelo) (0.125625ms)
+✔ revisão por activityId: hash cobre o campo, ponte e serviço criam versão imutável (50.922958ms)
+✔ scopeRef opaco acompanha item/evento e não é persistido (15.721042ms)
+✔ PreToolUse substitui referência do modelo e preserva ID real e hash (6.204708ms)
+✔ hook sem ID nativo ou payload inválido não cria autorização (0.396291ms)
+✔ revisão por activityId: hash cobre o campo e o execute propaga sem inventar (0.779292ms)
+✔ SDK real: payloads idênticos com tool_use_id distintos publicam itens distintos por ID nativo (174.021791ms)
+✔ only a detached, currently owned renderer can be terminated (1.330292ms)
+✔ shared process only terminates when every other live frame is a confirmed stalled activity (0.276958ms)
+✔ collectActivityFrames: enumeração completa devolve os frames do pid (1.143917ms)
+✔ collectActivityFrames: qualquer exceção de enumeração é completa=false (nunca lista vazia) (0.382041ms)
+✔ collectActivityFrames: PID de frame desconhecido (throw/0/negativo/não numérico) nega (0.263833ms)
+✔ parseActivityUrl aceita o artefato com tema e recusa o resto (1.963958ms)
+✔ documento montado pelo host: CSP/Trusted Types, prelude ANTES do html e html do modelo entra inerte (0.720042ms)
+✔ prelude cobre os vetores de subframe e Trusted Types (0.260375ms)
+✔ katex opt-in inclui CSS/JS fixos e amplia a CSP só para o esquema (0.23125ms)
+✔ runtime registra por hash, serve o artefato e nega o resto (19.836916ms)
+✔ katex serve só a lista fixa e nunca escapa do diretório (1.030542ms)
+✔ installProtocol e installSessionGuards ligam nas APIs do host (0.223042ms)
+✔ attachWindow autoriza a primeira carga do artefato e nega navegação posterior (0.421ms)
+✔ normalizeSpec aplica tetos e o hash é determinístico (2.296917ms)
+✔ publish lista, lê e preserva versões antigas (20.343959ms)
+✔ identidade de chamada diferente publica item novo; callRef idempotente (26.85075ms)
+✔ stateSave/stateGet guardam por versão/hash e recusam hash velho (23.443333ms)
+✔ corrupção fica no disco e vira CORRUPT (nunca silêncio) (9.749834ms)
+✔ índice de outra conversa no diretório canônico vira CORRUPT; varredura ignora (1.267625ms)
+✔ identidade portátil: backup em outro runtime encontra o diretório relocacionado (23.542125ms)
+✔ índice legado (hash do caminho absoluto, sem portableId) é encontrado após relocação (2.662417ms)
+✔ limite de itens por conversa recusa nova publicação sem apagar antigas (1624.423041ms)
+✔ createActivityTool devolve a definição da ferramenta com schema e handler (163.796084ms)
+✔ createActivityServer compõe o servidor mesa com a ferramenta (sem API privada) (6.006333ms)
+✔ handler repassa o callRef injetado (nunca assume toolCallId do extra) (0.876709ms)
+✔ erro do publicador vira isError com a mensagem, sem stack (0.803333ms)
+✔ normalize desembrulha o SDK e separa texto de toolCall (2.135459ms)
+✔ imagem: source do SDK vira data/mimeType strings; data URL é desmembrado (0.479208ms)
+✔ tool_result dentro de mensagem user vira mensagem toolResult pareada (0.302292ms)
+✔ mensagem toolResult direta aceita content string e lista de blocos (0.195416ms)
+✔ rolo de entradas: array, objeto único, descritor {messages} e JSONL em string (0.329209ms)
+✔ lixo não entra e conteúdo sem parte não vira mensagem (0.138875ms)
+✔ normalizar é idempotente (o descritor guarda a forma canônica) (1.104875ms)
+✔ tetos: texto corta, argumento grande vira {}, imagem fora do teto do envio some (3.425209ms)
+✔ timestamp: positivo entra; zero e inválido ficam fora (0.139125ms)
+✔ exportação preserva cabeçalho e títulos exatos por motor (1.349459ms)
+✔ exportação aceita registros crus do Pi e ignora ferramenta/resultado (0.163ms)
+✔ exportação sem conteúdo termina no cabeçalho (mesma forma do export antigo) (0.076166ms)
+✔ persisted uncertainty locks controls before initialization and before native mutation (1.542167ms)
+✔ native recoverable errors and retry metadata survive the renderer boundary (0.439083ms)
+✔ Claude health does not open a native query; explicit connect and prompts initialize controls (0.66425ms)
+✔ catalog controls are dynamic and changing settings blocks concurrent sending until persistence (4.4485ms)
+✔ Claude service keeps its transport, conversation and capabilities separate (0.900833ms)
+✔ permission revocation and errors translate without losing request identity (0.168208ms)
+✔ simultaneous IPC sends cannot replace the first message before its receipt (1.675166ms)
+✔ in-memory uncertainty keeps sending blocked even if the disk callback failed (0.32725ms)
+✔ an incomplete native prefix cannot replace the recent cached conversation (0.242708ms)
+✔ display cache retains recent messages within the persistence row limit (4.108125ms)
+✔ #28: payload dos dois motores conserva capacidades sem agentLabel morto (0.1525ms)
+✔ os dois apps lançam o Pi com a mesma linha de comando base (7.330667ms)
+✔ os dois apps pedem o mesmo silêncio de Obsidian e de memória observacional (1.889583ms)
+✔ o PATH do Pi preserva o herdado e acrescenta os binários do usuário, nos dois apps (1.179583ms)
+✔ o framing de linhas é idêntico nos dois apps (0.572875ms)
+✔ a resposta de UI sai no mesmo formato para os dois apps (0.936042ms)
+✔ os dois apps usam o mesmo núcleo de estado RPC, byte a byte (0.320958ms)
+✔ os dois apps usam o mesmo núcleo do bilhete, byte a byte (0.388708ms)
+✔ os dois adaptadores do bilhete produzem o mesmo texto (5.345292ms)
+✔ linha torta vira AVISO nos dois apps, nunca erro que derruba (1.63075ms)
+✔ densidade: valor cru canoniza e a decisão do body.dense é do núcleo (1.204042ms)
+✔ densidade: opções na ordem, selected só no modo corrente e evento do contrato (1.056125ms)
+✔ densidade: label com texto + select desenhado pelo núcleo (0.769667ms)
+✔ densidade: o aplicador liga o change na tabela de handlers (0.246375ms)
+✔ dica: classes tip/below, hidden de saída e texto (0.399042ms)
+✔ avisos: três linhas .set-check com ids, rótulos e checked do fato (0.430125ms)
+✔ avisos: o grupo mantém o contrato #notify-mode[role=group] e a legenda (0.233166ms)
+✔ avisos: aplicador monta as linhas no grupo e liga o change de cada uma (0.253792ms)
+✔ o artefato exporta as decisões e os construtores esperados (0.196458ms)
+✔ sem arquivo não há favoritos e nada é criado na leitura (3.565875ms)
+✔ guardar apara o nome, corta o path e levanta a página para 1 (5.980875ms)
+✔ sem nome ou sem documento o favorito é recusado (nada é gravado) (3.664625ms)
+✔ guardar de novo o mesmo documento e nome renomeia, não duplica (7.6795ms)
+✔ o favorito novo entra na frente e a matéria é a chave (4.603417ms)
+✔ remover vai pela identidade (nome + documento): a posição não identifica o favorito (13.226375ms)
+✔ remover o último apaga a chave da matéria (e a lista vazia não volta) (3.673708ms)
+✔ sem matéria ativa não há onde guardar (2.544459ms)
+✔ leitura tolerante: JSON torto, lixo e chave de proto viram "sem favoritos" (4.433459ms)
+✔ arquivo maior que o teto é ignorado (e o save regrava por cima) (8.0565ms)
+✔ o teto do núcleo vale na gravação (a lista não cresce sem fim) (3.834125ms)
+✔ payload resolve peers e versões aninhadas sem depender da fonte (50.111542ms)
+✔ payload recusa dependência obrigatória ausente e nomes que escapam (3.982958ms)
+✔ bundle usa Claude externo sem perder peers, codecs ou versões aninhadas (88.593291ms)
+✔ CLI exigido por outra dependência não é omitido (6.339625ms)
+✔ doctor usa userData da plataforma e respeita os overrides (0.330375ms)
+✔ casco: section#calculator com a barra de uma linha e o corpo expansível (4.939791ms)
+✔ barra: ícone, formulário, resultado, unidade e o controle de expandir, nessa ordem (0.302792ms)
+✔ unidade: o ângulo vigente aparece como texto na linha, sem ser um controle (0.178125ms)
+✔ controle de expandir: nome acessível, aria-expanded e clique (0.186791ms)
+✔ ângulo: seletor com rótulo visível, dentro do painel expandido (1.00725ms)
+✔ ângulo em graus marca a opção GRAUS (0.248708ms)
+✔ formulário: #calc-form[on:submit=Eval], #expression e o botão "=" (0.228125ms)
+✔ resultado e histórico: rótulo pronto, data-expr e ordem (0.307291ms)
+✔ corpo: ângulo, histórico, ajuda e guia, e o hidden do colapso (0.495458ms)
+✔ ajuda e guia: textos idênticos ao index.html (1.7265ms)
+✔ guia: cada <code> tem o texto do index.html (0.522917ms)
+✔ ajuda: todo nome de função da linha de ajuda existe no avaliador (1.444417ms)
+✔ D7: clique duplo — o segundo clique NÃO abre uma segunda captura (1.202875ms)
+✔ D7: a matéria mudou durante a captura → a captura perde a validade (0.188708ms)
+✔ D7: sessão nova na mesma matéria também invalida a captura (0.146959ms)
+✔ D7: endCaptureLock de terceiros não derruba a trava do dono (0.856709ms)
+✔ buildScript: acha o xournalpp, captura a janela e escapa o caminho (0.835958ms)
+✔ captureXournalWindow: devolve o título e o PNG como data URL (6.93875ms)
+✔ captureXournalWindow: erros do script viram mensagens que o usuário resolve (7.513083ms)
+✔ captureXournalWindow: PNG ruim é erro, não anexo — e o temporário sai (5.747375ms)
+✔ conversa de um ano continua disponível e rótulo não modifica sessão (10.947916ms)
+✔ ID obsoleto ou forjado não escreve e patch desconhecido é recusado (2.978458ms)
+✔ rótulos continuam após mover a pasta de dados para outro computador (5.218417ms)
+✔ arquivo ilegível e symlink são preservados e nunca substituídos (4.888333ms)
+✔ rascunho e leitores são restaurados por conversa sem mudar tema ou enviar fila (1.597208ms)
+✔ conversa antiga sem layout começa vazia e usa estudo legado próprio (0.142958ms)
+✔ o layout guardado não compartilha array/objeto com o estado vivo (0.292875ms)
+✔ SDK MCP anuncia PDF e atividade; hook injeta ID nativo sem confirmação extra (179.732167ms)
+✔ normalizeUsage mapeia só o que o provedor reportou: sem zero inventado e sem pré-soma (1.717625ms)
+✔ message_end leva o uso do provedor e não soma a mesma mensagem lógica duas vezes (9.250333ms)
+✔ mensagens lógicas diferentes mantêm o uso de cada rodada (loop de ferramenta) (2.36525ms)
+✔ quadro sem uso não reserva a mensagem e subagente não entra na conta (5.26975ms)
+✔ normalizePriorMessages aceita só a forma normalizada e preserva metadados (0.379209ms)
+✔ priorMessages preserva a transcrição importada e não duplica o que o nativo já tem (1.2415ms)
+✔ mensagens iguais de verdade continuam contando (comparação em multiconjunto) (0.427709ms)
+✔ nova pergunta igual à importada não desaparece do histórico nativo (0.440958ms)
+✔ recarga: prefixo que já contém mensagens nativas antigas não as repete (0.385125ms)
+✔ sem nativo o prefixo continua; sem prefixo o adaptador segue devolvendo só o nativo (0.76525ms)
+✔ mergePriorHistory é a mesma mescla pura, reutilizável pelo host no callback (0.2295ms)
+✔ cache no limite mantém a fronteira importada em saves e leituras repetidas (123.886708ms)
+✔ get_messages preserva o prefixo importado no descritor mesmo quando o nativo viria sozinho (12.790167ms)
+✔ snapshot expõe o contrato congelado sem prometer inferência (2.901083ms)
+✔ connect recusa com código do ambiente e notSent quando o detector falha (0.815666ms)
+✔ connect real exige cwd controlado antes de qualquer detecção (0.203083ms)
+✔ resume=true exige sessionId explícito; nunca pega "última sessão" (0.1615ms)
+✔ marca transmitting antes de entregar; aceite só com o replay do mesmo uuid e persistido (12.634667ms)
+✔ persistDelivery sync ou async é aguardado antes de resolver o envio e antes do turn_end (76.697458ms)
+✔ ack duplicado não resolve de novo nem duplica o evento accepted (sem exactly-once inventado) (1.708167ms)
+✔ imagem válida vira bloco base64 do SDK no formato Pi reduzido (5.065542ms)
+✔ recusas pré-envio: sem conexão, imagem inválida e turno concorrente não tocam o disco (3.771ms)
+✔ persistDelivery que falha na marca impede o envio; nada entra no iterador (0.510917ms)
+✔ timeout de aceite vira incerteza persistida; busy só cai no result (33.901125ms)
+✔ timeout + ack atrasado + result tardio: nada reaceita, nada reenvia (27.275541ms)
+✔ queda antes da entrega é recusa persistida; queda depois é incerteza (3.03475ms)
+✔ aceite persistido + queda durante o turno vira incerteza conservadora (1.586458ms)
+✔ result subtype success com is_error true é erro de turno, sem desfazer o aceite (1.669375ms)
+✔ falha ao persistir o aceite: send rejeita incerto, sem accepted, sem liberar a fila (2.927375ms)
+✔ falha ao persistir o desfecho final não confirma sucesso nem libera a fila (2.258792ms)
+✔ falha ao persistir a recusa cai para incerto (nunca promete recusa não registrada) (1.164209ms)
+✔ a persistent SDK waiting for input receives consecutive turns on the same query (2.0985ms)
+✔ result com UUID errado não encerra o turno atual; UUID certo encerra (1.00075ms)
+✔ fallback result.user_message_uuids: array com o UUID certo encerra; array errado não (1.710792ms)
+✔ sessão divergente não muda a identidade nem polui a conversa principal (1.452583ms)
+✔ subagente (parent_tool_use_id) não correlaciona, não muda sessão e não encerra turno (1.279125ms)
+✔ result tardio depois do turn_end não reabre nem duplica o desfecho (0.921541ms)
+✔ cancel antes do aceite pede interrupt, invalida permissão e mantém busy (2.032709ms)
+✔ cancel com interrupt que falha vira aviso, sem fingir sucesso (0.980625ms)
+✔ queda da consulta com permissão pendente nega o pedido em vez de pendurar o diálogo (2.375417ms)
+✔ respond: allow só com confirmed, deny explícito, sem updatedPermissions e stale não permite (1.271958ms)
+✔ result invalida permissão pendente; diálogo vencido não aceita allow novo (1.316833ms)
+✔ normalizeUserQuestions/validateQuestionAnswers: forma canônica e recusas explícitas (0.599458ms)
+✔ AskUserQuestion: permission_request estruturado e allow só com answers validadas (1.821625ms)
+✔ AskUserQuestion: negar, cancelar e abort do SDK negam com permission_cancelled identificado (1.526958ms)
+✔ ID de pergunta vence: deny, permission_cancelled reason expired e respond desconhecido (27.54725ms)
+✔ result invalida pergunta pendente; resposta vencida nunca concede (1.500666ms)
+✔ pergunta sem questões válidas é negada sem diálogo; hook deixa o canUseTool decidir (1.0085ms)
+✔ pergunta no segundo turno da MESMA consulta nativa usa canUseTool e updatedInput (2.3485ms)
+✔ canUseTool nega caminho fora da política sem nem virar pedido na tela (0.978792ms)
+✔ hook PreToolUse aplica realpath/política inclusive em auto-aprovadas, e barra symlink (13.988458ms)
+✔ setToolPolicy troca o PDF ativo por prompt, canonicaliza e recusa em turno/permissão pendente (4.36475ms)
+✔ rate_limit_event de primeiro nível pausa sem encerrar o turno e deduplica por janela (2.143625ms)
+✔ allowed libera a janela e um novo rejected volta a avisar (1.323458ms)
+✔ allowed_warning avisa sem pausar; overage em uso continua e é interpretado (1.607167ms)
+✔ rate_limit_event de outra sessão é ignorado e não pausa a conversa (1.266458ms)
+✔ subtype legado system/rate_limit_event continua interpretado (defensivo) (1.469125ms)
+✔ stream_event vira delta; final não duplica; tool_start/tool_end saem uma vez; message_stop não libera busy (2.533209ms)
+✔ init sai antes de send resolver mesmo sem system/init; envelope tem identidade (0.866209ms)
+✔ erro de stream do assistente vira código canônico sem encerrar o turno sozinho (1.19425ms)
+✔ history lê só a própria sessão (ignora options.sessionId) e normaliza sem reexecutar ferramenta (0.918625ms)
+✔ history pagina a API oficial até o limite explícito em vez de ler só o começo (0.459166ms)
+✔ history announces an incomplete native prefix at the display row limit (0.929125ms)
+✔ normalizeHistory com teto de bytes avisa o truncamento em vez de cortar em silêncio (0.213208ms)
+✔ close depois do aceite registra incerteza, encerra só a própria consulta e preserva o histórico (3.335625ms)
+✔ close antes da entrega é recusa persistida (nada foi ao Claude) (0.93375ms)
+✔ eventos antigos: consulta velha não emite depois de close/reconnect (1.539167ms)
+✔ depois de o processo terminar, o próximo send retoma a mesma sessão nativa (4.256666ms)
+✔ sessionId precriado vira o ID nativo da primeira consulta; retomada usa resume (1.190834ms)
+✔ #32: detector injetado roda com SDK falso, passa o binário do SDK à Query e a reconexão volta ao launcher configurado (1.190375ms)
+✔ opções do SDK: replay público, isolamento, só leitura, binário, prompt e env sem auto-update (1.048958ms)
+✔ #28: AskUserQuestion preserva a chave exata que o lookup nativo usa (1.057417ms)
+✔ sanitiza o catálogo nativo (initialize ou supportedModels) sem mutar a entrada (2.98925ms)
+✔ catálogo ausente, vazio ou desconhecido fecha sem inventar modelo (0.294416ms)
+✔ visão do seletor usa o formato da Mesa e esconde suspeitos de roteador (0.41475ms)
+✔ sem seleção, as opções saem vazias e o default nativo é preservado (0.378958ms)
+✔ resolve value, alias e id explícito persistido para a linha certa do catálogo (0.329959ms)
+✔ primeira parte: roteador arbitrário é recusado; conta 3P não ganha controles (1.204709ms)
+✔ esforço só compila com metadado nativo; ausente/incompleto desliga o controle (0.391167ms)
+✔ escolha persiste por conversa: descritor → compilar → patch validado (0.217125ms)
+✔ troca de seleção só passa com o motor ocioso (0.188875ms)
+✔ lê o catálogo de uma query já conectada sem criar consulta nem insistir (0.429125ms)
+✔ compatibilidade com o SDK pinado 0.3.296 (tipos reais do sdk.d.ts) (2.751625ms)
+✔ detecta o binário pareado, resolve symlink e devolve auth sanitizado (13.077167ms)
+✔ versão fora do pareamento é CLAUDE_VERSION_UNSUPPORTED com notSent (3.875791ms)
+✔ login ausente (exit 0) é CLAUDE_LOGIN_REQUIRED e não tenta nada além do status (4.199083ms)
+✔ auth status exit 1 com JSON loggedIn:false é estado NORMAL, não "ilegível" (4.665041ms)
+✔ auth status exit 1 com stdout quebrado é CLAUDE_AUTH_STATUS_UNREADABLE (3.8805ms)
+✔ auth status exit 1 com JSON loggedIn:true continua sanitizado e detectável (4.867167ms)
+✔ chave de API no ambiente é CLAUDE_AUTH_CONFLICT e o segredo não vaza (4.05625ms)
+✔ endpoint alternativo e provider não-firstParty também são conflito (4.92875ms)
+✔ status de auth ilegível (exit 0) não vira "logado" nem "sem login" silencioso (3.847375ms)
+✔ binário ausente é CLAUDE_NOT_FOUND; inspect não lança e lista os candidatos (1.629375ms)
+✔ candidatos: configurado primeiro, launcher padrão depois; ~ expande (0.2605ms)
+✔ launcher Windows .exe é descoberto pelo mesmo resolvedor do main e da inspeção (6.120791ms)
+✔ normalizeVersion e parseAuthStatus são estritos e não inventam campos (0.194166ms)
+✔ findEnvConflicts ignora vazio e variáveis alheias, mas acha as conhecidas (0.089ms)
+✔ #28: CLI 2.1.296 conecta e versões não revisadas recusam antes do login (3.441834ms)
+✔ #32: launcher do usuário na versão do par vence e o binário do SDK nem é consultado (4.314583ms)
+✔ #32: launcher em outra versão cai para o binário do SDK e o login é lido nele (3.900416ms)
+✔ #32: sem o Claude Code do usuário, o binário do SDK atende (6.431375ms)
+✔ #32: configurado apontando para o binário do SDK é rotulado como SDK (2.817334ms)
+✔ #32: nenhum dos dois existe é CLAUDE_NOT_FOUND e o texto diz as duas buscas (4.113334ms)
+✔ #32: os dois fora do par é CLAUDE_VERSION_UNSUPPORTED, notSent e sem tocar no login (5.280375ms)
+✔ #32: sem launcher e com o binário do SDK em outra versão também recusa com as duas buscas (4.129125ms)
+✔ #32: launcher fora do par e binário do SDK ausente mantém o erro de versão de hoje (5.358541ms)
+✔ #32: o binário do SDK também recusa conflito de API e login ausente (7.65675ms)
+✔ #32: candidatos do pacote do SDK por plataforma, com claude.exe no Windows e musl primeiro quando preferido (0.236125ms)
+✔ #32: Windows resolve claude.exe do pacote do SDK com platform injetado (3.507292ms)
+✔ #32: pacote do SDK não instalado (resolve lança) é "sem binário do SDK", sem erro próprio (0.206125ms)
+✔ #32: o pacote instalado em desk/node_modules é achado pelo caminho padrão quando existe (0.290125ms)
+✔ accepted result without user-message echo settles exactly once (10.29625ms)
+✔ foreign UUID cannot settle an accepted active turn through the no-echo fallback (2.303791ms)
+✔ nonhuman origin cannot settle an accepted active turn through the no-echo fallback (2.916083ms)
+✔ zero-turn debris cannot settle an accepted active turn through the no-echo fallback (1.455666ms)
+✔ foreign result evidence blocks a later uncorrelated result (2.182375ms)
+✔ accepted interrupt followed by normal query exit settles cancellation (1.997542ms)
+✔ iterator failure after explicit cancel still settles cancellation without a fatal query error (3.289625ms)
+✔ host close after accepted cancel stays conservative and releases nothing (1.736292ms)
+✔ unexpected query crash after acceptance stays uncertain (1.732917ms)
+✔ blocking-limit success envelope reports failure but preserves accepted delivery (3.652792ms)
+✔ hydrated delivery uncertainty blocks send and controls before query, native change or persist (1.754792ms)
+✔ uncertainty hydration is strict boolean and becomes sticky after a crash (3.026125ms)
+✔ uncorrelated result before acceptance is ignored until the native query ends (1.487917ms)
+✔ degraded accepted delivery never settles on an uncorrelated result (1.348167ms)
+✔ rejected window evidence classifies a result failure; allowed clears it (5.194417ms)
+✔ model refusal fallback warns with bounded retracted ids, evicts nothing and keeps the turn (3.141416ms)
+✔ recoverable assistant errors keep the query usable while auth failures may be fatal (2.359791ms)
+✔ after an interrupt exit the next send resumes the exact native id without sessionId (3.522458ms)
+✔ malicious question exact keys survive as own enumerable answers without prototype mutation (1.791417ms)
+✔ retry reports bounded metadata while keeping the accepted turn active (1.419084ms)
+✔ initialize lê o catálogo sem prompt, restaura alias e é idempotente (6.451ms)
+✔ catálogo ausente desliga seletores; escolha salva recusa antes do envio (1.838708ms)
+✔ catálogo ausente ainda permite o default nativo (escolha nula) (9.250167ms)
+✔ API nativa ausente esconde os controles e recusa a troca (1.666041ms)
+✔ initializeControls concorrente compartilha a promessa; falha só repete em chamada explícita (1.845333ms)
+✔ timeout limita a leitura do catálogo sem pendurar a UI (21.397541ms)
+✔ setControls aplica nativo, persiste depois e limpa para o default (1.238791ms)
+✔ setControls recusa esforço sem modelo, modelo desconhecido e roteador (0.860417ms)
+✔ setControls exige initializeControls antes (0.237958ms)
+✔ níveis de esforço seguem o modelo escolhido (0.907458ms)
+✔ troca não passa com turno, permissão pendente ou entrega incerta (Bend) (5.207458ms)
+✔ falha nativa restaura o estado anterior e o envio seguinte passa (1.663791ms)
+✔ falha de persistência desfaz o nativo e mantém a escolha antiga (0.933875ms)
+✔ rollback que falha bloqueia envios até um adaptador novo (1.680458ms)
+✔ timeout na chamada nativa restaura o estado anterior (26.763292ms)
+✔ prompt concorrente não passa durante a troca; close cancela a persistência (2.207833ms)
+✔ close durante a troca não persiste e não bloqueia um adaptador novo (2.284541ms)
+✔ snapshot separa default desejado do modelo observado e usa o Bend (2.794959ms)
+✔ catálogo sem esforço nenhum mantém só o seletor de modelo (0.508166ms)
+✔ portão concorda com canChangeControls do Bend em todas as combinações (0.504792ms)
+✔ Query de catálogo sem prompt não vira resume; prompt entregue vira (3.086625ms)
+✔ rejected → allowed emite UMA transição RESUMED por janela, sem mexer no turno (2.315375ms)
+✔ allowed_warning depois de rejected não limpa a pausa; allowed limpa (1.389125ms)
+✔ subtype legado system/rate_limit_event também emite a transição (1.727208ms)
+✔ questionRequest preserva o pedido canônico exatamente (rótulos com espaço, ordem, multiSelect) (2.015125ms)
+✔ questionRequest recusa pedido impossível de responder inteiro (nada de resposta parcial) (0.413667ms)
+✔ questionRequest cabe no teto de conteúdo (pergunta/opção/descrição) (0.261583ms)
+✔ compileQuestionAnswers: opção única vira string; multiSelect vira lista sem repetição (0.306917ms)
+✔ compileQuestionAnswers: texto livre vence opções, é trimado e vale para única e múltipla (0.177625ms)
+✔ compileQuestionAnswers: exige ao menos uma resposta por pergunta e ignora seleção desconhecida (0.246208ms)
+✔ compileQuestionAnswers: texto de pergunta vira chave PRÓPRIA mesmo sendo __proto__/constructor (sem perder resposta) (0.201041ms)
+✔ questionSubmitAction: Cancelar fecha SEMPRE (mesmo vazio); só o Responder exige respostas; Enter cai no Responder (0.246625ms)
+✔ claudeLimitNotice classifica código e metadados canônicos, sem mutar a entrada (2.474333ms)
+✔ limitNoticeState: limpar uma janela liberada NÃO esconde a outra janela rejeitada (0.510042ms)
+✔ claudeActivityNotice: retry/overload/fallback/recusa viram faixa+toast concisos e deduplicáveis (0.491416ms)
+✔ deskErrorIsFatal: só o `fatal:false` exato deixa o turno seguir sem derrubar conexão/busy/fila (0.1005ms)
+✔ a lista de perguntas nunca sai do formato do contrato (id = texto, answers = string|lista) (0.238166ms)
+✔ contrato do aviso de limite casa com os códigos do adaptador pinado (0.4775ms)
+✔ replay do próprio envio é match; replay de outro UUID é mismatch; sem carimbo é none (2.458042ms)
+✔ user_message_uuids (lista) tem precedência sobre user_message_uuid (singular) (0.254166ms)
+✔ L1: result success sem eco depois do aceite comprovado liquida settled (0.322541ms)
+✔ L1: result sem eco antes de qualquer aceite é ignorado (taken não é aceite) (0.156125ms)
+✔ L1: result sem eco com aceite degradado não liquida (espera preservada) (0.309334ms)
+✔ L1: evidência estrangeira anterior bloqueia o result sem eco (0.201459ms)
+✔ L1: result sem eco com origem não-humana é ignorado; origem humana permite (0.180459ms)
+✔ L1: result sem eco de turno zero é detrito e não liquida (0.15075ms)
+✔ L1: result sem eco com mais de um turno pendente não liquida (0.145875ms)
+✔ uuid estrangeiro explícito continua ignorado mesmo com aceite e turno único (0.220875ms)
+✔ eco do próprio UUID com aceite liquida settled; sem aceite ou degradado finaliza incerto (0.1525ms)
+✔ mensagem que não é result nunca finaliza (0.094958ms)
+✔ L2: cancelamento após aceite com fim de consulta observado liquida settled cancelled sem incerteza (0.155083ms)
+✔ L2: queda da consulta depois do cancelamento explícito ainda liquida settled (cancelamento domina) (0.083292ms)
+✔ crash sem cancelamento permanece incerto: não apaga a espera segura (0.107542ms)
+✔ L2: cancelamento antes do aceite e sem I/O é recusa comprovada, não incerteza (0.0575ms)
+✔ L2: cancelamento antes do aceite com item já puxado pela consulta vira incerto (0.049417ms)
+✔ close/timeout do host não são fim nativo observado: incerto mesmo com aceite e cancelamento (0.116ms)
+✔ aceite degradado não vira settled: a espera segura é mantida (0.059541ms)
+✔ fim sem entrega e sem cancelamento é recusa; fase desconhecida é conservadora (0.061125ms)
+✔ L3: blocking_limit em envelope success vira erro de limite, sem criar incerteza (0.388041ms)
+✔ L3: api_error_status 429 vira CLAUDE_RATE_LIMITED com origem api_error_429 (0.0725ms)
+✔ L3: api_error_status 529 vira CLAUDE_OVERLOADED (0.067292ms)
+✔ L3: janela rejeitada não recuperada classifica o result como limite (0.845375ms)
+✔ L3: janela liberada depois de rejeitada NÃO rotula limite (recuperado) (0.130167ms)
+✔ L3: assistant rate_limit é evidência de limite restante quando não há janela registrada (0.1055ms)
+✔ L3: falha de autenticação não é confundida com limite pela janela (0.087417ms)
+✔ causas nativas claras: contexto, imagem e orçamento do SDK pinado (0.156083ms)
+✔ result success limpo não é falha; subtype de erro tem código próprio (0.14475ms)
+✔ L4: api_retry preserva tentativa, máximo, atraso e status sem encerrar o turno (0.424416ms)
+✔ L4: api_retry 429 vira limite; status nulo vira transporte; resto é retry genérico (0.127542ms)
+✔ L4: api_retry sanitiza números e status fora da faixa sem inventar valores (0.089584ms)
+✔ L4: chave de dedupe é estável por tentativa/status e mensagem repetida não é nova (0.140584ms)
+✔ mensagem que não é api_retry não é classificada como retry (0.062875ms)
+✔ L5: model_refusal_fallback normaliza aviso e retração sem decidir evicção (0.220458ms)
+✔ L5: fallback sem content não emite aviso vazio, mas preserva a retração (0.091875ms)
+✔ L5: model_refusal_no_fallback é recusa simples com categoria limitada (0.083791ms)
+✔ L5: lista de retração é limitada e filtra lixo (0.324083ms)
+✔ avisos que não são de recusa não são classificados (0.114375ms)
+✔ decisões settled/refused respeitam o outcome gerado do núcleo Bend (0.421042ms)
+✔ piVersion: package.json do binário resolvido (symlink do .bin) (7.771916ms)
+✔ piVersion: sem package.json por perto, cai no pi --version com timeout (7.105834ms)
+✔ piIsLocal: só o local da Mesa é atualizável pela Mesa (.pi-local e node_modules antigo) (7.898917ms)
+✔ collect: linhas na ordem do núcleo, Mesa pelo cache do updater (11.712ms)
+✔ collect: Pi de PATH mostra o comando e não vira botão (1.583666ms)
+✔ collect: sem Pi e sem registry = desconhecido, sem erro (2.221791ms)
+✔ collect: Node do SISTEMA é medido de verdade; sem node cai no embutido, rotulado (3.022625ms)
+✔ collect: Node abaixo de 22.19 avisa (o corte é do núcleo) (1.96025ms)
+✔ collect: Xournal++ no macOS lê o CFBundleShortVersionString e compara (só informativo) (3.580209ms)
+✔ linha vazia diz que só a mensagem vai (2.42275ms)
+✔ matéria, questão, rascunho e referências, nessa ordem (0.374542ms)
+✔ contexto de estudo desligado tira matéria, questão e rascunho (0.360958ms)
+✔ nota do popover: desligadas, nenhum aberto e listadas (com e sem Conferir) (0.471375ms)
+✔ Enviar e Parar nunca aparecem juntos (0.629541ms)
+✔ a folder of PDFs is a course even without _state.md (5.943166ms)
+✔ config names overlay discovered vault courses (4.573708ms)
+✔ needsSetup is true without vault or courses (0.634083ms)
+✔ omitting desk keeps the original Enunciado / Formulário defaults (0.759209ms)
+✔ pickPdfs follows Limites then Formulário, then leftover files (1.409542ms)
+✔ a single panel config hides the second reader preference (0.57825ms)
+✔ seedConfig points at the home vault when Courses exists (1.184917ms)
+✔ normalizePanel keeps valid prefer and toggle pairs (0.263334ms)
+✔ absent, empty or non-array panels fall back to the default readers (0.358791ms)
+✔ empty prefer or toggle inherits the slot default and cannot be cleared via JSON (limitação conhecida; decisão 2026-09-15) (0.294292ms)
+✔ a panel without prefer keeps the default preference for its slot (0.142666ms)
+✔ desk flags survive normalize with sane defaults (0.15875ms)
+✔ Claude executable path survives config normalization without changing Pi defaults (0.130375ms)
+✔ cache trimming keeps the newest complete UTF-8/image suffix within the byte cap (64.384667ms)
+✔ model/effort selection survives reopen without changing the native session or delivery (12.224917ms)
+✔ create grava descritor exclusivo com id/nativeSessionId separados e nativeEstablished=false (12.514209ms)
+✔ read recusa ausente, nome não gerenciado, engine/versão/id/tipo inválidos e JSON torto (19.463458ms)
+✔ runtime resolve realpath e recusa symlink/arquivo fora de conversations (16.171542ms)
+✔ update mescla só campos permitidos, ignora path/id/engine e preserva o anterior em falha (17.238666ms)
+✔ messages normaliza, limita a ~12 MiB pelas mais novas e nunca corta a entrega (91.239542ms)
+✔ conversationEngine: claude só para descritor válido; corrompido lança, ausente cai em pi (3.51475ms)
+✔ conversationMetadata: campos Claude e fallback Pi sem ler o JSONL nativo (3.155041ms)
+✔ recover: transmitting/accepted viram uncertain sem reenvio; terminais ficam (8.69225ms)
+✔ recover não apaga descritor corrompido: lança e preserva os bytes (3.81425ms)
+✔ identidade por caminho: JSONL de Pi intocado e a fila (pending) sobrevive à poda (8.404084ms)
+✔ nativeEstablished é o portão de retomada: precriado fica false e só o adaptador promove (5.298708ms)
+✔ calculator precedence, functions and angle units (1.884875ms)
+✔ calculator rejects executable syntax and undefined results (0.317583ms)
+✔ calculator answers the reciprocal and the inverse functions (0.246667ms)
+✔ calculator is exact on exact angles and undefined at the poles (0.326917ms)
+✔ calculator keeps small but legit values out of the exact-angle net (0.120834ms)
+✔ desk.json round-trips through init/save-state/switch-course and ggbBase64 lives only in runtime/ggb (213.935083ms)
+✔ fila e bandeja guardadas: pending-save/tray-save gravam por conversa e o payload as devolve (67.367ms)
+✔ Encerrar por hoje: end-day-save grava local e o registro volta no init; resume-clear apaga (67.236958ms)
+✔ favoritos e caderno: a tela mostra a lista filtrada e editar/remover vai pela identidade (59.950083ms)
+✔ desk.json corrompido não derruba o init: pdfs/session/bounds viram tipos seguros e o próximo save regrava sanado (49.634458ms)
+✔ ggb: reload do applet reaplica o snapshot; reload do renderer esconde a View nativa (82.425917ms)
+✔ atalhos: o guard de diálogo modal vem antes de Configurações/Ajuda/Conferir/GeoGebra no keydown (1.019667ms)
+✔ preload: invoke perde o boilerplate do Electron e a conexão que falha gera um aviso só (1207.877125ms)
+✔ a chave cobre núcleo, artefatos, verificadores e o que eles importam (22.222625ms)
+✔ o mesmo conteúdo dá o mesmo hash (27.54225ms)
+✔ mexer num host comparado pela paridade invalida a chave (31.884042ms)
+✔ mexer no que o verificador importa de segunda mão invalida a chave (22.480083ms)
+✔ mexer num verificador de paridade invalida a chave (26.994ms)
+✔ verificador novo entra na chave pela varredura do runner (15.96725ms)
+✔ mexer nos passos e no núcleo invalida a chave (17.082ms)
+✔ o que não entra nos três passos não invalida a chave (15.697959ms)
+✔ macOS e Linux rodam o npm do PATH, sem shell (0.269833ms)
+✔ no Windows (de mentira) o passo chama npm.cmd por shell (0.196292ms)
+✔ o passo roda com o terminal herdado e o comando certo (0.268875ms)
+✔ spawn que não sai fala o comando e o motivo em vez de sair calado (0.242375ms)
+✔ passo interrompido por sinal também avisa (0.137333ms)
+✔ passo que termina com erro mantém o código de saída dele (0.089292ms)
+✔ o portão não chama spawnSync por conta própria (0.456333ms)
+✔ sem Sources nem source_roots: a própria pasta da matéria (1.429708ms)
+✔ com Sources/: a pasta Sources, que é a varrida (0.775458ms)
+✔ com source_roots no _state.md: a primeira pasta que existe (2.185834ms)
+✔ pasta inexistente: vazio, e a biblioteca também (0.935542ms)
+✔ cópia Livre para matéria preserva original, homônimos e descoberta com Sources (49.307375ms)
+✔ a publicação é atômica: o nome final só nasce com os bytes completos (13.815458ms)
+✔ sem link (EPERM) a cópia exclusiva mantém o nome livre e os bytes (19.938208ms)
+✔ troca da pasta por link no meio da publicação é detectada e o arquivo sai (13.377833ms)
+✔ Materiais da Mesa já como link externo é recusada sem escrever (4.575083ms)
+✔ material ausente ou fora de PDF não é copiado (4.813083ms)
+✔ prévia do tutor pertence a uma conversa e sobrevive reabertura; arquivo inválido é preservado (4.376167ms)
+✔ verificar sem commit permite retry e continua conferindo escopo e prazo (2.97475ms)
+✔ emite token opaco curto com prazo e devolve o item ORIGINAL uma única vez (1.354583ms)
+✔ prazo do host: vence no instante exato e o restante não fica negativo (0.344792ms)
+✔ escopo diferente é recusado SEM consumir: o dono legítimo ainda desfaz (0.250833ms)
+✔ material bloqueado é recusado SEM consumir: com a biblioteca certa, desfaz (0.224209ms)
+✔ token inventado, vazio ou acima do teto nunca vira reinserção (0.239125ms)
+✔ mergeRemoved reinsere na posição original, clampa o fim e não duplica identidade (0.325417ms)
+✔ motivos de recusa têm texto em português (0.1555ms)
+✔ typing/health metadata omits images and does not reparse unchanged conversations (0.943833ms)
+✔ contexto de estudo: hidden pela flag (0.943042ms)
+✔ botão Editar da linha Vai junto: some com a flag do contexto de estudo (1.157292ms)
+✔ Conferir e divisor da calculadora: hidden SÓ pela flag (sem fato de plataforma) (0.347875ms)
+✔ endDayChildren: ids, textos, ações e valores do Encerrar (1.320542ms)
+✔ renderEndDay/clearEndDay colam o miolo no <form> estático (1.821416ms)
+✔ settings: linhas de matéria com valores, data-id e handlers (1.492292ms)
+✔ settings: lista vazia vira uma linha e o "+" acrescenta (0.35675ms)
+✔ help: versão como fato e os itens que a flag esconde (1.146791ms)
+✔ help: os itens do Conferir somem com a flag (win32) (0.547459ms)
+✔ about: lead com a versão (sem versão mantém o texto estático) (0.516292ms)
+✔ about: a linha de atualização vem do núcleo e liga os handlers (1.259167ms)
+✔ about: aplicando desliga a ação; na reabertura o resultado real aparece (0.553667ms)
+✔ about: painel de Componentes — ordem do núcleo, estados e Atualizar Pi (1.649833ms)
+✔ about: linha mínima de componente e lista vazia (0.5255ms)
+✔ about: abertura do painel já pinta as 4 linhas em Verificando… (0.881583ms)
+✔ pi-dialog: título/mensagem passam pelo host e os campos vão para #dialog-fields (1.388167ms)
+✔ pi-dialog: sem campo o #dialog-fields fica vazio (0.621167ms)
+✔ image-dialog: título pelo arquivo, ações e o caminho no dataset (1.2225ms)
+✔ exaustivo: 2^7 combinações seguem a precedência do núcleo (1.472542ms)
+✔ fechar camada vence o cancelamento do tutor (0.193334ms)
+✔ modal nativo fecha sem tocar no turno (0.12ms)
+✔ tutor só para com nada dismissível aberto (0.10175ms)
+✔ só a ação tutor cancela o turno (0.395792ms)
+✔ collector mapeia cada camada ao seu seletor exato (0.80075ms)
+✔ o menu Mais opções do leitor aberto conta como popover (Esc fecha e não cancela o turno) (0.133791ms)
+✔ os menus do cabeçalho do tutor abertos contam como popover (Esc fecha e não cancela o turno) (0.167417ms)
+✔ o menu Mais opções do chat lateral aberto conta como popover (Esc fecha e não cancela o turno) (0.125333ms)
+✔ collector falso quando nada está aberto e o turno está livre (0.174625ms)
+✔ termo ativo em qualquer leitor conta como busca aberta (0.138125ms)
+✔ a decisão sobre os fatos lidos é a mesma do núcleo (0.099583ms)
+✔ uma pasta solta vira a pasta da matéria e conta os PDFs dela (2.714792ms)
+✔ PDFs soltos vêm da pasta do primeiro; os de outra pasta não entram e são contados (1.152667ms)
+✔ uma pasta junto de PDFs: vale a pasta; PDF de fora dela é contado (0.805292ms)
+✔ arquivo que não é PDF, caminho que não existe e caminho relativo são ignorados (0.640459ms)
+✔ o que foi solto nunca é alterado (2.231875ms)
+✔ a pasta de dados sugerida é a da configuração ou Documentos/Mesa de Estudos (0.160417ms)
+✔ preparar a pasta de dados cria só ela e recusa o que não é caminho absoluto (0.823ms)
+✔ sem nome e sem pasta falta tudo; com os dois não falta nada (1.242417ms)
+✔ só cria a matéria com nome e pasta (0.294292ms)
+✔ o texto da caixa de mensagem diz o que falta (0.179666ms)
+✔ o id da matéria segue a regra das Configurações: o nome, ou a pasta sem nome (0.431083ms)
+✔ a folha tem título, três passos, o quadro de soltar e a pasta de dados (1.322542ms)
+✔ a folha tem o atalho de escolher a pasta e o Mudar da pasta de dados (1.943417ms)
+✔ o passo feito é marcado: nome, pasta escolhida e a pasta aparece no quadro (0.582959ms)
+✔ sem configuração é "setup"; pasta de dados válida sem matéria é "empty"; com matéria, nunca (0.117041ms)
+✔ sem matéria e com a pasta de dados válida a folha informa os dados e não oferece o Mudar (0.507916ms)
+✔ criar a matéria na folha "empty" não confirma a pasta de dados; no "setup" confirma (0.219917ms)
+✔ o tutor se apresenta, mostra o Pi encontrado e oferece Chamar o tutor (1.142083ms)
+✔ sem o Pi a apresentação diz que não foi encontrado e leva aos ajustes (0.416292ms)
+✔ com o Pi achado, Chamar o tutor segue como a ação principal (0.179166ms)
+✔ o tutor ligado, ainda sem matéria, diz o que falta e não oferece chamar (0.177041ms)
+✔ a casca do tutor é a mesma dos outros estados: texto, depois ações (0.193916ms)
+✔ o campo da barra e o link da ajuda têm os rótulos combinados (0.110083ms)
+✔ aba Livre no host: workspace por conversa, APIs, mutex, promoção e restart (10248.7935ms)
+✔ boot recupera diário applying: restaura config byte a byte e remove staging (2033.250667ms)
+✔ boot conclui diário committing: publica pasta, recibo e matéria no config/desk (1977.531458ms)
+✔ falha pós-commit não desfaz a promoção e o boot acorda no curso novo (6365.670333ms)
+✔ fechar o app durante a geração do PDF cancela sem material órfão (2907.070125ms)
+✔ zero matérias configuradas: Livre já é utilizável no boot (1147.976167ms)
+✔ payload inválido é recusado sem abrir janela (Node puro) (7.8935ms)
+✔ gera PDF real multipágina, com texto extraível e KaTeX embutido (2716.261416ms)
+✔ página de impressão não faz nenhuma requisição de rede (1439.96625ms)
+✔ PDF preserva o desenho vetorial do radical do KaTeX (1294.794916ms)
+✔ cancelar a geração não grava arquivo nem material (943.45525ms)
+✔ gravação que falha não deixa falso sucesso (1410.516125ms)
+✔ duas gravações simultâneas do mesmo título recebem nomes distintos (1311.808167ms)
+✔ falha de metadata desfaz o PDF criado por saveMaterial (549.5195ms)
+✔ rollback restaura config/desk byte a byte e desfaz o staging (55.583208ms)
+✔ recover em "applying" desfaz e apaga o diário (31.80825ms)
+✔ recover em "committing" conclui: rename, recibo, config/desk com a matéria (49.754417ms)
+✔ recover em "committing" com conteúdo estranho NÃO apaga nada e preserva o diário (30.09825ms)
+✔ sessions() lista a sessão com diário e recover ignora diário inválido (35.994791ms)
+✔ workspace nasce com título padrão, atualiza título/rascunho e lista (75.976708ms)
+✔ create recusa workspace existente; IDs perigosos são recusados (5.009167ms)
+✔ workspace livre não pode ser link simbólico para fora (free e sessão) (3.4235ms)
+✔ metadata corrompido não é sobrescrito e não derruba a lista (15.03525ms)
+✔ gravação falha preserva o arquivo antigo (escrita atômica) (9.435333ms)
+✔ importar copia bytes verificados, preserva o original e não colide (29.777916ms)
+✔ importar recusa não-PDF, link simbólico, pasta, vazio e acima do teto (10.055875ms)
+✔ material fora da área gerenciada é recusado (register e symlink) (9.495334ms)
+✔ saveMaterial desfaz o PDF criado quando o metadata falha (5.138041ms)
+✔ saveMaterial recusa conteúdo vazio e sessão promovida (29.609541ms)
+✔ promoção: staging verificado, pasta nova, recibo e rollback (38.959208ms)
+✔ promoção nunca sobrescreve pasta existente (escolhe a próxima) (34.144958ms)
+✔ promoção aborta se a pasta aparecer entre preparar e confirmar (18.274875ms)
+✔ rollback recusa apagar pasta com conteúdo inesperado (25.162708ms)
+✔ promoção verifica o sha256 do original e não deixa staging para trás (11.253166ms)
+✔ promoção recusa caminho de material fora do workspace (metadata adulterado) (13.49975ms)
+✔ promoção recusa confirmar sem preparar e repetir prepare (12.641458ms)
+✔ promoção exige pasta-mãe existente e nome de pasta seguro (5.683875ms)
+✔ título e rascunho sobrevivem a abrir/fechar (reload do arquivo) (9.949458ms)
+✔ índice de sessões inclui sessão sem arquivo nativo e persiste o caminho (16.024792ms)
+✔ captura de escopo detecta sessão mudada/promovida e expectRev protege o update (34.011792ms)
+✔ curso promovido pertence a uma sessão; domínio repetido é recusado (50.927625ms)
+✔ crash depois do journal e antes do rename é concluído pela recuperação (23.982292ms)
+✔ crash depois do rename e antes do recibo é concluído pela recuperação (24.961125ms)
+✔ recuperação cancela preparação sem staging e não mexe em destino alheio (24.985417ms)
+✔ recuperação em lote só devolve o que precisou de ação (26.115583ms)
+✔ rollback de transação em andamento remove staging ou pasta da operação (29.029792ms)
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-PLfle0/clone'...
+warning: You appear to have cloned an empty repository.
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-cz4dyJ/remoto.git
+ * [new branch]      HEAD -> main
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-A0Igj1/outro-o6pvzc9aoui'...
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-cz4dyJ/remoto.git
+   3c16b15..e440b0e  HEAD -> main
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-hvHpKn/clone'...
+warning: You appear to have cloned an empty repository.
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-zquZbA/remoto.git
+ * [new branch]      HEAD -> main
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-KfmLBB/outro-ztxpsz3inmm'...
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-zquZbA/remoto.git
+   d15e7da..2ea66d8  HEAD -> main
+✔ D1: update real com git — pull ff, versão CONFERIDA, sem npm ci sem lock novo (1491.688792ms)
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-X6J7yW/clone'...
+warning: You appear to have cloned an empty repository.
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-hFQ8wO/remoto.git
+ * [new branch]      HEAD -> main
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-TBpbnk/paralelo'...
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-hFQ8wO/remoto.git
+   7bbf8be..2b6e3b7  HEAD -> main
+✔ D1: clone com trabalho local (manifesto sujo, como o setup antigo fazia) é recusado SEM destruir nada (1268.491041ms)
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-OiobCJ/clone'...
+warning: You appear to have cloned an empty repository.
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-ncJZRi/remoto.git
+ * [new branch]      HEAD -> main
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-4rIlhm/outro-davvzp7bpo'...
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-ncJZRi/remoto.git
+   f2a30f5..38dc206  HEAD -> main
+✔ D1: remoto divergiu (não é ff) → pull recusa, rollback volta a versão antiga de verdade (1618.965375ms)
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-BP7jtO/clone'...
+warning: You appear to have cloned an empty repository.
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-t6obSL/remoto.git
+ * [new branch]      HEAD -> main
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-INIERF/clone'...
+warning: You appear to have cloned an empty repository.
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-a66pfc/remoto.git
+ * [new branch]      HEAD -> main
+Cloning into '/var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-T111Wf/outro-f3cnmcxy73'...
+done.
+To /var/folders/fm/lz1skly97bd4xw55p7hr9ytr0000gn/T/mesa-gitreal-test-a66pfc/remoto.git
+   fb29304..76dda1b  HEAD -> main
+✔ D1/A3: versão anunciada divergente no modo git vira aviso, não sucesso da tag (1772.093541ms)
+✔ D1/A2: instalar o Pi local não suja package.json/lock do desk (889.121958ms)
+✔ D2: update real da Mesa (git) deixa o Pi local intacto e resolvível (1882.463958ms)
+✔ o bilhete traz objetivo, referências e pergunta (2.9905ms)
+✔ só referências não é pedido e não vira bloco (0.178875ms)
+✔ os campos são aparados pelo núcleo, não pelo chamador (0.253125ms)
+✔ referências vazias ou em demasia são cortadas no teto (0.465833ms)
+✔ ida e volta em disco: a Conversa escreve, a Mesa lê o mesmo bloco (11.911ms)
+✔ os dois apps chegam no mesmo caminho (0.656167ms)
+✔ a Conversa recusa escrever um bilhete sem pedido (0.83475ms)
+✔ o payload gravado declara versão e origem (1.734041ms)
+✔ a reivindicação tira o pendente do lugar antes de ler (5.643375ms)
+✔ bilhete novo escrito depois da reivindicação continua pendente (8.732459ms)
+✔ a mão pega o bilhete que a Conversa escreveu depois da primeira mensagem (2.1875ms)
+✔ um segundo bilhete depois do primeiro desfecho é reivindicado (6.030458ms)
+✔ bilhete que chega com outro na mão espera a vez, sem se perder (4.818875ms)
+✔ recusa comprovada mantém a mão e o caminho guardado acompanha a fase (2.96075ms)
+✔ falha de arquivamento preserva o bilhete em vez de apagá-lo (4.484417ms)
+✔ arquivo sem permissão de escrita não vira sucesso falso, e o bilhete volta a arquivar quando o bloqueio sai (12.581875ms)
+✔ escrever A, processar A, escrever B e concluir A: A é o entregue e B continua pendente (9.685875ms)
+✔ reiniciar no meio do processamento não apaga A nem B (9.395334ms)
+✔ bilhete novo que chega na janela da restauração não é sobrescrito (6.516833ms)
+✔ queda entre o link e o unlink da restauração é retomada, sem duplicar nem perder (10.33925ms)
+✔ falha de validação de anexo não consome o bilhete (5.997584ms)
+✔ falha de conexão ou de envio recusa sem perder o bilhete (6.401041ms)
+✔ envio aceito é definitivo: falha depois não desfaz a entrega (6.156708ms)
+✔ desfecho ambíguo vai para dúvida e não volta para a fila (9.326166ms)
+✔ reinício devolve o reivindicado à fila e arquiva o já entregue (3.415417ms)
+✔ reinício não devolve à fila o que já estava marcado como entregue (4.740667ms)
+✔ um pendente mais novo supera o reivindicado antigo sem apagá-lo (14.522917ms)
+✔ dois superados no mesmo instante, e um destino já ocupado, não se sobrescrevem (20.009958ms)
+✔ envio iniciado sem confirmação vai para dúvida e nunca volta para a fila (3.729416ms)
+✔ reinício com um envio interrompido e um reivindicado novo devolve só o reivindicado à fila (11.242917ms)
+✔ recuperar sem nada pendente não inventa trabalho (0.807542ms)
+✔ bilhete sem pedido significativo é guardado em falha, com motivo (7.79925ms)
+✔ arquivo torto, versão estranha ou origem desconhecida são guardados com motivo (8.483125ms)
+✔ o motivo nunca carrega o conteúdo do bilhete (2.754292ms)
+✔ bilhete de outro dia avisa em vez de passar por assunto de agora (5.181958ms)
+✔ o bloco do bilhete não aparece no transcript, mesmo sem contexto da Mesa (2.62425ms)
+✔ o preview da sessão corta o bloco do bilhete (3.419708ms)
+✔ layout extremo salvo é limitado antes da escala e tipos vazios não viram medidas (3.950834ms)
+✔ limites e números canônicos vêm do núcleo (0.225875ms)
+✔ os três embutidos existem com layout válido e limites respeitados (1.794084ms)
+✔ normalizeLayout apara fora da faixa e mantém o válido intacto (0.487833ms)
+✔ normalizeLayout rejeita campo ausente ou de tipo errado (0.306166ms)
+✔ normalizePreset exige nome e layout completos e não aceita id reservado (1.040667ms)
+✔ normalizeStore descarta lixo, deduplica ids e para no teto (0.596167ms)
+✔ read lê o estado global do usuário e tolera ausência (0.352083ms)
+✔ upsert cria id, substitui no lugar e não muta o store recebido (0.77ms)
+✔ rename e delete só valem para pessoais existentes (0.73075ms)
+✔ comando desconhecido e limite de presets falham sem mudar o store (0.864708ms)
+✔ main e renderer normalizam os MESMOS vetores byte a byte (0.975541ms)
+✔ renderer lista os embutidos e resume o layout a partir do núcleo (1.96575ms)
+✔ normalizeViewLayout apara só os campos presentes e exige o mínimo válido (0.321416ms)
+✔ main e renderer leem o viewLayout com a mesma forma (0.350667ms)
+✔ captureLayout lê a superfície e devolve um layout completo (0.528792ms)
+✔ applyLayout aplica só view e usa a decisão mínima da área de apoio (1.010833ms)
+✔ applyLayout com o chat lateral à frente não troca de aba para esconder o Formulário (0.589833ms)
+✔ calculadora desligada na config não recebe altura nem colapso do preset (0.452541ms)
+✔ applyViewLayout aplica só os campos presentes e nunca toca em documento/conversa (0.224917ms)
+✔ mountLayoutSettings monta uma vez e os ids/fieldsets/labels ficam únicos (4.098833ms)
+✔ fillLayoutSettings reflete o desk normalizado (2 leitores) e a prévia (0.745792ms)
+✔ um painel só esconde o segundo fieldset e a prévia; o slot 2 volta vazio (0.689667ms)
+✔ readLayoutSettings devolve cópia, preserva o resto e não muta a original (1.851583ms)
+✔ prefer é um termo por input: vírgula salva não é partida; add/remove preservam a ordem (0.57075ms)
+✔ 2→1→2 dentro da mesma abertura preserva o segundo leitor não salvo (0.342875ms)
+✔ cancelar e reabrir: o slot 2 volta vazio, não ressuscita a edição cancelada (0.5465ms)
+✔ trocar a fonte two-panel→one-panel não vaza valores; fill de novo repõe o salvo (0.420708ms)
+✔ desk sem panels abre com 1 leitor e o slot 2 limpo (0.398708ms)
+✔ campo vazio passa vazio no read (o normalizeDesk herda o default) (0.628083ms)
+✔ a prévia acompanha digitação e a troca de leitores (0.296375ms)
+✔ preview do JSONL da Mesa aguenta 5k/8k/20k/100k (3333.74275ms)
+✔ preview corta os marcadores da Mesa em qualquer tamanho (5747.595625ms)
+✔ preview limpa multilinha antes de cortar em 48 (3004.76325ms)
+✔ /conferir vira o rótulo mesmo com texto grande (3589.894875ms)
+✔ formatSessionLabel com preview de 100k mantém a nota em 40 (121.818417ms)
+✔ preview e rótulo degradam quando o núcleo falha (0.840042ms)
+✔ placeWindow manda para o externo mesmo com bounds salvos no interno (1.333375ms)
+✔ placeWindow mantém os bounds salvos quando já estão na tela alvo (0.519542ms)
+✔ placeWindow prefere o externo quando não há bounds salvos (0.879833ms)
+✔ placeWindow respeita a marca internal (externo como primário) (0.262292ms)
+✔ placeWindow sem externo mantém os bounds salvos do interno (0.621292ms)
+✔ placeWindow falls back to the primary display alone (0.351708ms)
+✔ chooseXournal requires a single visible Xournal window (0.613166ms)
+✔ displayUserText hides conferir commands and reference appendices (1.88325ms)
+✔ contentParts extracts text and image payloads (1.609125ms)
+✔ imageCandidates only resolves image files inside the learning root (0.959375ms)
+✔ session labels use the jsonl timestamp and first user line (11.097917ms)
+✔ preview returns transient bytes tied to immutable revision (2.26075ms)
+✔ late render cannot cross conversations even when renderer ignores abort (1.602ms)
+✔ new preview and explicit cancellation invalidate pending bytes (0.692458ms)
+✔ untrusted sender and invalid payload never start rendering (0.309833ms)
+✔ tokenizador extrai $…$, $$…$$, \(…\) e \[…\] (27.665ms)
+✔ tokenizador não trata dinheiro como matemática (0.795334ms)
+✔ tokenizador respeita escape e delimitador incompleto (0.850084ms)
+✔ tokenizador ignora matemática em código inline, cercado e indentado (0.966667ms)
+✔ tokenizador preserva os offsets para diagnóstico (0.2815ms)
+✔ tokenizador entende lista e citação: código protegido e fórmula acompanhada (13.241375ms)
+✔ tokenizador entende recuo com tab: lista, ordenada, citação e cerca (2.414459ms)
+✔ título repetido no primeiro bloco é removido e os headings descem um nível (1.171167ms)
+✔ título diferente é mantido, mas todos os headings descem (0.433417ms)
+✔ heading dentro de código ou de display math não é tocado (0.427125ms)
+✔ setext é tratado pela estrutura Markdown (0.229ms)
+✔ headings aninhados em citação e item de lista descem (0.996875ms)
+✔ heading com recuo por tab desce preservando o contêiner (0.456458ms)
+✔ CRLF e CR são normalizados e a reescrita de títulos não é pulada (2.459333ms)
+✔ sem título nada é removido nem deslocado (0.130542ms)
+✔ checkMaterialMath aceita o subconjunto útil de LaTeX (12.459791ms)
+✔ checkMaterialMath detecta erro de parsing e comando sem suporte (1.117583ms)
+✔ avisos strict não bloqueiam (unicode válido e quebra de linha em display) (3.053167ms)
+✔ cifrão monetário não gera erro de matemática (0.199541ms)
+✔ fallback da proteção de código avisa independente do título (1.353625ms)
+✔ materialRevision muda com título, conteúdo ou versão do template (0.49675ms)
+✔ documento longo: H1 único, ordem, fontes, tabela multipágina e PDF válido (2272.781875ms)
+✔ fórmula larga: ajuste moderado com diagnóstico e sem recorte (1356.483459ms)
+✔ fórmula impossível: bloqueia antes de imprimir, sem arquivo (1400.1835ms)
+✔ equação inválida: bloqueia antes de imprimir, sem arquivo (901.362125ms)
+✔ approveTools preserva confirmações por servidor, inclusive chamadas aninhadas (1.556583ms)
+✔ patterns usam glob, não expressões regulares nem prefixos soltos (0.262125ms)
+✔ o recorte de disco/shell inclui todos os nomes excluídos pela Conversa (0.206417ms)
+✔ published metadata and all shell APIs are bound to original conversation scope (39.493584ms)
+✔ stale publication and missing call identity never write or emit a document (1.619875ms)
+✔ export crosses display limit and paginates API entries without duplicates (7.633083ms)
+✔ export limit fails explicitly before returning a partial transcript (1.023709ms)
+✔ arquivo solto precisa ser PDF local real antes de entrar na biblioteca (8.711583ms)
+✔ normalizeOffset: null, lixo e fora do teto viram automático; zero é ajuste (1.210125ms)
+✔ offsetFromRecord: só {offset} inteiro entra; formato antigo vira automático (0.164959ms)
+✔ offsetFacts: OffsetAuto e OffsetValue com sinal e magnitude (1.368458ms)
+✔ labelsList: ordem das páginas e entrada estranha vira vazio (0.265167ms)
+✔ readDocLabels: array do PDF.js, recorte por numPages e falhas viram [] (0.393667ms)
+✔ printedLabel: próprios do PDF vencem; offset só cobre o que falta (0.677125ms)
+✔ resolvePrinted: rótulo exato, caixa ignorada, repetido em ciclo (1.349125ms)
+✔ resolvePrinted: sem rótulos é número impresso, com ajuste desfeito (0.447875ms)
+✔ resolvePrinted: vazio, não numérico, fora do documento e abaixo da 1ª são None (0.335ms)
+✔ printedLabel é a página FÍSICA: goto/estado/citação não mudam (0.836958ms)
+✔ textos do controle: status, achado e ajuste salvo (0.584375ms)
+✔ printedRow: form escondido por padrão, aberto sem hidden, submit GoPrinted (1.663542ms)
+✔ printedToggleBtn e dropHint: rótulos, aria e handlers (0.52625ms)
+✔ footReadyLabeled: texto do rodapé e nome completo no title (0.7325ms)
+✔ isPdfFile: tipo PDF ou extensão .pdf; imagem recusada (0.195583ms)
+✔ draggedLooksPdf: tipo desconhecido vale área alvo; imagem não (0.198208ms)
+✔ bindPdfDrop: arrasto de PDF acende, sai apaga e drop entrega o primeiro arquivo (0.467416ms)
+✔ bindPdfDrop: imagem não acende e drop sem arquivo não chama o host (0.114667ms)
+✔ falha ao gravar anotação preserva o token e todos os metadados (10.184917ms)
+✔ remover e desfazer devolve a MESMA anotação (id, datas e referência) na mesma posição (9.793042ms)
+✔ alvo desconhecido não remove nem emite token (1.305334ms)
+✔ PDF fora da biblioteca: desfazer restaura apenas o registro original do host (3.134917ms)
+✔ anotação sem PDF continua desfazendo sem biblioteca (3.578334ms)
+✔ escopo trocado (matéria ou conversa Livre) não desfaz; a origem continua valendo (7.617208ms)
+✔ token vence no prazo do host (3.018708ms)
+✔ duplicata: desfazer duas vezes (ou com a id já presente) não cria duas entradas (9.968916ms)
+✔ edição independente feita entre a remoção e o desfazer fica preservada (9.518833ms)
+✔ anotação de matéria não pode ser desfeita em outra conversa da mesma matéria (6.372417ms)
+✔ guardar apara textos, levanta a página para 1 e grava atômico (8.679291ms)
+✔ sem trecho e sem observação não grava nada (1.915ms)
+✔ guardar o mesmo de novo não duplica nem regrava o arquivo (5.138708ms)
+✔ editar mantém o id estável e a posição; remover vai pela id (7.051208ms)
+✔ filtro por página e matérias separadas (matéria × sessão Livre) (7.636208ms)
+✔ arquivo corrompido é preservado antes de gravar e a leitura não lança (13.193666ms)
+✔ teto de itens: o arquivo é cortado no maxItems do núcleo (25.7785ms)
+✔ caminho novo fora da biblioteca autorizada é recusado sem tocar no arquivo (6.344458ms)
+✔ editar anotação de material fora da biblioteca mantém o texto; trocar de caminho continua barrado (3.92925ms)
+✔ texto com HTML fica guardado como texto (o diálogo escapa na hora de mostrar) (2.091292ms)
+✔ referência portátil exporta sem caminho absoluto e reancora em outra raiz (4.024208ms)
+✔ item sem forma no arquivo é ignorado na leitura (1.153584ms)
+✔ teto de escopos nunca descarta o escopo que está sendo salvo (4.32875ms)
+✔ symlink no lugar do arquivo não é seguido para leitura e é preservado ao gravar (2.767292ms)
+✔ newBookmark apara o nome, o path e levanta a página (3.552083ms)
+✔ keepBookmark exige nome e documento (0.4255ms)
+✔ addBookmark põe o novo na frente e renomeia o mesmo documento+nome (0.687ms)
+✔ removeBookmark tira pela identidade: a posição da linha não é identidade (0.426125ms)
+✔ bookmarkRows: data-id é a posição, o documento aberto ganha `current` (1.079ms)
+✔ sem lista de páginas a lista de linhas fica vazia (0.169625ms)
+✔ outlineRow limita a profundidade e leva a página (0.283792ms)
+✔ navPopover: fechado tem `hidden`, aberto não — e o salvar é do núcleo (1.367125ms)
+✔ navPopover sem favoritos e sem sumário mostra as duas notas de vazio (0.564958ms)
+✔ os rótulos dos botões e do diálogo vêm do núcleo (0.327666ms)
+✔ panelShell monta a section: barra única, palco, busca, menu e faixa recolhida (5.62475ms)
+✔ titleBar: uma linha com rótulo, material, voltar, página, busca, favoritos e mais opções (1.2765ms)
+✔ moreMenu: o que saiu da barra mora no menu, com texto, e nasce fechado (1.800916ms)
+✔ restoreBtn: a faixa do leitor recolhido mostra o rótulo e reabre (0.221833ms)
+✔ rotateBtn: um botão por leitor, com a orientação corrente no title/aria (0.39325ms)
+✔ rotação: ciclo 0→90→180→270→0, validação e normalização do núcleo (1.410417ms)
+✔ select da biblioteca: opção vazia, nome/path e selected (0.800917ms)
+✔ findForm: form escondido, input e contador escondido (0.24675ms)
+✔ stage e divider preservam o contrato do smoke (0.393041ms)
+✔ viewport: vazio mostra o placeholder, pronto monta o documento (0.540792ms)
+✔ hlSegments: destaques com os índices da dobra e sem sobreposição (0.921083ms)
+✔ hlSegments: sem casamento, o span continua um nó de texto único (0.173792ms)
+✔ renderInto aplica a moldura no viewport como o host faz (0.246ms)
+✔ os handlers do painel vêm ligados na árvore (tabela do host) (0.73675ms)
+✔ gridFlags: os quatro pares de minimizar (2.336792ms)
+✔ gridClass e panelClass batem as classes do CSS (1.008959ms)
+✔ panelFlags e collapseTitle (0.220292ms)
+✔ navChrome desliga os dois sem doc; com doc ecoa os fatos (0.191583ms)
+✔ rótulos de página, zoom e rodapé 1:1 com o chrome antigo (0.512042ms)
+✔ findCountChrome formata Hidden / All / Shown já resolvidos (0.245167ms)
+✔ find.bend → pdfview: paridade com o contador antigo (0.618833ms)
+✔ placeholder é a árvore que o host cola no viewport (0.418667ms)
+✔ a fila guarda ordem, texto, referências e anexos do item (14.332083ms)
+✔ item sem texto e sem anexo não entra na fila (4.79725ms)
+✔ o save da bandeja não apaga a fila nem a guarda dela (4.464875ms)
+✔ fila lida por outra execução não é "live" (o renderer a marca recuperada) (4.9035ms)
+✔ leitura tolerante: arquivo torto, gigante, lista no lugar do objeto e chave estranha (66.49325ms)
+✔ teto de disco: a fila entra primeiro e a bandeja perde as últimas imagens (2634.5775ms)
+✔ poda: a conversa cujo arquivo sumiu sai do pending.json (7.806459ms)
+✔ spawnEnv põe os diretórios de ferramenta do usuário antes do PATH herdado (2.298375ms)
+✔ userBinDirs descarta o que não existe no home (109.771125ms)
+✔ resolvePi finds a configured binary and a PATH entry (3.008542ms)
+✔ missing Pi gets a setup message (0.717417ms)
+✔ spawnEnv puts the Pi directory first on PATH (0.628417ms)
+✔ a política MCP viaja no ZIP reconhecido pelo updater da v0.4.4 (2.828917ms)
+✔ pinnedArgs desliga a descoberta e declara cada extensão que existe (8.030208ms)
+✔ overlay do curso entra só pelos arquivos presentes (1.294125ms)
+✔ compare separa capacidade perdida de drift de extensão nova (1.129833ms)
+✔ a lista declarada de extensões globais não tem duplicata (0.16075ms)
+✔ o esperado ativo e o inativo não se sobrepõem (0.173209ms)
+✔ a lista declarada aponta para dentro da raiz de extensões (0.44775ms)
+✔ o que não existe fica de fora da linha de comando (0.850042ms)
+✔ Livre dentro do vault não carrega modo/contexto de matéria e mantém ferramentas independentes (8.347333ms)
+✔ queue retries use 2/4/8 seconds then hold without losing the item (32.004417ms)
+✔ ambiguous delivery never retries and repeated failure events share one timer (5.152291ms)
+✔ stop/session change cancels even an already-dispatched callback and resets budget (0.981417ms)
+✔ a folha tem título, matéria, abertura, quatro itens e o quadro de soltar (4.373666ms)
+✔ matéria sem nome não vira "undefined": só o convite (0.525666ms)
+✔ os três atalhos chamam os handlers da tabela do leitor (0.751917ms)
+✔ o pedido ao tutor cita a matéria e fala de lista de exercícios (0.200125ms)
+✔ o miolo do leitor: folha no estado PdfSheet, nada mudou nos outros (2.160292ms)
+✔ a sobreposição do arrasto diz o rótulo do leitor (0.22975ms)
+✔ o registro guarda a forma do núcleo: textos aparados, página ≥ 1, no máximo dois PDFs (7.94875ms)
+✔ texto grande é cortado no teto do núcleo (240) e página vem de qualquer número (3.482875ms)
+✔ sem onde parei e próximo passo não há registro (e nada é gravado) (1.504833ms)
+✔ sem matéria ativa não há onde guardar (0.789167ms)
+✔ erro de escrita sobe (o Encerrar mantém o texto na tela) (1.186916ms)
+✔ leitura tolerante: sem arquivo, JSON torto, gigante e registro sem o miolo (6.237334ms)
+✔ limpar apaga só a matéria pedida (4.371709ms)
+✔ o registro vive no runtime e sobrevive à troca de matéria (2.70325ms)
+✔ draft validates model JSON, applies limits and preserves only the supplied reference (4.886416ms)
+✔ completed model draft stops worker and removes listeners (1.306042ms)
+✔ cancel, timeout and native retry abort drafts rather than leaving workers running (6.108375ms)
+✔ late model results cannot overwrite edits, cancelled dialogs or another draft (0.687292ms)
+✔ draft waits for settled across end/compaction and uses the final authoritative message (1.490333ms)
+✔ sem arquivo a agenda é vazia e a leitura não cria nada (3.585208ms)
+✔ arquivo corrompido não derruba a leitura (3.240042ms)
+✔ id estável: o mesmo item dá o mesmo id; questão ou referência muda o id (1.008792ms)
+✔ migração: cria vencendo hoje, idempotente e preservando o texto do caderno (4.231417ms)
+✔ migração é determinística entre execuções (mesmos ids no arquivo) (4.104125ms)
+✔ o caderno manda no texto; a agenda manda nas datas (5.459584ms)
+✔ item que sai do caderno fica inativo com histórico; item que volta reativa (6.044917ms)
+✔ marcar o resultado agenda a próxima revisão e guarda o histórico (5.530083ms)
+✔ resultado inválido e item inexistente são recusados sem gravar (3.395417ms)
+✔ vencidos: hoje conta, atrasado conta, futuro não (4.112292ms)
+✔ referência fora da biblioteca ou não encontrada é estado visível, nunca filtro (21.989625ms)
+✔ biblioteca como predicado (adapter de serviços) também é aceita (1.93475ms)
+✔ coleção vazia acusa fora como o Caderno; sem `allowed` não acusa (2.535291ms)
+✔ resumo por matéria separa os cadernos (8.321083ms)
+✔ datas determinísticas: mesmo instante e fuso dão o mesmo dia (0.447458ms)
+✔ campos hostis e schema antigo extra são reduzidos à forma segura (3.760084ms)
+✔ a gravação é atômica e o arquivo fica em runtime/<FILENAME> (1.895042ms)
+✔ falha ao gravar o Caderno preserva o token para uma nova tentativa (15.257583ms)
+✔ falha na agenda permite repetir a restauração sem duplicar o item (18.865834ms)
+✔ remover e desfazer devolve a MESMA entrada na mesma posição (6.778083ms)
+✔ alvo que não está mais no caderno não remove nem emite token (tela envelhecida) (2.918834ms)
+✔ escopo trocado não desfaz; o token continua valendo no caderno de origem (11.989458ms)
+✔ token vence no prazo do host e não desfaz depois (11.407583ms)
+✔ duplicata: item já de volta (mesma identidade) não vira dois registros (6.616958ms)
+✔ edição independente feita entre a remoção e o desfazer fica preservada (11.2225ms)
+✔ desfazer restaura a agenda por ID sem perder datas nem histórico (12.72425ms)
+✔ modo diferente de remove não emite token e o array antigo continua igual (1.737542ms)
+✔ token não atravessa conversa e material bloqueado não é restaurado (5.696166ms)
+✔ a lista inteira continua: fora da biblioteca e ausente viram estado (2.003667ms)
+✔ biblioteca vazia marca referência existente como fora (0.499666ms)
+✔ sem `allowed` não há acusação de fora; sem caminho não há acusação (0.326875ms)
+✔ a anotação não muda o item guardado (nomes, página, pergunta) (0.398209ms)
+✔ a leitura/gravação antiga do caderno continua intacta (3.979667ms)
+✔ sem arquivo não há itens e nada é criado na leitura (6.177208ms)
+✔ guardar apara os textos e levanta a página para 1 (3.721584ms)
+✔ sem questão o item é recusado e nada é gravado (1.773416ms)
+✔ guardar o mesmo item de novo não duplica e o novo vai para a frente (6.633792ms)
+✔ cada matéria tem o seu caderno (3.325375ms)
+✔ editar troca o item pela origem dele (identidade) e mantém a posição (6.304541ms)
+✔ origem que não está mais no caderno deixa tudo como está (3.019042ms)
+✔ remover tira pela identidade e a última saída limpa a chave (6.878375ms)
+✔ o item sem referência continua válido (1.874875ms)
+✔ arquivo corrompido vira caderno vazio (leitura tolerante) (2.530833ms)
+✔ item sem forma no arquivo é ignorado na leitura (1.275334ms)
+✔ desk: end is not idle; settled closes retries, queue and compaction (372.861292ms)
+✔ chat: end is not idle; settled closes retries, queue and compaction (346.760791ms)
+[pi stderr] aviso de teste
+✔ stderr em Buffer não derruba a ponte e vira evento com texto (493.430375ms)
+✔ RPC keeps Unicode line separators inside JSON and propagates errors (313.303625ms)
+✔ RPC timeout refuses only that request and keeps the bridge alive (70.380792ms)
+✔ RPC respond keeps extension_ui_response as the envelope type (547.184125ms)
+✔ linha torta no stdout vira desk_warn e não derruba a ponte (510.157042ms)
+✔ Pi 0.99: aceite preserva disposition; recusa explícita não é entrega incerta (666.169833ms)
+✔ Pi: atraso da corrida anterior com ferramenta aposentada não é reencaminhado (N1) (338.500166ms)
+✔ Pi: reinício no MESMO bridge não herda ids aposentados (R3) (776.813417ms)
+✔ anexo inválido não chega a conectar nem a escrever, e o bilhete não sai do lugar (8.557708ms)
+✔ conexão que falha não escreve nem entrega: a próxima abertura devolve o bilhete à fila (18.977333ms)
+✔ se a fase "envio iniciado" não puder ser persistida, nada é escrito no Pi (9.115167ms)
+✔ escrita que falha é incerta: vai para dúvida, o app solta o bilhete e o contexto não conta como enviado (4.70225ms)
+✔ recusa comprovada (o bridge prova que nada foi escrito) não vira dúvida e o bilhete volta na próxima abertura (5.25ms)
+✔ recusa comprovada: a tentativa seguinte entrega o mesmo bilhete, sem reiniciar o app (4.150375ms)
+✔ Pi ausente com a ponte de verdade é recusa, não entrega ambígua (7.307917ms)
+✔ aceite confirmado: só então o contexto e o bilhete contam como entregues, e o estado vem depois (4.064875ms)
+✔ nova tentativa depois da falha leva de novo o mesmo bilhete e o contexto (6.742292ms)
+✔ aceite seguido de falha ao ler o estado: a entrega vale, o envio NÃO é erro e o aviso diz o que faltou ler (4.107375ms)
+✔ aceite com arquivamento quebrado: a entrega vale, o arquivo fica preservado e o aviso não promete o que não houve (5.45775ms)
+✔ aceite com marcação que falha fica numa fase que nunca volta para a fila (5.235167ms)
+✔ queda entre o recebimento no Pi e a confirmação não devolve o bilhete à fila (329.8855ms)
+✔ o main liga o aceite e a entrega incerta do ciclo à mão do bilhete (0.763042ms)
+✔ as cinco seções, na ordem da lateral, e Matérias abre primeiro (4.128167ms)
+✔ navegação sem seção válida marca a primeira (2.862917ms)
+✔ validação: linha em branco não é erro; matéria completa também não (1.101625ms)
+✔ validação: nome sem pasta pede a pasta, na seção Matérias, no campo path (0.354333ms)
+✔ validação: nome repetido acusa a segunda linha, no campo name (0.293917ms)
+✔ validação: sem erro não leva a seção nenhuma (0.161833ms)
+✔ aviso de erro: parágrafo role=alert com o id que o campo aponta (0.207917ms)
+✔ diálogo e seções preservam o contrato de DOM e a ordem (4.58225ms)
+✔ linha usa key/data-action, tecla efetiva e estado de gravação (0.912541ms)
+✔ linha fixa traz nota e linha sem tecla traz o fallback (0.57875ms)
+✔ aberto, conflito e ações disabled/hidden são fatos do núcleo (0.545375ms)
+✔ view-host aplica key como dataset e liga as ações pela tabela (0.6765ms)
+✔ artefato exporta os construtores públicos do editor (0.156959ms)
+✔ canal Claude: descritor próprio, política de leitura por prompt e cache persistido (14.422417ms)
+✔ canal Claude: permissão roteada e cancelamento passam pelo próprio adaptador (3.353792ms)
+✔ incerteza hidratada do descritor bloqueia novo envio no canal Claude (3.782667ms)
+✔ descritor Claude inválido nunca vira Pi: a fábrica recusa (1.952167ms)
+✔ #28: retomada usa launcher atual e conserva ID; sem launcher usa último binário (5.229625ms)
+✔ Pi de teste: turno completo, contexto uma vez, persistência e retomada (431.4725ms)
+✔ Pi de teste: open retoma do disco recuperando transmitting e o novo envio sai (762.408958ms)
+✔ Pi de teste: abort é independente e encerra o turno do lateral (584.487625ms)
+✔ open cria o chat lateral com contexto, sem iniciar motor, e persiste índice/descritor (8.32075ms)
+✔ prompt persiste transmitting antes de escrever, manda o contexto uma vez e aceita o envio seguinte ocioso (14.10225ms)
+✔ o envio é marcado como transmitting no disco ANTES de o motor ser chamado (7.700666ms)
+✔ recusa comprovada mantém o contexto pendente para a próxima tentativa (11.391416ms)
+✔ entrega ambígua vira incerta, sobrevive ao reinício e nunca é reenviada sozinha (12.284875ms)
+✔ Claude com entrega incerta bloqueia novo envio sem cair para Pi (5.683458ms)
+✔ id de outra conversa/matéria é recusado e evento antigo não infecta a conversa nova (30.019792ms)
+✔ eventos só saem pelo canal ativo da conversa atual (18.282ms)
+✔ abort cancela só o canal lateral e preserva histórico/draft do principal (15.475458ms)
+✔ suspend marca envio em voo como incerto, fecha o canal e não perde o descritor (7.022ms)
+✔ contexto explícito troca refs validadas, reenvia o bloco novo e recusa PDF fora da biblioteca (8.267416ms)
+✔ draft é próprio, limitado e sobrevive ao reinício (10.717542ms)
+✔ mensagem grande demais e id inválido são recusados antes de qualquer escrita (5.618584ms)
+✔ permissões/perguntas são roteadas ao canal certo e ids alheios são recusados (8.60075ms)
+✔ fresh cria um chat novo para a mesma conversa sem apagar o antigo (6.405459ms)
+✔ o chat lateral nunca escreve na sessão do principal (8.551583ms)
+✔ fresh com canal antigo ativo fecha o antigo e não deixa evento velho vazar (10.428375ms)
+✔ fresh com envio em voo marca o chat antigo como incerto (6.648958ms)
+✔ reabrir retoma o snapshot original; só context() atualiza explicitamente (9.09225ms)
+✔ open recupera transmitting de execução anterior e libera novo envio (não só read) (11.4185ms)
+✔ reabrir com envio vivo NÃO marca a entrega como incerta (4.906917ms)
+✔ aceite Claude em voo de execução anterior hidrata uncertain no open/read sem iniciar processo (20.700541ms)
+✔ canal Claude vivo manda na incerteza: nativo em voo não contamina o payload (10.599041ms)
+✔ settled Claude não vira incerto na hidratação (nativo accepted defasado não rebaixa o lado) (5.573125ms)
+✔ canal ocupado recusa o novo envio nos dois motores e o terminal do turno anterior não mascara o seguinte (8.310208ms)
+✔ close que não liquida a promessa: suspend mantém incerto e o ACK tardio não regrava (3.856125ms)
+✔ recusa tardia depois do suspend não altera o prompt novo nem o contexto (5.801292ms)
+✔ eco user do motor entra uma vez, em ordem, sem o bloco de contexto; reabrir preserva (5.706417ms)
+✔ eco user depois do aceite não duplica a fala (14.019833ms)
+✔ turno inteiro síncrono antes do aceite: streaming=false e entrega settled, não accepted (7.2645ms)
+✔ cache Claude projeta a fala sem o envelope de contexto, sem reescrever o descritor (8.185167ms)
+✔ refs do snapshot que saíram da biblioteca recusam o envio Claude sem trocar o contexto (16.219459ms)
+✔ conversationList mapeia as conversas da matéria sem iniciar agente (0.367708ms)
+✔ normalizeRefs valida a forma do IPC (0.25625ms)
+✔ casca: id, classe, style fixo, hidden do aberto/fechado e ordem dos filhos (3.104667ms)
+✔ linha: nome /comando, dica de argumento e descrição (1.270917ms)
+✔ linha: sem dica nem descrição sobra só o nome (0.337291ms)
+✔ id do item: prefixo estável para o aria-activedescendant do campo (0.157959ms)
+✔ textos: cabeça, rótulo do listbox e rodapé (0.132542ms)
+✔ a suíte do bilhete roda no snapshot público, sem chat/ (1373.292917ms)
+✔ rodapé monta modelo · esforço · contexto com separadores (5.281834ms)
+✔ rodapé sem detalhe usa o próprio % no tooltip (0.354084ms)
+✔ ponto de conexão: classe, tooltip e aria (0.581208ms)
+✔ compactação automática: hidden sem conexão e aria-pressed (2.971291ms)
+✔ activity documents and attempt state remain reachable after backup relocation (222.671208ms)
+informe --runtime <pasta do runtime da Mesa>
+[backup] falhou: o destino do backup não pode ser o runtime, uma pasta dentro dele nem uma pasta que o contenha
+[backup] falhou: o destino do backup não pode ser o runtime, uma pasta dentro dele nem uma pasta que o contenha
+[backup] falhou: o destino do backup não pode ser o runtime, uma pasta dentro dele nem uma pasta que o contenha
+✔ cli: backup, list, verify, restore --sim e prune num destino real (3479.40125ms)
+✔ cli: sem --runtime o comando recusa em vez de adivinhar (313.94575ms)
+✔ cli: --dest dentro/ao redor do runtime é recusado antes de criar pasta (1670.001959ms)
+✔ host: config no mesmo arquivo, run, prévia, remap e dados recuperados visíveis (523.887334ms)
+✔ host: queda no meio da restauração devolve o estado anterior visível (288.469125ms)
+✔ host: exportar, importar e adotar deixa as anotações visíveis no runtime (87.162458ms)
+✔ host: allowlist externa explícita e devolução segura da config pessoal (471.902209ms)
+✔ host: config com link simbólico é substituída, sem escrever pelo link (41.986917ms)
+✔ painel: push do Git tem botão acessível e reporta o mapeamento raiz→remoto (16.25ms)
+✔ painel: push recusado explica que o backup local continua válido (4.628708ms)
+✔ painel: prévia com material traz o opt-in e aplica remap quando marcado (5.848917ms)
+✔ painel: sem marcar o opt-in o remap fica no automático (5.102167ms)
+✔ painel: prévia sem material não mostra o opt-in (0.463875ms)
+✔ painel: formatação e view model são puros e em português (4.001916ms)
+✔ painel: CSS escopado é injetado uma vez e usa os tokens do app (0.777875ms)
+✔ painel: abre por conta própria, mostra o status e navega entre as seções (8.69975ms)
+✔ painel: backup, escolher pasta, salvar e exportar batem nos IPCs (17.246333ms)
+✔ painel: listar versões, conferir e prévia de restauração antes de aplicar (10.200708ms)
+✔ painel: fechar com prévia aberta cancela o plano (nada fica pendurado) (3.670042ms)
+✔ painel: importar escolhe arquivo e destino e avisa o host (2.09675ms)
+✔ painel: erro de IPC vira aviso na barra, sem quebrar o diálogo (2.381625ms)
+✔ painel: exportar sem destino avisa em vez de escrever no lugar errado (2.726125ms)
+✔ backup: manifesto com hash cobre as áreas da Mesa e recusa as negativas (332.42125ms)
+✔ backup: política de PDFs é explícita e nada some calado (377.977125ms)
+✔ backup: link simbólico e arquivo ilegível viram exclusão declarada, não cópia (244.073208ms)
+✔ backup: área externa entra só por allowlist e marca a retomada (124.3195ms)
+✔ backup: agendador automático exige inatividade e respeita o intervalo (201.69625ms)
+✔ backup: falha do automático fica no status e não derruba o app (43.78925ms)
+✔ restauração: prévia antes, bytes idênticos depois e rollback devolve o estado (501.457292ms)
+✔ restauração: arquivo local que não está na versão é preservado, não apagado (349.711375ms)
+✔ restauração: versão corrompida é recusada na prévia (646.0945ms)
+✔ restauração: queda no meio é revertida na recuperação (438.242791ms)
+✔ backup: retenção mantém as versões novas e remove as antigas (716.14ms)
+✔ backup: configuração do destino é lida e gravada fora do runtime (2.203459ms)
+✔ backup: trava de atividade barra snapshot/restauração com a Mesa em uso (79.535709ms)
+✔ backup: destino com nome de credencial não é capturado nem dentro de matéria (89.79775ms)
+✔ serviços: adapter resolve runtime/matérias, roda backup e guarda caminhos (428.355125ms)
+✔ serviços: exportar/importar matéria pelo adapter cria destino novo (114.30675ms)
+✔ serviços: exportar exige pasta e matéria (47.826208ms)
+✔ serviços: falha do git não derruba o backup local (255.334625ms)
+✔ restauração: versão de outro caminho reescreve só caminhos do runtime (645.348875ms)
+✔ restauração: plano forjado não remove nada fora da pasta do backup (117.255291ms)
+✔ backup: pasta do usuário com nome comum entra; credencial e cache não (368.07225ms)
+✔ serviços: external vem do callback do host, sem varredura de home (222.775708ms)
+✔ serviços: guardas recusam symlink e os dois sentidos da contenção (48.947625ms)
+✔ serviços: pasta de estudo é por id real e material não duplica o runtime (42.631666ms)
+✔ serviços: exportar com id desconhecido é erro e arquivo existente não é sobrescrito (73.515792ms)
+✔ backup: destino dentro/ao redor do runtime é recusado antes de criar pasta (187.720583ms)
+✔ git: disponibilidade e URL com credencial são tratados sem gravar segredo (39.688208ms)
+✔ git: commit de snapshot válido, ledger e push para um remoto local (2720.462375ms)
+✔ git: falha de push mantém o commit local e grava o motivo no ledger (1808.959791ms)
+✔ git: push rejeitado (non-fast-forward) não força nem faz merge (2729.198125ms)
+✔ git: destino dentro do repositório do app é recusado (1.065959ms)
+✔ git: operação interrompida e árvore suja são recuperadas para o último commit (853.4515ms)
+✔ git: runner tem prazo e teto de saída (não trava o main) (270.19175ms)
+✔ git: pasta com arquivos do usuário não vira destino (o commit apagaria) (1.35175ms)
+✔ git: runtime e arranjo das versões são conferidos no ensureRoot (57.570416ms)
+✔ git: recuperação em repositório sem commit limpa sem lançar (411.780834ms)
+✔ git: bundle cria um arquivo portátil do repositório (849.601709ms)
+✔ git: ciclo completo — snapshot, commit, restauração byte a byte e rollback (762.942458ms)
+✔ o Pi continua lendo uma sessão de 40 dias atrás (>7 dias) (1777.095417ms)
+✔ a Conversa agrupa a sessão antiga em "Anteriores" em vez de sumir (7.336416ms)
+✔ o Mesa lê a data de começo do nome do arquivo e não descarta a antiga (7.116958ms)
+✔ nenhum módulo do Mesa apaga sessão por idade (39.303958ms)
+✔ quadros divididos reservam a métrica quando ela chega; replay alterado não duplica (30.9425ms)
+✔ mensagens distintas com conteúdo igual contam separadamente; uso ausente continua indisponível (1.146208ms)
+✔ configuração remapeada preserva extras e cria matéria ausente na máquina nova (7.836792ms)
+✔ configuração symlinkada permanece intacta e falha de devolução é avisada (4.077541ms)
+✔ transcrição importada persiste depois do primeiro aceite e atualização do cache (10.615917ms)
+✔ IPC: busca abre PDF da sessão Livre correta e resultado removido não troca a matéria (2524.029667ms)
+✔ IPC: busca acha o PDF autorizado, resolve a página e as notas persistem (1827.767042ms)
+✔ anotações: exportar vira forma portátil, sem caminho absoluto do autor (143.452042ms)
+✔ anotações: importar reancora no material do destino e o leitor real aceita (84.096416ms)
+✔ anotações: pacote v1 com caminho cru é reancorado por rel/name (120.681167ms)
+✔ anotações: v1 sem material resolvido mantém o texto e não inventa caminho (72.037958ms)
+✔ anotações: adoção mescla no runtime com caminho da matéria importada (228.126459ms)
+✔ adoção: store local que é link simbólico é recusado e nada é tocado (93.149375ms)
+✔ pacote: manifesto lista tudo com hash e a origem da matéria (73.547125ms)
+✔ pacote: importar cria destino novo, id novo e remapeia referências (95.222708ms)
+✔ pacote: nome ocupado ganha sufixo e NÃO sobrescreve matéria existente (85.470083ms)
+✔ pacote: importar para destino existente é recusado sem tocar o que estava lá (74.868583ms)
+✔ pacote: exportar sem conversas é opt-out de verdade (55.235542ms)
+✔ pacote: gravação exclusiva nunca sobrescreve arquivo existente (2.556458ms)
+✔ pacote: zip com nome repetido é recusado (0.406166ms)
+✔ pacote: manifesto com rota de kind diferente do caminho é recusado (55.602875ms)
+✔ pacote: zip com caminho de escape é recusado (1.712667ms)
+✔ pacote: manifesto com caminho fora do payload é recusado (52.923667ms)
+✔ pacote: hash diferente do manifesto é recusado (54.836167ms)
+✔ pacote: entrada não declarada no manifesto é recusada (68.650667ms)
+✔ pacote: entrada symlink é recusada (0.864042ms)
+✔ pacote: zip bomb e limites são barrados (234.763333ms)
+✔ pacote: arquivo sem manifesto ou com formato desconhecido é recusado (83.730375ms)
+✔ pacote: config exportada NÃO é aplicada na importação (58.314167ms)
+✔ pacote: remapValue troca caminho e id em estrutura aninhada (1.161084ms)
+✔ zipkit: leitura própria concorda com um zip feito por fora (0.746ms)
+✔ restauração: manifesto guarda os grupos de material e a prévia os mostra (302.583708ms)
+✔ restauração: origem viva no padrão preserva referências byte a byte (564.399375ms)
+✔ restauração: remap explícito aponta a matéria para a cópia e preserva a original (946.877375ms)
+✔ restauração: origem ausente remapeia automaticamente (outra máquina) (734.815833ms)
+✔ restauração: remap não volta com rollback (diário devolve o estado anterior) (519.747459ms)
+✔ restauração: versão v1 (manifesto sem metadados) remapeia pela matéria da config (362.003708ms)
+✔ restauração: alvo que é link simbólico é preservado com aviso (346.635375ms)
+✔ restauração: versão antiga com a pasta viva não troca a config no automático (384.137208ms)
+✔ restauração: remap explícito atualiza a config externa mesmo sem strings nos stores (30.273708ms)
+✔ restauração: origem ausente remapeia a config externa pelo default do painel (29.091083ms)
+✔ backup: duas matérias com o mesmo nome ganham partições distintas (nada é sobrescrito) (593.542834ms)
+✔ restauração: duas matérias homônimas remapeiam para partições próprias na config externa (49.847166ms)
+✔ backup: matéria com nome de courses/ já existente no runtime não sobrescreve (155.234666ms)
+✔ compartilhar A exporta só conversas com dono A, no formato atual e no legado (19.274167ms)
+✔ batimentos ocultos, logs e índice não adiam backup; atividade real adia (14.287167ms)
+✔ atividade do backup não segue symlink do store de estatísticas (2.307667ms)
+✔ consulta do agendador sem backup devido não trava navegação nem persiste estado (77.377416ms)
+✔ backups manual e automático fazem commit local; somente envio explícito chega ao remoto (1381.35925ms)
+✔ falha do Git em backup automático preserva snapshot local e registra erro (90.142625ms)
+✔ cache de núcleo publicado por dois processos contém somente artefatos completos (1550.432458ms)
+✔ resultado cobre conversa, lateral, caderno, anotação, livre, matéria e PDF com página (1208.899792ms)
+✔ dobra de acento e caixa acha "Cálculo" com "calculo"; pontuação prioriza título (52.170666ms)
+✔ ranking: título > começo > palavra > qualquer (28.75725ms)
+✔ filtro de fontes e de matérias limita a leitura sem vazar o resto (45.660875ms)
+✔ limites: consulta curta, teto da lista, teto por arquivo e truncado (35.116ms)
+✔ índice incremental: reusa o inalterado, reindexa o alterado e invalida (65.066083ms)
+✔ índice não guarda thinking, ferramenta, anexo nem digest do lateral (47.762ms)
+✔ PDF real: páginas distintas e snippet sem quebrar par substituto (39.146625ms)
+✔ JSONL torto não derruba a busca e linha válida continua achando (32.895958ms)
+✔ chat lateral sem cache no descritor cai no JSONL do canal (30.315333ms)
+✔ curso sem caminho é resolvido só dentro do runtime (layout padrão); sem pasta, só metadados (5.72425ms)
+✔ busca vazia/curta devolve o formato vazio sem tocar no índice (19.114167ms)
+✔ provider de PDF injetado é respeitado (o root decide como extrair) (24.223208ms)
+✔ rótulos da biblioteca entram na busca: título, assunto, favorito e id original (45.781333ms)
+✔ biblioteca de conversas ilegível ou symlink não derruba a busca (33.27525ms)
+✔ mais mensagens que o teto de 400 vira busca parcial, mesmo com cache (38.302125ms)
+✔ fala acima de 4000 caracteres é parcial e o fim não fica escondido sem status (30.108791ms)
+✔ nota e Caderno de matéria fora da lista autorizada não aparecem nem resolvem (36.869458ms)
+✔ lista explícita de fontes vazia significa nenhuma fonte, não todas (27.372917ms)
+✔ arquivo apagado sai do índice na busca seguinte (37.482833ms)
+✔ seleção exclusiva da matéria exclui Livre e conversas sem dono, inclusive com cache (36.816292ms)
+✔ reviewToday migra o caderno antigo e reviewGrade agenda a próxima revisão (51.016ms)
+✔ reviewGrade recusa resultado e id desconhecidos (4.432833ms)
+✔ estatísticas: control + beat contam tempo ativo; invisível não soma (10.136709ms)
+✔ estatísticas: lifecycle, pergunta aceita, uso e reset consciente (9.300083ms)
+✔ statsControl usa o escopo do host, não o payload (1.630542ms)
+✔ statsSummary só aceita courseId que existe na lista do host (90.810209ms)
+✔ o painel monta botão e diálogo acessíveis sem o shell global (5.265125ms)
+✔ abrir o painel pede o resumo e desenha os números do host (4.933792ms)
+✔ o gráfico tem uma barra por dia e a legenda do período (2.983584ms)
+✔ a matéria filtrada aparece no seletor e no pedido (3.216833ms)
+✔ os controles de sessão mandam a ação e a matéria do estado (9.213333ms)
+✔ sem o host o painel explica o contrato em vez de quebrar (2.33425ms)
+✔ o reset exige confirmação e só então chama o host (4.836334ms)
+✔ sem arquivo a leitura é vazia e nada é criado (3.300458ms)
+✔ arquivo corrompido não derruba a leitura (1.684667ms)
+✔ sessão: batimento com timer rodando conta o intervalo; parado não conta (15.003541ms)
+✔ batimento com janela escondida, sistema congelado ou intervalo grande não conta (4.78975ms)
+✔ batimento repetido (mesmo id) não conta duas vezes (4.674083ms)
+✔ retroativo sem evidência é recusado; com evidência nativa entra (3.411542ms)
+✔ congelar/suspender carimba a régua e nenhum intervalo atravessa o evento (6.158584ms)
+✔ parar a sessão conta a sessão só quando passou de zero segundo (7.898ms)
+✔ ocioso e ações desconhecidas (1.870333ms)
+✔ pergunta: aceita conta; recusada e duplicada ficam fora (5.663625ms)
+✔ tokens: entrada/saída/cache separados e a falta fica indisponível (5.218625ms)
+✔ dia civil segue o fuso: oeste e leste caem em dias diferentes (4.979292ms)
+✔ resumo 7/30/tudo com dias determinísticos e por matéria (3.427875ms)
+✔ resumo "tudo" devolve a primeira evidência e o último reset (3.194875ms)
+✔ reset exige confirmação, limpa os agregados e preserva o dedupe (6.365167ms)
+✔ a gravação é atômica e o arquivo fica em runtime/<FILENAME> (1.739167ms)
+✔ campos hostis viram valores seguros (1.506875ms)
+✔ dedupe estável não é expulso pelo dilúvio de batimentos (4621.812958ms)
+✔ reinício do app não conta o intervalo fechado nem herda o congelamento antigo (1.783459ms)
+✔ a persisted Xournal file is reauthorized when its session is restored (5.452458ms)
+✔ restoration rejects missing files and non-Xournal extensions (1.459459ms)
+✔ primeira mensagem manda o contexto completo (2.428916ms)
+✔ contexto inalterado não é reenviado no turno seguinte (0.250833ms)
+✔ mudar de exercício volta a mandar o bloco (0.329708ms)
+✔ a referência nunca aparece como conteúdo já lido (0.225792ms)
+✔ sem matéria, sem exercício e sem referência, nenhum bloco vai (0.193708ms)
+✔ captura do exercício ativo vai, mesmo com o contexto já mandado (29.880417ms)
+✔ captura de outro exercício é marcada como tal (0.734917ms)
+✔ captura sem horário não é tratada como captura (0.153209ms)
+✔ referências são limitadas a duas e normalizadas em #page (0.824583ms)
+✔ a chave muda quando qualquer parte do contexto muda (0.214583ms)
+✔ a captura entra na chave estável? não: o turno seguinte não é reenviado (0.446166ms)
+✔ captura de outro exercício continua avisando depois da mudança de chave (0.201292ms)
+✔ subjects require course configuration; libraries follow Sources and deduplicate canonical roots (7.786125ms)
+✔ menu Estudar: ferramentas, Xournal++ e toggle, nessa ordem; o Encerrar por hoje saiu daqui (5.707167ms)
+✔ seletor da janela estreita: uma opção por matéria, a ativa marcada (0.899416ms)
+✔ paridade: árvore do Bend × renderTabs antigo (aleatório) (67.44225ms)
+✔ bolha vem do Bend com role, body HTML opaco, imagem e ações por Bool (2.523542ms)
+✔ assistente mantém DOM 1:1 e pode ocultar copiar/citar (0.272958ms)
+✔ quiz simples: pergunta/details HTML, radio, pular e handlers (1.085625ms)
+✔ quiz múltiplo selecionado: checkbox, send habilitado e foco por key (0.650083ms)
+✔ resultado do quiz fixa classes, marca, veredito, nota e explicação (0.699708ms)
+✔ figura hidratada: img.plot com path/alt do host e legenda opcional (0.590875ms)
+✔ fallback vira code cru; bloco de código ganha moldura, cópia e rótulo (1.471083ms)
+✔ rendererEvent preserva identidade de bloco, pending e details (2.33925ms)
+✔ content_block_start publica a declaração pendente uma vez; o delta leva contentIndex (13.441875ms)
+✔ quadros assistant com o mesmo message.id não deduplicam às cegas (contentIndexes acumulam) (2.46825ms)
+✔ tool_result do quadro user leva details estruturados (com teto) (2.766625ms)
+✔ normalizeHistory mantém tool_result na posição, com toolCallId e details (0.805916ms)
+✔ normalizeHistory preserva a ordem dentro da mensagem (resultado antes do texto) (0.267292ms)
+✔ normalizeHistory com detalhes gigantes corta com marcador, nunca objeto enorme (0.216958ms)
+✔ mergePriorHistory não confunde resultados de chamadas diferentes com texto igual (0.592292ms)
+✔ isActivityTool reconhece só os nomes de publicação (Pi e MCP) (6.318417ms)
+✔ artifactPart carrega a identidade estável do slot (1.492584ms)
+✔ segmento aberto reusa; fechar fixa to/endedAt; o próximo abre embaixo (1.082291ms)
+✔ conteúdo por ID: resultado tardio atualiza o segmento original fechado (0.52475ms)
+✔ passos entram no segmento aberto na ordem de nascimento (0.274417ms)
+✔ segmento vazio é vazio por IDs (não por to-from) (0.158917ms)
+✔ closeAll fecha todos e preserva reason; resetTrack limpa a geração (0.315833ms)
+✔ removeSegment tira o segmento da lista (rodada vazia descartada) (0.122208ms)
+✔ item aberto: div.toast-item com o texto (1.864333ms)
+✔ item saindo: closing e out entram no fim da lista de classes (0.456875ms)
+✔ fila: ordem de inserção preservada e casca #toast[role=status] (1.519416ms)
+✔ atividade simples: um texto e o title acompanhando (vazio limpa) (0.9535ms)
+✔ atividade ao vivo: ponto pulsante + rótulo, title junto (0.538541ms)
+✔ um aviso por vez: fila vazia entra aberto (0.214041ms)
+✔ um aviso por vez: o novo substitui o que estava na tela (0.1585ms)
+✔ um aviso por vez: o repetido não acumula nem ganha contador (0.137ms)
+✔ um aviso por vez: se o anterior já estava saindo, o novo entra aberto (0.22775ms)
+✔ toolIdsOf cobre declaração, execução e message_end (4.227583ms)
+✔ identidade: corrida entre agent_start e agent_settled; aposentados não voltam (0.538833ms)
+✔ identidade: agent_start sem settle anterior aposenta o que a corrida deixou (0.78275ms)
+✔ identidade: retry DENTRO do mesmo turno não invalida o id; corte sim (0.221333ms)
+✔ identidade: reset de transporte limpa o ledger sem reiniciar o contador (R3) (0.241792ms)
+✔ identidade: host legado sem agent_start abre corrida implícita (0.145458ms)
+✔ identidade: eventos de sessão fora do contrato não são tocados (0.120334ms)
+✔ fechar durante a inicialização não deixa um servidor aberto (14.853334ms)
+✔ ponte do tutor captura o escopo, valida conteúdo e revoga a credencial (89.547042ms)
+✔ cancelar o cliente ou revogar o escopo aborta a geração em andamento (12.057375ms)
+✔ SDK oficial Claude anuncia e executa criar_pdf pelo protocolo MCP (242.74125ms)
+✔ adaptador Claude libera só o gerador nativo e recusa um servidor antigo (7.259917ms)
+✔ mais opções: a flag endDay é o único motivo para o Encerrar por hoje sumir (6.577459ms)
+✔ indicador: ligado mostra o modelo e o esforço em palavras curtas (1.799417ms)
+✔ indicador: só o modelo ou só o esforço aparece sem separador sobrando (0.371959ms)
+✔ indicador: desligado diz o estado e nunca o modelo antigo (0.393792ms)
+✔ popover: some quando o tutor está ligado e o motor deixa escolher (0.538083ms)
+✔ popover: enquanto liga, o botão de chamar some (não chama duas vezes) (0.368542ms)
+✔ nome da sessão: assunto, ou data e hora quando não há assunto (0.257417ms)
+✔ desligado sem retomada: só o convite para chamar o tutor (3.040166ms)
+✔ desligado com retomada: onde parou em destaque, próximo passo embaixo, três ações (1.681667ms)
+✔ retomada sem a questão não deixa o "em" solto (0.312875ms)
+✔ ligando: "Chamando o tutor" com Cancelar, mesmo com retomada guardada (0.869417ms)
+✔ sem resposta: o motivo em uma frase e as três ações (2.097375ms)
+✔ o motivo: vazio cai numa frase própria e o excesso é cortado (1.974959ms)
+✔ um fato desconhecido cai em desligado (nunca em bloco vazio) (0.275083ms)
+✔ os três estados têm a mesma casca: texto e depois ações (a distância é a mesma) (0.655792ms)
+✔ Pi não encontrado: Ajustes do Pi é a ação principal também no sem resposta (0.562208ms)
+✔ falha transitória permite repetir Desfazer com o mesmo token (15.920292ms)
+✔ callback atrasado não fecha um novo aviso de exclusão (10.568583ms)
+✔ o aviso aparece com rótulos do núcleo, sem depender do toast (2.995292ms)
+✔ clicar Desfazer chama o host do Caderno e a lista volta pelo onUndone (5.861083ms)
+✔ o token das Anotações chama studyNotesUndo e mostra o texto próprio (4.845833ms)
+✔ erro do host fica visível (role=alert) e não some sozinho (4.19875ms)
+✔ o contador esconde o aviso no fim e NUNCA chama o host (dados ficam no processo) (4.335333ms)
+✔ trocar o escopo desativa o aviso sem chamar o host (1.551833ms)
+✔ fechar o aviso não chama o host e devolve o foco quando o botão estava focado (3.442875ms)
+✔ modo zip: substitui só a lista explícita, protegido intocado, npm ci só com lock novo (29.199041ms)
+✔ modo zip: lock igual não roda npm ci (14.811791ms)
+✔ modo zip: package.json extraído não bate com a anunciada → nada é tocado (14.105167ms)
+✔ modo zip: caminho com .. é barrado antes de qualquer escrita (12.868ms)
+✔ modo zip: falha no meio → rollback devolve a versão antiga inteira e reabre (15.843208ms)
+✔ lock mudou + npm ci falhou no meio: rollback refaz o ci com o lock antigo (14.732083ms)
+✔ A1: falha depois do npm ci → rollback refaz as dependências (depsTouched persiste) (12.263458ms)
+✔ A1: rollback re-sincroniza as dependências do payload quando o sync passa (11.906916ms)
+✔ B1: entrada de manifesto fora da raiz é recusada (sem delete arbitrário) (2.060125ms)
+✔ applyPiOnly: npm install do Pi local no pós-fechamento; falha vira motivo no log (2.95475ms)
+✔ D2/A2: update da Mesa deixa o Pi local (.pi-local) resolvível e executável (14.633959ms)
+✔ D5/B1: órfão gerenciado some; adição local fica; manifesto renasce (17.007167ms)
+✔ D5/B2: symlink no destino (ou no pai) é recusado antes da escrita (14.848917ms)
+✔ D4/A5: recuperação que falha PRESERVA o backup e diz o caminho no log (14.416417ms)
+✔ D3/A4: PID que não sai no prazo → update abortado, disco intacto, sem reabrir (505.896208ms)
+✔ D3/A4: PID que sai normalmente destrava a aplicação (513.240208ms)
+✔ semver: comparação e isNewer (1.426458ms)
+✔ semver: prerelease e build não são versão estável (0.868667ms)
+✔ checkForUpdates: versão maior vira update com notas e link (1.048875ms)
+✔ checkForUpdates: igual ou local mais novo é "current" (0.445125ms)
+✔ checkForUpdates: releases/latest falha → fallback em tags (0.450208ms)
+✔ checkForUpdates: erro de rede vira "error" silencioso (sem exceção) (0.376875ms)
+✔ checkForUpdates: cache de 24 h vale para a automática; o manual força (2.688667ms)
+✔ checkForUpdates: sem cache válido e offline o erro é silencioso e não mente a versão (1.939083ms)
+✔ markToasted: um toast por versão (gravação serializada no cache) (1.787375ms)
+✔ cache: duas respostas em ordem inversa não se sobrescrevem (62.940875ms)
+✔ piLatest: SÓ o registry @earendil-works; sem resposta = desconhecido (1.030667ms)
+✔ xournalLatest: só informativo (tag v1.2.7 → 1.2.7) (0.422166ms)
+✔ readZip: store e deflate voltam com o mesmo conteúdo (1.83775ms)
+✔ caminhos protegidos nunca são substituíveis (1.043708ms)
+✔ lista explícita do modo zip: o código entra (tests incluído), o resto fica de fora (0.48825ms)
+✔ applyZip: confere a versão extraída e copia só a lista explícita (4.508667ms)
+✔ A4/needsShell: shell só onde é inevitável (npm/npx no Windows) (0.462042ms)
+✔ A4/resolveNode: acha o executável do node do sistema (e vazio sem candidato) (0.979417ms)
+✔ B5: execução sem shell sobrevive a caminhos com espaço e & (244.580167ms)
+✔ A4/spawnWorker: sem node do sistema o worker NEM COMEÇA (mensagem, app de pé) (0.676584ms)
+✔ A4/handshake: status confirma o arranque; ausência no prazo falha (288.593875ms)
+✔ A4/lock: segunda aquisição recusa; lock velho (preso) é quebrado (1.236625ms)
+✔ releaseFromGithub: notas viram texto puro e cortam na palavra (0.363625ms)
+✔ GET de metadados repete uma vez falhas transitórias e respeita recusas definitivas (1038.198666ms)
+✔ title/class/data-*/aria-* duplicados: o primeiro valor vence (1.262167ms)
+✔ class/id vazios continuam pulados, mesmo com duplicata depois (0.217833ms)
+✔ on:click duplicado pendura um único listener (o primeiro) (0.195084ms)
+✔ on:click duplicado: se o primeiro handler não existe, o segundo não assume (0.155125ms)
+✔ key duplicado: o primeiro vence; key único segue em dataset.key (0.167375ms)
+✔ árvore sem duplicata: todos os attrs/listeners/dataset como antes (0.997084ms)
+✔ nomes aplicados são por elemento: irmãos repetem os mesmos attrs (0.185ms)
+✔ build monta elemento, attrs, listeners e filhos na ordem (3.568959ms)
+✔ key vira dataset e class/id vazios são pulados (0.202167ms)
+✔ listener só é ligado para eventos conhecidos e handler existente (0.212833ms)
+✔ htmlNode injeta HTML do host como fragmento (0.190417ms)
+✔ renderInto troca o conteúdo do pai (0.241125ms)
+✔ renderChildren aceita lista Bend e array JS (0.896166ms)
+✔ childrenOf anda a lista Con/Nil (0.133917ms)
+✔ preserveFocus repõe o foco pelo data-key depois do render (0.366542ms)
+✔ preserveFocus não mexe no foco quando o nó ativo não tem key/id (0.344083ms)
+✔ preserveScroll devolve a rolagem do contêiner (0.303ms)
+✔ wheel at the bottom turns to the next page after the threshold (2.593542ms)
+✔ wheel in the middle of the page does not turn (1.011791ms)
+✔ wheel at the top turns to the previous page (0.209ms)
+✔ a page that fits still turns after enough delta (0.152375ms)
+✔ cooldown blocks another turn (0.205708ms)
+✔ kindName e statusName batem com data-* do DOM (0.925916ms)
+✔ workLog ao vivo: article.work data-live/expanded e título (0.792292ms)
+✔ workLog recolhido: data-expanded false, dots hidden, título Trabalhou por (0.187084ms)
+✔ passo de pensamento: data-kind/status/detail, label, texto e toggle (0.726542ms)
+✔ passo sem detalhe fica data-detail=false e o detalhe hidden (0.224ms)
+✔ passo aberto esconde o preview; fechado, o preview corre (0.903125ms)
+✔ passo sem detalhe mantém o preview mesmo aberto (o corpo não esvazia) (0.241792ms)
+✔ busca running ganha spinner; link traz domínio (0.509167ms)
+✔ build aplica a árvore: classes, data-*, listener e texto (0.598833ms)
+✔ cabeça e toggle têm key (foco sobrevive ao tick do turno vivo) (0.273667ms)
+✔ mapa de tags do host fecha com o artefato (rename não vira error silencioso) (0.131917ms)
+✔ toolKind separa busca, referência e leitura (2.351292ms)
+✔ formatDuration em segundos, minutos e arredondamento (0.147292ms)
+✔ turno com pensamento, busca e resposta (3.021ms)
+✔ leitura de página ganha domínio e link; falha ganha o erro (0.451167ms)
+✔ parada marca o turno e fecha ferramenta pendente (0.26325ms)
+✔ erro avulso entra como passo e o turno interrompido avisa (0.248625ms)
+✔ countsLabel pluraliza e ignora o que não é ferramenta (0.433708ms)
+✔ historyTurns reconstrói turnos do JSONL pareando toolResult (1.42475ms)
+✔ historyTurns sem resultado marca a ferramenta como parada (0.497541ms)
+✔ historyTurns separa turnos e ignora mensagem vazia (0.400833ms)
+✔ startTool é idempotente por id: declaração reserva e execução atualiza o mesmo passo (0.36425ms)
+✔ replaceThinking grava o conteúdo autoritativo do thinking_end sem duplicar (0.292917ms)
+✔ historyTurns expõe parts: a fala fecha a rodada e o trabalho seguinte vem depois (0.509542ms)
+✔ historyTurns: artefato entra no ponto da ferramenta, antes da próxima fala (0.364167ms)
+✔ historyTurns: text-tool-text na mesma mensagem preserva a ordem e o slot (0.369875ms)
+✔ historyTurns: duas atividades na mesma rodada mantêm ordem de declaração e step do jeito (0.440583ms)
+✔ historyTurns junta falas consecutivas da mesma mensagem (só trabalho separa) (0.146958ms)
+✔ historyTurns guarda imagens do assistente em parts (fala vazia vira parte visual) (0.233208ms)
+ℹ tests 1251
+ℹ suites 0
+ℹ pass 1251
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 27407.494833

@@ -44,7 +44,7 @@ test('/conferir vira o rótulo mesmo com texto grande', () => {
 });
 
 test('formatSessionLabel com preview de 100k mantém a nota em 40', () => {
-  assert.equal(formatSessionLabel({preview: x(100000)}), 'Conversa · ' + x(40));
+  assert.equal(formatSessionLabel({preview: x(100000)}), 'Sessão · ' + x(40));
   const started = 1700000000000;
   const d = new Date(started);
   const when = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
@@ -68,7 +68,7 @@ test('preview e rótulo degradam quando o núcleo falha', () => {
     const d = new Date(started);
     const when = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     assert.equal(formatSessionLabel({started, preview: 'nota da sessão'}), `${when} · nota da sessão`);
-    assert.equal(formatSessionLabel({preview: ''}), 'Conversa');
+    assert.equal(formatSessionLabel({preview: ''}), 'Sessão');
   } finally {
     core.sessionPreview = realPreview;
     core.formatSessionLabel = realLabel;

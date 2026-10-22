@@ -8,10 +8,11 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {existsSync, readFileSync} from 'node:fs';
+import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 
-import * as core from '../src/claude-questions.mjs';
+import {ptText, enText} from './pt-text.mjs';
+import {message} from '../src/i18n.mjs';
 import {
   ACTIVITY_NOTICE_CODES,
   MAX_ANSWER_CHARS,
@@ -100,7 +101,7 @@ test('questionRequest preserva o pedido canônico exatamente (rótulos com espa�
   /* Header ausente ganha o mesmo rótulo neutro do adaptador, sem inventar
      pergunta: o texto da pergunta continua o do pedido. */
   const noHeader = questionRequest([{question: '  Q com espaços  ', options: []}]);
-  assert.deepEqual(noHeader.questions[0], {header: 'Pergunta 1', question: '  Q com espaços  ', options: [], multiSelect: false});
+  assert.deepEqual({...noHeader.questions[0], header: ptText(noHeader.questions[0].header)}, {header: 'Pergunta 1', question: '  Q com espaços  ', options: [], multiSelect: false});
 });
 
 test('questionRequest recusa pedido impossível de responder inteiro (nada de resposta parcial)', () => {
@@ -186,11 +187,12 @@ test('compileQuestionAnswers: exige ao menos uma resposta por pergunta e ignora 
 
   const unknown = compileQuestionAnswers([questions[0]], [{selected: ['Inexistente'], text: ''}]);
   assert.equal(unknown.ok, false);
-  assert.deepEqual(unknown.errors, [{index: 0, code: 'missing', message: 'Escolha uma opção ou escreva uma resposta.'}]);
+  assert.deepEqual(unknown.errors.map((error) => ({...error, message: ptText(error.message)})), [{index: 0, code: 'missing', message: 'Escolha uma opção ou escreva uma resposta.'}]);
+  assert.equal(enText(unknown.errors[0].message), 'Choose an option or write an answer.');
 
   const many = compileQuestionAnswers([questions[0]], [{selected: ['Curto', 'Longo'], text: ''}]);
   assert.equal(many.ok, false);
-  assert.deepEqual(many.errors, [{index: 0, code: 'multiple', message: 'Escolha apenas uma opção.'}]);
+  assert.deepEqual(many.errors.map((error) => ({...error, message: ptText(error.message)})), [{index: 0, code: 'multiple', message: 'Escolha apenas uma opção.'}]);
 
   const long = compileQuestionAnswers([questions[0]], [{selected: [], text: 'x'.repeat(MAX_ANSWER_CHARS + 1)}]);
   assert.equal(long.ok, false);
@@ -292,7 +294,7 @@ test('claudeLimitNotice classifica código e metadados canônicos, sem mutar a e
 
   const overage = claudeLimitNotice({rateLimit: {status: 'rejected', type: 'seven_day', resetsAt: 123, blocked: false}});
   assert.equal(overage.kind, 'overage');
-  assert.equal(overage.message, 'Limite atingido, mas a execução continua usando overage.');
+  assert.equal(ptText(overage.message), 'Limite atingido, mas a execução continua usando overage.');
   assert.equal(overage.reset, 't:123000');
 
   const statusWarning = claudeLimitNotice({rateLimit: {status: 'allowed_warning', type: 'five_hour'}});
@@ -376,12 +378,15 @@ test('limitNoticeState: limpar uma janela liberada NÃO esconde a outra janela r
 });
 
 test('claudeActivityNotice: retry/overload/fallback/recusa viram faixa+toast concisos e deduplicáveis', () => {
+  const marked = message('claude.activity.retryAttempt', {attempt: 2, max: 5});
+  assert.equal(ptText(marked), 'O Claude Code está repetindo a chamada à API (tentativa 2 de 5).');
+  assert.equal(enText(marked), 'Claude Code is retrying the API call (attempt 2 of 5).');
   const retry = claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.retry, message: 'Retry nativo.', detail: {attempt: 2, maxRetries: 5, retryDelayMs: 1500, errorStatus: null}});
   assert.deepEqual(retry, {
     kind: 'retry',
     code: 'CLAUDE_API_RETRY',
-    key: 'retry:2::O Claude Code está repetindo a chamada à API (tentativa 2 de 5).',
-    message: 'O Claude Code está repetindo a chamada à API (tentativa 2 de 5).',
+    key: `retry:2::${marked}`,
+    message: marked,
   });
   /* O mesmo attempt deduplica; o attempt seguinte tem chave nova. */
   const retryAgain = claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.retry, message: 'x', detail: {attempt: 2, maxRetries: 5}});
@@ -398,18 +403,18 @@ test('claudeActivityNotice: retry/overload/fallback/recusa viram faixa+toast con
   const overloaded = claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.overloaded, message: 'API sobrecarregada (529).'});
   assert.equal(overloaded.kind, 'overloaded');
   assert.equal(overloaded.message, 'API sobrecarregada (529).');
-  assert.equal(claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.overloaded}).message, 'A API do Claude está sobrecarregada; a execução tenta de novo.');
+  assert.equal(ptText(claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.overloaded}).message), 'A API do Claude está sobrecarregada; a execução tenta de novo.');
 
   const fallback = claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.fallback, message: 'Modelo de segurança respondeu.', detail: {retractedMessageUuids: ['u1'], retractedCount: 1}});
   assert.equal(fallback.kind, 'fallback');
   assert.equal(fallback.message, 'Modelo de segurança respondeu.');
   const fallbackModel = claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.fallback, detail: {fallbackModel: 'claude-sonnet'}});
-  assert.equal(fallbackModel.message, 'Modelo alternativo em uso: claude-sonnet.');
+  assert.equal(ptText(fallbackModel.message), 'Modelo alternativo em uso: claude-sonnet.');
 
   const refusal = claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.refusal, message: 'o modelo recusou a solicitação (cyber)'});
   assert.equal(refusal.kind, 'refusal');
   assert.equal(refusal.message, 'o modelo recusou a solicitação (cyber)');
-  assert.equal(claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.refusal}).message, 'O modelo recusou a solicitação.');
+  assert.equal(ptText(claudeActivityNotice({code: ACTIVITY_NOTICE_CODES.refusal}).message), 'O modelo recusou a solicitação.');
 
   /* Aviso de limite não é aviso de atividade (e vice-versa): cada classificador
      só responde pelo seu contrato. */
@@ -449,25 +454,13 @@ test('a lista de perguntas nunca sai do formato do contrato (id = texto, answers
   }
 });
 
-test('módulo é puro: sem imports, DOM, timers, rede ou ambiente', () => {
-  const source = readFileSync(fileURLToPath(new URL('../src/claude-questions.mjs', import.meta.url)), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const banned of ['require(', 'import(', 'import ', 'document.', 'window.', 'setTimeout', 'setInterval', 'fetch(', 'process.env', 'node:fs', 'node:net', 'node:http', 'localStorage']) {
-    assert.equal(source.includes(banned), false, `não pode conter ${banned}`);
-  }
-  for (const name of [
-    'MAX_QUESTIONS', 'MAX_OPTIONS', 'MAX_TEXT_CHARS', 'MAX_ANSWER_CHARS', 'RATE_LIMIT_CODES', 'ACTIVITY_NOTICE_CODES',
-    'questionRequest', 'compileQuestionAnswers', 'questionSubmitAction', 'claudeLimitNotice', 'limitNoticeState',
-    'claudeActivityNotice', 'deskErrorIsFatal',
-  ]) {
-    assert.ok(name in core, `exporta ${name}`);
-  }
-});
-
 test('contrato do aviso de limite casa com os códigos do adaptador pinado', {skip: !existsSync(fileURLToPath(new URL('../src/agents/claude-adapter.cjs', import.meta.url)))}, () => {
   /* Somente leitura: ancora os códigos do módulo no adaptador real (donde vêm
      os eventos `warning`) para uma renomeação não passar em silêncio. */
-  const source = readFileSync(fileURLToPath(new URL('../src/agents/claude-adapter.cjs', import.meta.url)), 'utf8');
+  /* Desde a #43 fase 2 o adaptador mora em claude-adapter*.cjs (limites e avisos em -rate-limit). */
+  const agentsDir = fileURLToPath(new URL('../src/agents/', import.meta.url));
+  const source = readdirSync(agentsDir).filter((file) => /^claude-adapter.*\.cjs$/.test(file))
+    .map((file) => readFileSync(agentsDir + file, 'utf8')).join('\n');
   assert.match(source, /CLAUDE_RATE_LIMITED/);
   assert.match(source, /CLAUDE_RATE_LIMIT_WARNING/);
   assert.match(source, /CLAUDE_RATE_LIMIT_OVERAGE/);

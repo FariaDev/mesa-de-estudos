@@ -56,7 +56,7 @@ function seedWorkspace(runtime, {sessionId = 'sess-1', withMaterial = true} = {}
   return store.findWorkspace(runtime, sessionId);
 }
 
-function specFor(runtime, record, {token = 'tok-1'} = {}) {
+function specFor(runtime, record) {
   const parentDir = path.join(runtime, 'destino');
   fs.mkdirSync(parentDir, {recursive: true});
   const plan = store.preparePromotion(runtime, record.id, {parentDir, name: 'Matéria Nova'});
@@ -202,7 +202,7 @@ test('sessions() lista a sessão com diário e recover ignora diário inválido'
   const record = seedWorkspace(runtime);
   const {plan} = specFor(runtime, record);
   fs.writeFileSync(path.join(runtime, 'config.json'), '{}\n');
-  const txn = journal.begin(runtime, {
+  journal.begin(runtime, {
     token: plan.token, freeSessionId: record.id, courseId: 'curso-5', courseName: 'X',
     folderPath: plan.folderPath, folderName: plan.folderName, stagingPath: plan.stagingPath, parentDir: plan.parentDir,
     nativePath: record.nativePath, engine: 'pi',

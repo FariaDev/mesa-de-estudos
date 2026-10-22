@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 
 # ---------------------------------------------------------------------------
 # Bloco de contexto da Mesa que acompanha a mensagem do usuário
@@ -22,25 +23,28 @@ import Base
 
 type StudyCapture is Data:
   NoCapture{}
-  Capture{time: String, exercise: String, matches: Bool}
+  Capture{time: String, exercise: String, matches: Bool, app: String}
 
 type StudyContext is Data:
   StudyContext{course: String, exercise: String, draft: String, hasRefs: Bool, capture: StudyCapture}
 
+# Cada linha do bloco é UMA mensagem (#41): o texto vai ao modelo no idioma do
+# tutor, então o host (`desk/studycontext.cjs`) separa o bloco em linhas e
+# traduz cada uma. Valor livre (matéria, exercício…) entra como argumento.
 def header() -> String:
-  "[Contexto da Mesa]"
+  M.msg("studyctx.header")
 
 def seg(text: String) -> String:
   String.append("\n", text)
 
 def courseLine(course: String) -> String:
-  String.append("- matéria: ", course)
+  M.msg1("studyctx.course", "course", course)
 
 def exerciseLine(exercise: String) -> String:
-  String.append("- exercício ativo: ", exercise)
+  M.msg1("studyctx.exercise", "exercise", exercise)
 
 def draftLine(draft: String) -> String:
-  String.append("- rascunho Xournal++ aberto: ", draft)
+  M.msg1("studyctx.draft", "draft", draft)
 
 # A presença vem resolvida do host (`empty`); o núcleo só decide a linha.
 def optional(+content: String, prefix: String, empty: Bool) -> String:
@@ -51,7 +55,7 @@ def optional(+content: String, prefix: String, empty: Bool) -> String:
       seg(String.append(prefix, content))
 
 def refsHeader() -> String:
-  "- referências abertas na mesa (abertas, não lidas por você):"
+  M.msg("studyctx.refsHeader")
 
 def refLine(ref: String) -> String:
   String.append("  · ", ref)
@@ -77,43 +81,53 @@ def refsBlock(refs: List<String>) -> String:
     case Con{h, t}:
       String.append(seg(refsHeader()), refLines(refs))
 
-def captureMatchesNote(time: String, exercise: String) -> String:
-  String.append(
-    String.append(
-      String.append("captura desta mensagem: janela do Xournal++ às ", time),
-      ", do exercício "
-    ),
-    exercise
-  )
+# De que janela é a captura. O Conferir captura o Xournal++ ou o programa que a
+# pessoa escolheu (ticket #35): sem nome de app (anexo antigo) ou com o
+# Xournal++, a redação de sempre; com outro programa, o nome dele. A frase
+# inteira é uma mensagem por variante (janela × mesmo exercício ou não): ela
+# não se monta de pedaços porque cada idioma ordena as palavras do seu jeito.
+def isXournal(+app: String) -> Bool:
+  Bool.or(String.is_empty(app), String.eq(app, "Xournal++"))
 
-def captureStaleNote(time: String, exercise: String) -> String:
-  String.append(
-    String.append(
-      String.append("captura desta mensagem: janela do Xournal++ às ", time),
-      ", do exercício "
-    ),
-    String.append(exercise, " — atenção: a captura é de outro exercício, não do ativo")
-  )
+def captureMatches.pick(isDefault: Bool, app: String, time: String, exercise: String) -> String:
+  match isDefault:
+    case True{}:
+      M.msg2("studyctx.capture.xournal", "time", time, "exercise", exercise)
+    case False{}:
+      M.msg3("studyctx.capture.app", "app", app, "time", time, "exercise", exercise)
 
-def captureNoteGiven(time: String, exercise: String, matches: Bool) -> String:
+def captureMatchesNote(+app: String, time: String, exercise: String) -> String:
+  captureMatches.pick(isXournal(app), app, time, exercise)
+
+def captureStale.pick(isDefault: Bool, app: String, time: String, exercise: String) -> String:
+  match isDefault:
+    case True{}:
+      M.msg2("studyctx.captureStale.xournal", "time", time, "exercise", exercise)
+    case False{}:
+      M.msg3("studyctx.captureStale.app", "app", app, "time", time, "exercise", exercise)
+
+def captureStaleNote(+app: String, time: String, exercise: String) -> String:
+  captureStale.pick(isXournal(app), app, time, exercise)
+
+def captureNoteGiven(app: String, time: String, exercise: String, matches: Bool) -> String:
   match matches:
     case True{}:
-      captureMatchesNote(time, exercise)
+      captureMatchesNote(app, time, exercise)
     case False{}:
-      captureStaleNote(time, exercise)
+      captureStaleNote(app, time, exercise)
 
 def captureNote(capture: StudyCapture) -> String:
   match capture:
     case NoCapture{}:
       ""
-    case Capture{time, exercise, matches}:
-      seg(captureNoteGiven(time, exercise, matches))
+    case Capture{time, exercise, matches, app}:
+      seg(captureNoteGiven(app, time, exercise, matches))
 
 def capturePresent(capture: StudyCapture) -> Bool:
   match capture:
     case NoCapture{}:
       False{}
-    case Capture{time, exercise, matches}:
+    case Capture{time, exercise, matches, app}:
       True{}
 
 # Cada campo entra uma vez; as linhas opcionais decidem sozinhas se aparecem.

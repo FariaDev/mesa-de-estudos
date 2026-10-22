@@ -1,0 +1,24 @@
+/* Menu de comandos slash; carrega também o ajuste de movimento reduzido e o #components-refresh, que vinham logo depois no style.css.
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Menu de comandos slash (composer) ----------
+   Mesma mecânica/visual do app Conversa; o módulo é desk/src/slash.mjs. */
+.slash-pop{display:flex;flex-direction:column;padding:5px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);box-shadow:var(--shadow-pop);overflow:hidden}
+.slash-head{padding:var(--space-3) 9px var(--space-1);font-size:var(--fs-xs);font-weight:600;color:var(--faint)}
+.slash-list{display:flex;flex-direction:column;gap:var(--space-hairline);max-height:min(300px,42vh);overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:6px;padding-block:2px}
+.slash-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:var(--r-lg);cursor:pointer}
+.slash-item:hover{background:var(--hover)}
+.slash-item.active{background:var(--active)}
+.slash-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.slash-name{font-size:var(--fs-md);font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slash-arg{margin-left:5px;font-size:var(--fs-xs-half);font-weight:400;color:var(--faint)}
+.slash-desc{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slash-check{display:inline-flex;flex:none;width:14px;color:var(--fg-strong);opacity:0;transition:opacity var(--t-fast) var(--ease-out)}
+.slash-check .icon{width:14px;height:14px}
+.slash-item.active .slash-check{opacity:1}
+.slash-foot{padding:var(--space-3) var(--space-5) var(--space-1);margin-top:var(--space-1);border-top:1px solid var(--border);text-align:center;font-size:var(--fs-xs);color:var(--faint)}
+
+
+/* Sobre: linha do updater e painel "Componentes" (a árvore vem do Bend,
+   core/dialogsview.bend; aqui só o arranjo visual). */
+#components-refresh{margin:0 0 var(--space-4)}

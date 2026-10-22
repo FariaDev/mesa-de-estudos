@@ -1,6 +1,7 @@
 import Base
 import ../view.bend as V
 import ../auxview.bend as A
+import ../msg.bend as M
 
 # ---------------------------------------------------------------------------
 # Contrato dos controles auxiliares da Mesa (densidade, dica e avisos).
@@ -39,8 +40,8 @@ law aux_density_select_evento:
 law aux_density_opcoes:
   {A.densitySelect("compacta") == V.viewEl("select",
      [V.ViewAttr{"id", "density-mode"}, V.ViewAttr{"on:change", "SetDensity"}],
-     [ V.viewEl("option", [V.ViewAttr{"value", "padrao"}], [V.viewText("Padrão")])
-     , V.viewEl("option", [V.ViewAttr{"value", "compacta"}, V.ViewAttr{"selected", ""}], [V.viewText("Compacta")])
+     [ V.viewEl("option", [V.ViewAttr{"value", "padrao"}], [V.viewText(M.msg("settings.density.default"))])
+     , V.viewEl("option", [V.ViewAttr{"value", "compacta"}, V.ViewAttr{"selected", ""}], [V.viewText(M.msg("settings.density.compact"))])
      ]
    ) : V.ViewNode}
 
@@ -93,9 +94,9 @@ law aux_notify_linhas_len:
 # Ordem e marcação das três linhas (som, notificação, foco).
 law aux_notify_linhas:
   {A.notifyRows(A.NotifyPrefs{True{}, True{}, False{}}) == [
-      A.checkRow("notify-sound", "Som", True{}),
-      A.checkRow("notify-desktop", "Notificação", True{}),
-      A.checkRow("notify-focused", "Avisar mesmo com a janela em foco", False{})
+      A.checkRow("notify-sound", M.msg("settings.notify.sound"), True{}),
+      A.checkRow("notify-desktop", M.msg("settings.notify.desktop"), True{}),
+      A.checkRow("notify-focused", M.msg("settings.notify.focused"), False{})
     ] : List<&2, V.ViewNode>}
 
 law aux_notify_grupo_id:
@@ -105,10 +106,10 @@ law aux_notify_grupo_papel:
   {V.attrGet(V.attrsOf(A.notifyGroup(A.NotifyPrefs{True{}, True{}, False{}})), "role") == Some{"group"} : Maybe<&2, String>}
 
 law aux_notify_grupo_rotulo:
-  {V.attrGet(V.attrsOf(A.notifyGroup(A.NotifyPrefs{True{}, True{}, False{}})), "aria-label") == Some{"Avisos de conclusão"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(A.notifyGroup(A.NotifyPrefs{True{}, True{}, False{}})), "aria-label") == Some{M.msg("settings.notify")} : Maybe<&2, String>}
 
 law aux_notify_controles_len:
   {List.length(&2, V.ViewNode, A.notifyControls(A.NotifyPrefs{True{}, True{}, False{}})) == 4n : Nat}
 
 law aux_notify_legenda:
-  {A.notifyLegend() == V.viewEl("span", [V.attrClass("set-group-label")], [V.viewText("Avisos de conclusão")]) : V.ViewNode}
+  {A.notifyLegend() == V.viewEl("span", [V.attrClass("set-group-label")], [V.viewText(M.msg("settings.notify"))]) : V.ViewNode}

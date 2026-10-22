@@ -1,0 +1,176 @@
+/* Cabeçalho: barra superior, seletor de matéria, busca de comandos, menus e indicador de modelo.
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Cabeçalho ---------- */
+
+header{
+ height:var(--header);padding:0 var(--pad);border-bottom:1px solid var(--border-strong);gap:var(--space-4);
+ display:flex;align-items:center;justify-content:space-between;background:var(--surface);flex:none;
+}
+.brand{display:flex;gap:var(--space-3);align-items:center;flex:none}
+.brand-icon{width:22px;height:22px;border-radius:var(--r-xs)}
+.brand strong{font-size:var(--fs-md);font-weight:600;letter-spacing:-.01em;color:var(--fg-strong);white-space:nowrap}
+/* Barra superior (ticket #10): marca | abas de matéria, Caderno e GeoGebra |
+   Estudar, busca de comandos e Ajustes. As abas ocupam o que sobra; quando
+   as matérias não cabem, o `header.tabs-compact` (src/main.mjs, `fitTabs`)
+   troca as abas de matéria pelo seletor único e Caderno/GeoGebra ficam. */
+.header-nav{display:flex;align-items:center;gap:var(--space-1);min-width:0;flex:1 1 auto}
+.header-actions{display:flex;gap:var(--space-1);align-items:center;flex:none}
+.header-actions > button,.nav-trigger{
+ border-color:transparent;background:transparent;color:var(--fg);font-size:var(--fs-sm);height:28px;
+ border-radius:var(--r-md);box-shadow:none;white-space:nowrap;
+}
+.header-actions button:hover,.nav-trigger:hover{background:var(--hover)}
+.header-actions button:active,.nav-trigger:active{background:var(--active)}
+#reference-toggle[aria-pressed="false"]{color:var(--muted)}
+#reference-toggle[aria-pressed="true"],#include-refs[aria-pressed="true"]{background:var(--tint);color:var(--accent-text)}
+#course-tabs{
+ display:flex;align-items:center;gap:var(--space-0);height:32px;min-width:0;flex:0 1 auto;
+ overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
+}
+#course-tabs::-webkit-scrollbar{display:none}
+#course-tabs button{
+ height:28px;flex:0 0 auto;font-size:var(--fs-sm);padding:0 var(--space-4);border:0;background:transparent;
+ color:var(--muted);border-radius:var(--r-md);white-space:nowrap;box-shadow:none;
+}
+#course-tabs button:hover{background:var(--hover);color:var(--fg)}
+#course-tabs button.active,#course-tabs button.active:hover{background:var(--selected);color:var(--fg-strong);font-weight:600}
+#new-tab{border-color:transparent;background:transparent;flex:0 0 auto}
+.tab-sep{width:1px;height:16px;background:var(--border);margin:0 var(--space-1);flex-shrink:0}
+.ggb-tab{gap:5px}
+/* Seletor único: só aparece com `header.tabs-compact`. */
+#course-menu{display:none;flex:0 1 auto;min-width:0}
+header.tabs-compact #course-menu{display:block}
+header.tabs-compact #course-tabs button[role=tab]:not(#review-tab):not(.ggb-tab){display:none}
+#course-menu .nav-trigger{display:inline-flex;align-items:center;gap:var(--space-2);max-width:200px;padding:0 var(--space-3);font-weight:600;color:var(--fg-strong)}
+#course-menu .nav-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#course-menu .nav-trigger .icon{flex:none;width:14px;height:14px;color:var(--muted)}
+#course-menu .nav-pop{left:0;right:auto;max-width:min(320px,calc(100vw - 2 * var(--pad)))}
+#course-menu .nav-pop button{white-space:nowrap}
+/* Sem o check, o texto alinha com o da opção ativa. */
+#course-pop button:not(:has(.icon)){padding-inline-start:calc(10px + 16px + var(--space-2))}
+/* Busca de comandos: campo à vista; abre a paleta (⌘K). */
+.header-actions > #palette-field{
+ display:inline-flex;align-items:center;gap:var(--space-3);width:168px;padding:0 var(--space-3);
+ border:1px solid var(--border);background:var(--surface);color:var(--muted);justify-content:flex-start;
+}
+.header-actions > #palette-field:hover{background:var(--hover);color:var(--fg)}
+#palette-field .icon{flex:none;width:14px;height:14px}
+#palette-field .palette-field-text{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis}
+#palette-field kbd{flex:none;font:inherit;font-size:var(--fs-xs);color:var(--faint)}
+/* Ajustes: botão de ícone; o menu abre alinhado à direita. */
+.header-actions #settings-trigger{width:28px;padding:0;justify-content:center;display:inline-flex;align-items:center}
+.header-actions #settings-trigger .icon{width:16px;height:16px}
+#ggb-bar{
+ display:flex;align-items:center;gap:var(--space-3);
+ background:var(--surface);flex-shrink:0;
+}
+#ggb-bar strong{font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong)}
+#ggb-bar button{font-size:var(--fs-xs);padding:var(--space-1) var(--space-3)}
+#ggb-bar small{font-size:var(--fs-2xs);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+/* Quadro limpo por uso (#53): o aviso discreto do que foi guardado e o botão de voltar. */
+#ggb-bar .ggb-board-note{flex:0 1 auto;color:var(--muted)}
+#ggb-bar .ggb-back{flex:none;color:var(--muted);background:transparent;border-color:transparent}
+#ggb-bar .ggb-back:hover:not(:disabled){color:var(--fg);background:var(--hover)}
+#references.ggb #pdf-grid{visibility:hidden}
+#references.ggb .pdf-divider{display:none}
+/* Captura do applet no lugar da view nativa durante o arrasto do divisor do
+   chat (ajustes do GeoGebra): presa à esquerda, no tamanho de antes, cortada
+   se a coluna estreitar. */
+#references.ggb{position:relative}
+#references .ggb-freeze{position:absolute;left:0;z-index:3;max-width:none;pointer-events:none;user-select:none}
+
+.nav-menu{position:relative}
+.nav-pop{
+ display:none;position:absolute;right:0;top:calc(100% - 2px);min-width:188px;
+ background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);
+ padding:var(--space-1);z-index:8;flex-direction:column;gap:var(--space-hairline);
+ box-shadow:var(--shadow-pop);
+}
+.nav-menu.open .nav-pop{display:flex}
+/* Menu Estudar (#27 B8): 256px, para a tecla caber à direita do rótulo. */
+#study-pop{width:256px;max-width:calc(100vw - 2 * var(--pad))}
+#study-pop button:has(.menu-kbd){justify-content:space-between}
+#study-pop .menu-kbd{margin-left:auto;padding-left:var(--space-5);font-size:var(--fs-xs-half);color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.nav-pop button{
+ /* Mesmo item dos menus do tutor e do leitor (`.more-item`): 28px, recuo 6px. */
+ width:100%;justify-content:flex-start;border:0;background:transparent;height:var(--ctl);padding:0 var(--space-2);font-size:var(--fs-sm);
+ border-radius:var(--r-md);box-shadow:none;color:var(--fg);
+}
+.nav-pop button:hover{background:var(--hover)}
+.nav-pop button:active{background:var(--active)}
+/* Corpo do diálogo de Configurações (`.help-body.settings-body`). */
+.settings-body{
+ display:flex;flex-direction:column;gap:var(--space-2);min-height:0;overflow:auto;
+ padding:var(--space-2) var(--space-3) var(--space-3);border-top:1px solid var(--border);
+}
+/* Indicador de modelo e esforço (tickets #14 e #42): um botão na fileira da
+   caixa de mensagem, à esquerda do Enviar, com o ponto de conexão e o texto
+   "modelo · esforço" (ou o estado do tutor). É fantasma como os vizinhos da
+   fileira. Em caixa estreita a fileira cede em degraus (`data-fit` da
+   fileira, decidido pelo `core/composerbox.bend#rowFit` sobre o que o host
+   mediu): "compact" deixa Referências e Conferir só com o ícone; "model" tira também o
+   esforço; "icon" deixa só o ícone e o ponto (o nome acessível segue
+   completo). O popover (`#model-pop`) abre para cima, ancorado nele, e guarda
+   o seletor de modelo e a faixa de esforço (`model-picker.css`). */
+/* Ajustes do indicador: ele encolhe (o nome do modelo ganha reticências) até
+   o piso `--mi-model-floor` antes de virar ícone. Sem borda e com o canto dos
+   outros botões da fileira (2026-10-21: a pílula com borda destoava do clipe e
+   do Enviar, parecia caixa de formulário); alvo de `--ctl` (28px). `#composer-box` na regra do
+   Enviar/Parar porque a margem automática do Parar no `composer.css` (mesma
+   especificidade, vem depois) ganhava e soltava o indicador no meio da fileira
+   durante a resposta. */
+.composer-actions .model-indicator{
+ --mi-model-floor:72px;
+ display:flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0;margin-left:auto;
+ padding:0 var(--space-2);text-align:left;color:var(--fg);
+}
+.composer-actions .model-indicator:hover{color:var(--fg-strong)}
+#composer-box .composer-actions .model-indicator~:is(#send,#stop){margin-left:0}
+.model-indicator .icon{flex:none;color:var(--faint)}
+.model-indicator .mi-icon{display:none}
+.model-indicator .mi-icon .icon{color:inherit}
+.model-indicator #status-dot{pointer-events:none}
+.model-indicator .mi-logo{display:none;flex:none;color:var(--muted)}
+.model-indicator[data-logo] .mi-logo{display:inline-flex}
+.model-indicator[data-logo] #status-dot{display:none}
+.model-indicator .mi-logo .icon{width:14px;height:14px}
+.model-indicator .mi-logo .provider-mono{width:16px;height:16px;border-radius:4px;font-size:8px}
+.model-indicator .mi-caret .icon{width:12px;height:12px;color:var(--faint)}
+.composer-actions .model-indicator[aria-expanded="true"]{background:var(--selected);color:var(--fg-strong)}
+/* O texto é uma linha de duas partes (#27): o nome do modelo e o "· esforço". */
+.model-indicator .mi-text{display:flex;min-width:0;height:18px;line-height:18px;overflow:hidden;white-space:nowrap}
+.model-indicator .mi-model{flex:0 1 auto;min-width:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.model-indicator .mi-level{flex:none;white-space:pre;color:var(--faint)}
+.model-indicator[data-state="off"] .mi-text{color:var(--faint)}
+.composer-actions:is([data-fit="compact"],[data-fit="model"],[data-fit="icon"]) #include-refs{width:var(--ctl);padding:0}
+.composer-actions:is([data-fit="compact"],[data-fit="model"],[data-fit="icon"]) #include-refs span{display:none}
+.composer-actions:is([data-fit="compact"],[data-fit="model"],[data-fit="icon"]) #check{width:var(--ctl);padding:0;justify-content:center}
+.composer-actions:is([data-fit="compact"],[data-fit="model"],[data-fit="icon"]) #check :is(.label-full,.label-short){display:none}
+.composer-actions:is([data-fit="model"],[data-fit="icon"]) .model-indicator .mi-level{display:none}
+.composer-actions[data-fit="icon"] .model-indicator :is(.mi-text,.mi-caret){display:none}
+.composer-actions[data-fit="icon"] .model-indicator .mi-icon{display:inline-flex}
+.composer-actions[data-fit="icon"] .model-indicator[data-logo] :is(.mi-icon,#status-dot){display:none}
+.composer-actions[data-fit="icon"] .model-indicator{flex:none;padding:0 var(--space-2)}
+/* O seletor de modelo e a faixa de esforço moram em `model-picker.css`. */
+.model-pop-note{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2)}
+.model-pop-note[hidden]{display:none}
+.model-pop-note p{margin:0}
+.model-pop-lead{font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong)}
+.model-pop-note .fine{line-height:1.5}
+.chat-pop .model-pop-note button{
+ width:auto;justify-content:center;padding:0 var(--space-3);border-radius:var(--r-sm);
+ background:var(--accent-fill);color:var(--accent-fg);font-weight:500;
+}
+.chat-pop .model-pop-note button:hover{background:var(--accent-fill);filter:brightness(1.08)}
+.chat-pop .model-pop-note button:active{background:var(--accent-fill);filter:brightness(.94)}
+/* Contexto de estudo: os dois campos moram dentro do popover da linha "Vai
+   junto" (`#context-pop`), não mais soltos acima das mensagens. */
+#study-context{display:flex;gap:var(--space-2)}
+#study-context[hidden]{display:none}
+#study-context input{
+ flex:1;min-width:0;padding:var(--space-2) var(--space-3);border:1px solid var(--border);
+ border-radius:var(--r-xs);background:var(--surface);color:var(--fg);font-size:var(--fs-sm);
+}
+#study-context input::placeholder{color:var(--faint)}
+#study-context button{display:block;flex:none;font-size:var(--fs-xs);padding:5px 7px;max-width:135px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}

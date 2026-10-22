@@ -1,0 +1,13 @@
+/* Microinterações (#61, src/icon-motion.mjs). O estilo base é o estado final;
+   a animação parte do começo e para lá. Com movimento reduzido (src/motion.css) a duração é 0s e fica o final. */
+.motion-mark{color:var(--accent-text);flex:none}
+.ok:has(>.motion-mark){display:inline-flex;align-items:center;gap:var(--space-1)}
+.motion-copied path{stroke-dasharray:1;stroke-dashoffset:0;animation:motion-draw var(--t-slow) var(--ease-out) both}
+.motion-saved .motion-level{fill:currentColor;stroke:none;transform:translateY(0);animation:motion-fill var(--t-slow) var(--ease-move) both}
+.motion-shot{animation:motion-flash var(--t-slow) var(--ease-out)}
+@keyframes motion-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes motion-fill{from{transform:translateY(20px)}to{transform:translateY(0)}}
+/* Conferir: o fundo do botão acende no acento e volta ao dele (retorno de um
+   amigo do autor na #63: só apagar o ícone parecia falha, não captura). Sem
+   `to`: termina no fundo que o botão já tem, inclusive no hover. */
+@keyframes motion-flash{from{background:color-mix(in oklab,var(--accent-fill) 32%,var(--surface));color:var(--accent-text)}}

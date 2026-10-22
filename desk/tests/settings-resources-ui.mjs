@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {_electron as electron} from '@playwright/test';
-import {DESK,deskEnv,newRuntime,seedCourse,writeConfigJson,writeDeskJson} from './helpers.mjs';
+import {DESK,deskEnv,newRuntime,seedCourse,writeConfigJson,writeDeskJson,fillStudyTitle,resizeWindow,pageWindow} from './helpers.mjs';
+import {nextFrames} from './waits.mjs';
 const runtime=newRuntime('settings-resources');
 const course=seedCourse(runtime,'Recursos');
 const xopp=path.join(course,'rascunho.xopp');fs.writeFileSync(xopp,'fixture');
@@ -22,9 +23,10 @@ async function launch(){
 }
 let app;
 async function openSettings(page){
- await page.locator('#mesa-menu .nav-trigger').click();
+ await page.locator('#settings-menu .nav-trigger').click();
  await page.locator('#settings').click();
  await page.waitForSelector('#settings-dialog[open]');
+ await page.locator('#settings-tab-mesa').click();
 }
 async function saveSettings(page){
  await page.locator('#settings-save').click();
@@ -37,8 +39,8 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.waitForSelector('.pdf-panel');
  assert.deepEqual(await page.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(el=>el.id);return ids.filter((id,i)=>ids.indexOf(id)!==i);}),[],'IDs únicos');
- await page.locator('#exercise-title').fill('Questão preservada');
- await page.waitForTimeout(500);
+ await fillStudyTitle(page,'Questão preservada');
+ await nextFrames(page,3);
  await openSettings(page);
  for(const key of fields)assert.equal(await page.locator('#cfg-desk-'+key).isChecked(),true);
  assert.equal(await page.locator('#cfg-title').inputValue(),'Mesa personalizada');
@@ -49,15 +51,18 @@ try{
  for(const key of fields)await page.locator('#cfg-desk-'+key).uncheck();
  await page.locator('#cfg-title').fill('Minha mesa');
  await saveSettings(page);
- assert.equal(await page.locator('#study-context').isHidden(),true);
+ assert.equal(await page.locator('#context-edit').isHidden(),true);
  assert.equal(await page.locator('#calculator').isHidden(),true);
  assert.equal(await page.locator('#check').isHidden(),true);
  assert.equal(await page.locator('#include-refs').isHidden(),true);
  assert.equal(await page.locator('#exercise-title').inputValue(),'Questão preservada','esconder preserva estudo');
  assert.doesNotMatch(await page.locator('#context-summary').textContent(),/Questão preservada/);
  await page.locator('#study-menu .nav-trigger').click();
- assert.equal(await page.locator('#end-day').isHidden(),true);
+ assert.equal(await page.locator('#study-pop #end-day').count(),0,'Encerrar por hoje não é mais do menu Estudar');
  assert.equal(await page.locator('#xournal').isHidden(),true);
+ await page.keyboard.press('Escape');
+ await page.locator('#chat-more').click();
+ assert.equal(await page.locator('#chat-more-pop #end-day').isHidden(),true,'endDay:false esconde o item de Mais opções do tutor');
  await page.keyboard.press('Escape');
  let cfg=JSON.parse(fs.readFileSync(path.join(runtime,'config.json'),'utf8'));
  for(const key of fields)assert.equal(cfg.desk[key],false);
@@ -71,30 +76,30 @@ try{
  assert.equal(await page.locator('#cfg-title').inputValue(),'Minha mesa');
  for(const key of fields)await page.locator('#cfg-desk-'+key).check();
  await saveSettings(page);
- assert.equal(await page.locator('#study-context').isVisible(),true);
+ assert.equal(await page.locator('#context-edit').isVisible(),true);
  assert.equal(await page.locator('#exercise-title').inputValue(),'Questão preservada','reativar restaura estudo');
  assert.equal(await page.locator('#pick-xopp').getAttribute('data-path'),xopp,'associação xopp sobrevive a desativar/reabrir/reativar');
  assert.equal(await page.locator('#calculator').isVisible(),true);
- await app.evaluate(({ipcMain,BrowserWindow})=>{
+ await app.evaluate(({ipcMain})=>{
   ipcMain.removeHandler('update-check');
   ipcMain.handle('update-check',()=>({status:'update',version:'9.9.9',notes:'Versão de teste',url:''}));
-  BrowserWindow.getAllWindows()[0].webContents.send('update-available',{version:'9.9.9'});
  });
+ await (await pageWindow(app,page)).evaluate(win=>win.webContents.send('update-available',{version:'9.9.9'}));
  await page.locator('#update-notice').waitFor({state:'visible'});
  assert.equal(await page.locator('#update-notice').isVisible(),true);
- await page.waitForTimeout(4500);
+ await page.waitForTimeout(4500);// espera fixa: o aviso de atualização tem de durar além do toast (~4 s) — o tempo é o que se testa
  assert.equal(await page.locator('#update-notice').isVisible(),true,'aviso persiste além do toast');
  await page.locator('#update-notice').click();
  await page.waitForSelector('#about-dialog[open]');
  await page.waitForSelector('#update-apply');
  assert.match(await page.locator('#about-update').textContent(),/9\.9\.9/);
  await page.keyboard.press('Escape');
- await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(900,650));
+ await resizeWindow(app,page,900,650);
  await page.locator('#update-notice').click();
  await page.waitForSelector('#about-dialog[open]');
  await page.keyboard.press('Escape');
  await openSettings(page);
- await page.locator('[data-sec="mesa"]').scrollIntoViewIfNeeded();
+ assert.equal(await page.locator('#settings-sec-mesa').isVisible(),true,'a seção Recursos da mesa está à vista');
  await page.screenshot({path:path.join(runtime,'settings.png')});
  await page.keyboard.press('Escape');
  await page.evaluate(()=>window.scrollTo(0,0));

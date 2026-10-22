@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {ptMatches} from './pt-text.mjs';
 import os from 'node:os';
 import path from 'node:path';
 import {EventEmitter} from 'node:events';
@@ -67,7 +68,7 @@ function newRuntime() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-sidechat-claude-'));
 }
 
-function build(runtime, descriptor) {
+function build(runtime, descriptor, claudePath = '/fake/claude') {
   const events = [];
   const engine = createClaudeSideEngine({
     id: 'sc-lateral',
@@ -75,7 +76,7 @@ function build(runtime, descriptor) {
     runtime,
     prepare: (record) => ({cwd: runtime, systemPrompt: `prompt-${record.id}`}),
     sdkLoader: null,
-    claudePath: '/fake/claude',
+    claudePath,
     onEvent: (event) => events.push(event),
     deps: {Adapter: FakeAdapter, Service: ClaudeService},
   });
@@ -137,7 +138,7 @@ test('incerteza hidratada do descritor bloqueia novo envio no canal Claude', asy
   assert.equal(engine.isUncertain(), true);
   await assert.rejects(
     () => engine.prompt({text: 'não repete', readPaths: []}),
-    (error) => error.notSent === true && /incerta/i.test(error.message),
+    (error) => error.notSent === true && ptMatches(/incerta/i)(error),
   );
   assert.equal(adapter.sent.length, 0);
   fs.rmSync(runtime, {recursive: true, force: true});
@@ -150,4 +151,20 @@ test('descritor Claude inválido nunca vira Pi: a fábrica recusa', () => {
   fs.writeFileSync(fake, '{ isto não é um descritor }');
   assert.throws(() => build(runtime, fake), /inválido|indisponível/i);
   fs.rmSync(runtime, {recursive: true, force: true});
+});
+
+test('#28: retomada usa launcher atual e conserva ID; sem launcher usa último binário',()=>{
+ const runtime=newRuntime();
+ try{
+  const descriptor=conversations.createClaudeConversation({runtime,courseId:'Synthetic'});
+  conversations.updateClaudeConversation(descriptor,{pinnedExecutable:'/old/2.1.246',nativeEstablished:true},{runtime});
+  const id=conversations.readClaudeConversation(descriptor,{runtime}).nativeSessionId;
+  const current=build(runtime,descriptor,'/current/2.1.301');
+  assert.equal(current.adapter.options.claudePath,'/current/2.1.301','binário obsoleto não congela uma sessão retomada');
+  assert.equal(current.adapter.options.sessionId,id);assert.equal(current.adapter.options.resume,true);
+  current.engine.close();
+  const fallback=build(runtime,descriptor,'');
+  assert.equal(fallback.adapter.options.claudePath,'/old/2.1.246','sem launcher preserva o último binário para detecção estrita');
+  fallback.engine.close();
+ }finally{fs.rmSync(runtime,{recursive:true,force:true});}
 });

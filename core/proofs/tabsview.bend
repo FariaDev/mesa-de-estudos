@@ -8,17 +8,17 @@ import ../view.bend as V
 # (`{==}`); o comprimento das abas é a única indução na lista (mesmo padrão de
 # `proofs/view.bend`: a hipótese entra pelo buraco do `%Equal.sym`).
 
-def Laws.tabs_comprimento(cs, activeId, ggb, dis):
+def Laws.tabs_comprimento(cs, activeId, ggb, dis, rc):
   match cs:
     case Nil{}:
       {==}
     case Con{h, t}:
       %Equal.sym(
         Nat,
-        List.length(&2, V.ViewNode, T.courseTabs(t, activeId, ggb, dis)),
-        Nat.add(List.length(&2, T.Tab, t), 2n),
-        Laws.tabs_comprimento(t, activeId, ggb, dis)
-      ) : {1n+_ == 1n+Nat.add(List.length(&2, T.Tab, t), 2n) : Nat}
+        List.length(&2, V.ViewNode, T.courseTabs(t, activeId, ggb, dis, rc)),
+        Nat.add(List.length(&2, T.Tab, t), 4n),
+        Laws.tabs_comprimento(t, activeId, ggb, dis, rc)
+      ) : {1n+_ == 1n+Nat.add(List.length(&2, T.Tab, t), 4n) : Nat}
       {==}
 
 # ---------- abas: forma e ordem ----------
@@ -27,6 +27,15 @@ def Laws.tabs_duas_materias_ordem():
   {==}
 
 def Laws.tabs_sem_materias():
+  {==}
+
+def Laws.tabs_caderno_ativo():
+  {==}
+
+def Laws.tabs_ggb_desativa_caderno():
+  {==}
+
+def Laws.tabs_desabilitadas_juntas():
   {==}
 
 # ---------- abas: matéria ativa ----------
@@ -86,6 +95,18 @@ def Laws.tabs_livre(id):
 def Laws.tabs_desabilitada(id):
   {==}
 
+def Laws.tabs_travada_dica(id):
+  {==}
+
+def Laws.tabs_livre_sem_dica(id):
+  {==}
+
+def Laws.tabs_seletor_travado_dica():
+  {==}
+
+def Laws.tabs_seletor_travado():
+  {==}
+
 # ---------- aba GeoGebra ----------
 
 def Laws.tabs_ggb_tag():
@@ -140,6 +161,12 @@ def Laws.tabs_nova_clique():
 def Laws.tabs_menu_estudar():
   {==}
 
+def Laws.tabs_menu_estudar_comprimento():
+  {==}
+
+def Laws.tabs_menu_estudar_desligado():
+  {==}
+
 def Laws.tabs_ref_rotulo_vazio():
   {==}
 
@@ -179,82 +206,83 @@ def Laws.tabs_xournal_item_visivel():
 def Laws.tabs_xournal_rotulo():
   {==}
 
-# ---------- menu Estudar: Encerrar e Caderno ----------
-
-def Laws.tabs_endday_id():
-  {==}
-
-def Laws.tabs_endday_rotulo():
-  {==}
-
-def Laws.tabs_endday_clique():
-  {==}
-
-def Laws.tabs_endday_visivel():
-  {==}
-
-def Laws.tabs_endday_oculto():
-  {==}
+# ---------- Caderno ----------
 
 def Laws.tabs_caderno_id():
   {==}
 
-def Laws.tabs_caderno_rotulo():
+def Laws.tabs_caderno_data_id():
+  {==}
+
+def Laws.tabs_caderno_papel():
   {==}
 
 def Laws.tabs_caderno_clique():
   {==}
 
-# ---------- menu Mesa ----------
-
-def Laws.tabs_menu_mesa():
+def Laws.tabs_caderno_rotulo():
   {==}
 
-def Laws.tabs_tema_auto():
+def Laws.tabs_caderno_ativo_aria():
   {==}
 
-def Laws.tabs_tema_claro():
+def Laws.tabs_caderno_inativo_aria():
   {==}
 
-def Laws.tabs_tema_escuro():
+def Laws.tabs_caderno_ativo_tabindex():
   {==}
 
-def Laws.tabs_tema_desconhecido():
+def Laws.tabs_caderno_inativo_tabindex():
   {==}
 
-# ---------- modo compacto (densidade) ----------
-
-def Laws.tabs_compacto_id():
+def Laws.tabs_caderno_vazio_classe():
   {==}
 
-def Laws.tabs_compacto_rotulo():
+def Laws.tabs_caderno_com_itens_classe():
   {==}
 
-def Laws.tabs_compacto_clique():
+def Laws.tabs_caderno_ativo_com_itens_classe():
   {==}
 
-def Laws.tabs_compacto_ligado():
+def Laws.tabs_caderno_titulo_vazio():
   {==}
 
-def Laws.tabs_compacto_desligado():
+def Laws.tabs_caderno_titulo_um():
   {==}
 
-def Laws.tabs_compacto_icone_ligado():
+def Laws.tabs_caderno_titulo_varios():
   {==}
 
-def Laws.tabs_compacto_icone_desligado():
+def Laws.tabs_caderno_titulo_attr():
   {==}
 
-def Laws.tabs_compacto_icone_attr():
+def Laws.tabs_caderno_aria_label():
+  {==}
+
+# ---------- menu Ajustes ----------
+
+def Laws.tabs_menu_ajustes():
+  {==}
+
+def Laws.tabs_menu_ajustes_comprimento():
+  {==}
+
+def Laws.tabs_atalhos_id():
+  {==}
+
+def Laws.tabs_atalhos_rotulo():
+  {==}
+
+def Laws.tabs_atalhos_clique():
+  {==}
+
+def Laws.tabs_atalhos_icone():
   {==}
 
 def Laws.tabs_ajuda_id():
   {==}
 
 def Laws.tabs_config_id():
-  {==}
-
-def Laws.tabs_tema_id():
   {==}
 
 def Laws.tabs_sobre_id():
@@ -283,14 +311,72 @@ def Laws.tabs_icone_xournal():
 def Laws.tabs_icone_ggb():
   {==}
 
-def Laws.tabs_icone_tema_auto():
+# ---------- seletor único (janela estreita) ----------
+
+def Laws.tabs_seletor_ordem():
   {==}
 
-def Laws.tabs_icone_tema_claro():
+def Laws.tabs_seletor_vazio():
   {==}
 
-def Laws.tabs_icone_tema_escuro():
+def Laws.tabs_seletor_comprimento(cs, activeId, ggb, dis):
+  match cs:
+    case Nil{}:
+      {==}
+    case Con{h, t}:
+      %Equal.sym(
+        Nat,
+        List.length(&2, V.ViewNode, T.courseMenuItems(t, activeId, ggb, dis)),
+        List.length(&2, T.Tab, t),
+        Laws.tabs_seletor_comprimento(t, activeId, ggb, dis)
+      ) : {1n+_ == 1n+List.length(&2, T.Tab, t) : Nat}
+      {==}
+
+def Laws.tabs_opcao_id():
   {==}
 
-def Laws.tabs_tema_rotulo_no():
+def Laws.tabs_opcao_data_id():
+  {==}
+
+def Laws.tabs_opcao_papel():
+  {==}
+
+def Laws.tabs_opcao_clique():
+  {==}
+
+def Laws.tabs_opcao_rotulo():
+  {==}
+
+def Laws.tabs_opcao_ativa_icone():
+  {==}
+
+def Laws.tabs_opcao_inativa_sem_icone():
+  {==}
+
+def Laws.tabs_opcao_ggb_sem_icone():
+  {==}
+
+def Laws.tabs_opcao_livre():
+  {==}
+
+def Laws.tabs_opcao_desabilitada():
+  {==}
+
+def Laws.tabs_atual_livre_na_resposta():
+  {==}
+
+def Laws.tabs_at_livre():
+  {==}
+
+def Laws.tabs_at_sem_atual():
+  {==}
+
+def Laws.tabs_travada_so_outras(locked):
+  match locked:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def Laws.tabs_seletor_atual_livre():
   {==}

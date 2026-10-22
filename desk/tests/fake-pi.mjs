@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import {zenModelsFor,launchModelFrom,recordLaunch} from './fake-pi-opencode.mjs';
+import {bigCatalog} from './fake-pi-catalog.mjs';
 
 // Fake do Pi para os smokes. Modos de caos via FAKE_PI_CHAOS (combináveis por vírgula;
 // cada modo dispara UMA vez por sessão, mesmo depois de o fake renascer):
@@ -18,6 +20,13 @@ if(CHAOS.includes('rpc-timeout'))console.error(`[fake-pi] rpc-timeout delay: ${T
 const bootAt=Date.now();
 
 const args=process.argv.slice(2);const session=args[args.indexOf('--session')+1];
+/* O que o Pi recebeu em `--append-system-prompt`, lido do arquivo no momento da
+   subida: prova o prompt ENVIADO, não só o que o main escreveu (#41). */
+const PROMPT_LOG=process.env.FAKE_PI_PROMPT_LOG||'';
+if(PROMPT_LOG){
+ const promptFile=args[args.indexOf('--append-system-prompt')+1];
+ try{fs.writeFileSync(PROMPT_LOG,fs.readFileSync(promptFile,'utf8'));}catch(error){fs.writeFileSync(PROMPT_LOG,`ERRO ${error.message}`);}
+}
 const chaosMark=session?`${session}-chaos-feitos.json`:'';
 function readChaos(){try{return JSON.parse(fs.readFileSync(chaosMark,'utf8'));}catch{return {};}}
 function chaosWas(key){return !!readChaos()[key];}
@@ -82,7 +91,25 @@ function queuePrompt(e){
  },steer?80:QUEUE_HOLD);
 }
 
-const model={provider:'test',id:'offline',name:'Pi de teste',input:['text','image']};
+/* FAKE_PI_TEXT_ONLY=1: modelo sem imagem (o aviso de anexo); FAKE_PI_SECOND_MODEL=1:
+   segundo modelo no catálogo, para trocar de modelo pelo indicador. O esforço
+   escolhido (`set_thinking_level`) e o modelo (`set_model`) ficam guardados e
+   voltam em `get_state`. */
+/* FAKE_PI_REASONING=1: os modelos anunciam raciocínio e a Mesa oferece os níveis de esforço
+   (sem isso o Pi real só devolve 'off' e o seletor fica com uma opção). */
+const REASONING=process.env.FAKE_PI_REASONING==='1';
+const MODELS=[{provider:'test',id:'offline',name:'Pi de teste',input:process.env.FAKE_PI_TEXT_ONLY==='1'?['text']:['text','image'],...(REASONING?{reasoning:true}:{})}];
+if(process.env.FAKE_PI_SECOND_MODEL==='1')MODELS.push({provider:'test',id:'offline-vision',name:'Pi com visão',input:['text','image'],...(REASONING?{reasoning:true}:{})});
+/* FAKE_PI_MANY_MODELS=1 (#59): catálogo de vários provedores, para o seletor agrupar, filtrar e guardar recentes.
+   Com um número maior que 1 (ajustes do seletor), o catálogo chega a esse total com modelos do OpenRouter
+   no formato real ("Fabricante: Modelo", `:free`), como o Pi do usuário com ~450 modelos. */
+const MANY=Number(process.env.FAKE_PI_MANY_MODELS||0);
+if(MANY>=1)MODELS.push(...[['xai','grok-4','Grok 4'],['xai','grok-4-fast','Grok 4 Fast'],['anthropic','sonnet-5','Sonnet 5'],['openai','gpt-5.5','GPT 5.5'],['meu-provedor','caseiro','Modelo caseiro']].map(([provider,id,name])=>({provider,id,name,input:['text','image'],...(REASONING?{reasoning:true}:{})})));
+if(MANY>1)MODELS.push(...bigCatalog(Math.max(0,MANY-MODELS.length),{reasoning:REASONING}));
+/* FAKE_PI_OPENCODE=1 (#44): provedor `opencode` com a chave no ambiente, como o Pi real. FAKE_PI_OPENCODE_LOG grava, sem a chave, que ela chegou. */
+MODELS.push(...zenModelsFor(process.env));
+recordLaunch(process.env.FAKE_PI_OPENCODE_LOG,process.env,args);
+let model=launchModelFrom(args,MODELS)||MODELS[0];let thinking='off';
 function reply(e,data){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:true,data})+'\n');}
 function refuse(e,error){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:false,error})+'\n');}
 function emit(event){process.stdout.write(JSON.stringify(event)+'\n');if(event.type==='agent_end'&&!event.willRetry)process.stdout.write(JSON.stringify({type:'agent_settled'})+'\n');}
@@ -122,6 +149,18 @@ function emitWorklog(){
  }
 }
 let pendingQuiz=null;let autoCompaction=true;
+/* Só o texto do aluno decide a resposta do fake: o `pi-prompt` real acrescenta, depois dele,
+   o bloco de menções e o `[Contexto da Mesa]`, que carregam caminhos (pastas como
+   `quizzical-…` na worktree) e não são fala do aluno. */
+const CONTEXT_MARKERS=['\n\n[Contexto da Mesa]','\n\n[Desk context]','\n\n[Ferramenta pedida na Mesa'];
+function studentText(message){
+ let text=String(message??'');
+ /* O chat lateral põe o contexto ANTES da fala (`sidechat.cjs` CONTEXT_START/CONTEXT_END). */
+ const sideEnd='\n[Fim do contexto do chat lateral]\n\n';
+ if(text.startsWith('[Contexto do chat lateral]')&&text.includes(sideEnd))text=text.slice(text.indexOf(sideEnd)+sideEnd.length);
+ const cuts=CONTEXT_MARKERS.map(marker=>text.indexOf(marker)).filter(at=>at>=0);
+ return cuts.length?text.slice(0,Math.min(...cuts)):text;
+}
 function quizSpec(text){
  if(/quiz multi/i.test(text))return {multi:true,question:'Quais afirmações são verdadeiras para \\(x^2\\)?',options:[{label:'A soma dá \\(2\\)',value:'sum'},{label:'O produto dá \\(1\\)',value:'product'},{label:'A derivada é \\(0\\)',value:'derivative'}],correct:['sum','product'],explanation:'Soma e produto conferem para \\(x^2 \\ge 0\\).'};
  return {multi:false,question:'Quanto vale \\(2+2\\)?',options:[{label:'\\(3\\)',value:'three'},{label:'\\(4\\)',value:'four'},{label:'\\(5\\)',value:'five'}],correct:'four',explanation:'Pela definição: \\(2+2=4\\).'};
@@ -187,15 +226,17 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
   const late=(CHAOS.includes('rpc-timeout')&&!chaosWas('rpc-timeout')&&Date.now()-bootAt>10000)||timeoutPending;
   if(late){
    timeoutPending=true;
-   setTimeout(()=>{timeoutPending=false;reply(e,{model,thinkingLevel:'off',isStreaming:stallUntil>Date.now(),pendingMessageCount:0,autoCompactionEnabled:autoCompaction});},TIMEOUT_DELAY);
+   setTimeout(()=>{timeoutPending=false;reply(e,{model,thinkingLevel:thinking,isStreaming:stallUntil>Date.now(),pendingMessageCount:0,autoCompactionEnabled:autoCompaction});},TIMEOUT_DELAY);
    return;
   }
-  reply(e,{model,thinkingLevel:'off',isStreaming:streaming||stallUntil>Date.now(),pendingMessageCount:0,autoCompactionEnabled:autoCompaction});
+  reply(e,{model,thinkingLevel:thinking,isStreaming:streaming||stallUntil>Date.now(),pendingMessageCount:0,autoCompactionEnabled:autoCompaction});
  }
  else if(e.type==='set_auto_compaction'){autoCompaction=!!e.enabled;reply(e,{});}
  else if(e.type==='get_session_stats'){const n=messages().length;const tokens=12000+n*5000;reply(e,{contextUsage:{tokens,contextWindow:200000,percent:Math.min(99,tokens/1000)}});}
  else if(e.type==='get_messages')reply(e,{messages:messages()});
- else if(e.type==='get_available_models')reply(e,{models:[model]});
+ else if(e.type==='get_available_models')reply(e,{models:MODELS});
+ else if(e.type==='set_model'){model=MODELS.find(m=>m.provider===e.provider&&m.id===e.modelId)||model;reply(e,{});}
+ else if(e.type==='set_thinking_level'){thinking=String(e.level||'off');reply(e,{});}
  else if(e.type==='compact')reply(e,{summary:'Resumo da conversa de teste.',firstKeptEntryId:'x',tokensBefore:12000+messages().length*180});
  else if(QUEUE_LOG&&e.type==='abort'){
   reply(e,{});
@@ -213,9 +254,9 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
   if(chaosArmed('stream-abort'))abortMidStream();
   else if(chaosArmed('desk-error'))deskErrorMidStream();
   else if(chaosArmed('stall'))stallMidStream();
-  else if(/quiz/i.test(e.message))emitQuiz(e.message);
-  else if(/pensar profundo/i.test(e.message))emitWorklog();
-  else if(/teorema/i.test(e.message))emitText('A identidade de Pitágoras: $a^2 + b^2 = c^2$ vale em triângulos retângulos.\n\n$$E = mc^2$$');
+  else if(/quiz/i.test(studentText(e.message)))emitQuiz(e.message);
+  else if(/pensar profundo/i.test(studentText(e.message)))emitWorklog();
+  else if(/teorema/i.test(studentText(e.message)))emitText('A identidade de Pitágoras: $a^2 + b^2 = c^2$ vale em triângulos retângulos.\n\n$$E = mc^2$$');
 }
  else if(e.id)reply(e,{});
 }});

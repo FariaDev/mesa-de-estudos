@@ -32,6 +32,8 @@ function scenario(name, {timeout = SCENARIO_TIMEOUT} = {}) {
     env: testEnv({DESK_TEST: '1'}),
     encoding: 'utf8',
     timeout,
+    /* Electron preso no fechamento ignora SIGTERM, e o spawnSync esperaria. */
+    killSignal: 'SIGKILL',
     maxBuffer: 64 * 1024 * 1024,
   });
   const output = `${run.stdout || ''}${run.stderr || ''}`;
@@ -61,6 +63,10 @@ function expectData(result, label) {
 }
 
 async function readPdf(file) {
+  return readPages(file).then((pages) => ({numPages: pages.length, text: pages.join('\n'), pages}));
+}
+
+async function readPages(file) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const bytes = new Uint8Array(fs.readFileSync(file));
   const loadingTask = pdfjs.getDocument({data: bytes, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true});
@@ -72,7 +78,7 @@ async function readPdf(file) {
     pages.push(content.items.map((item) => item.str).join(' '));
   }
   await loadingTask.destroy();
-  return {numPages: document.numPages, text: pages.join('\n')};
+  return pages;
 }
 
 test('payload inválido é recusado sem abrir janela (Node puro)', async () => {
@@ -163,4 +169,74 @@ test('falha de metadata desfaz o PDF criado por saveMaterial', {skip, timeout: S
   assert.equal(data.ok, true, JSON.stringify(data));
   assert.equal(data.code, 'CORRUPT');
   assert.deepEqual(data.leftovers, []);
+});
+
+/* ---------- modelos de PDF do tutor (ticket #39) ---------- */
+
+test('cada modelo gera o PDF com a estrutura própria e as medidas do Auto', {skip, timeout: SCENARIO_TIMEOUT * 2}, async (t) => {
+  const result = scenario('models', {timeout: SCENARIO_TIMEOUT * 2});
+  t.after(() => fs.rmSync(result.runtime, {recursive: true, force: true}));
+  const data = expectData(result, 'models');
+  assert.equal(data.ok, true, JSON.stringify(data.error || data));
+  const byName = Object.fromEntries(data.items.map((item) => [item.name, item]));
+  const pages = async (name) => (await readPages(byName[name].file)).map((page) => page.replace(/\s+/g, ' ').replace(/ ([).:])/g, '$1'));
+  for (const item of data.items) {
+    assert.equal(fs.readFileSync(item.file).subarray(0, 5).toString('latin1'), '%PDF-', item.name);
+    assert.ok(/^[0-9a-f]{64}$/.test(item.sha256), `${item.name}: hash do PDF`);
+  }
+
+  /* Lista: cabeçalho com o nome da lista, enunciados "01)", itens em colunas e
+     gabarito em página própria. Itens curtos → Auto escolhe 3; item longo → 1. */
+  const lista = await pages('lista');
+  assert.equal(byName.lista.model, 'lista');
+  assert.equal(byName.lista.columnsAuto, true);
+  assert.equal(byName.lista.columns, 3, 'itens curtos: Auto escolhe 3 colunas');
+  assert.equal(byName['lista-longa'].columns, 1, 'itens longos: Auto escolhe 1 coluna');
+  assert.equal(byName['lista-2col'].columns, 2, 'escolha explícita vale');
+  assert.equal(byName['lista-2col'].columnsAuto, false);
+  assert.match(lista[0], /01\)/);
+  assert.match(lista[0], /Matemática Básica/);
+  assert.doesNotMatch(lista[0], /Gabarito/, 'o gabarito não fica na folha dos enunciados');
+  assert.match(lista[lista.length - 1], /Gabarito/);
+  assert.ok(lista.length >= 2);
+
+  /* Apostila: definição, exemplo, equações numeradas (c.n) e capítulo no cabeçalho. */
+  const apostila = (await pages('apostila')).join(' ');
+  assert.match(apostila, /Definição 2\.1\./);
+  assert.match(apostila, /Exemplo 03:/);
+  assert.match(apostila, /\(2\.1\)/);
+  assert.match(apostila, /\(3\.1\)/);
+  assert.match(apostila, /Progressões/);
+
+  /* Resumo: ideia, regra, exemplo resolvido, erros comuns e revisão. */
+  const resumo = (await pages('resumo')).join(' ');
+  assert.match(resumo, /A ideia\./);
+  assert.match(resumo, /Regra\./);
+  assert.match(resumo, /Erros comuns/);
+  assert.match(resumo, /Para revisar/);
+
+  /* Simulado: ficha, valor à direita, gabarito em página separada. Com espaço
+     Grande cabem duas questões por folha. */
+  const simulado = await pages('simulado');
+  assert.match(simulado[0], /Nome/);
+  assert.match(simulado[0], /Questão 1/);
+  assert.match(simulado[simulado.length - 1], /Gabarito/);
+  const grande = await pages('simulado-grande');
+  assert.match(grande[0], /Questão 1/);
+  assert.match(grande[0], /Questão 2/);
+  assert.doesNotMatch(grande[0], /Questão 3/, 'duas questões por página com resposta Grande');
+  assert.match(grande[1], /Questão 3/);
+
+  /* Formulário: título em maiúsculas, linha de convenção, numeração contínua e,
+     com "caber numa folha", uma página só. */
+  const formulario = await pages('formulario');
+  assert.match(formulario[0], /FORMUL[ÁA]RIO DE C[ÁA]LCULO/i);
+  assert.match(formulario[0], /Em toda a folha/);
+  assert.match(formulario.join(' '), /\b13\b/);
+  assert.equal((await pages('formulario-umafolha')).length, 1);
+  assert.equal(byName['formulario-umafolha'].fit && byName['formulario-umafolha'].fit.fits, true);
+
+  /* Livre: o template de sempre. */
+  assert.equal(byName.livre.model, 'livre');
+  assert.deepEqual(byName.livre.options, {});
 });

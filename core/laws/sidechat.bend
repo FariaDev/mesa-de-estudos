@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../sidechat.bend as S
 
 # ---------------------------------------------------------------------------
@@ -98,3 +99,18 @@ law sidechat_contexto_novo_reenvia:
 
 law sidechat_contexto_nunca_entregue_reenvia:
   {S.contextChanged("", "chave-1") == True{} : Bool}
+
+# --- linha de escopo (ticket #19) ---
+
+law sidechat_escopo_um_material:
+  {S.scopeLine(["Limites.pdf p. 3"]) == M.msg1("scope.about", "refs", "Limites.pdf p. 3") : String}
+
+law sidechat_escopo_dois_materiais:
+  {S.scopeLine(["Limites.pdf p. 3", "Formulário.pdf p. 1"])
+    == M.msg1("scope.about", "refs", "Limites.pdf p. 3, Formulário.pdf p. 1") : String}
+
+law sidechat_escopo_sem_material:
+  {S.scopeLine([]) == M.msg("scope.none") : String}
+
+law sidechat_escopo_acao_unica:
+  {S.scopeRefresh() == M.msg("scope.refresh") : String}

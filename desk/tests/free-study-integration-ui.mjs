@@ -6,7 +6,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {FAKE_PI,launchDesk,tinyPdf,withArtifacts} from './helpers.mjs';
+import {FAKE_PI,launchDesk,tinyPdf,withArtifacts,moreClick,newSession,openSessionById,sessionLocked,enterFree,freeMenuClick} from './helpers.mjs';
+import {layoutStable} from './waits.mjs';
+import {ptText} from './pt-text.mjs';
 
 const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-free-integrated-ui-'));
 const piWrap=path.join(runtime,'pi-wrap.mjs');
@@ -24,7 +26,7 @@ async function facts(page){return page.evaluate(async()=>{const {S}=await import
 async function ready(page){await page.waitForFunction(()=>{const S=window.__mesaState;return !S.busy&&!S.connecting&&!S.switching;},undefined,{timeout:30000});}
 async function waitSession(page,session){await page.waitForFunction(s=>{const S=window.__mesaState;return S.currentSession===s&&S.connected&&!S.connecting&&!S.switching;},session,{timeout:30000});}
 async function connectIfNeeded(page){await page.evaluate(async()=>{const {connect}=await import('./src/state.mjs');await connect();});await ready(page);}
-async function boot(ctx){ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:piWrap}});const page=await ctx.app.firstWindow();page.on('dialog',d=>d.accept());await page.waitForSelector('.pdf-panel',{state:'attached'});await page.waitForFunction(()=>typeof window.desk.freePromote==='function');await page.evaluate(async()=>{window.__mesaState=(await import('./src/state.mjs')).S;});await page.waitForTimeout(350);if(await page.locator('#welcome-dialog').evaluate(el=>el.open))await page.keyboard.press('Escape');return page;}
+async function boot(ctx){ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:piWrap}});const page=await ctx.app.firstWindow();page.on('dialog',d=>d.accept());await page.waitForSelector('.pdf-panel',{state:'attached'});await page.waitForFunction(()=>typeof window.desk.freePromote==='function');await page.evaluate(async()=>{window.__mesaState=(await import('./src/state.mjs')).S;});await layoutStable(page,'.pdf-panel');await enterFree(page);return page;}
 
 await withArtifacts('free-study-integration-ui',async ctx=>{
  ctx.runtime=runtime;
@@ -53,22 +55,22 @@ await withArtifacts('free-study-integration-ui',async ctx=>{
  await page.waitForFunction(()=>{const S=window.__mesaState;return S.workspace?.materials?.length===1&&S.panels[0]?.doc&&!!document.querySelector('.pdf-page[data-rendered] canvas');},undefined,{timeout:30000});
  const imported=await facts(page),copy=imported.workspace.materials[0].path;
  assert.notEqual(copy,original,'seleção explícita gera cópia gerenciada');assert.equal(imported.path,copy,'importar abre o PDF automaticamente');assert.deepEqual(fs.readFileSync(copy),originalBytes);assert.deepEqual(fs.readFileSync(original),originalBytes);
- await page.locator('.pdf-panel .rotate').click();await page.waitForFunction(()=>{const S=window.__mesaState;return S.panels[0].rotation===90;});
+ await moreClick(page.locator('.pdf-panel').first(),'.rotate');await page.waitForFunction(()=>{const S=window.__mesaState;return S.panels[0].rotation===90;});
  await page.locator('#prompt').fill('rascunho A ainda nao enviado');
- await ready(page);await page.locator('#new-session').click();
+ await ready(page);await newSession(page);
  await page.waitForFunction(old=>{const S=window.__mesaState;return S.currentSession!==old&&S.connected&&!S.connecting;},sessionA,{timeout:30000});
  const b=await facts(page),sessionB=b.session;
  assert.equal(b.workspace.kind,'free');assert.equal(b.workspace.materials.length,0,'sessão B sem materiais de A');assert.deepEqual(b.library,[]);assert.equal(await page.locator('#prompt').inputValue(),'');assert.equal(await page.locator('#free-empty').isVisible(),true);assert.doesNotMatch(await page.locator('#messages').textContent(),/É o OD\./,'histórico de A não aparece em B');
- assert.match(await page.evaluate(p=>window.desk.readPDF(p).then(()=>'autorizado',e=>e.message),copy),/biblioteca|seletor/i,'PDF de A não é autorizado em B');
+ assert.match(await page.evaluate(p=>window.desk.readPDF(p).then(()=>'autorizado',e=>e.message),copy).then(ptText),/biblioteca|seletor/i,'PDF de A não é autorizado em B');
  await page.locator('#prompt').fill('rascunho B');
- await page.selectOption('#session-select',sessionA);await waitSession(page,sessionA);
+ await openSessionById(page,sessionA);await waitSession(page,sessionA);
  assert.equal(await page.locator('#prompt').inputValue(),'rascunho A ainda nao enviado');assert.equal((await facts(page)).rotation,90,'orientação isolada volta em A');assert.match(await page.locator('#messages').textContent(),/É o OD\./);
  // Restart por UI: o app volta à mesma sessão com biblioteca/layout/histórico.
  await page.evaluate(async()=>{const {S,layoutSnapshot}=await import('./src/state.mjs');clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());});
- await ctx.app.close();ctx.app=null;page=await boot(ctx);page.on('pageerror',e=>errors.push(e.message));await connectIfNeeded(page);
+ await ctx.app.close();ctx.app=null;page=await boot(ctx);page.on('pageerror',e=>errors.push(e.message));await connectIfNeeded(page);await enterFree(page);/* a primeira abertura é decidida depois do connect; sem isso a barra Livre pode sumir sob o clique */
  assert.equal((await facts(page)).session,sessionA);assert.equal((await facts(page)).workspace.title,'Sessao A');assert.equal((await facts(page)).rotation,90);assert.equal(await page.locator('#prompt').inputValue(),'rascunho A ainda nao enviado');assert.match(await page.locator('#messages').textContent(),/É o OD\./);
  // Geração REAL pela prévia editável e confirmação de teclado.
- await page.locator('#free-generate-pdf').click();await page.waitForSelector('#free-pdf-dialog[open]');
+ await freeMenuClick(page,'#free-generate-pdf');await page.waitForSelector('#free-pdf-dialog[open]');
  assert.equal(await page.locator('#free-pdf-content').inputValue(),'É o OD.','origem vem do texto cru do histórico');
  await page.locator('#free-pdf-title').fill('Resumo revisado');await page.locator('#free-pdf-content').fill('# Resumo revisado\n\nMaterial verificado pelo usuario.\n\n$$a^2+b^2=c^2$$');
  await page.waitForSelector('#free-pdf-preview .katex');await page.locator('#free-pdf-title').press('Enter');
@@ -78,7 +80,7 @@ await withArtifacts('free-study-integration-ui',async ctx=>{
  assert.match(generatedText,/Resumo revisado/);assert.match(generatedText,/Material verificado pelo usuario/,'PDF final contém o conteúdo revisado');
  assert.equal(await page.locator('#prompt').inputValue(),'rascunho A ainda nao enviado','gerar não perde rascunho do chat');
  // Cancelar promoção preserva dados; colisão preserva destino existente.
- await page.locator('#free-promote').click();await page.locator('#free-promote-name').fill('Materia revisada');await stubPicker(ctx.app,null);await page.locator('#free-promote-save').click();
+ await freeMenuClick(page,'#free-promote');await page.locator('#free-promote-name').fill('Materia revisada');await stubPicker(ctx.app,null);await page.locator('#free-promote-save').click();
  await page.waitForFunction(()=>/cancelada/.test(document.querySelector('#free-promote-error').textContent));assert.equal((await facts(page)).courseId,'mesa-free');assert.equal(fs.readdirSync(parent).length,1);
  await stubPicker(ctx.app,[parent]);await page.locator('#free-promote-save').click();
  await page.waitForFunction(()=>{const S=window.__mesaState;return S.workspace?.kind==='course'&&S.connected&&!S.connecting&&!document.querySelector('#free-promote-save').disabled;},undefined,{timeout:30000});
@@ -87,8 +89,8 @@ await withArtifacts('free-study-integration-ui',async ctx=>{
  const cfg=JSON.parse(fs.readFileSync(path.join(runtime,'config.json'),'utf8'));assert.equal(cfg.customUserValue,'preservar');assert.deepEqual(cfg.desk.customPreference,{keep:true});assert.equal(cfg.desk.panels[0].customTag,'preservar');assert.equal(cfg.courses.some(x=>x.id==='mesa-free'),false);
  const newCourse=cfg.courses.find(x=>x.id===courseId);assert.notEqual(newCourse.path,collision);assert.equal(fs.readFileSync(path.join(collision,'nao-substituir.txt'),'utf8'),'preservar');assert.ok(promoted.path.startsWith(newCourse.path+path.sep));
  assert.notEqual(launches().at(-1).cwd,freeCwd,'promoção não reutiliza processo Livre');assert.ok(launches().at(-1).cwd.includes(courseId),'reconexão usa contexto da matéria nova');assert.equal(launches().at(-1).args.includes('--no-context-files'),false,'promoção restaura o perfil normal da matéria');
- await page.locator('#course-tabs button[data-id="mesa-free"]').click();await waitSession(page,sessionB);assert.equal(await page.locator('#session-select').isEnabled(),true,'seletor destrava depois de trocar matéria');assert.equal((await facts(page)).workspace.kind,'free');assert.equal(await page.locator('#prompt').inputValue(),'rascunho B');assert.equal((await facts(page)).library.length,0);
- await page.selectOption('#session-select',sessionA);await waitSession(page,sessionA);assert.equal((await facts(page)).courseId,courseId,'recibo Livre redireciona para matéria promovida');assert.match(await page.locator('#messages').textContent(),/É o OD\./);assert.deepEqual(fs.readFileSync(original),originalBytes,'original continua intacto após todos os fluxos');
+ await page.locator('#course-tabs button[data-id="mesa-free"]').click();await waitSession(page,sessionB);assert.equal(await sessionLocked(page),false,'a lista de sessões destrava depois de trocar matéria');assert.equal((await facts(page)).workspace.kind,'free');assert.equal(await page.locator('#prompt').inputValue(),'rascunho B');assert.equal((await facts(page)).library.length,0);
+ await openSessionById(page,sessionA);await waitSession(page,sessionA);assert.equal((await facts(page)).courseId,courseId,'recibo Livre redireciona para matéria promovida');assert.match(await page.locator('#messages').textContent(),/É o OD\./);assert.deepEqual(fs.readFileSync(original),originalBytes,'original continua intacto após todos os fluxos');
  assert.deepEqual(errors,[],'nenhum erro de renderer no fluxo integrado');
 });
 console.log('free-study-integration-ui: PASS — UI/IPC reais, impressão PDF, isolamento A/B/restart, rotação, cancelamentos e promoção/reconexão; motor Pi simulado.');

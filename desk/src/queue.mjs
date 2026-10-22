@@ -1,19 +1,27 @@
-import {$,S,toast,refs,mayAdvanceQueue} from './state.mjs';
-import {send,resetAttachments,persistTray} from './chat.mjs';
+import {$,S,toast,refs,mayAdvanceQueue,connect} from './state.mjs';
+import {mentionIds,clearMentions} from './mentions.mjs';
+import {send,resetAttachments,persistTray,isComposerCommand} from './chat.mjs';
 import core from './generated/composerview.core.js';
 import pendingCore from './generated/pending.core.js';
 import {createQueueRetry} from './queue-retry.mjs';
 import {build,renderChildren,preserveFocus} from './view-host.mjs';
+import {t} from './ui-text.mjs';
+import {message} from './i18n.mjs';
+import {toNat} from './bend-nat.mjs';
 
-/* Fila de mensagens da Mesa — espelho da Conversa (`chat/src/features/queue.mjs`)
-   sobre o mesmo núcleo (`core/composerview.bend`), com uma diferença que aqui é
+/* Fila de mensagens da Mesa — nasceu como espelho da fila da Conversa (aposentada na #50)
+   e segue sobre o núcleo (`core/composerview.bend`), com uma diferença que aqui é
    o ponto: a fila SOBREVIVE ao fechamento do app (`desk/pending.cjs`, núcleo
    `core/pending.bend`), por conversa.
    ⏎ com o Pi livre não passa por aqui (o #prompt envia); ocupado, enfileira.
    ⌘/Ctrl+⏎ também não: o #prompt manda como steer (interrompe e envia agora).
    Parar a resposta NÃO descarta mais a fila: `held` a segura e a faixa oferece
    "Enviar agora"; quem descarta é o "Limpar" (com confirmação). Fila lida de
-   outra execução nasce `held` (recuperada) e nunca sai sozinha. */
+   outra execução nasce `held` (recuperada) e nunca sai sozinha.
+   Enviar com o tutor desligado (ticket #18) também passa por aqui: `submit`
+   guarda a mensagem na fila (que persiste) e chama o tutor; quando ele atende,
+   a fila sai uma vez, na ordem. A regra (guardar × enviar, o rótulo "Guardada",
+   quando sair) é do núcleo `core/pending.bend`; este arquivo mede os fatos. */
 const queue=[];
 let seq=0,flushing=false,owner='',sendingId='',editingId='',editDraft='',editJustStarted=false;
 /* `rendering` esconde da edição os blurs causados pela própria troca de nós
@@ -35,7 +43,7 @@ function holdQueue(reason){
 }
 const retries=createQueueRetry({
  retry:()=>flushQueue(),hold:holdQueue,
- waiting:(count,delay)=>toast(`Falha no envio. Nova tentativa ${count}/${Number(pendingCore.maxAutoRetries())} em ${delay/1000}s.`)
+ waiting:(count,delay)=>toast(message('queue.retry',{count,max:Number(pendingCore.maxAutoRetries()),seconds:delay/1000}))
 });
 
 const Nil={$:'Nil'};
@@ -52,9 +60,16 @@ function liveEditText(item){
  return input?input.value:editDraft;
 }
 
+/* Mensagem só com anexo (a captura do Conferir, sem texto) não pode virar uma
+   linha em branco na faixa: diz o que está guardado. Em edição vale o texto real. */
+function rowText(item){
+ if(item.id===editingId)return liveEditText(item);
+ return item.text||(item.payload.images.length?'Imagem anexada':'');
+}
+
 function rowOf(item){
  const sending=item.id===sendingId;
- return {$:'QueueRow',id:item.id,text:liveEditText(item),sending,enabled:!sending,editing:item.id===editingId};
+ return {$:'QueueRow',id:item.id,text:rowText(item),sending,enabled:!sending,editing:item.id===editingId};
 }
 
 function idFromEvent(e){
@@ -66,22 +81,22 @@ function idFromEvent(e){
 /* O que vai para o arquivo: texto, referências e anexos do item (o snapshot do
    composer no momento do enqueue), nunca o estado vivo do DOM. */
 function snapshot(){
- return queue.map(item=>({id:item.id,text:item.text,refs:item.payload.refs,images:item.payload.images}));
+ return queue.map(item=>({id:item.id,text:item.text,refs:item.payload.refs,images:item.payload.images,mentions:item.payload.mentions}));
 }
 
 /* Escrita imediata nas mudanças discretas (enfileirar, remover, enviar, limpar)
    e com atraso no texto em edição. A resposta mais nova é a única que avisa:
    os toasts do teto de disco não podem repetir a cada escrita. */
 function persist(immediate=false){
- if(S.currentSession&&owner&&S.currentSession!==owner)return; // a vez é da conversa de `owner`
+ if(S.currentSession&&owner&&S.currentSession!==owner)return; // a vez é da sessão de `owner`
  clearTimeout(saveTimer);
  const write=()=>{
   saveTimer=0;
   const mine=++saveSeq;
   window.desk.pendingSave({items:snapshot(),held}).then(out=>{
    if(mine!==saveSeq)return;
-   if(out?.trayDropped)toast('A bandeja ficou só nesta sessão: a fila guardada não coube inteira.');
-   if(out?.dropped)toast(`${out.dropped} mensagem(ns) do fim da fila ficaram só nesta sessão — envie antes de fechar.`);
+   if(out?.trayDropped)toast(message('queue.trayDropped'));
+   if(out?.dropped)toast(message('queue.dropped',{count:out.dropped}));
   }).catch(e=>toast(e.message));
  };
  if(immediate)write();else saveTimer=setTimeout(write,400);
@@ -119,7 +134,7 @@ const handlers={
     (followUp), motor sem steer inclusive. */
  sendNow(){
   if(!queue.length)return;
-  if(S.busy){toast(`${S.agentLabel} está respondendo — pare ou espere para enviar a fila.`);return;}
+  if(S.busy){toast(message('queue.busyNow'));return;}
   retries.reset();
   held=false;
   recovered=false;
@@ -134,8 +149,8 @@ const handlers={
  /* A única ação que descarta — separada do Parar. */
  clear(){
   if(!queue.length)return;
-  if(!confirm('Limpar a fila? As mensagens pendentes serão descartadas.'))return;
-  dropQueue('Fila limpa.');
+  if(!confirm(t('queue.clearConfirm')))return;
+  dropQueue(message('queue.cleared'));
  }
 };
 
@@ -155,7 +170,7 @@ function dropQueue(reason){
  if(reason)toast(reason);
 }
 
-/* Saída animada (~140ms via .closing, CSS); o timeout garante a remoção mesmo
+/* Saída animada (--t-fast via .closing, src/motion.css); o timeout garante a remoção mesmo
    sem CSS. Reaproveitar a faixa durante a saída cancela o fechamento. */
 function closeQueueStrip(strip){
  if(!strip||strip.dataset.closing==='1')return;
@@ -170,8 +185,19 @@ function closeQueueStrip(strip){
    decide (com o Pi ocupado, ele explica em vez de enviar). */
 function canSendNow(){return held&&queue.length>0;}
 
+/* O rótulo da faixa: com o tutor sem atender ela diz "Guardada. Vai quando ele
+   atender."; recuperada continua dizendo de onde veio (decisão do núcleo). */
+let shownLabel='';
+function currentLabel(many){
+ const count=String(queue.length);
+ const plain=core.queueLabel(recovered,many,count);
+ return pendingCore.stripLabel(recovered,S.link?.state!=='online',many,count,plain);
+}
+
 function renderQueue(){
- const card=$('#composer');
+ /* A faixa mora dentro da caixa de mensagem (ticket #15): é a primeira coisa
+    da caixa, acima dos anexos e do campo. */
+ const card=$('#composer-box');
  if(!card)return;
  const current=card.querySelector('.queue-strip');
  if(!queue.length){
@@ -182,7 +208,8 @@ function renderQueue(){
  if(current&&current.dataset.closing==='1'){delete current.dataset.closing;current.classList.remove('closing');}
  if(editingId&&!queue.some(item=>item.id===editingId)){editingId='';editDraft='';}
  const many=queue.length>1;
- const tree=core.queueStripView(false,core.queueLabel(recovered,many,String(queue.length)),listOf(queue.map(rowOf)),canSendNow(),true);
+ shownLabel=currentLabel(many);
+ const tree=core.queueStripView(false,shownLabel,listOf(queue.map(rowOf)),canSendNow(),true);
  let strip=current;
  if(!strip){
   strip=build(tree,handlers);
@@ -239,7 +266,8 @@ function enqueue(text){
     o composer esvazia: o payload desta mensagem não pode vazar para as próximas
     nem ser capturado pelo envio anterior (que ainda não voltou). A bandeja
     esvaziada também vai para o disco — senão o anexo ficaria nos dois lugares. */
- queue.push({id:`fila-${Date.now()}-${seq}`,text,payload:{images:S.attachments.slice(),refs:refs()}});
+ queue.push({id:`fila-${Date.now()}-${seq}`,text,payload:{images:S.attachments.slice(),refs:refs(),mentions:mentionIds()}});
+ clearMentions();
  resetAttachments();
  persistTray();
  renderQueue();
@@ -283,10 +311,10 @@ async function flushQueue({force=false}={}){
  sendingId=item.id;
  if(editingId===item.id)editingId='';
  renderQueue();
- let posted=false,retryable=false;
+ let posted,retryable=false;
  const generationOwner=owner;
  try{
-  posted=await send(item.text,item.payload.images,{refs:item.payload.refs,onFailure:safe=>{retryable=safe;}})===true;
+  posted=await send(item.text,item.payload.images,{refs:item.payload.refs,mentions:item.payload.mentions||[],onFailure:safe=>{retryable=safe;}})===true;
  }finally{
   sendingId='';
   flushing=false;
@@ -317,6 +345,25 @@ export function enqueueFromComposer(){
  return true;
 }
 
+/* ⏎/Enviar/⌘⏎ no composer com o Pi livre. Tutor ligado: vai direto, como
+   sempre. Tutor desligado, ligando ou sem resposta: a mensagem é GUARDADA na
+   fila (texto, referências e anexos do momento; vai para o disco na hora) e o
+   tutor é chamado sem outro clique — quando ele atende, o `desk-tutor-link`
+   abaixo solta a fila, uma por vez e na ordem. Cancelar ou não ser atendido
+   não apaga nada: a mensagem espera a próxima chamada. */
+export function submit(value,options={}){
+ const text=String(value??'').trim();
+ if(options.release!==false)release();
+ const keep=pendingCore.keptWhileOff(!!S.connected,!!S.busy,isComposerCommand(text),text,toNat(S.attachments.length));
+ if(!keep)return send(value,undefined,options.steer===true?{steer:true}:{});
+ enqueue(text);
+ const el=$('#prompt');
+ if(el){el.value='';el.dispatchEvent(new Event('input'));}
+ /* Troca de matéria/sessão em curso: ela mesma chama o tutor no fim. */
+ if(!S.switching)connect().catch(()=>{});
+ return true;
+}
+
 /* O usuário voltou ao comando (⏎/Enviar/⌘⏎ no composer): a fila segurada pode
    voltar ao fluxo normal. Chamado pelo `main.mjs`. */
 export function release(){
@@ -343,7 +390,7 @@ export function adopt(data){
  sendingId='';editingId='';editDraft='';editJustStarted=false;
  for(const raw of items){
   const text=typeof raw?.text==='string'?raw.text:'';
-  const payload={images:Array.isArray(raw?.images)?raw.images:[],refs:Array.isArray(raw?.refs)?raw.refs:[]};
+  const payload={images:Array.isArray(raw?.images)?raw.images:[],refs:Array.isArray(raw?.refs)?raw.refs:[],mentions:Array.isArray(raw?.mentions)?raw.mentions.filter(id=>typeof id==='string'):[]};
   if(!text.trim()&&!payload.images.length)continue;
   seq++;
   queue.push({id:typeof raw?.id==='string'&&raw.id?raw.id:`fila-${Date.now()}-${seq}`,text,payload});
@@ -351,7 +398,7 @@ export function adopt(data){
  recovered=!data.live&&queue.length>0;
  held=pendingCore.heldOnLoad(!!data.held,recovered);
  renderQueue();
- if(recovered)toast(queue.length===1?'1 mensagem pendente foi recuperada — envie ou limpe.':`${queue.length} mensagens pendentes foram recuperadas — envie ou limpe.`);
+ if(recovered)toast(message('queue.restored',{count:queue.length}));
 }
 
 export function init(){
@@ -363,10 +410,33 @@ export function init(){
  document.addEventListener('pointerdown',e=>{removeIntent=!!e.target?.closest?.('.queue-item button');},true);
  document.addEventListener('pointerup',()=>{removeIntent=false;},true);
  window.addEventListener('desk-idle',()=>flushQueue());
- window.addEventListener('desk-failed',()=>{if(!flushing)holdQueue(`O ${S.agentLabel} falhou — a fila ficou guardada.`);});
+ /* O tutor passou a atender (chamada nova, "Chamar de novo", abertura): a fila
+    guardada sai. Só na virada para "ligado" — a checagem de saúde repete o
+    estado a cada rodada e não pode soltar a fila. O adiamento deixa o
+    `connect()` terminar de carregar o histórico antes do primeiro envio. A fila
+    recuperada de outra execução segue segurada (`held`): nada sai sozinho. A fila
+    vetada por incerteza/cancelamento é segurada (`holdAfterAnswer`). */
+ let linkOnline=false;
+ window.addEventListener('desk-tutor-link',()=>{
+  const now=S.link?.state==='online';
+  const answered=pendingCore.tutorAnswered(linkOnline,now);
+  linkOnline=now;
+  if(queue.length&&currentLabel(queue.length>1)!==shownLabel)renderQueue();
+  if(!answered)return;
+  setTimeout(()=>{
+   /* Vetada por incerteza ou cancelamento (nada disso passa sozinho): segura e
+      oferece "Enviar agora" em vez de deixar a mensagem parada sem saída. */
+   if(queue.length&&!held&&!flushing&&pendingCore.holdAfterAnswer(!!S.busy,!!S.dialogPending,!!S.uncertain,!!S.turnCancelled)){
+    holdQueue(message('queue.heldUncertain'));
+    return;
+   }
+   flushQueue();
+  },0);
+ });
+ window.addEventListener('desk-failed',()=>{if(!flushing)holdQueue(message('queue.heldFailed'));});
  /* Cancelamento que NÃO veio do usuário (ex.: o motor encerrou o turno): a
     fila fica segurada, sem drenar no próximo evento por acidente. */
- window.addEventListener('desk-held',event=>{if(!flushing)holdQueue(event?.detail?.message||'A fila ficou guardada.');});
+ window.addEventListener('desk-held',event=>{if(!flushing)holdQueue(event?.detail?.message||message('queue.heldDefault'));});
  /* Parar interrompe a resposta: a fila fica, segurada, e a faixa passa a
     oferecer "Enviar agora" (o aviso diz isso — antes, Parar descartava). */
  window.addEventListener('desk-stop',()=>{
@@ -375,7 +445,7 @@ export function init(){
   held=true;
   renderQueue();
   persist(true);
-  toast('Resposta interrompida — a fila ficou segurada.');
+  toast(message('queue.heldInterrupted'));
  });
  /* Fechar a janela não pode perder o que ainda está no atraso da edição. */
  window.addEventListener('beforeunload',()=>{retries.reset();if(saveTimer)persist(true);});

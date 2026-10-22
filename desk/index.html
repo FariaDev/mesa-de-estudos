@@ -3,492 +3,853 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' file:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' file:; frame-src mesa-activity:;">
   <title>Mesa de Estudos</title>
   <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="src/desk-areas.css">
+  <link rel="stylesheet" href="src/study-tools.css">
+  <link rel="stylesheet" href="src/pdf-reader-qol.css">
+  <link rel="stylesheet" href="src/mesa-qol.css">
+  <link rel="stylesheet" href="src/undo-notice.css">
+  <link rel="stylesheet" href="src/materials/pdf-template.css" data-material-template="1">
+  <link rel="stylesheet" href="src/materials/pdf-models.css" data-material-model="pdf-models">
+  <link rel="stylesheet" href="src/materials/pdf-model-lista.css" data-material-model="pdf-model-lista">
+  <link rel="stylesheet" href="src/materials/pdf-model-apostila.css" data-material-model="pdf-model-apostila">
+  <link rel="stylesheet" href="src/materials/pdf-model-resumo.css" data-material-model="pdf-model-resumo">
+  <link rel="stylesheet" href="src/materials/pdf-model-simulado.css" data-material-model="pdf-model-simulado">
+  <link rel="stylesheet" href="src/materials/pdf-model-formulario.css" data-material-model="pdf-model-formulario">
+  <link rel="stylesheet" href="src/activity.css">
 </head>
 <body>
+<!-- Primeira abertura em tela cheia (#64, docs/design/setup-guia-r1/Setup-passos.dc.html):
+     um passo por vez, a mascote grande à esquerda e o cartão com a trilha à
+     direita. Só aparece com `body[data-first-run]` (src/first-run.mjs); o
+     resto da Mesa fica `inert` atrás. Marcação: src/setup-markup.mjs (o teto de
+     linhas deste arquivo só cai); passos e textos: src/setup-flow.mjs. -->
+<section id="setup" class="setup" aria-label="Primeira abertura" data-i18n-attr="aria-label=setup.aria"></section>
 <header>
   <div class="brand">
-    <img class="brand-icon" src="assets/mesa.svg" alt="">
+    <img class="brand-icon" src="assets/app-icon/mesa-blue.svg" alt="">
     <strong>Mesa de Estudos</strong>
   </div>
-  <div class="header-actions">
-    <button type="button" id="update-notice" hidden aria-live="polite" title="Ver atualização e o que mudou"></button>
-    <div id="course-tabs" role="tablist" aria-label="Matérias"></div>
-    <button type="button" id="review-tab" title="Abrir o caderno de revisão" aria-label="Abrir o caderno de revisão">Caderno <span id="review-count">0</span></button>
-    <button type="button" id="new-tab" title="Nova matéria (abre as Configurações)" aria-label="Nova matéria (abre as Configurações)">+</button>
-    <div class="nav-menu" id="study-menu">
-      <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="study-pop">Estudar</button>
-      <div class="nav-pop" id="study-pop" role="menu">
-        <button type="button" id="reference-toggle" role="menuitem" aria-pressed="true">Formulário</button>
-        <button type="button" id="xournal" role="menuitem">Xournal++</button>
-      </div>
+  <div class="header-nav">
+    <div class="nav-menu" id="course-menu">
+      <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="course-pop" title="Trocar de matéria" data-i18n-attr="title=chrome.courseSwitch"><span id="course-menu-label"></span></button>
+      <div class="nav-pop" id="course-pop" role="menu"></div>
     </div>
-    <div class="nav-menu" id="mesa-menu">
-      <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="mesa-pop">Mesa</button>
-      <div class="nav-pop" id="mesa-pop" role="menu">
-        <button type="button" id="help" role="menuitem">Como usar</button>
-        <button type="button" id="settings" role="menuitem">Configurações</button>
-        <button type="button" id="theme-cycle" role="menuitem">Tema: auto</button>
-        <button type="button" id="about" role="menuitem">Sobre</button>
-      </div>
+    <div id="course-tabs" role="tablist" aria-label="Matérias" data-i18n-attr="aria-label=chrome.courses"></div>
+  </div>
+  <div class="header-actions">
+    <button type="button" id="update-notice" hidden aria-live="polite" title="Ver atualização e o que mudou" data-i18n-attr="title=chrome.update.title"></button>
+    <div class="nav-menu" id="study-menu">
+      <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="study-pop" data-i18n="chrome.study">Estudar</button>
+      <div class="nav-pop" id="study-pop" role="menu"></div>
+    </div>
+    <button type="button" id="palette-field" aria-haspopup="dialog" title="Buscar uma ação pelo nome" aria-label="Buscar ações" data-i18n-attr="title=chrome.palette.title;aria-label=chrome.palette.aria"><span class="palette-field-text" data-i18n="chrome.palette.text">Buscar…</span><kbd id="palette-field-kbd">⌘K</kbd></button>
+    <div class="nav-menu" id="settings-menu">
+      <button type="button" class="nav-trigger" id="settings-trigger" aria-haspopup="true" aria-expanded="false" aria-controls="settings-pop" aria-label="Ajustes" title="Ajustes" data-i18n-attr="aria-label=chrome.settings;title=chrome.settings"></button>
+      <div class="nav-pop" id="settings-pop" role="menu"></div>
     </div>
   </div>
 </header>
 <main>
-  <section id="references" aria-label="Referências de estudo">
+  <section id="references" aria-label="Referências de estudo" data-i18n-attr="aria-label=layout.referencesAria">
     <div id="ggb-bar" hidden>
       <strong>GeoGebra</strong>
-      <button type="button" id="ggb-shot" title="Mandar um print do applet para o chat">Print no chat</button>
-      <small>O applet é o da web; o Pi pode lê-lo e comandá-lo pela ferramenta geogebra.</small>
+      <button type="button" id="ggb-shot" title="Mandar um print do applet para o tutor" data-i18n="ggb.shot.label" data-i18n-attr="title=ggb.shot.title">Print para o tutor</button>
+      <button type="button" id="ggb-back" class="ggb-back" hidden></button>
+      <small id="ggb-board-note" class="ggb-board-note" role="status" aria-live="polite" hidden></small>
+      <small data-i18n="ggb.bar.note">O tutor pode ler e comandar o applet pela ferramenta geogebra.</small>
     </div>
     <div id="review-bar" hidden></div>
-    <div id="review-view" hidden>
-      <div id="review-list" aria-label="Itens guardados para revisar"></div>
-    </div>
+    <div id="review-view" hidden></div>
     <!-- Sessão livre (aba Livre, src/free-study.mjs): cabeçalho da sessão e o
          vazio orientado. O módulo mostra a barra e a área só com o workspace
          `mesa-free`; na matéria normal tudo isto fica oculto. -->
     <div id="free-bar" hidden>
-      <strong>Livre</strong>
-      <label class="free-field" for="free-title">Título
-        <input id="free-title" type="text" maxlength="120" autocomplete="off" placeholder="Sessão livre">
+      <strong data-i18n="free.tab">Livre</strong>
+      <label class="free-field" for="free-title"><span class="free-field-label" data-i18n="free.field.title">Título</span>
+        <input id="free-title" type="text" maxlength="120" autocomplete="off" placeholder="Sessão livre" title="Título da sessão" data-i18n-attr="placeholder=free.title.placeholder;title=free.title.title">
       </label>
-      <label class="free-field" for="free-materials">Materiais
-        <select id="free-materials" aria-label="Materiais desta sessão">
-          <option value="">Nenhum material ainda</option>
+      <label class="free-field" for="free-materials"><span class="free-field-label" data-i18n="free.field.materials">Materiais</span>
+        <select id="free-materials" aria-label="Materiais desta sessão" title="Materiais desta sessão" data-i18n-attr="aria-label=free.materials.aria;title=free.materials.aria">
+          <option value="" data-i18n="free.materials.none">Nenhum material ainda</option>
         </select>
       </label>
       <span class="free-bar-spacer"></span>
-      <button type="button" id="free-open-pdf">Abrir PDF</button>
-      <button type="button" id="free-tutor-pdf" class="primary">PDF pelo tutor</button>
-      <button type="button" id="free-generate-pdf">Montar PDF</button>
-      <button type="button" id="free-promote">Criar matéria</button>
+      <button type="button" id="free-open-pdf" class="free-quiet" title="Abrir PDF: abre um PDF do computador nesta sessão" data-i18n="free.openPdf" data-i18n-attr="title=free.openPdf.title">Abrir PDF</button>
+      <button type="button" id="free-tutor-pdf" class="primary" title="PDF pelo tutor: ele escreve o conteúdo; você revisa a prévia e salva" data-i18n="study.tutorPdf" data-i18n-attr="title=free.tutorPdf.title">PDF pelo tutor</button>
+      <button type="button" id="free-more" class="icon-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="free-more-pop" title="Mais opções" aria-label="Mais opções da sessão" data-i18n-attr="title=free.more.title;aria-label=free.more.aria"></button>
+      <div id="free-more-pop" class="chat-pop free-more-pop" role="menu" aria-label="Mais opções da sessão" hidden data-i18n-attr="aria-label=free.more.aria">
+        <button type="button" id="free-generate-pdf" role="menuitem" title="Montar PDF: escreva ou revise o PDF por conta própria" data-i18n="free.generatePdf" data-i18n-attr="title=free.generatePdf.title">Montar PDF</button>
+        <button type="button" id="free-add-material" role="menuitem" title="Adicionar à matéria: copia um PDF desta sessão para uma matéria" data-i18n="free.addMaterial" data-i18n-attr="title=free.addMaterial.title">Adicionar à matéria…</button>
+        <button type="button" id="free-promote" role="menuitem" title="Criar matéria: leva a sessão e os PDFs para uma matéria nova" data-i18n="free.promote" data-i18n-attr="title=free.promote.title">Criar matéria</button>
+      </div>
     </div>
-    <p id="free-guide" hidden>Peça um PDF ao tutor: ele escreve o conteúdo; você revisa a prévia e salva. “Montar PDF” permite escrever ou revisar por conta própria.</p>
     <p id="tutor-material-status" role="status" hidden></p>
     <div id="free-empty">
-      <h2>O que você quer estudar?</h2>
-      <p class="free-empty-text">Comece sem configurar uma matéria. A conversa e os materiais ficam guardados nesta sessão.</p>
+      <h2 data-i18n="free.empty.title">O que você quer estudar?</h2>
+      <p class="free-empty-text" data-i18n="free.empty.lead">Comece sem configurar uma matéria. A sessão e os materiais ficam guardados na aba Livre.</p>
       <div class="free-start-actions">
-        <div><strong>Já tenho um material</strong><p>Abra um PDF para ler e perguntar ao tutor.</p><button type="button" id="free-empty-open">Abrir PDF</button></div>
-        <div><strong>Quero um material do tutor</strong><p>Peça um resumo, exemplos ou exercícios em PDF.</p><button type="button" id="free-empty-tutor" class="primary">PDF pelo tutor</button></div>
-        <div><strong>Quero organizar este estudo</strong><p>Leve a conversa e os PDFs para uma nova matéria.</p><button type="button" id="free-empty-promote">Criar matéria</button></div>
+        <div><strong data-i18n="free.empty.haveTitle">Já tenho um material</strong><p data-i18n="free.empty.haveBody">Abra um PDF para ler e perguntar ao tutor.</p><button type="button" id="free-empty-open" data-i18n="free.openPdf">Abrir PDF</button></div>
+        <div><strong data-i18n="free.empty.tutorTitle">Quero um material do tutor</strong><p data-i18n="free.empty.tutorBody">Peça um resumo, exemplos ou exercícios em PDF.</p><button type="button" id="free-empty-tutor" class="primary" data-i18n="study.tutorPdf">PDF pelo tutor</button></div>
+        <div><strong data-i18n="free.empty.promoteTitle">Quero organizar este estudo</strong><p data-i18n="free.empty.promoteBody">Leve a sessão e os PDFs para uma nova matéria.</p><button type="button" id="free-empty-promote" data-i18n="free.promote">Criar matéria</button></div>
       </div>
     </div>
-    <!-- Controle sempre visível da área de apoio: Formulário (2º leitor) e
-         Chat lateral, com recolher/reabrir. A barra fica ate em matéria com um
-         leitor só; o conteúdo (painel 2 ou chat) é montado pelo `support.mjs`. -->
-    <div id="support-bar" role="tablist" aria-label="Área de apoio">
-      <button type="button" id="support-tab-form" role="tab" aria-selected="true">Formulário</button>
-      <button type="button" id="support-tab-chat" role="tab" aria-selected="false">Chat lateral</button>
-      <span class="support-spacer"></span>
-      <button type="button" id="support-collapse" aria-expanded="true" title="Recolher a área de apoio" aria-label="Recolher a área de apoio"></button>
-    </div>
+    <!-- Área de apoio (segundo leitor e chat lateral): não há barra de abas.
+         O chat lateral abre e fecha pelo botão do cabeçalho do tutor e pelo
+         próprio cabeçalho dele; o Formulário, pelo menu Estudar e pela faixa
+         de reabrir que o `support.mjs` põe no lugar do segundo leitor
+         recolhido. -->
     <div id="pdf-grid"></div>
   </section>
-  <div id="divider" role="separator" aria-label="Redimensionar conversa" title="Arraste para redimensionar a conversa" tabindex="0"></div>
+  <div id="divider" role="separator" aria-label="Redimensionar o tutor" title="Arraste para redimensionar o tutor" data-i18n-attr="aria-label=layout.tutorResize;title=layout.tutorResizeTitle" tabindex="0"></div>
   <aside id="sidebar">
     <section id="chat">
-      <div class="chat-head">
-        <h2><span id="pi-label">Pi</span> <span id="status-dot" role="img"></span> <span id="ctx-meter" hidden data-no-tip title=""><span class="bar"><i></i></span><em></em></span><button type="button" id="auto-compact" title="Compactação automática quando o contexto enche" aria-pressed="false" hidden>auto</button></h2><span id="ctx-tip" hidden></span>
-        <div class="chat-head-actions">
-          <button id="conversations-toggle" type="button" class="icon-btn" title="Conversas da matéria" aria-label="Conversas da matéria" aria-haspopup="dialog" aria-expanded="false"></button>
-          <select id="session-select" aria-label="Conversa"></select>
-          <select id="new-session-engine" aria-label="Motor da próxima conversa" title="Motor da próxima conversa (a conversa atual não muda)" style="max-width:118px;height:28px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--bg);color:var(--fg);font-size:var(--fs-xs);padding:0 var(--space-2)">
-            <option value="pi">Pi</option>
-            <option value="claude">Claude Code (experimental)</option>
-          </select>
-          <button id="new-session" class="icon-btn" title="Nova conversa" aria-label="Nova conversa"></button>
-          <button id="export-chat" class="icon-btn" title="Exportar conversa em Markdown" aria-label="Exportar conversa em Markdown"></button>
-          <button id="chat-collapse" class="icon-btn" title="Recolher o chat (⌘\)" aria-label="Recolher o chat" aria-expanded="true"></button>
+      <!-- Cabeçalho do tutor (tickets #13, #14 e #42): uma linha de --bar. O
+           título da sessão abre a lista da matéria; os três botões à direita
+           abrem o chat lateral, o menu de sessão nova e o de mais opções. O
+           indicador de modelo e esforço mora na fileira da caixa de mensagem,
+           à esquerda do Enviar. Menus e texto do indicador são do Bend
+           (core/tutorheader.bend → src/tutor-header.mjs); #ctx-meter é nó vivo
+           do estado e entra no encaixe de Mais opções.
+           #auto-compact é o botão vivo que o menu espelha. -->
+      <div class="chat-top">
+        <div class="chat-head">
+          <button id="session-title" type="button" class="session-title" aria-haspopup="dialog" aria-expanded="false" aria-controls="conversations-pop" aria-label="Sessão: abrir a lista de sessões da matéria" title="Sessões da matéria" data-i18n-attr="aria-label=header.sessionOpenAria;title=header.sessionsTitle" data-session="" data-engine="pi"><span class="session-title-text">Sessão</span></button>
+          <div class="chat-head-actions">
+            <button id="sidechat-toggle" type="button" class="icon-btn" aria-pressed="false" title="Abrir o chat lateral" aria-label="Chat lateral" data-i18n-attr="title=sidechat.toggle.open;aria-label=sidechat.toggle.aria"></button>
+            <button id="new-session" type="button" class="icon-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="new-session-pop" title="Sessão nova" aria-label="Sessão nova" data-i18n-attr="title=header.newSession;aria-label=header.newSessionAria"></button>
+            <button id="chat-more" type="button" class="icon-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="chat-more-pop" title="Mais opções" aria-label="Mais opções do tutor" data-i18n-attr="title=header.moreTitle;aria-label=header.moreAria"></button>
+          </div>
+        </div>
+        <div id="new-session-pop" class="chat-pop" role="menu" aria-label="Sessão nova" data-i18n-attr="aria-label=header.newSessionAria" hidden></div>
+        <div id="chat-more-pop" class="chat-pop" role="menu" aria-label="Mais opções do tutor" data-i18n-attr="aria-label=header.moreAria" hidden></div>
+        <div id="conversations-pop" role="dialog" aria-label="Sessões da matéria" data-i18n-attr="aria-label=header.sessionsAria" hidden>
+          <div class="conv-head"><strong data-i18n="header.sessionsTitle">Sessões da matéria</strong><button type="button" id="conv-close" class="icon-btn" aria-label="Fechar" data-i18n-attr="aria-label=common.close">×</button></div>
+          <p class="fine" data-i18n="header.sessionsHint">Título, data, trecho e motor de cada sessão. A escolha mantém rascunho, fila e anexos.</p>
+          <div id="conv-list"></div>
+          <button type="button" id="conv-library" class="conv-library" data-i18n="header.sessionsLibrary">Buscar e organizar sessões…</button>
         </div>
       </div>
-      <div id="conversations-pop" role="dialog" aria-label="Conversas da matéria" hidden>
-        <div class="conv-head"><strong>Conversas da matéria</strong><button type="button" id="conv-close" class="icon-btn" aria-label="Fechar">×</button></div>
-        <p class="fine">Título, data, trecho e motor de cada conversa. A escolha mantém rascunho, fila e anexos.</p>
-        <div id="conv-list"></div>
-      </div>
-      <!-- O painel de ajustes (Modelo, Esforço e o `auto` da compactação) é
-           montado pelo Bend em src/settings-panel.mjs: esta linha e o
-           #auto-compact são MOVIDOS para dentro do corpo recolhível. -->
-      <div class="pi-settings" id="pi-settings">
-        <label id="model-field">Modelo
-          <select id="model-select" disabled><option>Conecte ao Pi</option></select>
-        </label>
-        <label id="effort-field">Esforço
-          <select id="thinking-select" disabled><option>—</option></select>
-        </label>
-      </div>
-      <div id="study-context">
-        <input id="exercise-title" type="text" maxlength="240" placeholder="Lista / questão ativa" aria-label="Lista ou questão ativa">
-        <button id="pick-xopp" type="button" title="Associar arquivo do Xournal++">Rascunho .xopp</button>
-      </div>
-      <div id="messages" aria-live="polite">
-        <div id="welcome">
-          <button id="connect">Conectar ao Pi</button>
-          <p>Sessão local desta matéria.</p>
-        </div>
-      </div>
+      <span id="ctx-meter" hidden data-no-tip title=""><span class="bar"><i></i></span><em></em></span><span id="ctx-tip" hidden></span>
+      <button type="button" id="auto-compact" title="Compactação automática quando o contexto enche" aria-pressed="false" hidden data-i18n-attr="title=compact.tip">auto</button>
+      <div id="messages" aria-live="polite"></div>
+      <!-- Estados do tutor (ticket #17): desligado, ligando e sem resposta. O
+           `tutor-state.mjs` desenha aqui a árvore do núcleo `tutorstate`; fora
+           desses estados (tutor ligado e sem registro) o bloco some. -->
+      <div id="tutor-state" class="tutor-state" data-state="none" hidden></div>
       <div id="activity" role="status"></div>
+      <!-- Caixa de mensagem única (ticket #15). Acima dela, a linha "Vai junto"
+           diz o que segue com a próxima mensagem e abre a edição do contexto de
+           estudo (lista/questão e rascunho .xopp) no `#context-pop`. A caixa
+           guarda, de cima para baixo: fila e anexos (a captura do Conferir
+           entra aqui, removível), o campo e a fileira de ações. Enviar vira
+           Parar durante a resposta (mesmo lugar, nunca os dois). O texto da
+           linha e o encaixe Enviar/Parar são do `core/composerbox.bend`. -->
       <div id="composer">
-        <div id="context-summary" aria-live="polite"></div>
-        <div id="attachments" hidden></div>
-        <textarea id="prompt" rows="3" placeholder="Pergunte ou peça uma dica…" aria-label="Mensagem para Pi"></textarea>
-        <div class="composer-actions">
-          <button id="attach" type="button" title="Anexar imagem (ou cole com ⌘V, ou arraste para o chat; ⌘⇧C anexa a captura do Xournal++)">Anexar</button>
-          <button id="include-refs" aria-pressed="true" title="Incluir referências das páginas abertas">Referências</button>
-          <button id="refs-state" type="button" title="Ver o que vai nas referências" aria-haspopup="dialog" aria-expanded="false">Sem referências</button>
-          <button id="check" title="Anexar a captura do Xournal++ à mensagem">Conferir Xournal++</button>
-          <button id="stop" hidden>Parar</button>
-          <button id="send" class="primary" aria-label="Enviar mensagem">Enviar</button>
+        <div id="context-pop" role="dialog" aria-label="Contexto de estudo" data-i18n-attr="aria-label=composer.studyAria" hidden>
+          <div id="study-context">
+            <input id="exercise-title" type="text" maxlength="240" placeholder="Lista / questão ativa" aria-label="Lista ou questão ativa" data-i18n-attr="placeholder=composer.exercisePlaceholder;aria-label=composer.exerciseAria">
+            <button id="pick-xopp" type="button" title="Associar arquivo do Xournal++" data-i18n-attr="title=composer.pickXoppTitle" data-i18n="composer.pickXoppDefault">Rascunho .xopp</button>
+          </div>
+          <p class="fine" id="context-pop-refs"></p>
+        </div>
+        <div id="check-note" role="group" aria-label="O Conferir não achou o programa" hidden data-i18n-attr="aria-label=check.noteAria"></div>
+        <div id="goes-along" class="goes-along">
+          <span id="context-summary" aria-live="polite"></span>
+          <button id="context-edit" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="context-pop" aria-label="Editar o contexto de estudo" title="Editar a lista ou questão ativa e o rascunho .xopp" data-i18n="composer.editLabel" data-i18n-attr="aria-label=composer.editAria;title=composer.editTitle">Editar</button>
+        </div>
+        <div id="composer-box" class="composer-box">
+          <div id="mention-chips" class="mention-chips" role="group" aria-label="Ferramentas pedidas" data-i18n-attr="aria-label=mention.chips" hidden></div>
+          <div id="attachments" hidden></div>
+          <textarea id="prompt" class="composer-field" rows="3" placeholder="Pergunte ou peça uma dica…" aria-label="Mensagem para o tutor" data-i18n-attr="placeholder=composer.hint.online;aria-label=composer.messageAria"></textarea>
+          <div class="composer-actions">
+            <button id="attach" type="button" aria-label="Anexar imagem" title="Anexar imagem (ou cole com ⌘V, ou arraste para a mensagem; ⌘⇧C anexa a captura do Xournal++)" data-i18n-attr="aria-label=composer.attachAria;title=composer.attachTitle">Anexar</button>
+            <!-- Foto do celular (#36): logo depois do Anexar (`data-follows`); só aparece com a ponte do host. -->
+            <button id="phone-photo" type="button" data-follows="attach" aria-haspopup="dialog" aria-expanded="false" aria-controls="phone-pop" aria-label="Foto do celular" data-i18n-attr="aria-label=phone.button;title=phone.buttonTitle" hidden></button>
+            <button id="include-refs" type="button" aria-pressed="true" aria-label="Referências" title="Referências: manda o caminho e a página dos materiais abertos junto com a mensagem" data-i18n-attr="aria-label=composer.refs;title=composer.refsTitle">Referências</button>
+            <button id="check" type="button" title="Anexar a captura do Xournal++ à mensagem">Conferir Xournal++</button>
+            <button id="model-indicator" type="button" class="model-indicator" aria-haspopup="dialog" aria-expanded="false" aria-controls="model-pop" aria-label="Tutor desligado. Modelo e esforço." data-state="off"><span id="status-dot" role="img"></span><span class="mi-text"><span class="mi-model">Tutor desligado</span></span></button>
+            <button id="stop" type="button" title="Parar a resposta. Você pode escrever e enviar enquanto ela chega: a mensagem entra na fila." data-i18n-attr="title=composer.stopTitle" hidden>Parar</button>
+            <button id="send" type="button" class="primary" aria-label="Enviar mensagem" data-i18n-attr="aria-label=composer.sendAria">Enviar</button>
+          </div>
+        </div>
+        <!-- Popover do indicador (abre para cima, ancorado nele): o aviso
+             (tutor desligado / motor fixo) é do núcleo; o seletor de modelo e a
+             faixa de esforço (`effort-strip.mjs`) são vivos. -->
+        <div id="model-pop" class="chat-pop model-pop" role="dialog" aria-label="Modelo e esforço" data-i18n-attr="aria-label=composer.modelPopAria" hidden>
+          <div class="pi-settings" id="pi-settings">
+            <div id="model-field" class="model-field"><div id="model-picker" class="model-picker" data-disabled="1">
+              <input id="model-search" type="text" role="combobox" aria-label="Modelo" data-i18n-attr="aria-label=composer.model" aria-expanded="true" aria-controls="model-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" readonly><p id="model-empty" class="model-empty" role="status" hidden></p><div id="model-list" class="model-list" role="listbox" aria-label="Modelo" data-i18n-attr="aria-label=composer.model"></div></div>
+            </div>
+            <div id="effort-field" class="effort-field"><span id="effort-label" data-i18n="composer.effort">Esforço</span><div id="effort-strip" class="effort-strip" role="radiogroup" aria-labelledby="effort-label" aria-disabled="true"></div></div>
+          </div>
+        </div>
+        <!-- Popover da Foto do celular (#36): abre para cima do botão. O
+             servidor da rede local só existe enquanto ele está aberto. -->
+        <div id="phone-pop" class="phone-pop" role="dialog" aria-label="Foto do celular" data-i18n-attr="aria-label=phone.button" hidden>
+          <p class="phone-lead" data-i18n="phone.lead">Aponte a câmera do celular para o código. O celular precisa estar na mesma rede que o computador.</p>
+          <div id="phone-qr" class="phone-qr"></div>
+          <p id="phone-address-row" class="phone-address"><span data-i18n="phone.addressLabel">Ou digite no navegador do celular:</span> <code id="phone-address"></code></p>
+          <label id="phone-network-field" class="phone-network" hidden><span data-i18n="phone.network">Rede</span>
+            <select id="phone-network"></select>
+          </label>
+          <p id="phone-state" class="phone-state" role="status" aria-live="polite"></p>
+          <p id="phone-hint" class="fine phone-hint" data-i18n="phone.isolated" hidden>O celular não abriu o site? Redes de campus (como eduroam) isolam os aparelhos. Ligue o hotspot do celular, conecte o computador nele e clique em Ligar de novo.</p>
+          <p class="fine" data-i18n="phone.firewall">Na primeira vez, o macOS ou o Windows pode perguntar se a Mesa pode receber conexões: é o celular chegando pela rede local. Permita só em rede privada.</p>
+          <div class="phone-actions">
+            <button id="phone-stop" type="button" data-i18n="phone.stop">Parar</button>
+            <button id="phone-restart" type="button" data-i18n="phone.restart" hidden>Ligar de novo</button>
+          </div>
         </div>
         <input id="attach-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
-        <small id="composer-hint">⏎ envia · ⇧⏎ quebra linha · ⌘⇧C anexa a captura do Xournal++ · ← → muda a página · rolagem contínua</small>
       </div>
     </section>
-    <div id="calc-divider" role="separator" aria-label="Redimensionar calculadora" title="Arraste para redimensionar a calculadora" tabindex="0"></div>
-    <section id="calculator">
-      <button id="calc-toggle" aria-expanded="true">
-        <span>Calculadora</span>
-        <span class="calc-mode">
-          <select id="angle" aria-label="Unidade angular">
-            <option value="rad">RAD</option>
-            <option value="deg">GRAUS</option>
-          </select>
-        </span>
-      </button>
-      <div id="calc-body">
+    <div id="calc-divider" role="separator" aria-label="Redimensionar calculadora" title="Arraste para redimensionar a calculadora" data-i18n-attr="aria-label=layout.calcResize;title=layout.calcResizeTitle" tabindex="0"></div>
+    <!-- Calculadora (ticket #16). Recolhida é UMA linha de --bar no pé da coluna:
+         ícone, campo, "=", resultado, unidade e o controle de expandir. O corpo
+         (ângulo, histórico e guia) só aparece expandida. A árvore vem do
+         `core/calcview.bend` e substitui este casco na primeira renderização;
+         aqui fica o que a página mostra antes dela. -->
+    <section id="calculator" class="collapsed">
+      <div id="calc-bar" role="group" aria-label="Calculadora" data-i18n-attr="aria-label=calc.title">
+        <span class="calc-icon" aria-hidden="true"></span>
         <form id="calc-form">
-          <input id="expression" autocomplete="off" placeholder="sqrt(16) + sin(pi/2)" aria-label="Expressão matemática">
-          <button type="submit" aria-label="Calcular">=</button>
+          <input id="expression" autocomplete="off" placeholder="sqrt(16) + sin(pi/2)" aria-label="Expressão matemática" data-i18n-attr="aria-label=calc.expressionAria">
+          <button type="submit" class="icon-btn" aria-label="Calcular" data-i18n-attr="aria-label=calc.equalsAria">=</button>
         </form>
-        <output id="result">0</output>
-        <div id="calc-history"></div>
-        <div class="calc-help">+ − * / ^ · sqrt · abs · sin · cos · tan · sec · csc · cot · asin · acos · atan · ln · log · exp · pi · e</div>
-        <details id="calc-guide">
-          <summary>Como usar</summary>
-          <p>Calculadora numérica local, sem IA. Digite e pressione Enter. Parênteses agrupam: <code>(2+3)*4</code>. Multiplicação: <code>2*pi</code>; potência: <code>2^3</code>; raiz: <code>sqrt(16)</code>.</p>
-          <p><code>sin(pi/2)</code> em RAD e <code>sin(90)</code> em GRAUS dão 1. <code>ln</code> é logaritmo natural; <code>log</code> é base 10. Aceita vírgula decimal. Clique no histórico para reutilizar uma expressão.</p>
-          <p><code>sec</code>, <code>csc</code> e <code>cot</code> são as recíprocas de cosseno, seno e tangente; <code>asin</code>, <code>acos</code> e <code>atan</code> devolvem o ângulo (em GRAUS, <code>asin(0.5)</code> dá 30). Nos ângulos exatos o resultado sai exato: <code>cos(90)</code> é 0 e <code>tan(90)</code> fica indefinido.</p>
-          <p>Não resolve equações nem deriva ou integra simbolicamente.</p>
-        </details>
+        <output id="result"></output>
+        <span class="calc-unit">RAD</span>
+        <button id="calc-toggle" type="button" class="icon-btn" aria-expanded="false" aria-controls="calc-body" aria-label="Expandir calculadora" title="Expandir calculadora" data-i18n-attr="aria-label=calc.expand;title=calc.expand"></button>
       </div>
+      <div id="calc-body" hidden></div>
     </section>
   </aside>
 </main>
-<div id="toast" role="status"></div>
-<div id="refs-pop" role="dialog" aria-label="Referências enviadas" hidden></div>
-<button id="chat-restore" type="button" hidden title="Mostrar o chat (⌘\)">‹ chat</button>
-<button id="quote-btn" type="button" hidden title="Citar a seleção na mensagem" aria-label="Citar a seleção na mensagem">Citar</button>
+<div id="toast" role="status" popover="manual"></div>
+<button id="chat-restore" type="button" hidden title="Mostrar o tutor (⌘\)" data-i18n="layout.tutorRestore" data-i18n-attr="title=layout.tutorRestoreTitle">‹ tutor</button>
+<button id="quote-btn" type="button" hidden title="Citar a seleção na mensagem" aria-label="Citar a seleção na mensagem" data-i18n="quote.button" data-i18n-attr="title=quote.title;aria-label=quote.title">Citar</button>
 <dialog id="pi-dialog">
   <form method="dialog">
     <h2 id="dialog-title"></h2>
     <p id="dialog-message"></p>
     <div id="dialog-fields"></div>
     <div class="dialog-actions">
-      <button value="cancel">Cancelar</button>
-      <button id="dialog-ok" value="ok" class="primary">Continuar</button>
+      <button value="cancel" data-i18n="common.cancel">Cancelar</button>
+      <button id="dialog-ok" value="ok" class="primary" data-i18n="dialog.continue">Continuar</button>
     </div>
   </form>
 </dialog>
 <dialog id="end-day-dialog">
   <form method="dialog" id="end-day-form">
-    <h2>Encerrar por hoje</h2>
-    <p class="help-lead">Salve na conversa um ponto curto para retomar depois.</p>
-    <label>Onde parei<textarea id="end-where" rows="2" required></textarea></label>
-    <label>Próximo passo<textarea id="end-next" rows="2" required></textarea></label>
-    <div class="dialog-actions"><button value="cancel" formnovalidate>Cancelar</button><button id="end-day-save" value="ok" class="primary">Salvar na conversa</button></div>
+    <h2 data-i18n="dialogs.endDay.title">Encerrar por hoje</h2>
+    <p class="help-lead" data-i18n="dialogs.endDay.lead">Salve na sessão um ponto curto para retomar depois.</p>
+    <label><span data-i18n="dialogs.endDay.where">Onde parei</span><textarea id="end-where" rows="2" required></textarea></label>
+    <label><span data-i18n="dialogs.endDay.next">Próximo passo</span><textarea id="end-next" rows="2" required></textarea></label>
+    <div class="dialog-actions"><button value="cancel" formnovalidate data-i18n="common.cancel">Cancelar</button><button id="end-day-save" value="ok" class="primary" data-i18n="dialogs.endDay.save">Salvar na sessão</button></div>
   </form>
 </dialog>
 <dialog id="review-dialog">
   <form method="dialog" id="review-form"></form>
 </dialog>
-
 <dialog id="bookmark-dialog">
   <form method="dialog" id="bookmark-form">
-    <h2>Guardar esta página</h2>
-    <p class="help-lead">Favorito do leitor.</p>
-    <label>Nome do favorito<input id="bookmark-name" type="text" value="" required></label>
-    <div class="dialog-actions"><button value="cancel" formnovalidate>Cancelar</button><button id="bookmark-save" value="ok" class="primary">Salvar</button></div>
+    <h2 data-i18n="pdf.nav.dialogTitle">Guardar esta página</h2>
+    <p class="help-lead" data-i18n="pdf.nav.hintStatic">Favorito do leitor.</p>
+    <label><span data-i18n="pdf.nav.nameLabel">Nome do favorito</span><input id="bookmark-name" type="text" value="" required></label>
+    <div class="dialog-actions"><button value="cancel" formnovalidate data-i18n="common.cancel">Cancelar</button><button id="bookmark-save" value="ok" class="primary" data-i18n="common.save">Salvar</button></div>
   </form>
 </dialog>
 <dialog id="image-dialog">
   <form method="dialog">
     <div class="help-head">
-      <h2 id="image-title">Imagem</h2>
-      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+      <h2 id="image-title" data-i18n="dialogs.image.fallback">Imagem</h2>
+      <button value="cancel" class="icon-btn dialog-close" aria-label="Fechar a imagem" data-i18n-attr="aria-label=dialogs.image.close">×</button>
     </div>
-    <div class="image-body"><img id="image-preview" alt="Visualização da imagem"></div>
+    <div class="image-body"><div class="image-frame"><img id="image-preview" alt="Visualização da imagem" data-i18n-attr="alt=dialogs.image.alt"></div></div>
     <div class="dialog-actions">
-      <button type="button" id="image-copy">Copiar</button>
-      <button type="button" id="image-open">Abrir no Preview</button>
-      <button value="cancel" class="primary">Fechar</button>
+      <button type="button" id="image-copy" data-i18n="common.copy">Copiar</button>
+      <button type="button" id="image-open" data-i18n="dialogs.image.openPreview">Abrir no Preview</button>
     </div>
   </form>
 </dialog>
-<dialog id="help-dialog">
-  <form method="dialog">
-    <div class="help-head">
-      <h2>Como usar</h2>
-      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
-    </div>
-    <div class="help-body">
-      <p class="help-lead">A Mesa é a tela de referências. A escrita continua no Xournal++. Coloque um app em cada monitor, ou os dois lado a lado.</p>
-      <h3>Estudar</h3>
-      <ol class="help-steps">
-        <li>Abra o enunciado e o formulário nos PDFs.</li>
-        <li>Resolva no Xournal++ com a Wacom.</li>
-        <li id="help-conferir-step">Pergunte ao Pi ou use <strong>Conferir Xournal++</strong>: a captura vira anexo e vai junto com a mensagem que você escrever.</li>
-        <li>Se o Pi precisar ver a página inteira, mande-a como imagem: botão de câmera no título do leitor de PDF.</li>
-        <li>Ajuste a resolução e confira de novo se precisar.</li>
-      </ol>
-      <h3>Atalhos</h3>
-      <table class="help-keys">
-        <tr data-key="send"><td><kbd>⏎</kbd></td><td>Enviar mensagem</td></tr>
-        <tr data-key="queue"><td><kbd>⏎</kbd></td><td>Com o Pi respondendo, enfileira a mensagem (a faixa <b>Na fila</b> abre acima do campo e a fila fica salva se você fechar a mesa)</td></tr>
-        <tr data-key="steer"><td><kbd>⌘</kbd><kbd>⏎</kbd></td><td>Interromper a resposta e enviar agora</td></tr>
-        <tr data-key="newline"><td><kbd>⇧</kbd><kbd>⏎</kbd></td><td>Quebrar linha dentro da mensagem</td></tr>
-        <tr data-key="check" id="help-check-row"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd></td><td>Anexar a captura do Xournal++</td></tr>
-        <tr data-key="ggb-check"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd></td><td>Conferir o applet GeoGebra</td></tr>
-        <tr><td><kbd>⌘</kbd><kbd>V</kbd></td><td>Colar uma imagem da área de transferência como anexo</td></tr>
-        <tr data-key="chat-toggle"><td><kbd>⌘</kbd><kbd>\</kbd></td><td>Recolher ou mostrar o chat</td></tr>
-        <tr data-key="pdf-find"><td><kbd>⌘</kbd><kbd>F</kbd></td><td>Buscar no PDF focado; <kbd>Esc</kbd> limpa</td></tr>
-        <tr data-key="invert"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>I</kbd></td><td>Inverter as cores da página (tema escuro)</td></tr>
-        <tr data-key="density"><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd></td><td>Modo compacto (aperta o espaçamento da coluna)</td></tr>
-        <tr data-key="stop"><td><kbd>Esc</kbd></td><td>Parar a resposta (a fila fica segurada — <b>Enviar agora</b> ou <b>Limpar</b> na faixa)</td></tr>
-        <tr data-key="page-nav"><td><kbd>←</kbd> <kbd>→</kbd></td><td>Página do PDF focado</td></tr>
-        <tr><td>Roda / trackpad</td><td>Rolagem contínua entre páginas</td></tr>
-        <tr><td><kbd>⌘</kbd> + roda / pinça</td><td>Zoom no PDF</td></tr>
-        <tr data-key="help"><td><kbd>⌘</kbd><kbd>/</kbd></td><td>Esta ajuda</td></tr>
-        <tr data-key="settings"><td><kbd>⌘</kbd><kbd>,</kbd></td><td>Configurações</td></tr>
-        <tr data-key="tab-number"><td><kbd>⌘</kbd><kbd>1</kbd>…<kbd>9</kbd></td><td>Ir para a aba</td></tr>
-        <tr data-key="new-course"><td><kbd>⌘</kbd><kbd>T</kbd></td><td>Nova matéria (Configurações)</td></tr>
-        <tr data-key="tab-cycle"><td><kbd>⌘</kbd><kbd>Tab</kbd></td><td>Próxima/anterior aba</td></tr>
-      </table>
-      <h3>Detalhes</h3>
-      <ul>
-        <li>A mesa conecta ao Pi sozinha. As matérias ficam em abas no topo; o seletor ao lado de <strong>＋</strong> reabre conversas da matéria, inclusive o exercício associado.</li>
-        <li><strong>Área de apoio</strong>: a barra acima dos leitores alterna <strong>Formulário</strong> e <strong>Chat lateral</strong> e recolhe/reabre a área sem perder documento, página ou rascunho. Mesmo com um leitor só, o chat lateral abre por essa barra.</li>
-        <li>O <strong>Chat lateral</strong> é uma conversa independente da principal: começa com um recorte recente do contexto (trechos da conversa principal, PDFs abertos e questão ativa) e tem histórico e rascunho próprios. <strong>Atualizar contexto do principal</strong> recopia o recorte atual; <strong>Levar ao chat principal</strong> insere a resposta no rascunho do principal sem enviar.</li>
-        <li><strong>Conversas da matéria</strong> (botão na cabeça do chat) lista título, data, trecho e motor; escolher por lá mantém rascunho, fila e anexos, como no seletor.</li>
-        <li>A etiqueta ao lado de <strong>Referências</strong> mostra o estado ("PDF e página incluídos" ou "Sem referências") e abre os detalhes dos caminhos e páginas. Referências enviam caminho e página; a <strong>câmera</strong> do leitor envia uma imagem da página.</li>
-        <li>No seletor <strong>Pi / Claude Code</strong> do topo da conversa você escolhe o motor da <strong>próxima</strong> conversa (Claude Code é experimental e usa o login feito no próprio Claude Code). A conversa atual continua no motor que a criou — cada conversa conserva o motor, sem conversão.</li>
-        <li id="help-study-li">Preencha <strong>Lista / questão ativa</strong> e associe o <code>.xopp</code> para manter o contexto da sessão.</li>
-        <li id="help-endday-li">No menu <strong>Estudar</strong>, <strong>Encerrar por hoje</strong> grava o registro local da matéria (onde você parou, o próximo passo, a questão, as páginas e o <code>.xopp</code>) e só depois avisa o Pi — sem Pi o registro fica igual. Na abertura seguinte o cartão <b>Continuar …</b> aparece acima do campo: <b>Retomar</b> restaura a questão, a página e o <code>.xopp</code> e pré-preenche a mensagem; <b>Dispensar</b> só apaga o registro.</li>
-        <li id="help-refs-li"><strong>Referências</strong> manda caminho e página, não o PDF inteiro.</li>
-        <li id="help-conferir-li"><strong>Conferir Xournal++</strong> anexa a captura da janela do Xournal++ na bandeja de anexos (uma imagem por captura) — nada é enviado até você escrever e enviar. No macOS o sistema pode pedir Gravação de Tela; no Windows a captura usa o PowerShell do próprio sistema.</li>
-        <li>A calculadora é local: não gasta tokens e não faz álgebra simbólica. Parênteses valem: <code>(2+3)*4</code>. Multiplicação explícita: <code>2*pi</code>.</li>
-        <li>Pastas, nomes de matérias e o caminho do Pi ficam em <strong>Mesa → Configurações</strong>.</li>
-        <li>Modelo, esforço e a compactação automática ficam no painel <strong>Ajustes</strong>, acima do campo: clique no título para recolher (a escolha é lembrada). O envio, o anexo e o Conferir Xournal++ continuam sempre à vista.</li>
-        <li>Gráficos e diagramas que o Pi gera aparecem no chat. Clique na imagem para ampliar ou abrir no Preview.</li>
-        <li>A busca do PDF varre todas as páginas, destaca cada ocorrência no texto e mostra um contador; clicar em <strong>Buscar</strong> de novo salta para a ocorrência seguinte.</li>
-        <li><strong>Exportar conversa</strong> (seta no topo) salva a conversa como Markdown, por padrão na pasta <code>Mesa de Estudos</code> do vault.</li>
-        <li>Passe o mouse sobre uma mensagem e clique em <strong>Copiar</strong> para levar o texto original para a área de transferência.</li>
-        <li><strong>Mesa → Tema</strong> alterna auto (segue o sistema), claro e escuro; a escolha fica guardada.</li>
-        <li>Quizzes aparecem como cartões no chat: clique na resposta ou marque várias e envie. A correção vem logo abaixo.</li>
-        <li>Digite <code>/compact</code> na mensagem para compactar o contexto da conversa (aceita instruções: <code>/compact foque na questão 7</code>). O medidor ao lado de Pi mostra quanto do contexto está em uso; passe o mouse para ver o consumido/total da conversa.</li>
-        <li>O botão <code>auto</code> no painel <strong>Ajustes</strong> liga e desliga a compactação automática do Pi: com ela ativa, o contexto é resumido sozinho quando enche.</li>
-        <li><strong>Modo compacto</strong> (menu <strong>Mesa</strong> ou <strong>⌘⇧D</strong>) aperta o espaçamento da coluna da conversa, do leitor e das Configurações — útil com a mesa ao lado do Xournal++ em tela menor. Não muda o tamanho da fonte.</li>
-        <li>A mesa tem GeoGebra embutido na aba GeoGebra; a ferramenta <code>geogebra</code> deixa o Pi comandar o applet e ler a construção quando a aba está aberta. Com a aba aberta, <strong>⌘⇧G</strong> manda um print do applet para o Pi conferir (o modelo precisa aceitar imagens), e a construção é lembrada por matéria quando você sai da aba.</li>
-        <li>Selecione um trecho da conversa ou do texto de um PDF e clique em <strong>Citar</strong> para perguntar sobre ele. Fórmulas entram no texto como LaTeX; trechos de PDF citam com o nome do arquivo e a página.</li>
-        <li><code>Limites.pdf, p. 3</code> nas respostas do Pi é clicável: abre o PDF naquela página (ou carrega o arquivo no leitor). O <strong>Voltar</strong> da cabeça do leitor desfaz o pulo, e o botão <strong>Navegar</strong> guarda <strong>favoritos nomeados</strong> e mostra o <strong>sumário</strong> do documento.</li>
-        <li>Em toda resposta do Pi, <strong>Guardar para revisar</strong> abre o caderno já preenchido (questão ativa, sua última mensagem, o trecho selecionado e a página aberta). O <strong>Caderno de revisão</strong> fica no menu <strong>Estudar</strong>, em aba; lá cada item pede um exercício <strong>semelhante</strong> ou <strong>tentar de novo</strong> (o pedido vai para o campo de mensagem), edita pelo título e remove com confirmação.</li>
-        <li>Anexe imagens pelo botão <strong>Anexar</strong>, colando (⌘V) ou arrastando para o chat. O modelo precisa aceitar imagens.</li>
-        <li>Blocos de código nas respostas vêm com realce de sintaxe e a etiqueta da linguagem; o botão <strong>cópia</strong> no canto leva só o código.</li>
-        <li>A seta no título de cada leitor <strong>minimiza o PDF</strong> para uma faixa e libera o espaço para o outro; clique de novo para restaurar.</li>
-        <li>No tema escuro, o botão de contraste na barra do leitor (ou <strong>⌘⇧I</strong>) inverte as cores das páginas do documento aberto; a escolha fica por arquivo.</li>
-        <li>Créditos e licença: <strong>Mesa → Sobre</strong>.</li>
-      </ul>
-      <p class="help-version" id="help-version"></p>
-      <p class="help-lead">Mudanças de código valem ao reabrir o app (ou <code>npm run install-app</code>).</p>
-    </div>
-    <div class="dialog-actions">
-      <button type="button" id="keys-customize">Personalizar atalhos…</button>
-      <button value="cancel" class="primary">Fechar</button>
+<dialog id="help-dialog" aria-labelledby="help-title">
+  <form method="dialog" class="guide">
+    <nav class="guide-side" aria-label="Seções do guia" data-i18n-attr="aria-label=guide.navAria">
+      <!-- #64: o trio ∫ Σ ∇ pequeno (a ∫ lê com resultados; o ∇ pensa sem
+           resultado), sem acenar nem cochilar: o guia abre no meio do estudo. -->
+      <div class="guide-head">
+        <div class="guide-mascote" id="guide-mascote"></div>
+        <div class="guide-head-text">
+          <h2 id="help-title" class="guide-title" data-i18n="guide.title">Guia da Mesa</h2>
+          <span class="guide-sub" data-i18n="firstrun.helpLabel">Como a Mesa funciona</span>
+        </div>
+      </div>
+      <label class="guide-search">
+        <span class="guide-sr" data-i18n="guide.search">Buscar no guia</span>
+        <span class="guide-search-icon" data-icon="search" aria-hidden="true"></span>
+        <input type="search" id="guide-search" placeholder="Buscar no guia" data-i18n-attr="placeholder=guide.search" autocomplete="off" spellcheck="false">
+      </label>
+      <div id="guide-nav" class="guide-nav"></div>
+      <div class="guide-side-foot">
+        <button type="button" id="keys-customize" class="guide-link" aria-haspopup="dialog" aria-controls="keys-dialog" data-i18n="guide.customizeKeys">Personalizar atalhos…</button>
+        <p class="guide-hint" data-i18n-html="guide.openHint">Abre com <kbd>⌘</kbd> <kbd>/</kbd> em qualquer lugar.</p>
+        <p class="help-version" id="help-version"></p>
+      </div>
+    </nav>
+    <div class="guide-main">
+      <div class="guide-bar">
+        <span id="guide-crumb" class="guide-crumb"></span>
+        <button value="cancel" class="icon-btn dialog-close" aria-label="Fechar o guia" data-i18n-attr="aria-label=guide.close">×</button>
+      </div>
+      <div class="guide-scroll" id="guide-scroll">
+        <div class="guide-page">
+          <div class="guide-intro">
+            <h3 id="guide-section-title" class="guide-section-title" tabindex="-1"></h3>
+            <p id="guide-lead" class="guide-lead"></p>
+          </div>
+
+          <section data-section="comecar" hidden>
+            <ol class="guide-steps">
+              <li class="guide-card" data-n="1" data-search>
+                <span class="guide-num">1</span>
+                <strong data-i18n="guide.comecar.s1.title">Abra o material</strong>
+                <span data-i18n="guide.comecar.s1.body">Enunciado e formulário nos leitores. Solte um PDF no leitor para abrir.</span>
+              </li>
+              <li class="guide-card" data-n="2" data-search>
+                <span class="guide-num">2</span>
+                <strong data-i18n="guide.comecar.s2.title">Resolva do seu jeito</strong>
+                <span data-i18n="guide.comecar.s2.body">No Xournal++, em outro programa de escrita ou no papel (a foto do celular leva a página). A Mesa não tem tinta.</span>
+              </li>
+              <li class="guide-card" data-n="3" data-search>
+                <span class="guide-num">3</span>
+                <strong data-i18n="guide.comecar.s3.title">Pergunte ou confira</strong>
+                <span><span data-i18n="guide.comecar.s3.body.a">Escreva ao tutor</span><span id="help-conferir-step" data-i18n-html="guide.comecar.s3.body.b"> ou use <strong>Conferir Xournal++</strong>: a captura vai junto com a mensagem</span>.</span>
+              </li>
+            </ol>
+            <div class="guide-topics">
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.comecar.t1.title">Onde está o quê</h4>
+                <p data-i18n-html="guide.comecar.t1.body">As matérias ficam em abas no topo. O menu <strong>Estudar</strong> abre o Caderno de revisão, as Estatísticas, as Anotações e a Busca; as sessões de cada matéria abrem pelo título da sessão, na cabeça do tutor.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.comecar.t2.title">O tutor chama sozinho</h4>
+                <p data-i18n-html="guide.comecar.t2.body">A Mesa conecta o tutor ao abrir e ao trocar de matéria. Se ele não responder, a coluna diz o motivo e oferece <strong>Chamar de novo</strong> e o caminho para os ajustes do programa do tutor.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.comecar.t3.title">Pastas, matérias e aparência</h4>
+                <p data-i18n-html="guide.comecar.t3.body">Pastas, nomes de matérias e o caminho do programa do tutor ficam em <strong>Configurações</strong>. O tema (automático, claro ou escuro), a cor de acento e o <strong>Modo compacto</strong> (<kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd>) estão na seção <strong>Aparência e avisos</strong>.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.comecar.t4.title">GeoGebra</h4>
+                <p data-i18n-html="guide.comecar.t4.body">A aba <strong>GeoGebra</strong> traz o applet embutido. Com ela aberta, o tutor pode comandar o applet e ler a construção, e <kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd> manda um print para ele conferir (o modelo precisa aceitar imagens). A construção é lembrada por matéria.</p>
+              </section>
+            </div>
+          </section>
+
+          <section data-section="tutor" hidden>
+            <div class="guide-topics">
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.tutor.t1.title">O que vai junto</h4>
+                <p><span data-i18n-html="guide.tutor.t1.body.a">A linha <strong>Vai junto</strong>, acima da caixa, diz o que segue com a próxima mensagem: a matéria, a questão ativa, o rascunho <code>.xopp</code> e os PDFs abertos com a página.</span><span id="help-study-li" data-i18n-html="guide.tutor.t1.body.b"> <strong>Editar</strong> troca a lista ou questão ativa e o rascunho.</span><span data-i18n-html="guide.tutor.t1.body.c"> O botão <strong>Referências</strong> liga e desliga os materiais</span><span id="help-refs-li" data-i18n-html="guide.tutor.t1.body.d"> — mandam caminho e página, não o PDF inteiro</span>.</p>
+              </section>
+              <section class="guide-topic" id="help-conferir-li" data-search>
+                <h4 data-i18n="guide.tutor.t2.title">Conferir Xournal++</h4>
+                <p data-i18n-html="guide.tutor.t2.body">Captura a janela do Xournal++ e põe na bandeja de anexos, uma imagem por captura. Nada sai até você escrever e enviar. Escreve em outro programa? Em <strong>Configurações → Pastas e programas</strong>, o campo <strong>Programa de escrita</strong> tem <strong>Escolher…</strong>, que lista as janelas abertas (a busca de comandos também leva até lá com <strong>Escolher outra janela…</strong>); a Mesa guarda o programa e o botão passa a se chamar por ele. No macOS o sistema pode pedir Gravação de Tela; no Windows a captura usa o PowerShell do próprio sistema.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.tutor.t3.title">Escrever enquanto ele responde</h4>
+                <p data-i18n-html="guide.tutor.t3.body">Enviar durante a resposta põe a mensagem na fila; ela vai assim que ele terminar, e a fila fica salva se você fechar a Mesa. <kbd>⌘</kbd><kbd>⏎</kbd> interrompe e envia agora. <kbd>Esc</kbd> para a resposta e segura a fila: <strong>Enviar agora</strong> ou <strong>Limpar</strong> na faixa.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.tutor.t4.title">Anexar imagens</h4>
+                <p data-i18n-html="guide.tutor.t4.body">Pelo botão <strong>Anexar</strong>, colando (<kbd>⌘</kbd><kbd>V</kbd>) ou arrastando para a mensagem. O modelo precisa aceitar imagens. Para o tutor ver a página inteira, use <strong>Capturar página</strong> em <strong>Mais opções</strong> do leitor.</p>
+              </section>
+              <section class="guide-topic" id="help-phone-li" data-search>
+                <h4 data-i18n="phone.guide.title">Foto do celular</h4>
+                <p data-i18n="phone.guide.body">O botão Foto do celular, ao lado de Anexar, mostra um QR code. Abra-o com a câmera do celular, na mesma rede Wi-Fi, e use Tirar foto ou Escolher da galeria: cada foto entra na bandeja de anexos, sem GPS nem outros metadados, e nada sai até você escrever e enviar. O site só existe enquanto o popover está aberto e desliga sozinho depois de 10 minutos sem uso. Em rede de campus (eduroam), ligue o hotspot do celular e conecte o computador nele.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.tutor.t5.title">Citar um trecho</h4>
+                <p data-i18n-html="guide.tutor.t5.body">Selecione um trecho da sessão ou do texto de um PDF e clique em <strong>Citar</strong> para perguntar sobre ele. Fórmulas entram como LaTeX; trechos de PDF citam com o nome do arquivo e a página.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.tutor.t6.title">Modelo e esforço</h4>
+                <p data-i18n-html="guide.tutor.t6.body">Ficam no indicador do cabeçalho do tutor, por exemplo <strong>Sonnet · médio</strong>. Clique nele para trocar. Cada sessão conserva o motor que a criou; para abrir uma no <strong>Claude</strong> (experimental, usa o login feito no próprio Claude Code), use a busca de comandos (<kbd>⌘</kbd><kbd>K</kbd>) → <strong>Sessão nova com Claude (experimental)</strong>.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.tutor.t7.title">Sessões e contexto</h4>
+                <p data-i18n-html="guide.tutor.t7.body">O título da sessão, no cabeçalho do tutor, lista as sessões da matéria; escolher por lá mantém rascunho, fila e anexos. Em <strong>Mais opções</strong> estão o medidor de contexto, <strong>Resumir agora</strong> e a compactação automática. Digitar <code>/compact</code> na mensagem faz o mesmo (aceita instruções: <code>/compact foque na questão 7</code>).</p>
+              </section>
+              <section class="guide-topic" id="help-endday-li" data-search>
+                <h4 data-i18n="guide.tutor.t8.title">Encerrar por hoje</h4>
+                <p data-i18n-html="guide.tutor.t8.body">Em <strong>Mais opções</strong> do tutor. Grava o registro local da matéria — onde você parou, o próximo passo, a questão, as páginas e o <code>.xopp</code> — e só depois avisa o tutor; sem o tutor o registro fica igual. Na abertura seguinte a coluna diz onde você parou: <strong>Retomar</strong> restaura questão, página e rascunho; <strong>Sessão nova</strong> abre outra e deixa o registro guardado; <strong>Esquecer</strong> só apaga o registro.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.tutor.t9.title">Nas respostas</h4>
+                <p data-i18n-html="guide.tutor.t9.body">Passe o mouse sobre uma mensagem para <strong>Copiar</strong>, ou use <strong>Exportar sessão em Markdown</strong> em Mais opções. Quizzes aparecem como cartões: clique na resposta, ou marque várias e envie. Gráficos e diagramas que o tutor gera aparecem na sessão; clique na imagem para ampliar. Visualizações (gráficos, tabelas, diagramas) e atividades interativas aparecem soltas na sessão, sem rede: passe o mouse para ver a <strong>Tela cheia</strong> (Esc sai); numa atividade, <strong>Levar ao tutor</strong> põe a sua tentativa no rascunho, sem enviar. Blocos de código têm realce e um botão de cópia.</p>
+              </section>
+            </div>
+          </section>
+
+          <section data-section="leitores" hidden>
+            <div class="guide-topics">
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.leitores.t1.title">Citação clicável</h4>
+                <p data-i18n-html="guide.leitores.t1.body"><code>Limites.pdf, p. 3</code> numa resposta abre o PDF naquela página (ou carrega o arquivo no leitor). <strong>Voltar</strong>, na barra do leitor, desfaz o pulo; <strong>Navegar</strong> guarda favoritos nomeados e mostra o sumário do documento.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.leitores.t2.title">Buscar</h4>
+                <p data-i18n-html="guide.leitores.t2.body"><kbd>⌘</kbd><kbd>F</kbd> busca no PDF focado: varre todas as páginas, destaca cada ocorrência e conta; <strong>Buscar</strong> de novo vai para a seguinte e <kbd>Esc</kbd> limpa.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.leitores.t3.title">Mais opções do leitor</h4>
+                <p data-i18n-html="guide.leitores.t3.body">Os três pontos na barra de cada leitor reúnem zoom, ajustar à largura, <strong>Inverter cores</strong> (a escolha fica por arquivo), girar, <strong>Capturar página</strong> e <strong>minimizar o PDF</strong> para uma faixa que libera o espaço para o outro; clique na faixa para restaurar.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.leitores.t4.title">Mover-se no documento</h4>
+                <p data-i18n-html="guide.leitores.t4.body">Roda ou trackpad rolam as páginas em sequência; <kbd>⌘</kbd> + roda ou pinça dá zoom; <kbd>←</kbd> <kbd>→</kbd> mudam a página do PDF focado.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.leitores.t5.title">Soltar um PDF</h4>
+                <p data-i18n="guide.leitores.t5.body">Solte um PDF sobre o leitor para abrir o arquivo de onde ele está, sem copiar. Sem material, o leitor mostra a folha de primeiros passos.</p>
+              </section>
+            </div>
+          </section>
+
+          <section data-section="lateral" hidden>
+            <div class="guide-topics">
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.lateral.t1.title">Onde abre</h4>
+                <p data-i18n-html="guide.lateral.t1.body">Pelo botão do cabeçalho do tutor, mesmo com um leitor só. O segundo leitor (<strong>Formulário</strong>) recolhe pelo menu <strong>Estudar</strong> e volta pela faixa que fica no lugar dele, sem perder documento, página ou rascunho.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.lateral.t2.title">Contexto copiado</h4>
+                <p data-i18n-html="guide.lateral.t2.body">Começa com um recorte da sessão principal, dos PDFs abertos e da questão ativa. <strong>Atualizar contexto</strong> copia de novo o recorte atual; retomar a sessão não o renova sozinho.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.lateral.t3.title">Levar à sessão principal</h4>
+                <p data-i18n="guide.lateral.t3.body">Insere a resposta no rascunho da principal, sem enviar.</p>
+              </section>
+            </div>
+          </section>
+
+          <section data-section="revisao" hidden>
+            <div class="guide-topics">
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.revisao.t1.title">Guardar para revisar</h4>
+                <p data-i18n="guide.revisao.t1.body">Embaixo de toda resposta do tutor. O item já vem com a questão ativa, sua última mensagem, o trecho selecionado e a página aberta.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.revisao.t2.title">Como foi?</h4>
+                <p data-i18n-html="guide.revisao.t2.body">No <strong>Caderno de revisão</strong>, no menu <strong>Estudar</strong>, cada item do dia pede uma resposta. <strong>Errei</strong> volta amanhã; <strong>Difícil</strong>, <strong>Bom</strong> e <strong>Fácil</strong> voltam cada vez mais espaçados. Cada botão diz quando o item volta.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.revisao.t3.title">Tentar de novo</h4>
+                <p data-i18n-html="guide.revisao.t3.body">Em cada item, <strong>Tentar de novo com o tutor</strong> e <strong>Pedir um parecido</strong> escrevem o pedido na caixa de mensagem, sem enviar. <strong>Editar</strong> muda o texto do item e <strong>Remover</strong> o tira, com confirmação.</p>
+              </section>
+            </div>
+          </section>
+
+          <section data-section="calc" hidden>
+            <div class="guide-topics">
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.calc.t1.title">Escrever a conta</h4>
+                <p data-i18n-html="guide.calc.t1.body">Multiplicação sempre explícita: <code>2*pi</code>. Parênteses agrupam: <code>(2+3)*4</code>. <strong>Enter</strong> calcula. É local: não gasta tokens e não faz álgebra simbólica.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.calc.t2.title">Ângulo</h4>
+                <p data-i18n-html="guide.calc.t2.body"><strong>RAD</strong> ou <strong>GRAUS</strong> vale para <code>sin</code>, <code>cos</code>, <code>tan</code> e as inversas.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.calc.t3.title">Histórico</h4>
+                <p data-i18n="guide.calc.t3.body">O botão à direita da linha abre o painel com o ângulo, as contas anteriores e a cola dos nomes aceitos. Clique numa conta do histórico para reaproveitá-la.</p>
+              </section>
+            </div>
+          </section>
+
+          <section data-section="atalhos" hidden>
+            <div class="guide-keygroups">
+              <section class="guide-keygroup">
+                <h4 data-i18n="guide.atalhos.g1">Mensagem</h4>
+                <div class="guide-key" data-key="send" data-search><span class="guide-combo"><kbd>⏎</kbd></span><span data-i18n="guide.atalhos.row.send">Enviar mensagem</span></div>
+                <div class="guide-key" data-key="queue" data-search><span class="guide-combo"><kbd>⏎</kbd></span><span data-i18n="guide.atalhos.row.queue">Com o tutor respondendo, põe na fila</span></div>
+                <div class="guide-key" data-key="steer" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⏎</kbd></span><span data-i18n="guide.atalhos.row.steer">Interromper a resposta e enviar agora</span></div>
+                <div class="guide-key" data-key="newline" data-search><span class="guide-combo"><kbd>⇧</kbd><kbd>⏎</kbd></span><span data-i18n="guide.atalhos.row.newline">Nova linha</span></div>
+                <div class="guide-key" data-key="stop" data-search><span class="guide-combo"><kbd>Esc</kbd></span><span data-i18n="guide.atalhos.row.stop">Parar a resposta</span></div>
+                <div class="guide-key" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>V</kbd></span><span data-i18n="guide.atalhos.row.paste">Colar uma imagem como anexo</span></div>
+              </section>
+              <section class="guide-keygroup">
+                <h4 data-i18n="guide.atalhos.g2">Material</h4>
+                <div class="guide-key" data-key="check" id="help-check-row" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd></span><span data-i18n="guide.atalhos.row.check">Anexar a captura do Xournal++</span></div>
+                <div class="guide-key" data-key="ggb-check" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd></span><span data-i18n="guide.atalhos.row.ggb-check">Conferir o applet GeoGebra</span></div>
+                <div class="guide-key" data-key="pdf-find" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>F</kbd></span><span data-i18n="guide.atalhos.row.pdf-find">Buscar no PDF focado</span></div>
+                <div class="guide-key" data-key="page-nav" data-search><span class="guide-combo"><kbd>←</kbd><kbd>→</kbd></span><span data-i18n="guide.atalhos.row.page-nav">Página anterior / seguinte</span></div>
+                <div class="guide-key" data-key="invert" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>I</kbd></span><span data-i18n="guide.atalhos.row.invert">Inverter as cores da página (tema escuro)</span></div>
+              </section>
+              <section class="guide-keygroup">
+                <h4 data-i18n="guide.atalhos.g3">Mesa</h4>
+                <div class="guide-key" data-key="command-palette" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>K</kbd></span><span data-i18n="guide.atalhos.row.command-palette">Busca de comandos</span></div>
+                <div class="guide-key" data-key="chat-toggle" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>\</kbd></span><span data-i18n="guide.atalhos.row.chat-toggle">Recolher ou mostrar o tutor</span></div>
+                <div class="guide-key" data-key="tab-number" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>1</kbd>…<kbd>9</kbd></span><span data-i18n="guide.atalhos.row.tab-number">Ir para a matéria</span></div>
+                <div class="guide-key" data-key="tab-cycle" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>Tab</kbd></span><span data-i18n="guide.atalhos.row.tab-cycle">Próxima ou anterior matéria</span></div>
+                <div class="guide-key" data-key="new-course" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>T</kbd></span><span data-i18n="guide.atalhos.row.new-course">Nova matéria (Configurações)</span></div>
+                <div class="guide-key" data-key="density" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd></span><span data-i18n="guide.atalhos.row.density">Modo compacto</span></div>
+                <div class="guide-key" data-key="settings" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>,</kbd></span><span data-i18n="guide.atalhos.row.settings">Configurações</span></div>
+                <div class="guide-key" data-key="help" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>/</kbd></span><span data-i18n="guide.atalhos.row.help">Este guia</span></div>
+              </section>
+            </div>
+          </section>
+
+          <!-- Busca (#64): os tópicos que casam, de todas as seções, cada um com a seção de onde veio. -->
+          <div id="guide-results" class="guide-topics guide-results" hidden></div>
+          <div id="guide-empty" class="guide-empty" hidden><div class="guide-empty-mascote" id="guide-empty-mascote"></div><p data-i18n="guide.noHits">Nada no guia com esse termo.</p></div>
+          <div id="guide-foot" class="guide-foot"></div>
+        </div>
+      </div>
     </div>
   </form>
 </dialog>
-<dialog id="settings-dialog">
+<dialog id="settings-dialog" aria-labelledby="settings-title">
   <form method="dialog" id="settings-form">
-    <div class="help-head">
-      <h2 id="settings-title">Configurações</h2>
-      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
-    </div>
-    <div class="help-body settings-body">
-      <p class="help-lead" id="settings-lead">Caminhos e nomes desta mesa. As credenciais do modelo continuam no Pi.</p>
-      <section class="set-sec" data-sec="pastas" aria-labelledby="set-pastas">
-        <h3 id="set-pastas">Pastas e programas</h3>
-        <label>Pasta do vault / dados
+    <nav class="settings-nav" aria-label="Seções das configurações" data-i18n-attr="aria-label=settings.navAria">
+      <h2 id="settings-title" data-i18n="settings.title">Configurações</h2>
+      <div id="settings-tabs" class="settings-tabs"></div>
+    </nav>
+    <div class="settings-body" id="settings-body">
+      <div id="settings-notices" class="about-notices settings-notices" hidden></div>
+      <section class="set-sec" id="settings-sec-materias" data-sec="materias" aria-labelledby="set-materias">
+        <div class="set-head">
+          <h3 id="set-materias" data-i18n="settings.sec.courses">Matérias</h3>
+          <p data-i18n="settings.courses.lead">Cada matéria é uma aba no topo, com sua pasta de PDFs e suas sessões.</p>
+        </div>
+        <div id="cfg-courses"></div>
+        <button type="button" id="cfg-add-course" class="set-link" data-i18n="settings.courses.add">Adicionar matéria</button>
+        <p class="fine" data-i18n="settings.courses.removeNote">Remover uma matéria tira a aba. Os PDFs e as sessões guardadas não são apagados.</p>
+      </section>
+      <section class="set-sec" id="settings-sec-leitores" data-sec="leitores" aria-labelledby="set-leitores" hidden>
+        <div class="set-head">
+          <h3 id="set-leitores" data-i18n="settings.sec.readers">Leitores</h3>
+          <p data-i18n="settings.readers.lead">Quantos leitores de PDF, o nome de cada painel e qual arquivo abre em cada um.</p>
+        </div>
+        <div id="cfg-layout"></div>
+      </section>
+      <section class="set-sec" id="settings-sec-mesa" data-sec="mesa" aria-labelledby="set-mesa" hidden>
+        <div class="set-head">
+          <h3 id="set-mesa" data-i18n="settings.sec.features">Recursos da mesa</h3>
+          <p data-i18n="settings.features.lead">Ligue só o que você usa; o que sai daqui some da tela, sem apagar nada.</p>
+        </div>
+        <label><span data-i18n="settings.features.deskName">Nome da mesa</span><input id="cfg-title" type="text" placeholder="Mesa de Estudos"></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-endDay"><span data-i18n="settings.features.endDay">Encerrar por hoje e retomada</span></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-studyContext"><span data-i18n="settings.features.studyContext">Lista/questão ativa e rascunho .xopp</span></label>
+        <p class="fine" data-i18n="settings.features.studyContextNote">Lista/questão e rascunho são ativados juntos. Desativar exclui esse contexto das próximas mensagens ao tutor.</p>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-calculator"><span data-i18n="settings.features.calculator">Calculadora</span></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-xournal"><span id="cfg-desk-xournal-label">Botão para abrir o Xournal++</span></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-conferir"><span id="cfg-desk-conferir-label">Conferir Xournal++</span></label>
+        <label class="set-check"><input type="checkbox" id="cfg-desk-refsToggle"><span data-i18n="settings.features.refsToggle">Botão para incluir referências no tutor</span></label>
+        <p class="fine" data-i18n="settings.features.refsNote">Ao esconder o botão de referências, os PDFs continuam incluídos nas mensagens.</p>
+      </section>
+      <section class="set-sec" id="settings-sec-avisos" data-sec="avisos" aria-labelledby="set-avisos" hidden>
+        <div class="set-head">
+          <h3 id="set-avisos" data-i18n="settings.sec.appearance">Aparência e avisos</h3>
+          <p data-i18n="settings.appearance.lead">Idioma, tema e cor de acento valem na hora e ficam lembrados; não dependem do Salvar.</p>
+        </div>
+        <label><span data-i18n="settings.language">Idioma</span>
+          <select id="ui-language">
+            <option value="pt-BR">Português</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <label><span data-i18n="settings.tutorLanguage">Idioma do tutor</span>
+          <select id="tutor-language" aria-describedby="tutor-language-note">
+            <option value="follow" data-i18n="settings.tutorLanguage.follow">Acompanhar minhas mensagens</option>
+            <option value="pt-BR">Português</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <p class="fine" id="tutor-language-note" data-i18n="settings.tutorLanguage.note">Vale na próxima vez que o tutor for ligado.</p>
+        <label><span data-i18n="settings.theme">Tema</span>
+          <select id="theme-mode">
+            <option value="auto" data-i18n="settings.theme.auto">Sistema</option>
+            <option value="light" data-i18n="settings.theme.light">Claro</option>
+            <option value="dark" data-i18n="settings.theme.dark">Escuro</option>
+          </select>
+        </label>
+        <div id="accent-mode" class="set-group" role="radiogroup" aria-label="Cor de acento" data-i18n-attr="aria-label=settings.accent">
+          <span class="set-group-label" data-i18n="settings.accent">Cor de acento</span>
+          <div class="accent-options"></div>
+        </div>
+        <label><span data-i18n="settings.density">Densidade</span><select id="density-mode"><option value="padrao" data-i18n="settings.density.default">Padrão</option><option value="compacta" data-i18n="settings.density.compact">Compacta</option></select></label>
+        <div id="notify-mode" class="set-group" role="group" aria-label="Avisos de conclusão" data-i18n-attr="aria-label=settings.notify">
+          <span class="set-group-label" data-i18n="settings.notify">Avisos de conclusão</span>
+          <label class="set-check"><input type="checkbox" id="notify-sound"><span data-i18n="settings.notify.sound">Som</span></label>
+          <label class="set-check"><input type="checkbox" id="notify-desktop"><span data-i18n="settings.notify.desktop">Notificação</span></label>
+          <label class="set-check"><input type="checkbox" id="notify-focused"><span data-i18n="settings.notify.focused">Avisar mesmo com a janela em foco</span></label>
+        </div>
+      </section>
+      <section class="set-sec" id="settings-sec-pastas" data-sec="pastas" aria-labelledby="set-pastas" hidden>
+        <div class="set-head">
+          <h3 id="set-pastas" data-i18n="settings.sec.folders">Pastas e programas</h3>
+          <p data-i18n="settings.folders.lead">Onde ficam os dados e os programas que a mesa chama. As credenciais do modelo continuam no Pi.</p>
+        </div>
+        <label><span data-i18n="settings.folders.vault">Pasta do vault / dados</span>
           <span class="path-row">
             <input id="cfg-vault" type="text" spellcheck="false">
-            <button type="button" id="cfg-vault-browse">Escolher</button>
+            <button type="button" id="cfg-vault-browse" data-i18n="settings.choose">Escolher</button>
           </span>
         </label>
-        <label>Executável do Pi
+        <label><span data-i18n="settings.folders.pi">Executável do Pi</span>
           <span class="path-row">
-            <input id="cfg-pi" type="text" spellcheck="false" placeholder="detectar automaticamente">
-            <button type="button" id="cfg-pi-detect">Detectar</button>
-            <button type="button" id="cfg-pi-browse">Escolher</button>
+            <input id="cfg-pi" type="text" spellcheck="false" placeholder="detectar automaticamente" data-i18n-attr="placeholder=settings.detectAuto">
+            <button type="button" id="cfg-pi-detect" data-i18n="settings.detect">Detectar</button>
+            <button type="button" id="cfg-pi-browse" data-i18n="settings.choose">Escolher</button>
           </span>
         </label>
-        <label>Executável do Claude Code
+        <label><span data-i18n="settings.folders.claude">Executável do Claude Code</span>
           <span class="path-row">
-            <input id="cfg-claude" type="text" spellcheck="false" placeholder="detectar automaticamente">
-            <button type="button" id="cfg-claude-browse">Escolher</button>
+            <input id="cfg-claude" type="text" spellcheck="false" placeholder="detectar automaticamente" data-i18n-attr="placeholder=settings.detectAuto">
+            <button type="button" id="cfg-claude-browse" data-i18n="settings.choose">Escolher</button>
           </span>
         </label>
         <label id="cfg-xournal-wrap">Xournal++
           <span class="path-row">
             <input id="cfg-xournal" type="text" spellcheck="false">
-            <button type="button" id="cfg-xournal-browse">Escolher</button>
+            <button type="button" id="cfg-xournal-browse" data-i18n="settings.choose">Escolher</button>
           </span>
         </label>
-      </section>
-      <section class="set-sec" data-sec="materias" aria-labelledby="set-materias">
-        <h3 id="set-materias">Matérias</h3>
-        <p class="help-lead">Nome exibido e pasta com PDFs. Sem <code>_state.md</code> a mesa lista os PDFs da pasta.</p>
-        <div id="cfg-courses"></div>
-        <button type="button" id="cfg-add-course">Adicionar matéria</button>
-      </section>
-      <section class="set-sec" data-sec="layout" aria-labelledby="set-layout">
-        <h3 id="set-layout">Layout</h3>
-        <p class="help-lead">Quantos leitores de PDF, o nome de cada painel e qual arquivo abre em cada um.</p>
-        <div id="cfg-layout"></div>
-      </section>
-      <section class="set-sec" data-sec="mesa" aria-labelledby="set-mesa">
-        <h3 id="set-mesa">Recursos da mesa</h3>
-        <label>Nome da mesa<input id="cfg-title" type="text" placeholder="Mesa de Estudos"></label>
-        <label class="set-check"><input type="checkbox" id="cfg-desk-endDay"><span>Encerrar por hoje e retomada</span></label>
-        <label class="set-check"><input type="checkbox" id="cfg-desk-studyContext"><span>Lista/questão ativa e rascunho .xopp</span></label>
-        <p class="fine">Lista/questão e rascunho são ativados juntos. Desativar exclui esse contexto das próximas mensagens ao tutor.</p>
-        <label class="set-check"><input type="checkbox" id="cfg-desk-calculator"><span>Calculadora</span></label>
-        <label class="set-check"><input type="checkbox" id="cfg-desk-xournal"><span>Botão para abrir o Xournal++</span></label>
-        <label class="set-check"><input type="checkbox" id="cfg-desk-conferir"><span>Conferir Xournal++</span></label>
-        <label class="set-check"><input type="checkbox" id="cfg-desk-refsToggle"><span>Botão para incluir referências no tutor</span></label>
-        <p class="fine">Ao esconder o botão de referências, os PDFs continuam incluídos nas mensagens.</p>
-      </section>
-      <section class="set-sec" data-sec="avisos" aria-labelledby="set-avisos">
-        <h3 id="set-avisos">Aparência e avisos</h3>
-        <label>Tema
-          <select id="theme-mode">
-            <option value="auto">Sistema</option>
-            <option value="light">Claro</option>
-            <option value="dark">Escuro</option>
-          </select>
-        </label>
-        <label>Densidade<select id="density-mode"><option value="padrao">Padrão</option><option value="compacta">Compacta</option></select></label>
-        <div id="notify-mode" class="set-group" role="group" aria-label="Avisos de conclusão">
-          <span class="set-group-label">Avisos de conclusão</span>
-          <label class="set-check"><input type="checkbox" id="notify-sound"><span>Som</span></label>
-          <label class="set-check"><input type="checkbox" id="notify-desktop"><span>Notificação</span></label>
-          <label class="set-check"><input type="checkbox" id="notify-focused"><span>Avisar mesmo com a janela em foco</span></label>
+        <!-- Programa de escrita do Conferir (#38): campo e lista vêm do
+             `core/conferir.bend` (`fieldView`/`listView`); vale na hora. -->
+        <div id="cfg-conferir-wrap" class="cfg-conferir-wrap">
+          <div id="cfg-conferir"></div>
+          <div id="cfg-conferir-list" class="cfg-conferir-list" hidden></div>
         </div>
-        <p class="fine">O tema também pode ser trocado em Mesa → Tema; aqui ele só entra ao salvar.</p>
+        <!-- Modelos gratuitos do OpenCode Zen (#44): ações que valem na hora, como o
+             programa do Conferir; a chave fica no cofre do sistema, nunca no
+             config.json. A janela só vê a máscara. -->
+        <div id="cfg-free-models" class="cfg-free-models">
+          <div class="set-group-label" data-i18n="freeModels.settings.title">Modelos gratuitos (OpenCode Zen)</div>
+          <p class="fine" data-i18n="freeModels.settings.lead">Estude sem assinatura de IA.</p>
+          <label><span data-i18n="freeModels.settings.key">Chave do OpenCode Zen</span>
+            <span class="path-row">
+              <input id="cfg-opencode-key" type="password" spellcheck="false" autocomplete="off" placeholder="Cole a chave aqui" data-i18n-attr="placeholder=freeModels.settings.paste">
+              <button type="button" id="cfg-opencode-save" data-i18n="freeModels.settings.save">Testar e guardar</button>
+              <button type="button" id="cfg-opencode-test" hidden data-i18n="freeModels.settings.test">Testar</button>
+              <button type="button" id="cfg-opencode-create" data-i18n="freeModels.settings.create">Criar uma chave</button>
+              <button type="button" id="cfg-opencode-remove" hidden data-i18n="freeModels.settings.remove">Remover</button>
+            </span>
+          </label>
+          <button type="button" id="cfg-opencode-usefile" class="set-link" hidden data-i18n="freeModels.settings.useFile">Usar a chave do OpenCode deste computador</button>
+          <p id="cfg-opencode-usefile-note" class="fine" hidden></p>
+          <p id="cfg-opencode-status" class="fine" role="status" aria-live="polite" hidden></p>
+          <details id="cfg-avoid-charges" class="free-avoid">
+            <summary data-i18n="freeModels.avoid.title">Como evitar cobrança</summary>
+            <ul>
+              <li data-i18n="freeModels.avoid.reload">Desligue a recarga automática no console do OpenCode.</li>
+              <li data-i18n="freeModels.avoid.limit">Defina um limite mensal.</li>
+              <li data-i18n="freeModels.avoid.free">Use só modelos com a marca Grátis.</li>
+            </ul>
+          </details>
+        </div>
       </section>
     </div>
-    <div class="dialog-actions">
-      <button value="cancel">Cancelar</button>
-      <button id="settings-save" value="ok" class="primary">Salvar</button>
+    <div class="dialog-actions settings-actions">
+      <span class="settings-hint" id="settings-hint" data-i18n="settings.hint.save">As mudanças só valem depois de salvar.</span>
+      <span class="settings-error" id="settings-error" role="alert" hidden></span>
+      <button value="cancel" data-i18n="settings.cancel">Cancelar</button>
+      <button id="settings-save" value="ok" class="primary" data-i18n="settings.save">Salvar</button>
     </div>
   </form>
 </dialog>
-<dialog id="welcome-dialog">
-  <form method="dialog" id="welcome-form"></form>
-</dialog>
-<dialog id="about-dialog">
+<dialog id="about-dialog" aria-labelledby="about-title">
   <form method="dialog">
-    <div class="help-head">
-      <h2>Sobre</h2>
-      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+    <div class="about-head">
+      <img class="about-mark brand-icon" src="assets/app-icon/mesa-blue.svg" alt="">
+      <div class="about-id">
+        <div id="about-title" class="about-name" role="heading" aria-level="1">Mesa de Estudos</div>
+        <p id="about-lead" class="about-lead" data-i18n="about.leadStatic">Licença MIT</p>
+      </div>
+      <button value="cancel" class="icon-btn dialog-close" aria-label="Fechar o Sobre" data-i18n-attr="aria-label=about.close">×</button>
     </div>
-    <div class="help-body">
-      <p class="help-lead">Mesa de Estudos 0.4.0 · licença MIT</p>
-      <h3>Atualizações</h3>
-      <div id="about-update"></div>
-      <h3>Componentes</h3>
-      <div id="component-rows"></div>
-      <button type="button" id="components-refresh">Verificar agora</button>
-      <h3>Créditos</h3>
-      <ul>
-        <li><strong>Lucas Faria</strong> — autor</li>
-      </ul>
-      <h3>Ferramentas</h3>
-      <ul>
-        <li>Pi — agente local na conversa</li>
-        <li>Electron — janela do aplicativo</li>
-        <li>PDF.js — leitores de PDF</li>
-        <li>KaTeX — fórmulas no chat</li>
-        <li>Xournal++ — escrita à mão, fora da mesa</li>
-      </ul>
-      <p class="help-lead">Código em github.com/FariaDev/mesa-de-estudos</p>
+    <div id="about-update" class="about-update" aria-live="polite"></div>
+    <div id="about-notices" class="about-notices" hidden></div>
+    <div class="about-body">
+      <div class="about-section-head">
+        <h3 id="about-uses" data-i18n="about.uses">O que a Mesa usa</h3>
+        <button type="button" id="components-refresh" class="icon-btn" aria-label="Conferir os componentes de novo" title="Conferir os componentes de novo" data-i18n-attr="aria-label=about.componentsRefresh;title=about.componentsRefresh">↻</button>
+      </div>
+      <div id="component-rows" class="component-rows" aria-labelledby="about-uses"></div>
+      <div id="about-credits" class="about-credits" hidden>
+        <h3 data-i18n="about.credits">Créditos e licenças</h3>
+        <ul>
+          <li><strong>Pi</strong> — <span data-i18n="about.credit.pi">programa local que faz o tutor funcionar</span></li>
+          <li data-package="electron"><strong>Electron</strong> 44.7.2 — <span data-i18n="about.credit.electron">janela do aplicativo (MIT, © Electron contributors, © 2013-2020 GitHub Inc.)</span></li>
+          <li data-package="pdfjs-dist"><strong>PDF.js</strong> 6.4.299 — <span data-i18n="about.credit.pdfjs">leitores de PDF (Apache-2.0, © Mozilla Foundation)</span></li>
+          <li data-package="katex"><strong>KaTeX</strong> 0.19.0 — <span data-i18n="about.credit.katex">fórmulas na sessão (MIT, © 2013-2020 Khan Academy and other contributors)</span></li>
+          <li data-package="marked"><strong>marked</strong> 18.1.1 — <span data-i18n="about.credit.marked">texto em Markdown do chat e dos modelos de PDF (MIT, © 2018+ MarkedJS, © 2011-2018 Christopher Jeffrey; trecho do Markdown, © 2004 John Gruber)</span></li>
+          <li data-package="dompurify"><strong>DOMPurify</strong> 3.4.17 — <span data-i18n="about.credit.dompurify">limpeza do HTML das visualizações (Apache-2.0 ou MPL-2.0, © Cure53 e colaboradores)</span></li>
+          <li data-package="chart.js"><strong>Chart.js</strong> 4.5.1 — <span data-i18n="about.credit.chartjs">gráficos das visualizações do tutor, embutido e offline (MIT, © 2014-2024 Chart.js Contributors)</span></li>
+          <li data-package="@anthropic-ai/claude-agent-sdk"><strong>Claude Agent SDK</strong> 0.3.301 — <span data-i18n="about.credit.agentSdk">ponte com o Claude Code (© Anthropic PBC, sob os termos legais da Anthropic)</span></li>
+          <li><strong>GeoGebra</strong> — <span data-i18n="about.credit.geogebra">applet da aba GeoGebra, da web ou do pacote offline que você baixa no setup (licença não comercial, geogebra.org/license)</span>. Made with GeoGebra®, geogebra.org</li>
+          <li><strong>Lobe Icons</strong> 1.95.1 — <span data-i18n="about.credit.lobeIcons">logos dos provedores e dos fabricantes no seletor de modelo, embutidos e offline (MIT, © 2023 LobeHub, github.com/lobehub/lobe-icons; as marcas são dos donos)</span></li>
+          <li><strong>Lucide</strong> — <span data-i18n="about.credit.lucide">ícones da interface, menos a faísca (ISC, © Lucide Contributors; partes do Feather, MIT, © Cole Bemis)</span></li> <li><strong>STIX Two Text</strong> 2.13 — <span data-i18n="about.credit.stix">serifa da Lista 0, do Caderno e dos modelos de PDF, embutida (SIL OFL 1.1, © The STIX Fonts Project Authors)</span></li>
+          <li><strong>T3 Code</strong> — <span data-i18n="about.credit.t3">desenho do quadro de visualizações, da prévia e dos tokens de tema, adaptado (MIT, © 2026 T3 Tools Inc.)</span></li>
+          <li><strong>Xournal++</strong> — <span data-i18n="about.credit.xournal">escrita à mão, fora da Mesa</span></li>
+        </ul>
+        <p class="about-license" id="about-license-t3"><span data-i18n="about.licenseT3">Partes adaptadas do T3 Code (github.com/pingdotgg/t3code).</span> <span lang="en">Copyright (c) 2026 T3 Tools Inc. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</span></p>
+        <p class="about-repo" data-i18n="about.repo">Código em github.com/FariaDev/mesa-de-estudos · licença MIT</p>
+      </div>
     </div>
-    <div class="dialog-actions">
-      <button value="cancel" class="primary">Fechar</button>
+    <div class="about-foot dialog-actions">
+      <span class="about-by" data-i18n="about.by">Feita por Lucas Faria</span>
+      <span class="about-links">
+        <button type="button" id="about-credits-toggle" class="guide-link" aria-expanded="false" aria-controls="about-credits" data-i18n="about.credits">Créditos e licenças</button>
+        <button type="button" id="about-log" class="guide-link" data-i18n="about.openLog">Abrir o log</button>
+      </span>
     </div>
   </form>
 </dialog>
 <dialog id="free-pdf-dialog">
   <form method="dialog" id="free-pdf-form">
     <div class="help-head">
-      <h2>Montar PDF</h2>
-      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+      <h2 data-i18n="free.generatePdf">Montar PDF</h2>
+      <button value="cancel" class="icon-btn" aria-label="Fechar" data-i18n-attr="aria-label=common.close">×</button>
     </div>
-    <div class="free-dialog-body">
-      <p class="help-lead">Escolha uma resposta (ou cole o texto), ajuste o conteúdo e confira a prévia. O PDF fica entre os materiais desta sessão.</p>
-      <label>Origem
-        <select id="free-pdf-source"></select>
-      </label>
-      <label>Título do PDF
-        <input id="free-pdf-title" type="text" maxlength="160" placeholder="Material da sessão livre">
-      </label>
-      <label>Conteúdo (Markdown e LaTeX)
-        <textarea id="free-pdf-content" rows="8" spellcheck="false"></textarea>
-      </label>
-      <div id="free-pdf-preview" class="free-pdf-preview" aria-label="Prévia do PDF"></div>
-      <p id="free-pdf-error" class="free-error" role="alert" hidden></p>
+    <div class="pdf-model-wrap">
+      <span class="pdf-model-caption" id="pdf-model-caption" data-i18n="free.pdf.template">Modelo</span>
+      <div id="pdf-model-strip" class="pdf-model-strip" aria-labelledby="pdf-model-caption"></div>
+    </div>
+    <div class="pdf-builder">
+      <div class="pdf-builder-edit">
+        <p class="help-lead" data-i18n="free.pdf.lead">Escolha uma resposta (ou cole o texto), ajuste o conteúdo e confira a prévia. O PDF fica entre os materiais desta sessão.</p>
+        <div class="pdf-builder-pair">
+          <label><span data-i18n="free.pdf.source">Origem</span>
+            <select id="free-pdf-source"></select>
+          </label>
+          <label><span data-i18n="free.pdf.title">Título do PDF</span>
+            <input id="free-pdf-title" type="text" maxlength="120" placeholder="Material da sessão livre" data-i18n-attr="placeholder=free.pdf.titlePlaceholder">
+          </label>
+        </div>
+        <label class="pdf-builder-text">
+          <span class="pdf-builder-text-head"><span data-i18n="free.pdf.text">Texto (Markdown e LaTeX)</span><span id="free-pdf-counts" class="pdf-counts"></span></span>
+          <textarea id="free-pdf-content" rows="8" spellcheck="false"></textarea>
+        </label>
+        <fieldset class="pdf-options">
+          <legend data-i18n="free.pdf.options">Opções do modelo</legend>
+          <div id="pdf-model-options"></div>
+        </fieldset>
+        <p id="free-pdf-error" class="free-error" role="alert" hidden></p>
+      </div>
+      <div class="pdf-builder-view">
+        <div class="pdf-view-head">
+          <span id="free-pdf-view-label" data-i18n="free.pdf.preview">Prévia</span>
+          <span id="free-pdf-page-count" class="pdf-page-count"></span>
+        </div>
+        <div class="pdf-view-scroll">
+          <div id="free-pdf-preview" class="free-pdf-preview" aria-label="Prévia do PDF" data-i18n-attr="aria-label=free.pdf.previewAria"></div>
+        </div>
+      </div>
     </div>
     <div class="dialog-actions">
-      <button value="cancel">Cancelar</button>
-      <button type="submit" id="free-pdf-save" class="primary">Salvar PDF e abrir</button>
+      <p id="free-pdf-status" class="pdf-status" role="status"></p>
+      <button value="cancel" data-i18n="common.cancel">Cancelar</button>
+      <button type="button" id="free-pdf-verify" data-i18n="free.pdf.verify">Ver PDF</button>
+      <button type="submit" id="free-pdf-save" class="primary" data-i18n="free.pdf.save">Salvar PDF e abrir</button>
     </div>
   </form>
 </dialog>
+<dialog id="free-models-dialog" class="study-dialog" aria-labelledby="free-models-title">
+  <!-- Modelos grátis do OpenCode Zen (#44): cartão de aviso → chave → pronto; o mesmo
+       diálogo também faz a pergunta única do modelo pago. A lógica é do
+       `src/free-models.mjs`; as frases, dos catálogos (`freeModels.*`). -->
+  <form method="dialog" id="free-models-form">
+    <h2 id="free-models-title" data-i18n="freeModels.card.title">Usar modelos grátis</h2>
+    <section data-step="card">
+      <p data-i18n="freeModels.card.lead">Os modelos grátis vêm do OpenCode Zen. Antes de abrir o site, saiba o que esperar:</p>
+      <ul class="free-points">
+        <li data-i18n="freeModels.card.account">Você precisa de uma conta no OpenCode. A Mesa não cria conta por você.</li>
+        <li data-i18n="freeModels.card.billing">O site pode pedir um cartão ou um saldo para liberar a chave.</li>
+        <li data-i18n="freeModels.card.charges">Os modelos marcados como Grátis não cobram.</li>
+        <li data-i18n="freeModels.card.local">A chave fica só neste computador.</li>
+      </ul>
+      <button type="button" id="free-models-authfile" class="set-link" hidden data-i18n="freeModels.card.authFile">Usar a chave do OpenCode deste computador</button>
+      <p id="free-models-authnote" class="study-muted" hidden></p>
+    </section>
+    <section data-step="key" hidden>
+      <p data-i18n="freeModels.key.lead">No site, crie uma chave e copie.</p>
+      <div id="free-models-clip" class="study-card" role="group" aria-labelledby="free-models-clip-ask" hidden>
+        <p><strong id="free-models-clip-ask" data-i18n="freeModels.clip.ask">Usar esta chave?</strong> <code id="free-models-masked"></code></p>
+        <p class="study-muted" data-i18n="freeModels.clip.note">A Mesa leu a área de transferência só agora.</p>
+        <div class="study-row">
+          <button type="button" id="free-models-clip-yes" class="primary" data-i18n="freeModels.clip.yes">Usar esta chave</button>
+          <button type="button" id="free-models-clip-no" data-i18n="freeModels.clip.no">Agora não</button>
+        </div>
+      </div>
+      <label for="free-models-key" data-i18n="freeModels.key.field">Chave do OpenCode Zen</label>
+      <input id="free-models-key" type="password" spellcheck="false" autocomplete="off" autocapitalize="off">
+    </section>
+    <section data-step="paid" hidden>
+      <p data-i18n="freeModels.paid.body">Os modelos sem a marca Grátis cobram do saldo da sua conta no OpenCode.</p>
+    </section>
+    <section data-step="done" hidden>
+      <p id="free-models-done"></p>
+    </section>
+    <p id="free-models-status" class="study-muted" role="status" aria-live="polite" hidden></p>
+    <div class="study-footer">
+      <button value="cancel" data-show="card key" data-i18n="freeModels.flow.cancel">Cancelar</button>
+      <button value="cancel" data-show="paid" data-i18n="freeModels.paid.no" hidden>Voltar</button>
+      <button type="button" id="free-models-have-key" data-show="card" data-i18n="freeModels.card.haveKey">Já tenho uma chave</button>
+      <button type="button" id="free-models-open-site" class="primary" data-show="card" data-i18n="freeModels.card.openSite">Abrir o site do OpenCode</button>
+      <button type="button" id="free-models-key-use" class="primary" data-show="key" data-i18n="freeModels.key.use" hidden>Testar e usar</button>
+      <button type="button" id="free-models-paid-yes" class="primary" data-show="paid" data-i18n="freeModels.paid.yes" hidden>Usar mesmo assim</button>
+      <button id="free-models-close" value="ok" data-show="done" data-i18n="freeModels.flow.close" hidden>Fechar</button> <button type="button" id="free-models-start" class="primary" data-show="done" data-i18n="freeModels.done.start" hidden>Começar sessão OpenCode</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="free-add-dialog" class="study-dialog">
+ <form method="dialog" id="free-add-form">
+  <h2 data-i18n="free.add.title">Adicionar PDF a uma matéria</h2>
+  <p data-i18n="free.add.lead">Escolha um PDF desta sessão. A Mesa guarda uma cópia na matéria escolhida; o estudo Livre continua disponível.</p>
+  <label for="free-add-pdf" data-i18n="free.add.pdf">PDF</label><select id="free-add-pdf" required></select>
+  <label for="free-add-course" data-i18n="free.add.course">Matéria de destino</label><select id="free-add-course" required></select>
+  <p id="free-add-error" role="alert" hidden></p>
+  <div class="study-footer"><button value="cancel" data-i18n="common.cancel">Cancelar</button><button type="submit" id="free-add-save" class="primary" data-i18n="free.add.save">Adicionar PDF</button></div>
+ </form>
+</dialog>
 <dialog id="tutor-pdf-dialog">
   <form method="dialog" id="tutor-pdf-form">
-    <div class="help-head"><h2>PDF pelo tutor</h2><button value="cancel" class="icon-btn" aria-label="Fechar">×</button></div>
+    <div class="help-head"><h2 data-i18n="study.tutorPdf">PDF pelo tutor</h2><button value="cancel" class="icon-btn" aria-label="Fechar" data-i18n-attr="aria-label=common.close">×</button></div>
     <div class="free-dialog-body">
-      <p class="help-lead">Conte o que você quer estudar. O tutor escreve o conteúdo e preenche a prévia. Você revisa, pode editar e salva o PDF, que abre no leitor.</p>
-      <label>O que deve entrar no PDF?<textarea id="tutor-pdf-request" rows="4" maxlength="4000" placeholder="Ex.: resumo de Pitágoras, dois exemplos resolvidos e cinco exercícios"></textarea></label>
-      <p class="fine">Você também pode pedir diretamente no chat: “gere um PDF com…”</p>
+      <p class="help-lead" data-i18n="free.tutorPdf.lead">Conte o que você quer estudar. O tutor escreve o conteúdo e preenche a prévia. Você revisa, pode editar e salva o PDF, que abre no leitor.</p>
+      <label><span data-i18n="free.tutorPdf.request">O que deve entrar no PDF?</span><textarea id="tutor-pdf-request" rows="4" maxlength="4000" placeholder="Ex.: resumo de Pitágoras, dois exemplos resolvidos e cinco exercícios" data-i18n-attr="placeholder=free.tutorPdf.placeholder"></textarea></label>
+      <p class="fine" data-i18n="free.tutorPdf.fine">Você também pode pedir diretamente ao tutor: “gere um PDF com…”</p>
       <p id="tutor-pdf-error" class="free-error" role="alert" hidden></p>
     </div>
-    <div class="dialog-actions"><button value="cancel">Cancelar</button><button type="submit" id="tutor-pdf-send" class="primary">Enviar ao tutor</button></div>
+    <div class="dialog-actions"><button value="cancel" data-i18n="common.cancel">Cancelar</button><button type="submit" id="tutor-pdf-send" class="primary" data-i18n="free.tutorPdf.send">Enviar ao tutor</button></div>
   </form>
 </dialog>
 <dialog id="free-promote-dialog">
   <form method="dialog" id="free-promote-form">
     <div class="help-head">
-      <h2>Criar matéria</h2>
-      <button value="cancel" class="icon-btn" aria-label="Fechar">×</button>
+      <h2 data-i18n="free.promote">Criar matéria</h2>
+      <button value="cancel" class="icon-btn" aria-label="Fechar" data-i18n-attr="aria-label=common.close">×</button>
     </div>
     <div class="free-dialog-body">
-      <p class="help-lead">A conversa desta sessão passa a ser a conversa da nova matéria, com o histórico, o rascunho e os materiais. Nada é copiado para outra sessão.</p>
-      <label>Nome da matéria
-        <input id="free-promote-name" type="text" maxlength="160" placeholder="Nome da nova matéria">
+      <p class="help-lead" data-i18n="free.promoteDialog.lead">A sessão passa a ser a da nova matéria, com o histórico, o rascunho e os materiais. Nada é copiado para outra sessão.</p>
+      <label><span data-i18n="free.promoteDialog.name">Nome da matéria</span>
+        <input id="free-promote-name" type="text" maxlength="160" placeholder="Nome da nova matéria" data-i18n-attr="placeholder=free.promoteDialog.placeholder">
       </label>
       <div class="free-promote-preview">
-        <p><strong>Conversa</strong> — <span id="free-promote-session"></span></p>
-        <p><strong>Materiais</strong> — <span id="free-promote-materials"></span></p>
-        <p><strong>Pasta</strong> — na confirmação, a Mesa pergunta a pasta onde criar a nova matéria.</p>
+        <p><strong data-i18n="free.promoteDialog.session">Sessão</strong> — <span id="free-promote-session"></span></p>
+        <p><strong data-i18n="free.promoteDialog.materials">Materiais</strong> — <span id="free-promote-materials"></span></p>
+        <p><strong data-i18n="free.promoteDialog.folder">Pasta</strong> — <span data-i18n="free.promoteDialog.folderNote">na confirmação, a Mesa pergunta a pasta onde criar a nova matéria.</span></p>
       </div>
       <p id="free-promote-error" class="free-error" role="alert" hidden></p>
     </div>
     <div class="dialog-actions">
-      <button value="cancel">Cancelar</button>
-      <button type="submit" id="free-promote-save" class="primary">Criar matéria</button>
+      <button value="cancel" data-i18n="common.cancel">Cancelar</button>
+      <button type="submit" id="free-promote-save" class="primary" data-i18n="free.promote">Criar matéria</button>
     </div>
   </form>
 </dialog>

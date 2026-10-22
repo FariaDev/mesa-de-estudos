@@ -1,0 +1,17 @@
+desk/tests/claude-activity-tools.test.mjs
+desk/tests/claude-adapter-usage-history.test.mjs
+desk/tests/claude-adapter.test.mjs
+desk/tests/claude-controls-ui.mjs
+desk/tests/claude-controls.test.mjs
+desk/tests/claude-environment.test.mjs
+desk/tests/claude-executable-upgrade-ui.mjs
+desk/tests/claude-fixtures.mjs
+desk/tests/claude-host-recovery.mjs
+desk/tests/claude-lifecycle-integration.test.mjs
+desk/tests/claude-lifecycle-ui.mjs
+desk/tests/claude-native-controls.test.mjs
+desk/tests/claude-offline-queue-ui.mjs
+desk/tests/claude-questions.test.mjs
+desk/tests/claude-sdk-binary-ui.mjs
+desk/tests/claude-turn-policy.test.mjs
+desk/tests/claude-ui-smoke.mjs

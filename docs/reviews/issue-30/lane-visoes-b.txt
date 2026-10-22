@@ -1,0 +1,14 @@
+desk/tests/app-smoke.mjs
+desk/tests/composer-box-ui.mjs
+desk/tests/dialog-standard-ui.mjs
+desk/tests/first-run-ui.mjs
+desk/tests/hunt-chaos.mjs
+desk/tests/hunt-shell.mjs
+desk/tests/improvements-ui.mjs
+desk/tests/model-indicator-ui.mjs
+desk/tests/qol-actions-ui.mjs
+desk/tests/splitter-ui.mjs
+desk/tests/topbar-ui.mjs
+desk/tests/tutor-header-ui.mjs
+desk/tests/tutor-states-ui.mjs
+desk/tests/ui-smoke.mjs

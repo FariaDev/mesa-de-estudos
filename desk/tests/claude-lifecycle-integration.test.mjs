@@ -258,7 +258,7 @@ test('after an interrupt exit the next send resumes the exact native id without 
 /* ---------------- perguntas: chaves exatas hostis ---------------- */
 
 test('malicious question exact keys survive as own enumerable answers without prototype mutation',async t=>{
- const {adapter,query,events}=await accepted(t);
+ const {adapter,query}=await accepted(t);
  const questions=[
   {header:'Proto',question:'__proto__',options:[{label:'aceito',description:''}],multiSelect:false},
   {header:'Construtor',question:'constructor',options:[{label:'também',description:''}],multiSelect:false},

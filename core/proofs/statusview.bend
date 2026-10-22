@@ -55,7 +55,7 @@ def Laws.statusview_foot_aria_fallback():
 def Laws.statusview_meter_text():
   {==}
 
-def Laws.statusview_meter_width():
+def Laws.statusview_meter_fill():
   {==}
 
 def Laws.statusview_meter_warn():

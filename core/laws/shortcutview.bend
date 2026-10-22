@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../shortcutview.bend as S
 import ../view.bend as V
 
@@ -32,7 +33,7 @@ law sk_kbd_efetivo:
   {V.textOf(first(V.kidsOf(S.skKbdNode("Ação", "⌘K", False{})))) == "⌘K" : String}
 
 law sk_kbd_gravando:
-  {V.textOf(first(V.kidsOf(S.skKbdNode("Ação", "⌘K", True{})))) == "Gravando…" : String}
+  {V.textOf(first(V.kidsOf(S.skKbdNode("Ação", "⌘K", True{})))) == M.msg("keys.recording") : String}
 
 law sk_kbd_vazio:
   {V.attrGet(V.attrsOf(S.skKbdNode("Ação", "", False{})), "class") == Some{"keys-kbd empty"} : Maybe<&2, String>}
@@ -50,7 +51,7 @@ law sk_reset_escondido:
   {V.attrGet(V.attrsOf(S.skResetNode("check", False{})), "hidden") == Some{""} : Maybe<&2, String>}
 
 law sk_fixo_tem_nota:
-  {V.textOf(first(V.kidsOf(S.skNoteNode("")))) == "fixo" : String}
+  {V.textOf(first(V.kidsOf(S.skNoteNode("")))) == M.msg("keys.fixed") : String}
 
 law sk_secao_rotulada:
   {V.attrGet(V.attrsOf(S.skSectionNode(S.skSection("keys-group-0", "Estudar", [editable(False{})]), "")), "aria-labelledby") == Some{"keys-group-0"} : Maybe<&2, String>}
@@ -72,3 +73,26 @@ law sk_dialogo_aberto:
 
 law sk_dialogo_ordem:
   {V.attrGet(V.attrsOf(second(V.kidsOf(S.shortcutDialog(dialog(False{}, "", False{}, True{}))))), "class") == Some{"keys-groups"} : Maybe<&2, String>}
+
+# O × do cabeçalho: 28px sem borda (classes do padrão dos diálogos), nomeado e
+# ligado a `Done`. O rodapé não repete "Fechar".
+def head() -> V.ViewNode:
+  first(V.kidsOf(S.shortcutDialog(dialog(False{}, "", False{}, True{}))))
+
+law sk_cabecalho_tem_o_x_de_fechar:
+  {V.textOf(first(V.kidsOf(S.skCloseNode()))) == "×" : String}
+
+law sk_x_aciona_done:
+  {V.attrGet(V.attrsOf(S.skCloseNode()), "on:click") == Some{"Done"} : Maybe<&2, String>}
+
+law sk_x_tem_nome_acessivel:
+  {V.attrGet(V.attrsOf(S.skCloseNode()), "aria-label") == Some{M.msg("keys.closeAria")} : Maybe<&2, String>}
+
+law sk_x_usa_a_classe_do_padrao:
+  {V.attrGet(V.attrsOf(S.skCloseNode()), "class") == Some{"icon-btn dialog-close"} : Maybe<&2, String>}
+
+law sk_cabecalho_leva_o_x_depois_do_titulo:
+  {V.attrGet(V.attrsOf(second(V.kidsOf(S.skHeadNode()))), "id") == Some{"keys-done"} : Maybe<&2, String>}
+
+law sk_rodape_so_tem_restaurar:
+  {V.attrGet(V.attrsOf(second(V.kidsOf(S.skFooterNode(True{})))), "id") == None{} : Maybe<&2, String>}

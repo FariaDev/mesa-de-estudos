@@ -1,21 +1,26 @@
 import Base
+import ../msg.bend as M
 import ../tabsview.bend as T
+import ../studytoolsview.bend as ST
 import ../view.bend as V
 
 # ---------------------------------------------------------------------------
-# Contrato das abas de matéria e dos menus da Mesa. Prefixo `tabs_`.
+# Contrato das abas de matéria e dos menus da barra superior. Prefixo `tabs_`.
 #
-# O host monta os fatos (id/rótulo das matérias, flags do `desk`, tema) e o
-# núcleo devolve a árvore; as leis fixam a forma que o smoke do app exercita:
-#   - uma aba por matéria + separador + aba GeoGebra, na ordem;
+# O host monta os fatos (id/rótulo das matérias, contagem do Caderno, flags do
+# `desk`) e o núcleo devolve a árvore; as leis fixam a forma que o smoke do app
+# exercita:
+#   - uma aba por matéria + "+" + separador + Caderno + aba GeoGebra, na ordem;
 #   - matéria ativa com `.active`/`aria-selected` (e nada ativo com o GeoGebra
 #     ligado); `disabled` só com o fato True; roving tabindex (ativa `0`,
 #     demais `-1`) para as setas do host;
-#   - menu Estudar: `#reference-toggle` (rótulo = toggle do 2º painel, vazio
-#     cai em "Formulário"; some com 1 painel) e `#xournal` (some com a flag
-#     desligada ou no Windows sem caminho);
-#   - menu Mesa: ajuda, configurações, tema e sobre, com o rótulo do tema
-#     derivado de "auto"/"light"/"dark" (desconhecido cai em auto).
+#   - Caderno: `#review-tab` com a contagem de revisar hoje, `.has-items` só
+#     quando há algo, ativo com o id `review`;
+#   - menu Estudar: as sete ferramentas de `core/studytoolsview.bend`, depois
+#     `#xournal` e `#reference-toggle` (cada um some pela sua flag; o
+#     Encerrar por hoje mora em Mais opções do tutor, `core/tutorheader.bend`);
+#   - menu Ajustes: Configurações, Ajuda, Atalhos e Sobre;
+#   - seletor da janela estreita: uma opção por matéria, a ativa com o check.
 #
 # `for` com `+` onde o termo usa o binder mais de uma vez. O que não saiu:
 # igualdade genérica de listas com String livre (`String.eq` é valor
@@ -25,36 +30,66 @@ import ../view.bend as V
 # ---------- vocabulário auxiliar (só para falar do núcleo) ----------
 
 def doisPaineis() -> T.MenuFacts:
-  T.MenuFacts{True{}, "Formulário", True{}, True{}, False{}, False{}, "auto", True{}, False{}}
+  T.MenuFacts{True{}, "Formulário", True{}, True{}, False{}, False{}}
 
-def temaEscuro() -> T.MenuFacts:
-  T.MenuFacts{True{}, "Formulário", True{}, True{}, False{}, False{}, "dark", True{}, False{}}
+# Tudo que o `config.json` pode desligar, desligado.
+def desligado() -> T.MenuFacts:
+  T.MenuFacts{False{}, "", False{}, False{}, False{}, False{}}
 
 # ---------- abas: forma e ordem ----------
 
-# Uma aba por matéria, mais o separador e a aba GeoGebra.
+# Uma aba por matéria, mais o "+", o separador, o Caderno e a aba GeoGebra.
 law tabs_comprimento:
   for +cs: List<&2, T.Tab>
   for activeId: String
   for ggb: Bool
   for dis: Bool
-  {List.length(&2, V.ViewNode, T.courseTabs(cs, activeId, ggb, dis))
-    == Nat.add(List.length(&2, T.Tab, cs), 2n) : Nat}
+  for rc: String
+  {List.length(&2, V.ViewNode, T.courseTabs(cs, activeId, ggb, dis, rc))
+    == Nat.add(List.length(&2, T.Tab, cs), 4n) : Nat}
 
-# Ordem: matérias na ordem da lista, separador e GeoGebra no fim; a ativa é a
-# primeira (o cenário do smoke com duas matérias).
+# Ordem: matérias na ordem da lista, "+", separador, Caderno e GeoGebra no fim;
+# a ativa é a primeira (o cenário do smoke com duas matérias).
 law tabs_duas_materias_ordem:
-  {T.courseTabs([T.Tab{"A", "Matéria A"}, T.Tab{"B", "Matéria B"}], "A", False{}, False{})
+  {T.courseTabs([T.Tab{"A", "Matéria A"}, T.Tab{"B", "Matéria B"}], "A", False{}, False{}, "0")
     == [ T.tabNode("A", "Matéria A", True{}, False{})
        , T.tabNode("B", "Matéria B", False{}, False{})
+       , T.newTab()
        , T.tabSep()
+       , T.reviewTab("0", False{})
        , T.ggbTab(False{}, False{})
        ] : List<&2, V.ViewNode>}
 
-# Sem matérias sobra o separador e a aba GeoGebra.
+# Sem matérias sobram o "+", o separador, o Caderno e a aba GeoGebra.
 law tabs_sem_materias:
-  {T.courseTabs(Nil{}, "A", False{}, False{})
-    == [T.tabSep(), T.ggbTab(False{}, False{})] : List<&2, V.ViewNode>}
+  {T.courseTabs(Nil{}, "A", False{}, False{}, "0")
+    == [T.newTab(), T.tabSep(), T.reviewTab("0", False{}), T.ggbTab(False{}, False{})] : List<&2, V.ViewNode>}
+
+# Com o Caderno aberto (`review` ativo) ele é a aba ativa e nenhuma matéria é.
+law tabs_caderno_ativo:
+  {T.courseTabs([T.Tab{"A", "Matéria A"}], "review", False{}, False{}, "3")
+    == [ T.tabNode("A", "Matéria A", False{}, False{})
+       , T.newTab()
+       , T.tabSep()
+       , T.reviewTab("3", True{})
+       , T.ggbTab(False{}, False{})
+       ] : List<&2, V.ViewNode>}
+
+# Com o GeoGebra ligado nem o Caderno fica ativo.
+law tabs_ggb_desativa_caderno:
+  {T.courseTabs(Nil{}, "review", True{}, False{}, "0")
+    == [T.newTab(), T.tabSep(), T.reviewTab("0", False{}), T.ggbTab(True{}, False{})] : List<&2, V.ViewNode>}
+
+# Desabilitar (conexão/troca) vale para as matérias e o GeoGebra, não para o "+"
+# nem para o Caderno (abre sem tocar na sessão).
+law tabs_desabilitadas_juntas:
+  {T.courseTabs([T.Tab{"A", "Matéria A"}], "A", False{}, True{}, "0")
+    == [ T.tabNode("A", "Matéria A", True{}, True{})
+       , T.newTab()
+       , T.tabSep()
+       , T.reviewTab("0", False{})
+       , T.ggbTab(False{}, True{})
+       ] : List<&2, V.ViewNode>}
 
 # ---------- abas: matéria ativa ----------
 
@@ -142,6 +177,56 @@ law tabs_desabilitada:
   {V.attrGet(V.attrsOf(T.tabNode(id, "Matéria A", False{}, True{})), "disabled")
     == Some{""} : Maybe<&2, String>}
 
+# Travada durante a resposta (#42), a aba diz por quê; livre, não há dica.
+law tabs_travada_dica:
+  for id: String
+  {V.attrGet(V.attrsOf(T.tabNode(id, "Matéria A", False{}, True{})), "title")
+    == Some{M.msg("tabs.locked")} : Maybe<&2, String>}
+
+law tabs_livre_sem_dica:
+  for id: String
+  {V.attrGet(V.attrsOf(T.tabNode(id, "Matéria A", False{}, False{})), "title")
+    == None{} : Maybe<&2, String>}
+
+# O seletor da janela estreita trava junto e com a mesma dica.
+law tabs_seletor_travado_dica:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, True{})), "title")
+    == Some{M.msg("tabs.locked")} : Maybe<&2, String>}
+
+# A matéria atual não trava (#42): do Caderno aberto durante a resposta dá
+# para voltar a ela; as outras travam com a dica.
+law tabs_atual_livre_na_resposta:
+  {T.courseTabsAt([T.Tab{"A", "Matéria A"}, T.Tab{"B", "Matéria B"}], "review", "A", False{}, True{}, "0")
+    == [ T.tabNode("A", "Matéria A", False{}, False{})
+       , T.tabNode("B", "Matéria B", False{}, True{})
+       , T.newTab()
+       , T.tabSep()
+       , T.reviewTab("0", True{})
+       , T.ggbTab(False{}, True{})
+       ] : List<&2, V.ViewNode>}
+
+# Livre (sem resposta), nada trava, nem a atual nem as outras.
+law tabs_at_livre:
+  {T.courseTabsAt([T.Tab{"A", "Matéria A"}, T.Tab{"B", "Matéria B"}], "A", "A", False{}, False{}, "0")
+    == T.courseTabs([T.Tab{"A", "Matéria A"}, T.Tab{"B", "Matéria B"}], "A", False{}, False{}, "0") : List<&2, V.ViewNode>}
+
+# Sem matéria atual conhecida, todas travam juntas (o `courseTabs` de sempre).
+law tabs_at_sem_atual:
+  {T.courseTabsAt([T.Tab{"A", "Matéria A"}], "A", "", False{}, True{}, "0")
+    == T.courseTabs([T.Tab{"A", "Matéria A"}], "A", False{}, True{}, "0") : List<&2, V.ViewNode>}
+
+law tabs_travada_so_outras:
+  for locked: Bool
+  {T.tabLocked("A", "A", locked) == False{} : Bool}
+
+law tabs_seletor_atual_livre:
+  {T.courseMenuItemsAt([T.Tab{"A", "Matéria A"}, T.Tab{"B", "Matéria B"}], "review", "A", False{}, True{})
+    == [T.courseOption("A", "Matéria A", "review", False{}, False{}), T.courseOption("B", "Matéria B", "review", False{}, True{})] : List<&2, V.ViewNode>}
+
+law tabs_seletor_travado:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, True{})), "disabled")
+    == Some{""} : Maybe<&2, String>}
+
 # ---------- aba GeoGebra ----------
 
 law tabs_ggb_tag:
@@ -194,23 +279,43 @@ law tabs_nova_rotulo:
 
 law tabs_nova_acessivel:
   {V.attrGet(V.attrsOf(T.newTab()), "aria-label")
-    == Some{"Nova matéria (abre as Configurações)"} : Maybe<&2, String>}
+    == Some{M.msg("tabs.newCourse")} : Maybe<&2, String>}
 
 law tabs_nova_clique:
   {V.attrGet(V.attrsOf(T.newTab()), "on:click") == Some{"NewCourse"} : Maybe<&2, String>}
 
 # ---------- menu Estudar ----------
 
+# Sete ferramentas, Xournal++ e toggle do 2º painel, nessa ordem.
 law tabs_menu_estudar:
   {T.studyItems(doisPaineis())
-    == [ T.refToggleItem(True{}, "Formulário", True{})
-       , T.xournalItem(True{}, False{}, False{})
-       , T.reviewItem()
-       , T.endDayItem(True{})
-       ] : List<&2, V.ViewNode>}
+    == List.append(
+         &2,
+         V.ViewNode,
+         ST.tools(),
+         [ T.xournalItem(True{}, False{}, False{})
+         , T.refToggleItem(True{}, "Formulário", True{})
+         ]
+       ) : List<&2, V.ViewNode>}
+
+law tabs_menu_estudar_comprimento:
+  {List.length(&2, V.ViewNode, T.studyItems(doisPaineis())) == 9n : Nat}
+
+# Com tudo desligado os itens continuam na árvore, mas `hidden` (o host só
+# aplica; a flag do `config.json` é o único motivo para sumir).
+law tabs_menu_estudar_desligado:
+  {T.studyItems(desligado())
+    == List.append(
+         &2,
+         V.ViewNode,
+         ST.tools(),
+         [ T.xournalItem(False{}, False{}, False{})
+         , T.refToggleItem(False{}, "", False{})
+         ]
+       ) : List<&2, V.ViewNode>}
 
 law tabs_ref_rotulo_vazio:
-  {T.refToggleLabel("") == "Formulário" : String}
+  {T.refToggleLabel("") == M.msg("tabs.referenceToggle") : String}
 
 law tabs_ref_rotulo_toggle:
   {T.refToggleLabel("Tabela") == "Tabela" : String}
@@ -260,93 +365,94 @@ law tabs_xournal_rotulo:
   {V.kidsOf(T.xournalItem(True{}, False{}, False{}))
     == [V.viewText("Xournal++")] : List<&2, V.ViewNode>}
 
-# ---------- menu Estudar: Encerrar e Caderno ----------
-
-law tabs_endday_id:
-  {V.attrGet(V.attrsOf(T.endDayItem(True{})), "id") == Some{"end-day"} : Maybe<&2, String>}
-
-law tabs_endday_rotulo:
-  {V.kidsOf(T.endDayItem(True{}))
-    == [V.viewText("Encerrar por hoje")] : List<&2, V.ViewNode>}
-
-law tabs_endday_clique:
-  {V.attrGet(V.attrsOf(T.endDayItem(True{})), "on:click")
-    == Some{"OpenEndDay"} : Maybe<&2, String>}
-
-# A flag `desk.endDay` é o único motivo para o item sumir (o botão saiu do
-# composer; o diálogo e o atalho continuam iguais).
-law tabs_endday_visivel:
-  {V.attrGet(V.attrsOf(T.endDayItem(True{})), "hidden") == None{} : Maybe<&2, String>}
-
-law tabs_endday_oculto:
-  {V.attrGet(V.attrsOf(T.endDayItem(False{})), "hidden") == Some{""} : Maybe<&2, String>}
+# ---------- Caderno (aba com a contagem de revisar hoje) ----------
 
 law tabs_caderno_id:
-  {V.attrGet(V.attrsOf(T.reviewItem()), "id") == Some{"review-open"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(T.reviewTab("0", False{})), "id") == Some{"review-tab"} : Maybe<&2, String>}
 
-law tabs_caderno_rotulo:
-  {V.kidsOf(T.reviewItem())
-    == [V.viewText("Caderno de revisão")] : List<&2, V.ViewNode>}
+law tabs_caderno_data_id:
+  {V.attrGet(V.attrsOf(T.reviewTab("0", False{})), "data-id") == Some{"review"} : Maybe<&2, String>}
+
+law tabs_caderno_papel:
+  {V.attrGet(V.attrsOf(T.reviewTab("0", False{})), "role") == Some{"tab"} : Maybe<&2, String>}
 
 law tabs_caderno_clique:
-  {V.attrGet(V.attrsOf(T.reviewItem()), "on:click")
+  {V.attrGet(V.attrsOf(T.reviewTab("0", False{})), "on:click")
     == Some{"OpenReview"} : Maybe<&2, String>}
 
-# ---------- menu Mesa ----------
-
-law tabs_menu_mesa:
-  {T.mesaItems(temaEscuro())
-    == [ T.helpItem()
-       , T.settingsItem()
-       , T.themeItem("dark")
-       , T.densityItem(False{})
-       , T.aboutItem()
+# O rótulo é "Caderno", um espaço e o contador (`#review-count`) que o host atualiza.
+law tabs_caderno_rotulo:
+  {V.kidsOf(T.reviewTab("3", False{}))
+    == [ V.viewText(M.msg("tabs.review"))
+       , V.viewText(" ")
+       , V.viewEl("span", [V.attrId("review-count")], [V.viewText("3")])
        ] : List<&2, V.ViewNode>}
 
-# ---------- modo compacto (densidade) ----------
-
-law tabs_compacto_id:
-  {V.attrGet(V.attrsOf(T.densityItem(False{})), "id")
-    == Some{"density-cycle"} : Maybe<&2, String>}
-
-law tabs_compacto_rotulo:
-  {V.kidsOf(T.densityItem(False{}))
-    == [V.viewText("Modo compacto")] : List<&2, V.ViewNode>}
-
-law tabs_compacto_clique:
-  {V.attrGet(V.attrsOf(T.densityItem(False{})), "on:click")
-    == Some{"ToggleDensity"} : Maybe<&2, String>}
-
-# O item é um interruptor: ARIA conta o modo e o ícone é o check quando ligado.
-law tabs_compacto_ligado:
-  {V.attrGet(V.attrsOf(T.densityItem(True{})), "aria-pressed")
+law tabs_caderno_ativo_aria:
+  {V.attrGet(V.attrsOf(T.reviewTab("0", True{})), "aria-selected")
     == Some{"true"} : Maybe<&2, String>}
 
-law tabs_compacto_desligado:
-  {V.attrGet(V.attrsOf(T.densityItem(False{})), "aria-pressed")
+law tabs_caderno_inativo_aria:
+  {V.attrGet(V.attrsOf(T.reviewTab("0", False{})), "aria-selected")
     == Some{"false"} : Maybe<&2, String>}
 
-law tabs_compacto_icone_ligado:
-  {T.densityIcon(True{}) == "check" : String}
+law tabs_caderno_ativo_tabindex:
+  {V.attrGet(V.attrsOf(T.reviewTab("0", True{})), "tabindex") == Some{"0"} : Maybe<&2, String>}
 
-law tabs_compacto_icone_desligado:
-  {T.densityIcon(False{}) == "unfold" : String}
+law tabs_caderno_inativo_tabindex:
+  {V.attrGet(V.attrsOf(T.reviewTab("0", False{})), "tabindex") == Some{"-1"} : Maybe<&2, String>}
 
-law tabs_compacto_icone_attr:
-  {V.attrGet(V.attrsOf(T.densityItem(True{})), "data-icon")
-    == Some{"check"} : Maybe<&2, String>}
+# `.has-items` só quando há algo para revisar hoje.
+law tabs_caderno_vazio_classe:
+  {V.attrGet(V.attrsOf(T.reviewTab("0", False{})), "class") == Some{""} : Maybe<&2, String>}
 
-law tabs_tema_auto:
-  {T.themeLabel("auto") == "Tema: auto" : String}
+law tabs_caderno_com_itens_classe:
+  {V.attrGet(V.attrsOf(T.reviewTab("3", False{})), "class")
+    == Some{"has-items"} : Maybe<&2, String>}
 
-law tabs_tema_claro:
-  {T.themeLabel("light") == "Tema: claro" : String}
+law tabs_caderno_ativo_com_itens_classe:
+  {V.attrGet(V.attrsOf(T.reviewTab("3", True{})), "class")
+    == Some{"active has-items"} : Maybe<&2, String>}
 
-law tabs_tema_escuro:
-  {T.themeLabel("dark") == "Tema: escuro" : String}
+law tabs_caderno_titulo_vazio:
+  {T.reviewTitle("0") == M.msg("tabs.review.title.none") : String}
 
-law tabs_tema_desconhecido:
-  {T.themeLabel("rouge") == "Tema: auto" : String}
+law tabs_caderno_titulo_um:
+  {T.reviewTitle("1") == M.msg1("tabs.review.title", "count", "1") : String}
+
+law tabs_caderno_titulo_varios:
+  {T.reviewTitle("3") == M.msg1("tabs.review.title", "count", "3") : String}
+
+law tabs_caderno_titulo_attr:
+  {V.attrGet(V.attrsOf(T.reviewTab("3", False{})), "title")
+    == Some{M.msg1("tabs.review.title", "count", "3")} : Maybe<&2, String>}
+
+law tabs_caderno_aria_label:
+  {V.attrGet(V.attrsOf(T.reviewTab("3", False{})), "aria-label")
+    == Some{M.msg1("tabs.review.title", "count", "3")} : Maybe<&2, String>}
+
+# ---------- menu Ajustes (no lugar do antigo menu Mesa) ----------
+
+law tabs_menu_ajustes:
+  {T.settingsItems()
+    == [T.settingsItem(), T.helpItem(), T.shortcutsItem(), T.aboutItem()] : List<&2, V.ViewNode>}
+
+law tabs_menu_ajustes_comprimento:
+  {List.length(&2, V.ViewNode, T.settingsItems()) == 4n : Nat}
+
+law tabs_atalhos_id:
+  {V.attrGet(V.attrsOf(T.shortcutsItem()), "id") == Some{"shortcuts"} : Maybe<&2, String>}
+
+law tabs_atalhos_rotulo:
+  {V.kidsOf(T.shortcutsItem()) == [V.viewText(M.msg("menu.shortcuts"))] : List<&2, V.ViewNode>}
+
+law tabs_atalhos_clique:
+  {V.attrGet(V.attrsOf(T.shortcutsItem()), "on:click")
+    == Some{"OpenShortcuts"} : Maybe<&2, String>}
+
+law tabs_atalhos_icone:
+  {V.attrGet(V.attrsOf(T.shortcutsItem()), "data-icon")
+    == Some{"keyboard"} : Maybe<&2, String>}
 
 law tabs_ajuda_id:
   {V.attrGet(V.attrsOf(T.helpItem()), "id") == Some{"help"} : Maybe<&2, String>}
@@ -354,20 +460,17 @@ law tabs_ajuda_id:
 law tabs_config_id:
   {V.attrGet(V.attrsOf(T.settingsItem()), "id") == Some{"settings"} : Maybe<&2, String>}
 
-law tabs_tema_id:
-  {V.attrGet(V.attrsOf(T.themeItem("auto")), "id") == Some{"theme-cycle"} : Maybe<&2, String>}
-
 law tabs_sobre_id:
   {V.attrGet(V.attrsOf(T.aboutItem()), "id") == Some{"about"} : Maybe<&2, String>}
 
 law tabs_ajuda_rotulo:
-  {V.kidsOf(T.helpItem()) == [V.viewText("Como usar")] : List<&2, V.ViewNode>}
+  {V.kidsOf(T.helpItem()) == [V.viewText(M.msg("menu.help"))] : List<&2, V.ViewNode>}
 
 law tabs_config_rotulo:
-  {V.kidsOf(T.settingsItem()) == [V.viewText("Configurações")] : List<&2, V.ViewNode>}
+  {V.kidsOf(T.settingsItem()) == [V.viewText(M.msg("menu.settings"))] : List<&2, V.ViewNode>}
 
 law tabs_sobre_rotulo:
-  {V.kidsOf(T.aboutItem()) == [V.viewText("Sobre")] : List<&2, V.ViewNode>}
+  {V.kidsOf(T.aboutItem()) == [V.viewText(M.msg("menu.about"))] : List<&2, V.ViewNode>}
 
 law tabs_item_papel:
   {V.attrGet(V.attrsOf(T.helpItem()), "role") == Some{"menuitem"} : Maybe<&2, String>}
@@ -387,17 +490,63 @@ law tabs_icone_ggb:
   {V.attrGet(V.attrsOf(T.ggbTab(False{}, False{})), "data-icon")
     == Some{"graph"} : Maybe<&2, String>}
 
-# O tema tem andaime de ícone desde que o autor pediu (a lei era "texto puro"):
-# o glifo acompanha o estado — auto = contraste, claro = sol, escuro = lua.
-law tabs_icone_tema_auto:
-  {V.attrGet(V.attrsOf(T.themeItem("auto")), "data-icon") == Some{"contrast"} : Maybe<&2, String>}
+# ---------- seletor único (janela estreita) ----------
 
-law tabs_icone_tema_claro:
-  {V.attrGet(V.attrsOf(T.themeItem("light")), "data-icon") == Some{"sun"} : Maybe<&2, String>}
+law tabs_seletor_ordem:
+  {T.courseMenuItems([T.Tab{"A", "Matéria A"}, T.Tab{"B", "Matéria B"}], "A", False{}, False{})
+    == [ T.courseOption("A", "Matéria A", "A", False{}, False{})
+       , T.courseOption("B", "Matéria B", "A", False{}, False{})
+       ] : List<&2, V.ViewNode>}
 
-law tabs_icone_tema_escuro:
-  {V.attrGet(V.attrsOf(T.themeItem("dark")), "data-icon") == Some{"moon"} : Maybe<&2, String>}
+law tabs_seletor_vazio:
+  {T.courseMenuItems(Nil{}, "A", False{}, False{}) == Nil{} : List<&2, V.ViewNode>}
 
-# O rótulo do tema é texto direto, não `<span>` de ícone.
-law tabs_tema_rotulo_no:
-  {V.kidsOf(T.themeItem("light")) == [V.viewText("Tema: claro")] : List<&2, V.ViewNode>}
+law tabs_seletor_comprimento:
+  for +cs: List<&2, T.Tab>
+  for activeId: String
+  for ggb: Bool
+  for dis: Bool
+  {List.length(&2, V.ViewNode, T.courseMenuItems(cs, activeId, ggb, dis))
+    == List.length(&2, T.Tab, cs) : Nat}
+
+law tabs_opcao_id:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, False{})), "id")
+    == Some{"course-option-A"} : Maybe<&2, String>}
+
+law tabs_opcao_data_id:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, False{})), "data-id")
+    == Some{"A"} : Maybe<&2, String>}
+
+law tabs_opcao_papel:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, False{})), "role")
+    == Some{"menuitem"} : Maybe<&2, String>}
+
+law tabs_opcao_clique:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, False{})), "on:click")
+    == Some{"SelectCourse"} : Maybe<&2, String>}
+
+law tabs_opcao_rotulo:
+  {V.kidsOf(T.courseOption("A", "Matéria A", "A", False{}, False{}))
+    == [V.viewText("Matéria A")] : List<&2, V.ViewNode>}
+
+# A ativa leva o check; a outra é texto puro (sem andaime de ícone).
+law tabs_opcao_ativa_icone:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, False{})), "data-icon")
+    == Some{"check"} : Maybe<&2, String>}
+
+law tabs_opcao_inativa_sem_icone:
+  {V.attrGet(V.attrsOf(T.courseOption("B", "Matéria B", "A", False{}, False{})), "data-icon")
+    == None{} : Maybe<&2, String>}
+
+# Com o GeoGebra ligado nenhuma matéria leva o check (como nas abas).
+law tabs_opcao_ggb_sem_icone:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", True{}, False{})), "data-icon")
+    == None{} : Maybe<&2, String>}
+
+law tabs_opcao_livre:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, False{})), "disabled")
+    == None{} : Maybe<&2, String>}
+
+law tabs_opcao_desabilitada:
+  {V.attrGet(V.attrsOf(T.courseOption("A", "Matéria A", "A", False{}, True{})), "disabled")
+    == Some{""} : Maybe<&2, String>}

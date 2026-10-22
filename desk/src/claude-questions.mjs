@@ -1,7 +1,8 @@
 /* Perguntas estruturadas do Claude Code (AskUserQuestion), aviso nativo de
    limite de uso e avisos de atividade (retry/recusa/fallback): a parte pura que
-   o renderer da Mesa interpreta antes de tocar no DOM. Sem imports, DOM, timers
-   ou rede — o `tests/claude-questions.test.mjs` importa direto e o `chat.mjs`
+   o renderer da Mesa interpreta antes de tocar no DOM. Sem DOM, timers ou rede
+   (só `i18n.mjs`, puro): os textos saem como mensagens marcadas, que o chat
+   traduz ao exibir (#41) — o `tests/claude-questions.test.mjs` importa direto e o `chat.mjs`
    aplica em `#pi-dialog`/faixa de atividade.
 
    Contrato canônico (adaptador → serviço → renderer) do pedido de pergunta:
@@ -40,6 +41,8 @@
    evicção do texto parcial de fallback segue ADIADA de propósito (o host não
    remove bolha por aqui). */
 
+import {message} from './i18n.mjs';
+
 export const MAX_QUESTIONS = 16;
 export const MAX_OPTIONS = 32;
 export const MAX_TEXT_CHARS = 4000;
@@ -60,18 +63,8 @@ export const ACTIVITY_NOTICE_CODES = Object.freeze({
   refusal: 'CLAUDE_MODEL_REFUSAL',
 });
 
-const LIMIT_FALLBACKS = Object.freeze({
-  blocked: 'Limite de uso do Claude Code atingido. A execução fica pausada até o limite reiniciar.',
-  warning: 'Atenção: o limite de uso do Claude Code está próximo.',
-  overage: 'Limite atingido, mas a execução continua usando overage.',
-});
-
-const ACTIVITY_FALLBACKS = Object.freeze({
-  retry: 'O Claude Code está repetindo a chamada à API.',
-  overloaded: 'A API do Claude está sobrecarregada; a execução tenta de novo.',
-  fallback: 'O modelo recusou a solicitação; uma alternativa está respondendo.',
-  refusal: 'O modelo recusou a solicitação.',
-});
+const limitFallback = (kind) => message(`claude.limit.fallback.${kind}`);
+const activityFallback = (kind) => message(`claude.activity.${kind}`);
 
 const LIMIT_PRIORITY = Object.freeze({blocked: 3, overage: 2, warning: 1});
 
@@ -94,7 +87,7 @@ export function questionRequest(raw) {
     const question = textOf(value.question);
     if (!question.trim()) return {ok: false, reason: 'invalid', questions: []};
     if (!withinTextLimit(question)) return {ok: false, reason: 'bounded', questions: []};
-    const header = textOf(value.header) || `Pergunta ${questions.length + 1}`;
+    const header = textOf(value.header) || message('claude.question.header', {n: questions.length + 1});
     if (!withinTextLimit(header)) return {ok: false, reason: 'bounded', questions: []};
     const rawOptions = Array.isArray(value.options) ? value.options : [];
     if (rawOptions.length > MAX_OPTIONS) return {ok: false, reason: 'bounded', questions: []};
@@ -135,7 +128,7 @@ export function compileQuestionAnswers(questions, picks) {
     const selected = [...new Set((Array.isArray(pick.selected) ? pick.selected : []).filter((value) => typeof value === 'string' && labels.has(value)))];
     const text = typeof pick.text === 'string' ? pick.text.trim() : '';
     if (text.length > MAX_ANSWER_CHARS) {
-      errors.push({index, code: 'long', message: 'Resposta longa demais.'});
+      errors.push({index, code: 'long', message: message('claude.question.tooLong')});
       return;
     }
     if (text) {
@@ -144,18 +137,18 @@ export function compileQuestionAnswers(questions, picks) {
     }
     if (question.multiSelect) {
       if (!selected.length) {
-        errors.push({index, code: 'missing', message: 'Marque ao menos uma opção ou escreva uma resposta.'});
+        errors.push({index, code: 'missing', message: message('claude.question.pickOneOrMore')});
         return;
       }
       setAnswer(answers, question.question, selected);
       return;
     }
     if (selected.length > 1) {
-      errors.push({index, code: 'multiple', message: 'Escolha apenas uma opção.'});
+      errors.push({index, code: 'multiple', message: message('claude.question.pickOnlyOne')});
       return;
     }
     if (!selected.length) {
-      errors.push({index, code: 'missing', message: 'Escolha uma opção ou escreva uma resposta.'});
+      errors.push({index, code: 'missing', message: message('claude.question.pickOne')});
       return;
     }
     setAnswer(answers, question.question, selected[0]);
@@ -216,7 +209,7 @@ export function claudeLimitNotice(event) {
   else if (code === RATE_LIMIT_CODES.overage || (info && status === 'rejected')) kind = 'overage';
   if (!kind) return null;
   if (kind === 'cleared') return {kind, key: 'cleared', message: '', window: '', type, reset};
-  const message = typeof event.message === 'string' && event.message.trim() ? event.message : LIMIT_FALLBACKS[kind];
+  const message = typeof event.message === 'string' && event.message.trim() ? event.message : limitFallback(kind);
   const window = `${type || message}:${reset || 'unknown'}`;
   return {kind, key: `${kind}:${window}`, message, window, type, reset};
 }
@@ -266,15 +259,15 @@ function activityMessage(kind, event, detail) {
   if (kind === 'retry') {
     const attempt = Number.isInteger(detail?.attempt) ? detail.attempt : null;
     const max = Number.isInteger(detail?.maxRetries) ? detail.maxRetries : null;
-    if (attempt !== null && max !== null) return `O Claude Code está repetindo a chamada à API (tentativa ${attempt} de ${max}).`;
-    return text || ACTIVITY_FALLBACKS.retry;
+    if (attempt !== null && max !== null) return message('claude.activity.retryAttempt', {attempt, max});
+    return text || activityFallback('retry');
   }
   if (kind === 'fallback') {
     if (text) return text;
     const model = typeof detail?.fallbackModel === 'string' && detail.fallbackModel ? detail.fallbackModel : '';
-    return model ? `Modelo alternativo em uso: ${model}.` : ACTIVITY_FALLBACKS.fallback;
+    return model ? message('claude.activity.fallbackModel', {model}) : activityFallback('fallback');
   }
-  return text || ACTIVITY_FALLBACKS[kind];
+  return text || activityFallback(kind);
 }
 
 function activityKey(kind, detail, message) {

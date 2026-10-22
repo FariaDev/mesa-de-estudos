@@ -1,0 +1,17 @@
+desk/tests/find-parity.mjs
+desk/tests/hunt-bench.cjs
+desk/tests/hunt-bench.html
+desk/tests/hunt-nav.mjs
+desk/tests/hunt-pdf-codecs.mjs
+desk/tests/hunt-pdf-qol.mjs
+desk/tests/hunt-pdf-render-race.mjs
+desk/tests/hunt-pdf-retention.mjs
+desk/tests/hunt-pdf.mjs
+desk/tests/pdf-labels.test.mjs
+desk/tests/pdf-rotation.mjs
+desk/tests/pdfnav.test.mjs
+desk/tests/pdfpageview.test.mjs
+desk/tests/pdfview.test.mjs
+desk/tests/reader-bar-ui.mjs
+desk/tests/reader-empty-ui.mjs
+desk/tests/readersheet.test.mjs

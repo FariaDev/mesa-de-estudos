@@ -1,0 +1,84 @@
+/* Conversas da matéria, caderno no cabeçalho e divisórias.
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Conversas da matéria (main.mjs) ---------- */
+#chat{position:relative}
+/* A lista rola; o título, a explicação e o link do pé ficam sempre à vista (#23). */
+#conversations-pop{
+ position:absolute;z-index:20;top:calc(var(--bar) - var(--space-1));right:var(--space-2);
+ display:flex;flex-direction:column;
+ width:min(380px,94%);max-height:min(64vh,440px);overflow:hidden;
+ background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);
+ box-shadow:var(--shadow-pop);padding:var(--space-3);
+}
+.conv-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin-bottom:var(--space-1)}
+.conv-head strong{font-size:var(--fs-sm)}
+#conv-list{display:flex;flex-direction:column;gap:var(--space-1);flex:1 1 auto;min-height:0;overflow:auto}
+.conv-head,#conversations-pop>.fine,.conv-library{flex:none}
+.conv-row{
+ display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;
+ background:transparent;border:1px solid transparent;box-shadow:none;padding:var(--space-2);border-radius:var(--r-sm);
+}
+.conv-row:hover{background:var(--hover)}
+.conv-row.current{background:var(--selected);border-color:var(--border-strong)}
+.conv-title{font-size:var(--fs-sm);font-weight:600;color:var(--fg);overflow-wrap:anywhere}
+.conv-meta{font-size:var(--fs-2xs);color:var(--faint)}
+.conv-meta[hidden]{display:none}
+.conv-row.current .conv-meta{color:var(--muted)}
+.conv-preview{font-size:var(--fs-xs);color:var(--muted);overflow-wrap:anywhere}
+.conv-empty{margin:var(--space-2);font-size:var(--fs-sm);color:var(--faint)}
+.conv-library{display:flex;justify-content:flex-start;width:100%;margin-top:var(--space-2);height:var(--ctl);padding:0 var(--space-2);border:0;border-top:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;color:var(--accent-text);font-size:var(--fs-sm)}
+.conv-library:hover{background:var(--hover)}
+
+/* ---------- Caderno no cabeçalho ---------- */
+#course-tabs #review-tab{display:inline-flex;gap:var(--space-1);align-items:center}
+#review-tab #review-count{
+ font-size:var(--fs-2xs);font-variant-numeric:tabular-nums;color:var(--muted);
+ background:var(--hover);border-radius:var(--r-pill);padding:0 6px;line-height:14px;
+}
+#review-tab.has-items{color:var(--fg-strong)}
+#review-tab.has-items #review-count{background:var(--selected);color:var(--fg-strong);font-weight:600}
+
+/* ---------- Divisórias: a linha de 1px basta; a pegada só aparece no hover e no foco ---------- */
+#divider::before,.pdf-divider::before,#calc-divider::before{
+ content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+ background:transparent;border-radius:var(--r-pill);pointer-events:none;
+}
+#divider::before,.pdf-divider::before{width:3px;height:30px}
+#calc-divider::before{width:30px;height:3px}
+#divider:hover::before,#divider:focus-visible::before,
+.pdf-divider:hover::before,.pdf-divider:focus-visible::before,
+#calc-divider:hover::before,#calc-divider:focus-visible::before{background:var(--muted)}
+
+/* 900x650 e telas apertadas: a área de apoio quebra e os textos longos encolhem. */
+@media(max-width:1000px){
+ #sidechat-context-pop{max-height:50%}
+ #conversations-pop{width:min(340px,96%)}
+ /* Cabeçalho: a marca vira só o ícone e a lista de matérias cede espaço para
+    as ações (nenhuma ação some). */
+ .brand strong{display:none}
+ header{gap:var(--space-3)}
+ /* A busca vira só o ícone (#27 B10); o nome acessível e o ⌘K seguem. */
+ .header-actions > #palette-field{width:var(--ctl);padding:0;justify-content:center}
+ #palette-field kbd,#palette-field .palette-field-text{display:none}
+}
+@media(max-height:700px){
+ #sidechat-context-pop{max-height:36%}
+ /* Altura curta: o conteúdo da conversa (estudo, mensagens, anexos) pode
+    exceder a coluna. O #chat vira o scroller e o Enviar fica colado embaixo
+    (sticky), em vez de o conteúdo vazar por cima da calculadora ou empurrar o
+    composer para fora da janela. O #messages cresce com o conteúdo
+    (`contain:none`) — sem scroller aninhado. */
+ #chat{overflow-y:auto;overflow-x:hidden}
+ #messages{flex:1 0 auto;min-height:120px;overflow:visible;contain:none}
+ #composer{position:sticky;bottom:0;z-index:3;background:var(--side);padding:var(--space-2) var(--pad) var(--space-3)}
+ .composer-box .composer-field{min-height:44px}
+}
+/* Coluna apertada com a janela ainda alta (calculadora grande, anexos/fila no
+   composer): o host liga `body.chat-scroll` (state.mjs#syncChatScrollMode) e a
+   conversa entra no mesmo modo da media acima — o #chat vira o scroller e o
+   #messages cresce com o conteúdo, sem nada sticky por cima: o composer é o
+   fim do conteúdo e o `followBottom` o mantém à vista quando a conversa está
+   no fim. A decisão é medida, não presumida pela altura da janela. */
+body.chat-scroll #chat{overflow-y:auto;overflow-x:hidden}
+body.chat-scroll #messages{flex:1 0 auto;min-height:120px;overflow:visible;contain:none}

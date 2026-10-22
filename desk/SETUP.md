@@ -39,22 +39,37 @@ npm start
 
 `npm run setup` instala as dependências se faltarem, tenta colocar o Pi localmente em `desk/.pi-local/` (`@earendil-works/pi-coding-agent`, com fallback para `@mariozechner/pi-coding-agent` — a pasta do Pi tem `package.json` próprio, FORA da árvore npm da Mesa: o `package.json`/`package-lock.json` versionados do `desk/` continuam limpos e o update por git nunca encontra "trabalho local" inventado), compila a integração visual no macOS e copia um `TUTOR.md` / `LEARNER.md` mínimos para `desk/.runtime/starter`.
 
+### GeoGebra offline (opcional)
+
+A aba GeoGebra usa o applet da web por padrão e precisa de internet. O `setup` pergunta se você quer baixar o pacote oficial do GeoGebra (Math Apps Bundle 5.4.932.1: ~32 MB de download, ~116 MB em `desk/.runtime/geogebra/`, fora do git) para usar a aba e a ferramenta do tutor sem rede. É uma escolha sua: o pacote é do GeoGebra, sob a [licença não comercial](https://www.geogebra.org/license) deles (pessoal e intransferível), e a Mesa não o distribui; o download vai direto de geogebra.org, com versão e hash conferidos. Sem terminal ou sem resposta, o `setup` pula.
+
+```sh
+npm run setup -- --geogebra      # baixa sem perguntar (você aceita a licença)
+npm run setup -- --no-geogebra   # nunca pergunta
+npm run geogebra:offline         # só esse passo, depois
+npm run geogebra:offline -- --remove
+```
+
+Reabra a Mesa depois de baixar. Com o pacote, a sessão do applet não faz nenhum pedido de rede.
+
 `npm run doctor` fornece uma verificação reproduzível do executável do Pi, políticas `TUTOR.md`/`LEARNER.md`, fontes das matérias, extensão visual e escrita do runtime. Corrija qualquer linha marcada com `✗` antes de estudar.
 
-Na primeira abertura:
+Na primeira abertura (sem configuração) a Mesa não mostra diálogo: ela já abre no app.
 
-1. Escolha a pasta de dados (ou deixe em branco e use a padrão).
-2. Adicione pelo menos uma matéria: **nome** + **pasta de PDFs**.
-3. Se o Pi não foi detectado, use **Detectar** ou indique o executável.
-4. Salve. A mesa conecta ao Pi; as credenciais do provedor são pedidas pelo próprio Pi e ficam nele, não na Mesa.
+1. Dê um nome à matéria no campo **Nome da matéria**, na barra de cima.
+2. Diga onde estão os PDFs: **Escolher a pasta…** na folha "Lista 0", ou solte PDFs (ou a pasta) em qualquer ponto do leitor. A Mesa só aponta para a pasta; não copia nem altera os arquivos.
+3. A pasta onde ficam as exportações e as instruções do tutor aparece na folha (por padrão `Documentos/Mesa de Estudos`); **Mudar** escolhe outra. Ela só é criada quando a matéria nasce e fica gravada no `config.json` deste computador.
+4. Na coluna do tutor, o Pi aparece como encontrado ou não (**Ajustes do Pi** leva ao caminho). **Chamar o tutor** liga a conexão; as credenciais do provedor são pedidas pelo próprio Pi e ficam nele, não na Mesa.
 
-Depois disso, **Mesa → Configurações** (⌘ ,) altera pastas, nomes das matérias e o caminho do Pi.
+Com nome e pasta a matéria é criada e a Mesa vai para ela, já com a caixa de mensagem liberada. Quem preferir só estudar um assunto avulso pode abrir a aba **Livre**.
 
-Em **Configurações → Recursos da mesa**, escolha o nome e quais recursos aparecem. Encerrar por hoje também controla o cartão de retomada; Lista/questão e rascunho `.xopp` são controlados juntos. As escolhas são aplicadas ao salvar.
+Depois disso, **Ajustes → Configurações** (⌘ ,) altera pastas, nomes das matérias e o caminho do Pi.
 
-**Layout dos leitores** permite um ou dois leitores, nomes, termos de preferência do PDF inicial e o nome do botão do segundo leitor. **Aparência** oferece tema Sistema, Claro ou Escuro. Cancelar mantém as escolhas salvas. As abas da área de apoio reabrem o Formulário ou o Chat lateral sem precisar procurar no menu.
+Em **Configurações → Recursos da mesa**, escolha o nome e quais recursos aparecem. Encerrar por hoje também controla o "onde parei" da coluna do tutor; Lista/questão e rascunho `.xopp` são controlados juntos. As escolhas são aplicadas ao salvar.
 
-Para personalizar rótulos dos PDFs, PDF que abre primeiro ou um só leitor, edite o bloco `desk` do `config.json`. Contrato completo em [`../AGENTS.md`](../AGENTS.md) (seção Customizar) e exemplo em [`config.example.json`](config.example.json). Não mude os defaults em `config.cjs` — isso é o jeito do autor.
+**Leitores** permite um ou dois leitores, nomes, termos de preferência do PDF inicial e o nome do botão do segundo leitor. **Aparência e avisos** oferece tema Sistema, Claro ou Escuro e a cor de acento; tema e acento valem na hora. Cancelar descarta as demais edições. Com dois leitores, o Formulário recolhido vira uma faixa que o reabre; o chat lateral abre pelo botão do cabeçalho do tutor.
+
+Para personalizar rótulos dos PDFs, PDF que abre primeiro ou um só leitor, edite o bloco `desk` do `config.json`. Contrato completo em [`../docs/agents/customizar.md`](../docs/agents/customizar.md) e exemplo em [`config.example.json`](config.example.json). Não mude os defaults em `config.cjs` — isso é o jeito do autor.
 
 ## Windows
 
@@ -69,13 +84,13 @@ PDFs, calculadora e o chat com o Pi funcionam. **Conferir Xournal++** captura a 
 
 ### Checklist de teste manual (máquina Windows real)
 
-- [ ] Abrir com `npm start` e ver a boas-vindas da primeira abertura → **Configurar agora**.
+- [ ] Abrir com `npm start` sem configuração: ver a folha "Lista 0" e o campo **Nome da matéria**, criar a primeira matéria com nome + pasta (ou soltando PDFs) e conferir que a Mesa vai para ela.
 - [ ] Ícone da Mesa na janela e na barra de tarefas; fixar na barra, fechar e reabrir pelo botão fixado (inclusive em uma pasta com espaços no caminho).
 - [ ] Matérias/PDFs: abrir, busca com contagem, zoom/scroll, minimizar o leitor, girar 90° (a orientação volta ao reabrir).
 - [ ] Calculadora (expressões e histórico).
 - [ ] Conectar o Pi (as credenciais são pedidas pelo próprio Pi).
 - [ ] Anexos: colar (Ctrl+V), arrastar para o chat e câmera do leitor; enviar com imagem.
-- [ ] GeoGebra: aba e "Print no chat".
+- [ ] GeoGebra: aba e "Print para o tutor".
 - [ ] Atalhos Ctrl (Ctrl+Enter envia, Ctrl+F busca, Ctrl+, Configurações) e ajuda com Ctrl em vez de ⌘.
 - [ ] Tema auto/claro/escuro; **Encerrar por hoje**; exportar conversa.
 - [ ] Conferir Xournal++: botão, Ctrl+Shift+C, menu Estudar e ajuda presentes; com o Xournal++ aberto, a captura anexa a janela dele (minimizada pede para restaurar; fechada pede para abrir).
@@ -113,5 +128,7 @@ Sem certificado a Mesa funciona igual — basta reconceder a permissão em Ajust
 
 ## Atualizar a Mesa (por clique ou terminal)
 
-- **Pelo app:** Mesa → Sobre → **Verificar atualizações** / **Atualizar e reiniciar** (o app fecha, aplica e reabre sozinho; se algo falhar, a versão anterior volta e o motivo fica em `.runtime/desk.log` — acesse pelo "Ver o log" no Sobre).
+- **Pelo app:** Ajustes → Sobre → **Verificar atualizações** / **Atualizar e reiniciar** (o app fecha, aplica e reabre sozinho; se algo falhar, a versão anterior volta e o motivo fica em `.runtime/desk.log` — acesse pelo "Ver o log" no Sobre).
 - **Pelo terminal:** `npm run update` (mesma transação). `npm run update -- --versao X.Y.Z` só vale em instalação por **zip** (sem clone git); em clone, o update segue a branch de desenvolvimento. `npm run update -- --pi` atualiza só o Pi local (`desk/.pi-local`).
+
+**Veio de uma versão com o app Conversa?** A Conversa (`chat/`) foi aposentada na #50 e o chat avulso agora é a aba **Livre** da Mesa. A atualização não apaga nem altera uma pasta `chat/` que já esteja no seu disco; se não a usa mais, apague-a à mão. Num clone git, o `git pull` remove os arquivos rastreados dela e deixa o que o git ignora (`chat/node_modules`, `chat/.runtime`). Sessões antigas que vieram de um bilhete da Conversa continuam abrindo, só sem o bloco `[Da Conversa]`.

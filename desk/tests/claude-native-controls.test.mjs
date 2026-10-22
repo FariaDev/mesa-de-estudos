@@ -18,6 +18,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {join} from 'node:path';
+import {ptText} from './pt-text.mjs';
 import * as fx from './claude-fixtures.mjs';
 
 const require = createRequire(import.meta.url);
@@ -165,7 +166,7 @@ test('initialize lê o catálogo sem prompt, restaura alias e é idempotente', a
   const fallback = snap.models.find((model) => model.id === '');
   assert.equal(fallback.provider, 'anthropic');
   assert.equal(fallback.default, true);
-  assert.equal(fallback.name, 'Padrão do Claude Code');
+  assert.equal(ptText(fallback.name), 'Padrão do Claude Code');
   assert.equal(adapter.snapshot().thinkingLevel, 'high');
 
   const again = await initialize(adapter);
@@ -737,7 +738,7 @@ test('rejected → allowed emite UMA transição RESUMED por janela, sem mexer n
   assert.equal(resumed[0].rateLimit.status, 'allowed');
   assert.equal(resumed[0].rateLimit.type, 'five_hour');
   assert.equal(resumed[0].rateLimit.resumed, true);
-  assert.match(resumed[0].message, /liberado/);
+  assert.match(ptText(resumed[0].message), /liberado/);
 
   query.emit(fx.rateLimitMessage({status: 'allowed', rateLimitType: 'five_hour'}));
   await fx.tick();

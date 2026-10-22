@@ -31,6 +31,29 @@ law toast_item_um_filho:
   for t: T.Toast
   {List.length(&2, V.ViewNode, V.kidsOf(T.toastItem(t))) == 1n : Nat}
 
+# ---------- regra da fila: um aviso por vez ----------
+
+# Nunca passa de um aviso, qualquer que seja a fila antes.
+law toast_push_um:
+  for ts: List<&2, T.Toast>
+  {List.length(&2, T.Toast, T.toastPush(ts, "novo")) == 1n : Nat}
+
+# Fila vazia: o aviso entra aberto.
+law toast_push_vazia:
+  {T.toastPush(Nil{}, "a") == [T.Toast{"a", False{}}] : List<&2, T.Toast>}
+
+# Dois em sequência: fica só o mais recente.
+law toast_push_substitui:
+  {T.toastPush([T.Toast{"a", False{}}], "b") == [T.Toast{"b", False{}}] : List<&2, T.Toast>}
+
+# Repetido: continua um só, sem contador (o texto não ganha sufixo).
+law toast_push_repetido:
+  {T.toastPush([T.Toast{"a", False{}}], "a") == [T.Toast{"a", False{}}] : List<&2, T.Toast>}
+
+# Se o aviso anterior já estava saindo, o novo entra aberto.
+law toast_push_reabre:
+  {T.toastPush([T.Toast{"a", True{}}], "b") == [T.Toast{"b", False{}}] : List<&2, T.Toast>}
+
 # ---------- casca da fila ----------
 
 law toast_box_id:

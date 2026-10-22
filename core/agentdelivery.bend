@@ -72,3 +72,10 @@ def sameNativeIdentity(existing: String, requested: String) -> Bool:
 # entrega incerta ainda pertencem à configuração atual.
 def canChangeControls(busy: Bool, hasTurn: Bool, permissionPending: Bool, uncertain: Bool) -> Bool:
   Bool.and(canBegin(busy, uncertain), Bool.and(Bool.not(hasTurn), Bool.not(permissionPending)))
+
+# Steer (#57): a mensagem nova interrompe o turno do motor e é tratada agora.
+# Só existe com um TURNO em voo; um envio nosso ainda sem veredito, uma troca
+# de controles ou uma entrega incerta fecham a porta (a incerta nunca é
+# reenviada sozinha). Sem turno, o envio é normal e passa por `canBegin`.
+def canSteer(turnInFlight: Bool, sending: Bool, configuring: Bool, uncertain: Bool) -> Bool:
+  Bool.and(turnInFlight, Bool.and(Bool.not(sending), Bool.and(Bool.not(configuring), Bool.not(uncertain))))

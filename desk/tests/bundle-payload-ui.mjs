@@ -8,7 +8,7 @@ import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 import {_electron as electron} from '@playwright/test';
 import bundle from '../bundle-runtime.cjs';
-import {DESK,deskEnv,withArtifacts} from './helpers.mjs';
+import {DESK,deskEnv,withArtifacts,enterFree,freeMenuClick} from './helpers.mjs';
 
 await withArtifacts('bundle-payload-ui',async ctx=>{
  const tmp=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-bundle-payload-')));
@@ -30,10 +30,9 @@ await withArtifacts('bundle-payload-ui',async ctx=>{
  assert.ok(fs.existsSync(path.join(payload,'src','extensions','tutor-pdf','index.ts')),'extensão PDF do Pi distribuída');
  ctx.app=await electron.launch({args:[payload],cwd:tmp,env:deskEnv(runtime)});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.waitForSelector('#free-bar');
- if(await page.locator('#welcome-dialog').evaluate(el=>el.open))await page.keyboard.press('Escape');
+ await enterFree(page);
  assert.ok(page.url().startsWith(pathToFileURL(payload).href),'renderer veio do payload');
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.locator('#free-pdf-title').fill('Payload isolado');
  await page.locator('#free-pdf-content').fill('# Payload isolado\n\nImpressão do pacote distribuído.\n\n$$a^2+b^2=c^2$$');
  await page.waitForSelector('#free-pdf-preview .katex');

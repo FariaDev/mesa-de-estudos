@@ -2,8 +2,8 @@
 // (src/generated/find.core.js). Roda da pasta desk: `node tests/find-parity.mjs`.
 import findCore from '../src/generated/find.core.js';
 
-// Tradutor para o formato do artefato (`PageHits{page,count}`; Nat = BigInt).
-const hitsList=hits=>hits.reduceRight((tail,{page,count})=>({$:'Con',head:{page:BigInt(page),count:BigInt(count)},tail}),{$:'Nil'});
+// Tradutor para o formato do artefato (`PageHits{page,count}`; Nat = number desde o bend 2.0.37, #49).
+const hitsList=hits=>hits.reduceRight((tail,{page,count})=>({$:'Con',head:{page,count},tail}),{$:'Nil'});
 
 // --- antigo (o que estava inline no pdf.mjs) -------------------------------
 function oldTarget(cycle,pages,current){return cycle?(pages.find(p=>p.page>current)||pages[0]).page:pages[0].page;}
@@ -15,12 +15,12 @@ function oldCount(term,pages,total,current){
 
 // --- novo (via núcleo) ------------------------------------------------------
 function newTarget(cycle,pages,current){
- const hit=findCore.cycleTarget(cycle,hitsList(pages),BigInt(current));
+ const hit=findCore.cycleTarget(cycle,hitsList(pages),current);
  return hit.$==='Some'?Number(hit.value):pages[0].page;
 }
 function newCount(term,pages,total,current){
  if(!term||!total)return{hidden:true,text:''};
- const out=findCore.findCount(hitsList(pages),BigInt(current));
+ const out=findCore.findCount(hitsList(pages),current);
  return{hidden:out.$==='Hidden',text:out.$==='Shown'?`${out.index}/${out.total}`:out.$==='All'?`${out.total} ocorrências`:''};
 }
 
@@ -30,10 +30,10 @@ const rnd=n=>{seed=(seed*1103515245+12345)>>>0;return seed%n;};
 const CASES=20000;
 let checked=0;
 for(let i=0;i<CASES;i++){
- const pages=[];let n=0,total=0;
- const count=rnd(8); // 0..7 páginas com ocorrências
+ const pages=[];let total=0;
+ rnd(8); // sorteio sem uso mantido: tirar mudaria a sequência e os casos já vistos
  const picks=[...Array(31)].map((_,k)=>k+1).filter(()=>rnd(3)===0);
- for(const page of picks){pages.push({page,count:1+rnd(5)});total+=pages.at(-1).count;n++;}
+ for(const page of picks){pages.push({page,count:1+rnd(5)});total+=pages.at(-1).count;}
  const current=1+rnd(36);
  const term=rnd(4)===0?'':'limite';
  const cycle=rnd(2)===0;

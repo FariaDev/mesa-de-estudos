@@ -1,0 +1,85 @@
+/* Modelo Lista: cabeçalho de uma linha com filete, título em versalete negrito
+   à direita, enunciados "01)" em negrito, itens "1)" em colunas e rodapé com
+   filete (nome da lista e página). */
+
+@page lista{
+  size:A4;
+  margin:22mm 16mm 22mm;
+  @top-left{
+    width:60%;
+    font:9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    border-bottom:.5pt solid #111;
+    vertical-align:bottom;
+    padding-bottom:1.6mm;
+  }
+  @top-right{
+    width:40%;
+    font:700 9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    font-variant:small-caps;
+    letter-spacing:.05em;
+    text-align:right;
+    color:#111;
+    border-bottom:.5pt solid #111;
+    vertical-align:bottom;
+    padding-bottom:1.6mm;
+  }
+  @bottom-left{
+    width:75%;
+    font:9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    border-top:.5pt solid #111;
+    vertical-align:top;
+    padding-top:1.6mm;
+  }
+  @bottom-right{
+    width:25%;
+    font:9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    text-align:right;
+    border-top:.5pt solid #111;
+    vertical-align:top;
+    padding-top:1.6mm;
+  }
+}
+
+.pdf-doc .pdf-model[data-model="lista"]{page:lista;--page-h:253mm}
+.pdf-doc .pdf-model[data-model="lista"] .pdf-title{display:none}
+.pdf-doc .pdf-model[data-model="lista"] .pdf-run-head .pdf-run-r{
+  font-weight:700;
+  font-variant:small-caps;
+  letter-spacing:.05em;
+}
+
+/* Enunciados: lista numerada de nível 1. O `start` do Markdown vale. */
+.pdf-doc .pdf-model[data-model="lista"]>ol{padding-left:2.4em;margin:.6em 0}
+.pdf-doc .pdf-model[data-model="lista"]>ol>li{margin:0 0 4.5mm;padding-left:.2em}
+.pdf-doc .pdf-model[data-model="lista"]>ol>li::marker{
+  content:counter(list-item, decimal-leading-zero) ")\00a0";
+  font-weight:700;
+}
+
+/* Itens: lista numerada de nível 2, em colunas (`data-cols`). */
+.pdf-doc .pdf-model[data-model="lista"] li>ol{
+  margin:.35em 0 0;
+  padding-left:1.7em;
+  column-gap:var(--col-gap);
+}
+.pdf-doc .pdf-model[data-model="lista"] li>ol>li{margin:0 0 .3em;break-inside:avoid}
+.pdf-doc .pdf-model[data-model="lista"] li>ol>li::marker{
+  content:counter(list-item) ")\00a0";
+  font-weight:400;
+}
+.pdf-doc .pdf-model[data-model="lista"][data-cols="1"] li>ol{columns:1}
+.pdf-doc .pdf-model[data-model="lista"][data-cols="2"] li>ol{columns:2}
+.pdf-doc .pdf-model[data-model="lista"][data-cols="3"] li>ol{columns:3}
+.pdf-doc .pdf-model[data-model="lista"][data-cols="auto"] li>ol{columns:1}
+
+.pdf-doc .pdf-model[data-model="lista"] .pdf-gabarito>:is(h2,h3){
+  font-size:1.05em;
+  font-variant:small-caps;
+  letter-spacing:.04em;
+  border-bottom:.5pt solid #111;
+  padding-bottom:1mm;
+  margin-top:0;
+}

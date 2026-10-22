@@ -131,9 +131,9 @@ export function fakeSdk() {
 
 export function fakeDetect(info = {}) {
   return async () => ({
-    path: '/fake/claude/versions/2.1.246',
+    path: '/fake/claude/versions/2.1.301',
     launcherPath: '/fake/claude',
-    version: '2.1.246',
+    version: '2.1.301',
     auth: {loggedIn: true, authMethod: 'oauth', apiProvider: 'firstParty'},
     warnings: [],
     ...info,
@@ -273,7 +273,7 @@ export function resultMessage({subtype = 'success', isError = false, userMessage
 }
 
 /* Evento nativo de limite do SDK pinado (`rate_limit_event` de primeiro
-   nível). Todos os campos opcionais vêm dos tipos 0.3.246. */
+   nível). Todos os campos opcionais vêm dos tipos 0.3.301. */
 export function rateLimitMessage({
   status = 'rejected',
   rateLimitType,
@@ -306,7 +306,7 @@ export function rateLimitMessage({
   };
 }
 
-export function initMessage({sessionId = UUID.session, version = '2.1.246', model = 'claude-test'} = {}) {
+export function initMessage({sessionId = UUID.session, version = '2.1.301', model = 'claude-test'} = {}) {
   return {
     type: 'system',
     subtype: 'init',

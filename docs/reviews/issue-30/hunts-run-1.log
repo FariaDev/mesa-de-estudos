@@ -1,0 +1,31 @@
+ok    hunt-activity-spike.mjs (23s)
+ok    hunt-activity-ui.mjs (24s)
+ok    hunt-activity-watchdog.mjs (47s)
+ok    hunt-calc-ggb.mjs (30s)
+ok    hunt-activity-isolation.mjs (152s)
+ok    hunt-chat.mjs (63s)
+pulado hunt-handoff.mjs (0s)
+ok    hunt-nav.mjs (4s)
+ok    hunt-pdf-codecs.mjs (1s)
+ok    hunt-pdf-drop-scope.mjs (1s)
+ok    hunt-pdf-qol.mjs (5s)
+ok    hunt-pdf-render-race.mjs (2s)
+ok    hunt-pdf-retention.mjs (9s)
+ok    hunt-pdf.mjs (11s)
+ok    hunt-qol-ipc.mjs (2s)
+ok    hunt-qol-undo.mjs (3s)
+ok    hunt-chaos.mjs (147s)
+ok    hunt-review-today.mjs (1s)
+ok    hunt-review.mjs (3s)
+ok    hunt-queue.mjs (48s)
+ok    hunt-shell.mjs (38s)
+ok    hunt-study-stats.mjs (17s)
+ok    hunt-timeline.mjs (18s)
+
+===== hunt-handoff.mjs =====
+PULADO: Conversa indisponível (chat/ ausente ou sem node_modules; rode npm ci em chat/).
+HUNT HANDOFF DONE
+
+==== hunts: 22 ok, 0 com falha, 1 pulados em 331s (2 por vez) ====
+pulados:
+- hunt-handoff.mjs: Conversa indisponível (chat/ ausente ou sem node_modules; rode npm ci em chat/).

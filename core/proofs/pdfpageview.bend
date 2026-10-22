@@ -222,18 +222,6 @@ def Laws.pdfpage_collapse_title():
 
 # ---------- ferramentas ----------
 
-def Laws.pdfpage_tools_kids():
-  {==}
-
-def Laws.pdfpage_tools_first():
-  {==}
-
-def Laws.pdfpage_tools_page_number():
-  {==}
-
-def Laws.pdfpage_tools_page_total():
-  {==}
-
 def Laws.pdfpage_page_input():
   {==}
 
@@ -243,13 +231,129 @@ def Laws.pdfpage_page_input_value():
 def Laws.pdfpage_fit_btn():
   {==}
 
-def Laws.pdfpage_zoom_label_span():
+# ---------- barra única e menu "Mais opções" ----------
+
+def Laws.pdfpage_bar_back_class():
   {==}
 
-def Laws.pdfpage_tools_rotate():
+def Laws.pdfpage_bar_prev_class():
   {==}
 
-def Laws.pdfpage_tools_rotate_title():
+def Laws.pdfpage_bar_page_number():
+  {==}
+
+def Laws.pdfpage_bar_page_total():
+  {==}
+
+def Laws.pdfpage_bar_next_class():
+  {==}
+
+def Laws.pdfpage_bar_find_toggle():
+  {==}
+
+def Laws.pdfpage_bar_nav():
+  {==}
+
+def Laws.pdfpage_bar_more():
+  {==}
+
+def Laws.pdfpage_prev_click():
+  {==}
+
+def Laws.pdfpage_next_click():
+  {==}
+
+def Laws.pdfpage_more_icon():
+  {==}
+
+def Laws.pdfpage_more_click():
+  {==}
+
+def Laws.pdfpage_more_expandido():
+  {==}
+
+def Laws.pdfpage_more_aria():
+  {==}
+
+def Laws.pdfpage_more_titulo():
+  {==}
+
+def Laws.pdfpage_menu_class():
+  {==}
+
+def Laws.pdfpage_menu_oculto():
+  {==}
+
+def Laws.pdfpage_menu_aria():
+  {==}
+
+def Laws.pdfpage_menu_kids():
+  {==}
+
+def Laws.pdfpage_menu_open():
+  {==}
+
+def Laws.pdfpage_menu_shot():
+  {==}
+
+def Laws.pdfpage_menu_shot_texto():
+  {==}
+
+def Laws.pdfpage_menu_zoom():
+  {==}
+
+def Laws.pdfpage_menu_out_click():
+  {==}
+
+def Laws.pdfpage_menu_zoom_label():
+  {==}
+
+def Laws.pdfpage_menu_in_click():
+  {==}
+
+def Laws.pdfpage_menu_fit_click():
+  {==}
+
+def Laws.pdfpage_menu_invert_click():
+  {==}
+
+def Laws.pdfpage_menu_invert_texto():
+  {==}
+
+def Laws.pdfpage_menu_rotate():
+  {==}
+
+def Laws.pdfpage_menu_rotate_title():
+  {==}
+
+def Laws.pdfpage_menu_collapse():
+  {==}
+
+def Laws.pdfpage_menu_collapse_texto():
+  {==}
+
+def Laws.pdfpage_menu_collapse_restaurar():
+  {==}
+
+def Laws.pdfpage_restore_class():
+  {==}
+
+def Laws.pdfpage_restore_click():
+  {==}
+
+def Laws.pdfpage_restore_aria():
+  {==}
+
+def Laws.pdfpage_restore_rotulo():
+  {==}
+
+def Laws.pdfpage_panel_menu():
+  {==}
+
+def Laws.pdfpage_panel_restore():
+  {==}
+
+def Laws.pdfpage_printed_toggle_texto():
   {==}
 
 # ---------- palco, busca e divisor ----------
@@ -335,6 +439,14 @@ def Laws.pdfpage_doc_empty():
 def Laws.pdfpage_viewport_empty():
   {==}
 
+def Laws.pdfpage_viewport_folha():
+  {==}
+
+def Laws.pdfpage_viewport_folha_ignora_paginas(box):
+  match box:
+    case G.PdfPageBox{n, width, height}:
+      {==}
+
 def Laws.pdfpage_viewport_ready(box):
   match box:
     case G.PdfPageBox{n, width, height}:
@@ -395,23 +507,169 @@ def Laws.pdfpage_select_change():
 def Laws.pdfpage_page_input_change():
   {==}
 
-def Laws.pdfpage_prev_click():
-  {==}
-
-def Laws.pdfpage_next_click():
-  {==}
-
-def Laws.pdfpage_out_click():
-  {==}
-
-def Laws.pdfpage_in_click():
-  {==}
-
-def Laws.pdfpage_fit_click():
-  {==}
-
-def Laws.pdfpage_invert_click():
-  {==}
-
 def Laws.pdfpage_rotate_label():
+  {==}
+def Laws.pdfpage_printed_auto_sem_rotulo():
+  {==}
+
+def Laws.pdfpage_printed_offset_positivo():
+  {==}
+
+def Laws.pdfpage_printed_offset_negativo():
+  {==}
+
+def Laws.pdfpage_printed_offset_front_matter():
+  {==}
+
+def Laws.pdfpage_printed_proprio_vence():
+  {==}
+
+def Laws.pdfpage_printed_proprio_parcial_cai_no_offset():
+  {==}
+
+def Laws.pdfpage_printed_proprio_vazio_cai_no_offset():
+  {==}
+
+def Laws.pdfpage_resolve_proprio_exato():
+  {==}
+
+def Laws.pdfpage_resolve_proprio_caixa_ignorada():
+  {==}
+
+def Laws.pdfpage_resolve_proprio_repetido_ciclo():
+  {==}
+
+def Laws.pdfpage_resolve_proprio_repetido_volta():
+  {==}
+
+def Laws.pdfpage_resolve_proprio_ausente():
+  {==}
+
+def Laws.pdfpage_resolve_proprio_fora_do_total():
+  {==}
+
+def Laws.pdfpage_resolve_sem_rotulo_e_fisica():
+  {==}
+
+def Laws.pdfpage_resolve_sem_rotulo_nao_numerico():
+  {==}
+
+def Laws.pdfpage_resolve_sem_rotulo_zero():
+  {==}
+
+def Laws.pdfpage_resolve_offset_negativo():
+  {==}
+
+def Laws.pdfpage_resolve_offset_positivo():
+  {==}
+
+def Laws.pdfpage_resolve_offset_positivo_abaixo():
+  {==}
+
+def Laws.pdfpage_resolve_espaco_ignorado():
+  {==}
+
+def Laws.pdfpage_resolve_vazio():
+  {==}
+
+def Laws.pdfpage_printed_status_auto():
+  {==}
+
+def Laws.pdfpage_printed_status_pos():
+  {==}
+
+def Laws.pdfpage_printed_status_neg():
+  {==}
+
+def Laws.pdfpage_printed_status_proprio():
+  {==}
+
+def Laws.pdfpage_printed_current_texto():
+  {==}
+
+def Laws.pdfpage_printed_current_vazio():
+  {==}
+
+def Laws.pdfpage_printed_found_texto():
+  {==}
+
+def Laws.pdfpage_printed_not_found_texto():
+  {==}
+
+def Laws.pdfpage_printed_bad_offset_texto():
+  {==}
+
+def Laws.pdfpage_drop_hint_texto():
+  {==}
+
+def Laws.pdfpage_drop_invalid_texto():
+  {==}
+
+def Laws.pdfpage_printed_row_fechada():
+  {==}
+
+def Laws.pdfpage_printed_row_aberta():
+  {==}
+
+def Laws.pdfpage_printed_row_submit():
+  {==}
+
+def Laws.pdfpage_printed_row_class():
+  {==}
+
+def Laws.pdfpage_printed_input_placeholder():
+  {==}
+
+def Laws.pdfpage_printed_input_aria():
+  {==}
+
+def Laws.pdfpage_printed_go_label():
+  {==}
+
+def Laws.pdfpage_printed_offset_limits():
+  {==}
+
+def Laws.pdfpage_printed_offset_save_click():
+  {==}
+
+def Laws.pdfpage_printed_offset_auto_click():
+  {==}
+
+def Laws.pdfpage_printed_toggle_click():
+  {==}
+
+def Laws.pdfpage_printed_toggle_icon():
+  {==}
+
+def Laws.pdfpage_printed_toggle_aria():
+  {==}
+
+def Laws.pdfpage_drop_hint_class():
+  {==}
+
+def Laws.pdfpage_drop_hint_escondida():
+  {==}
+
+def Laws.pdfpage_printed_saved_auto():
+  {==}
+
+def Laws.pdfpage_printed_saved_pos():
+  {==}
+
+def Laws.pdfpage_printed_saved_neg():
+  {==}
+
+def Laws.pdfpage_drop_opening_texto():
+  {==}
+
+def Laws.pdfpage_drop_opened_texto():
+  {==}
+
+def Laws.pdfpage_drop_unavailable_texto():
+  {==}
+
+def Laws.pdfpage_printed_status_sem_ajuste():
+  {==}
+
+def Laws.pdfpage_printed_status_do_pdf():
   {==}

@@ -1,0 +1,26 @@
+{
+  "origin": "claude-mod/mesa-study/host",
+  "takenAt": "2026-10-05",
+  "note": "Cópia snapshot do host do protótipo Claude (claude-mod/mesa-study/host). capture.mjs é o único arquivo ajustado: default do helper de captura declarado na inicialização (--xournal-helper / MESA_XOURNAL_HELPER), sem caminho relativo frágil ao checkout. A origem não é editada.",
+  "files": {
+    "cli.mjs": "f33f7368819cc0fc1b996584c5c965f02e5738b33c9769738c461e307308c015",
+    "config.mjs": "88aaace100ec10a5f863d6d6c04010f82bc02b4913c34bf31a40ef875667ed23",
+    "errors.mjs": "45f2384573cd1f311919a31d16858b3d43ccd6c2a1249f8c42a219cc166cdd82",
+    "index.mjs": "16e25c5e9f9cc8a5d2953a9abf82d24e117842bae1a92d3d536197d116db05b9",
+    "operations.mjs": "b956fa4d6636d876237e8b72fa52ffd56a431e0ff2a6c3afdda0a0daf6a8950f",
+    "output.mjs": "f9ccd120e245eab6d9d7a141574556c437c392e2665e1a7a6d5aac2678668b07",
+    "page.mjs": "e9ea3b070fbac37b249e76e0d391130a344942c75d0a42147ad3b7370ab4e47c",
+    "paths.mjs": "2dcf16bfc1178ff7a16d092ae266f7a55e2165040c897516b0180dd098bbc100",
+    "proc.mjs": "daffe163729c33058b4de2291001db7dc53890cd80d2b0efcaf50d7351688b05",
+    "testing.mjs": "7edc4259d37338487fd23d8a99d3cc022097fe645e10f0f6f0a77e6fbce023f3",
+    "tools.mjs": "20775d94c577339f4e4b159e73c9e775d95d3aeeda6c80f68208cc7a2cd057b4",
+    "validate.mjs": "463f53b20265edd0e8b1e0ff248831303e7d1f0b4e8428848636ba87e50e950b"
+  },
+  "adjusted": {
+    "capture.mjs": {
+      "reason": "defaultHelperPath() deixou de resolver ../../../visual-check/windows relativo ao repo e passou a exigir helper declarado na inicialização; listWindows() recusa helper ausente com CAPTURE_HELPER_MISSING explícito; cabeçalho atualizado.",
+      "originSha256": "2276a0aeb3a83b09082f91712ef189a646d8764146c3f2464b824e058656795c",
+      "copySha256": "2c27c6645d5e8888f8daa4c70efe20df1ee422cef2a79f8b6a4d26f414e18f51"
+    }
+  }
+}

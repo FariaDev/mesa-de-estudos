@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ícones — rodada 2</title>
+<!-- #61, rodada 2: o autor fica com o Lucide de hoje e troca só a faísca pela do Fino.
+     A dúvida que sobra é o peso do traço da faísca. Gerado a partir de icones-r1.html. -->
+<style>
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.lead{color:#737373;margin:0 0 24px;max-width:72ch}
+.variant{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;margin-bottom:16px}
+.variant h2{font-size:15px;margin:0}
+.variant p{margin:2px 0 12px;color:#737373;font-size:13px}
+.row{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px}
+.cell{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:10px;background:#f6f6f7}
+.cell.troca{outline:2px solid #e8862a;outline-offset:-2px}
+.cell svg{width:40px;height:40px}
+.cell span{font-size:10px;color:#737373}
+.bars{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.bar{display:flex;gap:2px;padding:6px 8px;border-radius:10px;align-items:center}
+.bar.light{background:#f5f5f5;color:#3f3f46;border:1px solid #e4e4e7}
+.bar.dark{background:#262626;color:#d4d4d8;border:1px solid #3a3a3a}
+.bar b{width:28px;height:28px;display:grid;place-items:center;border-radius:7px}
+.bar svg{width:16px;height:16px}
+.fill{fill:none}
+</style>
+</head>
+<body>
+<h1>Ícones da interface — rodada 2</h1>
+<p class="lead">O Lucide de hoje continua, e a faísca (contornada em laranja) passa a ser a do Fino. A faísca é a única peça desenhada por nós no meio do Lucide, então falta escolher o traço dela: 2, igual aos vizinhos, ou 1,5, como no Fino. Veja na barra de 16 px, que é onde a diferença aparece.</p>
+<div id="out"></div>
+<script>
+const atual={
+ plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+ close:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+ search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+ settings:'<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
+ calculator:'<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8"/><path d="M8 10h.01"/><path d="M12 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14v4"/><path d="M8 18h.01"/><path d="M12 18h.01"/>',
+ book:'<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/>',
+ paperclip:'<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+ camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+ download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+ sparkles:'<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+ clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+ messageSquare:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+};
+const faisca='<path class="fill" d="M11 3Q11.8 10.2 19 11Q11.8 11.8 11 19Q10.2 11.8 3 11Q10.2 10.2 11 3Z"/><path class="acc" d="M19 2.5v4M17 4.5h4"/>';
+const variantes=[
+ {nome:'Hoje',nota:'Faísca do Lucide, para comparar.',troca:null},
+ {nome:'A · Faísca do Fino, traço 2',nota:'Mesmo peso dos vizinhos: some no conjunto, que é o objetivo.',troca:2},
+ {nome:'B · Faísca do Fino, traço 1,5',nota:'Igual ao Fino. Fica mais leve que os outros ícones da barra.',troca:1.5},
+];
+const svg=(d,w)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const icone=(v,n)=>v.troca&&n==='sparkles'?svg(faisca,v.troca):svg(atual[n],2);
+const nomes=Object.keys(atual);
+document.getElementById('out').innerHTML=variantes.map(v=>`
+ <section class="variant"><h2>${v.nome}</h2><p>${v.nota}</p>
+  <div class="row">${nomes.map(n=>`<div class="cell${v.troca&&n==='sparkles'?' troca':''}">${icone(v,n)}<span>${n}</span></div>`).join('')}</div>
+  <div class="bars">${['light','dark'].map(t=>`<div class="bar ${t}">${nomes.map(n=>`<b>${icone(v,n)}</b>`).join('')}</div>`).join('')}</div>
+ </section>`).join('');
+</script>
+</body>
+</html>

@@ -46,7 +46,6 @@ const GLOBAL_EXTENSIONS = [
 const OVERLAY_EXTENSIONS = [
   'anki-cards.ts',
   'code-study-guard.ts',
-  'geogebra.ts',
   'learning-session.ts',
   'quiz.ts',
   'visual-check.ts',
@@ -58,7 +57,7 @@ const BUILTIN_EXTENSIONS = ['builtin:mcp', 'builtin:codemode', 'builtin:tool-sea
 /* Ferramentas próprias do perfil. O catálogo MCP é assíncrono e depende dos
    servidores do usuário; a sonda o informa separado, sem fixar nomes locais. */
 const EXPECTED_ACTIVE = [
-  'ask_user', 'bash', 'edit', 'geogebra', 'obsidian-note', 'quiz', 'read',
+  'ask_user', 'bash', 'edit', 'mesa_geogebra', 'obsidian-note', 'quiz', 'read',
   'subagent_cancel', 'subagent_check', 'subagent_list', 'subagent_spawn',
   'subagent_wait', 'write',
 ];

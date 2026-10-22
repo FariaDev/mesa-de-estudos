@@ -1,0 +1,15 @@
+desk/tests/auxview.test.mjs
+desk/tests/composerbox.test.mjs
+desk/tests/deskflags.test.mjs
+desk/tests/dialogsview.test.mjs
+desk/tests/escape-policy.test.mjs
+desk/tests/firstrun.test.mjs
+desk/tests/shortcutview.test.mjs
+desk/tests/slashview.test.mjs
+desk/tests/statusview.test.mjs
+desk/tests/tabsview.test.mjs
+desk/tests/toast-view.test.mjs
+desk/tests/tutorheader.test.mjs
+desk/tests/tutorstate.test.mjs
+desk/tests/view-host-attrs.test.mjs
+desk/tests/view-host.test.mjs

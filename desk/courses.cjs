@@ -34,8 +34,9 @@ function listPdfs(dir,depth=0,seen=new Set(),result=[]){
  return result;
 }
 
-function courseLibrary(course){
- if(!course||!fs.existsSync(course))return [];
+/* Pastas varridas atrás de PDFs: `Sources/`, as `source_roots` do `_state.md` ou,
+   sem nenhuma, a própria pasta da matéria. */
+function sourceRoots(course){
  const roots=[];
  const sources=path.join(course,'Sources');
  if(fs.existsSync(sources))roots.push(sources);
@@ -49,6 +50,21 @@ function courseLibrary(course){
   }
  }
  if(!roots.length)roots.push(course);
+ return roots;
+}
+
+/* Onde o usuário deve jogar um PDF para a biblioteca da matéria o ver: a
+   primeira pasta varrida que existe (a da matéria, quando não há outra). */
+function courseDropFolder(course){
+ if(!course||!fs.existsSync(course))return '';
+ return sourceRoots(course).find(root=>{try{return fs.statSync(root).isDirectory();}catch{return false;}})||course;
+}
+
+function courseLibrary(course){
+ if(!course||!fs.existsSync(course))return [];
+ const roots=sourceRoots(course);
+ const generated=path.join(course,'Materiais da Mesa');
+ if(fs.existsSync(generated))roots.push(generated);
  const seen=new Set(),all=[];
  roots.forEach(r=>listPdfs(r,0,seen,all));
  const order=new Map();
@@ -73,4 +89,4 @@ function mergeCourses(config){
  return fromCourses(core.mergeCourses(toCourses(discovered),toCourses(cfg)));
 }
 
-module.exports={DEFAULT_LABELS,discoverCourses,courseLibrary,mergeCourses};
+module.exports={DEFAULT_LABELS,discoverCourses,courseLibrary,courseDropFolder,mergeCourses};

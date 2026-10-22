@@ -1,0 +1,100 @@
+=== node core/verify.mjs (toolchain d2aeefc1, antes do --pin)
+plugin bend: 0984154bb5f8 → 3abb47af6fc7
+bend: bend 2.0.27 → bend 2.0.37
+verify: a toolchain fixada veio de bendlang/bend@63bee70b (bend2/ + guide/); o CLI é o próprio bend2/main.ts rodando com bun
+verify: toolchain diferente da fixada — valide o diff dos artefatos/provas e rode `node core/verify.mjs --pin` para aceitar
+exit=1
+=== bun core/build.mjs
+gerado <repo>/desk/src/generated/mesaqolescape.core.js
+gerado <repo>/desk/src/generated/mesaqolpalette.core.js
+gerado <repo>/desk/src/generated/mesaqollayout.core.js
+gerado <repo>/desk/src/generated/undoview.core.js
+gerado <repo>/desk/src/generated/wheel.core.js
+gerado <repo>/desk/src/generated/worklog.core.js
+gerado <repo>/desk/src/generated/library.core.js
+gerado <repo>/desk/src/generated/find.core.js
+gerado <repo>/desk/src/generated/courses.core.js
+gerado <repo>/desk/src/generated/study.core.js
+gerado <repo>/desk/src/generated/studytoolsview.core.js
+gerado <repo>/desk/src/generated/chatlibraryview.core.js
+gerado <repo>/desk/src/generated/studysearch.core.js
+gerado <repo>/desk/src/generated/studyannotations.core.js
+gerado <repo>/desk/src/generated/studystats.core.js
+gerado <repo>/desk/src/generated/reviewschedule.core.js
+gerado <repo>/desk/src/generated/studycontext.core.js
+gerado <repo>/desk/src/generated/handoff.core.js
+gerado <repo>/chat/src/generated/handoff.core.js
+gerado <repo>/desk/src/generated/config.core.js
+gerado <repo>/desk/src/generated/agentcaps.core.js
+gerado <repo>/desk/src/generated/agentdelivery.core.js
+gerado <repo>/desk/src/generated/sidechat.core.js
+gerado <repo>/desk/src/generated/freeworkspaces.core.js
+gerado <repo>/desk/src/generated/framing.core.js
+gerado <repo>/desk/src/generated/rpcstate.core.js
+gerado <repo>/desk/src/generated/view.core.js
+gerado <repo>/chat/src/generated/view.core.js
+gerado <repo>/desk/src/generated/state.core.js
+gerado <repo>/desk/src/generated/accent.core.js
+gerado <repo>/desk/src/generated/guideview.core.js
+gerado <repo>/chat/src/generated/state.core.js
+gerado <repo>/desk/src/generated/attachments.core.js
+gerado <repo>/chat/src/generated/attachments.core.js
+gerado <repo>/desk/src/generated/sessions.core.js
+gerado <repo>/chat/src/generated/sessions.core.js
+gerado <repo>/chat/src/generated/toolpolicy.core.js
+gerado <repo>/chat/src/generated/framing.core.js
+gerado <repo>/chat/src/generated/rpcstate.core.js
+gerado <repo>/chat/src/generated/worklog.core.js
+gerado <repo>/chat/src/generated/search.core.js
+gerado <repo>/chat/src/generated/composerview.core.js
+gerado <repo>/desk/src/generated/composerview.core.js
+gerado <repo>/chat/src/generated/searchview.core.js
+gerado <repo>/desk/src/generated/statusview.core.js
+gerado <repo>/chat/src/generated/statusview.core.js
+gerado <repo>/desk/src/generated/worklogview.core.js
+gerado <repo>/chat/src/generated/worklogview.core.js
+gerado <repo>/desk/src/generated/pdfref.core.js
+gerado <repo>/desk/src/generated/pdfnav.core.js
+gerado <repo>/desk/src/generated/review.core.js
+gerado <repo>/desk/src/generated/pdfview.core.js
+gerado <repo>/desk/src/generated/tabsview.core.js
+gerado <repo>/desk/src/generated/tutorheader.core.js
+gerado <repo>/desk/src/generated/toastview.core.js
+gerado <repo>/desk/src/generated/talkview.core.js
+gerado <repo>/desk/src/generated/dialogsview.core.js
+gerado <repo>/desk/src/generated/calcview.core.js
+gerado <repo>/desk/src/generated/auxview.core.js
+gerado <repo>/desk/src/generated/pdfpageview.core.js
+gerado <repo>/desk/src/generated/materialmodel.core.js
+gerado <repo>/desk/src/generated/readersheet.core.js
+gerado <repo>/chat/src/generated/chatlist.core.js
+gerado <repo>/chat/src/generated/paletteview.core.js
+gerado <repo>/chat/src/generated/msgview.core.js
+gerado <repo>/chat/src/generated/findbar.core.js
+gerado <repo>/chat/src/generated/popoverview.core.js
+gerado <repo>/chat/src/generated/comfortview.core.js
+gerado <repo>/chat/src/generated/notifyview.core.js
+gerado <repo>/chat/src/generated/lightboxview.core.js
+gerado <repo>/chat/src/generated/gaugeview.core.js
+gerado <repo>/chat/src/generated/keysview.core.js
+gerado <repo>/desk/src/generated/shortcutview.core.js
+gerado <repo>/chat/src/generated/welcomeview.core.js
+gerado <repo>/desk/src/generated/deskflags.core.js
+gerado <repo>/desk/src/generated/composerbox.core.js
+gerado <repo>/desk/src/generated/attachview.core.js
+gerado <repo>/chat/src/generated/attachview.core.js
+gerado <repo>/chat/src/generated/talkview.core.js
+gerado <repo>/desk/src/generated/slashview.core.js
+gerado <repo>/chat/src/generated/slashview.core.js
+gerado <repo>/desk/src/generated/pending.core.js
+gerado <repo>/desk/src/generated/resume.core.js
+gerado <repo>/desk/src/generated/tutorstate.core.js
+gerado <repo>/desk/src/generated/settingsview.core.js
+gerado <repo>/desk/src/generated/firstrun.core.js
+gerado <repo>/desk/src/generated/conferir.core.js
+gerado <repo>/desk/src/generated/activityview.core.js
+exit=0
+=== node core/proof.mjs
+ALL PROOFS CHECK
+Use --verdict for mathematical validity.
+exit=0

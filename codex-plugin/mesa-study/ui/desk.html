@@ -1,0 +1,1613 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Mesa — painel de estudos</title>
+<!--
+  Painel MCP Apps da Mesa de Estudos (experimental), recurso
+  ui://mesa-study/desk-v1.html (text/html;profile=mcp-app).
+
+  - HTML/CSS/JavaScript inline, sem rede em runtime: nenhum script, fonte,
+    imagem ou conexão externos. As imagens exibidas são data:image/png
+    montadas a partir do bloco image/png devolvido pelas ferramentas MCP.
+  - Ponte manual JSON-RPC sobre postMessage, conforme o padrão MCP Apps
+    (ui/initialize, ui/notifications/initialized, tools/call, ui/message,
+    ui/update-model-context, ui/request-display-mode, ui/resource-teardown,
+    ui/notifications/size-changed); toda mensagem só é aceita quando
+    event.source === window.parent.
+  - Época global de commit: página, captura e "mesa sem página" passam pelo
+    mesmo token, então resposta assíncrona antiga ou captura antiga não
+    sobrescreve o estado novo; teardown para tudo.
+  - Navegar páginas não dispara ui/message: os controles usam mesa_page como
+    navegação do painel e nada é enviado à conversa. "Pedir ajuda" envia uma
+    mensagem (ui/message) pedindo que o tutor chame mesa_page/mesa_capture; a
+    imagem devolvida pelo MCP entra na conversa como resultado de ferramenta.
+    O destino dos resultados de imagem depende do hospedeiro: não há garantia
+    de prévia exclusivamente local (ver AGENTS.md).
+  - Atalhos de teclado: Enter no campo de página vai para a página; ← →
+    (fora de input/textarea/select, sem modificadores e sem IME em composição)
+    mudam de página; Enter no composer pede ajuda e Shift+Enter quebra linha.
+    Captura nunca tem atalho; Enter no composer envia apenas o pedido
+    explícito de ajuda, com contexto válido e sem IME em composição.
+  - A conferência do Xournal++ nunca é automática: só lista janelas depois do
+    clique em "Conferir Xournal++" e só captura no botão "Capturar", com a
+    janela escolhida explicitamente.
+  - Todo texto vindo das ferramentas entra por textContent; innerHTML nunca
+    é usado com dado não confiável.
+-->
+<style>
+/* Identidade visual da Mesa (aproximação do `desk/style.css`): mesmos
+   tokens claro/escuro, cabeçalho com a marca, cartão de leitura com título
+   "Enunciado" + seletor de PDF, barra de ferramentas compacta e o composer
+   com "Conferir Xournal++" (secundário) e "Pedir ajuda" (roxo). Sem rede:
+   nenhuma fonte, imagem ou conexão externas; a marca é CSS. */
+:root{
+  color-scheme:light;
+  --bg:#fcfcfc; --surface:#ffffff; --side:#fafafa;
+  --fg:#27272a; --fg-strong:#18181b; --muted:#52525b; --faint:#71717a;
+  --border:#e6e6e8; --border-strong:#d4d4d8;
+  --primary:#6d28d9; --primary-hover:#5b21b6; --primary-fg:#ffffff;
+  --ring:#8b5cf6;
+  --danger:#dc2626; --danger-bg:#fef2f2; --danger-line:color-mix(in oklab,var(--danger) 35%,transparent);
+  --hover:#f4f4f5; --active:#eaeaec;
+  --code:#f6f6f7;
+  --shadow-1:0 1px 2px rgb(0 0 0/.05);
+  --ring-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 16%,transparent);
+  --r-2xs:4px; --r-xs:6px; --r-sm:7px; --r-md:8px;
+  --fs-2xs:10.5px; --fs-xs:11px; --fs-sm:12px; --fs-md:13px;
+  --stage-h:clamp(220px,44vh,520px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme='light']){
+    color-scheme:dark;
+    --bg:#0a0a0a; --surface:#161616; --side:#101010;
+    --fg:#ededed; --fg-strong:#fafafa; --muted:#a1a1aa; --faint:#8b8b93;
+    --border:rgb(255 255 255/.07); --border-strong:rgb(255 255 255/.14);
+    --primary:#7c3aed; --primary-hover:#8b5cf6; --ring:#a78bfa;
+    --danger:#e2483d; --danger-bg:rgb(226 72 61/.12); --danger-line:color-mix(in oklab,var(--danger) 45%,transparent);
+    --hover:rgb(255 255 255/.06); --active:rgb(255 255 255/.1);
+    --code:rgb(255 255 255/.04);
+    --shadow-1:0 1px 2px rgb(0 0 0/.4);
+    --ring-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 20%,transparent);
+  }
+}
+:root[data-theme='dark']{
+  color-scheme:dark;
+  --bg:#0a0a0a; --surface:#161616; --side:#101010;
+  --fg:#ededed; --fg-strong:#fafafa; --muted:#a1a1aa; --faint:#8b8b93;
+  --border:rgb(255 255 255/.07); --border-strong:rgb(255 255 255/.14);
+  --primary:#7c3aed; --primary-hover:#8b5cf6; --ring:#a78bfa;
+  --danger:#e2483d; --danger-bg:rgb(226 72 61/.12); --danger-line:color-mix(in oklab,var(--danger) 45%,transparent);
+  --hover:rgb(255 255 255/.06); --active:rgb(255 255 255/.1);
+  --code:rgb(255 255 255/.04);
+  --shadow-1:0 1px 2px rgb(0 0 0/.4);
+  --ring-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 20%,transparent);
+}
+:root[data-theme='light']{color-scheme:light}
+/* Palco mais alto só quando o host declarou fullscreen E está nele (ack). */
+:root[data-display='fullscreen']{--stage-h:clamp(320px,70vh,880px)}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-size:var(--fs-md);line-height:1.45;-webkit-font-smoothing:antialiased;
+}
+#mesa-root{width:100%;display:flex;flex-direction:column;min-height:0}
+header{
+  height:40px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border-bottom:1px solid var(--border);background:var(--bg);flex:none;
+}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.brand-icon{
+  width:22px;height:22px;border-radius:var(--r-xs);background:#5b21b6;color:#fff;
+  display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1;flex:none;user-select:none;
+}
+.brand strong{font-size:var(--fs-md);font-weight:600;letter-spacing:-.01em;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-actions{display:flex;align-items:center;gap:4px;flex:none}
+.header-actions button{border-color:transparent;background:transparent;color:var(--fg);font-size:var(--fs-sm);height:28px;border-radius:var(--r-md);box-shadow:none;padding:0 8px}
+.header-actions button:hover:not(:disabled){background:var(--hover)}
+#mesa-main{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:6px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+button{
+  font-family:inherit;font-size:var(--fs-sm);height:28px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;
+  background:var(--surface);color:var(--fg);border:1px solid var(--border);border-radius:var(--r-md);
+  box-shadow:var(--shadow-1);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+button:hover:not(:disabled){background:var(--hover)}
+button:active:not(:disabled){background:var(--active)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.primary:hover:not(:disabled){background:var(--primary-hover);border-color:var(--primary-hover)}
+.primary:disabled{background:var(--hover);border-color:transparent;color:var(--faint);opacity:1;box-shadow:none}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+select,input,textarea{font-family:inherit}
+
+/* ---------- Cartão de leitura (aproximação do .pdf-panel) ---------- */
+.pdf-panel{
+  display:flex;flex-direction:column;min-width:0;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;
+}
+.pdf-title{display:flex;align-items:center;gap:8px;padding:5px 8px}
+.pdf-title strong{font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong);flex:none}
+.pdf-select{
+  margin:0;flex:1;min-width:0;border:1px solid var(--border);background:var(--bg);color:var(--fg);
+  padding:3px 6px;border-radius:var(--r-xs);font-size:var(--fs-sm);text-overflow:ellipsis;
+}
+#mesa-library-note{margin:0;padding:0 8px 6px;font-size:var(--fs-xs);color:var(--muted)}
+.pdf-tools{
+  display:flex;align-items:center;gap:2px;flex-wrap:wrap;
+  padding:2px 8px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--side);
+}
+.pdf-tools button{
+  border:0;background:transparent;color:var(--muted);box-shadow:none;height:28px;border-radius:var(--r-xs);
+  padding:0 6px;font-size:var(--fs-sm);display:inline-grid;place-items:center;
+}
+.pdf-tools button:hover:not(:disabled){background:var(--hover);color:var(--fg)}
+.pdf-tools button:active:not(:disabled){background:var(--active)}
+.pdf-tools button:disabled{opacity:.45;cursor:not-allowed}
+.pdf-tools .icon{width:16px;height:16px;display:block}
+.page-number{
+  width:46px;height:24px;border:1px solid var(--border);border-radius:var(--r-2xs);
+  background:var(--bg);color:var(--fg);text-align:center;padding:2px;font-size:var(--fs-sm);
+}
+.page-total{font-size:var(--fs-xs);color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;padding:0 2px}
+.zoom-label{min-width:40px;text-align:center;font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.tools-zoom{margin-left:auto;display:flex;align-items:center;gap:2px}
+.pdf-stage{display:flex;flex-direction:column;height:var(--stage-h);min-height:0}
+#mesa-viewport{
+  flex:1;min-height:0;overflow:auto;background:var(--code);padding:10px;
+  display:flex;align-items:flex-start;
+  scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
+}
+#mesa-viewport.is-busy #mesa-image{opacity:.55}
+/* flex:none preserva o zoom (o flex-shrink padrão 1 encolheria a imagem de
+   volta para 100%); margin:0 auto centraliza quando cabe e vira 0 no
+   transbordo, sem cortar a borda esquerda. */
+#mesa-image{flex:none;margin:0 auto;width:100%;height:auto;display:block;background:#fff;border:1px solid var(--border);box-shadow:var(--shadow-1)}
+/* Rodapé do leitor no fluxo: legenda legível SEM flutuar sobre o documento. */
+.pdf-foot{
+  flex:none;display:flex;align-items:center;gap:8px;min-width:0;
+  padding:4px 8px;border-top:1px solid var(--border);color:var(--muted);font-size:var(--fs-2xs);
+}
+#mesa-doc-label{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Estado de carregamento do leitor: visível, com texto da operação certa. */
+.pdf-busy{
+  flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:5px;min-width:0;
+  color:var(--primary);font-weight:500;white-space:nowrap;overflow:hidden;
+}
+.pdf-busy::before{
+  content:'';width:9px;height:9px;flex:none;border-radius:50%;
+  border:2px solid color-mix(in oklab,var(--primary) 25%,transparent);border-top-color:var(--primary);
+  animation:mesa-spin .7s linear infinite;
+}
+#mesa-placeholder{margin:auto;color:var(--faint);text-align:center;padding:28px 14px;font-size:var(--fs-md);line-height:1.5}
+
+/* ---------- Composer (aproximação do #composer) ---------- */
+#mesa-study{display:flex;flex-direction:column;gap:8px;min-width:0}
+.study-head{display:flex;flex-direction:column;gap:1px;min-width:0}
+#mesa-study-title{margin:0;font-size:var(--fs-md);font-weight:600;line-height:1.3;color:var(--fg-strong)}
+#mesa-context{margin:0;color:var(--muted);font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mesa-context[data-context='none']{color:var(--faint)}
+.composer-pending{margin:0;display:flex;align-items:center;gap:6px;color:var(--primary);font-size:var(--fs-xs)}
+.composer-pending::before{
+  content:'';width:9px;height:9px;flex:none;border-radius:50%;
+  border:2px solid color-mix(in oklab,var(--primary) 25%,transparent);border-top-color:var(--primary);
+  animation:mesa-spin .7s linear infinite;
+}
+@keyframes mesa-spin{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.pdf-busy::before,.composer-pending::before{animation:none}}
+#mesa-help-note{
+  width:100%;min-height:56px;max-height:180px;resize:vertical;
+  border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--fg);
+  padding:8px 10px;font-size:var(--fs-md);line-height:1.5;font-family:inherit;
+}
+#mesa-help-note::placeholder{color:var(--faint)}
+#mesa-help-note:focus{outline:none;border-color:var(--ring);box-shadow:var(--ring-shadow)}
+.composer-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#mesa-help{margin-left:auto}
+.composer-hint{margin:0;color:var(--faint);font-size:var(--fs-xs)}
+#mesa-windows-panel{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--side)}
+#mesa-windows-panel .row{display:flex;align-items:center;gap:6px}
+#mesa-windows{flex:1;min-width:0;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--bg);color:var(--fg);padding:4px 6px;font-size:var(--fs-sm)}
+#mesa-windows-status{font-size:var(--fs-xs);color:var(--muted)}
+#mesa-capture-notice{
+  margin:0;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-xs);
+  background:var(--side);color:var(--muted);font-size:var(--fs-xs);
+}
+.mesa-footer{display:flex;flex-direction:column;gap:4px;padding:0 8px 8px;flex:none}
+#mesa-status{margin:0;color:var(--faint);font-size:var(--fs-xs)}
+#mesa-error{
+  margin:0;padding:6px 8px;border:1px solid var(--danger-line);border-radius:var(--r-xs);
+  background:var(--danger-bg);color:var(--danger);font-size:var(--fs-sm);overflow-wrap:anywhere;
+}
+[hidden]{display:none !important}
+
+/* Largo: leitor e controles de estudo lado a lado (como leitor + conversa). */
+@media (min-width:720px){
+  :root{--stage-h:clamp(300px,58vh,720px)}
+  #mesa-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:8px;align-items:start}
+}
+/* Estreito: PDF em largura cheia e composer no fluxo, alcançável pela
+   rolagem. Sem sticky: mesmo um composer expandido não cobre o documento. */
+@media (max-width:719px){
+  #mesa-study{
+    position:static;
+    background:var(--side);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px;
+  }
+}
+@media (max-width:520px){
+  :root{--stage-h:clamp(200px,40vh,420px)}
+  #mesa-main{padding:5px;gap:5px}
+  .page-number{width:42px}
+}
+</style>
+</head>
+<body>
+<main id="mesa-root">
+  <header>
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">M</span>
+      <strong>Mesa de Estudos</strong>
+    </div>
+    <div class="header-actions">
+      <button id="mesa-fullscreen" type="button" hidden title="Alternar tela cheia">Tela cheia</button>
+    </div>
+  </header>
+
+  <div id="mesa-main">
+    <section class="pdf-panel" aria-label="Leitor de PDF">
+      <div class="pdf-title">
+        <strong>Enunciado</strong>
+        <label for="mesa-library" class="sr-only">PDF autorizado</label>
+        <select id="mesa-library" class="pdf-select" disabled></select>
+      </div>
+      <div class="pdf-tools" role="toolbar" aria-label="Navegação e zoom">
+        <button id="mesa-prev" type="button" disabled aria-label="Página anterior" title="Página anterior" aria-keyshortcuts="ArrowLeft"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+        <label for="mesa-page-input" class="sr-only">Página</label>
+        <input id="mesa-page-input" class="page-number" type="number" inputmode="numeric" min="1" step="1" disabled>
+        <span id="mesa-page-total" class="page-total">/ —</span>
+        <button id="mesa-go" type="button" disabled title="Ir para a página" aria-keyshortcuts="Enter">Ir</button>
+        <button id="mesa-next" type="button" disabled aria-label="Próxima página" title="Próxima página" aria-keyshortcuts="ArrowRight"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+        <span class="tools-zoom">
+          <button id="mesa-zoom-out" type="button" disabled aria-label="Diminuir zoom" title="Diminuir zoom"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+          <span id="mesa-zoom-value" class="zoom-label">—</span>
+          <button id="mesa-zoom-in" type="button" disabled aria-label="Aumentar zoom" title="Aumentar zoom"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+          <button id="mesa-zoom-fit" type="button" disabled title="Ajustar à largura">Ajustar</button>
+        </span>
+      </div>
+      <div class="pdf-stage">
+        <section id="mesa-viewport" aria-label="Prévia da página" aria-busy="false">
+          <img id="mesa-image" alt="" aria-label="Prévia da página" hidden>
+          <p id="mesa-placeholder">Nenhuma página aberta. Escolha um PDF na lista acima ou peça uma página ao tutor.</p>
+        </section>
+      </div>
+      <div class="pdf-foot">
+        <span id="mesa-doc-label">Nenhum PDF selecionado</span>
+        <span id="mesa-busy" class="pdf-busy" role="status" aria-live="polite" hidden></span>
+      </div>
+      <p id="mesa-library-note" role="status" aria-live="polite" hidden></p>
+    </section>
+
+    <aside id="mesa-study" aria-labelledby="mesa-study-title">
+      <div class="study-head">
+        <h2 id="mesa-study-title">Tutoria</h2>
+        <p id="mesa-context" data-context="none">Nenhuma página ativa.</p>
+      </div>
+      <label for="mesa-help-note" class="sr-only">Questão ou anotação ativa (opcional)</label>
+      <textarea id="mesa-help-note" rows="2" maxlength="500" placeholder="Pergunte ou peça uma dica…" aria-keyshortcuts="Enter"></textarea>
+      <div class="composer-actions">
+        <button id="mesa-check-xournal" type="button" disabled>Conferir Xournal++</button>
+        <button id="mesa-help" type="button" class="primary" disabled aria-describedby="mesa-context">Pedir ajuda</button>
+      </div>
+      <p id="mesa-help-pending" class="composer-pending" role="status" hidden>Enviando o pedido ao tutor…</p>
+      <p class="composer-hint">A resposta do tutor aparece nesta conversa do Codex. ⏎ pede ajuda · ⇧⏎ quebra linha.</p>
+      <span id="mesa-windows-status" role="status" aria-live="polite" hidden></span>
+      <div id="mesa-windows-panel" hidden>
+        <label for="mesa-windows">Janela do Xournal++</label>
+        <div class="row">
+          <select id="mesa-windows" disabled></select>
+          <button id="mesa-capture" type="button" disabled>Capturar</button>
+        </div>
+      </div>
+      <p id="mesa-capture-notice" role="status" hidden>Ao pedir conferência, uma nova captura da janela será enviada ao tutor.</p>
+    </aside>
+  </div>
+
+  <footer class="mesa-footer">
+    <p id="mesa-error" role="alert" hidden></p>
+    <p id="mesa-status" role="status" aria-live="polite">Iniciando…</p>
+  </footer>
+</main>
+
+<script data-mesa-desk>
+/* Painel Mesa (MCP Apps). Sem dependências, sem rede: só a ponte postMessage. */
+(function () {
+  'use strict';
+
+  if (!window || !window.document || !window.document.getElementById) return;
+
+  var PROTOCOL_VERSION = '2026-01-26';
+  var APP_INFO = {name: 'mesa-study-desk', version: '1.0.0'};
+  var REQUEST_TIMEOUT_MS = 30000;   /* teto de cada pedido à ponte */
+  var HANDSHAKE_TIMEOUT_MS = 15000;
+  var MAX_PENDING_REQUESTS = 64;    /* fila pendente limitada */
+  var MAX_LIBRARY_OPTIONS = 200;
+  var MAX_TEXT_CHARS = 400;
+  var MAX_NOTE_CHARS = 500;
+  var ZOOM_MIN = 25;
+  var ZOOM_MAX = 400;
+  var ZOOM_STEP = 25;
+  var FALLBACK_IMAGE_CEILING = 32 * 1024 * 1024; /* teto do servidor quando o status não chegou */
+  var BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+  var MAX_SIZE_HEIGHT = 20000;     /* teto do height em ui/notifications/size-changed */
+  var INITIAL_SIZE_DELAY_MS = 100; /* redimensionamento depois do layout inicial */
+  /* Mesmo texto do markup estático (#mesa-capture-notice): o script reaplica
+     para que o painel e o teste vejam exatamente a mesma frase. */
+  var CAPTURE_NOTICE_TEXT = 'Ao pedir conferência, uma nova captura da janela será enviada ao tutor.';
+  /* Textos aplicados pelo script (não só no markup) para que o painel e o
+     teste vejam a mesma frase e o estado da prévia seja sempre explícito. */
+  var HELP_PENDING_TEXT = 'Enviando o pedido ao tutor…';
+  var PLACEHOLDER_EMPTY = 'Nenhuma página aberta. Escolha um PDF na lista acima ou peça uma página ao tutor.';
+  var PLACEHOLDER_FAILED = 'A prévia falhou e foi liberada. Escolha um PDF ou tente de novo.';
+
+  var doc = window.document;
+  function byId(id) { return doc.getElementById(id); }
+
+  var ui = {
+    status: byId('mesa-status'),
+    error: byId('mesa-error'),
+    docLabel: byId('mesa-doc-label'),
+    busy: byId('mesa-busy'),
+    context: byId('mesa-context'),
+    library: byId('mesa-library'),
+    libraryNote: byId('mesa-library-note'),
+    prev: byId('mesa-prev'),
+    next: byId('mesa-next'),
+    pageInput: byId('mesa-page-input'),
+    pageTotal: byId('mesa-page-total'),
+    go: byId('mesa-go'),
+    zoomFit: byId('mesa-zoom-fit'),
+    zoomValue: byId('mesa-zoom-value'),
+    zoomIn: byId('mesa-zoom-in'),
+    zoomOut: byId('mesa-zoom-out'),
+    viewport: byId('mesa-viewport'),
+    image: byId('mesa-image'),
+    placeholder: byId('mesa-placeholder'),
+    helpNote: byId('mesa-help-note'),
+    help: byId('mesa-help'),
+    helpPending: byId('mesa-help-pending'),
+    check: byId('mesa-check-xournal'),
+    windowsPanel: byId('mesa-windows-panel'),
+    windows: byId('mesa-windows'),
+    capture: byId('mesa-capture'),
+    windowsStatus: byId('mesa-windows-status'),
+    captureNotice: byId('mesa-capture-notice'),
+    fullscreen: byId('mesa-fullscreen')
+  };
+
+  var state = {
+    initialized: false,
+    tornDown: false,
+    hostCapabilities: null,
+    hostContext: null,
+    statusMeta: null,
+    currentFile: null,
+    currentName: null,
+    currentPage: null,
+    numPages: null,
+    hasImage: false,
+    imageCeiling: FALLBACK_IMAGE_CEILING,
+    view: 'empty',            /* 'empty' | 'page' | 'capture' */
+    shownKey: null,           /* chave do que está exibido ('page:…' | 'capture:…') */
+    shownContext: null,       /* contexto provado exibido (para o resumo da Tutoria) */
+    captureRef: null,
+    opToken: 0,               /* invalida resposta obsoleta de página E de captura */
+    opKind: null,             /* 'page' | 'capture' | null */
+    opActive: false,
+    failed: false,            /* prévia falhou e foi limpa: ajuda desligada */
+    helpActive: false,        /* ui/message em andamento (um pedido por vez) */
+    libraryTried: false,
+    windowId: null,
+    zoom: null                /* null = ajustar à largura */
+  };
+
+  var pending = new Map();
+  var nextRequestId = 1;
+  var boundMessage = function (event) { onMessage(event); };
+  var lastSizeSent = null;      /* última medida ENVIADA ao host */
+  var measureSize = null;       /* medição reutilizada no aviso pós-handshake */
+
+  /* Sem host (arquivo aberto direto): não fala sozinho nem inventa dados. */
+  if (window.parent === window) {
+    setStatus('Fora do aplicativo Codex: abra a Mesa por uma conversa para carregar páginas.');
+    disableAllControls();
+    return;
+  }
+
+  window.addEventListener('message', boundMessage, {passive: true});
+  /* Sem rede: a ponte avisa o host para dimensionar o painel. */
+  setupSizeReporter();
+
+  function post(message) {
+    window.parent.postMessage(message, '*');
+  }
+
+  /* `ui/notifications/size-changed` (padrão MCP Apps): o host não adivinha a
+     altura do painel. Só mede — nunca mexe em estado, imagem ou chamadas.
+     Ordem do handshake: nada é enviado antes de `ui/initialize` responder e
+     `ui/notifications/initialized` sair; o primeiro aviso real de tamanho
+     sai em reportInitialSize(), com as dimensões atuais do layout. */
+  function setupSizeReporter() {
+    function measure() {
+      if (state.tornDown) return;
+      if (!state.initialized) return;   /* handshake ainda não terminou */
+      var root = doc.documentElement;
+      var body = doc.body;
+      var height = 0;
+      if (root && Number.isFinite(root.scrollHeight)) height = root.scrollHeight;
+      else if (body && Number.isFinite(body.scrollHeight)) height = body.scrollHeight;
+      if (!(height > 0)) return;
+      height = Math.min(MAX_SIZE_HEIGHT, Math.ceil(height));
+      var width = 0;
+      if (typeof window.innerWidth === 'number' && window.innerWidth > 0) width = Math.ceil(window.innerWidth);
+      else if (root && Number.isFinite(root.clientWidth) && root.clientWidth > 0) width = Math.ceil(root.clientWidth);
+      if (width > 0) {
+        var params = {width: width, height: height};
+        var key = width + 'x' + height;
+        if (key !== lastSizeSent) {
+          lastSizeSent = key;
+          notify('ui/notifications/size-changed', params);
+        }
+      } else if ('x' + height !== lastSizeSent) {
+        lastSizeSent = 'x' + height;
+        notify('ui/notifications/size-changed', {height: height});
+      }
+    }
+    measureSize = measure;
+    var Observer = typeof ResizeObserver === 'function' ? ResizeObserver : null;
+    if (Observer && doc.documentElement) {
+      var observer = new Observer(function () { measure(); });
+      try { observer.observe(doc.documentElement); } catch (ignored) { /* host sem observer: cai no aviso inicial */ }
+    }
+    setTimeout(measure, INITIAL_SIZE_DELAY_MS);
+  }
+
+  /* Medida inicial só depois do handshake: mesmo que o ResizeObserver (ou o
+     timer de layout) já tenha medido antes, a chave ainda não foi enviada, e
+     o aviso sai uma única vez com as dimensões atuais — o dedupe continua
+     valendo para as medidas seguintes. */
+  function reportInitialSize() {
+    if (typeof measureSize === 'function') measureSize();
+  }
+
+  /* Diagnóstico do handshake para o teste real (R4): o JSON cru de
+     hostCapabilities é o que decide se o painel habilita ui/message e
+     ui/update-model-context. Fica no console do host; nunca vai à conversa,
+     ao modelo ou à rede. */
+  function logHandshakeDiagnostics() {
+    if (typeof console === 'undefined' || !console || typeof console.info !== 'function') return;
+    try {
+      console.info('[mesa] hostCapabilities', state.hostCapabilities);
+    } catch (ignored) { /* console do host recusou: o painel segue sem o diagnóstico */ }
+  }
+
+  function notify(method, params) {
+    post({jsonrpc: '2.0', method: method, params: params});
+  }
+
+  function request(method, params, timeoutMs) {
+    if (state.tornDown) return Promise.reject(new Error('Painel encerrado.'));
+    if (pending.size >= MAX_PENDING_REQUESTS) return Promise.reject(new Error('Há chamadas demais em andamento.'));
+    var id = nextRequestId;
+    nextRequestId += 1;
+    return new Promise(function (resolve, reject) {
+      var timeout = setTimeout(function () {
+        pending.delete(id);
+        reject(new Error('Tempo esgotado ao falar com o aplicativo.'));
+      }, typeof timeoutMs === 'number' ? timeoutMs : REQUEST_TIMEOUT_MS);
+      pending.set(id, {resolve: resolve, reject: reject, timeout: timeout});
+      post({jsonrpc: '2.0', id: id, method: method, params: params});
+    });
+  }
+
+  function rpcError(error) {
+    var message = error && typeof error.message === 'string' && error.message !== '' ? error.message : 'erro sem mensagem';
+    var code = error && (typeof error.code === 'number' || typeof error.code === 'string') ? ' (' + error.code + ')' : '';
+    return new Error(message + code);
+  }
+
+  function onMessage(event) {
+    if (state.tornDown) return;
+    if (event.source !== window.parent) return;        /* só a ponte do host */
+    var message = event.data;
+    if (!message || typeof message !== 'object' || message.jsonrpc !== '2.0') return;
+    if (typeof message.method === 'string') {
+      handleHostCall(message);
+      return;
+    }
+    if (message.id !== undefined && pending.has(message.id)) {
+      var slot = pending.get(message.id);
+      pending.delete(message.id);
+      clearTimeout(slot.timeout);
+      if (message.error) slot.reject(rpcError(message.error));
+      else slot.resolve(message.result);
+    }
+  }
+
+  function handleHostCall(message) {
+    var method = message.method;
+    var params = message.params && typeof message.params === 'object' ? message.params : {};
+    if (method === 'ui/notifications/tool-result') { applyToolResult(params); return; }
+    if (method === 'ui/notifications/tool-input') { return; }
+    if (method === 'ui/notifications/tool-input-partial') { return; }
+    if (method === 'ui/notifications/tool-cancelled') { cancelOperation(); return; }
+    if (method === 'ui/notifications/host-context-changed') { applyHostContext(params); return; }
+    if (method === 'ui/resource-teardown') {
+      if (message.id !== undefined) post({jsonrpc: '2.0', id: message.id, result: {}});
+      teardown();
+      return;
+    }
+    if (method === 'ping') {
+      if (message.id !== undefined) post({jsonrpc: '2.0', id: message.id, result: {}});
+      return;
+    }
+    if (message.id !== undefined) {
+      post({jsonrpc: '2.0', id: message.id, error: {code: -32601, message: 'Método não suportado pelo painel Mesa.'}});
+    }
+  }
+
+  function start() {
+    wireControls();
+    setError(null);
+    setStatus('Conectando ao aplicativo…');
+    request('ui/initialize', {
+      protocolVersion: PROTOCOL_VERSION,
+      appInfo: APP_INFO,
+      appCapabilities: {availableDisplayModes: ['inline', 'fullscreen']}
+    }, HANDSHAKE_TIMEOUT_MS).then(function (result) {
+      if (state.tornDown) return;
+      state.initialized = true;
+      state.hostCapabilities = result && result.hostCapabilities ? result.hostCapabilities : null;
+      applyHostContext(result && result.hostContext ? result.hostContext : {});
+      notify('ui/notifications/initialized', {});
+      reportInitialSize();
+      logHandshakeDiagnostics();
+      setStatus('Conectado. Abrindo a Mesa…');
+      refreshFeatureGates();
+    }).catch(function (error) {
+      if (state.tornDown) return;
+      setError('Sem conexão com o aplicativo do Codex: ' + error.message);
+      setStatus('Reabra a Mesa por uma conversa do Codex para tentar de novo.');
+    });
+  }
+
+  function applyHostContext(context) {
+    if (!context || typeof context !== 'object') return;
+    state.hostContext = Object.assign({}, state.hostContext || {}, context);
+    var theme = state.hostContext.theme;
+    if (theme === 'dark' || theme === 'light') {
+      doc.documentElement.setAttribute('data-theme', theme);
+    } else if (theme === undefined || theme === 'system') {
+      doc.documentElement.removeAttribute('data-theme');
+    }
+    updateFullscreenButton();
+  }
+
+  function updateFullscreenButton() {
+    var context = state.hostContext || {};
+    var modes = Array.isArray(context.availableDisplayModes) ? context.availableDisplayModes : [];
+    var supported = state.initialized && modes.indexOf('fullscreen') !== -1;
+    ui.fullscreen.hidden = !supported;
+    ui.fullscreen.disabled = !supported;
+    ui.fullscreen.textContent = context.displayMode === 'fullscreen' ? 'Sair da tela cheia' : 'Tela cheia';
+    /* Palco mais alto só quando o host declarou E está em tela cheia. */
+    if (supported) doc.documentElement.setAttribute('data-display', context.displayMode === 'fullscreen' ? 'fullscreen' : 'inline');
+    else doc.documentElement.removeAttribute('data-display');
+  }
+
+  function toggleFullscreen() {
+    if (ui.fullscreen.hidden || ui.fullscreen.disabled) return;
+    var context = state.hostContext || {};
+    var current = context.displayMode === 'fullscreen' ? 'fullscreen' : 'inline';
+    var target = current === 'fullscreen' ? 'inline' : 'fullscreen';
+    request('ui/request-display-mode', {mode: target}).then(function (result) {
+      if (state.tornDown) return;
+      var mode = result && typeof result.mode === 'string' ? result.mode : current;
+      state.hostContext = Object.assign({}, state.hostContext || {}, {displayMode: mode});
+      updateFullscreenButton();
+      setStatus(mode === 'fullscreen' ? 'Tela cheia ativada.' : 'Tela normal.');
+    }).catch(function (error) {
+      if (!state.tornDown) setError('Tela cheia: ' + error.message);
+    });
+  }
+
+  /* Navegação compartilhada entre os botões e o teclado. Os mesmos guards
+     continuam valendo: sem PDF ou fora dos limites, nada navega. */
+  function goPrevPage() {
+    if (state.tornDown) return;
+    if (state.currentFile && Number.isInteger(state.currentPage) && state.currentPage > 1) {
+      loadPage(state.currentFile, state.currentPage - 1);
+    }
+  }
+
+  function goNextPage() {
+    if (state.tornDown) return;
+    if (state.currentFile && Number.isInteger(state.currentPage) && Number.isInteger(state.numPages) && state.currentPage < state.numPages) {
+      loadPage(state.currentFile, state.currentPage + 1);
+    }
+  }
+
+  function goTypedPage() {
+    if (state.tornDown) return;
+    if (state.currentFile) loadPage(state.currentFile, clampPage(ui.pageInput.value));
+  }
+
+  /* Setas ← →: só fora de campos editáveis, sem modificadores, sem IME em
+     composição e com a página visível. Dentro de input/textarea/select a
+     seta continua sendo do texto; nunca há navegação implícita por tecla. */
+  function isEditableTarget(target) {
+    if (!target || typeof target !== 'object') return false;
+    var tag = typeof target.tagName === 'string' ? target.tagName.toUpperCase() : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    return target.isContentEditable === true;
+  }
+
+  function onKeyDown(event) {
+    if (state.tornDown || !event || event.defaultPrevented) return;
+    if (event.isComposing === true) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if (state.view !== 'page') return;
+    if (isEditableTarget(event.target)) return;
+    if (event.key === 'ArrowLeft') {
+      if (ui.prev.disabled) return;
+      event.preventDefault();
+      goPrevPage();
+    } else {
+      if (ui.next.disabled) return;
+      event.preventDefault();
+      goNextPage();
+    }
+  }
+
+  function wireControls() {
+    ui.prev.addEventListener('click', goPrevPage);
+    ui.next.addEventListener('click', goNextPage);
+    ui.go.addEventListener('click', goTypedPage);
+    /* Enter no campo de página vai; Enter no composer pede ajuda
+       (Shift+Enter quebra linha). IME em composição nunca envia. */
+    ui.pageInput.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' || event.isComposing === true) return;
+      if (ui.go.disabled) return;
+      event.preventDefault();
+      goTypedPage();
+    });
+    ui.helpNote.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.isComposing === true) return;
+      if (ui.help.disabled) return;   /* sem contexto, Enter quebra linha como texto normal */
+      event.preventDefault();
+      askHelp();
+    });
+    ui.zoomFit.addEventListener('click', function () { setZoom(null); });
+    ui.zoomIn.addEventListener('click', function () { setZoom(Math.min(ZOOM_MAX, (state.zoom === null ? 100 : state.zoom) + ZOOM_STEP)); });
+    ui.zoomOut.addEventListener('click', function () { setZoom(Math.max(ZOOM_MIN, (state.zoom === null ? 100 : state.zoom) - ZOOM_STEP)); });
+    ui.library.addEventListener('change', function () {
+      var filePath = ui.library.value;
+      if (typeof filePath !== 'string' || filePath === '' || filePath === state.currentFile) return;
+      if (!serverToolsSupported()) {
+        setError(toolsGateText());
+        return;
+      }
+      state.currentFile = filePath;
+      state.currentName = optionName(filePath);
+      state.currentPage = null;
+      state.numPages = null;
+      ui.pageInput.value = '';
+      updateDocLabel();
+      updatePageControls();
+      updateHelp();
+      loadPage(filePath, 1);
+    });
+    ui.help.addEventListener('click', askHelp);
+    ui.check.addEventListener('click', function () {
+      if (ui.windowsPanel.hidden) {
+        ui.windowsPanel.hidden = false;
+        listWindows();
+      } else {
+        ui.windowsPanel.hidden = true;
+      }
+    });
+    ui.windows.addEventListener('change', function () {
+      state.windowId = typeof ui.windows.value === 'string' && ui.windows.value !== '' ? ui.windows.value : null;
+      updateCaptureControls();
+      if (state.windowId) setWindowsStatus('Janela escolhida. Nada foi capturado ainda: confirme no botão Capturar.');
+    });
+    ui.capture.addEventListener('click', captureWindow);
+    ui.fullscreen.addEventListener('click', toggleFullscreen);
+    window.addEventListener('keydown', onKeyDown);
+    ui.captureNotice.textContent = CAPTURE_NOTICE_TEXT;
+    ui.helpPending.textContent = HELP_PENDING_TEXT;
+    ui.placeholder.textContent = PLACEHOLDER_EMPTY;
+    updatePageControls();
+    updateZoomButtons();
+    updateHelp();
+  }
+
+  function disableAllControls() {
+    ui.library.disabled = true;
+    ui.prev.disabled = true;
+    ui.next.disabled = true;
+    ui.pageInput.disabled = true;
+    ui.go.disabled = true;
+    ui.zoomFit.disabled = true;
+    ui.zoomIn.disabled = true;
+    ui.zoomOut.disabled = true;
+    ui.help.disabled = true;
+    ui.check.disabled = true;
+    ui.windows.disabled = true;
+    ui.capture.disabled = true;
+  }
+
+  /* Feature detect contra o schema oficial MCP Apps 2026-01-26 (repo
+     `modelcontextprotocol/ext-apps`, `src/spec.types.ts`, interface
+     `McpUiHostCapabilities`): `serverTools` → tools/call; `message.text` →
+     ui/message; `updateModelContext.structuredContent` →
+     ui/update-model-context. Todas as modalidades são opcionais no schema:
+     chave ausente = modalidade não declarada, então o painel NÃO tenta (o
+     gate fica de pé). `hostCapabilities` nulo (host fora do padrão) mantém
+     tools desativadas; mensagens e atualização de contexto tentam e mostram
+     a recusa real da ponte. */
+  function serverToolsSupported() {
+    var caps = state.hostCapabilities;
+    return Boolean(caps && caps.serverTools);
+  }
+
+  function toolsGateText() {
+    return 'Este aplicativo não permite chamar as ferramentas da Mesa; esta ação fica desativada.';
+  }
+
+  function refreshFeatureGates() {
+    var status = state.statusMeta;
+    var toolsOk = serverToolsSupported();
+    var windowsReady = state.initialized && toolsOk && Boolean(status && status.ready && status.ready.windows === true);
+    ui.check.disabled = !windowsReady;
+    ui.check.title = windowsReady ? '' : toolsOk ? 'Conferir Xournal++ indisponível neste servidor.' : toolsGateText();
+    if (toolsOk && status && status.ready && status.ready.windows === false) {
+      setWindowsStatus('Conferir Xournal++ está indisponível neste servidor; a leitura de PDF continua funcionando.');
+    }
+    ui.library.disabled = !(state.initialized && toolsOk);
+    ui.library.title = !state.initialized ? 'Aguarde a conexão com o aplicativo.' : toolsOk ? '' : toolsGateText();
+    updateCaptureControls();
+    updatePageControls();
+    updateZoomButtons();
+    updateHelp();
+    updateFullscreenButton();
+  }
+
+  function updateCaptureControls() {
+    var toolsOk = serverToolsSupported();
+    var optionCount = ui.windows.children ? ui.windows.children.length : 0;
+    var captureBusy = state.opActive && state.opKind === 'capture';
+    var windowsReady = state.initialized && toolsOk && !captureBusy && !state.tornDown;
+    ui.windows.disabled = !windowsReady || optionCount <= 1;
+    ui.capture.disabled = !(windowsReady && state.windowId);
+    var title = toolsOk ? '' : toolsGateText();
+    ui.windows.title = title;
+    ui.capture.title = title;
+  }
+
+  function helpContextReady() {
+    if (state.tornDown || !state.initialized || state.opActive || state.failed) return false;
+    if (!state.hasImage) return false;
+    if (state.view === 'capture') return Boolean(state.captureRef);
+    if (state.view === 'page') {
+      return typeof state.currentFile === 'string' && state.currentFile !== '' && Number.isInteger(state.currentPage);
+    }
+    return false;
+  }
+
+  function updateHelp() {
+    var messageSupported = !messageCapabilityOff();
+    var ready = helpContextReady();
+    ui.help.disabled = !(ready && messageSupported) || state.helpActive;
+    if (!messageSupported) {
+      ui.help.title = messageGateText();
+    } else if (state.helpActive) {
+      ui.help.title = 'Aguardando o aplicativo concluir o envio do pedido.';
+    } else if (!ready) {
+      ui.help.title = state.failed
+        ? 'A prévia falhou; carregue uma página ou capture uma janela para pedir ajuda.'
+        : 'Abra uma página ou capture uma janela do Xournal++ para pedir ajuda.';
+    } else {
+      ui.help.title = '';
+    }
+    ui.captureNotice.hidden = !(state.view === 'capture' && Boolean(state.captureRef));
+    ui.helpPending.hidden = !state.helpActive;
+    updateContextSummary();
+  }
+
+  /* Resumo do contexto ativo perto do pedido: nome + página OU janela
+     capturada, sempre do que está REALMENTE exibido (shownContext). Sem
+     prévia exibida não existe contexto ativo — o resumo limpa em vez de
+     repetir uma referência velha como se ela valesse. */
+  function updateContextSummary() {
+    if (!ui.context) return;
+    var shown = state.shownContext;
+    if (shown && shown.view === 'capture') {
+      ui.context.textContent = 'Xournal++ — ' + boundText(shown.title, 160);
+      ui.context.setAttribute('data-context', 'capture');
+      return;
+    }
+    if (shown && shown.view === 'page') {
+      var page = Number.isInteger(shown.page)
+        ? 'página ' + shown.page + (Number.isInteger(shown.numPages) ? ' de ' + shown.numPages : '')
+        : 'página —';
+      ui.context.textContent = boundText(shown.name + ' · ' + page, 200);
+      ui.context.setAttribute('data-context', 'page');
+      return;
+    }
+    if (state.failed) ui.context.textContent = 'A prévia falhou; nenhuma página ativa.';
+    else if (typeof state.currentFile === 'string' && state.currentFile !== '') ui.context.textContent = 'Nenhuma página carregada de ' + (state.currentName || state.currentFile) + '.';
+    else ui.context.textContent = 'Nenhuma página ativa.';
+    ui.context.setAttribute('data-context', 'none');
+  }
+
+  function boundText(value, max) {
+    if (typeof value !== 'string') return '';
+    if (value.length <= max) return value;
+    return value.slice(0, Math.max(0, max - 1)) + '…';
+  }
+
+  function setStatus(text) {
+    ui.status.textContent = boundText(text, MAX_TEXT_CHARS);
+  }
+
+  function setError(text) {
+    if (typeof text !== 'string' || text === '') {
+      ui.error.textContent = '';
+      ui.error.hidden = true;
+      return;
+    }
+    ui.error.textContent = boundText(text, 600);
+    ui.error.hidden = false;
+  }
+
+  function setWindowsStatus(text) {
+    if (typeof text !== 'string' || text === '') {
+      ui.windowsStatus.textContent = '';
+      ui.windowsStatus.hidden = true;
+      return;
+    }
+    ui.windowsStatus.textContent = boundText(text, MAX_TEXT_CHARS);
+    ui.windowsStatus.hidden = false;
+  }
+
+  /* Busy: o viewport continua mostrando a última prévia provada (opacidade
+     reduzida) e o rodapé do leitor anuncia a operação certa em texto. */
+  function setBusy(busy, text) {
+    state.opActive = busy === true;
+    if (!state.opActive) state.opKind = null;
+    ui.viewport.setAttribute('aria-busy', state.opActive ? 'true' : 'false');
+    ui.viewport.classList.toggle('is-busy', state.opActive);
+    if (state.opActive) {
+      ui.busy.textContent = typeof text === 'string' && text !== '' ? boundText(text, 80) : 'Carregando…';
+    } else {
+      ui.busy.textContent = '';
+    }
+    ui.busy.hidden = !state.opActive;
+    updateCaptureControls();
+    updateHelp();
+  }
+
+  function clearBusyUi() {
+    ui.viewport.setAttribute('aria-busy', 'false');
+    ui.viewport.classList.remove('is-busy');
+    ui.busy.textContent = '';
+    ui.busy.hidden = true;
+  }
+
+  /* ---------- epoch/commit ----------
+     Toda troca de estado do painel (página, captura, vazio) passa por um
+     commit: incrementa o token global, zera o busy e aplica o contexto.
+     Qualquer resposta assíncrona anterior (página OU captura) fica obsoleta,
+     e ajuda/controles são recalculados no mesmo lugar para os dois lados. */
+  function invalidateInFlight() {
+    state.opToken += 1;
+    state.opKind = null;
+    state.opActive = false;
+    clearBusyUi();
+    return state.opToken;
+  }
+
+  function commitPage(meta, image) {
+    invalidateInFlight();
+    showPageMeta(meta);
+    var key = 'page:' + state.currentFile + '#' + state.currentPage;
+    var samePage = state.shownKey === key;
+    state.captureRef = null;
+    state.failed = false;
+    showImage(image.dataUrl, 'Página ' + state.currentPage + ' de ' + state.numPages + ' — ' + (state.currentName || 'PDF'));
+    if (!samePage) resetViewportScroll();   /* página diferente: papel volta ao topo */
+    state.shownKey = key;
+    state.shownContext = {
+      view: 'page',
+      name: state.currentName || state.currentFile || 'PDF',
+      file: state.currentFile,
+      page: state.currentPage,
+      numPages: state.numPages
+    };
+    updateDocLabel();
+    setError(null);
+    setStatus('Página ' + state.currentPage + ' de ' + state.numPages + '.' + (serverToolsSupported() ? '' : ' A navegação está desativada neste aplicativo.'));
+    updateHelp();
+    updateCaptureControls();
+    updateZoomButtons();
+    updateModelContext({
+      view: 'page',
+      filePath: state.currentFile,
+      name: state.currentName,
+      page: state.currentPage,
+      numPages: state.numPages
+    });
+    refreshFeatureGates();
+  }
+
+  function commitCapture(meta, image) {
+    invalidateInFlight();
+    var source = meta && meta.source && typeof meta.source === 'object' ? meta.source : {};
+    var window_ = source.window && typeof source.window === 'object' ? source.window : {};
+    var windowId = window_.id !== undefined && window_.id !== null ? String(window_.id) : state.windowId;
+    var title = typeof window_.title === 'string' && window_.title !== '' ? window_.title : 'Xournal++';
+    state.captureRef = {windowId: windowId, title: title, capturedAt: typeof source.capturedAt === 'string' ? source.capturedAt : null};
+    state.view = 'capture';
+    state.shownKey = 'capture:' + windowId;
+    state.shownContext = {view: 'capture', windowId: windowId, title: title};
+    state.failed = false;
+    showImage(image.dataUrl, 'Captura da janela ' + title);
+    setError(null);
+    updateDocLabel();
+    setStatus('Captura da janela “' + boundText(title, 120) + '” devolvida ao aplicativo.');
+    setWindowsStatus('A imagem foi devolvida pelo MCP ao aplicativo, não é uma prévia só local: ao pedir conferência, o tutor chama mesa_capture para uma nova captura da janela escolhida e a imagem vai ao modelo como resultado de ferramenta.');
+    updateHelp();
+    updateCaptureControls();
+    updateZoomButtons();
+    updateModelContext({
+      view: 'capture',
+      windowId: windowId,
+      title: title,
+      capturedAt: state.captureRef.capturedAt
+    });
+    refreshFeatureGates();
+  }
+
+  /* Estado sem imagem (mesa_open sem filePath): limpa a prévia e deixa a
+     página antiga obsolescida; a biblioteca NÃO é apagada por aqui. */
+  function commitEmpty() {
+    invalidateInFlight();
+    state.view = 'empty';
+    state.shownKey = null;
+    state.shownContext = null;
+    state.captureRef = null;
+    clearImage();
+    updateDocLabel();
+    updateHelp();
+    updateCaptureControls();
+    updateZoomButtons();
+  }
+
+  function updatePageControls() {
+    var toolsOk = serverToolsSupported();
+    var navReady = state.initialized && toolsOk;
+    var hasDoc = typeof state.currentFile === 'string' && state.currentFile !== '';
+    var page = state.currentPage;
+    var total = state.numPages;
+    ui.prev.disabled = !(navReady && hasDoc && Number.isInteger(page) && page > 1);
+    ui.next.disabled = !(navReady && hasDoc && Number.isInteger(page) && Number.isInteger(total) && page < total);
+    ui.go.disabled = !(navReady && hasDoc);
+    ui.pageInput.disabled = !(navReady && hasDoc);
+    var navTitle = !toolsOk ? toolsGateText() : !hasDoc ? 'Escolha um PDF na lista para navegar pelas páginas.' : '';
+    ui.prev.title = navTitle || 'Página anterior';
+    ui.next.title = navTitle || 'Próxima página';
+    ui.go.title = navTitle || 'Ir para a página';
+    ui.pageInput.title = navTitle || 'Página';
+    ui.pageInput.value = Number.isInteger(page) ? String(page) : ui.pageInput.value;
+    ui.pageTotal.textContent = Number.isInteger(total) ? '/ ' + total : '/ —';
+  }
+
+  function updateZoomButtons() {
+    var fitted = state.zoom === null;
+    ui.zoomFit.disabled = !state.hasImage;
+    ui.zoomIn.disabled = !state.hasImage || (state.zoom !== null && state.zoom >= ZOOM_MAX);
+    ui.zoomOut.disabled = !state.hasImage || (state.zoom !== null && state.zoom <= ZOOM_MIN);
+    /* O rótulo só mostra número quando existe zoom explícito; em modo de ajuste
+       o estado real é "Ajustada" (100% era um número inventado para o fit). */
+    ui.zoomFit.textContent = 'Ajustar';
+    ui.zoomFit.setAttribute('aria-pressed', state.hasImage && fitted ? 'true' : 'false');
+    ui.zoomFit.title = !state.hasImage ? '' : fitted ? 'Ajuste à largura ativo' : 'Ajustar à largura';
+    ui.zoomValue.textContent = !state.hasImage ? '—' : fitted ? 'Ajustada' : state.zoom + '%';
+  }
+
+  function setZoom(value) {
+    state.zoom = value;
+    applyZoomToImage();
+    updateZoomButtons();
+  }
+
+  function applyZoomToImage() {
+    ui.image.style.width = (state.zoom === null ? 100 : state.zoom) + '%';
+    ui.image.style.height = 'auto';
+  }
+
+  function optionName(filePath) {
+    var options = ui.library.children || [];
+    for (var index = 0; index < options.length; index += 1) {
+      if (options[index] && options[index].value === filePath && typeof options[index].textContent === 'string') {
+        return options[index].textContent;
+      }
+    }
+    return filePath;
+  }
+
+  function clampPage(value) {
+    var page = parseInt(String(value), 10);
+    if (!Number.isFinite(page) || page < 1) page = 1;
+    if (Number.isInteger(state.numPages) && page > state.numPages) page = state.numPages;
+    return page;
+  }
+
+  function renderLibrary(files, truncated) {
+    var options = [];
+    var index;
+    if (Array.isArray(files)) {
+      for (index = 0; index < files.length && options.length < MAX_LIBRARY_OPTIONS; index += 1) {
+        var entry = files[index];
+        if (!entry || typeof entry.filePath !== 'string' || entry.filePath === '') continue;
+        var option = doc.createElement('option');
+        option.value = entry.filePath;
+        var name = typeof entry.name === 'string' && entry.name !== '' ? entry.name : entry.filePath;
+        option.textContent = boundText(name, MAX_TEXT_CHARS);
+        options.push(option);
+      }
+    }
+    var shown = options.length;
+    if (state.currentFile) {
+      var found = false;
+      for (index = 0; index < options.length; index += 1) {
+        if (options[index].value === state.currentFile) { found = true; break; }
+      }
+      if (!found) {
+        var current = doc.createElement('option');
+        current.value = state.currentFile;
+        current.textContent = boundText(state.currentName || state.currentFile, MAX_TEXT_CHARS);
+        options.unshift(current);
+      }
+      ui.library.replaceChildren.apply(ui.library, options);
+      ui.library.value = state.currentFile;
+    } else {
+      var placeholder = doc.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = options.length > 0 ? 'Escolha um PDF…' : 'Nenhum PDF autorizado';
+      options.unshift(placeholder);
+      ui.library.replaceChildren.apply(ui.library, options);
+    }
+    if (shown === 0) {
+      setLibraryNote(state.currentFile
+        ? 'Nenhum PDF apareceu na biblioteca. O último PDF continua no seletor; use Ir para tentar reabri-lo ou confira as pastas liberadas na configuração do plugin.'
+        : 'Nenhum PDF autorizado. Confira as pastas liberadas para a Mesa na configuração do plugin.');
+    } else {
+      setLibraryNote(truncated === true ? 'A lista foi limitada pelo servidor; nem todos os PDFs aparecem.' : '');
+    }
+  }
+
+  function setLibraryNote(text) {
+    if (typeof text !== 'string' || text === '') {
+      ui.libraryNote.textContent = '';
+      ui.libraryNote.hidden = true;
+      return;
+    }
+    ui.libraryNote.textContent = boundText(text, MAX_TEXT_CHARS);
+    ui.libraryNote.hidden = false;
+  }
+
+  function fetchLibrary() {
+    if (!serverToolsSupported()) {
+      setLibraryNote(toolsGateText());
+      return;
+    }
+    request('tools/call', {name: 'mesa_library', arguments: {}}).then(function (result) {
+      if (state.tornDown) return;
+      if (result && result.isError) {
+        setError('Biblioteca: ' + toolErrorText(result));
+        return;
+      }
+      var meta = result && result.structuredContent;
+      if (meta && meta.kind === 'library') renderLibrary(meta.files, meta.truncated === true);
+    }).catch(function (error) {
+      if (!state.tornDown) setError('Biblioteca: ' + error.message);
+    });
+  }
+
+  function firstPngImage(content) {
+    if (!Array.isArray(content)) return null;
+    for (var index = 0; index < content.length; index += 1) {
+      var block = content[index];
+      if (block && block.type === 'image') return normalizePng(block);
+    }
+    return null;
+  }
+
+  function normalizePng(block) {
+    if (!block || block.mimeType !== 'image/png') {
+      return {error: 'A imagem recebida não é PNG.'};
+    }
+    var data = block.data;
+    if (typeof data !== 'string' || data.length < 24 || data.length % 4 !== 0 || !BASE64_RE.test(data)) {
+      return {error: 'A imagem PNG recebida está malformada.'};
+    }
+    var signatureOk = false;
+    try {
+      var prefix = window.atob(data.slice(0, 16));
+      signatureOk = prefix.length >= 8 &&
+        prefix.charCodeAt(0) === 0x89 && prefix.charCodeAt(1) === 0x50 && prefix.charCodeAt(2) === 0x4e && prefix.charCodeAt(3) === 0x47 &&
+        prefix.charCodeAt(4) === 0x0d && prefix.charCodeAt(5) === 0x0a && prefix.charCodeAt(6) === 0x1a && prefix.charCodeAt(7) === 0x0a;
+    } catch (ignored) {
+      signatureOk = false;
+    }
+    if (!signatureOk) return {error: 'A imagem recebida não tem assinatura PNG.'};
+    var padding = data.slice(-2) === '==' ? 2 : data.slice(-1) === '=' ? 1 : 0;
+    var bytes = (data.length / 4) * 3 - padding;
+    if (!Number.isFinite(bytes) || bytes <= 0) return {error: 'A imagem PNG recebida está vazia.'};
+    if (bytes > state.imageCeiling) {
+      return {error: 'A imagem tem ' + bytes + ' bytes e excede o limite de ' + state.imageCeiling + ' bytes.'};
+    }
+    return {dataUrl: 'data:image/png;base64,' + data, bytes: bytes};
+  }
+
+  function toolErrorText(result) {
+    var text = '';
+    if (result && Array.isArray(result.content)) {
+      for (var index = 0; index < result.content.length; index += 1) {
+        var block = result.content[index];
+        if (block && block.type === 'text' && typeof block.text === 'string') { text = block.text; break; }
+      }
+    }
+    var payload = null;
+    try { payload = JSON.parse(text); } catch (ignored) { payload = null; }
+    var error = payload && payload.error;
+    if (error && typeof error.message === 'string') {
+      return (typeof error.code === 'string' ? error.code + ': ' : '') + error.message;
+    }
+    return text !== '' ? boundText(text, MAX_TEXT_CHARS) : 'sem detalhes do erro.';
+  }
+
+  function imageByteError(meta, image, label) {
+    var name = typeof label === 'string' && label !== '' ? label : 'imagem PNG';
+    if (!image) return 'A resposta não trouxe a ' + name + '.';
+    if (image.error) return image.error;
+    var expected = meta && meta.image && Number.isInteger(meta.image.bytes) ? meta.image.bytes : null;
+    if (expected !== null && expected !== image.bytes) {
+      return 'A ' + name + ' não confere com os metadados (bytes divergentes).';
+    }
+    return null;
+  }
+
+  /* Toda falha de prévia limpa a imagem, libera o busy, marca o estado de
+     falha, desliga a ajuda e invalida qualquer chamada em voo: nada de imagem
+     velha passando por atual nem resposta antiga ressuscitando a prévia. */
+  function previewFailed(message) {
+    state.failed = false;           /* commitEmpty reconcilia os controles */
+    commitEmpty();
+    state.failed = true;
+    setBusy(false);
+    ui.placeholder.textContent = PLACEHOLDER_FAILED;
+    setError(message);
+    setStatus('Falha ao carregar a prévia; a imagem antiga foi liberada. Tente de novo.');
+    updateDocLabel();
+    refreshFeatureGates();
+  }
+
+  function applyToolResult(params) {
+    if (!params || typeof params !== 'object') return;
+    if (params.isError === true) {
+      previewFailed('Ferramenta Mesa falhou: ' + toolErrorText(params));
+      return;
+    }
+    var meta = params.structuredContent;
+    if (!meta || typeof meta !== 'object') {
+      setStatus('Resultado recebido sem dados estruturados.');
+      return;
+    }
+    /* Resultado empurrado pelo host é o estado novo: qualquer chamada MCP
+       que o painel ainda tinha em voo deixa de poder sobrescrevê-lo. */
+    invalidateInFlight();
+    if (meta.kind === 'desk') { applyDesk(meta, params); return; }
+    if (meta.kind === 'page') {
+      var pageImage = firstPngImage(params.content);
+      var pageProblem = imageByteError(meta, pageImage, 'imagem PNG');
+      if (pageProblem) previewFailed(pageProblem);
+      else commitPage(meta, pageImage);
+      return;
+    }
+    if (meta.kind === 'capture') {
+      var captureImage = firstPngImage(params.content);
+      var captureProblem = imageByteError(meta, captureImage, 'captura');
+      if (captureProblem) previewFailed(captureProblem);
+      else commitCapture(meta, captureImage);
+      return;
+    }
+    if (meta.kind === 'library') renderLibrary(meta.files, meta.truncated === true);
+  }
+
+  function applyDesk(meta, result) {
+    if (meta.status && typeof meta.status === 'object') {
+      state.statusMeta = meta.status;
+      var limit = meta.status.limits && Number.isInteger(meta.status.limits.maxImageBytes) ? meta.status.limits.maxImageBytes : null;
+      if (limit && limit > 0) state.imageCeiling = limit;
+    }
+    var library = meta.library;
+    var hasLibrary = Boolean(library && Array.isArray(library.files));
+    var pageMeta = meta.page && typeof meta.page === 'object' ? meta.page : null;
+    /* Valida a imagem ANTES de comprometer o contexto do cliente: um PNG
+       inválido não pode mexer em currentFile/currentPage/view. */
+    var image = pageMeta ? firstPngImage(result && result.content) : null;
+    var problem = pageMeta ? imageByteError(pageMeta, image, 'imagem PNG') : null;
+    if (pageMeta && !problem) showPageMeta(pageMeta);
+    /* O contexto da página vem antes da biblioteca: o select já nasce
+       apontando para o PDF aberto e não perde a seleção. */
+    if (hasLibrary) {
+      renderLibrary(library.files, library.truncated === true);
+    } else if (!state.libraryTried) {
+      state.libraryTried = true;
+      fetchLibrary();
+    }
+    if (pageMeta) {
+      if (problem) previewFailed(problem);
+      else commitPage(pageMeta, image);
+      return;
+    }
+    commitEmpty();
+    resetWindows();                      /* um mesa_open novo zera a conferência antiga */
+    state.failed = false;                /* mesa_open válido religa a ajuda */
+    setError(null);
+    setStatus('Mesa aberta.' + readySummary(meta.status) + ' Escolha um PDF na lista ou peça uma página ao tutor.');
+    refreshFeatureGates();
+  }
+
+  /* Guia só o que está fora do normal; servidor pronto não vira prosa. */
+  function readySummary(status) {
+    if (!status || !status.ready || typeof status.ready !== 'object') return '';
+    var notes = [];
+    if (status.ready.pdf !== true) notes.push('a leitura de PDF está desativada neste servidor');
+    if (status.ready.windows !== true || status.ready.capture !== true) notes.push('conferir o Xournal++ está indisponível');
+    return notes.length > 0 ? ' ' + notes.join('; ') + '.' : '';
+  }
+
+  function showPageMeta(meta) {
+    var source = meta && meta.source && typeof meta.source === 'object' ? meta.source : {};
+    var document_ = source.document && typeof source.document === 'object' ? source.document : {};
+    if (typeof document_.path === 'string' && document_.path !== '') state.currentFile = document_.path;
+    if (typeof document_.name === 'string' && document_.name !== '') state.currentName = document_.name;
+    if (Number.isInteger(source.page)) state.currentPage = source.page;
+    if (Number.isInteger(source.numPages)) state.numPages = source.numPages;
+    state.view = 'page';
+    updateDocLabel();
+    updatePageControls();
+    updateHelp();
+  }
+
+  function applyPage(meta, image) {
+    var problem = imageByteError(meta, image, 'imagem PNG');
+    if (problem) { previewFailed(problem); return; }
+    commitPage(meta, image);
+  }
+
+  function applyCapture(meta, image) {
+    var problem = imageByteError(meta, image, 'captura');
+    if (problem) { previewFailed(problem); return; }
+    commitCapture(meta, image);
+  }
+
+  function updateDocLabel() {
+    if (state.view === 'capture' && state.captureRef) {
+      ui.docLabel.textContent = boundText('Xournal++ — ' + state.captureRef.title, 200);
+      return;
+    }
+    if (state.currentFile) {
+      var page = Number.isInteger(state.currentPage) && Number.isInteger(state.numPages)
+        ? ' — página ' + state.currentPage + ' de ' + state.numPages
+        : '';
+      var prefix = state.shownContext === null ? 'Último PDF: ' : '';
+      ui.docLabel.textContent = boundText(prefix + (state.currentName || state.currentFile) + page, 240);
+      return;
+    }
+    ui.docLabel.textContent = 'Nenhum PDF selecionado';
+  }
+
+  function showImage(dataUrl, alt) {
+    applyZoomToImage();
+    ui.image.setAttribute('src', dataUrl);
+    ui.image.setAttribute('alt', boundText(alt, 240));
+    ui.image.hidden = false;
+    ui.placeholder.hidden = true;
+    state.hasImage = true;
+    updateZoomButtons();
+  }
+
+  function clearImage() {
+    ui.image.removeAttribute('src');
+    ui.image.removeAttribute('alt');
+    ui.image.hidden = true;
+    ui.placeholder.textContent = PLACEHOLDER_EMPTY;
+    ui.placeholder.hidden = false;
+    state.hasImage = false;
+    updateZoomButtons();
+  }
+
+  /* Troca de página reseta o papel; zoom nunca mexe na rolagem. */
+  function resetViewportScroll() {
+    ui.viewport.scrollTop = 0;
+    ui.viewport.scrollLeft = 0;
+  }
+
+  function loadPage(filePath, page) {
+    if (state.tornDown) return;
+    if (!serverToolsSupported()) {
+      setError(toolsGateText());
+      setStatus('A navegação está desativada neste aplicativo.');
+      return;
+    }
+    var requested = clampPage(page);
+    var token = beginOperation('page', 'Carregando página ' + requested + '…');
+    setError(null);
+    request('tools/call', {name: 'mesa_page', arguments: {filePath: filePath, page: requested}}).then(function (result) {
+      if (token !== state.opToken || state.tornDown) return;       /* resposta obsoleta */
+      if (result && result.isError) {
+        pageFailed(token, 'Página ' + requested + ': ' + toolErrorText(result));
+        return;
+      }
+      var meta = result && result.structuredContent;
+      if (!meta || meta.kind !== 'page') {
+        pageFailed(token, 'A resposta de mesa_page não trouxe os dados da página.');
+        return;
+      }
+      var image = firstPngImage(result.content);
+      var problem = imageByteError(meta, image, 'imagem PNG');
+      if (problem) { pageFailed(token, problem); return; }
+      applyPage(meta, image);
+    }).catch(function (error) {
+      if (token !== state.opToken || state.tornDown) return;
+      pageFailed(token, error.message);
+    });
+  }
+
+  function beginOperation(kind, text) {
+    state.opToken += 1;
+    state.opKind = kind;
+    setBusy(true, text);
+    return state.opToken;
+  }
+
+  function pageFailed(token, message) {
+    if (token !== state.opToken || state.tornDown) return;
+    previewFailed(message);
+  }
+
+  function cancelOperation() {
+    if (!state.opActive || state.tornDown) return;
+    invalidateInFlight();              /* invalida a resposta pendente (página ou captura) */
+    updateCaptureControls();
+    updateHelp();                      /* cancela o busy: a prévia provada volta a valer para ajuda */
+    setStatus('Chamada cancelada pelo aplicativo; a imagem exibida é a última carregada.');
+  }
+
+  function updateModelContext(refs) {
+    var caps = state.hostCapabilities;
+    if (caps && !(caps.updateModelContext && caps.updateModelContext.structuredContent)) return;
+    request('ui/update-model-context', {structuredContent: {mesa: refs}}).catch(function () {});
+  }
+
+  function messageCapabilityOff() {
+    var caps = state.hostCapabilities;
+    if (!caps) return false;                         /* host não informou: tenta e trata a falha */
+    if (!caps.message) return true;
+    return !caps.message.text;
+  }
+
+  function messageGateText() {
+    return 'Este aplicativo não permite enviar mensagens; pedir ajuda fica desativado.';
+  }
+
+  function helpMessage() {
+    var note = boundText(ui.helpNote.value.trim(), MAX_NOTE_CHARS);
+    var text;
+    if (state.view === 'capture' && state.captureRef) {
+      text = 'Confira minha resolução no Xournal++. Chame mesa_capture com windowId ' + state.captureRef.windowId + ' para capturar de novo a janela "' + state.captureRef.title + '": uma nova captura vai ao contexto como resultado de ferramenta. Aponte o primeiro erro ou lacuna. O painel não anexou a imagem.';
+    } else if (state.currentFile) {
+      text = 'Analise a página ' + state.currentPage + ' do PDF "' + (state.currentName || state.currentFile) + '" (' + state.currentFile + '): chame mesa_page com esse filePath e essa página e comente o que preciso saber. O painel não anexou a imagem.';
+    } else {
+      text = 'Abra a Mesa visual e me ajude a escolher um PDF da biblioteca autorizada.';
+    }
+    if (note !== '') text += '\nQuestão/anotação ativa: ' + note;
+    return text;
+  }
+
+  function askHelp() {
+    if (ui.help.disabled || state.helpActive || state.tornDown) return;
+    if (messageCapabilityOff()) {
+      setError(messageGateText());
+      return;
+    }
+    if (!helpContextReady()) return;
+    var captureRequest = state.view === 'capture';
+    state.helpActive = true;
+    updateHelp();
+    request('ui/message', {role: 'user', content: [{type: 'text', text: helpMessage()}]}).then(function (result) {
+      if (state.tornDown) return;
+      state.helpActive = false;
+      if (result && result.isError) {
+        setError('O aplicativo recusou o pedido de ajuda; o rascunho ficou guardado.');
+        setStatus('Pedido não enviado.');
+        updateHelp();
+        return;
+      }
+      setStatus(captureRequest ? 'Pedido de conferência enviado ao tutor.' : 'Pedido enviado ao tutor.');
+      updateHelp();
+    }).catch(function (error) {
+      if (state.tornDown) return;
+      state.helpActive = false;
+      setError('Falha ao pedir ajuda: ' + error.message);
+      setStatus('Pedido não enviado.');
+      updateHelp();
+    });
+  }
+
+  function listWindows() {
+    if (state.tornDown) return;
+    if (!serverToolsSupported()) {
+      setWindowsStatus(toolsGateText());
+      return;
+    }
+    state.windowId = null;
+    var loading = doc.createElement('option');
+    loading.value = '';
+    loading.textContent = 'Listando janelas…';
+    ui.windows.replaceChildren(loading);
+    updateCaptureControls();
+    setWindowsStatus('Listando as janelas do Xournal++ (nada é capturado nesta etapa).');
+    request('tools/call', {name: 'mesa_windows', arguments: {}}).then(function (result) {
+      if (state.tornDown) return;
+      if (result && result.isError) {
+        setWindowsStatus('');
+        setError('Janelas do Xournal++: ' + toolErrorText(result));
+        return;
+      }
+      var meta = result && result.structuredContent;
+      var windows = meta && Array.isArray(meta.windows) ? meta.windows : [];
+      renderWindows(windows);
+    }).catch(function (error) {
+      if (state.tornDown) return;
+      setWindowsStatus('');
+      setError('Janelas do Xournal++: ' + error.message);
+    });
+  }
+
+  function renderWindows(windows) {
+    var options = [];
+    var index;
+    for (index = 0; index < windows.length && options.length < 64; index += 1) {
+      var window_ = windows[index];
+      if (!window_ || !window_.id) continue;
+      var option = doc.createElement('option');
+      option.value = String(window_.id);
+      option.textContent = boundText((typeof window_.app === 'string' ? window_.app : 'Xournal++') + ' — ' + (typeof window_.title === 'string' ? window_.title : 'Janela'), MAX_TEXT_CHARS);
+      options.push(option);
+    }
+    var placeholder = doc.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = options.length > 0 ? 'Escolha a janela…' : 'Nenhuma janela do Xournal++ encontrada';
+    options.unshift(placeholder);
+    ui.windows.replaceChildren.apply(ui.windows, options);
+    state.windowId = null;
+    updateCaptureControls();
+    setWindowsStatus(options.length > 1
+      ? 'Escolha a janela e confirme no botão Capturar. A captura é sempre da janela escolhida, nunca da tela inteira.'
+      : 'Nenhuma janela do Xournal++ foi encontrada. Abra o Xournal++ e tente de novo.');
+  }
+
+  function captureWindow() {
+    var windowId = state.windowId;
+    if (state.tornDown || !windowId) return;
+    if (!serverToolsSupported()) {
+      setError(toolsGateText());
+      setWindowsStatus(toolsGateText());
+      return;
+    }
+    var token = beginOperation('capture', 'Capturando a janela…');
+    setError(null);
+    setWindowsStatus('');
+    request('tools/call', {name: 'mesa_capture', arguments: {windowId: windowId}}).then(function (result) {
+      if (token !== state.opToken || state.tornDown) return;     /* resposta obsoleta */
+      if (result && result.isError) {
+        captureFailed(token, 'Captura: ' + toolErrorText(result));
+        return;
+      }
+      var meta = result && result.structuredContent;
+      var image = firstPngImage(result.content);
+      if (!meta || meta.kind !== 'capture') {
+        captureFailed(token, 'A captura não trouxe os dados esperados.');
+        return;
+      }
+      var problem = imageByteError(meta, image, 'captura');
+      if (problem) { captureFailed(token, problem); return; }
+      applyCapture(meta, image);
+    }).catch(function (error) {
+      if (token !== state.opToken || state.tornDown) return;
+      captureFailed(token, 'Captura: ' + error.message);
+    });
+  }
+
+  function captureFailed(token, message) {
+    if (token !== state.opToken || state.tornDown) return;
+    setWindowsStatus('');
+    previewFailed(message);
+  }
+
+  /* Mesa sem página: nenhuma janela antiga sobrevive a um mesa_open novo. */
+  function resetWindows() {
+    state.windowId = null;
+    ui.windows.replaceChildren();
+    ui.windowsPanel.hidden = true;
+    setWindowsStatus('');
+  }
+
+  function resetView() {
+    state.currentFile = null;
+    state.currentName = null;
+    state.currentPage = null;
+    state.numPages = null;
+    state.view = 'empty';
+    state.shownKey = null;
+    state.shownContext = null;
+    state.captureRef = null;
+    state.windowId = null;
+    state.statusMeta = null;
+    state.failed = false;
+    state.helpActive = false;
+    invalidateInFlight();
+    clearImage();
+    ui.library.replaceChildren();
+    setLibraryNote('');
+    resetWindows();
+    ui.docLabel.textContent = 'Nenhum PDF selecionado';
+    ui.pageInput.value = '';
+    ui.pageTotal.textContent = '/ —';
+    updatePageControls();
+    updateCaptureControls();
+    updateHelp();
+  }
+
+  function teardown() {
+    if (state.tornDown) return;
+    state.tornDown = true;
+    window.removeEventListener('message', boundMessage);
+    window.removeEventListener('keydown', onKeyDown);
+    pending.forEach(function (slot) {
+      clearTimeout(slot.timeout);
+      slot.reject(new Error('Painel encerrado.'));
+    });
+    pending.clear();
+    resetView();
+    setError(null);
+    setStatus('Painel encerrado.');
+  }
+
+  start();
+})();
+</script>
+<noscript>Ative o JavaScript para usar o painel Mesa.</noscript>
+</body>
+</html>

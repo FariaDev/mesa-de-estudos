@@ -2,9 +2,10 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import {createRequire} from 'node:module';
 import {calculate} from '../calculator.mjs';
+import {ptMatches} from './pt-text.mjs';
 const require2=createRequire(import.meta.url);
 
-test('calculator precedence, functions and angle units',()=>{assert.equal(calculate('2+3*4'),'14');assert.equal(calculate('(2+3)*4'),'20');assert.equal(calculate('2*(3+4*(1+1))'),'22');assert.equal(calculate('-2^2'),'-4');assert.equal(calculate('2^3^2'),'512');assert.equal(calculate('sqrt(16)+sin(pi/2)'),'5');assert.equal(calculate('sin(30)',true),'0.5');assert.equal(calculate('1,5+2'),'3.5');assert.equal(calculate('2^-2'),'0.25');});
+test('calculator precedence, functions and angle units',()=>{assert.equal(calculate('2+3*4'),'14');assert.equal(calculate('(2+3)*4'),'20');assert.equal(calculate('2*(3+4*(1+1))'),'22');assert.equal(calculate('-2^2'),'-4');assert.equal(calculate('2^3^2'),'512');assert.equal(calculate('sqrt(16)+sin(pi/2)'),'5');assert.equal(calculate('sin(30)',true),'0.5');assert.equal(calculate('1,5+2'),'3.5');assert.equal(calculate('2^-2'),'0.25');assert.equal(calculate('2*pi'),'6.28318530718');assert.equal(calculate('1,5+1'),'2.5');assert.equal(calculate('log(100)'),'2');assert.equal(calculate('ln(e)'),'1');});
 test('calculator rejects executable syntax and undefined results',()=>{for(const x of ['process.exit()','constructor(1)','1/0','sqrt(-1)','2;3','2+','sin(1','x=3'])assert.throws(()=>calculate(x),x);});
 test('calculator answers the reciprocal and the inverse functions',()=>{assert.equal(calculate('sec(0)'),'1');assert.equal(calculate('sec(60)',true),'2');assert.equal(calculate('csc(30)',true),'2');assert.equal(calculate('cot(45)',true),'1');assert.equal(calculate('cot(90)',true),'0');assert.equal(calculate('sec(pi)'),'-1');assert.equal(calculate('csc(pi/2)'),'1');assert.equal(calculate('asin(0.5)'),'0.523598775598');assert.equal(calculate('asin(0.5)',true),'30');assert.equal(calculate('acos(0.5)',true),'60');assert.equal(calculate('atan(1)',true),'45');assert.equal(calculate('atan(1)*4'),'3.14159265359');});
 test('calculator is exact on exact angles and undefined at the poles',()=>{for(const [x,d,w] of [['cos(90)',true,'0'],['sin(180)',true,'0'],['tan(180)',true,'0'],['sec(180)',true,'-1'],['cot(90)',true,'0'],['cos(-90)',true,'0'],['cos(pi/2)',false,'0'],['sin(pi)',false,'0'],['tan(pi)',false,'0'],['sec(pi)',false,'-1'],['cot(pi/2)',false,'0']])assert.equal(calculate(x,d),w,x);for(const [x,d] of [['tan(90)',true],['sec(90)',true],['csc(0)',true],['cot(0)',true],['tan(pi/2)',false],['sec(pi/2)',false],['csc(pi)',false],['1/tan(90)',true],['asin(2)',false],['acos(-2)',true]])assert.throws(()=>calculate(x,d),x);});
@@ -20,7 +21,7 @@ function loadMainWithMockElectron(runtime){
  const emitFor=map=>(key,...args)=>{for(const fn of map.get(key)||[])fn(...args);};
  const win={
   isDestroyed:()=>true,setBackgroundColor(){},
-  webContents:{on:(name,fn)=>record(wcEvents,name,fn),getURL:()=>'',send(){},setWindowOpenHandler(){}},
+  webContents:{on:(name,fn)=>record(wcEvents,name,fn),getURL:()=>'',send(){},setWindowOpenHandler(){},session:{protocol:{handle(){}},webRequest:{onBeforeRequest(){}}}},
   contentView:{addChildView(){}},
   loadFile:async()=>{},on:(name,fn)=>record(winEvents,name,fn),getBounds:()=>({x:10,y:10,width:1200,height:800})
  };
@@ -52,6 +53,7 @@ function loadMainWithMockElectron(runtime){
  }
  const electron={
   app,
+  protocol:{registerSchemesAsPrivileged(){}},
   BrowserWindow:class{constructor(){return win;}},
   ipcMain:{handle:(name,fn)=>handlers.set(name,fn),on(){}},
   dialog:{showOpenDialog:async()=>({canceled:true,filePaths:[]}),showSaveDialog:async()=>({canceled:true})},
@@ -110,7 +112,9 @@ test('desk.json round-trips through init/save-state/switch-course and ggbBase64 
     draft:'novo rascunho',study:{title:'Lista 3 · q8',xopp},
     pdfs:[{path:pdfA,page:3,zoom:1.2,rotation:90,scrollX:1,scrollY:2,invert:true,minimized:true},{path:pdfB,page:1,zoom:1,rotation:360,scrollX:0,scrollY:0,invert:false}],
     pdfRotations:{[pdfA]:90,[pdfB]:45,'':270},
-    referenceVisible:true,chatWidth:420,calcHeight:260,pdfSplit:.62,theme:'light'
+    referenceVisible:true,chatWidth:420,calcHeight:260,pdfSplit:.62,theme:'light',
+    modelRecents:{pi:[['xai','grok-4'],['lixo'],[7,8]],opencode:'ruim'},
+    modelFavorites:{pi:[['xai','grok-4-fast'],['só um']],claude:7}
    });
    let desk=JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));
    assert.equal(desk.draft,'novo rascunho');
@@ -120,6 +124,8 @@ test('desk.json round-trips through init/save-state/switch-course and ggbBase64 
    ],'both pdfs persist with invert, minimized e rotação (inválida vira 0)');
    assert.deepEqual(desk.pdfRotations,{[pdfA]:90},'o mapa de rotações por caminho só guarda orientação válida');
    assert.deepEqual(desk.courseStates.A.pdfRotations,{[pdfA]:90},'o estado da matéria carrega o mapa de rotações');
+   assert.deepEqual(desk.modelRecents,{pi:[['xai','grok-4']]},'os recentes do seletor (#59) guardam só pares de texto, por motor');
+   assert.deepEqual(desk.modelFavorites,{pi:[['xai','grok-4-fast']]},'os favoritos do seletor guardam só pares de texto, por motor');
    assert.equal(desk.theme,'light');assert.equal(desk.chatWidth,420);assert.equal(desk.calcHeight,260);assert.equal(desk.pdfSplit,.62);
    assert.equal(desk.session,session);assert.equal(desk.courseId,'A');
    assert.deepEqual(desk.courseStates.A.study,{title:'Lista 3 · q8',xopp},'course state carries the live study');
@@ -136,6 +142,10 @@ test('desk.json round-trips through init/save-state/switch-course and ggbBase64 
    assert.equal(desk.pdfs.length,0,'pdfs outside the allowed set are dropped');
    assert.equal(desk.chatWidth,300);assert.equal(desk.calcHeight,900);assert.equal(desk.pdfSplit,.2);
    assert.equal(desk.theme,'light','unknown theme keeps the previous one');
+   assert.deepEqual(desk.modelRecents,{pi:[['xai','grok-4']]},'um save sem recentes não apaga os guardados');
+   assert.deepEqual(desk.modelFavorites,{pi:[['xai','grok-4-fast']]},'um save sem favoritos não apaga os guardados');
+   assert.deepEqual((await handlers.get('init')({})).state.modelFavorites,{pi:[['xai','grok-4-fast']]},'os favoritos voltam no init');
+   assert.deepEqual((await handlers.get('init')({})).state.modelRecents,{pi:[['xai','grok-4']]},'os recentes voltam no init');
    assert.equal(desk.referenceVisible,false);
    assert.deepEqual(desk.courseStates.A.study,{title:'Lista 4 · clamp',xopp},'the latest study is the one persisted');
 
@@ -194,8 +204,8 @@ test('fila e bandeja guardadas: pending-save/tray-save gravam por conversa e o p
    assert.equal(reopened.pending.held,true);
    assert.equal(reopened.pending.live,true);
 
-   await assert.rejects(async()=>handlers.get('pending-save')({}, {items:'nada'}),/Fila inválida/);
-   await assert.rejects(async()=>handlers.get('tray-save')({}, {images:'nada'}),/Anexos inválidos/);
+   await assert.rejects(async()=>handlers.get('pending-save')({}, {items:'nada'}),ptMatches(/pending-save: items recebeu "nada"; esperado array\(0\.\.200\)/));
+   await assert.rejects(async()=>handlers.get('tray-save')({}, {images:'nada'}),ptMatches(/tray-save: images recebeu "nada"; esperado array\(0\.\.16\)/));
 
    /* O que era da conversa antiga continua no disco depois de trocar. */
    await handlers.get('switch-course')({},'B');
@@ -241,8 +251,8 @@ test('Encerrar por hoje: end-day-save grava local e o registro volta no init; re
    assert.equal(outside.xopp,'');
    assert.equal((await handlers.get('end-day-save')({}, {record:{stopped:'onde',next:'próximo',xopp,pages:[]}})).xopp,xopp);
 
-   await assert.rejects(async()=>handlers.get('end-day-save')({}, {record:{stopped:'   ',next:''}}),/Preencha onde parei/);
-   await assert.rejects(async()=>handlers.get('end-day-save')({}, {record:'nada'}),/Registro inválido/);
+   await assert.rejects(async()=>handlers.get('end-day-save')({}, {record:{stopped:'   ',next:''}}),ptMatches(/Preencha onde parei/));
+   await assert.rejects(async()=>handlers.get('end-day-save')({}, {record:'nada'}),ptMatches(/end-day-save: record recebeu "nada"; esperado object/));
    assert.equal(JSON.parse(fs.readFileSync(path.join(runtime,'resume.json'),'utf8')).A.next,'próximo','registro recusado não sobrescreve o que estava guardado');
 
    assert.equal(await handlers.get('resume-clear')({}),true);
@@ -275,7 +285,9 @@ test('favoritos e caderno: a tela mostra a lista filtrada e editar/remover vai p
   try{
    const init=await handlers.get('init')({});
    assert.deepEqual(init.bookmarks,[{name:'Limites',path:pdfA,page:3}],'favorito de PDF fora da biblioteca não chega à tela');
-   assert.deepEqual(init.review.map(one=>one.question),['Visível'],'item de PDF fora da biblioteca não chega à tela');
+   assert.deepEqual(init.review.map(one=>one.question),['Oculto','Visível'],'referência fora da biblioteca não apaga a questão da tela');
+   assert.equal(init.review[0].refState,'missing');
+   assert.equal(init.review[1].refState,'ok');
 
    /* O clique foi na linha 0 da tela (Limites); o arquivo tem ele na posição 1. */
    const afterRemove=await handlers.get('bookmarks-save')({}, {mode:'remove',item:{name:'Limites',path:pdfA,page:3}});
@@ -289,21 +301,28 @@ test('favoritos e caderno: a tela mostra a lista filtrada e editar/remover vai p
    const edited=await handlers.get('review-save')({}, {mode:'edit',
     key:{question:'Visível',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}},
     item:{question:'Visível (editado)',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}}});
-   assert.deepEqual(edited.map(one=>one.question),['Visível (editado)'],'editar devolve a lista filtrada');
+   assert.deepEqual(edited.map(one=>one.question),['Oculto','Visível (editado)'],'editar preserva a questão sem referência');
    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(runtime,'review.json'),'utf8')).A.map(one=>one.question),
     ['Oculto','Visível (editado)'],'editar o visível não mexe no oculto (nem na posição dele)');
 
    const removed=await handlers.get('review-save')({}, {mode:'remove',
     key:{question:'Visível (editado)',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}}});
-   assert.deepEqual(removed,[],'remover devolve a lista filtrada');
+   assert.deepEqual(removed.items.map(one=>one.question),['Oculto'],'remover preserva a questão sem referência');
+   assert.equal(typeof removed.undoToken,'string');
    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(runtime,'review.json'),'utf8')).A.map(one=>one.question),
     ['Oculto'],'remover o visível não leva o oculto');
 
+   const orphanRemoved=await handlers.get('review-save')({}, {mode:'remove',key:init.review[0]});
+   const undone=await handlers.get('review-undo')({}, {token:orphanRemoved.undoToken});
+   assert.equal(undone.ok,true,'token do host restaura a questão órfã');
+   assert.equal(undone.items[0].question,'Oculto');
+   assert.equal(undone.items[0].refState,'missing','desfazer não autoriza o PDF');
+
    /* Chave que a tela ainda tem e o arquivo não: nada muda (a tela envelheceu). */
    const before=fs.readFileSync(path.join(runtime,'review.json'),'utf8');
-   assert.deepEqual(await handlers.get('review-save')({}, {mode:'edit',
+   assert.deepEqual((await handlers.get('review-save')({}, {mode:'edit',
     key:{question:'Fantasma',attempt:'',difficulty:'',ref:{name:'Sumiu.pdf',page:1,path:fora}},
-    item:{question:'Outro',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}}}),[]);
+    item:{question:'Outro',attempt:'',difficulty:'',ref:{name:'Limites.pdf',page:3,path:pdfA}}})).map(one=>one.question),['Oculto']);
    assert.equal(fs.readFileSync(path.join(runtime,'review.json'),'utf8'),before,'chave velha não regrava o caderno');
   }finally{quit();}
  }finally{fs.rmSync(runtime,{recursive:true,force:true});}
@@ -317,6 +336,7 @@ test('desk.json corrompido não derruba o init: pdfs/session/bounds viram tipos 
   fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:courseA},{id:'B',name:'Matéria B',path:courseB}]}));
   fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({
    courseId:'A',session:123,pdfs:{a:1},bounds:'x',study:null,ggbBase64:{nope:true},
+   viewLayout:{pdfSplit:1e308,chatWidth:null,calcHeight:''},
    courseStates:{A:{pdfs:{a:1},session:77,sessions:'nope',sessionStudies:'nada',study:null}}
   }));
   const {handlers,quit}=loadMainWithMockElectron(runtime);
@@ -328,6 +348,7 @@ test('desk.json corrompido não derruba o init: pdfs/session/bounds viram tipos 
    assert.deepEqual(init.state.pdfs,[]);
    assert.equal(init.state.bounds,undefined,'bounds inválido é descartado antes do placeWindow');
    assert.equal(init.state.ggbBase64,'','ggbBase64 não-string vira string vazia');
+   assert.deepEqual(init.state.viewLayout,{pdfSplit:0.8},'layout extremo não impede o init e medidas vazias são descartadas');
    assert.ok(Array.isArray(init.state.courseStates.A.pdfs),'pdfs da matéria viram array');
    assert.deepEqual(init.state.courseStates.A.pdfs,[]);
    assert.ok(Array.isArray(init.state.courseStates.A.sessions),'sessions da matéria viram array');
@@ -394,7 +415,7 @@ test('ggb: reload do applet reaplica o snapshot; reload do renderer esconde a Vi
    assert.equal(view.visible,true,'navegação de outro frame não esconde a view');
    emitRenderer('did-start-navigation',{},'file:///mesa/index.html',false,true);
    assert.equal(view.visible,false,'o reload do renderer esconde a View nativa');
-   await assert.rejects(handlers.get('ggb-shot')({}),/Abra a aba GeoGebra primeiro/,'com a view fora, o ggb-shot recusa');
+   await assert.rejects(handlers.get('ggb-shot')({}),ptMatches(/Abra a aba GeoGebra primeiro/),'com a view fora, o ggb-shot recusa');
   }finally{quit();}
  }finally{fs.rmSync(runtime,{recursive:true,force:true});}
 });
@@ -402,7 +423,7 @@ test('ggb: reload do applet reaplica o snapshot; reload do renderer esconde a Vi
 test('atalhos: o guard de diálogo modal vem antes de Configurações/Ajuda/Conferir/GeoGebra no keydown',()=>{
  const source=fs.readFileSync(new URL('../src/main.mjs',import.meta.url),'utf8');
  const start=source.indexOf("window.addEventListener('keydown'");
- const end=source.indexOf("$('#model-select').onchange",start);
+ const end=source.indexOf('initModelPicker({pick',start);
  assert.ok(start>0&&end>start,'handler de keydown localizado no main do renderer');
  const handler=source.slice(start,end);
  const at=needle=>{const i=handler.indexOf(needle);assert.ok(i>=0,`${needle} presente no handler`);return i;};
@@ -470,4 +491,25 @@ test('preload: invoke perde o boilerplate do Electron e a conexão que falha ger
  emit('pi-event',{type:'desk_error',message:M});
  await sleep(300);
  assert.deepEqual(errors(),['Falha solta do Pi.',M],'rejeição de pi-prompt não esconde o desk_error');
+});
+
+test('partida na aba Livre já reconhece a sessão Claude da conversa ativa (regressão da #43 fase 2)',async()=>{
+ /* O main passou a criar o motor do tutor por host; a hidratação da sessão
+    Livre na partida precisa vir depois dele, senão o `engine` em TDZ caía no
+    catch e a conversa Claude era gravada como Pi. */
+ const free=require2('../free-workspaces.cjs');
+ const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'desk-free-boot-'));
+ try{
+  fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({vaultPath:runtime,courses:[]}));
+  const id='0b6f2c1e-1111-4222-8333-944455556666';
+  free.ensureWorkspace(runtime,{sessionId:id,title:free.defaultTitle()});
+  free.setNativePath(runtime,id,path.join(runtime,'claude-12345678-1234-1234-1234-123456789abc.json'));
+  fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({courseId:free.freeCourseId(),free:{activeId:id,sessions:{}}}));
+  const {handlers,quit}=loadMainWithMockElectron(runtime);
+  try{
+   const init=await handlers.get('init')({});
+   assert.equal(init.courseId,free.freeCourseId());
+   assert.equal(init.state.free.sessions[id].engine,'claude','a sessão Claude da partida não vira Pi');
+  }finally{quit();}
+ }finally{fs.rmSync(runtime,{recursive:true,force:true});}
 });

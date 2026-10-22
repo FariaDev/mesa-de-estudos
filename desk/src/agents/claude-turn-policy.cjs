@@ -1,4 +1,4 @@
-/* Política pura de liquidação do turno Claude Code — ponte Mesa ↔ SDK 0.3.246.
+/* Política pura de liquidação do turno Claude Code — ponte Mesa ↔ SDK 0.3.301.
  *
  * Módulo PURO: não importa o SDK, não faz I/O, não cria timer, não abre rede,
  * não inicia consulta e NUNCA decide reenvio. Ele transforma fatos que o host
@@ -36,7 +36,7 @@
  * commit 1604ccc9d79f5270fb8e14d60664184bf142c4cb (`ClaudeAdapterV2.ts`,
  * `isClaudeResultForOtherTurn`, `providerFailureFromResult`,
  * `providerFailureFromApiRetry`), MIT © 2026 T3 Tools Inc. As APIs usadas são
- * SÓ as do SDK pinado (@anthropic-ai/claude-agent-sdk 0.3.246): `TerminalReason`,
+ * SÓ as do SDK pinado (@anthropic-ai/claude-agent-sdk 0.3.301): `TerminalReason`,
  * `SDKResultSuccess/Error`, `SDKAPIRetryMessage`, `SDKModelRefusalFallbackMessage`,
  * `SDKUserMessageReplay`.
  *
@@ -51,6 +51,8 @@
  *   const refusal = policy.classifyRefusalNotice(message); // evicção adiada
  */
 'use strict';
+
+const {message: uiMsg} = require('../i18n.mjs');
 
 const POLICY_VERSION = '1.0.0-experimental';
 
@@ -134,72 +136,72 @@ const TERMINAL_FAILURES = Object.freeze({
   blocking_limit: {
     code: CODES.RATE_LIMITED,
     failureClass: FAILURE_CLASSES.USAGE_LIMIT,
-    message: 'Limite de uso do Claude Code atingido; envie a mensagem de novo quando o limite reiniciar.',
+    message: uiMsg('claude.fail.usageLimit'),
   },
   rapid_refill_breaker: {
     code: CODES.CONTEXT_REFILL,
     failureClass: FAILURE_CLASSES.CONTEXT_LIMIT,
-    message: 'O contexto voltou a encher logo depois da compactação; a rodada parou.',
+    message: uiMsg('claude.fail.refill'),
   },
   prompt_too_long: {
     code: CODES.CONTEXT_LIMIT,
     failureClass: FAILURE_CLASSES.CONTEXT_LIMIT,
-    message: 'O contexto desta conversa passou da janela do modelo.',
+    message: uiMsg('claude.fail.promptTooLong'),
   },
   image_error: {
     code: CODES.IMAGE_ERROR,
     failureClass: FAILURE_CLASSES.IMAGE_ERROR,
-    message: 'Uma imagem da conversa não pôde ser processada pelo modelo.',
+    message: uiMsg('claude.fail.image'),
   },
   budget_exhausted: {
     code: CODES.BUDGET_EXHAUSTED,
     failureClass: FAILURE_CLASSES.BUDGET,
-    message: 'O orçamento de tokens desta rodada foi esgotado.',
+    message: uiMsg('claude.fail.budget'),
   },
   model_error: {
     code: CODES.MODEL_ERROR,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'O modelo retornou um erro.',
+    message: uiMsg('claude.fail.model'),
   },
   api_error: {
     code: CODES.API_ERROR,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'A API do Claude falhou depois das tentativas.',
+    message: uiMsg('claude.fail.api'),
   },
   malformed_tool_use_exhausted: {
     code: CODES.MALFORMED_TOOL_USE,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'O modelo repetiu chamadas de ferramenta malformadas e a rodada parou.',
+    message: uiMsg('claude.fail.malformedTool'),
   },
   structured_output_retry_exhausted: {
     code: CODES.STRUCTURED_OUTPUT,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'Não deu para produzir a saída estruturada pedida.',
+    message: uiMsg('claude.fail.structured'),
   },
   tool_deferred_unavailable: {
     code: CODES.TOOL_DEFERRED,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'Uma ferramenta adiada não está mais disponível para retomar a chamada.',
+    message: uiMsg('claude.fail.deferredTool'),
   },
   turn_setup_failed: {
     code: CODES.TURN_SETUP_FAILED,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'Não deu para iniciar a rodada com o Claude Code.',
+    message: uiMsg('claude.fail.setup'),
   },
   stop_hook_prevented: {
     code: CODES.STOP_HOOK,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'Um hook impediu o término normal da rodada.',
+    message: uiMsg('claude.fail.stopHook'),
   },
   hook_stopped: {
     code: CODES.HOOK_STOPPED,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'Um hook encerrou a rodada antes do fim.',
+    message: uiMsg('claude.fail.hookStopped'),
   },
   max_turns: {
     code: CODES.MAX_TURNS,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: 'A rodada atingiu o limite de turnos.',
+    message: uiMsg('claude.fail.maxTurns'),
   },
 });
 
@@ -211,25 +213,10 @@ const RESULT_SUBTYPE_CODES = Object.freeze({
   error_max_structured_output_retries: CODES.STRUCTURED_OUTPUT,
 });
 
-/* `SDKAssistantMessageError` do SDK pinado (sdk.d.ts:3145) → rótulo curto PT. */
-const ASSISTANT_ERROR_LABELS = Object.freeze({
-  authentication_failed: 'falha de autenticação',
-  oauth_org_not_allowed: 'organização não autorizada',
-  account_on_hold: 'conta em espera',
-  billing_error: 'erro de cobrança',
-  rate_limit: 'limite de uso',
-  overloaded: 'sobrecarga',
-  invalid_request: 'requisição inválida',
-  model_not_found: 'modelo indisponível',
-  server_error: 'erro no servidor',
-  unknown: 'erro desconhecido',
-  max_output_tokens: 'limite de saída do modelo',
-});
-
 const REFUSAL_DIRECTIONS = Object.freeze(['retry', 'revert', 'sticky']);
 const REFUSAL_SCOPES = Object.freeze(['session', 'local']);
 
-const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('../../plain-object.cjs');
 
 function sanitizeText(value, max) {
   if (typeof value !== 'string') return null;
@@ -512,8 +499,8 @@ function classifyResultFailure(message, context = {}) {
       code: CODES.RATE_LIMITED,
       failureClass: FAILURE_CLASSES.USAGE_LIMIT,
       message: usageLimitSource === 'api_error_429'
-        ? 'A API do Claude atingiu o limite de uso; envie de novo quando o limite reiniciar.'
-        : 'Limite de uso do Claude Code atingido; envie a mensagem de novo quando o limite reiniciar.',
+        ? uiMsg('claude.fail.apiUsageLimit')
+        : uiMsg('claude.fail.usageLimit'),
       terminalReason,
       apiErrorStatus,
       providerRetryable: apiErrorStatus === 429 ? true : null,
@@ -528,7 +515,7 @@ function classifyResultFailure(message, context = {}) {
       subtype,
       code: CODES.OVERLOADED,
       failureClass: FAILURE_CLASSES.OVERLOADED,
-      message: 'A API do Claude está sobrecarregada (529); tente de novo em instantes.',
+      message: uiMsg('claude.fail.overloaded'),
       terminalReason,
       apiErrorStatus,
       providerRetryable: true,
@@ -555,7 +542,7 @@ function classifyResultFailure(message, context = {}) {
       subtype,
       code: apiErrorStatus !== null ? CODES.API_ERROR : CODES.RESULT_ERROR,
       failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-      message: raw || 'A rodada do Claude Code terminou com erro.',
+      message: raw || uiMsg('claude.fail.turnError'),
       terminalReason,
       apiErrorStatus,
       providerRetryable: null,
@@ -567,7 +554,7 @@ function classifyResultFailure(message, context = {}) {
     subtype,
     code: (subtype && RESULT_SUBTYPE_CODES[subtype]) || CODES.RESULT_ERROR,
     failureClass: FAILURE_CLASSES.PROVIDER_ERROR,
-    message: raw || 'A rodada do Claude Code terminou com erro.',
+    message: raw || uiMsg('claude.fail.turnError'),
     terminalReason,
     apiErrorStatus,
     providerRetryable: null,
@@ -604,15 +591,13 @@ function classifyApiRetry(message) {
       : errorStatus === null
         ? FAILURE_CLASSES.TRANSPORT_ERROR
         : FAILURE_CLASSES.PROVIDER_ERROR;
-  const cause = errorStatus !== null
-    ? `status HTTP ${errorStatus}`
-    : error
-      ? ASSISTANT_ERROR_LABELS[error] || `erro ${error}`
-      : 'erro de transporte';
+  /* A causa é o código bruto do SDK (`rate_limit`, `HTTP 529`…): uma mensagem marcada não aceita
+     outra como argumento, então ela segue como dado técnico e igual nos dois idiomas. */
+  const cause = errorStatus !== null ? `HTTP ${errorStatus}` : error || 'transport';
   return {
     code,
     class: failureClass,
-    message: `O Claude Code está repetindo a chamada à API (tentativa ${attempt} de ${maxRetries}; ${cause}${retryDelayMs > 0 ? `; aguardando ${retryDelayMs} ms` : ''}).`,
+    message: uiMsg(retryDelayMs > 0 ? 'claude.retry.wait' : 'claude.retry', {attempt, max: maxRetries, cause, delay: retryDelayMs}),
     retryable: true,
     endsTurn: false,
     deliveryEffect: 'none',
@@ -623,7 +608,7 @@ function classifyApiRetry(message) {
 
 /* ---------------- recusa / fallback de modelo ---------------- */
 
-/* Normaliza o aviso nativo de recusa (SDK 0.3.246). Para o fallback, devolve o
+/* Normaliza o aviso nativo de recusa (SDK 0.3.301). Para o fallback, devolve o
    texto do aviso (quando houver), a lista LIMITADA de UUIDs retratados e a
    decisão de evicção ADIADA (`eviction:'deferred'`): o host decide o DOM, este
    módulo não remove nada. Sem `content` não inventa aviso vazio; a retração

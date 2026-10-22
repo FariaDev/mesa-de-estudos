@@ -6,12 +6,13 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
-const {PiBridge} = require('../../chat/rpc.cjs');
-const {spawnArgs,spawnEnv,resolvePi} = require('../../chat/pi.cjs');
+const {PiBridge} = require('../rpc.cjs');
+const {spawnEnv,resolvePi} = require('../pi.cjs');
+const {pinnedArgs} = require('../profiles.cjs');
 const root = fs.mkdtempSync(path.join(os.tmpdir(),'pi-native-rpc-'));
 const session = path.join(root,'session.jsonl');
-const pi = resolvePi();
-const options = {cwd:root,session,pi,env:spawnEnv(pi),promptFile:'Teste técnico isolado. Responda em português. Não acesse dados pessoais, arquivos, serviços externos ou servidores MCP. Use apenas codemode quando solicitado.',extraArgs:spawnArgs()};
+const pi = resolvePi({deskDir:path.resolve(import.meta.dirname,'..')});
+const options = {cwd:root,session,pi,env:spawnEnv(pi),promptFile:'Teste técnico isolado. Responda em português. Não acesse dados pessoais, arquivos, serviços externos ou servidores MCP. Use apenas codemode quando solicitado.',extraArgs:pinnedArgs({overlayDirs:[],freeWorkspace:true})};
 let bridge;
 try {
  bridge = new PiBridge(options);
@@ -49,5 +50,5 @@ try {
   'modelo chamou Codemode; diagnóstico: '+JSON.stringify(events.filter(e=>e.type==='message_end').map(e=>({role:e.message?.role,stopReason:e.message?.stopReason,error:e.message?.errorMessage,content:e.message?.content}))).slice(0,2000));
  assert.ok(events.some(e=>e.type==='message_end'&&e.message?.role==='assistant'&&JSON.stringify(e.message.content).includes('NATIVE-RPC-OK')),'resposta do modelo');
  assert.equal((await bridge.request('get_state')).isStreaming,false);
- console.log('Pi/provedor reais: sessão retomada, Codemode executado e resposta final recebida via RPC da Conversa');
+ console.log('Pi/provedor reais: sessão retomada, Codemode executado e resposta final recebida via RPC da Mesa');
 }finally{bridge?.removeAllListeners();bridge?.stop();fs.rmSync(root,{recursive:true,force:true});}

@@ -1,20 +1,38 @@
+// @ts-check
 'use strict';
 
-/* Serviço de PDF de material (aba Livre): Markdown+LaTeX viram um PDF DE VERDADE
-   pelo `printToPDF` do Electron, com a MESMA função `markup` do chat
-   (`desk/src/markdown.mjs`) e `allowAssets=false` — figura/asset local vira
+/* Serviço de PDF de material (aba Livre e matéria): título + Markdown viram um
+   PDF DE VERDADE pelo `printToPDF` do Electron, com o renderizador próprio do
+   template (`desk/src/materials/template.mjs`: marked + DOMPurify + KaTeX, sem
+   a regex de `markdown.mjs`) e `allowAssets=false` — figura/asset local vira
    código, nada é buscado na rede. A página de impressão é local, sandbox,
    contextIsolation e CSP fechada; o payload do renderer nunca é injetado como
    script nem vira caminho de arquivo.
 
    Contrato:
      available()                                  true sob Electron
-     renderPdf({title, markdown, timeoutMs, signal})
-                                                  {buffer, bytes, sha256}
-     savePdf({dir, stem, title, markdown, timeoutMs, signal})
-                                                  {name, path, bytes, sha256}
+     checkMaterial({title, markdown})
+                                                  {markdown, diagnostics, blocking,
+                                                   message, templateHash} (assíncrono;
+                                                   viável em Node puro)
+     renderPdf({title, markdown, model, options, context, timeoutMs, signal})
+                                                  {buffer, bytes, sha256, templateHash,
+                                                   diagnostics, model, options, columns,
+                                                   columnsAuto, columnsLabel, fit} —
+                                                  diagnostics é uma LISTA de registros
+                                                  do template; `model` ausente ou
+                                                   desconhecido é o Livre de sempre
+     savePdf({dir, stem, title, markdown, model, options, context, timeoutMs, signal})
+                                                  {name, path, bytes, sha256,
+                                                   templateHash, diagnostics, model,
+                                                   options, columns, columnsLabel}
      MaterialPdfError (code: NO_ELECTRON, BAD_PAYLOAD, BAD_DIR, TOO_BIG, LOAD,
-     PAGE, GONE, TIMEOUT, ABORTED, PRINT, EMPTY, COLLISION, VERIFY, WRITE)
+     PAGE, GONE, TIMEOUT, ABORTED, PRINT, EMPTY, COLLISION, VERIFY, WRITE,
+     MATH, OVERFLOW)
+
+   MATH/OVERFLOW são bloqueios de qualidade: a validação/medição encontra erro de
+   sintaxe ou fórmula que não cabe nem no piso legível e NADA é impresso nem
+   gravado (o rascunho segue intacto para edição).
 
    Garantias:
      - `renderPdf` só resolve depois de a página sinalizar `ok` E o
@@ -31,10 +49,15 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const {fileURLToPath} = require('node:url');
+const {fileURLToPath, pathToFileURL} = require('node:url');
 const core = require('./src/generated/freeworkspaces.core.js').default;
+const {toNat} = require('./src/bend-nat.mjs');
+const {message: uiMsg} = require('./src/i18n.mjs');
+const {causeArg, causeText} = require('./src/error-detail.mjs');
 
 const PRINT_DIR = path.join(__dirname, 'src', 'materials');
+const TEMPLATE_MODULE = path.join(PRINT_DIR, 'template.mjs');
+const MODEL_MODULE = path.join(PRINT_DIR, 'model.mjs');
 const PRINT_HTML = path.join(PRINT_DIR, 'print.html');
 const PRINT_PRELOAD = path.join(PRINT_DIR, 'print-preload.cjs');
 const RENDER_CHANNEL = 'material-pdf:render';
@@ -60,6 +83,46 @@ class MaterialPdfError extends Error {
 const fail = (code, message, details) => {
   throw new MaterialPdfError(code, message, details);
 };
+
+/* O template é ESM (também importável em Node puro pelos testes); o serviço é
+   CJS. Carrega uma vez e reusa. */
+let templateModule = null;
+function loadTemplate() {
+  if (!templateModule) templateModule = import(pathToFileURL(TEMPLATE_MODULE).href);
+  return templateModule;
+}
+
+/* Modelos de PDF (Lista, Apostila, …): a normalização mora no núcleo e chega
+   por `model.mjs`; o serviço só valida o que o payload manda e repassa. */
+let modelModule = null;
+function loadModel() {
+  if (!modelModule) modelModule = import(pathToFileURL(MODEL_MODULE).href);
+  return modelModule;
+}
+
+const MAX_CONTEXT_CHARS = 200;
+
+/* Validação pura do material (sem Electron): título único, headings por
+   estrutura Markdown e matemática tokenizada fora de código/escape. Devolve a
+   lista de diagnósticos; `blocking` contém só os erros que impedem o PDF. */
+async function checkMaterial({title = '', markdown = ''} = {}) {
+  const template = await loadTemplate();
+  const prepared = template.prepareMaterialMarkdown({title: String(title ?? ''), markdown: String(markdown ?? '')});
+  const math = template.checkMaterialMath(prepared.markdown);
+  const diagnostics = [...prepared.diagnostics, ...math.diagnostics];
+  const blocking = math.errors;
+  const first = blocking[0];
+  const message = blocking.length === 0
+    ? ''
+    : (blocking.length === 1 ? first.message : uiMsg('err.pdf.mathMany', {count: blocking.length}));
+  return {
+    markdown: prepared.markdown,
+    diagnostics,
+    blocking,
+    message,
+    templateHash: template.materialTemplateHash(),
+  };
+}
 
 const isAbsolute = (value) => typeof value === 'string' && value.length > 0 && value.length <= MAX_PATH && path.isAbsolute(value);
 
@@ -98,7 +161,7 @@ function normalizeTimeout(value) {
    DOMPurify, highlight.mjs e fontes) podem ser requisitados; qualquer outra URL
    — inclusive http(s) — é cancelada antes de sair da máquina. `roots` lista
    PASTAS; `allowedFiles` lista os arquivos soltos na raiz de desk/ que o
-   `markdown.mjs` importa (`../highlight.mjs`) sem abrir a raiz toda. */
+   `template.mjs` importa (`../highlight.mjs`) sem abrir a raiz toda. */
 function lockSession(session) {
   const roots = [
     PRINT_DIR,
@@ -123,25 +186,38 @@ function lockSession(session) {
   });
 }
 
-async function renderPdf({title = '', markdown = '', timeoutMs, signal} = {}) {
-  if (typeof markdown !== 'string') fail('BAD_PAYLOAD', 'conteúdo do PDF precisa ser texto Markdown');
-  if (markdown.trim() === '') fail('BAD_PAYLOAD', 'conteúdo do PDF está vazio');
-  if (markdown.length > MAX_MARKDOWN_CHARS) fail('TOO_BIG', 'conteúdo do PDF acima do teto');
-  if (Buffer.byteLength(markdown, 'utf8') > MAX_MARKDOWN_BYTES) fail('TOO_BIG', 'conteúdo do PDF acima do teto');
+/** Monta o PDF numa janela escondida e devolve os bytes, sem gravar.
+ * @typedef {{title?: string, markdown?: string, model?: string, options?: object, context?: string, timeoutMs?: number, signal?: AbortSignal}} PdfRequest
+ * @param {PdfRequest} [request] */
+async function renderPdf({title = '', markdown = '', model, options, context = '', timeoutMs, signal} = {}) {
+  if (typeof markdown !== 'string') fail('BAD_PAYLOAD', uiMsg('err.pdf.notMarkdown'));
+  if (markdown.trim() === '') fail('BAD_PAYLOAD', uiMsg('err.pdf.empty'));
+  if (markdown.length > MAX_MARKDOWN_CHARS) fail('TOO_BIG', uiMsg('err.pdf.tooBig'));
+  if (Buffer.byteLength(markdown, 'utf8') > MAX_MARKDOWN_BYTES) fail('TOO_BIG', uiMsg('err.pdf.tooBig'));
   if (signal !== undefined && (typeof signal.aborted !== 'boolean' || typeof signal.addEventListener !== 'function')) {
-    fail('BAD_PAYLOAD', 'sinal de cancelamento inválido');
+    fail('BAD_PAYLOAD', uiMsg('err.pdf.badSignal'));
   }
   const safeTitle = String(title ?? '').slice(0, MAX_TITLE_CHARS);
+  const modelApi = await loadModel();
+  const safeModel = modelApi.modelId(model);
+  const safeOptions = modelApi.normalizeOptions(safeModel, options);
+  const safeContext = String(context ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_CONTEXT_CHARS);
+  /* Erro de matemática é barrado antes de abrir janela: nada de PDF
+     defeituoso e nenhuma surpresa no print. */
+  const checked = await checkMaterial({title: safeTitle, markdown});
+  if (checked.blocking.length > 0) {
+    fail('MATH', checked.message, {diagnostics: checked.diagnostics, blocking: checked.blocking});
+  }
   const electron = loadElectron();
-  if (!electron) fail('NO_ELECTRON', 'geração de PDF só funciona dentro do aplicativo');
+  if (!electron) fail('NO_ELECTRON', uiMsg('err.pdf.needsApp'));
   const {BrowserWindow, ipcMain} = electron;
   if (fs.existsSync(PRINT_HTML) === false || fs.existsSync(PRINT_PRELOAD) === false) {
-    fail('LOAD', 'página de impressão do app não encontrada');
+    fail('LOAD', uiMsg('err.pdf.printPageMissing'));
   }
 
   const token = crypto.randomBytes(12).toString('hex');
   const budget = normalizeTimeout(timeoutMs);
-  const state = {error: null, timer: null, done: false};
+  const state = {error: null, timer: null, done: false, diagnostics: [], overflows: [], modelInfo: null};
   let win = null;
   let onDone = null;
 
@@ -169,28 +245,37 @@ async function renderPdf({title = '', markdown = '', timeoutMs, signal} = {}) {
     state.error = error;
     destroy();
   };
-  const onAbort = () => abortWith(new MaterialPdfError('ABORTED', 'geração de PDF cancelada'));
+  const onAbort = () => abortWith(new MaterialPdfError('ABORTED', uiMsg('err.pdf.cancelled')));
 
   try {
-    await new Promise((resolve, reject) => {
+    await /** @type {Promise<void>} */(new Promise((resolve, reject) => {
       const finishFail = (error) => {
         abortWith(error);
         reject(state.error);
       };
       onDone = (_event, payload) => {
+        if (!win || _event.sender !== win.webContents) return;
         if (!payload || payload.token !== token) return;
         if (payload.ok === true) {
           state.done = true;
+          state.diagnostics = Array.isArray(payload.diagnostics) ? payload.diagnostics : [];
+          state.overflows = Array.isArray(payload.overflows) ? payload.overflows : [];
+          state.modelInfo = {
+            columns: Number.isInteger(payload.columns) ? payload.columns : 1,
+            columnsAuto: payload.columnsAuto === true,
+            columnsLabel: typeof payload.columnsLabel === 'string' ? payload.columnsLabel : '',
+            fit: payload.fit && typeof payload.fit === 'object' ? {percent: Number(payload.fit.percent) || 100, fits: payload.fit.fits === true} : null,
+          };
           stopWaiting();
           resolve();
           return;
         }
-        finishFail(new MaterialPdfError('PAGE', String(payload.message || 'falha ao renderizar o PDF')));
+        finishFail(new MaterialPdfError('PAGE', String(payload.message || uiMsg('err.pdf.renderFail'))));
       };
       ipcMain.on(DONE_CHANNEL, onDone);
       if (signal) {
         if (signal.aborted) {
-          finishFail(new MaterialPdfError('ABORTED', 'geração de PDF cancelada'));
+          finishFail(new MaterialPdfError('ABORTED', uiMsg('err.pdf.cancelled')));
           return;
         }
         signal.addEventListener('abort', onAbort, {once: true});
@@ -199,7 +284,7 @@ async function renderPdf({title = '', markdown = '', timeoutMs, signal} = {}) {
          pronta mas o print travou, o timer destrói a janela e a operação falha
          sem gravar nada. */
       state.timer = setTimeout(() => {
-        const error = new MaterialPdfError('TIMEOUT', 'o PDF demorou demais para ser gerado');
+        const error = new MaterialPdfError('TIMEOUT', uiMsg('err.pdf.timeout'));
         if (state.done) abortWith(error);
         else finishFail(error);
       }, budget);
@@ -223,21 +308,21 @@ async function renderPdf({title = '', markdown = '', timeoutMs, signal} = {}) {
         });
         lockSession(win.webContents.session);
         win.webContents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
-          if (isMainFrame) finishFail(new MaterialPdfError('LOAD', `página de impressão não carregou (${code} ${description})`));
+          if (isMainFrame) finishFail(new MaterialPdfError('LOAD', uiMsg('err.pdf.printLoadFail', {code, description})));
         });
-        win.webContents.on('render-process-gone', () => finishFail(new MaterialPdfError('GONE', 'o renderizador do PDF caiu')));
+        win.webContents.on('render-process-gone', () => finishFail(new MaterialPdfError('GONE', uiMsg('err.pdf.rendererGone'))));
         win.webContents.on('preload-error', (_event, _preloadPath, error) => {
-          finishFail(new MaterialPdfError('LOAD', `o preload da página de impressão falhou: ${String(error?.message || error)}`));
+          finishFail(new MaterialPdfError('LOAD', uiMsg('err.pdf.preloadFail', {error: causeArg(error)})));
         });
         win.webContents.on('did-finish-load', () => {
           if (state.error) return;
-          win.webContents.send(RENDER_CHANNEL, {token, title: safeTitle, markdown});
+          win.webContents.send(RENDER_CHANNEL, {token, title: safeTitle, markdown, model: safeModel, options: safeOptions, context: safeContext});
         });
-        win.loadFile(PRINT_HTML).catch((error) => finishFail(new MaterialPdfError('LOAD', String(error?.message || error))));
+        win.loadFile(PRINT_HTML).catch((error) => finishFail(new MaterialPdfError('LOAD', causeText(error))));
       } catch (error) {
-        finishFail(error instanceof MaterialPdfError ? error : new MaterialPdfError('LOAD', String(error?.message || error)));
+        finishFail(error instanceof MaterialPdfError ? error : new MaterialPdfError('LOAD', causeText(error)));
       }
-    });
+    }));
   } catch (error) {
     /* Aborto/cancelamento tem prioridade sobre o erro colateral de destruir a
        janela (loadFile/promise rejeita com ERR_ABORTED). */
@@ -247,6 +332,15 @@ async function renderPdf({title = '', markdown = '', timeoutMs, signal} = {}) {
 
   try {
     if (state.error) throw state.error;
+    /* A página mediu depois das fontes: se uma fórmula não cabe nem no piso de
+       9 pt, falha aqui — o printToPDF não é chamado. */
+    if (state.overflows.length > 0) {
+      const first = state.overflows[0];
+      throw new MaterialPdfError('OVERFLOW', first.message || uiMsg('err.pdf.overflow'), {
+        diagnostics: [...checked.diagnostics, ...state.diagnostics, ...state.overflows],
+        blocking: state.overflows,
+      });
+    }
     const buffer = await win.webContents.printToPDF({
       printBackground: true,
       preferCSSPageSize: true,
@@ -257,34 +351,44 @@ async function renderPdf({title = '', markdown = '', timeoutMs, signal} = {}) {
     });
     if (state.error) throw state.error;
     if (Buffer.isBuffer(buffer) === false || buffer.length < 8 || buffer.subarray(0, 5).toString('latin1') !== '%PDF-') {
-      throw new MaterialPdfError('EMPTY', 'o aplicativo não devolveu um PDF válido');
+      throw new MaterialPdfError('EMPTY', uiMsg('err.pdf.invalidBytes'));
     }
-    return {buffer, bytes: buffer.length, sha256: crypto.createHash('sha256').update(buffer).digest('hex')};
+    return {
+      buffer,
+      bytes: buffer.length,
+      sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+      templateHash: checked.templateHash,
+      diagnostics: [...checked.diagnostics, ...state.diagnostics],
+      model: safeModel,
+      options: safeOptions,
+      ...(state.modelInfo || {columns: 1, columnsAuto: false, columnsLabel: '', fit: null}),
+    };
   } catch (error) {
     if (state.error) throw state.error;
     if (error instanceof MaterialPdfError) throw error;
-    throw new MaterialPdfError('PRINT', String(error?.message || error));
+    throw new MaterialPdfError('PRINT', causeText(error));
   } finally {
     destroy();
   }
 }
 
 function assertTargetDir(dir) {
-  if (!isAbsolute(dir)) fail('BAD_DIR', 'pasta de destino do PDF inválida');
+  if (!isAbsolute(dir)) fail('BAD_DIR', uiMsg('err.pdf.badDir'));
   let stats;
   try {
     stats = fs.lstatSync(dir);
   } catch {
-    fail('BAD_DIR', 'pasta de destino do PDF não existe');
+    fail('BAD_DIR', uiMsg('err.pdf.dirMissing'));
   }
-  if (stats.isSymbolicLink() || stats.isDirectory() === false) fail('BAD_DIR', 'pasta de destino do PDF inválida');
+  if (stats.isSymbolicLink() || stats.isDirectory() === false) fail('BAD_DIR', uiMsg('err.pdf.badDir'));
   const real = fs.realpathSync(dir);
-  if (fs.lstatSync(real).isDirectory() === false) fail('BAD_DIR', 'pasta de destino do PDF inválida');
+  if (fs.lstatSync(real).isDirectory() === false) fail('BAD_DIR', uiMsg('err.pdf.badDir'));
   return real;
 }
 
 function sanitizeStem(raw) {
   let text = String(raw ?? '').normalize('NFC')
+    // eslint-disable-next-line no-control-regex -- tirar caracteres de controle é o propósito
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/[/\\:*?"<>|]/g, '-')
     .replace(/\s+/g, ' ')
@@ -318,7 +422,7 @@ function commitExclusive(temporary, target) {
 
 function writeUniquePdf(dir, stem, buffer, expectedHash) {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const name = core.candidateName(sanitizeStem(stem), '.pdf', BigInt(attempt));
+    const name = core.candidateName(sanitizeStem(stem), '.pdf', toNat(attempt));
     const target = path.join(dir, name);
     if (fs.lstatSync(target, {throwIfNoEntry: false})) continue;
     const temporary = path.join(dir, `.save-${crypto.randomBytes(6).toString('hex')}.tmp`);
@@ -334,13 +438,13 @@ function writeUniquePdf(dir, stem, buffer, expectedHash) {
         try { fs.closeSync(fd); } catch { /* já foi */ }
       }
       try { fs.rmSync(temporary, {force: true}); } catch { /* já foi */ }
-      throw new MaterialPdfError('WRITE', `não foi possível gravar o PDF: ${error.message}`);
+      throw new MaterialPdfError('WRITE', uiMsg('err.pdf.writeFail', {error: causeArg(error)}));
     }
-    let committed = false;
+    let committed;
     try {
       committed = commitExclusive(temporary, target);
     } catch (error) {
-      throw new MaterialPdfError('WRITE', `não foi possível publicar o PDF: ${error.message}`);
+      throw new MaterialPdfError('WRITE', uiMsg('err.pdf.publishFail', {error: causeArg(error)}));
     } finally {
       try { fs.rmSync(temporary, {force: true}); } catch { /* já foi */ }
     }
@@ -348,22 +452,31 @@ function writeUniquePdf(dir, stem, buffer, expectedHash) {
     const stats = fs.statSync(target);
     if (stats.size !== buffer.length || sha256OfFile(target) !== expectedHash) {
       try { fs.rmSync(target, {force: true}); } catch { /* já foi */ }
-      fail('VERIFY', 'o PDF gravado não confere com os bytes gerados');
+      fail('VERIFY', uiMsg('err.pdf.verifyFail'));
     }
     return name;
   }
-  fail('COLLISION', 'não foi possível achar um nome livre para o PDF');
+  fail('COLLISION', uiMsg('err.pdf.noFreeName'));
 }
 
-async function savePdf({dir, stem, title, markdown, timeoutMs, signal} = {}) {
+/** Monta e grava o PDF em `dir`, com um nome livre a partir de `stem`. @param {PdfRequest & {dir?: string, stem?: string}} [request] */
+async function savePdf({dir, stem, title, markdown, model, options, context, timeoutMs, signal} = {}) {
   const targetDir = assertTargetDir(dir);
-  const rendered = await renderPdf({title, markdown, timeoutMs, signal});
+  const rendered = await renderPdf({title, markdown, model, options, context, timeoutMs, signal});
   const name = writeUniquePdf(targetDir, stem, rendered.buffer, rendered.sha256);
   return {
     name,
     path: path.join(targetDir, name),
     bytes: rendered.bytes,
     sha256: rendered.sha256,
+    templateHash: rendered.templateHash,
+    diagnostics: rendered.diagnostics,
+    model: rendered.model,
+    options: rendered.options,
+    columns: rendered.columns,
+    columnsAuto: rendered.columnsAuto,
+    columnsLabel: rendered.columnsLabel,
+    fit: rendered.fit,
   };
 }
 
@@ -371,6 +484,7 @@ module.exports = {
   MaterialPdfError,
   available,
   isAvailable: available,
+  checkMaterial,
   renderPdf,
   savePdf,
   sanitizeStem,

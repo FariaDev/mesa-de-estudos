@@ -1,0 +1,207 @@
+/* Primeira abertura em tela cheia (#64, docs/design/setup-guia-r1/Setup-passos.dc.html).
+   Substitui a folha "Lista 0" no leitor (#21). Só vale com `body[data-first-run]`
+   (src/first-run.mjs); a Mesa fica `inert` atrás. mascote grande à esquerda
+   com o balão; à direita o cartão de 720px com a trilha, o passo e o pé. */
+
+#setup{display:none}
+body[data-first-run] #setup{
+ position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;
+ background:var(--bg);color:var(--fg);font-size:var(--fs-md);line-height:1.45;
+}
+/* O aviso continua por cima da tela. */
+body[data-first-run] #toast{z-index:60}
+
+.setup-bar{height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:0 12px;background:var(--surface);border-bottom:1px solid var(--border)}
+.setup-brand{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--fg-strong);white-space:nowrap}
+.setup-brand .brand-icon{width:20px;height:20px}
+.setup-bar-actions{display:flex;align-items:center;gap:4px;min-width:0;font-size:var(--fs-sm);color:var(--muted)}
+.setup-bar-sep{width:1px;height:16px;margin:0 6px;background:var(--border)}
+#first-run-language{display:inline-flex;align-items:center;gap:2px}
+#first-run-language button{height:28px;padding:0 6px;border:0;border-radius:var(--r-md);background:transparent;color:var(--muted);font:inherit}
+#first-run-language button:hover{background:var(--hover);color:var(--fg)}
+#first-run-language button[aria-pressed="true"]{color:var(--fg-strong);font-weight:600}
+.setup-bar-actions #first-run-help{height:28px;padding:0 10px;font-size:var(--fs-sm)}
+.setup-quiet{height:28px;padding:0 10px;border:0;background:transparent;color:var(--muted);font-size:var(--fs-sm)}
+.setup-quiet:hover{color:var(--fg)}
+
+.setup-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:40px;padding:12px 40px;overflow:auto}
+.setup-mascot{width:290px;flex:none;display:flex;flex-direction:column;align-items:center;gap:10px}
+.setup-speech{
+ position:relative;max-width:270px;box-sizing:border-box;margin:0;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r-2xl);
+ background:var(--surface);box-shadow:var(--shadow-pop);font-size:var(--fs-lg);color:var(--fg-strong);text-align:center;
+}
+.setup-speech::after{content:"";position:absolute;left:var(--tail-x,50%);bottom:-7px;width:12px;height:12px;margin-left:-6px;background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border);transform:rotate(45deg)}
+.setup-mascote{min-width:240px;height:260px;display:flex;align-items:flex-end;justify-content:center}
+/* O trio tem 104 px de altura: com a caixa de 260 px do solo o balão ficava
+   lá em cima, longe dos três (#70, teste manual A1). */
+.setup-mascote[data-cast="trio"]{height:auto}
+/* Escondido no passo: o atributo `hidden` perde para o `display:block` do trio.css. */
+.setup-mascote .mascote[hidden]{display:none}
+
+.setup-card{
+ width:720px;max-width:100%;height:600px;max-height:100%;flex:none;box-sizing:border-box;display:flex;flex-direction:column;
+ padding:22px 32px 24px;border:1px solid var(--border);border-radius:var(--r-2xl);background:var(--surface);box-shadow:var(--shadow-pop);
+ outline:2px solid transparent;outline-offset:4px;transition:outline-color var(--t-fast) var(--ease-out);overflow:auto;
+}
+/* Arrastando no passo dos PDFs: o palco ganha o contorno no acento. */
+body[data-first-run] #setup[data-dragging] .setup-card{outline-color:var(--accent-paper)}
+
+.setup-trail{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 18px;padding:0;list-style:none}
+.setup-trail li{display:flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 6px;border-radius:12px;font-size:var(--fs-sm);color:var(--muted);transition:background-color var(--t-base) var(--ease-out),color var(--t-base) var(--ease-out)}
+.setup-trail li[data-status="done"]{color:var(--fg-strong)}
+.setup-trail li[data-status="current"]{background:var(--accent-fill);color:var(--accent-fg);font-weight:600}
+.setup-trail-mark{display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:8px;background:var(--selected);color:var(--muted);font-size:var(--fs-2xs);font-weight:700}
+.setup-trail li[data-status="done"] .setup-trail-mark{background:#e8862a;color:#fff}
+.setup-trail li[data-status="current"] .setup-trail-mark{background:rgba(255,255,255,.25);color:inherit}
+
+.setup-step{display:flex;flex-direction:column;gap:10px;--motion-from:var(--from-rise);animation:mesa-in var(--t-base) var(--ease-out)}
+.setup-step[hidden]{display:none}
+.setup-step h1{margin:0;font:500 30px/1.15 var(--serif,serif);color:var(--fg-strong)}
+.setup-step[data-step="welcome"]{gap:12px}
+.setup-step[data-step="welcome"] h1{font-size:34px}
+.setup-lead{margin:0;max-width:560px;font-size:var(--fs-xl);color:var(--muted)}
+.setup-lead-sm{font-size:var(--fs-lg)}
+.setup-kicker{font-size:var(--fs-sm);color:var(--muted)}
+.setup-label{font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong)}
+
+.setup-language{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+#setup-language{display:flex;gap:8px}
+/* Acento no passo Boas-vindas (#70): as opções das Configurações, numa linha. */
+.setup-accent{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.setup-accent .accent-options{grid-template-columns:repeat(6,minmax(0,1fr))}
+.setup-accent .accent-option{padding:0 var(--space-2);gap:6px}
+.setup-folder-remove{align-self:flex-start;margin:2px 0 0;font-size:var(--fs-sm)}
+#setup-language button{width:200px;height:56px;flex-direction:column;align-items:flex-start;justify-content:center;gap:0;padding:0 14px;border:1.5px solid var(--border);border-radius:var(--r-lg);text-align:left;color:var(--fg-strong)}
+#setup-language button span{font-size:var(--fs-sm);color:var(--muted)}
+#setup-language button strong{font-weight:600}
+#setup-language button[aria-checked="true"]{border-color:var(--accent-paper);background:var(--tint,var(--hover))}
+
+.setup-cards{display:grid;gap:10px;margin-top:10px}
+.setup-cards-3{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px}
+.setup-cards-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.setup-cards>div{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:var(--r-lg);background:var(--code)}
+.setup-cards strong{font-weight:600;color:var(--fg-strong)}
+.setup-cards span{font-size:var(--fs-sm);color:var(--muted)}
+
+/* ---------- como a Mesa funciona: o desenho e as regiões ---------- */
+.setup-demo{display:flex;gap:14px;height:238px}
+.demo-desk{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--bg)}
+.demo-region{position:relative;opacity:.32;transition:opacity var(--t-base) var(--ease-out),box-shadow var(--t-base) var(--ease-out)}
+.demo-region[data-lit]{opacity:1;box-shadow:0 0 0 2px var(--accent-paper);z-index:1}
+.demo-top{height:26px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px;background:var(--surface);border-bottom:1px solid var(--border)}
+.demo-tab{height:18px;padding:0 8px;display:flex;align-items:center;border-radius:5px;font-size:var(--fs-2xs);color:var(--muted)}
+.demo-tab-on{background:var(--code);color:var(--fg-strong);font-weight:600}
+.demo-fill{flex:1}
+.demo-menu{height:18px;padding:0 8px;display:flex;align-items:center;gap:3px;border:1px solid var(--border);border-radius:5px;font-size:var(--fs-2xs)}
+.demo-dot{width:10px;height:10px;margin-left:4px;border:1.5px solid var(--muted);border-radius:5px;box-sizing:border-box}
+.demo-body{flex:1;min-height:0;display:flex}
+.demo-readers{flex:1;display:flex;gap:1px;background:var(--border)}
+.demo-reader{flex:1;display:flex;flex-direction:column;background:var(--stage)}
+.demo-reader-name{height:16px;flex:none;display:flex;align-items:center;padding:0 6px;background:var(--surface);color:var(--muted);font-size:9px;font-weight:600}
+.demo-page{margin:8px 10px 0;flex:1;display:flex;flex-direction:column;gap:5px;padding:9px 9px 0;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.demo-page i{height:3px;background:#cfcfcf}
+.demo-page-title{font:600 10px var(--serif,serif);color:#222}
+.demo-formula{font:italic 11px var(--serif,serif);color:#333}
+.demo-tutor{width:138px;flex:none;box-sizing:border-box;display:flex;flex-direction:column;gap:5px;padding:6px;background:var(--surface);border-left:1px solid var(--border);font-size:9px}
+.demo-tutor-head{font-weight:600;color:var(--muted)}
+.demo-ask{align-self:flex-end;max-width:100px;padding:4px 6px;border-radius:6px;background:var(--code)}
+.demo-answer em{font-style:normal;color:var(--accent-paper);text-decoration:underline}
+.demo-composer{display:flex;flex-direction:column;gap:4px;padding:4px 5px;border:1px solid var(--border);border-radius:6px;color:var(--muted)}
+.demo-composer div{display:flex;gap:3px}
+.demo-chip{height:14px;display:flex;align-items:center;padding:0 4px;border:1px solid var(--border);border-radius:4px;font-size:8px;color:var(--fg)}
+.demo-writer{width:170px;flex:none;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);border-radius:var(--r-lg);background:#fff}
+.demo-writer-bar{height:20px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px;background:#ececec;color:#555;font-size:9px}
+.demo-writer-bar i{width:7px;height:7px;border-radius:4px;background:#ff5f57}
+.demo-writer-bar i+i{background:#febc2e}
+.demo-writer-bar i+i+i{background:#28c840}
+.demo-writer svg{display:block;width:170px;height:210px}
+.demo-writer text{font:italic 14px var(--serif,serif);fill:#1a1033}
+.demo-ink{stroke:var(--accent-paper)}
+
+.setup-tour-head{display:flex;align-items:baseline;gap:10px}
+.setup-tour-num{width:22px;height:22px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:11px;background:var(--accent-fill);color:var(--accent-fg);font-size:var(--fs-sm);font-weight:700;transform:translateY(-3px)}
+.setup-step[data-step="tour"] h1{font-size:26px}
+.setup-tour-text{margin:0;font-size:var(--fs-lg)}
+.setup-tour-extras{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.setup-tour-extras li{display:flex;gap:8px;color:var(--muted)}
+.setup-tour-extras li::before{content:"—";color:var(--accent-paper)}
+
+/* ---------- nome ---------- */
+#first-run-name{width:100%;height:40px;box-sizing:border-box;padding:0 12px;border:1px solid var(--accent-paper);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-xl);color:var(--fg-strong);outline:none;box-shadow:0 0 0 3px var(--ring-shadow,transparent)}
+#first-run-name::placeholder{color:var(--faint)}
+.setup-step .setup-label[for]{margin-top:8px}
+.setup-examples{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.setup-examples span{font-size:var(--fs-sm);color:var(--muted)}
+.setup-examples button{height:24px;padding:0 10px;border-radius:12px;font-size:var(--fs-sm)}
+
+/* ---------- PDFs ---------- */
+.setup-drop{min-height:120px;margin-top:6px;flex-direction:column;gap:8px;padding:16px;border:1.5px dashed var(--border-strong);border-radius:var(--r-xl);background:var(--code);text-align:center;color:var(--fg-strong)}
+.setup-drop strong{font-size:var(--fs-lg);font-weight:600}
+.setup-drop small{font-size:var(--fs-sm);color:var(--muted)}
+.setup-drop-icon{display:inline-flex;color:var(--muted)}
+.setup-drop-icon .icon{width:28px;height:28px}
+.setup-drop:hover,.setup-drop[data-chosen],body[data-first-run] #setup[data-dragging] .setup-drop{border-style:solid;border-color:var(--accent-paper);background:var(--code)}
+:is(.setup-drop:hover,.setup-drop[data-chosen],#setup[data-dragging] .setup-drop) .setup-drop-icon{color:var(--accent-paper)}
+.setup-chosen{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:var(--r-lg);background:var(--code);font-size:var(--fs-sm);color:var(--fg-strong);overflow-wrap:anywhere}
+.setup-chosen[hidden],.setup-elsewhere[hidden],.setup-tutor-off[hidden]{display:none}
+.setup-chosen small{font-size:var(--fs-sm);color:var(--muted)}
+.setup-elsewhere{display:flex;gap:6px;margin:0;font-size:var(--fs-sm);color:var(--warn-text)}
+.setup-elsewhere::before{content:"●"}
+
+/* ---------- tutor ---------- */
+.setup-tutor-off{display:flex;flex-direction:column;gap:8px}
+.setup-pi{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--success-text)}
+.setup-pi[data-pi="missing"]{color:var(--warn-text)}
+.setup-pi::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.setup-tutor-actions{display:flex;gap:8px}
+.setup-tutor-actions button{height:32px;padding:0 12px}
+
+/* ---------- pronto ---------- */
+.setup-summary{display:grid;grid-template-columns:96px minmax(0,1fr);margin:4px 0 0;overflow:hidden;border:1px solid var(--border);border-radius:var(--r-lg)}
+.setup-summary dt,.setup-summary dd{margin:0;padding:10px 12px;border-top:1px solid var(--border)}
+.setup-summary dt:first-of-type,.setup-summary dd:first-of-type{border-top:0}
+.setup-summary dt{font-size:var(--fs-sm);color:var(--muted)}
+.setup-summary dd{color:var(--fg-strong);overflow-wrap:anywhere}
+.setup-data{margin:0;color:var(--muted)}
+.setup-path{font:600 var(--fs-sm) var(--font-mono,monospace);color:var(--fg-strong);overflow-wrap:anywhere}
+.setup-link{height:auto;margin-left:4px;padding:0;border:0;background:none;color:var(--accent-text);text-decoration:underline;text-underline-offset:3px}
+.setup-shortcuts{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.setup-shortcuts>div{display:flex;flex-wrap:wrap;gap:8px}
+.setup-shortcut{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:var(--r-md);background:var(--code);font-size:var(--fs-sm)}
+.setup-shortcut span{margin-left:4px}
+
+/* ---------- pé ---------- */
+.setup-foot{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:14px}
+.setup-foot button{height:32px;padding:0 12px}
+.setup-foot [hidden]{display:none}
+#setup-next{min-width:128px;font-weight:600}
+.setup-dots{display:flex;gap:5px;margin-left:8px}
+.setup-dots i{width:6px;height:6px;border-radius:3px;background:var(--border);transition:background-color var(--t-base) var(--ease-out)}
+.setup-dots i[data-seen]{background:var(--accent-paper)}
+.setup-dots i[data-on]{width:18px}
+.setup-hint{flex:1;font-size:var(--fs-sm);color:var(--muted);text-align:right}
+
+/* Janela estreita: o trio fica em cima, menor; o cartão ocupa a largura. */
+@media (max-width:1100px){
+ .setup-stage{flex-direction:column;justify-content:flex-start;gap:12px;padding:12px 16px}
+ .setup-mascot{width:auto;flex-direction:row;align-items:center}
+ .setup-mascote{min-width:0;height:104px}
+ .setup-mascote .mascote{width:96px;height:104px}
+ .setup-mascote[data-cast="trio"] .mascote{width:56px;height:61px}
+ /* O balão fica à esquerda dos personagens e a ponta aponta para eles (#70).
+    Ela mora na caixa dos personagens, no vão de 10 px: presa ao balão, vazava
+    a caixa do texto (o language-ui mede texto cortado pelo scrollWidth). */
+ .setup-speech::after{display:none}
+ .setup-mascote{position:relative}
+ .setup-mascote::before{content:"";position:absolute;left:-16px;top:50%;width:12px;height:12px;margin-top:-6px;background:var(--surface);border-top:1px solid var(--border);border-right:1px solid var(--border);transform:rotate(45deg)}
+ .setup-card{height:auto;min-height:0}
+ .setup-cards-3{grid-template-columns:1fr}
+}
+/* Janela estreita e baixa (900×650): o passo do Tutor não cabia. O trio fica
+   numa faixa de 61px e o cartão aperta o respiro de cima e de baixo. */
+@media (max-width:1100px) and (max-height:760px){
+ .setup-stage{gap:8px;padding:8px 16px}
+ .setup-mascote{height:61px}
+ .setup-mascote .mascote{width:56px;height:61px}
+ .setup-card{padding-top:16px;padding-bottom:16px}
+}

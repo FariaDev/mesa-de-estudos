@@ -1,0 +1,14 @@
+/* Fontes da Mesa (#61). A interface usa a fonte do sistema; a única serifa é a
+   STIX Two Text embutida (OFL, ver fonts/OFL.txt), para a Lista 0, os títulos do
+   Caderno e os modelos de PDF. Mora em src/ porque a janela de PDF só pode ler
+   src/ e node_modules/ (material-pdf.cjs#lockSession); desk-areas.css e
+   materials/print.html carregam este mesmo arquivo. O arquivo é variável: um
+   só woff2 cobre os pesos 400 a 700. */
+@font-face{font-family:"STIX Two Text";src:url("fonts/STIXTwoText.woff2") format("woff2");font-weight:400 700;font-style:normal;font-display:block}
+@font-face{font-family:"STIX Two Text";src:url("fonts/STIXTwoText-Italic.woff2") format("woff2");font-weight:400 700;font-style:italic;font-display:block}
+:root{
+ --serif:"STIX Two Text","Iowan Old Style",Charter,Georgia,"Times New Roman",serif;
+ /* Código: "Cascadia Mono" e Consolas são as do Windows; --mono já é a cor do
+    monograma do provedor (model-picker.css), por isso o nome --font-mono. */
+ --font-mono:ui-monospace,SFMono-Regular,Menlo,"Cascadia Mono",Consolas,"Liberation Mono",monospace;
+}

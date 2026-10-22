@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tipografia — rodada 1</title>
+<!-- Protótipo da #61 (fase A). STIX Two vem do Google Fonts só aqui; no app vai embutida em woff2.
+     Textos de exemplo inventados: nada de material de curso. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&display=swap">
+<style>
+:root{--sys:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;--stix:"STIX Two Text",serif;--old:Newsreader,"Iowan Old Style",Charter,Georgia,"Times New Roman",serif;--mono:ui-monospace,SFMono-Regular,Menlo,"Cascadia Mono",Consolas,monospace;--acc:#2548c7}
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 var(--sys)}
+h1.page{font-size:20px;margin:0 0 4px}
+h2.part{font-size:16px;margin:32px 0 4px}
+.lead{color:#737373;margin:0 0 16px;max-width:72ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;min-width:0}
+.card>h3{font:600 14px var(--sys);margin:0}
+.card>p.note{margin:2px 0 12px;color:#737373;font-size:13px}
+
+/* Folha Lista 0 (cópia enxuta de desk/src/readers.css) */
+.sheet{background:#fff;color:#171717;border:1px solid #e4e4e7;border-radius:6px;padding:28px 26px;font:13px/1.55 var(--sys);box-shadow:0 2px 10px -6px rgb(0 0 0/.25)}
+.sheet :is(h4,p,ol){margin:0}
+.sheet h4{font-size:21px;font-weight:700;line-height:1.2;text-align:center}
+.sheet .course{margin:2px 0 22px;text-align:center;font-style:italic}
+.sheet .intro{margin-bottom:14px}
+.sheet ol{padding-left:1.7em;display:flex;flex-direction:column;gap:12px}
+.sheet a{color:var(--acc)}
+.s-title h4,.s-title .course{font-family:var(--stix)}
+.s-title h4{font-weight:600;font-size:24px}
+.s-all{font-family:var(--stix);font-size:14.5px}
+.s-all h4{font-weight:600;font-size:24px}
+
+/* Caderno: a pergunta do card de revisão (review-notebook.css, 26px no --serif) */
+.review{background:#fafafa;border-radius:10px;padding:18px}
+.review .kicker{font:600 12px var(--sys);letter-spacing:.04em;text-transform:uppercase;color:#8a8a8a}
+.review .q{margin:6px 0 0;font-size:26px;line-height:1.3;color:#111}
+.r-old .q{font-family:var(--old);font-weight:400}
+.r-stix .q{font-family:var(--stix);font-weight:400}
+.r-stix-m .q{font-family:var(--stix);font-weight:500;font-size:24px}
+
+/* PDF modelo Lista (pdf-model-lista.css) */
+.pdf{background:#fff;color:#111;border:1px solid #e4e4e7;padding:22px 20px;aspect-ratio:1/1.2;overflow:hidden;font-size:12px;line-height:1.5}
+.pdf .head{display:flex;justify-content:space-between;border-bottom:.5px solid #111;padding-bottom:3px;font-size:10px}
+.pdf .head b{font-variant:small-caps;letter-spacing:.05em}
+.pdf h5{font-size:17px;margin:14px 0 8px}
+.pdf .q{margin:0 0 6px}.pdf .q b{margin-right:4px}
+.pdf .items{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;margin:0 0 10px 18px}
+.pdf i.m{font-style:italic}
+.p-today{font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif}
+.p-win{font-family:"Latin Modern Roman","CMU Serif","Times New Roman",Times,serif}
+.p-stix{font-family:var(--stix)}
+
+/* Chat (tutor-chat.css: corpo 15px/1,6) */
+.chat{background:#fff;border-radius:10px;width:100%;max-width:390px;padding:4px 2px}
+.message{font:15px/1.6 var(--sys);color:#272727}
+.message p{margin:4px 0 8px}
+.message ul{padding-left:22px;margin:4px 0 8px}
+.message code{font-family:var(--mono);background:#f1f1f3;border-radius:4px;padding:1px 4px}
+.message pre{background:#f6f6f7;border-radius:8px;padding:10px 12px;overflow:auto;margin:6px 0 10px}
+.message pre code{background:none;padding:0}
+.message a{color:var(--acc)}
+.c-today{overflow-wrap:anywhere}
+.c-today code{font-size:12px}
+.c-new,.c-weight{overflow-wrap:break-word}
+.c-new :is(pre,code,a),.c-weight :is(pre,code,a){overflow-wrap:anywhere}
+.c-new code,.c-weight code{font-size:13px}
+.c-new :is(h1,h2,h3,h4){font-weight:700;line-height:1.35;margin:14px 0 4px;color:#111}
+.c-new h1{font-size:17px}.c-new h2{font-size:16px}.c-new h3{font-size:15px}.c-new h4{font-size:15px;font-weight:600;color:#525252}
+.c-weight :is(h1,h2,h3,h4){font-size:15px;line-height:1.4;margin:14px 0 4px}
+.c-weight :is(h1,h2){font-weight:700;color:#111}
+.c-weight h1{padding-bottom:3px;border-bottom:1px solid #e4e4e7}
+.c-weight :is(h3,h4){font-weight:600;color:#525252}
+
+/* tabular-nums */
+.nums{display:flex;gap:24px;flex-wrap:wrap;font:15px var(--sys)}
+.nums div{background:#fafafa;border-radius:8px;padding:8px 12px}
+.tab{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1 class="page">Tipografia — rodada 1</h1>
+<p class="lead">A STIX Two já está decidida na issue; aqui a escolha é <b>até onde ela vai</b> em cada lugar e o tom dos títulos do chat. A interface continua na fonte do sistema.</p>
+
+<h2 class="part">1. Folha "Lista 0"</h2>
+<p class="lead">Hoje a folha usa a fonte do sistema inteira.</p>
+<div class="grid">
+ <section class="card"><h3>Hoje</h3><p class="note">Sistema, título em negrito 21px.</p>
+  <article class="sheet"><h4>Lista 0</h4><p class="course">Cálculo I · pôr algo na mesa</p><p class="intro">Esta folha fica no lugar do seu primeiro PDF. Resolva qualquer um dos itens abaixo.</p>
+  <ol><li>Arraste um PDF do computador e solte no quadro abaixo.</li><li><a href="#">Abrir PDF…</a> Abra um PDF que esteja em outro lugar.</li><li><a href="#">Pedir ao tutor</a> Peça uma lista de exercícios ao tutor.</li></ol></article></section>
+ <section class="card"><h3>A · STIX só no cabeçalho</h3><p class="note">Título e linha da matéria em STIX; os itens seguem no sistema.</p>
+  <article class="sheet s-title"><h4>Lista 0</h4><p class="course">Cálculo I · pôr algo na mesa</p><p class="intro">Esta folha fica no lugar do seu primeiro PDF. Resolva qualquer um dos itens abaixo.</p>
+  <ol><li>Arraste um PDF do computador e solte no quadro abaixo.</li><li><a href="#">Abrir PDF…</a> Abra um PDF que esteja em outro lugar.</li><li><a href="#">Pedir ao tutor</a> Peça uma lista de exercícios ao tutor.</li></ol></article></section>
+ <section class="card"><h3>B · STIX na folha inteira</h3><p class="note">Parece uma lista impressa de verdade, igual ao PDF do modelo Lista.</p>
+  <article class="sheet s-all"><h4>Lista 0</h4><p class="course">Cálculo I · pôr algo na mesa</p><p class="intro">Esta folha fica no lugar do seu primeiro PDF. Resolva qualquer um dos itens abaixo.</p>
+  <ol><li>Arraste um PDF do computador e solte no quadro abaixo.</li><li><a href="#">Abrir PDF…</a> Abra um PDF que esteja em outro lugar.</li><li><a href="#">Pedir ao tutor</a> Peça uma lista de exercícios ao tutor.</li></ol></article></section>
+</div>
+
+<h2 class="part">2. Caderno (pergunta do card de revisão)</h2>
+<p class="lead">Hoje é <code>--serif</code> com Newsreader na frente, que não vem com o app: no Mac cai na Iowan Old Style, no Windows na Georgia.</p>
+<div class="grid">
+ <section class="card r-old"><h3>Hoje</h3><p class="note">Newsreader → Iowan/Georgia, 26px regular.</p>
+  <div class="review"><div class="kicker">Revisar · 3 de 12</div><p class="q">Por que a derivada de uma função constante é zero?</p></div></section>
+ <section class="card r-stix"><h3>A · STIX 26px regular</h3><p class="note">Troca direta, mesmo tamanho.</p>
+  <div class="review"><div class="kicker">Revisar · 3 de 12</div><p class="q">Por que a derivada de uma função constante é zero?</p></div></section>
+ <section class="card r-stix-m"><h3>B · STIX 24px médio</h3><p class="note">A STIX é mais larga; 24px em peso 500 ocupa o mesmo espaço com mais firmeza.</p>
+  <div class="review"><div class="kicker">Revisar · 3 de 12</div><p class="q">Por que a derivada de uma função constante é zero?</p></div></section>
+</div>
+
+<h2 class="part">3. PDF de exemplo (modelo Lista)</h2>
+<p class="lead">Os modelos já pedem STIX Two, mas ela não vem com o app: no Mac sai certo (o sistema tem), no Windows cai na Latin Modern ou Times. Embutir resolve. O modelo genérico (<code>pdf-template.css</code>) ainda está na Georgia.</p>
+<div class="grid">
+ <section class="card"><h3>Hoje no Windows</h3><p class="note">Fallback Latin Modern/Times.</p>
+  <div class="pdf p-win"><div class="head"><span>Cálculo I · Derivadas</span><b>Lista 2</b></div><h5>Lista 2 — Regras de derivação</h5>
+  <p class="q"><b>01)</b>Calcule a derivada das funções abaixo.</p><div class="items"><span>1) <i class="m">f</i>(<i class="m">x</i>) = 3<i class="m">x</i>² − 5</span><span>2) <i class="m">g</i>(<i class="m">x</i>) = √<i class="m">x</i></span><span>3) <i class="m">h</i>(<i class="m">t</i>) = <i class="m">t</i>³ + 2<i class="m">t</i></span><span>4) <i class="m">k</i>(<i class="m">x</i>) = 1/<i class="m">x</i></span></div>
+  <p class="q"><b>02)</b>Encontre a reta tangente a <i class="m">y</i> = <i class="m">x</i>² no ponto (1, 1).</p></div></section>
+ <section class="card"><h3>Hoje, modelo genérico</h3><p class="note">Georgia (pdf-template.css).</p>
+  <div class="pdf p-today"><div class="head"><span>Cálculo I · Derivadas</span><b>Lista 2</b></div><h5>Lista 2 — Regras de derivação</h5>
+  <p class="q"><b>01)</b>Calcule a derivada das funções abaixo.</p><div class="items"><span>1) <i class="m">f</i>(<i class="m">x</i>) = 3<i class="m">x</i>² − 5</span><span>2) <i class="m">g</i>(<i class="m">x</i>) = √<i class="m">x</i></span><span>3) <i class="m">h</i>(<i class="m">t</i>) = <i class="m">t</i>³ + 2<i class="m">t</i></span><span>4) <i class="m">k</i>(<i class="m">x</i>) = 1/<i class="m">x</i></span></div>
+  <p class="q"><b>02)</b>Encontre a reta tangente a <i class="m">y</i> = <i class="m">x</i>² no ponto (1, 1).</p></div></section>
+ <section class="card"><h3>Proposta · STIX embutida em todos</h3><p class="note">Igual no Mac e no Windows, e o genérico passa a falar a mesma língua.</p>
+  <div class="pdf p-stix"><div class="head"><span>Cálculo I · Derivadas</span><b>Lista 2</b></div><h5>Lista 2 — Regras de derivação</h5>
+  <p class="q"><b>01)</b>Calcule a derivada das funções abaixo.</p><div class="items"><span>1) <i class="m">f</i>(<i class="m">x</i>) = 3<i class="m">x</i>² − 5</span><span>2) <i class="m">g</i>(<i class="m">x</i>) = √<i class="m">x</i></span><span>3) <i class="m">h</i>(<i class="m">t</i>) = <i class="m">t</i>³ + 2<i class="m">t</i></span><span>4) <i class="m">k</i>(<i class="m">x</i>) = 1/<i class="m">x</i></span></div>
+  <p class="q"><b>02)</b>Encontre a reta tangente a <i class="m">y</i> = <i class="m">x</i>² no ponto (1, 1).</p></div></section>
+</div>
+
+<h2 class="part">4. Tipografia do chat</h2>
+<p class="lead">Mesmo trecho de resposta do tutor, na largura do chat (390px). Hoje os títulos saem no tamanho padrão do navegador (h1 = 30px) e o <code>anywhere</code> quebra palavra comum no meio.</p>
+<div class="grid">
+ <section class="card"><h3>Hoje</h3><p class="note">h1 30px, código 12px, quebra em qualquer lugar.</p>
+  <div class="chat"><div class="message c-today" id="msg-a"></div></div></section>
+ <section class="card"><h3>A · Proposta da issue</h3><p class="note">h1 17 · h2 16 · h3 15 · h4 15 cinza; negrito; código 13px; <code>break-word</code> no texto.</p>
+  <div class="chat"><div class="message c-new" id="msg-b"></div></div></section>
+ <section class="card"><h3>B · Tudo 15px, hierarquia por peso</h3><p class="note">Nenhum título cresce; h1 ganha um filete, h3/h4 ficam cinza.</p>
+  <div class="chat"><div class="message c-weight" id="msg-c"></div></div></section>
+</div>
+
+<h2 class="part">5. tabular-nums (calculadora e tempos)</h2>
+<div class="nums">
+ <div>Hoje<br>11:11<br>08:48<br>1.111,1</div>
+ <div class="tab">Com tabular-nums<br>11:11<br>08:48<br>1.111,1</div>
+</div>
+
+<script>
+const resposta=`<h1>Derivada de uma constante</h1><p>A ideia central é que uma função constante <strong>não varia</strong>: o gráfico é uma reta horizontal.</p><h2>Pela definição</h2><p>Tome <code>f(x) = c</code>. O quociente de Newton fica <code>(c − c)/h = 0</code> para todo h ≠ 0.</p><h3>Passo a passo</h3><ul><li>numerador: sempre zero;</li><li>o limite de zero é zero.</li></ul><h4>Para conferir</h4><pre><code>derivada(lambda x: 7, em=2.0)  # 0.0</code></pre><p>Veja a discussão em https://exemplo.org/material/derivadas/constantes-e-retas-horizontais-explicacao-longa</p><p>Palavra longa: anticonstitucionalissimamente.</p>`;
+for(const id of ['msg-a','msg-b','msg-c'])document.getElementById(id).innerHTML=resposta;
+</script>
+</body>
+</html>
