@@ -5,15 +5,18 @@
    Fronteira (medida com `git show 33cf612:desk/src/worklog-view.mjs` × atual):
    o construtor imperativo antigo (article/head/rows passo a passo) não existe
    mais — virou a árvore do núcleo. O que fica no host é: a âncora estável do
-   aplicador (o `article.work` do próprio núcleo), o relógio de 1 s, o fold
+   aplicador (o `article.work` do próprio núcleo, atualizado por `patchTree`
+   desde a #70 para não piscar a cada token), o relógio de 1 s, o fold
    (`openIds`/`touched`), `atBottom`/`followBottom`, os fatos de `worklog.mjs`
    e os SVG de `icons.mjs` injetados por `innerHTML` em `fillIcons`. */
 import {icon} from '../icons.mjs';
 import {atBottom,followBottom} from './state.mjs';
-import {build,preserveFocus} from './view-host.mjs';
+import {build,patchTree,preserveFocus} from './view-host.mjs';
 import core from './generated/worklogview.core.js';
+import {t} from './ui-text.mjs';
 import {STEP,formatDuration,headLine,liveLabel,runningStep,stepDetail,stepLabel,stepPreview} from './worklog.mjs';
 import {VIEW_KIND_CORE,VIEW_STATUS_CORE} from './worklog-tags.mjs';
+import {mascoteMarkup} from './mascote.mjs';
 
 const STEP_ICON={
  [STEP.THINKING]:'sparkles',[STEP.SEARCH]:'search',[STEP.REFERENCE]:'book',
@@ -59,7 +62,7 @@ function stepText(step){
 
 export function workRowFrom(log,{live=false,expanded=true,note='',now=Date.now(),openIds=new Set()}={}){
  const current=live?runningStep(log):null;
- const title=live?(current?liveLabel(current):(note||'Pi está pensando…')):headLine(log);
+ const title=live?(current?liveLabel(current):(note||t('work.live.idle'))):headLine(log);
  const meta=live?formatDuration(now-(log.startedAt||now)):'';
  const steps=(log.steps||[]).map(step=>{
   const running=step.status==='running';
@@ -79,35 +82,42 @@ export function workRowFrom(log,{live=false,expanded=true,note='',now=Date.now()
  return {$:'WorkRow',live:!!live,expanded:!!expanded,title,meta,steps:listOf(steps)};
 }
 
-function applyTree(root,node,handlers){
- const built=build(node,handlers);
- const keep=new Set(built.getAttributeNames());
- for(const name of root.getAttributeNames()){
-  if(!keep.has(name))root.removeAttribute(name);
- }
- for(const name of keep)root.setAttribute(name,built.getAttribute(name));
- root.replaceChildren(...built.childNodes);
+/* Cada slot de ícone guarda o nome do que mostra (`data-slot-icon`): no patch,
+   slot com o mesmo nome fica como está, e a ∫ do "pensando" não recomeça a
+   animação a cada token (#70). */
+function fillSlot(slot,name,markup){
+ slot.dataset.slotIcon=name;
+ slot.innerHTML=markup;
 }
+const sameIconSlot=(live,fresh)=>!!fresh.dataset.slotIcon&&live.dataset.slotIcon===fresh.dataset.slotIcon;
 
 function fillIcons(root,log,live){
  const mark=root.querySelector('.work-mark');
  if(mark){
   if(live){
    const current=runningStep(log);
-   mark.innerHTML=icon(STEP_ICON[current?.kind]||'sparkles');
+   /* Pensando (ou ainda sem passo): a ∫ pequena, pensando, no lugar da faísca
+      (#61; a Folhinha saiu na #64). Busca, leitura e ferramenta seguem com o
+      ícone do passo. */
+   const thinking=!current||current.kind===STEP.THINKING;
+   mark.dataset.mascot=thinking?'integral':'';
+   const name=thinking?'mascote-integral':STEP_ICON[current.kind]||'sparkles';
+   fillSlot(mark,name,thinking?mascoteMarkup({personagem:'integral',humor:'pensando',tamanho:20}):icon(name));
   }else{
    const failed=!!log?.reason||(log?.steps||[]).some(step=>step.status==='error');
-   mark.innerHTML=icon(failed?'alert':'check');
+   fillSlot(mark,failed?'alert':'check',icon(failed?'alert':'check'));
   }
  }
  const chevron=root.querySelector('.work-chevron');
- if(chevron)chevron.innerHTML=icon('chevronDown');
+ if(chevron)fillSlot(chevron,'chevronDown',icon('chevronDown'));
  for(const node of root.querySelectorAll('.work-step')){
   const iconEl=node.querySelector('.step-icon');
-  if(iconEl)iconEl.innerHTML=icon(STEP_ICON[node.dataset.kind]||'wrench');
+  const kindIcon=STEP_ICON[node.dataset.kind]||'wrench';
+  if(iconEl)fillSlot(iconEl,kindIcon,icon(kindIcon));
   if(node.dataset.status==='running')continue;
   const status=node.querySelector('.step-status');
-  if(status)status.innerHTML=icon(node.dataset.status==='error'?'alert':node.dataset.status==='stopped'?'stop':'check');
+  const statusIcon=node.dataset.status==='error'?'alert':node.dataset.status==='stopped'?'stop':'check';
+  if(status)fillSlot(status,statusIcon,icon(statusIcon));
  }
 }
 
@@ -140,9 +150,9 @@ export function createWorkLogView(){
  function paint(now=Date.now()){
   if(!log)return;
   const stick=atBottom();
-  const tree=core.workLog(workRowFrom(log,{live,expanded,note,now,openIds}));
-  preserveFocus(root,()=>applyTree(root,tree,handlers));
-  fillIcons(root,log,live);
+  const fresh=build(core.workLog(workRowFrom(log,{live,expanded,note,now,openIds})),handlers);
+  fillIcons(fresh,log,live);
+  preserveFocus(root,()=>patchTree(root,fresh,sameIconSlot));
   followBottom(stick);
  }
 

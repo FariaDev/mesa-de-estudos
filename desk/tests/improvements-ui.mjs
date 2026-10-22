@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,tinyPdf,statusOnline} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,tinyPdf,statusOnline,toastWait} from './helpers.mjs';
+import {pollUntil} from './waits.mjs';
 
 await withArtifacts('improvements',async ctx=>{
  const runtime=ctx.runtime=newRuntime('improvements'),course=seedCourse(runtime,'Test');
@@ -13,7 +14,7 @@ await withArtifacts('improvements',async ctx=>{
  ctx.app=await launchDesk({runtime,env:{FAKE_PI_STATE_FAILURE_FILE:stateFailureFile,FAKE_PI_REVIEW_DRAFT:JSON.stringify(draft),FAKE_PI_REVIEW_DELAY:'900',FAKE_PI_REFUSAL_LOG:refusalLog,FAKE_PI_QUEUE_LOG:queueLog,FAKE_PI_QUEUE_HOLD_MS:'1500'}});
  const page=await ctx.app.firstWindow();await statusOnline(page);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  // Hover and focus cannot open a menu; click/keyboard and Escape own its state.
- for(const id of ['study','mesa']){
+ for(const id of ['study','settings']){
   const trigger=page.locator(`#${id}-menu .nav-trigger`),pop=page.locator(`#${id}-pop`);
   await trigger.hover();assert.equal(await pop.isVisible(),false);
   await trigger.focus();assert.equal(await pop.isVisible(),false);
@@ -37,7 +38,7 @@ await withArtifacts('improvements',async ctx=>{
  assert.equal(fs.existsSync(path.join(runtime,'review.json')),false);
  await page.locator('#review-difficulty').fill('Minha dificuldade');await page.locator('#review-save').click();
  await page.waitForFunction(()=>!document.querySelector('#review-dialog').open);
- await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Guardado'));
+ await toastWait(page,'Guardado');
  const stored=JSON.parse(fs.readFileSync(path.join(runtime,'review.json'),'utf8')).Test[0];
  assert.equal(stored.question,'Minha questão editada');assert.equal(stored.difficulty,'Minha dificuldade');
  // Cancel an in-flight draft. It must not reopen or overwrite a later dialog.
@@ -46,8 +47,13 @@ await withArtifacts('improvements',async ctx=>{
  // Safe refusal from Pi: exactly initial + 3 repeats, spaced by 2/4/8 seconds.
  await page.locator('#prompt').fill('primeiro de novo');await page.locator('#send').click();
  await page.locator('#prompt').fill('falhar');await page.locator('#prompt').press('Enter');
- await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('tentativas acabaram'),undefined,{timeout:25000});
- const attempts=fs.readFileSync(refusalLog,'utf8').trim().split('\n').map(JSON.parse);
+ /* O toast "tentativas acabaram" pode ser empilhado ou trocado por outro antes de
+    o teste olhar `#toast`: espera por qualquer item vivo com o texto e, só então,
+    pelas 4 linhas do log (a 4ª recusa já foi registrada pelo Pi falso). */
+ await toastWait(page,'tentativas acabaram',{timeout:25000});
+ const readAttempts=()=>fs.existsSync(refusalLog)?fs.readFileSync(refusalLog,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)):[];
+ await pollUntil(readAttempts,attempts=>attempts.length>=4,{timeout:10000,interval:100,what:'4 tentativas no log de recusas',onTimeout:'return'});
+ const attempts=readAttempts();
  assert.equal(attempts.length,4);
  for(let i=1;i<attempts.length;i++)assert.ok(attempts[i].at-attempts[i-1].at>=[1900,3900,7900][i-1]);
  assert.match(await page.locator('.queue-strip').textContent(),/falhar/);

@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
@@ -40,14 +41,14 @@ def densityOption(value: String, label: String, selected: Bool) -> V.ViewNode:
 
 def densitySelect(+mode: String) -> V.ViewNode:
   V.viewEl("select", [V.attrId("density-mode"), V.attrOn("change", "SetDensity")], [
-    densityOption("padrao", "Padrão", String.eq(mode, "padrao")),
-    densityOption("compacta", "Compacta", String.eq(mode, "compacta"))
+    densityOption("padrao", M.msg("settings.density.default"), String.eq(mode, "padrao")),
+    densityOption("compacta", M.msg("settings.density.compact"), String.eq(mode, "compacta"))
   ])
 
 # O conteúdo do label existente (texto + select) e o controle inteiro para o
 # caminho sem markup.
 def densityFields(+mode: String) -> List<&2, V.ViewNode>:
-  [V.viewText("Densidade"), densitySelect(mode)]
+  [V.viewText(M.msg("settings.density")), densitySelect(mode)]
 
 def densityControl(mode: String) -> V.ViewNode:
   V.viewEl("label", Nil{}, densityFields(mode))
@@ -79,15 +80,15 @@ def checkRow(id: String, label: String, checked: Bool) -> V.ViewNode:
   ])
 
 def notifyLegend() -> V.ViewNode:
-  V.viewEl("span", [V.attrClass("set-group-label")], [V.viewText("Avisos de conclusão")])
+  V.viewEl("span", [V.attrClass("set-group-label")], [V.viewText(M.msg("settings.notify"))])
 
 def notifyRows(prefs: NotifyPrefs) -> List<&2, V.ViewNode>:
   match prefs:
     case NotifyPrefs{sound, desktop, focused}:
       [
-        checkRow("notify-sound", "Som", sound),
-        checkRow("notify-desktop", "Notificação", desktop),
-        checkRow("notify-focused", "Avisar mesmo com a janela em foco", focused)
+        checkRow("notify-sound", M.msg("settings.notify.sound"), sound),
+        checkRow("notify-desktop", M.msg("settings.notify.desktop"), desktop),
+        checkRow("notify-focused", M.msg("settings.notify.focused"), focused)
       ]
 
 def notifyControls(prefs: NotifyPrefs) -> List<&2, V.ViewNode>:
@@ -96,5 +97,5 @@ def notifyControls(prefs: NotifyPrefs) -> List<&2, V.ViewNode>:
 def notifyGroup(prefs: NotifyPrefs) -> V.ViewNode:
   V.viewEl("div", [
     V.attrId("notify-mode"), V.attrClass("set-group"),
-    V.attr("role", "group"), V.attrAria("label", "Avisos de conclusão")
+    V.attr("role", "group"), V.attrAria("label", M.msg("settings.notify"))
   ], notifyControls(prefs))

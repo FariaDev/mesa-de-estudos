@@ -88,13 +88,6 @@ def textOf(n: ViewNode) -> String:
     case ViewText{text}:
       text
 
-def isEl(n: ViewNode) -> Bool:
-  match n:
-    case ViewEl{tag, attrs, kids}:
-      True{}
-    case ViewText{text}:
-      False{}
-
 def isText(n: ViewNode) -> Bool:
   match n:
     case ViewEl{tag, attrs, kids}:

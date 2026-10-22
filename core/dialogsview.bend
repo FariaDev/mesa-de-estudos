@@ -1,6 +1,8 @@
 import Base
+import msg.bend as M
 import view.bend as V
 import pdfnav.bend as N
+import updatenotice.bend as U
 
 # ---------------------------------------------------------------------------
 # Os diálogos da Mesa: as partes dinâmicas dos `<dialog>` do `desk/index.html`.
@@ -162,16 +164,16 @@ def piFields(fs: List<&2, DialogField>) -> List<&2, V.ViewNode>:
     case Con{h, t}:
       Con{fieldControl(h), piFields(t)}
 
-# Título do diálogo: vazio cai em "Pi" (como o `e.title||'Pi'` do chat).
+# Título do diálogo: vazio cai em "Tutor".
 def piTitle(+raw: String) -> String:
-  textOr(raw, "Pi")
+  textOr(raw, M.msg("dialog.tutor"))
 
 # A mensagem entra crua; o host resolve markdown/LaTeX.
 def piMessage(raw: String) -> String:
   raw
 
 def dialogOkLabel(+raw: String) -> String:
-  textOr(raw, "Continuar")
+  textOr(raw, M.msg("dialog.continue"))
 
 # Botão ok do `#pi-dialog`: fecha com `returnValue == "ok"`.
 def piOkNode(label: String) -> V.ViewNode:
@@ -184,22 +186,22 @@ def piOkNode(label: String) -> V.ViewNode:
 # ---------- end-day-dialog ----------
 
 def endDayTitle() -> String:
-  "Encerrar por hoje"
+  M.msg("dialogs.endDay.title")
 
 def endDayLead() -> String:
-  "Salve na conversa um ponto curto para retomar depois."
+  M.msg("dialogs.endDay.lead")
 
 def endDayWhereLabel() -> String:
-  "Onde parei"
+  M.msg("dialogs.endDay.where")
 
 def endDayNextLabel() -> String:
-  "Próximo passo"
+  M.msg("dialogs.endDay.next")
 
 def endDayCancelLabel() -> String:
-  "Cancelar"
+  M.msg("common.cancel")
 
 def endDaySaveLabel() -> String:
-  "Salvar na conversa"
+  M.msg("dialogs.endDay.save")
 
 # `<label>` com o rótulo e a textarea (o `<label>` em volta é o do HTML).
 def endDayField(id: String, label: String, value: String) -> V.ViewNode:
@@ -270,7 +272,7 @@ def bookmarkChildren(name: String, hint: String) -> List<&2, V.ViewNode>:
 # ---------- image-dialog ----------
 
 def imageFallback() -> String:
-  "Imagem"
+  M.msg("dialogs.image.fallback")
 
 # Título pelo nome do arquivo; caminho vazio cai em "Imagem".
 def imageTitle(file: String) -> String:
@@ -280,15 +282,13 @@ def imageTitleNode(file: String) -> V.ViewNode:
   V.viewText(imageTitle(file))
 
 def imageCopyLabel() -> String:
-  "Copiar"
+  M.msg("common.copy")
 
 def imageOpenLabel() -> String:
-  "Abrir no Preview"
+  M.msg("dialogs.image.openPreview")
 
-def imageCloseLabel() -> String:
-  "Fechar"
-
-# Ações do `#image-dialog`: copiar, abrir no Preview (só com arquivo) e fechar.
+# Ações do `#image-dialog`: copiar e abrir no Preview (só com arquivo). Fechar
+# é o × do cabeçalho (e o Esc): o rodapé não repete.
 def imageActions(hasFile: Bool) -> List<&2, V.ViewNode>:
   [ V.viewEl("button", [
       V.attrType("button"),
@@ -299,10 +299,6 @@ def imageActions(hasFile: Bool) -> List<&2, V.ViewNode>:
       [V.attrType("button"), V.attrId("image-open"), V.attrOn("click", "ImageOpen")],
       V.attrWhen(Bool.not(hasFile), V.ViewAttr{"hidden", ""})
     ]), [V.viewText(imageOpenLabel())])
-  , V.viewEl("button", [
-      V.attr("value", "cancel"),
-      V.attrClass("primary")
-    ], [V.viewText(imageCloseLabel())])
   ]
 
 # ---------- help-dialog / about-dialog ----------
@@ -339,9 +335,10 @@ def aboutLead.if(version: String, missing: Bool) -> String:
     case True{}:
       ""
     case False{}:
-      "Mesa de Estudos " ++ version ++ " · licença MIT"
+      M.msg1("about.lead", "version", version)
 
-# Sem versão devolve "" — o aplicador mantém o texto estático do HTML.
+# Sem versão devolve "" — o aplicador mantém o texto estático do HTML. O nome
+# "Mesa de Estudos" é o título do diálogo; a linha só diz versão e licença.
 def aboutLead(+version: String) -> String:
   aboutLead.if(version, String.is_empty(version))
 
@@ -349,26 +346,6 @@ def aboutLeadNode(version: String) -> V.ViewNode:
   V.viewText(aboutLead(version))
 
 # ---------- settings-dialog ----------
-
-def settingsTitle(first: Bool) -> String:
-  match first:
-    case True{}:
-      "Bem-vindo à Mesa de Estudos"
-    case False{}:
-      "Configurações"
-
-def settingsLead(first: Bool) -> String:
-  match first:
-    case True{}:
-      "Escolha a pasta de dados e pelo menos uma matéria (nome + pasta de PDFs). O Pi pede as credenciais na primeira conexão."
-    case False{}:
-      "Caminhos e nomes desta mesa. As credenciais do modelo continuam no Pi."
-
-def settingsTitleNode(first: Bool) -> V.ViewNode:
-  V.viewText(settingsTitle(first))
-
-def settingsLeadNode(first: Bool) -> V.ViewNode:
-  V.viewText(settingsLead(first))
 
 def emptyCourse() -> SettingsCourse:
   SettingsCourse{"", "", ""}
@@ -379,13 +356,14 @@ def courseRow(course: SettingsCourse) -> V.ViewNode:
     case SettingsCourse{id, name, path}:
       V.viewEl("div", [V.attrClass("cfg-course"), V.attrData("id", id)], [
         V.viewEl("input", V.attrJoin([
-          [V.attrClass("cfg-name"), V.attr("placeholder", "Nome")],
+          [V.attrClass("cfg-name"), V.attr("placeholder", M.msg("settings.course.nameColumn")), V.attrAria("label", M.msg("settings.course.nameLabel"))],
           valueAttr(name)
         ]), Nil{}),
         V.viewEl("input", V.attrJoin([
           [ V.attrClass("cfg-path")
-          , V.attr("placeholder", "Pasta dos PDFs")
+          , V.attr("placeholder", M.msg("settings.course.folderColumn"))
           , V.attr("spellcheck", "false")
+          , V.attrAria("label", M.msg("settings.course.folderLabel"))
           ],
           valueAttr(path)
         ]), Nil{}),
@@ -393,14 +371,23 @@ def courseRow(course: SettingsCourse) -> V.ViewNode:
           V.attrType("button"),
           V.attrClass("cfg-browse"),
           V.attrOn("click", "BrowseCourse")
-        ], [V.viewText("Pasta")]),
+        ], [V.viewText(M.msg("settings.course.choose"))]),
         V.viewEl("button", [
           V.attrType("button"),
           V.attrClass("cfg-remove icon-btn"),
-          V.attrAria("label", "Remover"),
+          V.attrAria("label", M.msg("settings.course.remove")),
           V.attrOn("click", "RemoveCourse")
         ], [V.viewText("×")])
       ])
+
+# Cabeçalho das colunas do editor (#27 B9): "Nome" e "Pasta dos PDFs" uma vez,
+# acima da primeira linha. É só rótulo visual — cada campo guarda o nome
+# acessível dele — e nunca é uma linha (`.cfg-course`) para o `readSettingsForm`.
+def courseHead() -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("cfg-course-head"), V.attrAria("hidden", "true")], [
+    V.viewEl("span", Nil{}, [V.viewText(M.msg("settings.course.nameColumn"))]),
+    V.viewEl("span", Nil{}, [V.viewText(M.msg("settings.course.folderColumn"))])
+  ])
 
 def courseRows.go(cs: List<&2, SettingsCourse>) -> List<&2, V.ViewNode>:
   match cs:
@@ -417,115 +404,6 @@ def courseRows(cs: List<&2, SettingsCourse>) -> List<&2, V.ViewNode>:
     case Con{h, t}:
       Con{courseRow(h), courseRows.go(t)}
 
-# ---------- welcome-dialog (primeira abertura) ----------
-
-# A boas-vindas da primeira abertura: 4 blocos (h3 + parágrafos) e as ações.
-# A prosa dos parágrafos é DADO (`welcomeBlocks`) — editá-la não toca nas leis;
-# o contrato provado é a estrutura (4 blocos + botão), os títulos, o
-# renderizador genérico do bloco e a nota de workflow por plataforma.
-
-type WelcomeBlock is Data:
-  WelcomeBlock{title: String, paras: List<&2, String>}
-
-def welcomeTitle() -> String:
-  "Bem-vindo à Mesa de Estudos"
-
-# Nota de workflow por plataforma: o macOS captura a janela pelo botão e o
-# Windows também (Ctrl+Shift+C) — colar print (Ctrl+V) funciona nos dois.
-def welcomeWorkflowNote(win32: Bool) -> String:
-  match win32:
-    case True{}:
-      "No Windows, o Conferir Xournal++ captura a janela do Xournal++ (Ctrl+Shift+C) e você envia junto com a mensagem — prints colados com Ctrl+V também funcionam."
-    case False{}:
-      "No macOS, o Conferir Xournal++ anexa a captura da sua resolução no Xournal++ e você envia junto com a mensagem."
-
-def welcomeBlocks(win32: Bool) -> List<&2, WelcomeBlock>:
-  [ WelcomeBlock{"O que é a Mesa", Con{
-      "A Mesa é a sua bancada de referências: os PDFs do enunciado e do formulário, uma calculadora e o Pi na mesma janela. A escrita à mão continua no Xournal++, do lado — a Mesa não é um canvas de tinta.",
-      Con{"Coloque um app em cada monitor, ou os dois lado a lado.", Nil{}}}}
-    , WelcomeBlock{"O Pi", Con{
-      "O Pi é o motor da conversa: um agente que roda nesta máquina. As credenciais do modelo ficam no Pi, não neste app — ele pede na primeira conexão.",
-      Con{"Cada matéria tem a sua conversa, guardada localmente; a Mesa conecta sozinha quando abre.", Nil{}}}}
-    , WelcomeBlock{"Customização por agentes", Con{
-      "Esta Mesa foi feita para ser customizada por agentes: o AGENTS.md é o contrato e o bloco desk do config.json decide os leitores, os rótulos, qual PDF abre primeiro e o que esconder (calculadora, Xournal++, Conferir, Encerrar).",
-      Con{"Para ajustar o jeito de o Pi dar aula, copie os templates TUTOR.md e LEARNER.md para a sua pasta de dados e edite as CÓPIAS — os arquivos do repositório são só o molde.", Nil{}}}}
-    , WelcomeBlock{"Dicas de uso", Con{
-      "Encerrar por hoje registra onde você parou e o próximo passo; o diário do turno e os quizzes aparecem na conversa. O Como usar tem os atalhos todos.",
-      Con{welcomeWorkflowNote(win32), Nil{}}}}
-    ]
-
-def paraNode(text: String) -> V.ViewNode:
-  V.viewEl("p", Nil{}, [V.viewText(text)])
-
-def paraNodes.go(ps: List<&2, String>) -> List<&2, V.ViewNode>:
-  match ps:
-    case Nil{}:
-      Nil{}
-    case Con{h, t}:
-      Con{paraNode(h), paraNodes.go(t)}
-
-def paraNodes(ps: List<&2, String>) -> List<&2, V.ViewNode>:
-  paraNodes.go(ps)
-
-# Renderizador genérico do bloco: `section.welcome-block` com o h3 e um <p> por
-# parágrafo. Vale para qualquer prosa — é isto que a lei fixa.
-def blockNode(b: WelcomeBlock) -> V.ViewNode:
-  match b:
-    case WelcomeBlock{title, paras}:
-      V.viewEl("section", [V.attrClass("welcome-block")], Con{
-        V.viewEl("h3", Nil{}, [V.viewText(title)]),
-        paraNodes(paras)
-      })
-
-def blockNodes.go(bs: List<&2, WelcomeBlock>) -> List<&2, V.ViewNode>:
-  match bs:
-    case Nil{}:
-      Nil{}
-    case Con{h, t}:
-      Con{blockNode(h), blockNodes.go(t)}
-
-def blockNodes(bs: List<&2, WelcomeBlock>) -> List<&2, V.ViewNode>:
-  blockNodes.go(bs)
-
-def blockTitle(b: WelcomeBlock) -> String:
-  match b:
-    case WelcomeBlock{title, _}:
-      title
-
-def welcomeTitles.go(bs: List<&2, WelcomeBlock>) -> List<&2, String>:
-  match bs:
-    case Nil{}:
-      Nil{}
-    case Con{h, t}:
-      Con{blockTitle(h), welcomeTitles.go(t)}
-
-# Os títulos são a estrutura (contagem e ordem) — as duas plataformas coincidem.
-def welcomeTitles(win32: Bool) -> List<&2, String>:
-  welcomeTitles.go(welcomeBlocks(win32))
-
-# Ações: sair por agora (fecha como cancel) ou abrir as Configurações de
-# primeira vez — o clique é o handler `WelcomeConfigure` do host.
-def welcomeActions() -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("dialog-actions")], [
-    V.viewEl("button", [V.attr("value", "cancel")], [V.viewText("Agora não")]),
-    V.viewEl("button", [
-      V.attrId("welcome-settings"),
-      V.attrType("button"),
-      V.attrClass("primary"),
-      V.attrOn("click", "WelcomeConfigure")
-    ], [V.viewText("Configurar agora")])
-  ])
-
-def welcomeBody(win32: Bool) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("help-body")], blockNodes(welcomeBlocks(win32)))
-
-# Filhos do `#welcome-form`: título, o corpo com os 4 blocos e as ações.
-def welcomeChildren(win32: Bool) -> List<&2, V.ViewNode>:
-  [ V.viewEl("h2", Nil{}, [V.viewText(welcomeTitle())])
-  , welcomeBody(win32)
-  , welcomeActions()
-  ]
-
 # ---------- about: linha de atualização (updater por clique) ----------
 
 # A checagem é 1×/dia silenciosa + o botão manual do Sobre. `UpdateNone` traz a
@@ -539,7 +417,7 @@ def welcomeChildren(win32: Bool) -> List<&2, V.ViewNode>:
 type UpdateState is Data:
   UpdateIdle{}
   UpdateChecking{}
-  UpdateNone{current: String}
+  UpdateNone{current: String, checked: String}
   UpdateReady{version: String, notes: String, url: String}
   UpdateFailed{}
   UpdateApplying{}
@@ -548,62 +426,59 @@ type UpdateState is Data:
   UpdateIncomplete{version: String, reason: String}
 
 def checkUpdateLabel() -> String:
-  "Verificar atualizações"
+  M.msg("update.check")
 
 def updateIdleText() -> String:
-  "A Mesa verifica atualizações uma vez por dia, sem interromper. Você também pode verificar agora."
+  M.msg("update.idle")
 
 def updateCheckingText() -> String:
-  "Verificando atualizações…"
+  M.msg("update.checking")
 
-def updateNoneText(current: String) -> String:
-  "Você está na última versão (v" ++ current ++ ")."
+def updateNoneText() -> String:
+  M.msg("update.none")
+
+# O "Conferido hoje às 9:40." é fato do host (`checked`: "hoje às 9:40" ou
+# "ontem às 21:05"); sem ele a frase diz a versão em que a Mesa está.
+def updateNoneRest.if(current: String, noChecked: Bool, checked: String) -> String:
+  match noChecked:
+    case True{}:
+      M.msg1("update.youAreOn", "version", current)
+    case False{}:
+      checked
+
+def updateNoneRest(current: String, +checked: String) -> String:
+  updateNoneRest.if(current, String.is_empty(checked), checked)
 
 def updateFailedText() -> String:
-  "Não foi possível verificar agora. Tente de novo quando quiser."
+  M.msg("update.failed")
 
-def updateReadyPrefix.if(version: String, withoutUrl: Bool) -> String:
-  match withoutUrl:
-    case True{}:
-      "v" ++ version ++ " disponível"
-    case False{}:
-      "v" ++ version ++ " disponível — o que mudou ("
+def updateFailedRest() -> String:
+  M.msg("update.failedRest")
 
-# Com link das notas o parêntese fecha; sem link a frase termina antes dele.
-def updateReadyPrefix(+version: String, url: String) -> String:
-  updateReadyPrefix.if(version, String.is_empty(url))
-
-def updateReadyJoin.if(withoutUrl: Bool) -> String:
-  match withoutUrl:
-    case True{}:
-      " · "
-    case False{}:
-      ") · "
-
-def updateReadyJoin(url: String) -> String:
-  updateReadyJoin.if(String.is_empty(url))
+def updateReadyText(version: String) -> String:
+  M.msg1("update.ready", "version", version)
 
 def updateNotesLabel() -> String:
-  "Notas da versão"
+  M.msg("update.notes")
 
 def updateApplyLabel() -> String:
-  "Atualizar e reiniciar"
+  M.msg("update.apply")
 
 def updatePiLabel() -> String:
-  "Atualizar Pi"
+  M.msg("update.pi")
 
 def updateApplyingText() -> String:
-  "Aplicando a atualização — a Mesa fecha e reabre sozinha."
+  M.msg("update.applying")
 
 def updateDoneText(version: String) -> String:
-  "Mesa atualizada para v" ++ version ++ "."
+  M.msg1("update.done", "version", version)
 
 def updateRecoveredText.if(version: String, reason: String, emptyReason: Bool) -> String:
   match emptyReason:
     case True{}:
-      "A atualização para v" ++ version ++ " falhou — a versão anterior voltou."
+      M.msg1("update.recovered", "version", version)
     case False{}:
-      "A atualização para v" ++ version ++ " falhou — a versão anterior voltou (" ++ reason ++ ")."
+      M.msg2("update.recovered.reason", "version", version, "reason", reason)
 
 def updateRecoveredText(+version: String, +reason: String) -> String:
   updateRecoveredText.if(version, reason, String.is_empty(reason))
@@ -611,18 +486,36 @@ def updateRecoveredText(+version: String, +reason: String) -> String:
 def updateIncompleteText.if(version: String, reason: String, emptyReason: Bool) -> String:
   match emptyReason:
     case True{}:
-      "A atualização para v" ++ version ++ " falhou e a recuperação ficou incompleta."
+      M.msg1("update.incomplete", "version", version)
     case False{}:
-      "A atualização para v" ++ version ++ " falhou e a recuperação ficou incompleta (" ++ reason ++ ")."
+      M.msg2("update.incomplete.reason", "version", version, "reason", reason)
 
 def updateIncompleteText(+version: String, +reason: String) -> String:
   updateIncompleteText.if(version, reason, String.is_empty(reason))
 
 def updateLogLabel() -> String:
-  "Ver o log"
+  M.msg("update.log")
 
+# Ícone de estado da faixa (ok, new, busy, warn, idle): o glifo é decoração
+# (`aria-hidden`); quem lê o estado é o texto ao lado.
+def updateIcon(kind: String, glyph: String) -> V.ViewNode:
+  V.viewEl("span", [
+    V.attrClass("update-icon"),
+    V.attrData("state", kind),
+    V.attrAria("hidden", "true")
+  ], [V.viewText(glyph)])
+
+# Uma frase só (a parte forte); `updateLine2` junta a parte discreta.
 def updateLineNode(text: String) -> V.ViewNode:
-  V.viewEl("p", Nil{}, [V.viewText(text)])
+  V.viewEl("p", [V.attrClass("update-text")], [
+    V.viewEl("span", [V.attrClass("update-main")], [V.viewText(text)])
+  ])
+
+def updateLine2(main: String, rest: String) -> V.ViewNode:
+  V.viewEl("p", [V.attrClass("update-text")], [
+    V.viewEl("span", [V.attrClass("update-main")], [V.viewText(main)]),
+    V.viewEl("span", [V.attrClass("update-muted")], [V.viewText(" "), V.viewText(rest)])
+  ])
 
 # O clique de link (Notas da versão / página do Xournal++) cai no handler
 # `OpenLink` do host com a URL em `data-url` (o Electron abre no navegador).
@@ -662,23 +555,27 @@ def applyingUpdateButton() -> V.ViewNode:
     V.attr("disabled", "")
   ], [V.viewText(updateApplyLabel())])
 
+# Verificar é ícone ao lado do que verifica (padrão dos diálogos): o nome
+# acessível e a dica dizem a ação inteira.
 def checkUpdateButton() -> V.ViewNode:
   V.viewEl("button", [
     V.attrId("update-check"),
     V.attrType("button"),
+    V.attrClass("icon-btn"),
+    V.attrAria("label", checkUpdateLabel()),
+    V.attr("title", checkUpdateLabel()),
     V.attrOn("click", "CheckUpdate")
-  ], [V.viewText(checkUpdateLabel())])
+  ], [V.viewText("↻")])
 
-# A linha pronta, literal: "vX disponível — o que mudou (Notas da versão) ·
-# Atualizar e reiniciar". Sem URL o botão de notas não existe (clique morto não
-# entra na árvore) e a frase termina antes do parêntese.
-def updateReadyLine(version: String, +url: String) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("update-line")], V.viewJoin([
-    [V.viewText(updateReadyPrefix(version, url))],
+# A faixa pronta: "v0.5.1 disponível", o link "O que mudou" (só com URL: clique
+# morto não entra na árvore) e a ação primária "Atualizar e reiniciar".
+def updateReadyChildren(version: String, +url: String) -> List<&2, V.ViewNode>:
+  V.viewJoin([
+    [updateIcon("new", "↑")],
+    [updateLineNode(updateReadyText(version))],
     V.viewWhen(Bool.not(String.is_empty(url)), releaseNotesButton(url)),
-    [V.viewText(updateReadyJoin(url))],
     [applyUpdateButton()]
-  ]))
+  ])
 
 # O corpo da Release (markdown cru; o host trunca e mostra como texto).
 def updateNotesNode(notes: String) -> V.ViewNode:
@@ -687,30 +584,40 @@ def updateNotesNode(notes: String) -> V.ViewNode:
 def aboutUpdateChildren(s: UpdateState) -> List<&2, V.ViewNode>:
   match s:
     case UpdateIdle{}:
-      [updateLineNode(updateIdleText()), checkUpdateButton()]
+      [updateIcon("idle", "↻"), updateLineNode(updateIdleText()), checkUpdateButton()]
     case UpdateChecking{}:
-      [updateLineNode(updateCheckingText())]
-    case UpdateNone{current}:
-      [updateLineNode(updateNoneText(current)), checkUpdateButton()]
+      [updateIcon("busy", "…"), updateLineNode(updateCheckingText())]
+    case UpdateNone{current, checked}:
+      [
+        updateIcon("ok", "✓"),
+        updateLine2(updateNoneText(), updateNoneRest(current, checked)),
+        checkUpdateButton()
+      ]
     case UpdateReady{version, +notes, +url}:
       V.viewConcat(
-        [updateReadyLine(version, url)],
+        updateReadyChildren(version, url),
         V.viewWhen(Bool.not(String.is_empty(notes)), updateNotesNode(notes))
       )
     case UpdateFailed{}:
-      [updateLineNode(updateFailedText()), checkUpdateButton()]
+      [
+        updateIcon("warn", "!"),
+        updateLine2(updateFailedText(), updateFailedRest()),
+        checkUpdateButton()
+      ]
     case UpdateApplying{}:
-      [updateLineNode(updateApplyingText()), applyingUpdateButton()]
+      [updateIcon("busy", "…"), updateLineNode(updateApplyingText()), applyingUpdateButton()]
     case UpdateDone{version}:
-      [updateLineNode(updateDoneText(version)), checkUpdateButton()]
+      [updateIcon("ok", "✓"), updateLineNode(updateDoneText(version)), checkUpdateButton()]
     case UpdateRecovered{version, reason}:
       [
+        updateIcon("warn", "!"),
         updateLineNode(updateRecoveredText(version, reason)),
         updateLogButton(),
         checkUpdateButton()
       ]
     case UpdateIncomplete{version, reason}:
       [
+        updateIcon("warn", "!"),
         updateLineNode(updateIncompleteText(version, reason)),
         updateLogButton(),
         checkUpdateButton()
@@ -718,12 +625,16 @@ def aboutUpdateChildren(s: UpdateState) -> List<&2, V.ViewNode>:
 
 # ---------- about: painel "Componentes" ----------
 
-# Mesa, Pi, Node e Xournal++ com versão instalada e estado. Só o Pi local tem
-# botão de atualizar (roda `npm install` no pós-fechamento); Pi de PATH e
+# Pi, Claude Code, Node e Xournal++ com versão instalada e estado. A ação da
+# linha é do `updatenotice.bend` (#45): o Pi local da Mesa tem o botão de
+# sempre; Pi de Homebrew/npm e Claude Code abrem a confirmação com o comando
+# exato; instalação não reconhecida só mostra o comando com "Copiar". Node e
 # Xournal++ são informativos (dica/link), o app não os toca.
 type ComponentState is Data:
   CompOk{}
   CompUnknown{}
+  # Sem rede (ou sem resposta do registro): não é erro, é "não deu para conferir".
+  CompOffline{}
   CompOutdated{latest: String}
   CompWarn{note: String}
   # Painel aberto antes de a checagem responder: a linha nasce "Verificando…"
@@ -731,37 +642,41 @@ type ComponentState is Data:
   CompChecking{}
 
 type ComponentRow is Data:
-  ComponentRow{id: String, label: String, version: String, state: ComponentState, hint: String, link: String, linkLabel: String, canUpdate: Bool}
+  ComponentRow{id: String, label: String, version: String, state: ComponentState, hint: String, link: String, linkLabel: String, action: U.ToolAction, ahead: Bool, run: U.ToolRun}
 
-# A ordem do painel é decisão do núcleo: Mesa, Pi, Node, Xournal++.
+# A ordem do painel é decisão do núcleo: Pi, Claude Code, Node, Xournal++. A
+# Mesa não é linha: a versão dela já está no cabeçalho e o estado dela na faixa
+# de atualização acima ("O que a Mesa usa" lista o que ela usa, não ela mesma).
 def componentIds() -> List<&2, String>:
-  ["mesa", "pi", "node", "xournal"]
+  ["pi", "claude", "node", "xournal"]
 
 def componentStateText(s: ComponentState) -> String:
   match s:
     case CompOk{}:
-      "✓"
+      M.msg("component.ok")
     case CompUnknown{}:
-      "desconhecido"
+      M.msg("component.unknown")
+    case CompOffline{}:
+      U.offlineText()
     case CompOutdated{latest}:
-      "→ v" ++ latest ++ " disponível"
+      M.msg1("component.outdated", "latest", latest)
     case CompWarn{note}:
       note
     case CompChecking{}:
-      "Verificando…"
+      M.msg("component.checking")
 
 def componentVersionText(+version: String) -> String:
   textOr(version, "—")
 
 def componentLinkLabel(+label: String) -> String:
-  textOr(label, "Ver página")
+  textOr(label, M.msg("component.openSite"))
 
 # O Node mínimo vem do Pi (`engines: >=22.19.0`): abaixo disso o painel avisa.
 def nodeTooOld(+major: U32, minor: U32) -> Bool:
   Bool.or(U32.is_lt(major, 22), Bool.and(U32.is_eq(major, 22), U32.is_lt(minor, 19)))
 
 def nodeWarnText() -> String:
-  "abaixo de 22.19 — o Pi exige Node 22.19+"
+  M.msg("component.nodeTooOld")
 
 def nodeState.if(old: Bool) -> ComponentState:
   match old:
@@ -774,12 +689,7 @@ def nodeState(major: U32, minor: U32) -> ComponentState:
   nodeState.if(nodeTooOld(major, minor))
 
 def updatePiButton() -> V.ViewNode:
-  V.viewEl("button", [
-    V.attrId("update-pi"),
-    V.attrType("button"),
-    V.attrClass("component-update"),
-    V.attrOn("click", "UpdatePi")
-  ], [V.viewText(updatePiLabel())])
+  U.localButton()
 
 def componentLinkButton(url: String, label: String) -> V.ViewNode:
   V.viewEl("button", [
@@ -789,21 +699,134 @@ def componentLinkButton(url: String, label: String) -> V.ViewNode:
     V.attrData("url", url)
   ], [V.viewText(componentLinkLabel(label))])
 
-def componentHintNode(hint: String) -> V.ViewNode:
-  V.viewEl("small", [V.attrClass("component-hint")], [V.viewText(hint)])
+# Bolinha de 7px ao lado do estado: a cor vem de `data-state` (ok, new, warn,
+# muted, busy) e o texto ao lado diz o mesmo — nunca só a cor.
+def componentDot(s: ComponentState) -> String:
+  match s:
+    case CompOk{}:
+      "ok"
+    case CompUnknown{}:
+      "muted"
+    case CompOffline{}:
+      "muted"
+    case CompOutdated{_}:
+      "new"
+    case CompWarn{_}:
+      "warn"
+    case CompChecking{}:
+      "busy"
 
-# Linha: nome, versão, estado + opcionais (dica, link, botão Atualizar Pi).
+# A dica do host (onde o Pi mora, o que fazer) só aparece quando o estado pede
+# ação; em dia ou verificando, a linha diz apenas o que o componente é.
+def componentShowsHint(s: ComponentState) -> Bool:
+  match s:
+    case CompOk{}:
+      False{}
+    case CompChecking{}:
+      False{}
+    case CompUnknown{}:
+      True{}
+    case CompOffline{}:
+      True{}
+    case CompOutdated{_}:
+      True{}
+    case CompWarn{_}:
+      True{}
+
+def componentDescription.xournal(isXournal: Bool) -> String:
+  match isXournal:
+    case True{}:
+      M.msg("component.desc.xournal")
+    case False{}:
+      ""
+
+def componentDescription.node(isNode: Bool, isXournal: Bool) -> String:
+  match isNode:
+    case True{}:
+      M.msg("component.desc.node")
+    case False{}:
+      componentDescription.xournal(isXournal)
+
+def componentDescription.claude(isClaude: Bool, isNode: Bool, isXournal: Bool) -> String:
+  match isClaude:
+    case True{}:
+      M.msg("component.desc.claude")
+    case False{}:
+      componentDescription.node(isNode, isXournal)
+
+def componentDescription.pick(isPi: Bool, isClaude: Bool, isNode: Bool, isXournal: Bool) -> String:
+  match isPi:
+    case True{}:
+      M.msg("component.desc.pi")
+    case False{}:
+      componentDescription.claude(isClaude, isNode, isXournal)
+
+def componentDescription(+id: String) -> String:
+  componentDescription.pick(String.eq(id, "pi"), String.eq(id, "claude"), String.eq(id, "node"), String.eq(id, "xournal"))
+
+def componentHintNode(parts: List<&2, V.ViewNode>) -> V.ViewNode:
+  V.viewEl("small", [V.attrClass("component-hint")], parts)
+
+# A nota de uma linha: o que o componente é, mais a dica do host quando o
+# estado pede ação. São nós de texto separados (a descrição e a dica são
+# mensagens traduzíveis; juntá-las numa cadeia só estragaria a tradução).
+def componentNote(+desc: String, +hint: String, +show: Bool) -> List<&2, V.ViewNode>:
+  V.viewJoin([
+    V.viewWhen(Bool.not(String.is_empty(desc)), V.viewText(desc)),
+    V.viewWhen(
+      Bool.and(show, Bool.and(Bool.not(String.is_empty(desc)), Bool.not(String.is_empty(hint)))),
+      V.viewText(" ")
+    ),
+    V.viewWhen(Bool.and(show, Bool.not(String.is_empty(hint))), V.viewText(hint))
+  ])
+
+def componentNoteNodes(+parts: List<&2, V.ViewNode>) -> List<&2, V.ViewNode>:
+  match parts:
+    case Nil{}:
+      Nil{}
+    case Con{h, t}:
+      [componentHintNode(Con{h, t})]
+
+def componentActions(+link: String, label: String, action: U.ToolAction) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("component-actions")], V.viewJoin([
+    V.viewWhen(Bool.not(String.is_empty(link)), componentLinkButton(link, label)),
+    U.actionNodes(action)
+  ]))
+
+# "mais nova que a testada": a versão em jogo passa da tabela desta Mesa.
+def componentAheadNode() -> V.ViewNode:
+  V.viewEl("span", [V.attrClass("component-ahead")], [V.viewText(U.aheadText())])
+
+def componentHead(label: String, version: String, +state: ComponentState, ahead: Bool) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("component-head")], V.viewJoin([
+    [ V.viewEl("span", [V.attrClass("component-name")], [V.viewText(label)])
+    , V.viewEl("span", [V.attrClass("component-version")], [V.viewText(componentVersionText(version))])
+    , V.viewEl("span", [
+        V.attrClass("component-dot"),
+        V.attrData("state", componentDot(state)),
+        V.attrAria("hidden", "true")
+      ], Nil{})
+    , V.viewEl("span", [V.attrClass("component-state")], [V.viewText(componentStateText(state))])
+    ],
+    V.viewWhen(ahead, componentAheadNode())
+  ]))
+
+# Linha: nome, versão, bolinha e estado; embaixo uma nota de uma linha (o que é
+# o componente, mais a dica quando há o que fazer) e à direita a ação.
 def componentRowNode(r: ComponentRow) -> V.ViewNode:
   match r:
-    case ComponentRow{id, label, version, state, +hint, +link, +linkLabel, +canUpdate}:
+    case ComponentRow{+id, label, version, +state, +hint, +link, +linkLabel, +action, ahead, run}:
       V.viewEl("div", [V.attrClass("component-row"), V.attrData("id", id)], V.viewJoin([
-        [ V.viewEl("span", [V.attrClass("component-name")], [V.viewText(label)])
-        , V.viewEl("span", [V.attrClass("component-version")], [V.viewText(componentVersionText(version))])
-        , V.viewEl("span", [V.attrClass("component-state")], [V.viewText(componentStateText(state))])
+        [ V.viewEl("div", [V.attrClass("component-main")], V.viewJoin([
+            [componentHead(label, version, state, ahead)],
+            componentNoteNodes(componentNote(componentDescription(id), hint, componentShowsHint(state)))
+          ]))
         ],
-        V.viewWhen(Bool.not(String.is_empty(hint)), componentHintNode(hint)),
-        V.viewWhen(Bool.not(String.is_empty(link)), componentLinkButton(link, linkLabel)),
-        V.viewWhen(canUpdate, updatePiButton())
+        V.viewWhen(
+          Bool.or(Bool.not(String.is_empty(link)), U.hasAction(action)),
+          componentActions(link, linkLabel, action)
+        ),
+        U.runNodes(run)
       ]))
 
 def componentRows.go(rs: List<&2, ComponentRow>) -> List<&2, V.ViewNode>:
@@ -816,3 +839,7 @@ def componentRows.go(rs: List<&2, ComponentRow>) -> List<&2, V.ViewNode>:
 # Filhos do `#component-rows`: uma linha por componente, na ordem do host.
 def componentRows(rs: List<&2, ComponentRow>) -> List<&2, V.ViewNode>:
   componentRows.go(rs)
+
+# O editor inteiro: o cabeçalho das colunas e depois as linhas.
+def courseList(cs: List<&2, SettingsCourse>) -> List<&2, V.ViewNode>:
+  Con{courseHead(), courseRows(cs)}

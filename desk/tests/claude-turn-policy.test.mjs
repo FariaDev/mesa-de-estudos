@@ -9,6 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
+import {ptText} from './pt-text.mjs';
 
 const require = createRequire(import.meta.url);
 const policy = require('../src/agents/claude-turn-policy.cjs');
@@ -351,7 +352,7 @@ test('L4: api_retry preserva tentativa, máximo, atraso e status sem encerrar o 
   assert.equal(retry.endsTurn, false);
   assert.equal(retry.deliveryEffect, 'none');
   assert.deepEqual(retry.detail, {attempt: 2, maxRetries: 10, retryDelayMs: 1500, errorStatus: 529, error: 'overloaded'});
-  assert.match(retry.message, /tentativa 2 de 10/);
+  assert.match(ptText(retry.message), /tentativa 2 de 10/);
 });
 
 test('L4: api_retry 429 vira limite; status nulo vira transporte; resto é retry genérico', () => {

@@ -57,7 +57,7 @@ try {
   check('conferir=false no config: menu nativo sem "Conferir Xournal++"', off,
     (items) => !items.some((item) => item.label === 'Conferir Xournal++'));
   check('conferir=false: demais itens do menu Estudar continuam', off,
-    (items) => ['Conferir GeoGebra', 'Alternar chat', 'Parar'].every((label) => items.some((item) => item.label === label)));
+    (items) => ['Conferir GeoGebra', 'Alternar tutor', 'Parar'].every((label) => items.some((item) => item.label === label)));
 
   const cfg = await page.evaluate(() => window.desk.getConfig());
   const enabled = await page.evaluate((next) => window.desk.saveConfig(next), {...cfg.config, desk: {...cfg.config.desk, conferir: true}});

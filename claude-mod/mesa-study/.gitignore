@@ -1,0 +1,9 @@
+.claude-plugin/types/
+.cache/
+.runtime/
+node_modules/
+
+# Helper nativo compilado e pasta temporária do build explícito
+# (node scripts/build-helper.mjs). Nunca versionar binário.
+native/windows
+native/.build-*

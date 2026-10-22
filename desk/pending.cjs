@@ -24,6 +24,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const pendingCore = require('./src/generated/pending.core.js').default;
 const attachCore = require('./src/generated/attachments.core.js').default;
+const {toNat, wholeNat} = require('./src/bend-nat.mjs');
 const {MAX_DRAFT} = require('./state-adapter.cjs');
 
 const FILENAME = 'pending.json';
@@ -34,13 +35,14 @@ const MAX_STORED_BYTES = Number(pendingCore.maxStoredBytes());
 const MAX_DATA_URL = attachCore.maxDraftChars();
 const MAX_REFS = Number(pendingCore.maxRefs());
 const MAX_EXERCISE = 240;
+const MAX_APP = 120;
 const MAX_ID = 80;
 const MAX_PATH = 4096;
 const IMAGE_DATA_URL = /^data:([^;]*);base64,([A-Za-z0-9+/=]+)$/;
 const NIL = {$: 'Nil'};
 
 const fileOf = (runtime) => path.join(runtime, FILENAME);
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('./plain-object.cjs');
 const coreList = (items) => items.reduceRight((tail, head) => ({$: 'Con', head, tail}), NIL);
 const coreArray = (node) => {
   const out = [];
@@ -60,6 +62,9 @@ function provenance(raw) {
   if (Number.isFinite(capturedAt) && capturedAt > 0) out.capturedAt = capturedAt;
   const exercise = typeof raw?.exercise === 'string' ? raw.exercise.trim().slice(0, MAX_EXERCISE) : '';
   if (exercise) out.exercise = exercise;
+  /* Programa da captura (Conferir com outros programas): só o nome, aparado e cortado. */
+  const app = typeof raw?.app === 'string' ? raw.app.trim().slice(0, MAX_APP) : '';
+  if (app) out.app = app;
   return out;
 }
 
@@ -68,7 +73,7 @@ function normalizeRefs(raw) {
   for (const ref of Array.isArray(raw) ? raw : []) {
     if (out.length >= MAX_REFS) break;
     if (!isPlainObject(ref) || typeof ref.path !== 'string' || !ref.path) continue;
-    const page = Number(pendingCore.pageOf(BigInt(Math.max(0, Math.trunc(Number(ref.page)) || 0))));
+    const page = Number(pendingCore.pageOf(wholeNat(ref.page)));
     out.push({path: ref.path.slice(0, MAX_PATH), page});
   }
   return out;
@@ -87,7 +92,7 @@ function imageFact(raw) {
 }
 
 /* Imagens guardadas: tetos, tipo e forma saem do `core/attachments.bend` (os
-   mesmos da bandeja da Conversa). Os que passam mantêm a proveniência. */
+   mesmos da bandeja que existia na Conversa). Os que passam mantêm a proveniência. */
 function normalizeImages(raw) {
   const list = Array.isArray(raw) ? raw : [];
   const out = attachCore.normalizeAttachments(coreList(list.map(imageFact)), NIL);
@@ -106,20 +111,33 @@ function normalizeImages(raw) {
   }));
 }
 
+/* Ferramentas pedidas com `@` (#53): só ids curtos, sem repetir e até o teto de
+   chips; a conferência de quem existe é do `pi-prompt` ao enviar. */
+function normalizeMentions(raw) {
+  const out = [];
+  for (const id of Array.isArray(raw) ? raw : []) {
+    if (typeof id !== 'string' || !/^[a-z]{1,24}$/.test(id) || out.includes(id)) continue;
+    if (out.length >= 3) break;
+    out.push(id);
+  }
+  return out;
+}
+
 function normalizeItem(raw, index) {
   if (!isPlainObject(raw)) return null;
   const id = typeof raw.id === 'string' && raw.id ? raw.id.slice(0, MAX_ID) : `fila-${index}`;
-  const text = pendingCore.cutText(String(raw.text ?? ''), BigInt(MAX_DRAFT));
+  const text = pendingCore.cutText(String(raw.text ?? ''), toNat(MAX_DRAFT));
   const refs = normalizeRefs(raw.refs);
   const images = normalizeImages(raw.images);
-  if (!pendingCore.keepItem(text, BigInt(images.length))) return null;
-  return {id, text, refs, images};
+  if (!pendingCore.keepItem(text, toNat(images.length))) return null;
+  const mentions = normalizeMentions(raw.mentions);
+  return mentions.length ? {id, text, refs, images, mentions} : {id, text, refs, images};
 }
 
 function normalizeItems(raw) {
   const out = [];
   for (const [index, item] of (Array.isArray(raw) ? raw : []).entries()) {
-    if (!pendingCore.keepAt(BigInt(out.length))) break; // teto: os primeiros ficam
+    if (!pendingCore.keepAt(toNat(out.length))) break; // teto: os primeiros ficam
     const value = normalizeItem(item, index);
     if (value) out.push(value);
   }
@@ -136,7 +154,7 @@ function normalizeEntry(value) {
 /* Leitura tolerante: sem arquivo, JSON torto, chave estranha ou arquivo maior
    que o teto viram "nada guardado" — e o próximo save regrava o que sobrou. */
 function readStore(runtime) {
-  let text = '';
+  let text;
   try {
     const file = fileOf(runtime);
     if (fs.statSync(file).size > MAX_STORED_BYTES) return {};
@@ -144,7 +162,7 @@ function readStore(runtime) {
   } catch {
     return {};
   }
-  let raw = null;
+  let raw;
   try {
     raw = JSON.parse(text);
   } catch {

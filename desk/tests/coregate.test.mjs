@@ -33,7 +33,6 @@ function fixture(fn) {
     write(join(root, 'core', 'build-safe.mjs'), '// passo do build\n');
     write(join(desk, 'package.json'), JSON.stringify({scripts: {'test:parity': 'node tests/parity.mjs'}}));
     write(join(desk, 'src', 'generated', 'study.core.js'), 'export default {};\n');
-    write(join(root, 'chat', 'src', 'generated', 'study.core.js'), 'export default {};\n');
     write(join(desk, 'tests', 'parity.mjs'), '// runner: roda os *-parity.mjs\n');
     /* Verificador que importa o host por literal relativo, e um que o require. */
     write(join(desk, 'tests', 'study-parity.mjs'), "import {x} from '../src/study.mjs';\n");
@@ -56,7 +55,6 @@ test('a chave cobre núcleo, artefatos, verificadores e o que eles importam', ()
   fixture(({root, desk}) => {
     const files = gateFiles({root, desk}).map((file) => file.slice(root.length + 1));
     assert.deepEqual(files, [
-      'chat/src/generated/study.core.js',
       'core/build-safe.mjs',
       'core/dialogsview.bend',
       'desk/package.json',

@@ -40,6 +40,18 @@ def Laws.deskflags_estudo_visivel():
 def Laws.deskflags_estudo_oculto():
   {==}
 
+def Laws.deskflags_editar_contexto_tag():
+  {==}
+
+def Laws.deskflags_editar_contexto_id():
+  {==}
+
+def Laws.deskflags_editar_contexto_visivel():
+  {==}
+
+def Laws.deskflags_editar_contexto_oculto():
+  {==}
+
 def Laws.deskflags_conferir_tag():
   {==}
 

@@ -5,8 +5,8 @@ import {build, htmlNode, renderChildren, renderInto} from './view-host.mjs';
 /* Aplicadores dos diálogos da Mesa (o núcleo é `core/dialogsview.bend`).
    O casco estático (`<dialog>`/`<form method=dialog>`, inputs de caminho,
    seções de aparência/avisos, corpo da ajuda) continua no `index.html`; aqui
-   só se troca o que é dinâmico: título/lead, linhas de matéria, o formulário
-   do Encerrar, a versão da ajuda e os fatos de flag que escondem itens.
+   só se troca o que é dinâmico: linhas de matéria, o formulário do Encerrar,
+   a versão da ajuda e os fatos de flag que escondem itens.
 
    Convenções do aplicador: ids/classes/aria/valores preservados; `on:<evento>`
    cai em `dialogsHandlers` (ou na tabela de quem chama); o IPC continua com
@@ -78,33 +78,26 @@ export function renderReview(question = '', attempt = '', difficulty = '', hint 
   );
 }
 
-/* ---------- welcome-dialog (primeira abertura) ---------- */
-
-/* Boas-vindas da primeira abertura: o miolo (título, 4 blocos e ações) vem do
-   núcleo (`core/dialogsview.bend`); o casco é o `<form id="welcome-form">` do
-   index.html. O clique do "Configurar agora" (`WelcomeConfigure`) é do host. */
-export function renderWelcome(win32, { handlers = {} } = {}) {
-  const form = $('#welcome-form');
-  if (!form) return;
-  renderChildren(form, dialogsCore.welcomeChildren(!!win32), handlers);
-}
-
 /* ---------- settings-dialog (main.mjs) ---------- */
-
-/* Título e lead: "Bem-vindo…" na primeira abertura, "Configurações" depois. */
-export function renderSettingsHead(first) {
-  const title = $('#settings-title');
-  const lead = $('#settings-lead');
-  if (title) renderInto(title, dialogsCore.settingsTitleNode(!!first));
-  if (lead) renderInto(lead, dialogsCore.settingsLeadNode(!!first));
-}
 
 /* Linhas de matéria: lista vazia vira uma linha em branco (decisão do núcleo). */
 export function renderCourseRows(courses) {
   const box = $('#cfg-courses');
   if (!box) return;
   const list = bendList((Array.isArray(courses) ? courses : []).map(courseFacts));
-  renderChildren(box, dialogsCore.courseRows(list), dialogsHandlers);
+  renderChildren(box, dialogsCore.courseList(list), dialogsHandlers);
+}
+
+/* Trocar o idioma com as Configurações abertas refaz as linhas (rótulos e
+   botões vêm do núcleo) com o que já foi digitado: nada se perde. */
+export function relabelCourseRows() {
+  const rows = [...document.querySelectorAll('#cfg-courses .cfg-course')];
+  if (!rows.length) return;
+  renderCourseRows(rows.map((row) => ({
+    id: row.dataset.id,
+    name: row.querySelector('.cfg-name')?.value,
+    path: row.querySelector('.cfg-path')?.value,
+  })));
 }
 
 /* O "+" de Adicionar matéria acrescenta uma linha em branco. */
@@ -147,9 +140,12 @@ export function applyHelpFlags(flags = {}) {
 /* O lead do Sobre carrega a versão; sem versão o texto estático fica. */
 export function renderAboutLead(version) {
   /* O primeiro `.help-lead` do corpo é o da versão (o outro é o do link). */
-  const el = $('#about-dialog .help-lead');
-  const lead = dialogsCore.aboutLead(String(version ?? ''));
-  if (el && lead) renderInto(el, dialogsCore.aboutLeadNode(String(version)));
+  const el = $('#about-lead');
+  /* A versão chega como "0.5.0 9dca5d3" (número + commit); a linha separa
+     os dois com o mesmo ponto médio do resto. */
+  const text = String(version ?? '').trim().replace(/\s+/g, ' · ');
+  const lead = dialogsCore.aboutLead(text);
+  if (el && lead) renderInto(el, dialogsCore.aboutLeadNode(text));
 }
 
 /* ---------- about: linha de atualização + painel de componentes ---------- */
@@ -163,9 +159,24 @@ export function renderAboutUpdate(state, handlers = {}) {
   renderChildren(box, dialogsCore.aboutUpdateChildren(state || {$: 'UpdateIdle'}), handlers);
 }
 
+/* A ação da linha é decisão do host + núcleo: Pi local = o botão de sempre;
+   Homebrew/npm/Claude Code = "Atualizar" (com confirmação); instalação que a
+   Mesa não reconhece = só o comando com "Copiar". Com o tutor respondendo a
+   ação fica desligada, com a dica (`ToolWait`). */
+function toolActionFacts(row = {}, busy = false) {
+  const command = String(row.command ?? '');
+  const local = !!row.canUpdate;
+  const runnable = row.state === 'outdated' && !!command;
+  if (!local && !runnable) return {$: 'ToolNone'};
+  if (busy) return {$: 'ToolWait', command};
+  if (local) return {$: 'ToolLocal'};
+  return row.copyOnly ? {$: 'ToolCopy', command} : {$: 'ToolAsk', command};
+}
+
 /* Fatos de uma linha de componente: o estado vira a variante de
-   `ComponentState` e os opcionais (dica/link/botão) entram crus. */
-const componentFacts = (row = {}) => ({
+   `ComponentState`, a ação a de `ToolAction`, a execução a de `ToolRun` e os
+   opcionais (dica/link) entram crus. */
+const componentFacts = (row = {}, context = {}) => ({
   $: 'ComponentRow',
   id: String(row.id ?? ''),
   label: String(row.label ?? ''),
@@ -174,33 +185,38 @@ const componentFacts = (row = {}) => ({
   hint: String(row.hint ?? ''),
   link: String(row.link ?? ''),
   linkLabel: String(row.linkLabel ?? ''),
-  canUpdate: !!row.canUpdate,
+  action: toolActionFacts(row, !!context.busy),
+  ahead: !!row.ahead,
+  run: context.runs?.get?.(String(row.id ?? '')) ?? {$: 'RunNone'},
 });
 function componentStateFacts(row = {}) {
   if (row.state === 'outdated') return {$: 'CompOutdated', latest: String(row.latest ?? '')};
   if (row.state === 'warn') return {$: 'CompWarn', note: String(row.note ?? '')};
   if (row.state === 'ok') return {$: 'CompOk'};
   if (row.state === 'checking') return {$: 'CompChecking'};
+  if (row.state === 'offline') return {$: 'CompOffline'};
   return {$: 'CompUnknown'};
 }
 
 /* C3: painel aberto ≠ carregando vazio — as 4 linhas nascem imediatamente com
-   "Verificando…" (a versão local da Mesa já fica à mostra) e a checagem real
+   "Verificando…" e a checagem real
    substitui no mesmo lugar. */
-export function renderComponentChecking(version = '') {
+export function renderComponentChecking() {
   renderComponentRows([
-    {id: 'mesa', label: 'Mesa', version: String(version ?? ''), state: 'checking'},
     {id: 'pi', label: 'Pi', version: '', state: 'checking'},
+    {id: 'claude', label: 'Claude Code', version: '', state: 'checking'},
     {id: 'node', label: 'Node (sistema)', version: '', state: 'checking'},
     {id: 'xournal', label: 'Xournal++', version: '', state: 'checking'},
   ]);
 }
 
-/* Painel "Componentes": Mesa, Pi, Node e Xournal++ (a ordem é do núcleo). */
-export function renderComponentRows(rows, handlers = {}) {
+/* Painel "Componentes": Pi, Claude Code, Node e Xournal++ (a ordem é do
+   núcleo). `context` traz o que não vem do host de arquivos: tutor ocupado e a
+   execução em curso de cada ferramenta. */
+export function renderComponentRows(rows, handlers = {}, context = {}) {
   const box = $('#component-rows');
   if (!box) return;
-  const list = bendList((Array.isArray(rows) ? rows : []).map(componentFacts));
+  const list = bendList((Array.isArray(rows) ? rows : []).map((row) => componentFacts(row, context)));
   renderChildren(box, dialogsCore.componentRows(list), handlers);
 }
 

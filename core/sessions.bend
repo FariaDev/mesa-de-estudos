@@ -1,8 +1,8 @@
 import Base
 
 # ---------------------------------------------------------------------------
-# Núcleo de texto/rótulo/agrupamento de sessões (referência: chat/lib.cjs,
-# desk/lib.cjs e chat/src/sessions-view.mjs).
+# Núcleo de texto/rótulo/agrupamento de sessões (referência: desk/lib.cjs;
+# a Conversa, que também o usava, saiu na #50 — tag `conversa-final`).
 #
 # O que é comum mora aqui. O que difere entra como dados ou fatos:
 #   - listas de marcadores (Mesa vs Conversa) e o rewrite de `/conferir`;
@@ -84,17 +84,20 @@ def noteSep() -> String:
 # conferência também saem até o fim, cortar cada um até o fim é o mesmo.
 # `[Contexto da Mesa]` é o bloco atual (core/studycontext.bend); os dois
 # seguintes ficam para as conversas gravadas antes dele.
-# `[Da Conversa]` (core/handoff.bend) é o bilhete que a Conversa deixa para a
-# Mesa: entra no fim da mensagem e precisa sair do preview como os outros —
-# inclusive quando a Mesa está com o contexto de estudo desligado, caso em que
-# ele é o único bloco apenso.
+# `[Da Conversa]` era o bilhete que o app Conversa deixava para a Mesa (#50
+# aposentou o app e o bilhete): sessões gravadas antes disso ainda o trazem no
+# fim da mensagem, e ele precisa continuar saindo do preview como os outros —
+# inclusive quando a Mesa estava com o contexto de estudo desligado, caso em
+# que ele era o único bloco apenso.
 def mesaSuffix() -> List<&2, String>:
   [
     "[Da Conversa]",
     "[Contexto da Mesa]",
+    "[Desk context]",
     "[Contexto da sessão na Mesa:",
     "[Referências abertas",
-    "[Conferência visual"
+    "[Conferência visual",
+    "[Ferramenta pedida na Mesa:"
   ]
 
 # Marcadores da Conversa. `[Anexo: ` no JS é um bloco até a cerca ````;

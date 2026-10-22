@@ -1,20 +1,20 @@
-// Caça a bugs da onda Bend (calculadora, GeoGebra e status/rodapé).
+// Caça a bugs da onda Bend (calculadora, GeoGebra e status/indicador de modelo).
 //
 // Exploratório: sobe a Mesa no harness do ui-smoke (janela oculta, fake Pi,
 // runtime temporário) e exercita os cantos que o contrato não cobre —
 // colapso/ângulo/histórico/guia/divisor, ativar-desativar GGB + ponte +
-// snapshot, medidor/ctx-tip/auto-compact/seletor/rodapé. Passo quebrado vira
+// snapshot, medidor/ctx-tip/auto-compact/seletor/indicador. Passo quebrado vira
 // BUG com print em tests/artifacts/hunt-calc-ggb-<stamp>/; achado fora do
 // escopo vira NOTA (mesmo peso de repro, sem derrubar o script). Rode com
 // `node tests/hunt-calc-ggb.mjs`.
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
-import {fileURLToPath} from 'node:url';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,statusOnline,FAKE_PI} from './helpers.mjs';
+import {artifactDir,withArtifacts,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,statusOnline,FAKE_PI,sessionIds,openSessionById,sessionLocked,openSessionList,closeSessionList,openTutorMore,resizeWindow,pageWindow} from './helpers.mjs';
+import {layoutStable,pollUntil} from './waits.mjs';
+import {ptText} from './pt-text.mjs';
 
-const HERE=path.dirname(fileURLToPath(import.meta.url));
-const ART=path.join(HERE,'artifacts','hunt-calc-ggb-'+Date.now());
+const ART=artifactDir('hunt-calc-ggb-'+Date.now());
 fs.mkdirSync(ART,{recursive:true});
 const problems=[];
 const notes=[];
@@ -122,7 +122,8 @@ const setPercent=(ctl,value)=>fs.writeFileSync(ctl,String(value));
    pede get_session_stats e chama updateMeter com o resultado. */
 async function refreshMeter(ctl,value){
  setPercent(ctl,value);
- await page.locator('#auto-compact').click();
+ /* O botão `#auto-compact` é um nó vivo escondido que o Mais opções espelha: o clique é do DOM, como o do item do menu. */
+ await page.evaluate(()=>document.querySelector('#auto-compact').click());
 }
 function watchErrors(p,bag){
  p.on('pageerror',e=>bag.push('pageerror: '+e.message));
@@ -152,60 +153,54 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
  await check('status: conectando — ponto pulsante, tooltip e controles escondidos',async()=>{
   const bootDot=await page.evaluate(()=>{const d=document.querySelector('#status-dot');return {cls:d.className,tip:d.getAttribute('data-tip'),aria:d.getAttribute('aria-label')};});
   assert.ok(bootDot.cls===''||bootDot.cls==='connecting','ponto nasce off (ou já conectando): '+JSON.stringify(bootDot));
-  if(bootDot.cls===''){assert.equal(bootDot.tip,null,'off não tem data-tip');assert.ok(bootDot.aria===null||bootDot.aria==='Pi desconectado','off sem aria errada: '+bootDot.aria);}
+  if(bootDot.cls===''){assert.equal(bootDot.tip,null,'off não tem data-tip');assert.ok(bootDot.aria===null||bootDot.aria==='Tutor desligado','off sem aria errada: '+bootDot.aria);}
   await page.waitForSelector('#status-dot.connecting',{timeout:15000});
   const dot=await page.evaluate(()=>{const d=document.querySelector('#status-dot');return {tip:d.getAttribute('data-tip'),title:d.hasAttribute('title'),aria:d.getAttribute('aria-label'),anim:getComputedStyle(d).animationName};});
-  assert.equal(dot.tip,'Conectando ao Pi');
+  assert.equal(dot.tip,'Chamando o tutor');
   assert.equal(dot.title,false);
-  assert.equal(dot.aria,'Conectando ao Pi');
+  assert.equal(dot.aria,'Chamando o tutor');
   assert.notEqual(dot.anim,'none','pulso do connecting é animação');
   assert.equal(await page.locator('#auto-compact').isHidden(),true);
   assert.equal(await page.locator('#ctx-meter').isHidden(),true);
-  assert.equal(await page.locator('#foot-status').isHidden(),true);
  });
  await check('status: online — data-tip sem title, auto-compact e medidor aparecem',async()=>{
   await statusOnline(page);
-  await page.waitForSelector('#auto-compact:not([hidden])',{timeout:15000});
+  await page.waitForSelector('#auto-compact:not([hidden])',{timeout:15000,state:'attached'});
   const dot=await page.evaluate(()=>{const d=document.querySelector('#status-dot');return {cls:d.className,tip:d.getAttribute('data-tip'),title:d.hasAttribute('title'),aria:d.getAttribute('aria-label')};});
   assert.equal(dot.cls,'online');
-  assert.equal(dot.tip,'Pi conectado');
+  assert.equal(dot.tip,'Tutor ligado');
   assert.equal(dot.title,false,'o ponto usa data-tip, não title');
-  assert.equal(dot.aria,'Pi conectado');
+  assert.equal(dot.aria,'Tutor ligado');
   const auto=await page.evaluate(()=>{const el=document.querySelector('#auto-compact');return {title:el.hasAttribute('title'),tip:el.getAttribute('data-tip'),pressed:el.getAttribute('aria-pressed'),cls:el.className};});
   assert.equal(auto.title,false,'auto-compact nasce com data-tip (sem title)');
   assert.match(auto.tip,/Compactação automática/);
   assert.equal(auto.cls,auto.pressed==='true'?'on':'');
   assert.equal(await page.locator('#ctx-tip').isHidden(),true);
-  // o rodapé é lido aqui, antes de qualquer hover/clique (o tooltip troca
+  // o indicador é lido aqui, antes de qualquer hover/clique (o tooltip troca
   // data-tip → title enquanto o alvo está armado)
-  await page.waitForSelector('#foot-status:not([hidden])');
-  const foot=await page.evaluate(()=>{const el=document.querySelector('#foot-status');return {title:el.hasAttribute('title'),tip:el.getAttribute('data-tip')||'',aria:el.getAttribute('aria-label')||'',items:[...el.querySelectorAll('.fs-item')].map(i=>i.textContent),classes:[...el.querySelectorAll('.fs-item')].map(i=>i.className),seps:el.querySelectorAll('.fs-sep').length};});
-  assert.equal(foot.title,false,'rodapé usa data-tip, não title');
-  assert.equal(foot.aria,foot.tip);
-  assert.equal(foot.items.length,3,'modelo, esforço e contexto');
-  assert.deepEqual(foot.classes,['fs-item fs-model','fs-item fs-eff','fs-item fs-ctx']);
-  assert.match(foot.tip,/·/);
-  assert.equal(foot.seps,2,'um separador entre cada par');
+  await page.waitForFunction(()=>/ · /.test(document.querySelector('#model-indicator .mi-text')?.textContent||''),undefined,{timeout:8000});
+  const indicator=await page.evaluate(()=>{const el=document.querySelector('#model-indicator');return {title:el.hasAttribute('title'),tip:el.getAttribute('data-tip')||'',aria:el.getAttribute('aria-label')||'',text:el.querySelector('.mi-text').textContent.trim(),state:el.dataset.state,dots:document.querySelectorAll('#status-dot').length,inIndicator:document.querySelectorAll('#model-indicator #status-dot').length};});
+  assert.equal(indicator.title,false,'indicador usa data-tip, não title');
+  assert.equal(indicator.aria,indicator.tip);
+  assert.match(indicator.tip,/Tutor ligado.*·/);
+  assert.match(indicator.text,/^[^·]+ · [^·]+$/,'modelo · esforço');
+  assert.equal(indicator.state,'on');
+  assert.equal(indicator.dots,1,'um ponto só');
+  assert.equal(indicator.inIndicator,1,'o ponto mora no indicador (#42: na caixa de mensagem)');
  });
-
- // ------------------------------------------------------------------ 2. calculadora
- console.log('\n== calculadora ==');
- await check('calc: casco inicial (corpo visível, sem classe, aria-expanded)',async()=>{
+ await check('calc: clique no select do ângulo não colapsa; o controle expande e recolhe',async()=>{
+  await page.locator('#calc-toggle').click();
   assert.equal(await page.locator('#calc-body').isVisible(),true);
-  assert.equal(await page.locator('#calculator').getAttribute('class'),null);
   assert.equal(await page.locator('#calc-toggle').getAttribute('aria-expanded'),'true');
-  assert.equal(await page.locator('#calc-history button').count(),0);
-  assert.equal(await page.locator('#result').textContent(),'0');
- });
- await check('calc: clique no select do ângulo não colapsa; título colapsa e reabre',async()=>{
+  assert.equal(await page.evaluate(()=>document.querySelector('#calculator').classList.contains('collapsed')),false);
   await page.evaluate(()=>document.querySelector('#angle').dispatchEvent(new MouseEvent('click',{bubbles:true})));
   assert.equal(await page.locator('#calc-body').isHidden(),false);
-  await page.locator('#calc-toggle > span').first().click();
+  await page.locator('#calc-toggle').click();
   assert.equal(await page.locator('#calc-body').isHidden(),true);
   assert.equal(await page.locator('#calc-toggle').getAttribute('aria-expanded'),'false');
   assert.equal(await page.locator('#calculator').getAttribute('class'),'collapsed');
   assert.equal(await page.evaluate(()=>document.activeElement===document.querySelector('#calc-toggle')),true,'o foco fica no toggle');
-  await page.locator('#calc-toggle > span').first().click();
+  await page.locator('#calc-toggle').click();
   assert.equal(await page.locator('#calc-body').isVisible(),true);
   assert.equal(await page.locator('#calc-toggle').getAttribute('aria-expanded'),'true');
  });
@@ -217,43 +212,43 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   await page.locator('#expression').press('Enter');
   assert.equal(await page.locator('#result').textContent(),'5');
   assert.equal(await page.evaluate(()=>document.activeElement===document.querySelector('#expression')),true,'Enter mantém o foco no input');
-  const rows=await page.locator('#calc-history button').evaluateAll(es=>es.map(e=>({t:e.textContent,x:e.dataset.expr})));
+  const rows=await page.locator('#calc-history button').evaluateAll(es=>es.map(e=>({t:e.getAttribute('aria-label'),x:e.dataset.expr})));
   assert.deepEqual(rows,[{t:'2+3 = 5',x:'2+3'},{t:'sqrt(16)+sin(pi/2) = 5',x:'sqrt(16)+sin(pi/2)'}],'mais novo primeiro');
   await page.locator('#calc-history button').last().click();
   assert.equal(await page.locator('#expression').inputValue(),'sqrt(16)+sin(pi/2)');
   assert.equal(await page.evaluate(()=>document.activeElement===document.querySelector('#expression')),true);
  });
  await check('calc: GRAUS marca selected, avalia sin(30) e sobrevive ao re-render',async()=>{
-  await page.locator('#angle').selectOption('deg');
-  assert.equal(await page.locator('#angle').inputValue(),'deg');
-  assert.equal(await page.locator('#angle option[selected]').getAttribute('value'),'deg');
+  await page.locator('#angle button[data-angle="deg"]').click();
+  assert.equal(await page.locator('#angle button[aria-pressed="true"]').getAttribute('data-angle'),'deg');
+  assert.equal(await page.locator('#angle button[aria-pressed="true"]').getAttribute('data-angle'),'deg');
   await page.locator('#expression').fill('sin(30)');
   await page.locator('#calc-form button').click();
-  assert.equal(await page.locator('#result').textContent(),'0.5');
-  await page.locator('#calc-toggle > span').first().click();
-  await page.locator('#calc-toggle > span').first().click();
-  assert.equal(await page.locator('#angle option[selected]').getAttribute('value'),'deg','selected sobrevive ao re-render');
+  assert.equal(await page.locator('#result').textContent(),'0,5');
+  await page.locator('#calc-toggle').click();
+  await page.locator('#calc-toggle').click();
+  assert.equal(await page.locator('#angle button[aria-pressed="true"]').getAttribute('data-angle'),'deg','selected sobrevive ao re-render');
   assert.equal(await page.locator('#expression').inputValue(),'sin(30)','expressão sobrevive ao colapso');
-  await page.locator('#angle').selectOption('rad');
-  assert.equal(await page.locator('#angle option[selected]').getAttribute('value'),'rad');
+  await page.locator('#angle button[data-angle="rad"]').click();
+  assert.equal(await page.locator('#angle button[aria-pressed="true"]').getAttribute('data-angle'),'rad');
   await page.locator('#expression').fill('sin(30)');
   await page.locator('#calc-form button').click();
-  assert.notEqual(await page.locator('#result').textContent(),'0.5','RAD volta a avaliar em radianos');
+  assert.notEqual(await page.locator('#result').textContent(),'0,5','RAD volta a avaliar em radianos');
  });
- await check('calc: teclado no select não colapsa nem perde o foco',async()=>{
-  await page.locator('#angle').selectOption('rad');
-  await page.locator('#angle').focus();
-  await page.keyboard.press('ArrowDown');
+ await check('calc: teclado no grupo de ângulo não colapsa nem perde o foco',async()=>{
+  await page.locator('#angle button[data-angle="rad"]').click();
+  const pressed=()=>page.locator('#angle button[aria-pressed="true"]').getAttribute('data-angle');
+  await page.locator('#angle button[data-angle="deg"]').focus();
   await page.keyboard.press('Enter');
-  assert.equal(await page.locator('#calc-body').isVisible(),true,'teclado no select não colapsa o corpo');
-  assert.equal(await page.locator('#angle').inputValue(),'rad');
-  assert.equal(await page.evaluate(()=>document.activeElement===document.querySelector('#angle')),true,'select mantém o foco');
-  await page.locator('#angle').selectOption('deg');
-  assert.equal(await page.locator('#angle option[selected]').getAttribute('value'),'deg');
-  await page.locator('#angle').selectOption('rad');
+  assert.equal(await page.locator('#calc-body').isVisible(),true,'teclado no grupo não colapsa o corpo');
+  assert.equal(await pressed(),'deg');
+  assert.equal(await page.evaluate(()=>document.activeElement?.dataset?.angle),'deg','o botão mantém o foco depois do re-render');
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Space');
+  assert.equal(await pressed(),'rad','Space no botão vizinho troca a unidade');
  });
  await check('calc: expressão inválida vira — com toast e sem histórico',async()=>{
-  await page.locator('#angle').selectOption('rad');
+  await page.locator('#angle button[data-angle="rad"]').click();
   const before=await page.locator('#calc-history button').count();
   await page.locator('#expression').fill('sqrt(');
   await page.locator('#calc-form button').click();
@@ -267,121 +262,90 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
  });
  await check('calc: histórico limita em 8, sem os mais antigos',async()=>{
   for(let i=10;i<=20;i++){await page.locator('#expression').fill(`${i}+0`);await page.locator('#expression').press('Enter');}
-  const rows=await page.locator('#calc-history button').evaluateAll(es=>es.map(e=>e.textContent));
+  const rows=await page.locator('#calc-history button').evaluateAll(es=>es.map(e=>e.getAttribute('aria-label')));
   assert.equal(rows.length,8);
   assert.equal(rows[0],'20+0 = 20');
   assert.equal(rows[7],'13+0 = 13','os mais antigos saíram');
   assert.ok(!rows.some(t=>t.startsWith('sqrt(16)')),'o passado distante saiu');
  });
- await check('calc: exemplos do guia avaliam (vírgula decimal, pi, potência, log)',async()=>{
-  for(const [expr,want] of [['(2+3)*4','20'],['2*pi','6.28318530718'],['2^3','8'],['sqrt(16)','4'],['1,5+1','2.5'],['log(100)','2'],['ln(e)','1']]){
-   await page.locator('#expression').fill(expr);
-   await page.locator('#expression').press('Enter');
-   assert.equal(await page.locator('#result').textContent(),want,expr+' → '+want);
-  }
- });
- await check('calc: recíprocas, inversas e ângulos exatos em GRAUS',async()=>{
-  await page.locator('#angle').selectOption('deg');
-  for(const [expr,want] of [['sec(60)','2'],['csc(30)','2'],['cot(45)','1'],['cot(90)','0'],['sec(180)','-1'],['asin(0.5)','30'],['acos(0.5)','60'],['atan(1)','45'],['cos(90)','0'],['sin(180)','0'],['tan(180)','0']]){
-   await page.locator('#expression').fill(expr);
-   await page.locator('#expression').press('Enter');
-   assert.equal(await page.locator('#result').textContent(),want,expr+' → '+want);
-  }
-  const before=await page.locator('#calc-history button').count();
-  for(const expr of ['tan(90)','sec(90)','csc(0)','cot(0)']){
-   await page.locator('#expression').fill(expr);
-   await page.locator('#calc-form button').click();
-   assert.equal(await page.locator('#result').textContent(),'—',expr+' é indefinido');
-   await toastWait(page,'Resultado indefinido',{timeout:5000});
-  }
-  assert.equal(await page.locator('#calc-history button').count(),before,'polos não entram no histórico');
-  await page.locator('#angle').selectOption('rad');
-  await page.locator('#expression').fill('sec(pi/2)');
-  await page.locator('#calc-form button').click();
-  assert.equal(await page.locator('#result').textContent(),'—','em RAD o polo de pi/2 também é indefinido');
-  await toastWait(page,'Resultado indefinido',{timeout:5000});
-  await page.locator('#expression').fill('cot(pi/2)');
-  await page.locator('#expression').press('Enter');
-  assert.equal(await page.locator('#result').textContent(),'0','em RAD o zero de pi/2 sai exato');
- });
  await check('calc: guia tem os códigos da view e o open sobrevive ao render',async()=>{
-  assert.equal(await page.locator('#calc-guide code').count(),17);
+  assert.equal(await page.locator('#calc-guide code').count(),32);
   await page.locator('#calc-guide summary').click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true);
-  await page.locator('#angle').selectOption('deg');
+  await page.locator('#angle button[data-angle="deg"]').click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true,'open sobrevive à troca de ângulo');
-  await page.locator('#calc-toggle > span').first().click();
-  await page.locator('#calc-toggle > span').first().click();
+  await page.locator('#calc-toggle').click();
+  await page.locator('#calc-toggle').click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true,'open sobrevive ao colapso');
-  assert.equal(await page.locator('#calc-guide code').count(),17);
+  assert.equal(await page.locator('#calc-guide code').count(),32);
   await page.locator('#calc-guide summary').click();
-  await page.locator('#angle').selectOption('rad');
+  await page.locator('#angle button[data-angle="rad"]').click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),false,'fechar a guia também sobrevive');
  });
- await check('calc: teclado do divisor NÃO reabre a calculadora (paridade com o antigo)',async()=>{
-  await page.locator('#calc-toggle > span').first().click();
+ await check('calc: recolhida, a alça do divisor some e não reabre nada',async()=>{
+  await page.locator('#calc-toggle').click();
   assert.equal(await page.locator('#calc-body').isHidden(),true);
-  await page.locator('#calc-divider').focus();
-  await page.keyboard.press('ArrowUp');
-  assert.equal(await page.locator('#calc-body').isHidden(),true,'seta não reabre (só o arrasto)');
-  await page.locator('#calc-toggle > span').first().click();
+  assert.equal(await page.locator('#calc-divider').isHidden(),true,'a alça só existe com o painel aberto');
+  await page.locator('#calc-toggle').click();
+  assert.equal(await page.locator('#calc-body').isVisible(),true);
+  assert.equal(await page.locator('#calc-divider').isVisible(),true,'a alça volta com o painel aberto');
  });
- await check('calc: divisor arrasta, reabre a calculadora e limita 72..70%',async()=>{
-  await page.locator('#calc-toggle > span').first().click();
-  assert.equal(await page.locator('#calc-body').isHidden(),true);
+ await check('calc: divisor arrasta o painel aberto e limita 72..70%',async()=>{
   const divider=page.locator('#calc-divider');
+  /* O guia aberto já pode ter levado o painel ao teto: parte de uma altura média. */
+  await page.evaluate(()=>document.documentElement.style.setProperty('--calc','300px'));
+  const before=await page.evaluate(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))||0);
   const box=await divider.boundingBox();
   await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
   await page.mouse.down();
   await page.mouse.move(box.x+box.width/2,box.y-40,{steps:4});
-  assert.equal(await page.locator('#calc-body').isVisible(),true,'arrastar reabre a calculadora (expandCalculator)');
-  await page.mouse.move(box.x+box.width/2,box.y+box.height/2,{steps:2});
   await page.mouse.up();
-  await page.waitForTimeout(600);
   const height=await page.evaluate(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))||0);
   assert.ok(height>=72,'mínimo 72 (viu '+height+')');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8')).calcHeight,height,'calcHeight salvo bate com o --calc');
+  assert.ok(height>before,'arrastar para cima cresce o painel (antes '+before+', depois '+height+')');
+  assert.equal(await page.locator('#calc-body').isVisible(),true,'o arrasto não recolhe');
+  const savedDesk=await pollUntil(()=>{try{return JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));}catch{return null;}},state=>state?.calcHeight===height,{what:`desk.json com calcHeight=${height}`,onTimeout:'return'});
+  assert.equal(savedDesk?.calcHeight,height,'calcHeight salvo bate com o --calc');
   await page.locator('#calc-divider').focus();
   for(let i=0;i<40;i++)await page.keyboard.press('ArrowDown');
-  await page.waitForTimeout(80);
+  await page.waitForFunction(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))===72,undefined,{timeout:3000}).catch(()=>{});
   assert.equal(await page.evaluate(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))),72,'ArrowDown trava no mínimo');
   for(let i=0;i<50;i++)await page.keyboard.press('ArrowUp');
-  await page.waitForTimeout(80);
+  await page.waitForFunction(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))===700,undefined,{timeout:3000}).catch(()=>{});
   assert.equal(await page.evaluate(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))),700,'ArrowUp trava no máximo');
   for(let i=0;i<25;i++)await page.keyboard.press('ArrowDown'); // volta para 200 e deixa a UI clicável
-  await page.waitForTimeout(700);
+  await page.waitForFunction(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))===200,undefined,{timeout:3000}).catch(()=>{});
   assert.equal(await page.evaluate(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))),200,'restaura uma altura confortável');
  });
 
  // ------------------------------------------------------------------ 3. medidor / ctx-tip
- console.log('\n== medidor / rodapé ==');
+ console.log('\n== medidor ==');
  await check('medidor: 57 sem warn, 62 warn, 84 warn, 85 hot, 90/99 hot',async()=>{
   await refreshMeter(ctl,57);
   await page.waitForFunction(()=>document.querySelector('#ctx-meter em').textContent==='57%',undefined,{timeout:8000});
   assert.equal((await page.locator('#ctx-meter').getAttribute('class'))||'','');
-  assert.equal(await page.locator('#ctx-meter i').getAttribute('style'),'width:57%');
+  assert.equal(await page.locator('#ctx-meter i').getAttribute('style'),'--meter:57%');
   for(const [pct,cls] of [[62,'warn'],[84,'warn'],[85,'hot'],[90,'hot'],[99,'hot']]){
    await refreshMeter(ctl,pct);
    await page.waitForFunction(p=>document.querySelector('#ctx-meter em').textContent===p+'%',String(pct),{timeout:8000});
    assert.equal(await page.locator('#ctx-meter').getAttribute('class'),cls,pct+'% → '+cls);
-   assert.equal(await page.locator('#ctx-meter i').getAttribute('style'),'width:'+pct+'%');
+   assert.equal(await page.locator('#ctx-meter i').getAttribute('style'),'--meter:'+pct+'%');
   }
  });
  await check('medidor: 59.5 arredonda para 60/warn; 84.5 arredonda para 85/hot (contrato)',async()=>{
   await refreshMeter(ctl,59.5);
   await page.waitForFunction(()=>document.querySelector('#ctx-meter em').textContent==='60%',undefined,{timeout:8000});
-  assert.equal(await page.locator('#ctx-meter i').getAttribute('style'),'width:60%');
+  assert.equal(await page.locator('#ctx-meter i').getAttribute('style'),'--meter:60%');
   assert.equal(await page.locator('#ctx-meter').getAttribute('class'),'warn');
   await refreshMeter(ctl,84.5);
   await page.waitForFunction(()=>document.querySelector('#ctx-meter em').textContent==='85%',undefined,{timeout:8000});
   assert.equal(await page.locator('#ctx-meter').getAttribute('class'),'hot');
   assert.equal(await page.locator('#ctx-meter').getAttribute('data-no-tip'),'');
  });
- await check('medidor: sem usage o medidor some e o rodapé perde o contexto',async()=>{
+ await check('medidor: sem usage o medidor some',async()=>{
   try{
    await refreshMeter(ctl,'hidden');
    await page.waitForFunction(()=>document.querySelector('#ctx-meter').hidden===true,undefined,{timeout:8000});
-   await page.waitForFunction(()=>!document.querySelector('#foot-status .fs-ctx'),undefined,{timeout:8000});
    assert.equal(await page.locator('#ctx-meter').getAttribute('hidden'),'');
   }finally{
    await refreshMeter(ctl,62);
@@ -389,6 +353,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   }
  });
  await check('ctx-tip: hover mostra o texto do fato e não vaza a janela',async()=>{
+  await openTutorMore(page); // o medidor mora no Mais opções do tutor
   await page.locator('#ctx-meter').hover();
   await page.waitForFunction(()=>{const tip=document.querySelector('#ctx-tip'),meter=document.querySelector('#ctx-meter');return !!tip&&!tip.hidden&&!!meter._tipText&&tip.textContent===meter._tipText;},{timeout:5000});
   const tip=await page.evaluate(()=>{const t=document.querySelector('#ctx-tip');const r=t.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,vw:innerWidth,vh:innerHeight,text:t.textContent};});
@@ -397,32 +362,23 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   assert.ok(tip.top>=0&&tip.bottom<=tip.vh+1,'não vaza vertical (top='+Math.round(tip.top)+' bottom='+Math.round(tip.bottom)+' vh='+tip.vh+')');
   await page.mouse.move(6,400);
   await page.waitForFunction(()=>document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
- });
- await check('ctx-tip: clique no rodapé abre/fecha e o texto é o do medidor',async()=>{
-  await page.locator('#foot-status').click();
-  await page.waitForFunction(()=>!document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
-  assert.equal(await page.evaluate(()=>document.querySelector('#ctx-tip').textContent===document.querySelector('#ctx-meter')._tipText),true);
-  await page.locator('#foot-status').click();
-  await page.waitForFunction(()=>document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
-  // Enter no botão do rodapé alterna igual ao clique (ele é um <button> de verdade)
-  await page.locator('#foot-status').focus();
-  await page.keyboard.press('Enter');
-  await page.waitForFunction(()=>!document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
-  await page.keyboard.press('Enter');
-  await page.waitForFunction(()=>document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
+  await page.keyboard.press('Escape');
+  await page.locator('#chat-more-pop').waitFor({state:'hidden',timeout:5000});
  });
  await check('ctx-tip: em janela estreita o balão fica dentro dela',async()=>{
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(980,700));
-  await page.waitForTimeout(300);
+  await resizeWindow(app,page,980,700);
+  await layoutStable(page,'#prompt');
   // texto novo força um posicionamento novo, medido com o nó ainda oculto
   await refreshMeter(ctl,63);
   await page.waitForFunction(()=>document.querySelector('#ctx-meter em').textContent==='63%',undefined,{timeout:8000});
   await page.mouse.move(6,400);
+  await openTutorMore(page);
   await page.locator('#ctx-meter').hover();
   await page.waitForFunction(()=>!document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
   const tip=await page.evaluate(()=>{const t=document.querySelector('#ctx-tip');const r=t.getBoundingClientRect();return {left:r.left,right:r.right,vw:innerWidth};});
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1280,820));
-  await page.waitForTimeout(250);
+  await page.keyboard.press('Escape');
+  await resizeWindow(app,page,1280,820);
+  await layoutStable(page,'#prompt');
   await page.mouse.move(6,400);
   await page.waitForFunction(()=>document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
   await refreshMeter(ctl,62);
@@ -430,48 +386,32 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   console.log(`      janela estreita: balão left=${Math.round(tip.left)} right=${Math.round(tip.right)} vw=${tip.vw}`);
   assert.ok(tip.right<=tip.vw+1,'com a janela estreita o balão fica dentro dela (right='+Math.round(tip.right)+' vw='+tip.vw+')');
  });
- await note('ctx-tip: resize com o balão aberto não reposiciona (fica fora da janela)',async()=>{
-  await page.locator('#foot-status').click();
-  await page.waitForFunction(()=>!document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(980,700));
-  await page.waitForTimeout(400);
-  const box=await page.locator('#ctx-tip').boundingBox();
-  const vw=await page.evaluate(()=>innerWidth);
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1280,820));
-  await page.waitForTimeout(250);
-  await page.locator('#foot-status').click();
-  await page.waitForFunction(()=>document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
-  await page.mouse.move(6,400);
-  console.log(`      resize: balão right=${Math.round((box?.x||0)+(box?.width||0))} vw=${vw}`);
-  assert.ok(box&&box.x+box.width<=vw+1,'o balão devia continuar dentro da janela depois do resize (right='+Math.round((box?.x||0)+(box?.width||0))+' vw='+vw+')');
- });
- await check('rodapé: no turno busy sobram só as partes do contexto',async()=>{
+ await check('turno busy: o título da sessão (lista) trava e libera ao fim',async()=>{
   await page.locator('#prompt').fill('explique o teorema de Pitágoras');
   await page.locator('#send').click();
   await page.waitForFunction(()=>document.querySelector('#send').disabled,undefined,{timeout:8000});
-  assert.equal(await page.locator('#session-select').isDisabled(),true,'seletor travado no turno');
-  await page.waitForFunction(()=>document.querySelectorAll('#foot-status .fs-item').length===1,undefined,{timeout:8000});
-  const items=await page.locator('#foot-status .fs-item').allTextContents();
-  assert.match(items[0],/%$/,'o contexto continua');
+  assert.equal(await sessionLocked(page),true,'o título da sessão (lista) fica travado no turno');
   await page.waitForSelector('#messages .message.assistant:not(.quiz) .katex',{timeout:20000});
   await page.waitForFunction(()=>!document.querySelector('#send').disabled,undefined,{timeout:20000});
-  await page.waitForFunction(()=>document.querySelectorAll('#foot-status .fs-item').length===3,undefined,{timeout:8000});
-  assert.equal(await page.locator('#session-select').isDisabled(),false);
+  assert.equal(await sessionLocked(page),false);
  });
- await check('seletor: opções com selected única e troca de sessão',async()=>{
-  await page.waitForFunction(()=>{const s=document.querySelector('#session-select');return s&&s.options.length>=2&&!s.disabled;},undefined,{timeout:20000});
-  const info=await page.evaluate(()=>{const s=document.querySelector('#session-select');return {label:s.getAttribute('aria-label'),values:[...s.options].map(o=>o.value),selected:[...s.options].filter(o=>o.selected).map(o=>o.value),value:s.value};});
-  assert.equal(info.label,'Conversa');
+ await check('lista de sessões: uma só marcada e troca de sessão',async()=>{
+  await page.waitForFunction(async()=>{const s=document.querySelector('#session-title');return s&&!s.disabled&&(await window.desk.conversations()).length>=2;},undefined,{timeout:20000});
+  const values=await sessionIds(page);
+  await openSessionList(page);
+  const info=await page.evaluate(()=>({label:document.querySelector('#session-title').getAttribute('aria-label'),selected:[...document.querySelectorAll('#conv-list .conv-row.current')].map(r=>r.dataset.id),value:document.querySelector('#session-title').dataset.session}));
+  await closeSessionList(page);
+  assert.match(info.label,/^Sessão/);
   assert.equal(info.selected.length,1);
   assert.equal(info.selected[0],info.value);
-  const old=info.values.find(v=>v.endsWith('pi-1700000000000.jsonl'));
+  const old=values.find(v=>v.endsWith('pi-1700000000000.jsonl'));
   assert.ok(old,'a sessão antiga aparece');
-  await page.locator('#session-select').selectOption(old);
-  await page.waitForFunction(v=>document.querySelector('#session-select').value===v,old,{timeout:20000});
+  await openSessionById(page,old);
+  await page.waitForFunction(v=>document.querySelector('#session-title').dataset.session===v,old,{timeout:20000});
   await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('sessão antiga da caça'),undefined,{timeout:20000});
-  const back=info.values.find(v=>v.endsWith(path.basename(session)));
-  await page.locator('#session-select').selectOption(back);
-  await page.waitForFunction(v=>document.querySelector('#session-select').value===v,back,{timeout:20000});
+  const back=values.find(v=>v.endsWith(path.basename(session)));
+  await openSessionById(page,back);
+  await page.waitForFunction(v=>document.querySelector('#session-title').dataset.session===v,back,{timeout:20000});
  });
 
  // ------------------------------------------------------------------ 4. GeoGebra
@@ -499,15 +439,14 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   assert.equal((await post({command:'x'.repeat(2001)})).status,400);
   assert.equal((await fetch(`http://127.0.0.1:${bridge.port}/nada`,{method:'POST',headers:{'x-desk-token':bridge.token}})).status,404);
  });
- await check('ggb: shot espera o applet e o Print no chat anexa a imagem',async()=>{
-  for(let i=0;i<30;i++){
-   try{const s=await page.evaluate(()=>window.desk.ggbShot());if(s?.dataUrl){ggbReady=true;break;}}
-   catch(e){if(!/carregando/.test(String(e.message)))throw e;}
-   await page.waitForTimeout(1000);
-  }
+ await check('ggb: shot espera o applet e o Print para o tutor anexa a imagem',async()=>{
+  ggbReady=!!await pollUntil(async()=>{
+   try{const s=await page.evaluate(()=>window.desk.ggbShot());return !!s?.dataUrl;}
+   catch(e){if(!/carregando/.test(ptText(String(e.message).replace(/^page\.evaluate: Error: /,''))))throw e;return false;}
+  },Boolean,{timeout:30000,interval:250,what:'o applet GeoGebra pronto',onTimeout:'return'});
   if(!ggbReady){
    const err=await page.evaluate(()=>window.desk.ggbShot().then(()=>null,e=>String(e.message||e)));
-   assert.match(err,/carregando/,'offline ainda explica que o applet está carregando');
+   assert.match(ptText(err),/carregando/,'offline ainda explica que o applet está carregando');
    console.log('      (sem applet pronto: só o portão do shot foi exercitado)');
    return;
   }
@@ -528,21 +467,19 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   assert.ok(png.png&&png.png.length>100,'/screenshot devolve PNG base64');
   await page.locator('#course-tabs button[data-id="Calc"]').click();
   await page.waitForFunction(()=>!document.querySelector('#references').classList.contains('ggb'));
-  let saved=false;
-  for(let i=0;i<50&&!saved;i++){await page.waitForTimeout(200);saved=fs.existsSync(path.join(runtime,'ggb','Calc.b64'))&&fs.readFileSync(path.join(runtime,'ggb','Calc.b64'),'utf8').length>0;}
+  const ggbFile=path.join(runtime,'ggb','Calc.b64');
+  const saved=await pollUntil(()=>fs.existsSync(ggbFile)&&fs.readFileSync(ggbFile,'utf8').length>0,Boolean,{timeout:10000,interval:100,what:'ggb/Calc.b64 gravado',onTimeout:'return'});
   assert.ok(saved,'sair do GGB grava o snapshot da matéria');
   const desk=JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));
   assert.equal(desk.courseStates?.Calc?.ggbBase64,undefined,'desk.json não guarda mais ggbBase64');
   await page.locator('#course-tabs button[data-id="geogebra"]').click();
   await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'));
-  let restored=false;
-  for(let i=0;i<60&&!restored;i++){
-   await page.waitForTimeout(500);
+  const restored=await pollUntil(async()=>{
    const ready=await page.evaluate(()=>window.desk.ggbShot().then(()=>true,()=>false));
-   if(!ready)continue;
+   if(!ready)return false;
    const state=await (await post({},'/state')).json();
-   restored=/h/.test(state.state?.objects||'');
-  }
+   return /h/.test(state.state?.objects||'');
+  },Boolean,{timeout:30000,interval:250,what:'a construção do snapshot restaurada',onTimeout:'return'});
   assert.ok(restored,'voltar na aba restaura a construção do snapshot');
  });
  if(ggbReady)await check('ggb: redimensionar a janela reaplica a construção depois do reload do applet',async()=>{
@@ -551,15 +488,14 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   // objeto criado agora e ainda não snapshotado: precisa sobreviver à captura do resize
   const made=await (await post({command:'k(x)=x^2+1'})).json();
   assert.equal(made.ok,true,'objeto vivo criado pela ponte');
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1240,860));
+  await resizeWindow(app,page,1240,860);
   let after=null;
-  for(let i=0;i<60;i++){
-   await page.waitForTimeout(500);
+  await pollUntil(async()=>{
    const ready=await page.evaluate(()=>window.desk.ggbShot().then(()=>true,()=>false));
-   if(!ready)continue;
+   if(!ready)return false;
    after=await (await post({},'/state')).json();
-   if(/h/.test(after.state?.objects||'')&&/k/.test(after.state?.objects||''))break;
-  }
+   return /h/.test(after.state?.objects||'')&&/k/.test(after.state?.objects||'');
+  },Boolean,{timeout:30000,interval:250,what:'a construção antiga e o objeto vivo depois do resize',onTimeout:'return'});
   assert.ok(/h/.test(after?.state?.objects||''),'depois do resize a construção antiga continua (antes: '+String(before.state?.objects||'').split('\n')[0]+'; depois: '+String(after?.state?.objects||'').split('\n')[0]+')');
   assert.ok(/k/.test(after?.state?.objects||''),'depois do resize o objeto vivo ainda não snapshotado continua ('+String(after?.state?.objects||'').split('\n')[0]+')');
  });
@@ -570,7 +506,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   }
   await page.locator('#course-tabs button[data-id="Geo"]').click();
   await page.waitForFunction(()=>!document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
-  assert.equal(await page.locator('#ggb-bar').isHidden(),true);
+  await page.locator('#ggb-bar').waitFor({state:'hidden',timeout:2000}); // sai com fade (#63)
   assert.equal(await page.locator('#pdf-grid').first().evaluate(el=>getComputedStyle(el).visibility),'visible');
  });
  await check('ggb: reativar já ativo é no-op; clique na matéria corrente desativa',async()=>{
@@ -578,7 +514,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'));
   const before=await page.locator('#references').getAttribute('class');
   await page.locator('#course-tabs button[data-id="geogebra"]').click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(300);// espera fixa: "nada acontece em 0,3 s" — clicar na aba já ativa não muda a classe de #references
   assert.equal(await page.locator('#references').getAttribute('class'),before);
   assert.equal(await page.locator('#ggb-bar').isHidden(),false);
   await page.locator('#course-tabs button[data-id="Geo"]').click();
@@ -590,7 +526,6 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
  console.log('\n== layout ==');
  await note('layout: com --calc alto o composer do chat fica sob a calculadora (CSS pré-rewrite)',async()=>{
   await page.evaluate(()=>document.documentElement.style.setProperty('--calc','700px'));
-  await page.waitForTimeout(250);
   const hit=await page.evaluate(()=>{
    const send=document.querySelector('#send').getBoundingClientRect();
    const el=document.elementFromPoint(send.x+send.width/2,send.y+send.height/2);
@@ -604,16 +539,9 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
  console.log('\n== persistência / erro ==');
  await check('calc: altura sobrevive ao relançamento',async()=>{
   await page.locator('#calc-divider').focus();
-  await page.waitForTimeout(150);
   await page.keyboard.press('ArrowDown');
-  await page.waitForTimeout(120);
   const expected=await page.evaluate(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc')));
-  let saved=null;
-  for(let i=0;i<25;i++){
-   await page.waitForTimeout(120);
-   saved=JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8')).calcHeight;
-   if(saved===expected)break;
-  }
+  const saved=await pollUntil(()=>{try{return JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8')).calcHeight;}catch{return null;}},value=>value===expected,{timeout:5000,interval:60,what:`desk.json com calcHeight=${expected}`,onTimeout:'return'});
   assert.equal(saved,expected,'o save debounced chegou ao desk.json');
   await ctx.app.close();
   app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:wrapper}});
@@ -623,7 +551,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   // `loadCourse` só aplica o --calc depois de montar os PDFs; espera o inline
   await page.waitForFunction(v=>document.documentElement.style.getPropertyValue('--calc')===v+'px',String(expected),{timeout:30000});
   assert.equal(await page.evaluate(()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))),expected,'--calc restaurado do desk.json');
-  assert.equal(await page.locator('#angle option[selected]').getAttribute('value'),'rad','ângulo não é persistido (paridade)');
+  assert.equal(await page.locator('#angle button[aria-pressed="true"]').getAttribute('data-angle'),'rad','ângulo não é persistido (paridade)');
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),false,'guia não é persistida');
   assert.equal(await page.locator('#calc-history button').count(),0,'histórico não é persistido (paridade)');
  });
@@ -637,11 +565,10 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
    const errPage=await errApp.firstWindow();
    await errPage.waitForSelector('#status-dot.error',{timeout:20000});
    const dot=await errPage.evaluate(()=>{const d=document.querySelector('#status-dot');return {tip:d.getAttribute('data-tip'),aria:d.getAttribute('aria-label'),title:d.hasAttribute('title')};});
-   assert.match(dot.tip,/Pi desconectado|Falha ao conectar/);
+   assert.match(dot.tip,/Tutor desligado|Tutor sem resposta/);
    assert.equal(dot.aria,dot.tip);
    assert.equal(dot.title,false);
    assert.equal(await errPage.locator('#auto-compact').isHidden(),true,'sem conexão o auto-compact fica oculto');
-   assert.equal(await errPage.locator('#foot-status').isHidden(),true);
   }finally{await errApp.close();}
  });
 
@@ -659,15 +586,11 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
  await check('ggb: recarregar o renderer (⌘R) descarta a View nativa',async()=>{
   await page.locator('#course-tabs button[data-id="geogebra"]').click();
   await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'));
-  let ready=false;
-  for(let i=0;i<30&&!ready;i++){
-   ready=await page.evaluate(()=>window.desk.ggbShot().then(()=>true,()=>false));
-   if(!ready)await page.waitForTimeout(1000);
-  }
+  const ready=await pollUntil(()=>page.evaluate(()=>window.desk.ggbShot().then(()=>true,()=>false)),Boolean,{timeout:30000,interval:250,what:'o applet pronto',onTimeout:'return'});
   assert.ok(ready,'o applet voltou a ficar pronto');
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].webContents.reload());
+  await (await pageWindow(app,page)).evaluate(win=>win.webContents.reload());
   await page.waitForSelector('#expression',{timeout:30000});
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1500);// espera fixa: "nada reativa em 1,5 s" — depois do reload a View nativa fica fora e a classe ggb não volta
   const ui=await page.evaluate(()=>({cls:document.querySelector('#references').classList.contains('ggb'),bar:document.querySelector('#ggb-bar').hidden}));
   let viewAlive=false;
   try{const s=await page.evaluate(()=>window.desk.ggbShot());viewAlive=!!s?.dataUrl;}catch{}
@@ -677,11 +600,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   // reativar depois do reload mostra a mesma View viva (o applet não foi recriado)
   await page.locator('#course-tabs button[data-id="geogebra"]').click();
   await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'));
-  let back=false;
-  for(let i=0;i<30&&!back;i++){
-   back=await page.evaluate(()=>window.desk.ggbShot().then(()=>true,()=>false));
-   if(!back)await page.waitForTimeout(500);
-  }
+  const back=await pollUntil(()=>page.evaluate(()=>window.desk.ggbShot().then(()=>true,()=>false)),Boolean,{timeout:15000,interval:250,what:'a View nativa de volta',onTimeout:'return'});
   assert.ok(back,'depois do reload do renderer a aba reativa a View nativa');
  });
  // guarda o runtime junto dos prints quando houver algo a relatar

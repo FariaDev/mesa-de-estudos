@@ -1,0 +1,101 @@
+/* Calculadora (ticket #16).
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Calculadora (ticket #16) ----------
+   Recolhida é UMA linha de --bar no pé da coluna do tutor: ícone, campo, "=",
+   resultado, unidade e o controle de expandir, com a própria borda de 1px em
+   cima (a alça de altura não existe nesse estado). A altura da linha é fixa:
+   --calc (o calcHeight que a alça arrasta e o desk.json guarda) só vale com o
+   painel expandido; recolhida, o valor fica guardado e é ignorado aqui.
+   Expandida, a barra segue sendo a primeira linha do painel e a borda de cima
+   passa a ser a da alça. */
+
+#calc-divider{cursor:row-resize;background:var(--border);height:1px;position:relative;flex-shrink:0}
+#calc-divider:after{content:"";position:absolute;left:0;right:0;top:-3px;height:7px}
+#calc-divider:hover,#calc-divider:focus-visible{background:var(--muted)}
+#sidebar:has(#calculator.collapsed) #calc-divider{display:none}
+
+#calculator{
+ container-type:inline-size;display:flex;flex-direction:column;background:transparent;
+ height:var(--calc);max-height:70%;min-height:72px;flex:none;
+}
+#calculator.collapsed{height:var(--bar);max-height:none;min-height:0;flex:none}
+#calc-bar{
+ display:flex;align-items:center;gap:var(--space-3);flex:none;height:var(--bar);min-width:0;
+ padding:calc(var(--bar-y) - 1px) var(--bar-end) var(--bar-y) var(--pad);border-top:1px solid var(--border);
+}
+#calculator:not(.collapsed) #calc-bar{
+ padding:var(--bar-y) var(--bar-end) calc(var(--bar-y) - 1px) var(--pad);border-top:0;border-bottom:1px solid var(--border);
+}
+.calc-icon{display:inline-flex;flex:none;color:var(--faint)}
+#calc-form{display:flex;align-items:center;gap:var(--space-1);flex:1 1 0;min-width:0}
+#expression{
+ flex:1 1 auto;width:100%;min-width:0;padding:0 var(--space-2);border:1px solid transparent;border-radius:var(--r-xs);
+ background:transparent;font-family:var(--font-mono);font-size:var(--fs-sm-half);color:var(--fg-strong);
+ transition:border-color var(--t-fast) var(--ease-out),box-shadow var(--t-fast) var(--ease-out),background var(--t-fast) var(--ease-out);
+}
+#expression::placeholder{color:var(--faint)}
+#expression:hover{background:var(--hover)}
+#expression:focus{outline:none;background:var(--surface);border-color:var(--ring);box-shadow:var(--ring-shadow)}
+/* "= 5" se lê junto (#27 B15): o botão = é estreito, em mono 13px/600 como o
+   resultado, e o resultado encosta nele (4px) em vez de ficar na folga da linha. */
+#calc-form button{
+ flex:none;width:auto;min-width:var(--space-7);padding:0 var(--space-1);
+ font-family:var(--font-mono);font-size:var(--fs-md);font-weight:600;
+}
+#calc-form+#result{margin-left:calc(var(--space-1) - var(--space-3))}
+/* O resultado não usa acento: é o valor, em mono e na cor forte. Vazio, some. */
+#result{
+ flex:0 1 auto;min-width:0;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;
+ font-family:var(--font-mono);font-size:var(--fs-md);font-weight:600;
+ font-variant-numeric:tabular-nums;color:var(--fg-strong);
+}
+#result:empty{display:none}
+/* A unidade vigente é só texto: quem a troca é o seletor do painel. */
+.calc-unit{flex:none;font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em;color:var(--faint)}
+#calculator:not(.collapsed) .calc-unit{display:none}
+#calc-toggle{flex:none}
+/* Coluna estreita: o ícone cede primeiro; a unidade e o controle ficam. */
+@container (max-width:340px){.calc-icon{display:none}}
+
+#calc-body{flex:1 1 auto;min-height:0;overflow:auto;padding:var(--space-2) var(--pad) var(--space-1)}
+.calc-angle{display:flex;align-items:center;gap:var(--space-3);min-height:var(--ctl);font-size:var(--fs-sm);color:var(--muted)}
+.calc-angle-label{flex:none}
+/* Dois botões num grupo de fundo suave: o que vale fica na superfície, com o
+   texto forte (aria-pressed), sem acento — é seleção, não ação. */
+.calc-seg,.pdf-seg{display:inline-flex;flex:none;padding:2px;gap:2px;background:var(--hover);border-radius:var(--r-sm)}
+.calc-seg button,.pdf-seg button{
+ height:24px;min-width:56px;padding:0 var(--space-3);border:0;border-radius:var(--r-xs);background:transparent;box-shadow:none;
+ font-size:var(--fs-xs);font-weight:600;color:var(--muted);
+}
+.calc-seg button:hover,.pdf-seg button:hover{color:var(--fg)}
+.calc-seg button[aria-pressed="true"],.pdf-seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg-strong);box-shadow:0 0 0 1px var(--border)}
+.calc-hint{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs);color:var(--faint);font-family:var(--font-mono)}
+#calc-hist{margin-top:var(--space-2)}
+.calc-hist-head{display:flex;align-items:center;justify-content:space-between;min-height:24px}
+.calc-hist-head h3{margin:0;font-size:var(--fs-xs);font-weight:600;color:var(--muted)}
+#calc-clear{height:24px;padding:0 var(--space-2);border:0;border-radius:var(--r-xs);background:transparent;box-shadow:none;font-size:var(--fs-xs);color:var(--muted)}
+#calc-clear:hover:not(:disabled){background:var(--hover);color:var(--fg)}
+#calc-clear:disabled{opacity:.45;cursor:default}
+.calc-hist-empty{margin:0;padding:var(--space-1) 0;font-size:var(--fs-xs);color:var(--faint)}
+/* Três linhas de 28px cabem; mais que isso rola dentro da lista. */
+#calc-history{max-height:84px;overflow:auto;font-size:var(--fs-xs)}
+#calc-history button{
+ display:flex;align-items:center;justify-content:flex-start;gap:var(--space-2);width:100%;height:28px;padding:0 var(--space-2);border:0;text-align:left;
+ font-family:var(--font-mono);font-size:var(--fs-xs);background:transparent;box-shadow:none;border-radius:var(--r-xs);color:var(--muted);
+}
+#calc-history button:hover{background:var(--hover);color:var(--fg)}
+.calc-hist-expr{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calc-hist-res{flex:none;font-weight:600;color:var(--fg-strong);font-variant-numeric:tabular-nums}
+/* "Como usar" é uma cola: a frase do que ela é, os nomes em quatro grupos
+   (rótulo à esquerda, fichas de código à direita) e as armadilhas em lista. */
+#calc-guide{font-size:var(--fs-sm);line-height:1.5;color:var(--muted);margin-top:var(--space-2);padding-top:var(--space-2);border-top:1px solid var(--border)}
+#calc-guide summary{cursor:pointer;font-weight:600;color:var(--fg)}
+#calc-guide summary:hover{color:var(--fg-strong)}
+#calc-guide code{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--fg-strong);background:var(--hover);border-radius:var(--r-2xs);padding:1px var(--space-1)}
+.calc-guide-lead{margin:var(--space-3) 0}
+.calc-groups{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--space-2) var(--space-4);margin:0 0 var(--space-4)}
+.calc-groups dt{font-size:var(--fs-xs);color:var(--faint);line-height:22px}
+.calc-groups dd{margin:0;display:flex;flex-wrap:wrap;gap:var(--space-1)}
+.calc-groups code{line-height:20px;padding:0 var(--space-2);border:1px solid var(--border);background:var(--surface)}
+.calc-tips{margin:0;padding-left:var(--space-5);display:flex;flex-direction:column;gap:var(--space-1);font-size:var(--fs-xs)}

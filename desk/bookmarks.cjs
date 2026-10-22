@@ -1,4 +1,5 @@
 'use strict';
+const {message: uiMsg} = require('./src/i18n.mjs');
 
 /* Favoritos nomeados do leitor (Mesa): `runtime/bookmarks.json`.
 
@@ -19,6 +20,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const navCore = require('./src/generated/pdfnav.core.js').default;
+const {wholeNat} = require('./src/bend-nat.mjs');
 
 const FILENAME = 'bookmarks.json';
 /* Teto de leitura/gravação: uma lista de favoritos por matéria, alguns KB.
@@ -28,7 +30,7 @@ const MAX_KEY = 120;
 const NIL = {$: 'Nil'};
 
 const fileOf = (runtime) => path.join(runtime, FILENAME);
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('./plain-object.cjs');
 const coreList = (items) => items.reduceRight((tail, head) => ({$: 'Con', head, tail}), NIL);
 const coreArray = (node) => {
   const out = [];
@@ -41,12 +43,10 @@ const coreLimit = () => Number(navCore.maxBookmarks());
    `null` quando não vale guardar (sem nome ou sem documento). */
 function normalizeOne(raw) {
   const source = isPlainObject(raw) ? raw : {};
-  const page = Number(source.page);
-  const whole = Number.isFinite(page) ? Math.trunc(page) : 0;
   const bookmark = navCore.newBookmark(
     typeof source.name === 'string' ? source.name : '',
     typeof source.path === 'string' ? source.path : '',
-    BigInt(Math.max(0, whole))
+    wholeNat(source.page)
   );
   if (!navCore.keepBookmark(bookmark)) return null;
   return {name: bookmark.name, path: bookmark.path, page: Number(bookmark.page)};
@@ -68,7 +68,7 @@ function normalizeList(raw) {
 /* Leitura tolerante: sem arquivo, JSON torto, chave estranha ou arquivo maior
    que o teto viram "sem favoritos" — e o próximo save regrava. */
 function readStore(runtime) {
-  let text = '';
+  let text;
   try {
     const file = fileOf(runtime);
     if (fs.statSync(file).size > MAX_STORED_BYTES) return {};
@@ -76,7 +76,7 @@ function readStore(runtime) {
   } catch {
     return {};
   }
-  let raw = null;
+  let raw;
   try {
     raw = JSON.parse(text);
   } catch {
@@ -112,7 +112,7 @@ function readBookmarks(runtime, courseId) {
 /* Grava a lista inteira da matéria (normalizada) e devolve o que ficou. */
 function saveBookmarks(runtime, courseId, raw) {
   const key = String(courseId || '');
-  if (!key) throw Error('Sem matéria ativa para guardar o favorito.');
+  if (!key) throw Error(uiMsg('err.bookmark.noCourse'));
   const store = readStore(runtime);
   const list = normalizeList(raw);
   if (list.length) store[key] = list;
@@ -125,7 +125,7 @@ function saveBookmarks(runtime, courseId, raw) {
    entra na frente, o teto corta o resto) e o arquivo guarda o resultado. */
 function addBookmark(runtime, courseId, raw) {
   const item = normalizeOne(raw);
-  if (!item) throw Error('Dê um nome ao favorito.');
+  if (!item) throw Error(uiMsg('err.bookmark.noName'));
   const current = coreList(readBookmarks(runtime, courseId));
   const next = coreArray(navCore.addBookmark(current, item))
     .map((node) => ({name: node.name, path: node.path, page: Number(node.page)}));

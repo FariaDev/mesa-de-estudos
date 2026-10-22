@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mascote — rodada 5</title>
+<!-- #61, rodada 5 do mascote. Saímos dos símbolos (rodadas 2 e 4 não agradaram) para
+     objetos do próprio estudo à mão: gota de tinta, borracha e post-it. O pincel, o filtro
+     e o piscar vêm de mascote-r2.html. Desenhos originais. -->
+<style>
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+h2.part{font-size:16px;margin:32px 0 4px}
+.lead{color:#737373;margin:0 0 16px;max-width:74ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;min-width:0}
+.card h3{font-size:15px;margin:0}
+.card .sub{font-size:12px;color:#8a8a8a;margin:0}
+.card p{margin:4px 0 12px;color:#737373;font-size:13px}
+.stage{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stage>div{border-radius:10px;display:grid;place-items:center;padding:6px}
+.stage .dark{background:#111}.stage .light{background:#fffbf0}
+.stage svg{width:100%;height:auto}
+.thinking{display:flex;align-items:center;gap:8px;margin-top:10px;padding:6px 10px;border-radius:8px;background:#ececee;color:#3f3f46;font-size:13px}
+.thinking.dark{background:#2a2a2a;color:#d4d4d8}
+.thinking svg{width:22px;height:22px;flex:none}
+.thinking .t{margin-left:auto;color:#8a8a8a;font-variant-numeric:tabular-nums;font-size:12px}
+.sizes{display:flex;gap:10px;align-items:flex-end;margin-top:10px;padding:8px;border-radius:8px;background:#f6f6f7}
+/* Piscar: só opacidade da pálpebra (nada escala, então não treme) */
+.palpebra{opacity:0;animation:piscar 3.6s infinite}
+@keyframes piscar{0%,47%,53%,100%{opacity:0}49%,51%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.palpebra{animation:none}}
+.poses{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.poses figure{margin:0;background:#fffbf0;border-radius:10px;text-align:center;padding:4px 0 6px}
+.poses svg{width:100%;height:auto;max-width:110px}
+.poses figcaption{font-size:11px;color:#8a7f6a}
+</style>
+</head>
+<body>
+<h1>Mascote — rodada 5: objetos do estudo à mão</h1>
+<p class="lead">Mesmo pincel da rodada 2, agora com coisas da mesa em vez de símbolos. A gota de tinta vem com as poses de "pensando", "dica" e "acertou", porque é a única que muda de forma. Na barra de "pensando", a gota balança (a forma se deforma, nada escala).</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs>
+  <filter id="pincel" x="-10%" y="-10%" width="120%" height="120%">
+   <feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="7" result="onda"/>
+   <feDisplacementMap in="SourceGraphic" in2="onda" scale="7" xChannelSelector="R" yChannelSelector="G" result="borda"/>
+   <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="1" seed="3" result="ruido"/>
+   <feColorMatrix in="ruido" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  .6 0 0 0 -.36" result="grao"/>
+   <feComposite in="grao" in2="borda" operator="in" result="graoDentro"/>
+   <feMerge><feMergeNode in="borda"/><feMergeNode in="graoDentro"/></feMerge>
+  </filter>
+
+  <!-- Gota de tinta: a tinta da caneta do Xournal++. -->
+  <symbol id="gota" viewBox="0 0 240 250">
+   <ellipse cx="120" cy="238" rx="62" ry="7" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)"><path d="M120 34C150 84 188 120 188 162C188 204 156 230 120 230C84 230 52 204 52 162C52 120 90 84 120 34Z" fill="#3f2a9e"></path>
+    <path d="M78 150Q80 112 108 84" fill="none" stroke="#7c66e0" stroke-width="10" stroke-linecap="round" opacity=".8"/></g>
+   <g filter="url(#pincel)"><circle cx="100" cy="156" r="22" fill="#fff" stroke="#1a1033" stroke-width="3.5"/><circle cx="142" cy="152" r="23" fill="#fff" stroke="#1a1033" stroke-width="3.5"/>
+    <circle cx="104" cy="151" r="10.1" fill="#1a1033"/><circle cx="146" cy="147" r="10.6" fill="#1a1033"/>
+    <circle cx="107" cy="147" r="3.4" fill="#fff"/><circle cx="149" cy="143" r="3.6" fill="#fff"/></g>
+   <g class="palpebra" fill="#3f2a9e"><circle cx="100" cy="156" r="23"/><circle cx="142" cy="152" r="24"/></g>
+   <path d="M106 196q14 10 28 0" fill="none" stroke="#1a1033" stroke-width="4.5" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- A mesma gota, balançando (o "pensando"). -->
+  <symbol id="gota-balanca" viewBox="0 0 240 250">
+   <ellipse cx="120" cy="238" rx="62" ry="7" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)"><path d="M120 34C150 84 188 120 188 162C188 204 156 230 120 230C84 230 52 204 52 162C52 120 90 84 120 34Z" fill="#3f2a9e"><animate attributeName="d" values="M120 34C150 84 188 120 188 162C188 204 156 230 120 230C84 230 52 204 52 162C52 120 90 84 120 34Z;M120 46C152 94 196 128 196 168C196 206 158 230 120 230C82 230 44 206 44 168C44 128 88 94 120 46Z;M120 34C150 84 188 120 188 162C188 204 156 230 120 230C84 230 52 204 52 162C52 120 90 84 120 34Z" dur="1.6s" repeatCount="indefinite" calcMode="spline" keySplines=".4 0 .6 1;.4 0 .6 1"/></path>
+    <path d="M78 150Q80 112 108 84" fill="none" stroke="#7c66e0" stroke-width="10" stroke-linecap="round" opacity=".8"/></g>
+   <g filter="url(#pincel)"><circle cx="100" cy="156" r="22" fill="#fff" stroke="#1a1033" stroke-width="3.5"/><circle cx="142" cy="152" r="23" fill="#fff" stroke="#1a1033" stroke-width="3.5"/>
+    <circle cx="104" cy="151" r="10.1" fill="#1a1033"/><circle cx="146" cy="147" r="10.6" fill="#1a1033"/>
+    <circle cx="107" cy="147" r="3.4" fill="#fff"/><circle cx="149" cy="143" r="3.6" fill="#fff"/></g>
+   <g class="palpebra" fill="#3f2a9e"><circle cx="100" cy="156" r="23"/><circle cx="142" cy="152" r="24"/></g>
+   <path d="M106 196q14 10 28 0" fill="none" stroke="#1a1033" stroke-width="4.5" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- Pose "pensando": a tinta faz um ponto de interrogação. -->
+  <symbol id="gota-pensa" viewBox="0 0 240 250">
+   <ellipse cx="120" cy="238" rx="62" ry="7" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)"><path d="M120 34C150 84 188 120 188 162C188 204 156 230 120 230C84 230 52 204 52 162C52 120 90 84 120 34Z" fill="#3f2a9e"></path>
+    <path d="M78 150Q80 112 108 84" fill="none" stroke="#7c66e0" stroke-width="10" stroke-linecap="round" opacity=".8"/></g>
+   <g filter="url(#pincel)"><circle cx="100" cy="156" r="22" fill="#fff" stroke="#1a1033" stroke-width="3.5"/><circle cx="142" cy="152" r="23" fill="#fff" stroke="#1a1033" stroke-width="3.5"/>
+    <circle cx="105" cy="148" r="10.1" fill="#1a1033"/><circle cx="147" cy="144" r="10.6" fill="#1a1033"/>
+    <circle cx="108" cy="144" r="3.4" fill="#fff"/><circle cx="150" cy="140" r="3.6" fill="#fff"/></g>
+   <g class="palpebra" fill="#3f2a9e"><circle cx="100" cy="156" r="23"/><circle cx="142" cy="152" r="24"/></g>
+   <path d="M112 198q8 4 16 0" fill="none" stroke="#1a1033" stroke-width="4.5" stroke-linecap="round"/><g filter="url(#pincel)"><path d="M182 30Q182 8 204 8Q226 8 226 30Q226 46 206 54V66" fill="none" stroke="#3f2a9e" stroke-width="13" stroke-linecap="round"/><circle cx="206" cy="88" r="8" fill="#3f2a9e"/></g>
+  </symbol>
+
+  <!-- Pose "dica": exclamação. -->
+  <symbol id="gota-dica" viewBox="0 0 240 250">
+   <ellipse cx="120" cy="238" rx="62" ry="7" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)"><path d="M120 34C150 84 188 120 188 162C188 204 156 230 120 230C84 230 52 204 52 162C52 120 90 84 120 34Z" fill="#3f2a9e"></path>
+    <path d="M78 150Q80 112 108 84" fill="none" stroke="#7c66e0" stroke-width="10" stroke-linecap="round" opacity=".8"/></g>
+   <g filter="url(#pincel)"><circle cx="100" cy="156" r="22" fill="#fff" stroke="#1a1033" stroke-width="3.5"/><circle cx="142" cy="152" r="23" fill="#fff" stroke="#1a1033" stroke-width="3.5"/>
+    <circle cx="103" cy="153" r="10.1" fill="#1a1033"/><circle cx="145" cy="149" r="10.6" fill="#1a1033"/>
+    <circle cx="106" cy="149" r="3.4" fill="#fff"/><circle cx="148" cy="145" r="3.6" fill="#fff"/></g>
+   <g class="palpebra" fill="#3f2a9e"><circle cx="100" cy="156" r="23"/><circle cx="142" cy="152" r="24"/></g>
+   <path d="M110 192q10 14 20 0" fill="none" stroke="#1a1033" stroke-width="4.5" stroke-linecap="round"/><g filter="url(#pincel)"><path d="M210 14V62" fill="none" stroke="#3f2a9e" stroke-width="13" stroke-linecap="round"/><circle cx="210" cy="88" r="8" fill="#3f2a9e"/></g>
+  </symbol>
+
+  <!-- Pose "acertou": visto, olhos fechados de feliz. -->
+  <symbol id="gota-acerto" viewBox="0 0 240 250">
+   <ellipse cx="120" cy="238" rx="62" ry="7" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)"><path d="M120 34C150 84 188 120 188 162C188 204 156 230 120 230C84 230 52 204 52 162C52 120 90 84 120 34Z" fill="#3f2a9e"/><path d="M78 150Q80 112 108 84" fill="none" stroke="#7c66e0" stroke-width="10" stroke-linecap="round" opacity=".8"/></g>
+   <g filter="url(#pincel)"><path d="M88 156q12-12 24 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M130 152q12-12 24 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M100 190q20 18 40 0" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g>
+   <g filter="url(#pincel)"><path d="M180 60 196 76 228 36" fill="none" stroke="#3f2a9e" stroke-width="13" stroke-linecap="round"/></g>
+  </symbol>
+
+  <!-- Borracha: rosa com a quina gasta e a capa de papel; "errar faz parte". -->
+  <symbol id="borracha" viewBox="0 0 240 250">
+   <ellipse cx="124" cy="238" rx="74" ry="7" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)"><path d="M92 186 84 230M156 186l8 44M76 230h14M158 230h14" fill="none" stroke="#b8546f" stroke-width="12" stroke-linecap="round"/>
+    <path d="M44 128Q26 128 22 106M206 120Q226 116 232 96" fill="none" stroke="#b8546f" stroke-width="10" stroke-linecap="round"/>
+    <g transform="rotate(-6 124 134)"><path d="M40 92Q40 76 56 76H196Q210 76 210 92V176Q210 190 196 190H92Q40 190 40 140Z" fill="#f08fa8"/>
+     <path d="M146 76H196Q210 76 210 92V176Q210 190 196 190H146Z" fill="#f4f1ea"/>
+     <path d="M146 112H210M146 150H210" stroke="#6d4fd8" stroke-width="8"/></g>
+    <circle cx="44" cy="206" r="4" fill="#f08fa8"/><circle cx="58" cy="214" r="3" fill="#f08fa8"/><circle cx="34" cy="218" r="2.5" fill="#f08fa8"/></g>
+   <g filter="url(#pincel)"><circle cx="78" cy="124" r="20" fill="#fff" stroke="#1a1033" stroke-width="3.5"/><circle cx="114" cy="120" r="21" fill="#fff" stroke="#1a1033" stroke-width="3.5"/>
+    <circle cx="82" cy="119" r="9.2" fill="#1a1033"/><circle cx="118" cy="115" r="9.7" fill="#1a1033"/>
+    <circle cx="85" cy="115" r="3.4" fill="#fff"/><circle cx="121" cy="111" r="3.6" fill="#fff"/></g>
+   <g class="palpebra" fill="#f08fa8"><circle cx="78" cy="124" r="21"/><circle cx="114" cy="120" r="22"/></g>
+   <path d="M86 156q10 7 20 0" fill="none" stroke="#1a1033" stroke-width="4.5" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- Post-it: quadrado amarelo, a ponta enrolada é o jeito dele de se mexer. -->
+  <symbol id="postit" viewBox="0 0 240 250">
+   <ellipse cx="122" cy="238" rx="70" ry="7" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)"><path d="M98 196 92 232M146 196l6 36M84 232h14M148 232h14" fill="none" stroke="#a16207" stroke-width="12" stroke-linecap="round"/>
+    <path d="M52 116Q28 112 24 90M192 120Q214 130 220 112" fill="none" stroke="#a16207" stroke-width="10" stroke-linecap="round"/>
+    <path d="M52 52H192V156L152 196H52Z" fill="#fcd34d"/>
+    <path d="M152 196Q150 160 192 156Z" fill="#e8a91c"/>
+    <path d="M74 166c10-8 18-8 26 0s18 8 28 0" fill="none" stroke="#6d4fd8" stroke-width="6" stroke-linecap="round"/></g>
+   <g filter="url(#pincel)"><circle cx="98" cy="104" r="21" fill="#fff" stroke="#1a1033" stroke-width="3.5"/><circle cx="140" cy="100" r="22" fill="#fff" stroke="#1a1033" stroke-width="3.5"/>
+    <circle cx="102" cy="99" r="9.7" fill="#1a1033"/><circle cx="144" cy="95" r="10.1" fill="#1a1033"/>
+    <circle cx="105" cy="95" r="3.4" fill="#fff"/><circle cx="147" cy="91" r="3.6" fill="#fff"/></g>
+   <g class="palpebra" fill="#fcd34d"><circle cx="98" cy="104" r="22"/><circle cx="140" cy="100" r="23"/></g>
+   <path d="M108 136q10 7 20 0" fill="none" stroke="#1a1033" stroke-width="4.5" stroke-linecap="round"/>
+  </symbol>
+ </defs>
+</svg>
+
+<div class="grid" id="out"></div>
+
+<script>
+const mascotes=[
+ ['gota','Gota de tinta','a tinta da caneta','Vem da caneta do Xournal++ e muda de forma: vira "?" quando pensa, "!" quando tem dica e "✓" quando você acerta. Na barra de "pensando", balança.','gota-balanca',[['gota-pensa','pensando'],['gota-dica','dica'],['gota-acerto','acertou']]],
+ ['borracha','Borracha','errar faz parte','Rosa, com a quina gasta e a capa de papel com as listras da Mesa. Combina com o tutor que acha o primeiro passo errado sem dar bronca.','borracha',[]],
+ ['postit','Post-it','a nota rápida','Amarelo e quadrado, com a ponta enrolada. É o mais simples dos três e o que mais parece ícone.','postit',[]],
+];
+const use=(id,w)=>`<svg viewBox="0 0 240 250" width="${w}" height="${Math.round(w*250/240)}" role="img" aria-label="${id}"><use href="#${id}"/></svg>`;
+document.getElementById('out').innerHTML=mascotes.map(([id,nome,area,nota,barra,poses])=>`
+ <section class="card"><h3>${nome}</h3><p class="sub">${area}</p><p>${nota}</p>
+  <div class="stage"><div class="dark">${use(id,200)}</div><div class="light">${use(id,200)}</div></div>
+  <div class="thinking">${use(barra,22)}<span>O tutor está pensando…</span><span class="t">3 s</span></div>
+  <div class="thinking dark">${use(barra,22)}<span>O tutor está pensando…</span><span class="t">3 s</span></div>
+  <div class="sizes">${[48,32,20].map(s=>use(id,s)).join('')}</div>
+  ${poses.length?`<div class="poses">${poses.map(([p,r])=>`<figure>${use(p,110)}<figcaption>${r}</figcaption></figure>`).join('')}</div>`:''}
+ </section>`).join('');
+</script>
+</body>
+</html>

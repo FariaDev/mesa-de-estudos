@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {ptText, ptMatches} from './pt-text.mjs';
 
 const require = createRequire(import.meta.url);
 const {createSideChatManager, conversationList, normalizeRefs, MAX_DRAFT, descriptorPath, sidechatsDir} = require('../sidechat.cjs');
@@ -288,7 +289,7 @@ test('id de outra conversa/matéria é recusado e evento antigo não infecta a c
   await h.manager.prompt({id: first.id, text: 'na conversa 1'});
   const firstChannel = h.engines.get(first.id);
   h.state.session = '/principal/pi-2.jsonl';
-  assert.throws(() => h.manager.read({id: first.id}), /não pertence à conversa atual/);
+  assert.throws(() => h.manager.read({id: first.id}), ptMatches(/não pertence à sessão atual/));
   const staleBefore = h.emitted.filter((payload) => payload.id === first.id).length;
   firstChannel.emit({type: 'message_update', assistantMessageEvent: {type: 'text_delta', delta: 'stale'}});
   assert.equal(h.emitted.filter((payload) => payload.id === first.id).length, staleBefore, 'canal da conversa antiga não entrega evento');
@@ -365,8 +366,8 @@ test('contexto explícito troca refs validadas, reenvia o bloco novo e recusa PD
   await h.manager.prompt({id: opened.id, text: 'segunda'});
   assert.ok(channel.prompts[1].text.includes('[Contexto do chat lateral]'), 'atualização explícita reenvia o bloco');
   assert.deepEqual(channel.prompts[1].readPaths, [PDF2]);
-  assert.throws(() => h.manager.context({id: opened.id, refs: [{path: '/invasor.pdf', page: 1}]}), /biblioteca|seletor/);
-  assert.throws(() => h.manager.open({refs: [{path: PDF, page: 1}, {path: PDF2, page: 2}, {path: PDF, page: 3}]}), /no máximo duas/);
+  assert.throws(() => h.manager.context({id: opened.id, refs: [{path: '/invasor.pdf', page: 1}]}), ptMatches(/biblioteca|seletor/));
+  assert.throws(() => h.manager.open({refs: [{path: PDF, page: 1}, {path: PDF2, page: 2}, {path: PDF, page: 3}]}), ptMatches(/no máximo duas/));
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
@@ -386,7 +387,7 @@ test('draft é próprio, limitado e sobrevive ao reinício', () => {
 test('mensagem grande demais e id inválido são recusados antes de qualquer escrita', async () => {
   const h = harness({tag: 'limits'});
   const opened = h.manager.open({});
-  await assert.rejects(() => h.manager.prompt({id: opened.id, text: 'x'.repeat(MAX_DRAFT + 1)}), /grande demais/);
+  await assert.rejects(() => h.manager.prompt({id: opened.id, text: 'x'.repeat(MAX_DRAFT + 1)}), ptMatches(/grande demais/));
   await assert.rejects(() => h.manager.prompt({id: 'sc-nope', text: 'oi'}), /Chat lateral inválido|não encontrado/);
   assert.equal(h.engines.size, 0);
   assert.equal(h.manager.peek(opened.id).delivery, null);
@@ -402,9 +403,9 @@ test('permissões/perguntas são roteadas ao canal certo e ids alheios são recu
   const ok = h.manager.respond({id: opened.id, response: {id: 'pedido-1', confirmed: true}});
   assert.deepEqual(ok, {ok: true});
   assert.deepEqual(channel.responses, [{id: 'pedido-1', confirmed: true}]);
-  assert.throws(() => h.manager.respond({id: opened.id, response: {id: 'pedido-2', confirmed: true}}), /Nenhum|pendente/);
+  assert.throws(() => h.manager.respond({id: opened.id, response: {id: 'pedido-2', confirmed: true}}), ptMatches(/Nenhum|pendente/));
   h.manager.suspend('troca');
-  assert.throws(() => h.manager.respond({id: opened.id, response: {id: 'pedido-1', confirmed: true}}), /Nenhum pedido pendente/);
+  assert.throws(() => h.manager.respond({id: opened.id, response: {id: 'pedido-1', confirmed: true}}), ptMatches(/Nenhum pedido pendente/));
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
@@ -577,7 +578,7 @@ test('aceite Claude em voo de execução anterior hidrata uncertain no open/read
   assert.equal(JSON.parse(fs.readFileSync(descriptorPath(h.runtime, opened.id), 'utf8')).delivery.status, 'uncertain');
   assert.equal(JSON.parse(fs.readFileSync(side.claude, 'utf8')).delivery.status, 'uncertain', 'o nativo também fica incerto');
   const blocked = await restarted.prompt({id: opened.id, text: 'nova mensagem'});
-  assert.deepEqual(blocked, {
+  assert.deepEqual({...blocked, error: ptText(blocked.error)}, {
     sent: false,
     retryable: false,
     uncertain: true,
@@ -637,7 +638,7 @@ test('canal ocupado recusa o novo envio nos dois motores e o terminal do turno a
   const early = await h.manager.prompt({id: opened.id, text: 'B cedo demais'});
   assert.equal(early.sent, false);
   assert.equal(early.retryable, true);
-  assert.match(early.error, /aguarde/i);
+  assert.match(ptText(early.error), /aguarde/i);
   assert.equal(channel.prompts.length, 1, 'o envio recusado não chega ao motor');
   assert.equal(h.manager.peek(opened.id).messages.length, 1, 'a fala recusada não entra no histórico');
   channel.release({accepted: true});
@@ -647,7 +648,7 @@ test('canal ocupado recusa o novo envio nos dois motores e o terminal do turno a
   const busy = await h.manager.prompt({id: opened.id, text: 'B com turno rodando'});
   assert.equal(busy.sent, false);
   assert.equal(busy.retryable, true);
-  assert.equal(busy.error, 'Aguarde o turno atual antes de enviar outra mensagem.');
+  assert.equal(ptText(busy.error), 'Aguarde o turno atual antes de enviar outra mensagem.');
   assert.equal(channel.prompts.length, 1, 'sem follow-up: A continua sendo o único envio');
   /* O terminal de A chega só depois; só então B entra e o terminal REAL de B
      (incerto) é o que fica no ledger. */
@@ -678,7 +679,7 @@ test('close que não liquida a promessa: suspend mantém incerto e o ACK tardio 
   assert.equal(h.manager.peek(opened.id).delivery.status, 'uncertain');
   channel.release({accepted: true});
   const late = await pending;
-  assert.deepEqual(late, {
+  assert.deepEqual({...late, error: ptText(late.error)}, {
     sent: false,
     retryable: false,
     uncertain: true,
@@ -796,7 +797,7 @@ test('refs do snapshot que saíram da biblioteca recusam o envio Claude sem troc
   const blocked = await h.manager.prompt({id: opened.id, text: 'com a ref antiga'});
   assert.equal(blocked.sent, false);
   assert.equal(blocked.retryable, true);
-  assert.match(blocked.error, /atualize o contexto/i);
+  assert.match(ptText(blocked.error), /atualize o contexto/i);
   assert.equal(h.engines.size, 0, 'ref fora da biblioteca nem inicia o motor Claude');
   assert.equal(h.manager.peek(opened.id).delivery, null, 'a recusa não marca entrega');
   const updated = h.manager.context({id: opened.id, refs: [{path: PDF2, page: 2}]});
@@ -825,6 +826,6 @@ test('normalizeRefs valida a forma do IPC', () => {
   assert.deepEqual(normalizeRefs(undefined), []);
   assert.deepEqual(normalizeRefs([{path: PDF}]), [{path: PDF, page: 1}]);
   assert.throws(() => normalizeRefs('nope'), /Referências inválidas/);
-  assert.throws(() => normalizeRefs([{page: 1}]), /Referência inválida/);
-  assert.throws(() => normalizeRefs([{path: PDF, page: 0}]), /página fora/);
+  assert.throws(() => normalizeRefs([{page: 1}]), ptMatches(/Referência inválida/));
+  assert.throws(() => normalizeRefs([{path: PDF, page: 0}]), ptMatches(/página fora/));
 });

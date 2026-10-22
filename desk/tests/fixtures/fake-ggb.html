@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>GeoGebra de mentira</title>
+  <style>
+    html,body{margin:0;height:100%;background:#fff;font:13px -apple-system,BlinkMacSystemFont,sans-serif;color:#222}
+    #board{padding:12px;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <div id="board" data-fake-ggb></div>
+  <script>
+    /* Applet falso com nome (#53) para a janela real: a mesma superfície do ggb.html
+       (`__ggbReady` + `window.ggbApplet`), em memória e sem internet. O quadro mostra os
+       objetos para as capturas; um atraso opcional (`?delay=ms`) simula o applet lento. */
+    window.__ggbReady = false;
+    const objects = new Map();
+    const board = document.getElementById('board');
+    const draw = () => { board.textContent = [...objects].map(([name, def]) => name + ' = ' + def).join('\n') || '(quadro vazio)'; };
+    </script>
+  <script src="fake-ggb-applet-browser.js"></script>
+  <script>
+    draw();
+    const delay = Number(new URLSearchParams(location.search).get('delay')) || 0;
+    setTimeout(() => { window.__ggbReady = true; }, delay);
+  </script>
+</body>
+</html>

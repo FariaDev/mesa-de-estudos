@@ -82,3 +82,20 @@ def Laws.agentdelivery_controle_permissao():
 
 def Laws.agentdelivery_controle_incerto():
   {==}
+
+# ---------- steer (#57) ----------
+
+def Laws.agentdelivery_steer_turno_livre():
+  {==}
+
+def Laws.agentdelivery_steer_sem_turno():
+  {==}
+
+def Laws.agentdelivery_steer_enviando():
+  {==}
+
+def Laws.agentdelivery_steer_configurando():
+  {==}
+
+def Laws.agentdelivery_steer_incerto():
+  {==}

@@ -1,0 +1,74 @@
+/* Área de apoio (Formulário × Chat lateral) e chat lateral.
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Área de apoio: Formulário × Chat lateral (support.mjs) ----------
+   Sem barra de abas: o corpo recebe o painel 2 uma única vez (movido, não
+   recriado) e o chat lateral; recolhido, o slot vira a faixa de reabrir
+   (`#support-restore`, junto das regras do leitor recolhido). */
+#support-slot{flex:1 1 0;min-width:0;min-height:0;display:flex;flex-direction:column}
+#support-body{flex:1;min-height:0;min-width:0;display:flex}
+#support-body>.pdf-panel{flex:1 1 0}
+#support-body.chat>.pdf-panel{display:none}
+#pdf-grid.single #support-slot{flex:1 1 0}
+/* Sem a divisória dos leitores (um leitor só, com o chat lateral ao lado), a
+   área de apoio traz a sua linha de 1px. */
+#pdf-grid.single #support-slot{border-left:1px solid var(--border-strong)}
+
+/* ---------- Chat lateral (sidechat.mjs) ----------
+   Mesma forma da coluna do tutor (ticket #19): fundo e papéis de cor da
+   coluna, cabeçalho de --bar (a forma vem da lista `.sidechat-head` junto do
+   `.chat-head`), a linha de escopo no lugar da "Vai junto" e a caixa de
+   mensagem compartilhada (`.composer-box`). O menu de Mais opções é o
+   `.chat-pop` do tutor, ancorado no cabeçalho. */
+#sidechat{
+ --hover:var(--selected);--active:light-dark(#dedede,rgb(255 255 255/.12));--user:var(--surface);--code:var(--surface);
+ position:relative;flex:1;min-width:0;display:flex;flex-direction:column;
+ background:var(--side);overflow:hidden;
+}
+.sidechat-head-title{
+ display:flex;align-items:center;gap:var(--space-2);flex:1 1 auto;min-width:0;min-height:var(--ctl);margin:0;
+ font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong);white-space:nowrap;
+}
+.sidechat-head-title>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sidechat-engine{flex:none;font-size:var(--fs-2xs);color:var(--faint);border:1px solid var(--border);border-radius:var(--r-pill);padding:1px 6px;white-space:nowrap}
+#sidechat-more-pop{top:calc(var(--bar) - var(--space-1))}
+#sidechat-context-pop{
+ border-bottom:1px solid var(--border);background:var(--side);
+ padding:var(--space-3) var(--pad);max-height:42%;overflow:auto;
+}
+#sidechat-context-pop p{margin:0 0 var(--space-2)}
+#sidechat-context-pop .dialog-actions{padding:0}
+#sidechat-context-pop .dialog-actions button{font-size:var(--fs-xs)}
+#sidechat-messages{flex:1;min-height:0;overflow:auto;padding:var(--pad);display:flex;flex-direction:column}
+#sidechat-messages .message{margin-bottom:var(--space-4)}
+#sidechat-messages .message{font-size:var(--reading-size)}
+#sidechat-messages .message .body{max-width:100%}
+#sidechat-messages .sidechat-msg.user .body{background:var(--user);border-radius:var(--r-lg);padding:var(--space-2) var(--space-3);align-self:stretch}
+.sidechat-msg-actions{display:flex;gap:var(--space-2);margin-top:var(--space-2);opacity:.55;transition:opacity var(--t-fast) var(--ease-out)}
+.sidechat-msg:hover .sidechat-msg-actions,.sidechat-msg:focus-within .sidechat-msg-actions{opacity:1}
+.sidechat-msg-actions button{font-size:var(--fs-2xs);padding:3px 7px}
+.sidechat-empty{margin:auto;text-align:center;font-size:var(--fs-sm);color:var(--faint);max-width:34ch}
+.sidechat-warn{margin:var(--space-2) 0;font-size:var(--fs-xs);color:var(--warn-text)}
+#sidechat-activity{min-height:18px;padding:0 var(--pad);font-size:var(--fs-xs);color:var(--muted)}
+#sidechat-composer{position:relative;flex:none;padding:var(--space-3) var(--pad) var(--pad)}
+body.dense #sidechat-composer{padding:var(--space-2) var(--pad) var(--space-3)}
+/* Pedidos/permissões do lateral: cartão no próprio canal, nunca no #pi-dialog. */
+.sidechat-request{
+ display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-3);
+ padding:var(--space-3);border:1px solid var(--warn);border-radius:var(--r-md);background:var(--code);
+}
+.sidechat-request-title{margin:0;font-size:var(--fs-sm);font-weight:600;color:var(--warn-text)}
+.sidechat-request-text,.sidechat-request-q{margin:0;font-size:var(--fs-sm)}
+.sidechat-question{display:grid;gap:var(--space-2);padding-block:var(--space-2)}
+.sidechat-q-options{display:grid;gap:var(--space-2)}
+.sidechat-option-description{display:block;color:var(--muted);line-height:1.4}
+.sidechat-request-error{margin:0;color:var(--warn-text);font-size:var(--fs-sm)}
+.sidechat-request-actions{display:flex;gap:var(--space-2)}
+.sidechat-option,.sidechat-request-action,.sidechat-request-submit{font-size:var(--fs-xs);padding:4px 9px;align-self:flex-start}
+.sidechat-q-option{display:flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);cursor:pointer}
+.sidechat-request-input{
+ width:100%;padding:var(--space-1) var(--space-2);border:1px solid var(--border);
+ border-radius:var(--r-xs);background:var(--surface);color:var(--fg);font-size:var(--fs-sm);
+}
+#sidechat[data-state="unavailable"] #sidechat-composer{opacity:.5}
+#sidechat[data-state="unavailable"] #sidechat-composer{pointer-events:none}

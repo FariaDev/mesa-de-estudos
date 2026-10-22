@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
+import {ptText} from './pt-text.mjs';
 const {draftContext,parseDraft,generateReviewDraft}=require('../review-draft.cjs');
 const core=require('../src/generated/review.core.js').default;
 const ref={name:'PDF',path:'/local/lista.pdf',page:2};
@@ -13,8 +14,9 @@ class Bridge extends EventEmitter{
 test('draft validates model JSON, applies limits and preserves only the supplied reference',()=>{
  assert.deepEqual(parseDraft(JSON.stringify({...result,ref:{path:'/inventado'}}),ref),{...result,ref});
  assert.equal(parseDraft(JSON.stringify({...result,attempt:'x'.repeat(1000)}),ref).attempt.length,400);
- assert.throws(()=>parseDraft('not JSON',ref),/válida/);assert.throws(()=>parseDraft('{"question":"","attempt":"","difficulty":""}',ref),/sem questão/);
- assert.throws(()=>parseDraft('{"question":"Q","attempt":[]}',ref),/questão, tentativa/);
+ const says=pattern=>error=>pattern.test(ptText(error.message));
+ assert.throws(()=>parseDraft('not JSON',ref),says(/válida/));assert.throws(()=>parseDraft('{"question":"","attempt":"","difficulty":""}',ref),says(/sem questão/));
+ assert.throws(()=>parseDraft('{"question":"Q","attempt":[]}',ref),says(/questão, tentativa/));
  assert.equal(draftContext({answer:'a'.repeat(30000)}).answer.length,16000);
 });
 test('completed model draft stops worker and removes listeners',async()=>{

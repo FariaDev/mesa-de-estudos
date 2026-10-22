@@ -4,7 +4,7 @@ import view.bend as V
 # ---------------------------------------------------------------------------
 # Flags do bloco `desk` que o `applyDesk` escrevia em controles vivos do
 # `index.html`: o botão de referências do composer (`#include-refs`), o
-# contexto de estudo (`#study-context`), o Conferir Xournal++ (`#check`) e o
+# contexto de estudo (`#study-context`) e o botão que o abre (`#context-edit`), o Conferir Xournal++ (`#check`) e o
 # divisor da calculadora (`#calc-divider`).
 #
 # O host normaliza o `desk` (só o `false` explícito desliga) e entrega os
@@ -19,9 +19,10 @@ import view.bend as V
 # têm texto, ícone injetado (`labelBtn`) e handlers próprios; o host aplica os
 # atributos no nó vivo. Nada aqui lê DOM, mede ou fala IPC.
 #
-# O Conferir Xournal++ é de TODAS as plataformas suportadas (macOS e Windows
-# capturam a janela do Xournal++ — o `capture-ready` do main.cjs escolhe o
-# método): só a flag `conferir` decide o `hidden`, sem fato de plataforma.
+# O Conferir é de TODAS as plataformas suportadas (macOS e Windows capturam a
+# janela do Xournal++ — ou a do programa que a pessoa escolheu, ticket #35; a
+# decisão é de `conferir.bend` e o método, do host): só a flag `conferir`
+# decide o `hidden`, sem fato de plataforma.
 # ---------------------------------------------------------------------------
 
 # Fatos normalizados do `desk` + o estado corrente do botão de referências.
@@ -58,6 +59,17 @@ def studyContextRow(f: DeskFlags) -> V.ViewNode:
     case DeskFlags{_, _, studyContext, _, _}:
       V.viewEl("div", V.attrJoin([
         [V.attrId("study-context")],
+        hiddenAttrs(Bool.not(studyContext))
+      ]), Nil{})
+
+# O botão que abre a edição do contexto de estudo a partir da linha "Vai
+# junto" (ticket #15): vive e morre com a flag `studyContext`, como a linha de
+# campos que ele abre.
+def contextEditButton(f: DeskFlags) -> V.ViewNode:
+  match f:
+    case DeskFlags{_, _, studyContext, _, _}:
+      V.viewEl("button", V.attrJoin([
+        [V.attrId("context-edit")],
         hiddenAttrs(Bool.not(studyContext))
       ]), Nil{})
 

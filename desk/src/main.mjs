@@ -1,193 +1,78 @@
 import {bindPointerDrag} from './pointer-drag.mjs';
 import {icon} from '../icons.mjs';
-import {$,S,toast,connectionState,save,calcHeightPx,studySnapshot,pageRefs,layoutSnapshot,updateContextSummary,fillSessions,applyStudy,applyTheme,THEME_LABELS,labelBtn,settings,connect,loadCourse,markCourseTab,switchCourse,supportsCapability,refs} from './state.mjs';
-import {conferir,conferirGeogebra,send,resetAttachments,restoreAttachments,hideQuoteButton,showHistory} from './chat.mjs';
-import {initSupport,toggleReferencePanel} from './support.mjs';
-import {initSidechat} from './sidechat.mjs';
-import {initFreeStudy} from './free-study.mjs';
-import {renderResumeCard} from './resume.mjs';
+import {$,S,toast,toastFailure,conferirAppName,updateCheckButton,cancelConnect,connectionState,save,calcHeightPx,studySnapshot,pageRefs,layoutSnapshot,updateContextSummary,sessionTitleOf,applyStudy,applyTheme,applyAccent,ACCENTS,labelBtn,settings,connect,loadCourse,switchCourse,supportsCapability,relabelTutorColumn,relabelFreeCourseName} from './state.mjs';
+import {conferir,conferirGeogebra,send,hideQuoteButton,doCompact} from './chat.mjs';
+import {toggleReferencePanel,selectTab as selectSupportTab,supportState,setOpen as setSupportOpen} from './support.mjs';
+import {initSidechat,openSavedSidechat} from './sidechat.mjs';
+import {studyToolHandlers} from './study-tools.mjs';
+import {initStudySearch,openStudySearch,closeStudySearch} from './study-search.mjs';
+import {initPdfNotes,openPdfNotes} from './pdf-notes.mjs';
+import {initStudyStats,openStudyStats} from './study-stats.mjs';
+import {initBackupPanel} from './backup-panel.mjs';
+import {openRef} from './nav.mjs';
+import {initFreeStudy,openTutorPdfDialog} from './free-study.mjs';
+import {initActivityHost} from './activity.mjs';
+import {initConversationLibrary} from './conversation-library.mjs';
+import {setResumeRecord} from './resume.mjs';
+import {initTutorState,showTutorState} from './tutor-state.mjs';import {engineReady} from './engine-facts.mjs';
+import {initConferir,closeConferirNote,paintConferirField,openConferirSettings} from './conferir.mjs';
+import {initFreeModels,paintFreeSettings,confirmPaidModel} from './free-models.mjs';
+import {initTriage,openTriage} from './triage.mjs';
+import {initModelPicker,noteModelPicked} from './model-picker-ui.mjs';import {initEffortStrip} from './effort-strip.mjs';
+import conferirCore from './generated/conferir.core.js';
+import {syncFirstRun,isFirstRun} from './first-run.mjs';import {mountSetupMarkup} from './setup-markup.mjs';import {wireAccentPicker,mountAccentOptions} from './accent-picker.mjs';
 import resumeCore from './generated/resume.core.js';
 
-import {sendGgbRect,activateGeogebra,deactivateGeogebra} from './ggb.mjs';
-import {activateReview,deactivateReview,drawReview} from './review.mjs';
-import {expandCalculator,initCalculator} from './calc.mjs';
-import tabsCore from './generated/tabsview.core.js';
-import {build,renderChildren} from './view-host.mjs';
-import {appendCourseRow,clearEndDay,renderAboutLead,renderAboutUpdate,renderComponentChecking,renderComponentRows,renderCourseRows,renderEndDay,renderHelpVersion,renderSettingsHead,renderWelcome} from './dialogs.mjs';
+import {sendGgbRect,freezeGgbView,thawGgbView} from './ggb.mjs';
+import {initCalculator,getCalculatorCollapsed,setCalculatorCollapsed,fitCalculator,relabelCalculator} from './calc.mjs';
+import {pdfSplitValue,setPdfSplitPct} from './pdf.mjs';
+import {decideEscape,collectEscapeFacts} from './escape-policy.mjs';
+import {relabelGuide} from './guide.mjs';
+import {initCommandPalette,openCommandPalette,closeCommandPalette} from './command-palette.mjs';
+import {registerLayoutSurface,applyViewLayout,initLayoutPresetsUI,applyLayout,builtinPresets,summaryOf} from './layout-presets.mjs';
+import {retranslateTree} from './view-host.mjs';
+import {t,text,setUiLanguage,currentLanguage,LANGUAGE_EVENT} from './ui-text.mjs';
+import {localizeFreeCourse} from './free-names.mjs';
+import {initTutorHeader,closeTutorPops,syncTutorMenus} from './tutor-header.mjs';
+import {initPhonePhoto,closePhonePop} from './phone-photo.mjs';
+import {initSettings,prepareSettings,validateSettings,setSettingsFooter,saveBlockedNow,showSaveError} from './settings.mjs';
+import {appendCourseRow,relabelCourseRows,clearEndDay,renderAboutLead,renderCourseRows,renderEndDay,renderHelpVersion} from './dialogs.mjs';
+import {initToolNotices,noticesOpened} from './tool-notices.mjs';
 import * as slash from './slash.mjs';
+import * as mentions from './mentions.mjs';
 import * as queue from './queue.mjs';
-import {toggleDensity,compactMode} from './density.mjs';
-function setMenuOpen(el,open,{animate=true,blur=false}={}){
- if(!el)return;
- const trigger=el.querySelector('.nav-trigger');
- if(open){
-  el.classList.remove('closing');
-  el.classList.add('open');
-  trigger?.setAttribute('aria-expanded','true');
-  return;
- }
- const wasOpen=el.classList.contains('open');
- el.classList.remove('open');
- trigger?.setAttribute('aria-expanded','false');
- if(!wasOpen)return;
- if(blur&&el.contains(document.activeElement))document.activeElement.blur();
- if(!animate)return;
- const pop=el.querySelector('.nav-pop');
- if(!pop)return;
- el.classList.add('closing');
- const done=()=>el.classList.remove('closing');
- pop.addEventListener('transitionend',done,{once:true});
- setTimeout(done,400);
-}
-function closeMenus(options){for(const id of ['#study-menu','#mesa-menu'])setMenuOpen($(id),false,options);}
-function wireMenu(el){
- const trigger=el.querySelector('.nav-trigger');
- if(!trigger)return;
- trigger.addEventListener('click',e=>{e.stopPropagation();setMenuOpen(el,!el.classList.contains('open'));});
- trigger.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setMenuOpen(el,!el.classList.contains('open'));}});
-}
-for(const id of ['#study-menu','#mesa-menu'])wireMenu($(id));
-document.addEventListener('click',e=>{
- const path=typeof e.composedPath==='function'?e.composedPath():[];
- for(const id of ['#study-menu','#mesa-menu']){
-  const el=$(id);
-  if(!el)continue;
-  /* `composedPath` mantém o alvo original mesmo se um re-render no meio do
-     clique (ex.: `#theme-cycle`) desanexar o nó de dentro do menu; por isso a
-     decisão não pode depender de `el.contains(e.target)` depois do handler. */
-  if(path.includes(el))continue;
-  setMenuOpen(el,false,{animate:false});
- }
-});
-/* Abas e menus vêm do Bend (`core/tabsview.bend`): este arquivo só aplica a
-   árvore (view-host) e injeta os ícones do host (icons.mjs). Fatos: matérias
-   resolvidas pelo main, flags do `desk` normalizado e o tema corrente. */
-let tabsCourses=[];
-function toCoreCourses(courses){
- let out={$:'Nil'};
- for(let i=(courses||[]).length-1;i>=0;i--){
-  const c=courses[i]||{};
-  out={$:'Con',head:{$:'Tab',id:String(c.id??''),name:String(c.name??'')},tail:out};
- }
- return out;
-}
-function menuFactsOf(){
- const desk=S.appConfig.desk||{};
- const panels=Array.isArray(desk.panels)?desk.panels:[];
- return {$:'MenuFacts',twoPanels:panels.length>1,toggle:String(panels[1]?.toggle||''),refVisible:!!S.refVisible,xournal:desk.xournal!==false,win32:S.appConfig.platform==='win32',hasXournalPath:!!S.appConfig.xournalPath,theme:S.currentTheme||'auto',endDay:desk.endDay!==false,compact:compactMode()};
-}
-const tabsHandlers={SelectCourse:e=>selectTab(e.currentTarget.dataset.id),OpenGeoGebra:()=>selectTab('geogebra'),NewCourse:()=>openSettings(false)};
-const menuHandlers={ToggleReference:toggleReference,OpenXournal:openXournal,CycleTheme:cycleTheme,OpenHelp:openHelp,OpenSettings:()=>openSettings(false),OpenAbout:openAbout,OpenEndDay:openEndDay,ToggleDensity:toggleDensityMode,OpenReview:()=>selectTab('review')};
-/* Andaime `data-icon`: o núcleo diz o nome do ícone; o SVG é deste arquivo. */
-function iconize(root){
- for(const el of root.querySelectorAll('[data-icon]')){
-  const name=el.dataset.icon,tight=el.hasAttribute('data-icon-tight'),label=el.textContent;
-  el.removeAttribute('data-icon');el.removeAttribute('data-icon-tight');
-  el.innerHTML=icon(name)+(label?(tight?'':' ')+`<span>${label}</span>`:'');
- }
-}
-function renderTabsView(){
- const box=$('#course-tabs');if(!box)return;
- renderChildren(box,tabsCore.courseTabs(toCoreCourses(tabsCourses),S.currentCourseId||'',!!S.ggbActive,!!(S.busy||S.connecting||S.switching)),tabsHandlers);
- iconize(box);
-}
-function renderMenus(){
- const facts=menuFactsOf(),study=$('#study-pop'),mesa=$('#mesa-pop');
- if(study){renderChildren(study,tabsCore.studyItems(facts),menuHandlers);iconize(study);}
- if(mesa){renderChildren(mesa,tabsCore.mesaItems(facts),menuHandlers);iconize(mesa);}
-}
-function selectTab(id){
- if(!id)return;
- /* O caderno e o applet não dividem a área de estudo: abrir um fecha o outro. */
- if(id==='review'){if(!S.reviewActive){deactivateGeogebra();activateReview();}return;}
- if(id==='geogebra'){if(!S.ggbActive){deactivateReview();activateGeogebra();}return;}
- if(S.ggbActive&&id===S.currentCourseId){deactivateGeogebra();markCourseTab(id);return;}
- if(S.reviewActive&&id===S.currentCourseId){deactivateReview();markCourseTab(id);return;}
- if(S.reviewActive)deactivateReview();
- selectCourse(id);
-}
-let tabFocusId='',tabFocusGen=0;
-/* A troca recria as abas e o connect que ela dispara as desabilita por um
-   instante (botão disabled não recebe foco): espera a aba ativa poder recebê-lo. */
-function focusTabWhenReady(id){
- const gen=++tabFocusGen;
- let tries=0;
- const tick=()=>{
-  if(gen!==tabFocusGen)return;
-  const el=document.querySelector(`#course-tabs button[data-id="${CSS.escape(id)}"]`);
-  if(el&&!el.disabled&&el.classList.contains('active')){el.focus();return;}
-  if(tries++<120){setTimeout(tick,100);return;}
-  if(el&&!el.disabled)document.querySelector('#course-tabs button.active')?.focus();
- };
- tick();
-}
-async function selectCourse(id){
- await switchCourse(id);
- renderTabsView();
- /* A troca recria as abas; devolve o foco à ativa quando a seta o moveu. */
- if(tabFocusId){
-  const want=tabFocusId;
-  tabFocusId='';
-  const el=document.querySelector(`#course-tabs button[data-id="${CSS.escape(want)}"]`);
-  if(el&&!el.disabled&&el.classList.contains('active'))el.focus();
-  else if(S.currentCourseId===want&&!S.ggbActive)focusTabWhenReady(want);
-  else document.querySelector('#course-tabs button.active')?.focus();
- }
-}
-/* Setas do tablist: movem o foco e ativam como o clique (o roving tabindex vem
-   do núcleo: aba ativa `0`, demais `-1`). */
-function moveTabFocus(dir){
- const tabs=[...document.querySelectorAll('#course-tabs button[role="tab"]:not([disabled])')];
- if(!tabs.length)return;
- const i=Math.max(0,tabs.indexOf(document.activeElement));
- const next=tabs[(i+dir+tabs.length)%tabs.length];
- const id=next.dataset.id||'';
- next.focus();
- if(id&&id!=='geogebra')tabFocusId=id;
- selectTab(id);
-}
-function cycleToTab(dir){
- const tabs=[...document.querySelectorAll('#course-tabs button')];
- if(tabs.length<2)return;
- const i=tabs.findIndex(t=>t.classList.contains('active'));
- selectTab(tabs[((i<0?0:i)+dir+tabs.length)%tabs.length].dataset.id);
-}
+import {toggleDensity} from './density.mjs';
+import {openEditor as openShortcuts} from './keys.mjs';
+import {closeMenus,initNavMenus} from './nav-menus.mjs';
+import {menuHandlers,renderTabsView,renderMenus,selectTab,moveTabFocus,numberedTabs,cycleToTab,getTabsCourses,setTabsCourses,refreshTabsOnReviewCount,initHeaderTabs} from './header-tabs.mjs';
+import {aboutHandlers,openAbout,openHelp,paintUpdateNotice,refreshAbout,syncUpdateNotice} from './about-update.mjs';
+import {closeContextPop,openContextPop,placeContextPop} from './context-pop.mjs';
+import {newSession,openConversation,renderConversations} from './course-conversations.mjs';
+/* Idioma (#41): o main entrega o idioma já resolvido (preload); o texto estático e o <html lang> seguem antes do primeiro desenho. */
+/* A tela de passos (#64) entra antes, para ser traduzida junto. */
+mountSetupMarkup();mountAccentOptions();
+setUiLanguage(currentLanguage());
+initNavMenus();
+initHeaderTabs({openSettings:(...args)=>openSettings(...args),syncPaletteField:()=>syncPaletteField(),menu:{ToggleReference:toggleReference,OpenXournal:openXournal,OpenHelp:openHelp,OpenSettings:()=>openSettings(),OpenShortcuts:()=>openShortcuts(),OpenAbout:openAbout,OpenEndDay:openEndDay}});
 function openXournal(){window.desk.openXournal().catch(e=>toast(e.message));}
 /* O menu Estudar → Formulário delega à área de apoio (mesma semântica de antes:
    alterna o painel 2; se o Chat lateral está à frente, traz o Formulário). */
 function toggleReference(){toggleReferencePanel();}
-function cycleTheme(){
- const order=['auto','light','dark'];
- const next=order[(order.indexOf(S.currentTheme)+1)%order.length];
- applyTheme(next);
- toast(`${THEME_LABELS[next]}.`);
- save();
- /* Sem re-render dos menus: o `applyTheme` já troca o rótulo do item vivo e
-    recriar os filhos no meio do clique desanexaria o alvo (o menu fecharia). */
-}
-/* Encerrar por hoje saiu do composer e virou item do menu Estudar (o `hidden`
-   pela flag `endDay` e o rótulo vêm do núcleo). O diálogo é o mesmo; o miolo é
+/* Encerrar por hoje saiu do composer e do menu Estudar: é item do Mais opções
+   do tutor (o `hidden` pela flag `endDay` e o rótulo vêm do núcleo
+   `tutorheader`) e comando da busca. O diálogo é o mesmo; o miolo é
    do `dialogsview` e o submit à prova de falha segue no `#end-day-form`. */
 function openEndDay(){
- if(S.busy){toast('Pare a resposta antes de encerrar.');return;}
+ if(S.busy){toast(t('session.stopFirstEnd'));return;}
  $('#end-day-dialog').showModal();
 }
-/* Modo compacto (menu Mesa e ⌘⇧D): o item vivo só troca o que o núcleo manda —
-   ícone do modo corrente e `aria-pressed` —, então o menu fica aberto e o
-   `selected` do select das Configurações acompanha pelo `sync` da densidade. */
-function refreshDensityItem(){
- const button=$('#density-cycle');
- if(!button)return;
- const compact=compactMode();
- button.setAttribute('aria-pressed',String(compact));
- labelBtn(button,tabsCore.densityIcon(compact),tabsCore.densityLabel());
-}
+/* Modo compacto: ⌘⇧D, a busca de comandos e o seletor das Configurações (a
+   densidade em si é do `density.mjs`; o `selected` das Configurações acompanha
+   pelo `sync` dele). */
 function toggleDensityMode(){
  toggleDensity();
- refreshDensityItem();
 }
-$('#new-tab')?.replaceWith(build(tabsCore.newTab(),tabsHandlers));
-$('#send').onclick=()=>{queue.release();send($('#prompt').value);};
+$('#send').onclick=()=>{queue.submit($('#prompt').value);};
 /* ⏎ envia; ⇧⏎ quebra linha; ⌘/Ctrl+⏎ interrompe e envia (steer) com o Pi
    ocupado — livre, vale como ⏎. Ocupado, o ⏎ do composer vira fila: quem captura
    antes é o `queue.mjs` (com o menu `/` aberto, o slash consome na janela e passa
@@ -203,241 +88,134 @@ $('#prompt').onkeydown=e=>{
   /* Motor sem steer: ⌘/Ctrl+⏎ com o turno aberto enfileira — a Mesa não promete
      interromper e reenviar onde o transporte não oferece. */
   if(S.busy&&!supportsCapability('steer')){queue.enqueueFromComposer();return;}
-  if(value.trim()||S.attachments.length)send(value,undefined,{steer:true});
+  if(value.trim()||S.attachments.length)queue.submit(value,{steer:true,release:false});
   return;
  }
- if(!S.busy){queue.release();send(value);}
+ if(!S.busy)queue.submit(value);
 };
-$('#check').onclick=()=>conferir();$('#connect').onclick=()=>connect().catch(()=>{});$('#stop').onclick=()=>{window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));};
+$('#check').onclick=()=>conferir();$('#stop').onclick=()=>{window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));};
 $('#exercise-title').addEventListener('input',()=>{updateContextSummary();save();});
 $('#pick-xopp').onclick=async()=>{try{const file=await window.desk.pickXopp();if(file)applyStudy({...studySnapshot(),xopp:file});save(true);}catch(e){toast(e.message);}};
-/* O Encerrar por hoje mora no menu Estudar (`OpenEndDay`), decidido pelo núcleo
-   com a flag `endDay`. O miolo do `#end-day-dialog` vem do Bend
+/* O Encerrar por hoje mora no Mais opções do tutor (`OpenEndDay`), decidido pelo
+   núcleo com a flag `endDay`. O miolo do `#end-day-dialog` vem do Bend
    (`core/dialogsview.bend`) — rótulos, textareas e ações; o `<form>` e o submit
    continuam aqui. */
 renderEndDay();
 /* Encerrar por hoje à prova de falha: o registro local é gravado PRIMEIRO — o
    diálogo só fecha se gravou (erro de IO mantém o texto na tela) — e só então o
    Pi é chamado. Sem conexão, sem provedor ou com o Pi recusando, o registro
-   fica no disco e o cartão de retomada aparece na próxima abertura. */
+   fica no disco e o "onde parei" aparece na coluna na próxima abertura. */
 $('#end-day-form').addEventListener('submit',async e=>{
  if(e.submitter?.id!=='end-day-save')return;
  e.preventDefault();
  const stopped=$('#end-where').value.trim(),next=$('#end-next').value.trim();
  if(!stopped||!next)return;
  const study=studySnapshot();
- let saved=null;
+ let saved;
  try{
   saved=await window.desk.endDaySave({record:{stopped,next,exercise:study.title,xopp:study.xopp,pages:pageRefs()}});
  }catch(err){
-  toast(`Não consegui guardar o registro: ${err.message}`);
+  toast(t('resume.saveFailed',{reason:err.message}));
   return;
  }
  $('#end-day-dialog').close();
  clearEndDay();
- renderResumeCard(saved);
- if(!(await send(resumeCore.endDayDraft(stopped,next),[])))toast(`Registro guardado localmente — o envio ao ${S.agentLabel} falhou.`);
+ setResumeRecord(saved,{fresh:true});
+ if(!(await send(text(resumeCore.endDayDraft(stopped,next)),[])))toast(t('resume.sendFailed'));
 });
 window.desk.onMenuCheck(()=>conferir());
 window.desk.onMenuGeogebra(()=>conferirGeogebra());
 window.desk.onMenuStop(()=>{if(S.busy&&!$('#pi-dialog').open){window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));}});
 window.desk.onMenuChatToggle(()=>toggleChat());
-/* Nova conversa: o seletor `#new-session-engine` escolhe o motor SÓ desta
-   conversa nova — a atual continua no motor dela até aqui. O host devolve os
-   metadados do motor criado e o `fillSessions` reajusta rótulo/capacidades. */
-$('#new-session').onclick=async()=>{
- if(S.busy||S.connecting||S.switching){toast(`Aguarde: ${S.agentLabel} está conectando.`);return;}
- const picker=$('#new-session-engine');
- const engine=picker?.value==='claude'?'claude':'pi';
- const question=engine==='claude'?'Começar uma nova conversa com o Claude Code (experimental)? A conversa atual continuará salva.':'Começar uma nova conversa? A sessão atual continuará salva.';
- if(!confirm(question))return;
- try{
-  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
-  const data=await window.desk.newSession(engine);
-  S.connected=false;
-  if(data.workspace){$('#messages').replaceChildren();await loadCourse(data);}
-  else fillSessions(data);
-  connectionState('',`${S.agentLabel} desconectado`);
-  if(!data.workspace){
-   applyStudy(data.state?.study);
-   $('#prompt').value=data.state?.draft||'';
-   $('#messages').replaceChildren();
-   /* Cache do descritor antes do connect: offline/sem login, a conversa Claude
-      continua visível (nada de cair para o Pi). */
-   if(Array.isArray(data.messages)&&data.messages.length)showHistory(data.messages);
-   resetAttachments();
-   queue.adopt(data.pending);
-   restoreAttachments(data.pending);
-   renderResumeCard(data.resume);
-  }
-  await connect();
-  toast('Nova conversa iniciada.');
- }catch(e){toast(e.message);}
-};
-/* Conversas da matéria (pedido 3): o seletor continua (compatibilidade), e o
-   painel visível lista título/data/trecho/motor. A escolha passa pelo MESMO
-   caminho do seletor — rascunho, fila e anexos são salvos/restaurados como
-   sempre, e nada é enviado sozinho. Leitura pura: a lista não renomeia/apaga. */
-async function openConversation(file){
- if(!file||file===S.currentSession)return false;
- if(S.busy||S.connecting||S.switching){toast(`Aguarde ${S.agentLabel} terminar de conectar.`);$('#session-select').value=S.currentSession;return false;}
- try{
-  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
-  const data=await window.desk.openSession(file);
-  S.connected=false;
-  if(data.workspace){$('#messages').replaceChildren();await loadCourse(data);}
-  else fillSessions(data);
-  connectionState('',`${S.agentLabel} desconectado`);
-  if(!data.workspace){
-   applyStudy(data.state?.study);
-   $('#prompt').value=data.state?.draft||'';
-   $('#messages').replaceChildren();
-   if(Array.isArray(data.messages)&&data.messages.length)showHistory(data.messages);
-   resetAttachments();queue.adopt(data.pending);restoreAttachments(data.pending);renderResumeCard(data.resume);
-  }
-  await connect();
-  return true;
- }catch(e){toast(e.message);$('#session-select').value=S.currentSession;return false;}
-}
-$('#session-select').onchange=()=>openConversation($('#session-select').value);
-function conversationWhen(value){
- const stamp=Number(value)||0;if(!stamp)return '';
- const date=new Date(stamp),today=new Date();
- const sameDay=date.toDateString()===today.toDateString();
- return date.toLocaleString('pt-BR',sameDay?{hour:'2-digit',minute:'2-digit'}:{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-}
-function conversationEngineLabel(engine){return engine==='claude'?'Claude Code (experimental)':engine==='pi'?'Pi':(engine||S.engine||'pi');}
-function fallbackConversations(){
- return [...document.querySelectorAll('#session-select option')].map(option=>({id:option.value,title:option.textContent,preview:'',at:0,engine:S.engine}));
-}
-async function renderConversations(){
- const list=$('#conv-list');if(!list)return;
- let items=null;
- try{if(typeof window.desk.conversations==='function')items=await window.desk.conversations();}catch{}
- if(!Array.isArray(items)||!items.length)items=fallbackConversations();
- list.replaceChildren();
- if(!items.length){const empty=document.createElement('p');empty.className='conv-empty';empty.textContent='Nenhuma conversa nesta matéria ainda.';list.append(empty);return;}
- for(const item of items){
-  const entry={...item,id:String(item.id||item.path||''),title:String(item.title||item.label||'(sem título)'),preview:String(item.preview||''),engine:item.engine||S.engine,at:Number(item.at||item.started||0)};
-  const button=document.createElement('button');
-  button.type='button';button.className='conv-row'+(entry.id===S.currentSession?' current':'');
-  button.dataset.id=entry.id;
-  const head=document.createElement('span');head.className='conv-title';head.textContent=entry.title;
-  const meta=document.createElement('span');meta.className='conv-meta';meta.textContent=[conversationWhen(entry.at),conversationEngineLabel(entry.engine)].filter(Boolean).join(' · ');
-  const preview=document.createElement('span');preview.className='conv-preview';preview.textContent=entry.preview||'Sem prévia';
-  button.append(head,meta,preview);
-  button.addEventListener('click',async()=>{closeConversations();await openConversation(entry.id);});
-  list.append(button);
- }
-}
-function closeConversations(){const pop=$('#conversations-pop');if(!pop)return;pop.hidden=true;$('#conversations-toggle')?.setAttribute('aria-expanded','false');}
-$('#conversations-toggle').onclick=async()=>{
- const pop=$('#conversations-pop');if(!pop)return;
- if(!pop.hidden){closeConversations();return;}
- await renderConversations();
- pop.hidden=false;
- $('#conversations-toggle').setAttribute('aria-expanded','true');
-};
-$('#conv-close').onclick=()=>closeConversations();
-document.addEventListener('click',event=>{
- const pop=$('#conversations-pop');if(!pop||pop.hidden)return;
- if(event.target?.closest?.('#conversations-pop, #conversations-toggle'))return;
- closeConversations();
-});
-document.addEventListener('keydown',event=>{if(event.key==='Escape')closeConversations();});
 $('#include-refs').onclick=()=>{S.includeRefs=!S.includeRefs;$('#include-refs').setAttribute('aria-pressed',String(S.includeRefs));updateContextSummary();};
-/* Estado das referências (pedido 4): a etiqueta ao lado do toggle diz o que vai
-   junto ("PDF e página incluídos" / "Sem referências") e abre os detalhes —
-   caminho+página versus a câmera, que envia imagem. O toggle não muda. */
-function closeRefsPop(){
- const pop=$('#refs-pop');
- if(pop)pop.hidden=true;
- $('#refs-state')?.setAttribute('aria-expanded','false');
-}
-function placeRefsPop(){
- const pop=$('#refs-pop'),button=$('#refs-state');
- if(!pop||!button||pop.hidden)return;
- const rect=button.getBoundingClientRect();
- pop.style.left=Math.round(Math.max(8,Math.min(rect.left,innerWidth-pop.offsetWidth-8)))+'px';
- pop.style.top=Math.round(Math.max(8,rect.top-pop.offsetHeight-8))+'px';
-}
-window.addEventListener('resize',placeRefsPop);
-function refsPopRow(text,className=''){
- const row=document.createElement('p');row.className=className;row.textContent=text;return row;
-}
-function renderRefsPop(){
- const pop=$('#refs-pop');if(!pop)return;
- const list=refs();
- pop.replaceChildren();
- const title=document.createElement('strong');title.textContent='Referências desta mensagem';
- pop.append(title);
- if(S.includeRefs&&list.length){
-  for(const ref of list)pop.append(refsPopRow(`${String(ref.path).split(/[/\\]/).pop()||'PDF'} — página ${ref.page}`,'refs-item'));
-  pop.append(refsPopRow('Vai o caminho do arquivo e a página; o PDF inteiro não é enviado.','fine'));
- }else{
-  pop.append(refsPopRow(S.includeRefs?'Nenhum PDF aberto agora.':'O botão Referências está desligado — nenhuma referência vai junto.','fine'));
- }
- pop.append(refsPopRow('A câmera do leitor é separada: ela anexa uma imagem da página à mensagem.','fine'));
- const close=document.createElement('button');close.type='button';close.className='primary';close.textContent='Fechar';
- close.addEventListener('click',closeRefsPop);
- const actions=document.createElement('div');actions.className='dialog-actions';actions.append(close);pop.append(actions);
-}
-$('#refs-state').onclick=()=>{
- const pop=$('#refs-pop');if(!pop)return;
- if(!pop.hidden){closeRefsPop();return;}
- renderRefsPop();
- pop.hidden=false;
- placeRefsPop();
- $('#refs-state').setAttribute('aria-expanded','true');
+
+window.addEventListener('resize',()=>placeContextPop());
+$('#context-edit').onclick=()=>{
+ const pop=$('#context-pop');
+ if(pop&&!pop.hidden){closeContextPop({restoreFocus:true});return;}
+ openContextPop();
 };
 document.addEventListener('click',event=>{
- const pop=$('#refs-pop');if(!pop||pop.hidden)return;
- if(event.target?.closest?.('#refs-pop, #refs-state'))return;
- closeRefsPop();
+ const pop=$('#context-pop');if(!pop||pop.hidden)return;
+ if(event.target?.closest?.('#context-pop, #context-edit'))return;
+ closeContextPop();
 });
-document.addEventListener('keydown',event=>{if(event.key==='Escape')closeRefsPop();});
+/* Trocar de sessão ou recolher o tutor deixaria o popover órfão. */
+window.addEventListener('desk-conversation-changed',()=>closeContextPop());
+window.addEventListener('desk-conferir-note-open',()=>closeContextPop());
 /* A calculadora é view do Bend (`core/calcview.bend` → `desk/src/calc.mjs`):
-   colapso, ângulo, avaliação, histórico e guia saem de lá; o divisor abaixo
-   continua aqui (arrasto/medição são fatos de host). */
+   colapso, ângulo, avaliação, histórico e guia saem de lá; a alça abaixo
+   continua aqui (arrasto/medição são fatos de host). Ela só existe com o painel
+   expandido (o CSS a esconde na linha recolhida): arrastar nunca precisa
+   reabrir a calculadora. */
 initCalculator();
-bindPointerDrag($('#divider'),e=>{document.documentElement.style.setProperty('--chat',Math.max(310,Math.min(650,innerWidth-e.clientX))+'px');},save);
+bindPointerDrag($('#divider'),e=>{document.documentElement.style.setProperty('--chat',Math.max(310,Math.min(650,innerWidth-e.clientX))+'px');},()=>{save();thawGgbView();},freezeGgbView);
 $('#divider').onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){const w=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat'));document.documentElement.style.setProperty('--chat',Math.max(310,Math.min(650,w+(e.key==='ArrowLeft'?20:-20)))+'px');save();}};
-bindPointerDrag($('#calc-divider'),e=>{const side=$('#sidebar').getBoundingClientRect();const height=Math.max(72,Math.min(side.height*0.7,side.bottom-e.clientY));document.documentElement.style.setProperty('--calc',Math.round(height)+'px');expandCalculator();},save);
+bindPointerDrag($('#calc-divider'),e=>{const side=$('#sidebar').getBoundingClientRect();const height=Math.max(72,Math.min(side.height*0.7,side.bottom-e.clientY));document.documentElement.style.setProperty('--calc',Math.round(height)+'px');},save);
 $('#calc-divider').onkeydown=e=>{if(['ArrowUp','ArrowDown'].includes(e.key)){const h=calcHeightPx();document.documentElement.style.setProperty('--calc',Math.max(72,Math.min(700,h+(e.key==='ArrowUp'?20:-20)))+'px');save();}};
 let chatCollapsed=false,lastChatToggle=0;
 function setChatCollapsed(value){
  chatCollapsed=!!value;
  document.body.classList.toggle('chat-collapsed',chatCollapsed);
  $('#chat-restore').hidden=!chatCollapsed;
- const collapse=$('#chat-collapse');
- if(collapse){
-  collapse.setAttribute('aria-expanded',String(!chatCollapsed));
-  collapse.title=chatCollapsed?'Mostrar o chat (⌘\\)':'Recolher o chat (⌘\\)';
- }
+ /* Recolher esconde o #chat: menu ou lista abertos ficariam órfãos (e o Esc os
+    consumiria sem se ver). */
+ if(chatCollapsed){closeTutorPops();closeContextPop();closeConferirNote();closePhonePop();}
+ syncTutorMenus();
  if(S.ggbActive)sendGgbRect();
 }
 function toggleChat(){const now=Date.now();if(now-lastChatToggle<150)return;lastChatToggle=now;setChatCollapsed(!chatCollapsed);}
 function focusPdfFind(){(S.panels.find(p=>p.el.contains(document.activeElement))||S.panels[0])?.setFind(true);}
+/* Fecha a busca do PDF da camada ativa: o formulário focado primeiro; senão o
+   primeiro leitor com termo — o mesmo comportamento de antes, agora decidido
+   pela política do Esc (`core/mesaqolescape.bend`). */
+function closePdfSearchLayer(){
+ const focusedFind=document.activeElement?.closest?.('.pdf-find');
+ if(focusedFind&&!focusedFind.hidden){
+  const panel=S.panels.find(p=>p.el===focusedFind.closest('.pdf-panel'));
+  if(panel){panel.clearFind();panel.setFind(false);panel.el.focus();return true;}
+ }
+ if(S.panels.some(p=>p.findTerm)){const panel=S.panels.find(p=>p.findTerm);if(panel){panel.clearFind();panel.setFind(false);}return true;}
+ return false;
+}
 $('#chat-restore').onclick=()=>setChatCollapsed(false);
-/* Botão visível de recolher (pedido 7): mesmo caminho do atalho ⌘\; o botão de
-   restaurar continua flutuando com o chat recolhido. */
-$('#chat-collapse').onclick=()=>toggleChat();
-labelBtn($('#chat-collapse'),'chevronRight');
+/* Recolher é item do menu Mais opções do tutor (`#chat-collapse`), no mesmo
+   caminho do atalho ⌘\; o botão de restaurar flutua com o chat recolhido. */
 function typingTarget(el){return el?.closest?.('input,textarea,select')||['INPUT','TEXTAREA','SELECT'].includes(el?.tagName);}
+// Os closers de document (bubble) mudam o DOM antes do handler de window.
+// Congela a decisão em capture para o mesmo Esc nunca fechar e abortar.
+const escapeDecisions=new WeakMap();
 window.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&!e.isComposing)escapeDecisions.set(e,decideEscape(collectEscapeFacts(document,S)));
+},true);
+window.addEventListener('keydown',e=>{
+ if(e.defaultPrevented||e.isComposing)return;
  /* Guard de modal no topo do handler: com um diálogo aberto, nenhum atalho pode
     abrir outro (⌘, empilhava Configurações sobre a Ajuda). Esc passa: cada
     diálogo se fecha pelo cancelamento nativo/handler próprio. */
  const modal=document.querySelector('dialog[open]');
  if(modal&&e.key!=='Escape')return;
  if(e.key==='Escape'){
-  closeMenus({blur:true});
-  if(modal)return;
-  if(S.busy){e.preventDefault();window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(err=>toast(err.message));return;}
-  if(!$('#quote-btn').hidden){e.preventDefault();hideQuoteButton();window.getSelection()?.removeAllRanges();return;}
-  const focusedFind=document.activeElement?.closest?.('.pdf-find');
-  if(focusedFind&&!focusedFind.hidden){e.preventDefault();const panel=S.panels.find(p=>p.el===focusedFind.closest('.pdf-panel'));if(panel){panel.clearFind();panel.setFind(false);panel.el.focus();}return;}
-  if(S.panels.some(p=>p.findTerm)){const panel=S.panels.find(p=>p.findTerm);if(panel){panel.clearFind();panel.setFind(false);}return;}
+  /* A ordem das camadas é do núcleo (`core/mesaqolescape.bend`): a primeira
+     aberta decide — modal (nativo) → paleta → menu → popover → citação →
+     busca — e o turno SÓ é cancelado quando nenhuma está aberta. Fechar
+     camada nunca para o tutor; o botão Parar e o menu continuam a via do
+     usuário. */
+  const action=escapeDecisions.get(e)??decideEscape(collectEscapeFacts(document,S));
+  if(action==='modal')return;
+  if(action==='palette'){e.preventDefault();closeCommandPalette();return;}
+  if(action==='menu'){closeMenus({blur:true});return;}
+  if(action==='popover'){
+   e.preventDefault();
+   closeContextPop({restoreFocus:true});closeConferirNote({restoreFocus:true});closeTutorPops({restoreFocus:true});closePhonePop({restoreFocus:true});
+   return;
+  }
+  if(action==='citation'){e.preventDefault();hideQuoteButton();window.getSelection()?.removeAllRanges();return;}
+  if(action==='search'){closePdfSearchLayer();return;}
+  if(action==='tutor'){e.preventDefault();window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(err=>toast(err.message));return;}
+  /* Nada aberto e nenhuma resposta em curso: Esc cancela a chamada ao tutor
+     que ainda está subindo (o mesmo efeito do Cancelar da coluna). */
+  if(S.connecting){e.preventDefault();cancelConnect().catch(()=>{});return;}
   return;
  }
  if((e.metaKey||e.ctrlKey)&&e.key===','){e.preventDefault();openSettings();return;}
@@ -446,135 +224,137 @@ window.addEventListener('keydown',e=>{
  if((e.metaKey||e.ctrlKey)&&e.shiftKey&&e.key.toLowerCase()==='g'){e.preventDefault();conferirGeogebra();return;}
  if((e.metaKey||e.ctrlKey)&&!e.altKey){
   if(e.key==='Tab'){e.preventDefault();cycleToTab(e.shiftKey?-1:1);return;}
-  if(e.key.toLowerCase()==='t'){e.preventDefault();openSettings(false);return;}
+  if(e.key.toLowerCase()==='t'){e.preventDefault();openSettings();return;}
   if(e.shiftKey&&e.key.toLowerCase()==='i'){e.preventDefault();const panel=S.panels.find(p=>p.el.contains(document.activeElement))||S.panels[0];if(panel&&panel.doc)panel.toggleInvert();return;}
   if(e.shiftKey&&e.key.toLowerCase()==='d'){e.preventDefault();toggleDensityMode();return;}
   if(e.key.toLowerCase()==='f'){e.preventDefault();focusPdfFind();return;}
   if(e.key==='\\'){e.preventDefault();toggleChat();return;}
-  if(/^[1-9]$/.test(e.key)){e.preventDefault();const tab=document.querySelectorAll('#course-tabs button')[Number(e.key)-1];if(tab)selectTab(tab.dataset.id);return;}
+  if(/^[1-9]$/.test(e.key)){e.preventDefault();const tab=numberedTabs()[Number(e.key)-1];if(tab)selectTab(tab.dataset.id);return;}
  }
  if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&e.target?.closest?.('#course-tabs')){e.preventDefault();moveTabFocus(e.key==='ArrowRight'?1:-1);return;}
  if(typingTarget(e.target)||e.target===document.getElementById('divider')||e.target===document.getElementById('calc-divider')||e.target?.classList?.contains('pdf-divider'))return;
  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){const panel=document.activeElement?.closest?.('.pdf-panel')||S.panels[0]?.el;const inst=S.panels.find(p=>p.el===panel);if(!inst)return;e.preventDefault();inst.goto(inst.page+(e.key==='ArrowRight'?1:-1));}
 });
-$('#model-select').onchange=()=>{const [provider,id]=JSON.parse($('#model-select').value);settings({model:{provider,id}});};$('#thinking-select').onchange=()=>settings({level:$('#thinking-select').value});
-labelBtn($('#new-session'),'plus');
-labelBtn($('#conversations-toggle'),'chevronDown');
-labelBtn($('#check'),'scan','Conferir Xournal++');
-labelBtn($('#stop'),'square','Parar');
-labelBtn($('#send'),'arrowUp','Enviar');
-labelBtn($('#connect'),'plug','Conectar ao Pi');
-labelBtn($('#include-refs'),'columns','Referências');
-labelBtn($('#attach'),'paperclip','Anexar');
-labelBtn($('#quote-btn'),'textQuote','Citar');
-labelBtn($('#export-chat'),'download','Exportar');
-$('#export-chat').onclick=async()=>{try{const r=await window.desk.exportChat();if(r?.saved)toast('Conversa exportada: '+String(r.file).split(/[/\\]/).at(-1));}catch(e){toast(e.message);}};
+initModelPicker({pick:async({provider,id,zenPaid})=>{
+ /* Modelo pago do Zen (#44): a primeira escolha pede confirmação; voltar restaura o que estava em uso. */
+ if(zenPaid&&!(await confirmPaidModel())){settings({});return;}
+ await settings({model:{provider,id}});
+ if(noteModelPicked(provider,id))save(true);/* recentes (#59): só entra o que o host confirmou */
+},favoritesChanged:()=>save(true)/* favoritos (estrela): estado de interface, como os recentes */
+});initEffortStrip({pick:level=>settings({level})});
+const conversationLibrary=initConversationLibrary({resume:async row=>{
+ if(S.busy||S.connecting||S.switching){toast(t('session.waitResume'));return false;}
+ try{
+  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
+  const data=await window.desk.libraryChatOpen(row.id);
+  S.connected=false;$('#messages').replaceChildren();await loadCourse(data);
+  await connect();return true;
+ }catch(error){toastFailure(error);return false;}
+}});
+/* Exportar a sessão em Markdown (item de Mais opções do tutor). */
+async function exportSession(){try{const r=await window.desk.exportChat();if(r?.saved)toast(t('session.exported',{file:String(r.file).split(/[/\\]/).at(-1)}));}catch(e){toast(e.message);}}
+/* Ajustes do Pi: abre as Configurações no campo do caminho do Pi (o motivo da
+   falha costuma estar ali). A coluna do tutor e o passo "Tutor" da primeira
+   abertura (#64) usam o mesmo. */
+const openPiSettings=async()=>{try{await openSettings({section:'pastas',focus:'#cfg-pi'});}catch(err){toast(err.message);}};
+initTutorState({
+ newSession:()=>newSession().catch(()=>{}),
+ openLog:async()=>{try{await window.desk.openLog();}catch(err){toast(err.message);}},
+ openPiSettings,
+ /* Claude Code fora da faixa (#51): o Sobre, já na confirmação do comando que o atualiza. */
+ updateClaude:()=>openAbout({ask:'claude'}).catch(err=>toast(err.message)),
+ openAbout:()=>openAbout().catch(err=>toast(err.message))
+});
+initTutorHeader({
+ newSession,exportSession,
+ openEndDay:()=>openEndDay(),
+ toggleTutor:()=>toggleChat(),
+ renderConversations,
+ openLibrary:()=>conversationLibrary.open().catch(error=>toast(error.message)),
+ endDayEnabled:()=>(S.appConfig.desk||{}).endDay!==false,
+ connect:()=>connect().catch(()=>{}),
+ compactNow:()=>doCompact(''),
+ reportProblem:()=>openTriage().catch(error=>toast(error.message))
+});
+initTriage();
+
+async function openStudyResult(_destination,hit,{annotate=false}={}){
+ if(S.busy||S.connecting||S.switching)throw Error(t('study.waitOpen'));
+ clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
+ const result=await window.desk.studySearchOpen({id:hit.id}),destination=result.destination;
+ const changed=result.data.courseId!==S.currentCourseId||result.data.session!==S.currentSession;
+ if(changed){S.connected=false;$('#messages').replaceChildren();await loadCourse(result.data);await connect();}
+ closeStudySearch();
+ if(destination.kind==='review'){selectTab('review');return true;}
+ if(destination.kind==='sidechat'){selectSupportTab('chat');openSavedSidechat(result.sidechat);return true;}
+ if(destination.kind==='note'){
+  if(destination.unavailable)toast(t('study.noteMaterialGone'));
+  else openRef(destination.name,destination.page,destination.path);
+  openPdfNotes({path:destination.path,name:destination.name,page:destination.page});return true;
+ }
+ if(['pdf','material'].includes(destination.kind)){
+  const opened=openRef(destination.name,destination.page||1,destination.path);
+  if(annotate&&opened)openPdfNotes({path:destination.path,name:destination.name,page:destination.page||1});
+  return opened;
+ }
+ return true;
+}
+initStudySearch({onOpenResult:openStudyResult,onAnnotate:async(_destination,hit)=>{try{await openStudyResult(null,hit,{annotate:true});}catch(error){toast(error.message);}}});
+initPdfNotes();
+const studyBackup=initBackupPanel(document,{
+ status:()=>window.desk.backupStatus(),listar:()=>window.desk.backupList(),curso:()=>window.desk.backupActiveCourse(),
+ obterConfig:async()=>(await window.desk.backupStatus()).settings,
+ escolherPasta:()=>window.desk.backupPickFolder(),definirConfig:patch=>window.desk.backupConfig(patch),
+ rodar:async payload=>{clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());return window.desk.backupRun(payload);},
+ verificar:id=>window.desk.backupVerify(id),previaRestauracao:id=>window.desk.backupRestorePreview(id),
+ aplicarRestauracao:async(id,options)=>{
+  const result=await window.desk.backupRestoreApply(id,options);
+  S.connected=false;connectionState('');$('#messages').replaceChildren();
+  await loadCourse(result.data);
+  await syncFirstRun(result.data);
+  const ready=engineReady(result.data);
+  if(!result.data.needsSetup&&!isFirstRun()&&ready)await connect().catch(()=>{}); // connect mostra a falha; a restauração já foi aplicada.
+  return result;
+ },
+ cancelarRestauracao:id=>window.desk.backupRestoreCancel(id),escolherArquivo:()=>window.desk.sharePickFile(),
+ exportar:(directory,options)=>window.desk.shareExportCourse({directory,...options}),
+ importar:async(file,directory)=>{const result=await window.desk.shareImportCourse({file,directory});await loadCourse(result.data);await syncFirstRun(result.data);return result;},
+ abrirPasta:directory=>window.desk.backupOpenFolder(directory),enviarGit:()=>window.desk.backupGitPush()
+},{confirmar:text=>window.confirm(text)});
+window.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.shiftKey&&['f','n'].includes(event.key.toLowerCase())&&document.querySelector('dialog[open]'))event.preventDefault();},true);
+Object.assign(menuHandlers,studyToolHandlers({search:()=>openStudySearch(),reviewToday:()=>{selectTab('review');document.querySelector('#review-today')?.scrollIntoView({block:'start'});},notes:()=>openPdfNotes(),stats:()=>{initStudyStats({state:S});openStudyStats();},backup:()=>studyBackup.abrirBackup(),share:()=>studyBackup.abrirCompartilhar(),tutorPdf:()=>openTutorPdfDialog()}));
+/* Conferir tem duas redações no mesmo botão: a inteira e a curta. A caixa
+   estreita (container query de `#composer-box`) troca uma pela outra; a oculta
+   sai do nome acessível, então o leitor de tela ouve só a que está à vista. */
+updateCheckButton();
+initConferir();
+initFreeModels();
+/* Rótulos que a Mesa escreve com ícone: refeitos na troca de idioma (#41). */
+function paintComposerLabels(){
+ labelBtn($('#stop'),'square',t('composer.stop'));
+ labelBtn($('#send'),'arrowUp',t('composer.send'));
+ labelBtn($('#include-refs'),'columns',t('composer.refs'));
+ labelBtn($('#attach'),'paperclip',t('composer.attach'));
+ labelBtn($('#quote-btn'),'textQuote',t('quote.button'));
+}
+paintComposerLabels();
+window.addEventListener(LANGUAGE_EVENT,paintComposerLabels);
+initPhonePhoto(LANGUAGE_EVENT);
+/* A lista de sessões é montada ao abrir o popover; os nomes ("Sessão de…") levam a data no idioma de quando foi montada. */
+window.addEventListener(LANGUAGE_EVENT,()=>{if($('#conv-list')?.children.length)renderConversations().catch(()=>{});});
 /* Caderno de revisão (pedido 5): acesso visível no cabeçalho com a contagem de
    itens — atualiza com a carga da matéria e quando a barra do caderno (núcleo)
    é redesenhada por salvar/remover. */
-function updateReviewBadge(){
- const count=Array.isArray(S.reviewItems)?S.reviewItems.length:0;
- const badge=$('#review-count');if(badge)badge.textContent=String(count);
- const button=$('#review-tab');
- if(button){
-  button.title=count?`Abrir o caderno de revisão — ${count} ${count===1?'item':'itens'}`:'Abrir o caderno de revisão';
-  button.setAttribute('aria-label',button.title);
-  button.classList.toggle('has-items',count>0);
- }
-}
-$('#review-tab').onclick=()=>selectTab('review');
+function updateReviewBadge(){refreshTabsOnReviewCount();}
 const reviewBar=$('#review-bar');
 if(reviewBar)new MutationObserver(updateReviewBadge).observe(reviewBar,{childList:true,subtree:true,characterData:true});
-function openHelp(){if($('#help-dialog').open)return;renderHelpVersion(S.deskVersion);$('#help-dialog').showModal();}
-/* Sobre: a linha de atualização e o painel "Componentes" são do núcleo
-   (`core/dialogsview.bend`); aqui só se liga o updater (IPC do main) e os
-   cliques (verificar / Release notes / Atualizar e reiniciar / Atualizar Pi).
-   Node e Xournal++ são checados só sob demanda (Verificar agora); a checagem
-   automática 1×/dia cobre Mesa + Pi e mantém o aviso no cabeçalho. */
-function updateStateOf(result){
- syncUpdateNotice(result);
- if(result?.status==='update')return {$:'UpdateReady',version:String(result.version||''),notes:String(result.notes||'').replace(/\s+/g,' ').trim().slice(0,400),url:String(result.url||'')};
- if(result?.status==='current')return {$:'UpdateNone',current:String(result.current||'')};
- if(result?.status==='error')return {$:'UpdateFailed'};
- return {$:'UpdateIdle'};
-}
-/* C1: o resultado REAL da última atualização (gravado pelo worker no
-   update.json) vira estado do núcleo — é o que o Sobre mostra na reabertura. */
-function resultStateOf(result){
- if(!result)return {$:'UpdateIdle'};
- if(result.status==='applied')return {$:'UpdateDone',version:String(result.version||'')};
- if(result.status==='recovered')return {$:'UpdateRecovered',version:String(result.version||''),reason:String(result.reason||'')};
- if(result.status==='incomplete')return {$:'UpdateIncomplete',version:String(result.version||''),reason:String(result.reason||'')};
- return {$:'UpdateIdle'};
-}
-const aboutHandlers={
- OpenLink:e=>{const url=e.currentTarget?.dataset?.url;if(url)window.desk.openExternal(url).catch(err=>toast(err.message));},
- /* C1: abre o desk.log do runtime (o motivo de um rollback fica lá). */
- OpenLog:async()=>{try{await window.desk.openLog();}catch(err){toast(err.message);}},
- CheckUpdate:async()=>{renderAboutUpdate({$:'UpdateChecking'},aboutHandlers);try{renderAboutUpdate(updateStateOf(await window.desk.updateCheck({manual:true})),aboutHandlers);}catch(e){renderAboutUpdate({$:'UpdateFailed'},aboutHandlers);toast(e.message);}},
- RefreshComponents:()=>refreshAbout(true),
- /* C1: aplicar desliga a ação; na falha o Sobre volta ao resultado real. */
- ApplyUpdate:async()=>{
-  renderAboutUpdate({$:'UpdateApplying'},aboutHandlers);
-  try{
-   const r=await window.desk.updateApply();
-   toast(`Atualizando para v${r?.version||''} — a Mesa reabre sozinha.`);
-  }catch(e){
-   toast(e.message);
-   try{renderAboutUpdate(resultStateOf(await window.desk.updateResult()),aboutHandlers);}
-   catch{renderAboutUpdate({$:'UpdateIdle'},aboutHandlers);}
-  }
- },
- UpdatePi:async()=>{if(!confirm('Atualizar o Pi e reiniciar a Mesa? O app fecha e reabre sozinho.'))return;try{await window.desk.updatePi();toast('Atualizando o Pi — a Mesa reabre sozinha.');}catch(e){toast(e.message);}},
-};
-/* B4: os componentes não esperam a checagem da Mesa — versões/estados locais
-   primeiro (com a checagem de rede deles, que tem prazo), linha do update
-   depois. */
-async function refreshComponents(manual){
- try{renderComponentRows((await window.desk.components({manual:!!manual}))?.rows||[],aboutHandlers);}
- catch(e){if(manual)toast(e.message);}
-}
-async function refreshAbout(manual){
- /* Não espera: o painel de componentes pinta por conta própria. */
- refreshComponents(manual);
- try{renderAboutUpdate(updateStateOf(await window.desk.updateCheck({manual:!!manual})),aboutHandlers);}
- catch(e){if(manual)toast(e.message);}
-}
-async function openAbout(){
- if($('#about-dialog').open)return;
- renderAboutLead(S.deskVersion);
- /* C3: as 4 linhas nascem já com "Verificando…" (Mesa com a versão local); a
-    checagem chega em seguida sem abrir vão. */
- renderComponentChecking(S.deskVersion);
- $('#about-dialog').showModal();
- try{renderAboutUpdate(resultStateOf(await window.desk.updateResult()),aboutHandlers);}
- catch{renderAboutUpdate({$:'UpdateIdle'},aboutHandlers);}
- refreshAbout(false);
-}
 window.desk.onMenuHelp(openHelp);
 window.desk.onMenuAbout(openAbout);
-function syncUpdateNotice(result){
- const button=$('#update-notice');
- if(result?.status==='current'){button.hidden=true;button.textContent='';return;}
- // Uma falha de rede não apaga uma atualização já confirmada.
- if(result?.status!=='update'||!result.version)return;
- button.textContent=`Atualização disponível · v${result.version}`;
- button.hidden=false;
-}
+initToolNotices(aboutHandlers);
+/* "Ver no Sobre" da linha nas Configurações (#52): o Sobre abre por cima, sem fechar nem descartar o que a pessoa editou. */
+aboutHandlers.OpenAboutFromNotice=()=>openAbout().catch(err=>toast(err.message));
 $('#update-notice').onclick=()=>openAbout();
 window.desk.onUpdateAvailable?.(data=>syncUpdateNotice({status:'update',version:data?.version}));
-/* Bilhete da Conversa: o contexto em si já vai no turno (main.cjs); o aviso
-   existe para a resposta não parecer vir do nada. */
-window.desk.onHandoff?.(data=>{
- if(!data)return;
- const alvo=data.goal||data.question||'';
- toast(`Bilhete da Conversa${alvo?`: ${alvo}`:''} — vai no próximo envio.`);
-});
-/* Recusa ou falha do bilhete também aparece. O motivo é código curto montado no
-   main (sem o conteúdo do bilhete), então nada privado entra em aviso ou log. */
-window.desk.onHandoffProblem?.(data=>{
- if(data?.reason)toast(`Bilhete da Conversa: ${data.reason}`);
-});
 const DESK_SETTINGS=['endDay','studyContext','calculator','xournal','conferir','refsToggle'];
 /* Layout (pedido 9): o módulo é do outro agente (`src/layout-settings.mjs`).
    Import dinâmico: o resto das Configurações funciona mesmo antes do módulo
@@ -588,7 +368,7 @@ const layoutSettingsReady=(async()=>{
   return module;
  }catch{
   const box=$('#cfg-layout');
-  if(box)box.textContent='Layout indisponível neste build.';
+  if(box)box.textContent=t('settings.layout.unavailable');
   return null;
  }
 })();
@@ -600,6 +380,11 @@ async function fillSettingsForm(cfg){
  $('#cfg-claude').value=cfg.claudePath||'';
  $('#cfg-xournal').value=cfg.xournalPath||'';
  $('#theme-mode').value=S.currentTheme;
+ const language=await window.desk.languageGet();
+ $('#ui-language').value=language.ui;
+ $('#tutor-language').value=language.tutor;
+ paintConferirField();
+ paintFreeSettings().catch(()=>{});
  // campo do Xournal++ fica sempre à mostra: sem caminho no Windows é para configurar
  /* As linhas de matéria vêm do Bend (`core/dialogsview.bend`); o casco da
     seção (título, lead, "+") continua no `index.html`. */
@@ -622,57 +407,159 @@ function readSettingsForm(){
  for(const key of DESK_SETTINGS)desk[key]=$('#cfg-desk-'+key).checked;
  return {vaultPath:$('#cfg-vault').value.trim(),runtimePath:S.appConfig.runtimePath||'',piPath:$('#cfg-pi').value.trim(),claudePath:$('#cfg-claude').value.trim(),xournalPath:$('#cfg-xournal').value.trim(),courses,desk};
 }
-/* Primeira abertura: a boas-vindas do núcleo; o "Configurar agora" fecha e abre
-   as Configurações com o título de primeira vez. */
-function openWelcome(){
- if($('#welcome-dialog').open)return;
- renderWelcome(S.appConfig.platform==='win32',{handlers:{WelcomeConfigure:()=>{$('#welcome-dialog').close('ok');openSettings(true);}}});
- $('#welcome-dialog').showModal();
-}
-async function openSettings(first){
+/* `section`/`focus` levam o diálogo a um campo (o "Ajustes do Pi" do tutor abre
+   em Pastas e programas com o campo do Pi focado); sem eles abre em Matérias. */
+async function openSettings({section='',focus=''}={}){
  const info=await window.desk.getConfig();
  S.appConfig={...S.appConfig,...info.config,platform:info.platform};
- renderSettingsHead(first);
  await fillSettingsForm(info.config||{});
+ settingsBaseline=JSON.stringify(readSettingsForm());
+ prepareSettings({section});
+ setSettingsFooter({busy:!!S.busy,dirty:false});
  /* Dica do campo Claude: o caminho detectado quando o host manda um; senão o
     placeholder padrão continua. Nada de login/credencial na UI. */
  const claudeField=$('#cfg-claude');
- if(claudeField)claudeField.placeholder=info.detectedClaude||'detectar automaticamente';
- if(!$('#settings-dialog').open)$('#settings-dialog').showModal();
+ if(claudeField)claudeField.placeholder=info.detectedClaude||t('settings.detectAuto');
+ if(!$('#settings-dialog').open){$('#settings-dialog').showModal();noticesOpened('settings');}
+ if(focus){const field=$(focus);field?.scrollIntoView?.({block:'center'});field?.focus();}
 }
 $('#cfg-vault-browse').onclick=async()=>{const folder=await window.desk.pickFolder();if(folder)$('#cfg-vault').value=folder;};
 $('#cfg-pi-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-pi').value=file;};
-$('#cfg-pi-detect').onclick=async()=>{const found=await window.desk.detectPi();if(found){$('#cfg-pi').value=found;toast('Pi encontrado.'); }else toast('Pi não encontrado. Rode npm run setup.');};
+$('#cfg-pi-detect').onclick=async()=>{const found=await window.desk.detectPi();if(found){$('#cfg-pi').value=found;toast(t('settings.pi.found')); }else toast(t('settings.pi.missing'));};
 $('#cfg-xournal-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-xournal').value=file;};
 $('#cfg-claude-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-claude').value=file;};
 $('#cfg-add-course').onclick=()=>appendCourseRow();
+/* Cor de acento: vale na hora e fica lembrada, sem esperar o Salvar (nem some
+   ao cancelar) — é estado de interface, como o tema na busca de comandos. */
+wireAccentPicker($('#accent-mode'),{current:()=>S.currentAccent,choose:id=>{applyAccent(id);save(true);}});
+/* Tema: vale na hora e fica lembrado, como o acento — Cancelar/Esc não o
+   desfazem (é estado de interface, fora do `config.json`). */
+$('#theme-mode')?.addEventListener('change',e=>{
+ applyTheme(e.currentTarget.value);save(true);
+});
+/* Idioma da interface e do tutor (#41): valem na hora e ficam lembrados, como o
+   tema — Cancelar/Esc não os desfazem (estado de interface, fora do
+   `config.json`). O tutor lê o idioma ao conectar: com o tutor ocioso a Mesa o
+   religa na hora; ocupado, a dica ao lado do campo segue valendo ("na próxima
+   vez") e a Mesa religa quando a resposta acabar. */
+let tutorLanguageWaiting=false;
+function paintTutorLanguageNote(key){
+ const note=$('#tutor-language-note');
+ if(!note)return;
+ note.dataset.i18n=key;note.textContent=t(key);
+}
+async function relinkTutorForLanguage(){
+ if(S.connecting)await S.connecting.catch(()=>{});
+ const outcome=await window.desk.languageRelink();
+ tutorLanguageWaiting=!!outcome.busy;
+ if(outcome.busy)return paintTutorLanguageNote('settings.tutorLanguage.note');
+ if(!outcome.relinked)return;
+ S.connected=false;
+ paintTutorLanguageNote('settings.tutorLanguage.relinked');
+ await connect().catch(()=>{});
+}
+async function chooseLanguage(request){
+ const result=await window.desk.languageSet(request);
+ setUiLanguage(result.ui);
+ if(request.tutor!==undefined)await relinkTutorForLanguage();
+}
+window.addEventListener('desk-busy',e=>{
+ if(!e.detail?.busy&&tutorLanguageWaiting)relinkTutorForLanguage().catch(err=>toast(err.message));
+});
+for(const [id,field] of [['#ui-language','ui'],['#tutor-language','tutor']]){
+ $(id)?.addEventListener('change',e=>chooseLanguage({[field]:e.currentTarget.value}).catch(err=>toast(err.message)));
+}
+/* O que o `build` traduziu volta no idioma novo (`retranslateTree`); o que a Mesa
+   escreve à mão (linha "Vai junto", medidor, rótulos de esforço, numeração
+   impressa dos leitores) é refeito por quem o escreveu (#41). */
+window.addEventListener(LANGUAGE_EVENT,()=>{
+ retranslateTree(document);
+ setTabsCourses(localizeFreeCourse(getTabsCourses()));relabelFreeCourseName();
+ renderTabsView();renderMenus();updateReviewBadge();paintUpdateNotice();relabelCourseRows();
+ relabelTutorColumn();relabelCalculator(); relabelGuide(); renderHelpVersion(S.deskVersion); renderAboutLead(S.deskVersion);
+ for(const panel of S.panels)panel.paintPrinted();
+});
+initSettings();
 $('#components-refresh').onclick=()=>refreshAbout(true);
-window.desk.onMenuSettings(()=>openSettings(false));
+$('#about-credits-toggle').onclick=()=>{
+ const box=$('#about-credits'),open=box.hidden;
+ box.hidden=!open;
+ $('#about-credits-toggle').setAttribute('aria-expanded',String(open));
+};
+$('#about-log').onclick=()=>aboutHandlers.OpenLog();
+window.desk.onMenuSettings(()=>openSettings());
+/* A ação do aviso "app ausente" do Conferir e a busca de comandos abrem as
+   Configurações no campo do programa de escrita (#38). */
+window.addEventListener('desk-open-settings',e=>{openSettings(e.detail||{}).catch(err=>toast(err.message));});
+/* Depois de salvar a configuração (Configurações ou primeira abertura): a Mesa
+   adota a lista de matérias nova, recarrega e deixa o tutor desligado. Devolve
+   se há motor para conectar — sem Pi configurado a Mesa não tenta conectar
+   sozinha; a conversa Claude segue a mesma regra com o executável detectado (o
+   host manda o caminho ou `''` — sem binário, nada de tentativa nem de toast no
+   save/boot). */
+async function adoptSavedConfig(data){
+ S.connected=false;
+ setTabsCourses(localizeFreeCourse(data.courses));
+ await loadCourse(data);
+ connectionState('');
+ renderTabsView();renderMenus();
+ /* Sem matéria (apagou todas) a folha volta; com matéria ela sai. */
+ await syncFirstRun(data);
+ return engineReady(data);
+}
+/* Primeira abertura (ticket #21): nome + pasta dos PDFs viram a primeira
+   matéria. A pasta de dados confirmada é criada e gravada na configuração local
+   (`vaultPath`, o "Pasta do vault / dados" das Configurações) pelo mesmo
+   `save-config` das Configurações; depois a Mesa vai para a matéria nova. */
+async function createFirstCourse({id,name,folder,dataFolder}){
+ if(dataFolder)await window.desk.firstRunPrepare(dataFolder);
+ const info=await window.desk.getConfig();
+ const config={...info.config,courses:[...(info.config?.courses||[]),{id,name,path:folder}]};
+ if(dataFolder)config.vaultPath=dataFolder;
+ const data=await window.desk.saveConfig(config);
+ const ready=await adoptSavedConfig(data);
+ await switchCourse(id,{connect:ready});
+ renderTabsView();
+}
 let settingsSaving=false;
+/* Mudança pendente (#42): o formulário lido ao abrir é a base; Salvar sem
+   mudança só fecha, e com o tutor respondendo e mudança pendente o Salvar
+   espera o fim da resposta (o rodapé diz isso — `settings.mjs`). */
+let settingsBaseline='';
+function settingsDirty(){
+ if(!$('#settings-dialog')?.open||!settingsBaseline)return false;
+ try{return JSON.stringify(readSettingsForm())!==settingsBaseline;}catch{return true;}
+}
+function syncSettingsFooter(){
+ if(!$('#settings-dialog')?.open)return;
+ setSettingsFooter({busy:!!S.busy,dirty:settingsDirty()});
+}
 async function saveSettings(){
  if(settingsSaving)return;
  settingsSaving=true;
  try{
-  const pickedTheme=$('#theme-mode')?.value;
+  showSaveError('');
+  /* Erro de matéria impede o Salvar: o aviso fica ao lado do campo e o
+     diálogo vai para a seção dele (o núcleo decide; ver `settings.mjs`). */
+  if(!validateSettings())return;
+  if(!settingsDirty()){$('#settings-dialog').close('ok');return;}
+  syncSettingsFooter();
+  if(saveBlockedNow())return;
   const data=await window.desk.saveConfig(readSettingsForm());
   $('#settings-dialog').close('ok');
-  S.connected=false;
-  tabsCourses=data.courses||[];
-  await loadCourse(data);
-  /* Tema só entra no Salvar (Cancelar/Esc não aplicam nem persistem) e DEPOIS
-     do loadCourse: a carga re-aplica o tema do estado salvo e sobrescreveria a
-     escolha nova. */
-  if(pickedTheme&&pickedTheme!==S.currentTheme){applyTheme(pickedTheme);save(true);}
-  connectionState('',`${S.agentLabel} desconectado`);
-  renderTabsView();renderMenus();
-  /* Sem Pi configurado a Mesa não tenta conectar sozinha; a conversa Claude
-     segue a mesma regra com o executável detectado (o host manda o caminho ou
-     `''` — sem binário, nada de tentativa nem de toast no save/boot). */
-  const ready=data.engine==='claude'?!!data.detectedClaude:!!data.detectedPi;
-  if(!data.needsSetup&&ready)connect().catch(()=>{});
- }catch(err){toast(err.message);}
+  const ready=await adoptSavedConfig(data);
+  if(!data.needsSetup&&!isFirstRun()&&ready)connect().catch(()=>{});
+ }catch(err){
+  /* Recusa do main (ex.: a resposta começou entre o clique e o pedido): o
+     aviso fica dentro do diálogo, ao lado do Salvar; o diálogo segue aberto. */
+  if($('#settings-dialog').open)showSaveError(err?.message||String(err));else toast(err?.message||String(err));
+ }
  finally{settingsSaving=false;}
 }
+$('#settings-form').addEventListener('input',()=>{showSaveError('');syncSettingsFooter();});
+$('#settings-form').addEventListener('change',syncSettingsFooter);
+$('#settings-form').addEventListener('click',()=>queueMicrotask(syncSettingsFooter));
+window.addEventListener('desk-busy',syncSettingsFooter);
 /* Enter num campo salva: o `<form method="dialog">` herdado ativava o "×"
    (primeiro submit do form, `value=cancel`) e a edição era descartada. O submit
    é sempre interceptado e só o botão Salvar salva; os botões de cancelar
@@ -691,15 +578,23 @@ $('#settings-form').addEventListener('submit',e=>{
 });
 $('#prompt').addEventListener('input',save);
 slash.init();
-/* Área de apoio + chat lateral: barra sempre visível, eventos do lateral
-   assinados uma vez. */
-initSupport();
+mentions.init();
+/* O tutor pediu o GeoGebra com a aba fechada (#53): abre como se o aluno clicasse; o host espera o applet. */
+window.desk.onGgbOpen?.(()=>selectTab('geogebra'));
+/* Chat lateral: eventos do lateral assinados uma vez (a área de apoio não tem
+   barra de abas; ver `support.mjs`). */
 initSidechat();
 /* Aba Livre (sessão avulsa): módulo próprio que escuta `desk-workspace`/
    `desk-chrome`; montado antes do `window.desk.init()` do rodapé para pegar o
    primeiro estado sem perder evento. */
 initFreeStudy();
-/* Fila de mensagens + steer da Mesa (mesma feature da Conversa, sobre o núcleo
+/* Folha "Lista 0" do leitor vazio (pdf.mjs): "Pedir ao tutor" abre o pedido de
+   PDF com a lista de exercícios da matéria já escrita. */
+window.addEventListener('desk-reader-sheet',event=>{
+ if(event.detail?.action==='tutor')openTutorPdfDialog(event.detail.seed);
+});
+initActivityHost({composer:()=>$('#prompt'),getScope:()=>({courseId:S.currentCourseId,conversationId:S.currentSession})});
+/* Fila de mensagens + steer da Mesa (feature que veio da Conversa, aposentada na #50, sobre o núcleo
    `core/composerview.bend`): ⏎ ocupado enfileira, ⌘/Ctrl+⏎ interrompe e envia. */
 queue.init();
 /* O `loadCourse` avisa quando o `desk` normalizado entra: abas e menus são
@@ -708,15 +603,163 @@ queue.init();
 window.addEventListener('desk-workspace',event=>{
  if(event.detail?.courseId&&event.detail.courseId!==S.currentCourseId)return;
  if(event.detail?.session&&event.detail.session!==S.currentSession)return;
- if(Array.isArray(event.detail?.courses))tabsCourses=event.detail.courses;
+ if(Array.isArray(event.detail?.courses))setTabsCourses(localizeFreeCourse(event.detail.courses));
  renderTabsView();renderMenus();updateReviewBadge();
 });
 window.addEventListener('desk-chrome',()=>{renderTabsView();renderMenus();updateReviewBadge();});
+/* ---------------------------------------------------------------------------
+   Qualidade de vida: paleta de ações (⌘K) e layouts pessoais.
+
+   A superfície de layout é registrada ANTES do boot: o `layoutSnapshot()` do
+   `state.mjs` (root) pode capturar o `viewLayout` já na primeira gravação, e o
+   `applyViewLayout` do evento `desk-layout-ready` reaplica chat recolhido/
+   calculadora recolhida/minimizados depois de os leitores e o apoio
+   recomorem (troca de matéria/sessão ou boot).
+   --------------------------------------------------------------------------- */
+let layoutPresetsUi=null;
+const layoutSurface={
+ save:()=>save(true),
+ panelCount:()=>S.panels.length,
+ calculatorEnabled:()=>S.appConfig.desk?.calculator!==false,
+ referenceFacts:()=>({two:!!supportState.two,tabIsForm:supportState.tab==='form',open:!!supportState.open}),
+ readChatWidth:()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat'))||390,
+ readCalcHeight:()=>calcHeightPx(),
+ readPdfSplit:()=>pdfSplitValue(),
+ readChatCollapsed:()=>chatCollapsed,
+ readCalculatorCollapsed:()=>getCalculatorCollapsed(),
+ readReferenceVisible:()=>supportState.tab==='form'&&supportState.open,
+ readMinimized:()=>S.panels.map(p=>!!p.minimized),
+ setChatWidth:px=>document.documentElement.style.setProperty('--chat',Math.round(px)+'px'),
+ setCalcHeight:px=>document.documentElement.style.setProperty('--calc',Math.round(px)+'px'),
+ setPdfSplit:value=>setPdfSplitPct(value),
+ setChatCollapsed:value=>setChatCollapsed(value===true),
+ setCalculatorCollapsed:value=>setCalculatorCollapsed(value===true),
+ showReference:()=>selectSupportTab('form'),
+ hideReference:()=>setSupportOpen(false),
+ setMinimized:(index,value)=>S.panels[index]?.toggleMinimized(value===true),
+};
+registerLayoutSurface(layoutSurface);
+layoutPresetsUi=initLayoutPresetsUI({});
+/* O root dispara depois de leitores/apoio carregados; sem `layout` é no-op. */
+window.addEventListener('desk-layout-ready',event=>{
+ const layout=event?.detail?.layout;
+ if(layout)applyViewLayout(layout);
+ fitCalculator();
+});
+/* Combo exibido na paleta: o remap/plataforma do keys.mjs manda quando existe. */
+function paletteKey(id,fallback=''){
+ try{const keys=window.mesaKeys;if(keys){const combo=keys.format(keys.effective(id));if(combo)return combo;}}catch{}
+ return fallback;
+}
+/* Ações da paleta — TODAS reutilizam os handlers existentes; a lista resolve
+   disponibilidade (matéria/conversa) e o disable (busy, flags, captura). */
+function paletteAvailableActions(){
+ const busy=!!(S.busy||S.connecting||S.switching);
+ const desk=S.appConfig.desk||{};
+ const panelNow=()=>S.panels.find(p=>p.el.contains(document.activeElement))||S.panels[0]||null;
+ const actions=[];
+ const openFile=panelNow();
+ const waitReply=t('palette.reason.busy');
+ const conferirReason=busy?waitReply:desk.conferir===false?t('palette.reason.conferirOff'):t('palette.reason.noCapture');
+ const command=(id,label,icon,extra={})=>actions.push({id,label,icon,section:'commands',...extra});
+ command('pdf-open',t('palette.openPdf'),'plus',{disabled:!openFile,reason:t('palette.reason.noReader'),run:async()=>{const panel=panelNow();if(panel)await panel.openFile();}});
+ command('conferir',text(conferirCore.buttonLabel(conferirAppName())),'scan',{kbd:paletteKey('check','⌘⇧C'),disabled:busy||desk.conferir===false||!S.captureOk,reason:conferirReason,run:()=>conferir()});
+ command('conferir-pick',text(conferirCore.pickLabel()),'scan',{search:t('palette.search.conferirPick'),disabled:busy||desk.conferir===false||!S.captureOk,reason:conferirReason,run:()=>openConferirSettings()});
+ command('study-search',t('study.search')+'…','search',{run:()=>openStudySearch()});
+ command('review-today',t('study.reviewToday'),'book',{run:()=>{selectTab('review');document.querySelector('#review-today')?.scrollIntoView({block:'start'});}});
+ command('notes',t('study.notes'),'textQuote',{run:()=>openPdfNotes()});
+ /* Tudo que saiu da tela principal (menus Estudar e Ajustes, Caderno,
+    GeoGebra, tema e densidade) se acha aqui pelo nome. Itens desligados no
+    `config.json` ficam de fora, como nos menus. */
+ command('study-stats',t('study.stats'),'graph',{run:()=>{initStudyStats({state:S});openStudyStats();}});
+ command('study-backup',t('study.backup'),'download',{run:()=>studyBackup.abrirBackup()});
+ command('study-share',t('study.share'),'upload',{run:()=>studyBackup.abrirCompartilhar()});
+ command('tutor-pdf',t('study.tutorPdf'),'sparkles',{run:()=>openTutorPdfDialog()});
+ const xournalOff=desk.xournal===false||(S.appConfig.platform==='win32'&&!S.appConfig.xournalPath);
+ if(!xournalOff)command('xournal',t('palette.openXournal'),'external',{run:()=>openXournal()});
+ if(desk.endDay!==false)command('end-day',t('palette.endDay'),'moon',{disabled:!!S.busy,reason:t('palette.reason.stopFirst'),run:()=>openEndDay()});
+ const panelsCfg=Array.isArray(desk.panels)?desk.panels:[];
+ if(panelsCfg.length>1){
+  /* O nome do botão do painel de apoio é dado da pessoa (`config.json`), não frase da Mesa. */
+  const toggleName=String(panelsCfg[1]?.toggle||'')||t('tabs.referenceToggle');
+  command('reference-toggle',t(S.refVisible?'palette.refToggle.hide':'palette.refToggle.show',{name:toggleName}),'columns',{search:t('palette.refToggle.search',{name:toggleName}),run:()=>toggleReference()});
+ }
+ command('review-open',t('palette.reviewNotebook'),'book',{run:()=>selectTab('review')});
+ command('geogebra-open','GeoGebra','graph',{disabled:busy,reason:waitReply,run:()=>selectTab('geogebra')});
+ command('help',t('menu.help'),'help',{run:()=>openHelp()});
+ command('shortcuts',t('menu.shortcuts'),'keyboard',{run:()=>openShortcuts()});
+ command('about',t('menu.about'),'help',{run:()=>openAbout()});
+ for(const theme of ['light','dark','auto']){
+  const label=t(`palette.theme.${theme}`);
+  command(`theme-${theme}`,label,theme==='light'?'sun':theme==='dark'?'moon':'contrast',{search:t('palette.theme.search',{label}),check:S.currentTheme===theme,run:()=>{applyTheme(theme);save(true);toast(`${label}.`);}});
+ }
+ for(const [accent] of ACCENTS){
+  const label=t('palette.accent',{name:t(`settings.accent.${accent}`)});
+  command(`accent-${accent}`,label,'contrast',{search:t('palette.accent.search',{label}),check:S.currentAccent===accent,run:()=>{applyAccent(accent);save(true);toast(`${label}.`);}});
+ }
+ command('density',t('palette.density'),'unfold',{kbd:paletteKey('density','⌘⇧D'),search:t('palette.density.search'),run:()=>toggleDensityMode()});
+ command('settings',t('menu.settings'),'settings',{kbd:paletteKey('settings','⌘,'),run:()=>openSettings()});
+ command('new-session',t('header.newSession'),'plus',{search:t('palette.newSession.search'),disabled:busy,reason:waitReply,run:()=>newSession('pi')});
+ command('new-session-claude',t('palette.newSessionClaude'),'plus',{search:t('palette.newSessionClaude.search'),disabled:busy,reason:waitReply,run:()=>newSession('claude')});command('new-session-opencode',t('palette.newSessionOpenCode'),'plus',{search:t('palette.newSessionOpenCode.search'),disabled:busy,reason:waitReply,run:()=>newSession('opencode')});
+ command('export-chat',t('palette.exportSession'),'download',{search:t('palette.exportSession.search'),run:()=>exportSession()});
+ command('session-library',t('palette.sessionLibrary'),'search',{search:t('palette.sessionLibrary.search'),run:()=>conversationLibrary.open().catch(error=>toast(error.message))});
+ command('chat-toggle',t(chatCollapsed?'palette.tutor.show':'palette.tutor.hide'),'columns',{kbd:paletteKey('chat-toggle','⌘\\'),run:()=>toggleChat()});
+ actions.push({id:'layout-save',label:t('palette.layoutSave'),icon:'download',section:'layouts',disabled:!layoutPresetsUi,reason:t('palette.reason.noLayout'),run:()=>layoutPresetsUi?.open()});
+ const presets=[...builtinPresets(),...(layoutPresetsUi?.list().presets||[])];
+ for(const preset of presets){
+  const summary=summaryOf(preset.layout);
+  actions.push({id:`layout-${preset.id}`,label:t('palette.layout',{name:preset.name}),icon:'columns',section:'layouts',search:`layout ${preset.name} ${summary}`,when:summary,run:()=>applyLayout(preset.layout)});
+ }
+ for(const course of getTabsCourses()){
+  if(!course?.id||course.id===S.currentCourseId)continue;
+  actions.push({id:`course-${course.id}`,label:t('palette.course',{name:course.name||course.id}),icon:'chevronRight',section:'courses',search:String(course.name||course.id),disabled:busy,reason:waitReply,run:()=>selectTab(course.id)});
+ }
+ for(const session of S.sessions){
+  if(!session.path||session.path===S.currentSession)continue;
+  const title=sessionTitleOf(session);
+  actions.push({id:`session-${session.path}`,label:t('palette.session',{title}),icon:'chevronRight',section:'sessions',search:`${title} ${session.preview||''}`,disabled:busy,reason:waitReply,run:()=>openConversation(session.path)});
+ }
+ return actions;
+}
+const paletteApi=initCommandPalette({
+ actions:paletteAvailableActions,
+ canOpen:()=>!document.querySelector('dialog[open]'),
+ onError:error=>{if(error?.message)toast(error.message);},
+});
+window.mesaPalette=paletteApi;
+/* Campo da barra superior: abre a mesma paleta (⌘K). O combo exibido segue o
+   remap do keys.mjs. */
+function syncPaletteField(){
+ const field=$('#palette-field');
+ if(!field)return;
+ if(!field.querySelector('.icon'))field.insertAdjacentHTML('afterbegin',icon('search'));
+ const kbd=$('#palette-field-kbd');
+ if(kbd)kbd.textContent=paletteKey('command-palette','⌘K');
+ const trigger=$('#settings-trigger');
+ if(trigger&&!trigger.querySelector('.icon'))trigger.innerHTML=icon('settings');
+}
+{
+ const field=$('#palette-field');
+ if(field)field.addEventListener('click',e=>{
+  e.stopPropagation();
+  closeMenus({animate:false});
+  if(!document.querySelector('dialog[open]'))openCommandPalette();
+ });
+}
+syncPaletteField();
+/* Menu nativo (root liga `preload.onMenuPalette`) — vale com o WebContentsView
+   do GeoGebra focado, quando o keydown do renderer não chega. */
+window.desk.onMenuPalette?.(()=>{if(!document.querySelector('dialog[open]'))openCommandPalette();});
 try{
  const data=await window.desk.init();
- tabsCourses=data.courses||[];
+ await layoutPresetsUi.refresh();
+ setTabsCourses(localizeFreeCourse(data.courses));
  await loadCourse(data);
  renderTabsView();renderMenus();updateReviewBadge();
- if(data.needsSetup)openWelcome();
- else if(data.engine==='claude'?!!data.detectedClaude:!!data.detectedPi)connect().catch(()=>{});
-}catch(e){toast(e.message);}
+ /* Sem configuração, ou com a pasta de dados válida e nenhuma matéria, a
+    pessoa cai direto no app (folha "Lista 0 — Montar a mesa"); o tutor só liga
+    quando ela chama (tickets #21 e #24). */
+ await syncFirstRun(data,{createCourse:createFirstCourse,openPiSettings});
+ if(!isFirstRun()&&engineReady(data))connect().catch(()=>{});
+ showTutorState();
+}catch(e){toast(e.message);showTutorState();}

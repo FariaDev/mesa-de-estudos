@@ -1,6 +1,7 @@
 import {$} from './state.mjs';
 import {build,preserveFocus,renderChildren} from './view-host.mjs';
 import aux from './generated/auxview.core.js';
+import {LANGUAGE_EVENT} from './ui-text.mjs';
 
 /* Densidade: aperta o espaçamento do chat e da lateral (CSS em body.dense).
    Não mexe no tamanho da fonte. O controle entra na seção "Avisos" das
@@ -71,6 +72,7 @@ function buildControl(){
 export function init(){
  if(built)return;
  built=true;
+ window.addEventListener(LANGUAGE_EVENT,sync);
  apply(read());
  if(!$('#density-mode'))buildControl();
  else sync();
@@ -81,7 +83,7 @@ export function init(){
  }
 }
 
-/* O item "Modo compacto" do menu Mesa (e o ⌘⇧D) alterna o MESMO modo do select
+/* A ação "Modo compacto" da busca de comandos (e o ⌘⇧D) alterna o MESMO modo do select
    das Configurações: grava a escolha, aperta o `body` e o `sync` devolve o
    `selected` do diálogo. O host do menu só troca ícone/`aria-pressed` do item
    vivo depois (recriar os filhos no meio do clique desanexaria o alvo). */

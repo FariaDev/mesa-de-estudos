@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {withArtifacts,seedCourse,writeDeskJson,writeConfigJson,launchDesk,statusOnline,DESK} from './helpers.mjs';
+const conversations=createRequire(import.meta.url)('../src/agents/conversations.cjs');
+await withArtifacts('mesa-claude-activity',async ctx=>{
+ const runtime=ctx.runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-claude-activity-')),folder=seedCourse(runtime,'Synthetic');
+ const file=conversations.createClaudeConversation({runtime,courseId:'Synthetic'});
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Synthetic',name:'Física sintética',path:folder}]});
+ writeDeskJson(runtime,{courseId:'Synthetic',session:file,courseStates:{Synthetic:{session:file,sessions:[{path:file}]}}});
+ const previewOut=path.join(runtime,'claude-preview.json');
+ ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-activity-fake.mjs'),FAKE_CLAUDE_PREVIEW_OUT:previewOut}});
+ const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await statusOnline(page,{timeout:30000});
+ await page.locator('#prompt').fill('Explorar a aceleração.');await page.locator('#send').click();
+ const slot=page.locator('.activity-slot[data-activity-call="toolu_activity_local"]');
+ await slot.locator('.activity-card[data-state="ready"]').waitFor({timeout:15000});
+ const iframe=page.frames().find(f=>f.url().startsWith('mesa-activity://artifact/'));
+ assert.equal(await iframe.locator('#s').textContent(),'6 m');
+ await iframe.locator('#a').evaluate(el=>{el.value='4';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert.equal(await iframe.locator('#s').textContent(),'8 m');
+ await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Depois da atividade Claude.'));
+ const parts=await page.evaluate(()=>[...document.querySelector('#messages').children].map(el=>el.classList.contains('activity-slot')?'activity':el.querySelector('.body')?.textContent||''));
+ console.log('Claude ordered blocks',JSON.stringify(parts));
+ const before=parts.findIndex(t=>t.includes('Antes da atividade Claude.')),activity=parts.indexOf('activity'),after=parts.findIndex(t=>t.includes('Depois da atividade Claude.'));
+ assert.ok(before>=0&&activity>=0&&after>=0);
+ assert.ok(before<activity&&activity<after);
+ assert.equal(parts.filter(t=>t.includes('Antes da atividade Claude.')).length,1);
+ assert.equal(parts.filter(t=>t.includes('Depois da atividade Claude.')).length,1);
+ assert.equal(await slot.count(),1);assert.deepEqual(errors,[]);
+ assert.equal((await page.evaluate(()=>window.desk.activityList())).items[0].toolCallId,'toolu_activity_local');
+ /* #42: a prévia pelo caminho Claude — hook, allowedTools e MCP oficial — volta
+    com o print PNG e o console (com o erro) e não publicou nada além do quadro. */
+ const preview=JSON.parse(fs.readFileSync(previewOut,'utf8'));
+ assert.equal(preview.denied,undefined,'a prévia é liberada no Claude');
+ assert.equal(preview.isError,undefined,`a prévia não falhou (${JSON.stringify(preview).slice(0,300)})`);
+ assert.equal(preview.content[0].type,'image');assert.equal(preview.content[0].mimeType,'image/png');
+ assert.equal(Buffer.from(preview.content[0].data,'base64').subarray(0,8).toString('hex'),'89504e470d0a1a0a');
+ assert.match(preview.content[1].text,/Prévia em 400px \(escuro\)/);
+ assert.match(preview.content[1].text,/\[error\] erro de propósito/);
+ assert.equal((await page.evaluate(()=>window.desk.activityList())).items.length,1,'a prévia não publicou nada');
+});
+console.log('mesa-claude-activity-ui: PASS — native hook ID, official MCP transport, real Mesa main/preload/runtime and interleaved Claude frames; synthetic provider.');

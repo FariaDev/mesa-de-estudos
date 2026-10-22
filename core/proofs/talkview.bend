@@ -35,21 +35,6 @@ def Laws.talk_shots_length(xs):
 def Laws.talk_shot_alt(src):
   {==}
 
-def Laws.talk_citation_tag(text):
-  {==}
-
-def Laws.talk_thinking_chip_kind(label):
-  {==}
-
-def Laws.talk_tool_chip_class(label):
-  {==}
-
-def Laws.talk_empty_id():
-  {==}
-
-def Laws.talk_typing_role(label):
-  {==}
-
 def Laws.talk_quiz_simple_class():
   {==}
 

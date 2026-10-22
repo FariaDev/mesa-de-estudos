@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {ptText, enText} from './pt-text.mjs';
 
 /* Contrato do artefato `auxview.core.js` (gerado de core/auxview.bend) para os
    controles auxiliares da Mesa: densidade, balão de dica e avisos.
@@ -97,7 +98,7 @@ test('densidade: opções na ordem, selected só no modo corrente e evento do co
   assert.deepEqual(options.map((o) => attrsOf(o).value), ['padrao', 'compacta']);
   assert.equal('selected' in attrsOf(options[0]), false);
   assert.equal(attrsOf(options[1]).selected, '');
-  assert.deepEqual(options.map((o) => textsOf(o)[0]), ['Padrão', 'Compacta']);
+  assert.deepEqual(options.map((o) => ptText(textsOf(o)[0])), ['Padrão', 'Compacta']);
   const padrao = nodes(aux.densitySelect('padrao').kids);
   assert.equal(attrsOf(padrao[0]).selected, '');
   assert.equal('selected' in attrsOf(padrao[1]), false);
@@ -106,7 +107,7 @@ test('densidade: opções na ordem, selected só no modo corrente e evento do co
 test('densidade: label com texto + select desenhado pelo núcleo', () => {
   const label = aux.densityControl('padrao');
   assert.equal(label.tag, 'label');
-  assert.deepEqual(textsOf(label), ['Densidade', null]);
+  assert.deepEqual(textsOf(label).map((s) => (s === null ? s : ptText(s))), ['Densidade', null]);
   assert.equal(nodes(label.kids)[1].tag, 'select');
 
   const box = mount();
@@ -151,7 +152,7 @@ test('avisos: três linhas .set-check com ids, rótulos e checked do fato', () =
   assert.deepEqual(inputs.map((i) => attrsOf(i).type), ['checkbox', 'checkbox', 'checkbox']);
   assert.deepEqual(inputs.map((i) => attrsOf(i)['on:change']), ['SetNotify', 'SetNotify', 'SetNotify']);
   assert.deepEqual(inputs.map((i) => 'checked' in attrsOf(i)), [true, true, false]);
-  assert.deepEqual(spans.map((s) => textsOf(s)[0]), ['Som', 'Notificação', 'Avisar mesmo com a janela em foco']);
+  assert.deepEqual(spans.map((s) => ptText(textsOf(s)[0])), ['Som', 'Notificação', 'Avisar mesmo com a janela em foco']);
 
   const off = nodes(aux.notifyRows(prefs({sound: false, focused: true})));
   assert.deepEqual(off.map((r) => 'checked' in attrsOf(nodes(r.kids)[0])), [false, true, true]);
@@ -164,10 +165,11 @@ test('avisos: o grupo mantém o contrato #notify-mode[role=group] e a legenda', 
   assert.equal(attrs.id, 'notify-mode');
   assert.equal(attrs.class, 'set-group');
   assert.equal(attrs.role, 'group');
-  assert.equal(attrs['aria-label'], 'Avisos de conclusão');
+  assert.equal(ptText(attrs['aria-label']), 'Avisos de conclusão');
+  assert.equal(enText(attrs['aria-label']), 'Completion alerts');
   assert.equal(nodes(group.kids).length, 4);
   assert.equal(nodes(group.kids)[0].tag, 'span');
-  assert.equal(textsOf(nodes(group.kids)[0])[0], 'Avisos de conclusão');
+  assert.equal(ptText(textsOf(nodes(group.kids)[0])[0]), 'Avisos de conclusão');
 });
 
 test('avisos: aplicador monta as linhas no grupo e liga o change de cada uma', () => {

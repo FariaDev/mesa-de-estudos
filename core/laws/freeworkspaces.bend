@@ -36,7 +36,7 @@ law fw_free_course_name:
   {N.freeCourseName() == "Livre" : String}
 
 law fw_default_title:
-  {N.defaultTitle() == "Conversa livre" : String}
+  {N.defaultTitle() == "Sessão livre" : String}
 
 law fw_is_free_course_id_yes:
   {N.isFreeCourseId("mesa-free") == True{} : Bool}
@@ -69,7 +69,7 @@ law fw_fit_name_trims:
 # com o teto pinado aqui.
 
 law fw_fit_title_blank_default:
-  {N.fitTitleOr("   ") == "Conversa livre" : String}
+  {N.fitTitleOr("   ") == "Sessão livre" : String}
 
 law fw_fit_title_or_trims:
   {N.fitTitleOr("  Calculo  ") == "Calculo" : String}

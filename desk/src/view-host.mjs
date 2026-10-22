@@ -1,3 +1,6 @@
+import {text} from './ui-text.mjs';
+import {parseMessage} from './i18n.mjs';
+
 export const EVENTS = new Set([
   'click', 'dblclick', 'input', 'change', 'submit', 'keydown', 'keyup', 'keypress',
   'focus', 'blur', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'mouseenter',
@@ -5,7 +8,8 @@ export const EVENTS = new Set([
 ]);
 
 /* Aplicador fino de DOM para as árvores do `core/view.bend`.
-   Sem diff: monta um fragmento e troca o conteúdo do pai (`replaceChildren`).
+   Sem diff: monta um fragmento e troca o conteúdo do pai (`replaceChildren`);
+   quem re-renderiza a cada token usa `patchTree` (#70).
    Convenções (as mesmas do núcleo):
    - ViewText{text} → nó de texto;
    - ViewEl{tag, attrs, kids};
@@ -27,9 +31,58 @@ export function htmlNode(html) {
 export function applyIcons(root, icon) {
   const targets = root.matches?.('[data-icon]') ? [root, ...root.querySelectorAll('[data-icon]')] : [...root.querySelectorAll('[data-icon]')];
   for (const el of targets) {
-    const name = el.dataset.icon, label = el.textContent;
+    const name = el.dataset.icon, label = el.textContent, kept = [...el.childNodes];
     el.removeAttribute('data-icon');
-    el.innerHTML = icon(name) + (label ? ` <span>${label}</span>` : '');
+    el.innerHTML = icon(name);
+    if (!label) continue;
+    /* Os nós de texto originais mudam de lugar em vez de virar cópia: é neles que
+       `retranslateTree` (#41) guarda a mensagem de origem, e o item de menu com
+       ícone ficaria na língua antiga depois da troca. */
+    const span = document.createElement('span');
+    span.append(...kept);
+    el.append(' ', span);
+  }
+}
+
+/* Texto e atributo que vieram de mensagem do núcleo guardam a mensagem de origem:
+   na troca de idioma (#41) `retranslateTree` os refaz sem montar a tela de novo
+   (leitores de PDF, notas, rodapés). Só vale enquanto o nó ainda mostra o que o
+   `build` escreveu; texto que o host reescreveu depois fica como está. */
+const textSources = new WeakMap();
+const attrSources = new WeakMap();
+/* Os eventos ligados por `build` em cada elemento ("click=toggle;…"): o
+   `patchTree` só mantém o nó vivo quando são os mesmos (#70: o cabeçalho do
+   diário ganha o clique quando o turno acaba e o nó antigo ficava surdo). */
+const boundEvents = new WeakMap();
+
+function translated(raw) {
+  const shown = text(raw);
+  return {shown, tracked: parseMessage(raw) !== null};
+}
+
+function rememberAttr(el, name, raw, shown) {
+  const known = attrSources.get(el) ?? new Map();
+  known.set(name, {raw, shown});
+  attrSources.set(el, known);
+}
+
+/** Refaz no idioma atual o texto e os atributos de `root` que o `build` traduziu.
+ * @param {ParentNode} [root] */
+export function retranslateTree(root = document) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const source = textSources.get(node);
+    if (!source || node.nodeValue !== source.shown) continue;
+    source.shown = text(source.raw);
+    node.nodeValue = source.shown;
+  }
+  const elements = root.nodeType === 1 ? [root, ...root.querySelectorAll('*')] : root.querySelectorAll('*');
+  for (const el of elements) {
+    for (const [name, source] of attrSources.get(el) ?? []) {
+      if (el.getAttribute(name) !== source.shown) continue;
+      source.shown = text(source.raw);
+      el.setAttribute(name, source.shown);
+    }
   }
 }
 
@@ -48,13 +101,20 @@ export function build(node, handlers = {}) {
     while (holder.firstChild) frag.append(holder.firstChild);
     return frag;
   }
-  if (node.$ === 'ViewText') return document.createTextNode(String(node.text ?? ''));
+  if (node.$ === 'ViewText') {
+    const raw = String(node.text ?? '');
+    const {shown, tracked} = translated(raw);
+    const textNode = document.createTextNode(shown);
+    if (tracked) textSources.set(textNode, {raw, shown});
+    return textNode;
+  }
   const el = document.createElement(String(node.tag || 'div'));
   const applied = new Set();
   for (let attr = node.attrs; attr && attr.$ === 'Con'; attr = attr.tail) {
     const {name, value} = attr.head;
     const key = String(name ?? '');
-    const val = String(value ?? '');
+    const raw = String(value ?? '');
+    const {shown: val, tracked} = translated(raw);
     if (applied.has(key)) continue; // primeiro attr com o nome vence
     applied.add(key);
     if (key === 'key') {
@@ -64,11 +124,15 @@ export function build(node, handlers = {}) {
     if (key.startsWith('on:')) {
       const event = key.slice(3);
       const handler = handlers[val];
-      if (handler && EVENTS.has(event)) el.addEventListener(event, handler);
+      if (handler && EVENTS.has(event)) {
+        el.addEventListener(event, handler);
+        boundEvents.set(el, `${boundEvents.get(el) || ''}${event}=${val};`);
+      }
       continue;
     }
     if (!val && (key === 'class' || key === 'id')) continue;
     el.setAttribute(key, val);
+    if (tracked) rememberAttr(el, key, raw, val);
   }
   for (const kid of childrenOf(node.kids)) el.append(build(kid, handlers));
   return el;
@@ -89,6 +153,59 @@ export function renderChildren(parent, nodes, handlers = {}) {
   for (const node of list) frag.append(build(node, handlers));
   parent.replaceChildren(frag);
   return parent;
+}
+
+/**
+ * Leva `fresh` (recém-montado por `build`) para dentro de `live` sem trocar os
+ * nós que continuam do mesmo tipo: atributos e texto mudam no lugar, e só o que
+ * mudou de tag ou de `data-key` é substituído. Assim o "pensando" do tutor não
+ * reinicia a animação nem pisca o raciocínio a cada token (#70). Os listeners
+ * do nó que fica são os do primeiro `build`; nó com outros eventos é trocado,
+ * e serve para quem monta sempre com os mesmos handlers. `keep(live, fresh)` true mantém os filhos de `live`.
+ * @param {Element} live @param {Element} fresh
+ * @param {(live: Element, fresh: Element) => boolean} [keep]
+ * @example patchTree(article, build(core.workLog(row), handlers))
+ */
+export function patchTree(live, fresh, keep = () => false) {
+  const kept = keep(live, fresh);
+  syncAttributes(live, fresh);
+  if (kept) return;
+  const next = [...fresh.childNodes];
+  next.forEach((node, index) => patchChild(live, live.childNodes[index], node, keep));
+  while (live.childNodes.length > next.length) live.lastChild.remove();
+}
+
+function patchChild(parent, current, node, keep) {
+  if (!current) return parent.append(node);
+  if (!sameShape(current, node)) return current.replaceWith(node);
+  if (node.nodeType === 1) return patchTree(current, node, keep);
+  if (current.nodeValue !== node.nodeValue) current.nodeValue = node.nodeValue;
+  adoptSource(textSources, current, node);
+}
+
+function sameShape(current, node) {
+  if (current.nodeType !== node.nodeType || current.nodeName !== node.nodeName) return false;
+  if (node.nodeType !== 1 && node.nodeType !== 3) return false;
+  if (node.nodeType === 3) return true;
+  return (current.dataset.key || '') === (node.dataset.key || '') && (boundEvents.get(current) || '') === (boundEvents.get(node) || '');
+}
+
+function syncAttributes(live, fresh) {
+  for (const name of live.getAttributeNames()) {
+    if (!fresh.hasAttribute(name)) live.removeAttribute(name);
+  }
+  for (const name of fresh.getAttributeNames()) {
+    const value = fresh.getAttribute(name);
+    if (live.getAttribute(name) !== value) live.setAttribute(name, value);
+  }
+  adoptSource(attrSources, live, fresh);
+}
+
+/* O nó que fica herda a mensagem de origem do recém-montado, para a troca de
+   idioma (`retranslateTree`) continuar valendo depois do patch. */
+function adoptSource(sources, live, fresh) {
+  if (sources.has(fresh)) sources.set(live, sources.get(fresh));
+  else sources.delete(live);
 }
 
 /* Preserva foco (por key/id) e seleção do campo focado em volta de um render. */

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
- STEP,addError,closeThinking,countsLabel,createLog,finishLog,finishTool,formatDuration,
- headLine,historyTurns,liveLabel,runningStep,startTool,stepDetail,stepLabel,stepPreview,thinkingDelta,toolKind,
+ STEP,addError,closeThinking,countsLabel,createLog,findToolStep,finishLog,finishTool,formatDuration,
+ headLine,historyTurns,liveLabel,replaceThinking,runningStep,startTool,stepDetail,stepLabel,stepPreview,thinkingDelta,toolKind,
 } from '../src/worklog.mjs';
 
 test('toolKind separa busca, referência e leitura', () => {
@@ -126,4 +126,134 @@ test('historyTurns separa turnos e ignora mensagem vazia', () => {
  assert.equal(turns.length, 2);
  assert.equal(turns[0].text, 'resposta um');
  assert.equal(turns[1].text, 'resposta dois');
+});
+
+test('startTool é idempotente por id: declaração reserva e execução atualiza o mesmo passo', () => {
+ const log = createLog(0);
+ const declared = startTool(log, {id: 't1', name: 'mesa_criar_atividade', args: {title: 'MRUV'}, now: 10});
+ const executed = startTool(log, {id: 't1', name: 'mesa_criar_atividade', args: {title: 'MRUV'}, now: 20});
+ assert.equal(executed, declared, 'o mesmo objeto de passo, sem duplicar');
+ assert.equal(log.steps.length, 1);
+ assert.equal(declared.startedAt, 10, 'o relógio da declaração fica');
+ assert.equal(findToolStep(log, 't1'), declared);
+ assert.equal(findToolStep(log, 'nope'), null);
+ finishTool(log, {id: 't1', now: 30, isError: false, result: {content: 'ok', details: {activityId: 'act-1'}}});
+ assert.equal(log.steps.filter(step => step.id === 't1').length, 1, 'o fim não cria linha extra');
+ assert.equal(declared.status, 'done');
+});
+
+test('replaceThinking grava o conteúdo autoritativo do thinking_end sem duplicar', () => {
+ const log = createLog(0);
+ thinkingDelta(log, 'Vou ', 10);
+ thinkingDelta(log, 'buscar.', 20);
+ replaceThinking(log, 'Vou buscar com calma.', log.steps[0]);
+ assert.equal(log.steps.length, 1);
+ assert.equal(log.steps[0].text, 'Vou buscar com calma.');
+ thinkingDelta(log, ' e conferir.', 30);
+ assert.equal(log.steps[0].text, 'Vou buscar com calma. e conferir.', 'delta seguinte continua no mesmo passo running');
+ assert.equal(replaceThinking(log, 'x', null), log.steps[0], 'sem passo explícito usa o último pensamento');
+ assert.equal(log.steps[0].text, 'x');
+});
+
+test('historyTurns expõe parts: a fala fecha a rodada e o trabalho seguinte vem depois', () => {
+ const messages = [
+  {role: 'user', content: [{type: 'text', text: 'faz aí'}], timestamp: 0},
+  {role: 'assistant', content: [
+   {type: 'thinking', thinking: 'Vou buscar.'},
+   {type: 'toolCall', id: 't1', name: 'web_search', arguments: {query: 'x'}},
+  ], timestamp: 100},
+  {role: 'toolResult', toolCallId: 't1', toolName: 'web_search', isError: false, timestamp: 200, content: [{type: 'text', text: 'ok'}], details: {results: [{title: 'A', url: 'https://a.dev'}]}},
+  {role: 'assistant', content: [{type: 'text', text: 'Achei: A'}], timestamp: 300},
+  {role: 'assistant', content: [
+   {type: 'thinking', thinking: 'Agora o preço.'},
+   {type: 'toolCall', id: 't2', name: 'web_fetch', arguments: {url: 'https://a.dev/preco'}},
+  ], timestamp: 400},
+  {role: 'toolResult', toolCallId: 't2', toolName: 'web_fetch', isError: false, timestamp: 500, content: [{type: 'text', text: 'R$ 10'}], details: {}},
+  {role: 'assistant', content: [{type: 'text', text: 'Custa R$ 10.'}], timestamp: 600},
+ ];
+ const [turn] = historyTurns(messages);
+ assert.deepEqual(turn.parts.map(part => part.type), ['work', 'text', 'work', 'text']);
+ assert.equal(turn.parts[0].steps.length, 2, 'pensamento + busca na primeira rodada');
+ assert.equal(turn.parts[2].steps.length, 2, 'pensamento + leitura na segunda');
+ assert.equal(turn.parts[1].text, 'Achei: A');
+ assert.equal(turn.parts[3].text, 'Custa R$ 10.');
+ assert.equal(turn.parts[0].startedAt, 100);
+ assert.equal(turn.parts[0].endedAt, 200, 'a rodada fecha no resultado da ferramenta');
+ assert.equal(turn.text, 'Achei: A\n\nCusta R$ 10.');
+ assert.equal(turn.steps.length, 4);
+ assert.equal(headLine({...turn, endedAt: turn.endedAt}), 'Trabalhou por 1s · 1 busca · 1 página');
+});
+
+test('historyTurns: artefato entra no ponto da ferramenta, antes da próxima fala', () => {
+ const [turn] = historyTurns([
+  {role: 'user', content: [{type: 'text', text: 'crie uma atividade'}], timestamp: 0},
+  {role: 'assistant', content: [
+   {type: 'thinking', thinking: 'Vou montar.'},
+   {type: 'toolCall', id: 'a1', name: 'mesa_criar_atividade', arguments: {title: 'MRUV'}},
+  ], timestamp: 100},
+  {role: 'toolResult', toolCallId: 'a1', toolName: 'mesa_criar_atividade', isError: false, timestamp: 200, content: [{type: 'text', text: 'atividade publicada'}], details: {activityId: 'act-1', hash: 'h1'}},
+  {role: 'assistant', content: [{type: 'text', text: 'Aqui está.'}], timestamp: 300},
+ ]);
+ assert.deepEqual(turn.parts.map(part => part.type), ['work', 'artifact', 'text']);
+ assert.equal(turn.parts[1].toolCallId, 'a1');
+ assert.equal(turn.parts[1].name, 'mesa_criar_atividade');
+ assert.equal(turn.parts[1].at, 100);
+ assert.equal(turn.parts[0].steps.length, 2);
+});
+
+test('historyTurns: text-tool-text na mesma mensagem preserva a ordem e o slot', () => {
+ const [turn] = historyTurns([
+  {role: 'user', content: [{type: 'text', text: 'oi'}], timestamp: 0},
+  {role: 'assistant', content: [
+   {type: 'text', text: 'Antes.'},
+   {type: 'toolCall', id: 'a1', name: 'mcp__mesa__criar_atividade', arguments: {title: 'x'}},
+   {type: 'text', text: 'Depois.'},
+  ], timestamp: 100},
+  {role: 'toolResult', toolCallId: 'a1', toolName: 'mcp__mesa__criar_atividade', isError: false, timestamp: 150, content: [{type: 'text', text: 'ok'}], details: {}},
+ ]);
+ assert.deepEqual(turn.parts.map(part => part.type), ['text', 'work', 'artifact', 'text']);
+ assert.equal(turn.parts[0].text, 'Antes.');
+ assert.equal(turn.parts[1].steps.length, 1);
+ assert.equal(turn.parts[2].toolCallId, 'a1');
+ assert.equal(turn.parts[3].text, 'Depois.');
+});
+
+test('historyTurns: duas atividades na mesma rodada mantêm ordem de declaração e step do jeito', () => {
+ const [turn] = historyTurns([
+  {role: 'user', content: [{type: 'text', text: 'duas'}], timestamp: 0},
+  {role: 'assistant', content: [
+   {type: 'toolCall', id: 'a1', name: 'mesa_criar_atividade', arguments: {title: 'um'}},
+   {type: 'toolCall', id: 'a2', name: 'mesa_criar_atividade', arguments: {title: 'dois'}},
+  ], timestamp: 10},
+  {role: 'toolResult', toolCallId: 'a2', toolName: 'mesa_criar_atividade', isError: true, timestamp: 20, content: [{type: 'text', text: 'falhou'}], details: {}},
+  {role: 'toolResult', toolCallId: 'a1', toolName: 'mesa_criar_atividade', isError: false, timestamp: 30, content: [{type: 'text', text: 'ok'}], details: {}},
+ ]);
+ assert.deepEqual(turn.parts.map(part => part.type), ['work', 'artifact', 'artifact']);
+ assert.deepEqual(turn.parts.filter(part => part.type === 'artifact').map(part => part.toolCallId), ['a1', 'a2']);
+ assert.equal(turn.parts[0].steps.length, 2);
+ assert.equal(turn.parts[0].steps[0].status, 'done');
+ assert.equal(turn.parts[0].steps[1].status, 'error', 'resultado fora de ordem cai no passo do próprio id');
+});
+
+test('historyTurns junta falas consecutivas da mesma mensagem (só trabalho separa)', () => {
+ const [turn] = historyTurns([
+  {role: 'user', content: [{type: 'text', text: 'oi'}], timestamp: 0},
+  {role: 'assistant', content: [
+   {type: 'text', text: 'Primeiro parágrafo.'},
+   {type: 'text', text: 'Segundo parágrafo.'},
+  ], timestamp: 100},
+ ]);
+ assert.deepEqual(turn.parts.map(part => part.type), ['text'], 'textos vizinhos ficam num balão só');
+ assert.equal(turn.parts[0].text, 'Primeiro parágrafo.\n\nSegundo parágrafo.');
+});
+
+test('historyTurns guarda imagens do assistente em parts (fala vazia vira parte visual)', () => {
+ const [turn] = historyTurns([
+  {role: 'user', content: [{type: 'text', text: 'imagem?'}], timestamp: 0},
+  {role: 'assistant', content: [{type: 'image', data: 'QUJD', mimeType: 'image/png'}], timestamp: 100},
+ ]);
+ assert.deepEqual(turn.parts.map(part => part.type), ['text']);
+ assert.equal(turn.parts[0].text, '');
+ assert.deepEqual(turn.parts[0].images, ['data:image/png;base64,QUJD']);
+ assert.equal(turn.assistantImages.length, 1);
 });

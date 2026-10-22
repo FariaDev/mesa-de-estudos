@@ -275,4 +275,3 @@ def Laws.pdfnav_remove_ignores_position():
 
 def Laws.pdfnav_remove_keeps_other_name():
   {==}
-

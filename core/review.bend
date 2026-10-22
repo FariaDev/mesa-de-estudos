@@ -1,5 +1,7 @@
 import Base
+import msg.bend as M
 import view.bend as V
+import reviewschedule.bend as R
 
 # ---------------------------------------------------------------------------
 # Caderno de revisão (pedido 6): o que o aluno guarda de uma conversa para
@@ -202,192 +204,580 @@ def removeSame(items: List<&2, ReviewItem>, +key: ReviewItem) -> List<&2, Review
 # ---------- rótulos ----------
 
 def reviewTitle() -> String:
-  "Caderno de revisão"
+  M.msg("review.title")
 
 def closeLabel() -> String:
-  "Fechar"
+  M.msg("review.close")
 
-def emptyText() -> String:
-  "Nada guardado para revisar ainda. Use Guardar para revisar numa resposta do Pi."
+def emptyTitle() -> String:
+  M.msg("review.empty.title")
 
-def countText.if(n: Nat, one: Bool) -> String:
-  match one:
-    case True{}:
-      "1 item"
-    case False{}:
-      Nat.show(n) ++ " itens"
+def emptyLead() -> String:
+  M.msg("review.empty.lead")
+
+def emptyTail() -> String:
+  M.msg("review.empty.tail")
 
 def countText(+n: Nat) -> String:
-  countText.if(n, Nat.is_eq(n, 1n))
+  M.msg1("review.count", "count", Nat.show(n))
 
-def pageLabel(page: Nat) -> String:
-  "p. " ++ Nat.show(page)
+# A contagem da barra. Com a agenda carregada: "3 para hoje · 7 no caderno",
+# "Nada para hoje · 7 no caderno" ou "0 itens". Sem a agenda (host sem ela, ou
+# ainda carregando) sobra só o total: "1 item" / "N itens".
+def countLine.none(+total: Nat) -> String:
+  M.msg1("review.countLine.none", "total", Nat.show(total))
 
-# Sem nome (a biblioteca ainda não achou o arquivo) sobra a página.
-def refLine.if(name: String, page: Nat, unnamed: Bool) -> String:
+def countLine.some(+due: Nat, +total: Nat, +noDue: Bool) -> String:
+  match noDue:
+    case True{}:
+      countLine.none(total)
+    case False{}:
+      M.msg2("review.countLine.some", "due", Nat.show(due), "total", Nat.show(total))
+
+def countLine.known(+due: Nat, +total: Nat, +empty: Bool) -> String:
+  match empty:
+    case True{}:
+      countText(0n)
+    case False{}:
+      countLine.some(due, total, Nat.is_eq(due, 0n))
+
+def countLine.pick(+due: Nat, +total: Nat, +known: Bool) -> String:
+  match known:
+    case False{}:
+      countText(total)
+    case True{}:
+      countLine.known(due, total, Nat.is_eq(total, 0n))
+
+def countLine(+due: Nat, +total: Nat, +known: Bool) -> String:
+  countLine.pick(due, total, known)
+
+def pageLabel(+page: Nat) -> String:
+  M.msg1("review.ref.page", "page", Nat.show(page))
+
+def refLine.if(+name: String, +page: Nat, +unnamed: Bool) -> String:
   match unnamed:
     case True{}:
       pageLabel(page)
     case False{}:
-      name ++ ", " ++ pageLabel(page)
+      M.msg2("review.ref.named", "name", name, "page", Nat.show(page))
 
 # Sem nome (a biblioteca ainda não achou o arquivo) sobra a página.
-def refLine(+name: String, page: Nat) -> String:
+def refLine(+name: String, +page: Nat) -> String:
   refLine.if(name, page, String.is_empty(String.trim(name)))
 
-def refNone() -> String:
-  "sem referência"
+def refOpen.if(+name: String, +page: Nat, +unnamed: Bool) -> String:
+  match unnamed:
+    case True{}:
+      M.msg1("review.ref.open.page", "page", Nat.show(page))
+    case False{}:
+      M.msg2("review.ref.open.named", "name", name, "page", Nat.show(page))
 
-def refPrefix() -> String:
-  "Referência: "
+def refOpen(+name: String, +page: Nat) -> String:
+  refOpen.if(name, page, String.is_empty(String.trim(name)))
 
 def questionLabel() -> String:
-  "A questão"
+  M.msg("review.question")
 
 def attemptLabel() -> String:
-  "O que você tentou"
+  M.msg("review.attempt")
 
 def difficultyLabel() -> String:
-  "Onde travou"
+  M.msg("review.difficulty")
 
 def dialogTitle() -> String:
-  "Guardar para revisar"
+  M.msg("review.saveForReview")
 
 def saveLabel() -> String:
-  "Salvar"
+  M.msg("common.save")
 
 def cancelLabel() -> String:
-  "Cancelar"
+  M.msg("common.cancel")
 
 def similarLabel() -> String:
-  "Semelhante"
+  M.msg("review.similar")
 
 def similarTitle() -> String:
-  "Pedir um exercício semelhante com outros números"
+  M.msg("review.similar.title")
 
 def redoLabel() -> String:
-  "Tentar de novo"
+  M.msg("review.redo")
 
 def redoTitle() -> String:
-  "Refazer este exercício no composer"
+  M.msg("review.redo.title")
+
+def editLabel() -> String:
+  M.msg("common.edit")
 
 def editTitle() -> String:
-  "Editar o item do caderno"
+  M.msg("review.edit.title")
 
 def removeLabel() -> String:
-  "Remover"
+  M.msg("common.remove")
 
 def removeTitle() -> String:
-  "Remover o item do caderno"
+  M.msg("review.remove.title")
 
 def saveActionLabel() -> String:
-  "Guardar para revisar"
+  M.msg("review.saveForReview")
 
 def saveActionTitle() -> String:
-  "Guardar esta resposta para revisar depois"
+  M.msg("review.saveAction.title")
 
-# ---------- linhas ----------
+def gradesTitle() -> String:
+  M.msg("review.grades.title")
 
-def refNodeFrom(+name: String, +page: Nat, path: String) -> V.ViewNode:
+def allTitle() -> String:
+  M.msg("review.all.title")
+
+def dueGroupTitle() -> String:
+  M.msg("review.group.due")
+
+def laterGroupTitle() -> String:
+  M.msg("review.group.later")
+
+def todayKicker() -> String:
+  M.msg("review.kicker.today")
+
+def allDoneKicker() -> String:
+  M.msg("review.kicker.done")
+
+def aheadKicker() -> String:
+  M.msg("review.kicker.ahead")
+
+def refMissingWarn() -> String:
+  M.msg("review.warn.missing")
+
+def refOutsideWarn() -> String:
+  M.msg("review.warn.outside")
+
+# ---------- o item da tela (fatos já resolvidos pelo host) ----------
+
+# `id` é o da agenda (`desk/src/study-data/review-schedule.cjs`); `due` diz se
+# vence hoje; `when` é "hoje", "amanhã" ou "em N dias"; `saved` é "9 out" (ou
+# vazio); `interval` é o intervalo atual em dias (0 = nunca revisado); `warn` é
+# o aviso da referência (vazio quando está tudo certo).
+type ReviewEntry is Data:
+  ReviewEntry{
+    id: String, question: String, attempt: String, difficulty: String,
+    ref: ReviewRef, due: Bool, when: String, saved: String, interval: Nat, warn: String
+  }
+
+def entryId(+e: ReviewEntry) -> String:
+  match e:
+    case ReviewEntry{+id, _, _, _, _, _, _, _, _, _}:
+      id
+
+def entryDue(+e: ReviewEntry) -> Bool:
+  match e:
+    case ReviewEntry{_, _, _, _, _, +due, _, _, _, _}:
+      due
+
+# ---------- a lista: separar, achar e escolher ----------
+
+def keepEntry(+h: ReviewEntry, +rest: List<&2, ReviewEntry>, +keep: Bool) -> List<&2, ReviewEntry>:
+  match keep:
+    case True{}:
+      Con{h, rest}
+    case False{}:
+      rest
+
+def dueEntries(+xs: List<&2, ReviewEntry>) -> List<&2, ReviewEntry>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case Con{+h, t}:
+      keepEntry(h, dueEntries(t), entryDue(h))
+
+def laterEntries(+xs: List<&2, ReviewEntry>) -> List<&2, ReviewEntry>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case Con{+h, t}:
+      keepEntry(h, laterEntries(t), Bool.not(entryDue(h)))
+
+def countEntries(+xs: List<&2, ReviewEntry>) -> Nat:
+  match xs:
+    case Nil{}:
+      0n
+    case Con{h, t}:
+      Nat.add(1n, countEntries(t))
+
+def firstEntry(+xs: List<&2, ReviewEntry>) -> Maybe<&2, ReviewEntry>:
+  match xs:
+    case Nil{}:
+      None{}
+    case Con{h, t}:
+      Some{h}
+
+def findEntry.step(+h: ReviewEntry, +rest: Maybe<&2, ReviewEntry>, +same: Bool) -> Maybe<&2, ReviewEntry>:
+  match same:
+    case True{}:
+      Some{h}
+    case False{}:
+      rest
+
+def findEntry(+xs: List<&2, ReviewEntry>, +id: String) -> Maybe<&2, ReviewEntry>:
+  match xs:
+    case Nil{}:
+      None{}
+    case Con{+h, t}:
+      findEntry.step(h, findEntry(t, id), String.eq(entryId(h), id))
+
+def preferEntry(+a: Maybe<&2, ReviewEntry>, +b: Maybe<&2, ReviewEntry>) -> Maybe<&2, ReviewEntry>:
+  match a:
+    case Some{x}:
+      Some{x}
+    case None{}:
+      b
+
+# O item da esquerda: o que o aluno escolheu na lista; se ele sumiu (ou nada foi
+# escolhido), o primeiro que vence hoje; se nada vence, o primeiro da lista.
+def currentEntry(+xs: List<&2, ReviewEntry>, +id: String) -> Maybe<&2, ReviewEntry>:
+  preferEntry(findEntry(xs, id), preferEntry(firstEntry(dueEntries(xs)), firstEntry(xs)))
+
+# Posição (de 1) do item na lista; 0 quando não está.
+def positionOf.step(+found: Bool, +here: Nat, +rest: Nat) -> Nat:
+  match found:
+    case True{}:
+      here
+    case False{}:
+      rest
+
+def positionOf.go(+xs: List<&2, ReviewEntry>, +id: String, +i: Nat) -> Nat:
+  match xs:
+    case Nil{}:
+      0n
+    case Con{+h, t}:
+      positionOf.step(String.eq(entryId(h), id), Nat.add(i, 1n), positionOf.go(t, id, Nat.add(i, 1n)))
+
+def positionOf(+xs: List<&2, ReviewEntry>, +id: String) -> Nat:
+  positionOf.go(xs, id, 0n)
+
+# ---------- o progresso de hoje ----------
+
+# `done` são as revisões que o aluno marcou nesta abertura do caderno: o
+# progresso não volta para "1 de 2" cada vez que um item sai da fila.
+def progressShown(+done: Nat, +position: Nat) -> Nat:
+  Nat.add(done, position)
+
+def progressTotal(+done: Nat, +due: Nat) -> Nat:
+  Nat.add(done, due)
+
+def progressText(+shown: Nat, +total: Nat) -> String:
+  M.msg2("review.progress", "shown", Nat.show(shown), "total", Nat.show(total))
+
+# ---------- "Como foi?": quando o item volta para cada resposta ----------
+
+def gradeWhen(+interval: Nat, +result: R.ReviewResult) -> String:
+  R.returnsLabel(R.nextInterval(interval, result))
+
+def gradeButton(+id: String, +interval: Nat, +result: R.ReviewResult) -> V.ViewNode:
   V.viewEl("button", [
     V.attrType("button"),
-    V.attrClass("review-ref"),
-    V.attrData("page", Nat.show(page)),
-    V.attrData("path", path),
-    V.attrData("name", name),
-    V.attrTitle("Abrir " ++ refLine(name, page)),
-    V.attrAria("label", "Abrir " ++ refLine(name, page)),
-    V.attrOn("click", "OpenReviewRef")
-  ], [V.viewText(refLine(name, page))])
+    V.attrClass("review-grade"),
+    V.attrData("id", id),
+    V.attrData("result", R.resultTag(result)),
+    V.attrTitle(R.gradeNote(result))
+  ], [
+    V.viewEl("span", [V.attrClass("review-grade-name")], [V.viewText(R.resultLabel(result))]),
+    V.viewEl("span", [V.attrClass("review-grade-when")], [V.viewText(gradeWhen(interval, result))])
+  ])
 
-def refNode(ref: ReviewRef) -> V.ViewNode:
+def gradesRow(+id: String, +interval: Nat) -> V.ViewNode:
+  V.viewEl("section", [V.attrClass("review-grades"), V.attrAria("label", gradesTitle())], [
+    V.viewEl("h3", [V.attrClass("review-grades-title")], [V.viewText(gradesTitle())]),
+    V.viewEl("div", [V.attrClass("review-grade-row")], [
+      gradeButton(id, interval, R.ResultErrei{}),
+      gradeButton(id, interval, R.ResultDificil{}),
+      gradeButton(id, interval, R.ResultBom{}),
+      gradeButton(id, interval, R.ResultFacil{})
+    ])
+  ])
+
+# ---------- o cartão do item ----------
+
+def blank(+text: String) -> Bool:
+  String.is_empty(String.trim(text))
+
+def refNodeFrom(+name: String, +page: Nat, +path: String, +warn: String) -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    [V.attrType("button")],
+    [V.attrClass("review-ref")],
+    [V.attrData("page", Nat.show(page))],
+    [V.attrData("path", path)],
+    [V.attrData("name", name)],
+    V.attrWhen(blank(warn), V.attrTitle(refOpen(name, page))),
+    V.attrWhen(Bool.not(blank(warn)), V.attrTitle(warn)),
+    V.attrWhen(Bool.not(blank(warn)), V.attr("disabled", "")),
+    [V.attrAria("label", refOpen(name, page))]
+  ]), [V.viewText(refLine(name, page))])
+
+# Sem caminho não há para onde abrir: a citação não aparece.
+def refNodeWhen(+ref: ReviewRef, +warn: String) -> List<&2, V.ViewNode>:
   match ref:
     case ReviewRef{+name, +page, +path}:
-      refNodeFrom(name, page, path)
+      V.viewWhen(Bool.not(blank(path)), refNodeFrom(name, page, path, warn))
 
-# Sem caminho não há para onde abrir: a linha não aparece.
-def refNodeWhen(ref: ReviewRef) -> List<&2, V.ViewNode>:
-  match ref:
-    case ReviewRef{+name, +page, +path}:
-      V.viewWhen(Bool.not(String.is_empty(String.trim(path))), refNodeFrom(name, page, path))
-
-def troubleNode(+difficulty: String) -> List<&2, V.ViewNode>:
+def savedNode(+saved: String) -> List<&2, V.ViewNode>:
   V.viewWhen(
-    Bool.not(String.is_empty(String.trim(difficulty))),
-    V.viewEl("p", [V.attrClass("review-trouble")], [V.viewText(difficulty)])
+    Bool.not(blank(saved)),
+    V.viewEl("span", [V.attrClass("review-saved")], [V.viewText(M.msg1("review.savedOn", "date", saved))])
   )
 
-def attemptNode(+attempt: String) -> List<&2, V.ViewNode>:
+def metaRow(+ref: ReviewRef, +saved: String, +warn: String) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("review-meta")], V.viewJoin([
+    refNodeWhen(ref, warn),
+    savedNode(saved)
+  ]))
+
+def warnNode(+warn: String) -> List<&2, V.ViewNode>:
   V.viewWhen(
-    Bool.not(String.is_empty(String.trim(attempt))),
-    V.viewEl("p", [V.attrClass("review-attempt")], [V.viewText(attempt)])
+    Bool.not(blank(warn)),
+    V.viewEl("p", [V.attrClass("review-reference-warning")], [V.viewText(warn)])
   )
 
-def actionButton(+id: Nat, cls: String, label: String, +title: String, action: String) -> V.ViewNode:
+def noteNode(+cls: String, +label: String, +text: String) -> List<&2, V.ViewNode>:
+  V.viewWhen(
+    Bool.not(blank(text)),
+    V.viewEl("div", [V.attrClass("review-note")], [
+      V.viewEl("span", [V.attrClass("review-note-label")], [V.viewText(label)]),
+      V.viewEl("p", [V.attrClass(cls)], [V.viewText(text)])
+    ])
+  )
+
+def notesNode(+attempt: String, +difficulty: String) -> List<&2, V.ViewNode>:
+  V.viewWhen(
+    Bool.or(Bool.not(blank(attempt)), Bool.not(blank(difficulty))),
+    V.viewEl("div", [V.attrClass("review-notes")], V.viewJoin([
+      noteNode("review-attempt", attemptLabel(), attempt),
+      noteNode("review-trouble", difficultyLabel(), difficulty)
+    ]))
+  )
+
+def cardButton(+id: String, +cls: String, +label: String, +title: String) -> V.ViewNode:
   V.viewEl("button", [
     V.attrType("button"),
     V.attrClass(cls),
-    V.attrData("id", Nat.show(id)),
+    V.attrData("id", id),
     V.attrTitle(title),
-    V.attrAria("label", title),
-    V.attrOn("click", action)
+    V.attrAria("label", title)
   ], [V.viewText(label)])
 
-def reviewActions(+id: Nat) -> V.ViewNode:
+def cardActions(+id: String) -> V.ViewNode:
   V.viewEl("div", [V.attrClass("review-actions")], [
-    actionButton(id, "review-similar", similarLabel(), similarTitle(), "SimilarReview"),
-    actionButton(id, "review-redo", redoLabel(), redoTitle(), "RedoReview"),
-    actionButton(id, "review-remove", removeLabel(), removeTitle(), "RemoveReview")
+    cardButton(id, "review-redo primary", redoLabel(), redoTitle()),
+    cardButton(id, "review-similar", similarLabel(), similarTitle()),
+    V.viewEl("span", [V.attrClass("review-spacer")], Nil{}),
+    cardButton(id, "review-edit", editLabel(), editTitle()),
+    cardButton(id, "review-remove", removeLabel(), removeTitle())
   ])
 
-def reviewRow(+id: Nat, item: ReviewItem) -> V.ViewNode:
-  match item:
-    case ReviewItem{+question, +attempt, +difficulty, +ref}:
+def reviewCard(+e: ReviewEntry) -> V.ViewNode:
+  match e:
+    case ReviewEntry{+id, +question, +attempt, +difficulty, +ref, _, _, +saved, _, +warn}:
       V.viewEl("article", V.attrJoin([
-        [V.attrClass("review-item")],
-        [V.attrData("id", Nat.show(id))]
+        [V.attrClass("review-item review-card")],
+        [V.attrData("id", id)]
       ]), V.viewJoin([
-        [V.viewEl("button", [
-          V.attrType("button"),
-          V.attrClass("review-open"),
-          V.attrData("id", Nat.show(id)),
-          V.attrTitle(editTitle()),
-          V.attrAria("label", editTitle()),
-          V.attrOn("click", "EditReview")
-        ], [V.viewText(question)])],
-        troubleNode(difficulty),
-        attemptNode(attempt),
-        refNodeWhen(ref),
-        [reviewActions(id)]
+        [metaRow(ref, saved, warn)],
+        [V.viewEl("h3", [V.attrClass("review-question")], [V.viewText(question)])],
+        warnNode(warn),
+        notesNode(attempt, difficulty),
+        [cardActions(id)]
       ]))
 
-def reviewRows.go(items: List<&2, ReviewItem>, +i: Nat) -> List<&2, V.ViewNode>:
-  match items:
+# ---------- a coluna da esquerda: "Para hoje" ----------
+
+# Marca de onde o aluno está: "Para hoje · 1 de 3" com a barra; fora do que vence
+# hoje, o que dá para dizer é quando o item volta.
+def progressNode(+shown: Nat, +total: Nat) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("review-progress")], [
+    V.viewEl("span", [V.attrClass("review-kicker")], [V.viewText(todayKicker())]),
+    V.viewEl("span", [V.attrClass("review-position")], [V.viewText(progressText(shown, total))]),
+    V.viewEl("progress", [
+      V.attrClass("review-bar-track"),
+      V.attr("max", Nat.show(total)),
+      V.attr("value", Nat.show(shown)),
+      V.attrAria("label", progressText(shown, total))
+    ], Nil{})
+  ])
+
+def aheadNode(+kicker: String, +when: String) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("review-progress")], [
+    V.viewEl("span", [V.attrClass("review-kicker")], [V.viewText(kicker)]),
+    V.viewEl("span", [V.attrClass("review-position")], [
+      V.viewText(M.msg("review.returnsWord")),
+      V.viewText(" "),
+      V.viewText(when)
+    ])
+  ])
+
+def aheadKickerFor.pick(+someDue: Bool) -> String:
+  match someDue:
+    case True{}:
+      aheadKicker()
+    case False{}:
+      allDoneKicker()
+
+def headerFor.pick(+due: Bool, +when: String, +id: String, +xs: List<&2, ReviewEntry>, +done: Nat) -> V.ViewNode:
+  match due:
+    case True{}:
+      progressNode(
+        progressShown(done, positionOf(dueEntries(xs), id)),
+        progressTotal(done, countEntries(dueEntries(xs)))
+      )
+    case False{}:
+      aheadNode(aheadKickerFor.pick(Bool.not(Nat.is_eq(countEntries(dueEntries(xs)), 0n))), when)
+
+def headerFor(+e: ReviewEntry, +xs: List<&2, ReviewEntry>, +done: Nat) -> V.ViewNode:
+  match e:
+    case ReviewEntry{+id, _, _, _, _, +due, +when, _, _, _}:
+      headerFor.pick(due, when, id, xs, done)
+
+def entryInterval(+e: ReviewEntry) -> Nat:
+  match e:
+    case ReviewEntry{_, _, _, _, _, _, _, _, +interval, _}:
+      interval
+
+def gradesWhen(+e: ReviewEntry, +grades: Bool) -> List<&2, V.ViewNode>:
+  V.viewWhen(grades, gradesRow(entryId(e), entryInterval(e)))
+
+def reviewMain.with(+e: ReviewEntry, +xs: List<&2, ReviewEntry>, +done: Nat, +grades: Bool) -> V.ViewNode:
+  V.viewEl("section", [
+    V.attrId("review-today"),
+    V.attrClass("review-main"),
+    V.attrAria("label", M.msg("review.today.title"))
+  ], V.viewJoin([
+    [headerFor(e, xs, done)],
+    [reviewCard(e)],
+    gradesWhen(e, grades)
+  ]))
+
+def reviewMain.pick(+m: Maybe<&2, ReviewEntry>, +xs: List<&2, ReviewEntry>, +done: Nat, +grades: Bool) -> V.ViewNode:
+  match m:
+    case Some{e}:
+      reviewMain.with(e, xs, done, grades)
+    case None{}:
+      V.viewEl("section", [V.attrId("review-today"), V.attrClass("review-main")], Nil{})
+
+# ---------- a coluna da direita: "Todos os itens" ----------
+
+def rowSrc.pick(+noPath: Bool, +name: String, +page: Nat) -> String:
+  match noPath:
+    case True{}:
+      ""
+    case False{}:
+      refLine(name, page)
+
+def rowSrc(+name: String, +page: Nat, +path: String) -> String:
+  rowSrc.pick(blank(path), name, page)
+
+def rowNode(+current: String, +e: ReviewEntry) -> V.ViewNode:
+  match e:
+    case ReviewEntry{+id, +question, _, _, ReviewRef{+name, +page, +path}, _, +when, _, _, _}:
+      V.viewEl("button", V.attrJoin([
+        [V.attrType("button")],
+        [V.attrClass("review-row")],
+        [V.attrData("id", id)],
+        V.attrWhen(String.eq(id, current), V.attrAria("current", "true"))
+      ]), [
+        V.viewEl("span", [V.attrClass("review-row-title")], [V.viewText(question)]),
+        V.viewEl("span", [V.attrClass("review-row-meta")], [
+          V.viewEl("span", [V.attrClass("review-row-src")], [V.viewText(rowSrc(name, page, path))]),
+          V.viewEl("span", [V.attrClass("review-row-when")], [V.viewText(when)])
+        ])
+      ])
+
+def rowNodes(+current: String, +xs: List<&2, ReviewEntry>) -> List<&2, V.ViewNode>:
+  match xs:
     case Nil{}:
       Nil{}
     case Con{h, t}:
-      Con{reviewRow(i, h), reviewRows.go(t, Nat.add(i, 1n))}
+      Con{rowNode(current, h), rowNodes(current, t)}
 
-def reviewRows(items: List<&2, ReviewItem>) -> List<&2, V.ViewNode>:
-  reviewRows.go(items, 0n)
+def groupNode(+title: String, +current: String, +xs: List<&2, ReviewEntry>) -> List<&2, V.ViewNode>:
+  V.viewWhen(
+    Bool.not(Nat.is_eq(countEntries(xs), 0n)),
+    V.viewEl("div", [V.attrClass("review-group")], Con{
+      V.viewEl("h4", [V.attrClass("review-group-title")], [V.viewText(title)]),
+      rowNodes(current, xs)
+    })
+  )
+
+def reviewAside(+xs: List<&2, ReviewEntry>, +current: String) -> V.ViewNode:
+  V.viewEl("aside", [V.attrId("review-list"), V.attrClass("review-all"), V.attrAria("label", allTitle())], [
+    V.viewEl("div", [V.attrClass("review-all-head")], [
+      V.viewEl("h3", Nil{}, [V.viewText(allTitle())]),
+      V.viewEl("span", [V.attrClass("review-all-count")], [V.viewText(Nat.show(countEntries(xs)))])
+    ]),
+    V.viewEl("div", [V.attrClass("review-all-body")], V.viewJoin([
+      groupNode(dueGroupTitle(), current, dueEntries(xs)),
+      groupNode(laterGroupTitle(), current, laterEntries(xs))
+    ]))
+  ])
+
+def currentId(+m: Maybe<&2, ReviewEntry>) -> String:
+  match m:
+    case Some{e}:
+      entryId(e)
+    case None{}:
+      ""
+
+# ---------- a tela inteira (o conteúdo de `#review-view`) ----------
+
+# Vazio: um bloco só, no centro — o título, uma frase que explica o Guardar para
+# revisar e a miniatura da fileira de ações da resposta.
+def reviewEmpty() -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("review-empty-block")], [
+    V.viewEl("h3", [V.attrClass("review-empty-title")], [V.viewText(emptyTitle())]),
+    V.viewEl("p", [V.attrClass("review-empty")], [
+      V.viewText(emptyLead()),
+      V.viewEl("strong", Nil{}, [V.viewText(saveActionLabel())]),
+      V.viewText(emptyTail())
+    ]),
+    V.viewEl("div", [V.attrClass("review-empty-sample"), V.attrAria("hidden", "true")], [
+      V.viewEl("span", Nil{}, [V.viewText("Copiar")]),
+      V.viewEl("span", [V.attrClass("review-empty-dot")], [V.viewText("·")]),
+      V.viewEl("span", Nil{}, [V.viewText("Citar")]),
+      V.viewEl("span", [V.attrClass("review-empty-dot")], [V.viewText("·")]),
+      V.viewEl("span", [V.attrClass("review-empty-save")], [V.viewText(saveActionLabel())])
+    ])
+  ])
+
+def reviewBoard.full(+xs: List<&2, ReviewEntry>, +m: Maybe<&2, ReviewEntry>, +done: Nat, +grades: Bool) -> List<&2, V.ViewNode>:
+  [reviewMain.pick(m, xs, done, grades), reviewAside(xs, currentId(m))]
+
+def reviewBoard.pick(+xs: List<&2, ReviewEntry>, +id: String, +done: Nat, +grades: Bool, +empty: Bool) -> List<&2, V.ViewNode>:
+  match empty:
+    case True{}:
+      [reviewEmpty()]
+    case False{}:
+      reviewBoard.full(xs, currentEntry(xs, id), done, grades)
+
+def reviewBoard(+xs: List<&2, ReviewEntry>, +id: String, +done: Nat, +grades: Bool) -> List<&2, V.ViewNode>:
+  reviewBoard.pick(xs, id, done, grades, Nat.is_eq(countEntries(xs), 0n))
 
 # ---------- barra e vazio ----------
 
-def reviewBar(count: Nat) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("review-head")], [
-    V.viewEl("h2", Nil{}, [V.viewText(reviewTitle())]),
-    V.viewEl("span", [V.attrClass("review-count")], [V.viewText(countText(count))]),
-    V.viewEl("button", [
+def courseNode(+course: String) -> List<&2, V.ViewNode>:
+  V.viewWhen(
+    Bool.not(blank(course)),
+    V.viewEl("span", [V.attrClass("review-course")], [V.viewText(String.trim(course))])
+  )
+
+def reviewBar(+course: String, +due: Nat, +total: Nat, +known: Bool) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("review-head")], V.viewJoin([
+    [V.viewEl("h2", Nil{}, [V.viewText(reviewTitle())])],
+    courseNode(course),
+    [V.viewEl("span", [V.attrClass("review-count")], [V.viewText(countLine(due, total, known))])],
+    [V.viewEl("button", [
       V.attrType("button"),
       V.attrClass("review-close"),
       V.attrTitle(closeLabel()),
       V.attrAria("label", closeLabel()),
       V.attrOn("click", "CloseReview")
-    ], [V.viewText(closeLabel())])
-  ])
-
-def reviewEmpty() -> V.ViewNode:
-  V.viewEl("p", [V.attrClass("review-empty")], [V.viewText(emptyText())])
+    ], [V.viewText(closeLabel())])]
+  ]))
 
 # ---------- diálogo (o miolo; o <dialog> é do index.html) ----------
 
@@ -420,12 +810,19 @@ def reviewDifficultyField(value: String) -> V.ViewNode:
     ], Nil{})
   ])
 
-def refHint.if(name: String, page: Nat, noPath: Bool) -> String:
+def refHint.named(+name: String, +page: Nat, unnamed: Bool) -> String:
+  match unnamed:
+    case True{}:
+      M.msg1("review.refHint.page", "page", Nat.show(page))
+    case False{}:
+      M.msg2("review.refHint.named", "name", name, "page", Nat.show(page))
+
+def refHint.if(+name: String, +page: Nat, noPath: Bool) -> String:
   match noPath:
     case True{}:
-      refPrefix() ++ refNone()
+      M.msg("review.refHint.none")
     case False{}:
-      refPrefix() ++ refLine(name, page)
+      refHint.named(name, page, String.is_empty(String.trim(name)))
 
 def refHint(ref: ReviewRef) -> String:
   match ref:
@@ -455,57 +852,6 @@ def reviewDialogChildren(
   , reviewDifficultyField(difficulty)
   , reviewDialogActions()
   ]
-
-# ---------- os dois prompts (o host escreve no #prompt) ----------
-
-def attemptSuffix.if(attempt: String, none: Bool) -> String:
-  match none:
-    case True{}:
-      ""
-    case False{}:
-      "\nO que eu tentei: " ++ attempt
-
-def attemptSuffix(+attempt: String) -> String:
-  attemptSuffix.if(attempt, String.is_empty(String.trim(attempt)))
-
-def troubleSuffix.if(difficulty: String, none: Bool) -> String:
-  match none:
-    case True{}:
-      ""
-    case False{}:
-      "\nOnde eu travei: " ++ difficulty
-
-def troubleSuffix(+difficulty: String) -> String:
-  troubleSuffix.if(difficulty, String.is_empty(String.trim(difficulty)))
-
-def refSuffix.if(name: String, page: Nat, noPath: Bool) -> String:
-  match noPath:
-    case True{}:
-      ""
-    case False{}:
-      "\n" ++ refPrefix() ++ refLine(name, page)
-
-def refSuffix(ref: ReviewRef) -> String:
-  match ref:
-    case ReviewRef{+name, +page, +path}:
-      refSuffix.if(name, page, String.is_empty(String.trim(path)))
-
-def similarPrompt(item: ReviewItem) -> String:
-  match item:
-    case ReviewItem{+question, _, +difficulty, +ref}:
-      "Quero um exercício semelhante a este, com outros números:\n"
-      ++ question
-      ++ troubleSuffix(difficulty)
-      ++ refSuffix(ref)
-
-def redoPrompt(item: ReviewItem) -> String:
-  match item:
-    case ReviewItem{+question, +attempt, +difficulty, +ref}:
-      "Vou refazer este exercício:\n"
-      ++ question
-      ++ attemptSuffix(attempt)
-      ++ troubleSuffix(difficulty)
-      ++ refSuffix(ref)
 
 # Resposta do modelo só pode preencher um campo ainda intocado do diálogo atual.
 # O host mede a identidade do pedido e acompanha input (inclusive editar e apagar).

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {ptText} from './pt-text.mjs';
 
 class FakeNode {
   constructor(tag) {
@@ -39,8 +40,8 @@ const nodes = (xs) => {
   for (let cur = xs; cur?.$ === 'Con'; cur = cur.tail) out.push(cur.head);
   return out;
 };
-const attrs = (node) => Object.fromEntries(nodes(node.attrs).map((attr) => [attr.name, attr.value]));
-const text = (node) => nodes(node.kids).map((kid) => kid.$ === 'ViewText' ? kid.text : '').join('');
+const attrs = (node) => Object.fromEntries(nodes(node.attrs).map((attr) => [attr.name, ptText(attr.value)]));
+const text = (node) => nodes(node.kids).map((kid) => kid.$ === 'ViewText' ? ptText(kid.text) : '').join('');
 
 const sections = () => list(
   shortcut.skSection('keys-group-0', 'Estudar', list(

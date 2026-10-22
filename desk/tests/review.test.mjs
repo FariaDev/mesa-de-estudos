@@ -21,6 +21,7 @@ import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
+import {ptText} from './pt-text.mjs';
 
 const require = createRequire(import.meta.url);
 const review = require('../review.cjs');
@@ -78,7 +79,7 @@ test('sem questão o item é recusado e nada é gravado', () => {
   withRuntime((runtime) => {
     assert.throws(
       () => review.reviewSave(runtime, {courseId: 'A', mode: 'add', item: item('   ')}),
-      /Escreva a questão/
+      (error) => /Escreva a questão/.test(ptText(error.message))
     );
     assert.equal(existsSync(fileOf(runtime)), false);
   });

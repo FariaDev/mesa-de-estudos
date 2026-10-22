@@ -12,6 +12,9 @@
    núcleo é imutável e a ponte é o par toCore/toPlain + sync. */
 import core from './generated/worklog.core.js';
 import {contentParts,displayUserText} from '../text.mjs';
+import {artifactPart,isActivityTool} from './timeline.mjs';
+import {t} from './ui-text.mjs';
+import {wholeNat} from './bend-nat.mjs';
 
 export const STEP={THINKING:'thinking',SEARCH:'search',REFERENCE:'reference',FETCH:'fetch',TOOL:'tool',ERROR:'error'};
 
@@ -35,7 +38,7 @@ function coreNames(){
  if(names)return names;
  names={thinking:KIND_TO_CORE.thinking,running:STATUS_TO_CORE.running};
  try{
-  const probe=core.thinkingDelta(core.createLog(0n),'x',0n);
+  const probe=core.thinkingDelta(core.createLog(0),'x',0);
   const step=firstStep(probe?.steps);
   if(step?.kind?.$)names.thinking=String(step.kind.$);
   if(step?.status?.$)names.running=String(step.status.$);
@@ -62,11 +65,6 @@ function nameTail(node){
  const name=String(node?.$??'');
  const cut=name.lastIndexOf('.');
  return cut<0?name:name.slice(cut+1);
-}
-
-function nat(value){
- const n=Number(value);
- return BigInt(Number.isFinite(n)&&n>0?Math.trunc(n):0);
 }
 
 function natToJs(value){
@@ -117,8 +115,8 @@ function toCoreStep(step){
   id:String(step?.id??''),
   kind:kindToCore(step?.kind),
   status:statusToCore(step?.status),
-  startedAt:nat(step?.startedAt),
-  endedAt:nat(step?.endedAt),
+  startedAt:wholeNat(step?.startedAt),
+  endedAt:wholeNat(step?.endedAt),
   payload:{
    $:'Payload',
    text:String(step?.text??''),
@@ -159,8 +157,8 @@ function toPlainStep(step){
 export function toCore(log){
  return {
   $:'Log',
-  startedAt:nat(log?.startedAt),
-  endedAt:nat(log?.endedAt),
+  startedAt:wholeNat(log?.startedAt),
+  endedAt:wholeNat(log?.endedAt),
   reason:String(log?.reason??''),
   text:String(log?.text??''),
   steps:listToCore(log?.steps,toCoreStep),
@@ -204,9 +202,9 @@ export function sync(plain,next){
 
 export function formatDuration(ms){
  const s=Math.max(1,Math.round(Number(ms||0)/1000));
- if(s<60)return `${s}s`;
+ if(s<60)return t('work.duration.s',{s});
  const m=Math.floor(s/60),rest=s%60;
- return rest?`${m}min ${rest}s`:`${m}min`;
+ return rest?t('work.duration.minSec',{m,s:rest}):t('work.duration.min',{m});
 }
 
 /* Nome técnico da ferramenta → tipo do passo (decisão do núcleo; a ordem
@@ -242,12 +240,24 @@ export function runningStep(log){
 export function thinkingDelta(log,delta,now=Date.now()){
  const text=String(delta||'');
  if(!text)return null;
- sync(log,core.thinkingDelta(toCore(log),text,nat(now)));
+ sync(log,core.thinkingDelta(toCore(log),text,wholeNat(now)));
  return log.steps.at(-1)||null;
 }
 
 export function closeThinking(log,now=Date.now()){
- sync(log,core.closeThinking(toCore(log),nat(now)));
+ sync(log,core.closeThinking(toCore(log),wholeNat(now)));
+}
+
+/* Conteúdo autoritativo de `thinking_end`: o delta é só pintura. Substitui o
+   texto do passo indicado (ou do último pensamento do log) para um re-stream
+   não duplicar pensamento no passo. */
+export function replaceThinking(log,text,step=null){
+ const steps=log?.steps||[];
+ let target=step&&steps.includes(step)?step:null;
+ if(!target)for(let i=steps.length-1;i>=0;i--)if(steps[i].kind===STEP.THINKING){target=steps[i];break;}
+ if(!target)return null;
+ target.text=String(text||'');
+ return target;
 }
 
 function makeToolStep({id,name,args,now}){
@@ -282,7 +292,21 @@ function applyResult(step,result,isError,now){
  return step;
 }
 
+/* Idempotente por id: a DECLARAÇÃO da chamada (`toolcall_end`/`content_block_start`)
+   reserva a posição do passo e a EXECUÇÃO atualiza o mesmo ID — nunca duplica o
+   passo quando os dois eventos chegam. Id ausente mantém o comportamento antigo
+   (passo novo). */
+export function findToolStep(log,id){
+ const key=String(id||'');
+ if(!key)return null;
+ const steps=log?.steps||[];
+ for(let i=steps.length-1;i>=0;i--)if(String(steps[i].id||'')===key)return steps[i];
+ return null;
+}
+
 export function startTool(log,{id,name,args,now=Date.now()}={}){
+ const existing=findToolStep(log,id);
+ if(existing)return existing;
  const step=makeToolStep({id,name,args,now});
  log.steps.push(step);
  return step;
@@ -303,30 +327,30 @@ export function addError(log,message,now=Date.now()){
 }
 
 export function finishLog(log,{now=Date.now(),reason=''}={}){
- sync(log,core.finishLog(toCore(log),nat(now),String(reason||'')));
+ sync(log,core.finishLog(toCore(log),wholeNat(now),String(reason||'')));
 }
 
 export function liveLabel(step){
  if(!step)return '';
  switch(step.kind){
-  case STEP.THINKING:return 'Pensando…';
-  case STEP.SEARCH:return step.query?`Procurando na web: «${step.query}»`:'Procurando na web…';
-  case STEP.REFERENCE:return step.query?`Consultando referências: «${step.query}»`:'Consultando referências…';
-  case STEP.FETCH:return step.domain?`Abrindo ${step.domain}…`:'Abrindo a página…';
-  case STEP.ERROR:return step.error||'Erro';
-  default:return `Usando ${step.toolName||'ferramenta'}…`;
+  case STEP.THINKING:return t('work.live.thinking');
+  case STEP.SEARCH:return step.query?t('work.live.search',{query:step.query}):t('work.live.searchNoQuery');
+  case STEP.REFERENCE:return step.query?t('work.live.reference',{query:step.query}):t('work.live.referenceNoQuery');
+  case STEP.FETCH:return step.domain?t('work.live.fetch',{domain:step.domain}):t('work.live.fetchNoDomain');
+  case STEP.ERROR:return step.error||t('work.error');
+  default:return t('work.live.tool',{tool:step.toolName||t('work.toolFallback')});
  }
 }
 
 export function stepLabel(step){
  const duration=step.endedAt&&step.startedAt?formatDuration(step.endedAt-step.startedAt):'';
  switch(step.kind){
-  case STEP.THINKING:return duration?`Pensou por ${duration}`:'Pensou';
-  case STEP.SEARCH:return step.query?`Procurou na web: «${step.query}»`:'Procurou na web';
-  case STEP.REFERENCE:return step.query?`Consultou referências: «${step.query}»`:'Consultou referências';
-  case STEP.FETCH:return step.domain?`Abriu ${step.domain}`:'Abriu a página';
-  case STEP.ERROR:return 'Erro';
-  default:return `Usou ${step.toolName||'ferramenta'}`;
+  case STEP.THINKING:return duration?t('work.step.thought',{duration}):t('work.step.thoughtNoDuration');
+  case STEP.SEARCH:return step.query?t('work.step.search',{query:step.query}):t('work.step.searchNoQuery');
+  case STEP.REFERENCE:return step.query?t('work.step.reference',{query:step.query}):t('work.step.referenceNoQuery');
+  case STEP.FETCH:return step.domain?t('work.step.fetch',{domain:step.domain}):t('work.step.fetchNoDomain');
+  case STEP.ERROR:return t('work.error');
+  default:return t('work.step.tool',{tool:step.toolName||t('work.toolFallback')});
  }
 }
 
@@ -345,11 +369,11 @@ export function stepPreview(step){
 }
 
 export function countsLabel(steps){
- const counts=[[STEP.SEARCH,'busca','buscas'],[STEP.REFERENCE,'consulta','consultas'],[STEP.FETCH,'página','páginas'],[STEP.TOOL,'ferramenta','ferramentas']];
+ const counts=[[STEP.SEARCH,'work.counts.search'],[STEP.REFERENCE,'work.counts.reference'],[STEP.FETCH,'work.counts.page'],[STEP.TOOL,'work.counts.tool']];
  const parts=[];
- for(const [kind,one,many] of counts){
+ for(const [kind,key] of counts){
   const n=(steps||[]).filter(step=>step.kind===kind).length;
-  if(n)parts.push(`${n} ${n===1?one:many}`);
+  if(n)parts.push(t(key,{count:n}));
  }
  return parts.join(' · ');
 }
@@ -363,10 +387,10 @@ export function headLine(log){
  const elapsed=Math.max(0,ended-started);
  const duration=formatDuration(elapsed);
  const base=log.reason==='stopped'
-  ?`Você parou após ${duration}`
+  ?t('work.head.stopped',{duration})
   :log.reason
-   ?`Turno interrompido após ${duration}`
-   :toolish?`Trabalhou por ${duration}`:`Pensou por ${duration}`;
+   ?t('work.head.interrupted',{duration})
+   :toolish?t('work.head.worked',{duration}):t('work.head.thought',{duration});
  const counts=countsLabel(steps.filter(step=>step.status!=='running'));
  return counts?`${base} · ${counts}`:base;
 }
@@ -380,7 +404,15 @@ function stampOf(message){
 
 /* Histórico: reconstrói os turnos das mensagens do JSONL (role/content do Pi),
    pareando cada toolCall com seu toolResult. Sem tempos de parede por parte, a
-   duração do turno usa as mensagens; o passo de ferramenta usa o resultado. */
+   duração do turno usa as mensagens; o passo de ferramenta usa o resultado.
+
+   `parts` guarda a linha do tempo do turno — rodadas de trabalho, falas e
+   artefatos intercalados na ordem em que aconteceram — para o transcript não
+   jogar todo o trabalho para cima da última fala. Um artefato entra no ponto da
+   DECLARAÇÃO da ferramenta (`toolCallId` estável), antes da próxima fala; os
+   passos seguintes continuam no bloco de trabalho aberto, como ao vivo. Os
+   campos antigos (`steps`, `text`, `assistantImages`) continuam agregados para
+   quem já os consumia. */
 export function historyTurns(messages){
  const results=new Map();
  for(const message of messages||[]){
@@ -388,36 +420,64 @@ export function historyTurns(messages){
  }
  const turns=[];
  let turn=null;
+ let currentWork=null;
  const flush=()=>{
-  if(turn&&(turn.steps.length||turn.text.trim()||turn.userText||turn.userImages.length))turns.push(turn);
+  if(turn&&(turn.steps.length||turn.text.trim()||turn.userText||turn.userImages.length||turn.assistantImages.length))turns.push(turn);
   turn=null;
+  currentWork=null;
+ };
+ const emptyTurn=at=>({startedAt:at,endedAt:0,steps:[],parts:[],text:'',userText:'',userImages:[],assistantImages:[],userTime:0,time:0});
+ const pushStep=step=>{
+  if(!currentWork){currentWork={type:'work',startedAt:0,endedAt:0,steps:[]};turn.parts.push(currentWork);}
+  if(!currentWork.steps.length)currentWork.startedAt=step.startedAt;
+  currentWork.steps.push(step);
+  if(step.endedAt)currentWork.endedAt=Math.max(currentWork.endedAt,step.endedAt);
+  turn.steps.push(step);
+  return currentWork;
  };
  for(const message of messages||[]){
   if(!message||typeof message!=='object')continue;
   if(message.role==='user'){
    flush();
    const {text,images}=contentParts(message);
-   turn={startedAt:stampOf(message),endedAt:0,steps:[],text:'',userText:displayUserText(text),userImages:images,userTime:stampOf(message),time:0};
+   turn={...emptyTurn(stampOf(message)),userText:displayUserText(text),userImages:images,userTime:stampOf(message)};
    continue;
   }
   if(message.role==='assistant'){
-   if(!turn)turn={startedAt:stampOf(message),endedAt:0,steps:[],text:'',userText:'',userImages:[],userTime:0,time:0};
+   if(!turn)turn=emptyTurn(stampOf(message));
+   const {images}=contentParts(message);
    const at=stampOf(message);
+   let spoken=null;
    for(const part of Array.isArray(message.content)?message.content:[]){
     if(!part)continue;
     if(part.type==='thinking'){
      const text=String(part.thinking??part.text??'').trim();
-     if(text)turn.steps.push({id:`pensar-${turn.steps.length+1}`,kind:STEP.THINKING,status:'done',startedAt:at,endedAt:0,text});
+     if(text)pushStep({id:`pensar-${turn.steps.length+1}`,kind:STEP.THINKING,status:'done',startedAt:at,endedAt:0,text});
     }else if(part.type==='toolCall'){
      const step=makeToolStep({id:part.id,name:part.name,args:part.arguments,now:at});
      const result=results.get(part.id);
      if(result)applyResult(step,result,result.isError,stampOf(result));
      else{step.status='stopped';step.endedAt=at;}
-     turn.steps.push(step);
+     pushStep(step);
+     if(isActivityTool(part.name))turn.parts.push(artifactPart(step.id,step.toolName,at));
     }else if(part.type==='text'){
      const text=String(part.text||'').trim();
-     if(text)turn.text+=turn.text?`\n\n${text}`:text;
+     if(!text)continue;
+     turn.text+=turn.text?`\n\n${text}`:text;
+     /* Blocos de fala CONSECUTIVOS da mesma mensagem ficam na mesma fala (a
+        Mesa sempre mostrou a mensagem inteira num balão); só trabalho ou
+        artefato no meio abre uma fala nova. */
+     if(spoken&&turn.parts.at(-1)===spoken)spoken.text+=`\n\n${text}`;
+     else{spoken={type:'text',text,images:[],time:at};turn.parts.push(spoken);}
+     currentWork=null;
     }
+   }
+   /* As imagens do assistente também sobrevivem ao histórico: entram na última
+      fala da mensagem; sem fala, viram um turno visual no ponto certo. */
+   if(images.length){
+    turn.assistantImages.push(...images);
+    if(spoken)spoken.images.push(...images);
+    else{turn.parts.push({type:'text',text:'',images:[...images],time:at});currentWork=null;}
    }
    if(at){turn.time=at;turn.endedAt=Math.max(turn.endedAt,at);}
    continue;
@@ -425,6 +485,8 @@ export function historyTurns(messages){
   if(message.role==='toolResult'&&turn){
    const at=stampOf(message);
    if(at)turn.endedAt=Math.max(turn.endedAt,at);
+   /* O resultado fecha a rodada visual do bloco que contém a chamada. */
+   if(currentWork&&at&&message.toolCallId&&currentWork.steps.some(step=>String(step.id)===String(message.toolCallId)))currentWork.endedAt=Math.max(currentWork.endedAt,at);
   }
  }
  flush();

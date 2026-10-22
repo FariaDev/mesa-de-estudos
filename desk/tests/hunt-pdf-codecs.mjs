@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,writeDeskJson} from './helpers.mjs';
+import {pollUntil} from './waits.mjs';
 
 // Dois segmentos JBIG2: página 16×16 e região genérica MMR com quadrado
 // central 8×8. Os dados MMR foram gerados de um bitmap original via TIFF G4.
@@ -31,12 +32,17 @@ await withArtifacts('pdf-codecs',async ctx=>{
  writeDeskJson(runtime,{courseId:'A',pdfs:[{path:file,page:1}]});
  const app=ctx.app=await launchDesk({runtime}),page=await app.firstWindow();
  const warnings=[];page.on('console',msg=>{if(/warn|error/.test(msg.type()))warnings.push(msg.text());});
- await page.waitForFunction(()=>document.querySelector('.pdf-page[data-rendered] canvas'),undefined,{timeout:30000});
- const pixels=await page.locator('.pdf-panel canvas').first().evaluate(canvas=>{
+ await page.waitForFunction(()=>document.querySelector('.pdf-page[data-rendered] canvas'),undefined,{timeout:60000});
+ /* `data-rendered` marca a página pintada, mas a imagem JBIG2 é decodificada pelo
+    wasm e entra no canvas depois: com várias janelas abertas a amostra imediata
+    pegava o canvas ainda branco. Espera o contraste aparecer (ou o prazo acabar)
+    e então amostra — a asserção abaixo segue a mesma. */
+ const sampleCanvas=()=>page.locator('.pdf-panel canvas').first().evaluate(canvas=>{
   const c=canvas.getContext('2d');
   const sample=(x,y)=>[...c.getImageData(Math.floor(canvas.width*x),Math.floor(canvas.height*y),1,1).data];
   return {center:sample(.5,.5),corner:sample(.1,.1)};
  });
+ const pixels=await pollUntil(sampleCanvas,sample=>Math.abs(sample.center[0]-sample.corner[0])>200,{timeout:30000,interval:100,what:'o JBIG2 pintar com contraste',onTimeout:'return'});
  assert.ok(Math.abs(pixels.center[0]-pixels.corner[0])>200,`JBIG2 deve aparecer com contraste: ${JSON.stringify(pixels)}`);
  assert.equal(pixels.center[3],255);assert.equal(pixels.corner[3],255);
  assert.deepEqual(warnings.filter(s=>/wasm|jbig2|ignoring errors|Content Security Policy/i.test(s)),[],'decodificador deve carregar sob a CSP da Mesa');

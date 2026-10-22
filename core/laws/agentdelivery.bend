@@ -93,3 +93,25 @@ law agentdelivery_controle_permissao:
 
 law agentdelivery_controle_incerto:
   {D.canChangeControls(False{}, False{}, False{}, True{}) == False{} : Bool}
+
+# ---------- steer (#57) ----------
+
+# Turno em voo e nada nosso pendente: o steer entra.
+law agentdelivery_steer_turno_livre:
+  {D.canSteer(True{}, False{}, False{}, False{}) == True{} : Bool}
+
+# Sem turno não há o que interromper: o envio é normal.
+law agentdelivery_steer_sem_turno:
+  {D.canSteer(False{}, False{}, False{}, False{}) == False{} : Bool}
+
+# Envio nosso ainda sem veredito fecha o steer.
+law agentdelivery_steer_enviando:
+  {D.canSteer(True{}, True{}, False{}, False{}) == False{} : Bool}
+
+# Troca de controles em curso fecha o steer.
+law agentdelivery_steer_configurando:
+  {D.canSteer(True{}, False{}, True{}, False{}) == False{} : Bool}
+
+# Entrega incerta fecha o steer: nada é reenviado sozinho.
+law agentdelivery_steer_incerto:
+  {D.canSteer(True{}, False{}, False{}, True{}) == False{} : Bool}

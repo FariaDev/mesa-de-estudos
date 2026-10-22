@@ -46,7 +46,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 
-const SDK_VERSION='2.1.246';
+const SDK_VERSION='2.1.301';
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(0,Number(ms)||0)));
 const uuid=()=>crypto.randomUUID();
 
@@ -135,7 +135,7 @@ function asyncIteratorOf(input){
 }
 
 function markerOf(text){
- for(const name of ['image','permission-allow','permission-deny','question','rate-limit','multiple-rate','retry','fallback','context-error','blocking-limit','interrupt-exit','no-echo','stall','error','multi']){
+ for(const name of ['steer-wait','image','permission-allow','permission-deny','question','rate-limit','multiple-rate','retry','fallback','context-error','blocking-limit','interrupt-exit','no-echo','stall','error','multi']){
   if(String(text||'').includes(`[claude:${name}]`))return name;
  }
  return '';
@@ -196,12 +196,34 @@ function userFrame(sessionId,content,{synthetic=false,replay=false,uuidValue=nul
  };
 }
 
+/* Catálogo de `supportedCommands()` (#58): `/compact` embutido e um comando
+   de skill artificial, como o CLI real lista. */
+const FAKE_COMMANDS=Object.freeze([
+ {name:'compact',description:'Compacta a conversa (fixture).',argumentHint:'<instruções>'},
+ {name:'revisar',description:'Revisão artificial (fixture).',argumentHint:'<tema>'},
+]);
+/* Janela nativa do modelo no `result` (`ModelUsage.contextWindow`): o medidor
+   do Claude nasce daqui e dos tokens da última resposta (#58). */
+const FAKE_CONTEXT_WINDOW=200000;
+const fakeModelUsage=()=>({'claude-fake':{inputTokens:12,outputTokens:24,cacheReadInputTokens:0,cacheCreationInputTokens:0,webSearchRequests:0,costUSD:0,contextWindow:FAKE_CONTEXT_WINDOW,maxOutputTokens:32000}});
+
+/* `/compact` como o CLI faz: status `compacting`, fronteira manual, status com
+   `compact_result` e um `result` sem texto. `[claude:compact-fail]` nas
+   instruções devolve a recusa expressa. */
+function* compactFrames(sessionId,text,wireUuid){
+ const failed=text.includes('[claude:compact-fail]');
+ yield {type:'system',subtype:'status',status:'compacting',session_id:sessionId,uuid:uuid()};
+ if(!failed)yield {type:'system',subtype:'compact_boundary',compact_metadata:{trigger:'manual',pre_tokens:36},session_id:sessionId,uuid:uuid()};
+ yield {type:'system',subtype:'status',status:null,compact_result:failed?'failed':'success',...(failed?{compact_error:'Nada para compactar (fixture).'}:{}),session_id:sessionId,uuid:uuid()};
+ yield resultFrame(sessionId,{text:'',userMessageUuid:wireUuid});
+}
+
 function resultFrame(sessionId,{text='',subtype='success',isError=false,interrupted=false,userMessageUuid=null}={}){
  const base={
   type:'result',subtype,duration_ms:5,duration_api_ms:3,is_error:isError,num_turns:1,
   stop_reason:isError?null:'end_turn',total_cost_usd:0,
   usage:{input_tokens:12,output_tokens:24,cache_creation_input_tokens:0,cache_read_input_tokens:0,service_tier:'standard'},
-  modelUsage:{},
+  modelUsage:fakeModelUsage(),
   permission_denials:[],
   ...(interrupted?{interrupted:true}:{}),
   ...(userMessageUuid?{user_message_uuid:userMessageUuid}:{}),
@@ -230,13 +252,13 @@ export function query({prompt,options={}}={}){
  const notify=()=>{while(wake.length)wake.shift()();};
 
  /* Um turno: eco de aceite (isReplay), roteiro, frames finais e persistência. */
- async function* turn(payload,wireUuid){
+ async function* turn(payload,wireUuid,item=null,input=null){
   const dir=storeDir({cwd:options.cwd,env:options.env});
   const delay=Number(process.env.FAKE_CLAUDE_DELAY_MS||options.delayMs||8);
   state.interrupted=false;
   state.abort=new AbortController();
   const marker=markerOf(payload.text)||String(process.env.FAKE_CLAUDE_SCENARIO||'text');
-  logPrompt({text:payload.text,images:payload.images.length,marker,streaming:!!wireUuid,model:state.model,effort:state.effort});
+  logPrompt({text:payload.text,images:payload.images.length,marker,streaming:!!wireUuid,model:state.model,effort:state.effort,priority:item?.priority||null});
   /* Eco oficial: o adaptador usa este frame como ACEITE (correlação por uuid). */
   const stored=[];
   if(wireUuid){
@@ -245,6 +267,22 @@ export function query({prompt,options={}}={}){
    yield replay;
   }else{
    stored.push(userFrame(sessionId,[{type:'text',text:payload.text},...payload.images]));
+  }
+
+  if(/^\/compact\b/.test(payload.text)){yield* compactFrames(sessionId,payload.text,wireUuid);return;}
+
+  /* Steer (#58): o turno espera o PRÓXIMO item da mesma fila de prompt,
+     ecoa o uuid dele (o aceite do steer) e responde citando o texto. */
+  let steerText='';
+  if(marker==='steer-wait'&&input){
+   const {value,done}=await input.next();
+   const steer=done?null:normalizeItem(value);
+   if(steer){
+    logPrompt({text:steer.text,images:steer.images.length,marker:'steer',streaming:true,model:state.model,effort:state.effort,priority:value?.priority||null});
+    yield userFrame(sessionId,[{type:'text',text:steer.text}],{replay:true,uuidValue:typeof value?.uuid==='string'?value.uuid:null});
+    stored.push(userFrame(sessionId,[{type:'text',text:steer.text}]));
+    steerText=`Steer recebido: ${steer.text.split('\n')[0].slice(0,160)}.`;
+   }
   }
 
   /* Roteiro "pensando" sem resposta: só interrupt()/close() encerra. */
@@ -317,10 +355,14 @@ export function query({prompt,options={}}={}){
   }
 
   const errorTurn=marker==='error';
+  /* Rascunho de revisão (#58): a ponte descartável abre a consulta sem
+     ferramentas e sem gravar sessão; a fixture devolve o JSON do contrato. */
+  const draftTurn=options.persistSession===false&&Array.isArray(options.tools)&&options.tools.length===0;
   const imageNote=payload.images.length?`Recebi ${payload.images.length} bloco(s) de imagem.`:'';
-  const answer=errorTurn?'Falha simulada da fixture.'
+  const answer=draftTurn?JSON.stringify({question:'Pergunta do rascunho (fixture).',attempt:'',difficulty:'Dificuldade do rascunho (fixture).'})
+   :errorTurn?'Falha simulada da fixture.'
    :(marker==='image'?`${imageNote||'Recebi 0 bloco(s) de imagem.'}\n${permissionText}`.trim()
-   :(`${[imageNote,permissionText,'Resposta de teste do Claude (fixture).'].filter(Boolean).join(' ')}${payload.text?`\nVocê disse: ${payload.text.split('\n')[0].slice(0,160)}`:''}`.trim()));
+   :(`${[imageNote,permissionText,steerText,'Resposta de teste do Claude (fixture).'].filter(Boolean).join(' ')}${payload.text?`\nVocê disse: ${payload.text.split('\n')[0].slice(0,160)}`:''}`.trim()));
 
   const chunks=chunkText(answer,marker);
   const streamMessageId=`msg_${uuid()}`;
@@ -369,18 +411,18 @@ export function query({prompt,options={}}={}){
    if(done)return;
    const payload=normalizeItem(value);
    if(!payload.text&&!payload.images.length)continue;
-   yield* turn(payload,typeof value?.uuid==='string'?value.uuid:null);
+   yield* turn(payload,typeof value?.uuid==='string'?value.uuid:null,value,iterator);
   }
  }
 
  const iterator=run();
  iterator.initializationResult=async()=>({
-  commands:[],models:modelCatalog(),agents:[],output_style:'default',
+  commands:FAKE_COMMANDS.map(command=>({...command})),models:modelCatalog(),agents:[],output_style:'default',
   account:{apiProvider:'firstParty'},
   claude_code_version:SDK_VERSION,session_id:sessionId
  });
  iterator.supportedModels=async()=>modelCatalog();
- iterator.supportedCommands=async()=>[];
+ iterator.supportedCommands=async()=>FAKE_COMMANDS.map(command=>({...command}));
  iterator.getSessionMessages=async()=>readStore(storeDir({cwd:options.cwd,env:options.env}),sessionId);
  iterator.setPermissionMode=async mode=>{state.permissionMode=String(mode);};
  iterator.setModel=async model=>{state.model=model||null;trace('set-model',{model:state.model,sessionId});};

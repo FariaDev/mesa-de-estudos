@@ -1,0 +1,83 @@
+/* A página que o celular abre pelo QR code (#36, redesenho na #66; protótipos
+   Celular-inicio/-enviando/-erro em docs/design/setup-guia-r1/). Não é
+   carregada pela Mesa: `phone-cast.cjs` a junta ao trio.css e o host serve
+   tudo inline, com nonce. As cores vêm do `:root` de `phone-look.cjs`.
+   Três estados em `main[data-state]`: start (∫), sending (Σ) e offline (∇). */
+
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--fg);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+/* A STIX não vem pela rede (a CSP não deixa): usa a do aparelho, se houver, ou uma serifa do sistema. */
+.serif{font-family:"STIX Two Text","Iowan Old Style",Charter,Georgia,serif;font-weight:600}
+main{max-width:480px;min-height:100vh;margin:0 auto;padding:28px 20px 32px;display:flex;flex-direction:column;gap:18px}
+p{margin:0;color:var(--muted)}
+svg.icon{flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- topo: personagem ao lado do título ---------- */
+.head{display:flex;align-items:flex-end;gap:12px}
+.head .cast{flex:none;margin-left:-6px}
+.titles{display:flex;flex-direction:column;gap:2px;padding-bottom:8px}
+.kicker{font-size:13px;color:var(--muted)}
+h1{margin:0;font-size:30px;line-height:1.1}
+main:not([data-state=start]) .cast-start,
+main:not([data-state=sending]) .cast-sending,
+main[data-state=offline] .head :is(.cast,.kicker){display:none}
+main[data-state=offline] .titles{padding-bottom:0}
+
+/* ---------- botões ---------- */
+.actions{display:grid;gap:10px;margin-top:6px}
+label.button{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;border-radius:16px;
+ border:1.5px solid var(--line);background:var(--card);color:var(--fg);font-weight:600;font-size:17px;cursor:pointer}
+label.button.primary{min-height:64px;border-color:var(--accent);background:var(--accent);color:var(--on-accent);font-size:18px}
+label.button input{position:absolute;width:1px;height:1px;opacity:0}
+label.button:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+main[data-state=sending] .actions{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0}
+main[data-state=sending] label.button{min-height:52px;gap:8px;border-radius:14px;font-size:16px}
+main[data-state=sending] label.button:not(.primary) svg{display:none}
+main[data-state=offline] .actions{display:none}
+main:not([data-state=start]) :is(.lead,.tips){display:none}
+
+/* ---------- dica ---------- */
+.tips{margin-top:8px;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.tips h2{margin:0;font-size:18px}
+.tips ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:15px}
+
+/* ---------- enviando: barra e contagem ---------- */
+#progress{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+main:not([data-state=sending]) #progress{display:none}
+.progress-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+#status{font-weight:600}
+#status.bad{color:var(--bad)}
+#ready{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{position:relative;height:8px;border-radius:4px;background:color-mix(in srgb,var(--fg) 9%,var(--bg));overflow:hidden}
+/* A parte feita cresce por scaleX (o script põe --done), sem transição de largura. */
+#bar-fill{position:absolute;inset:0;border-radius:4px;background:var(--accent);transform-origin:left;transform:scaleX(var(--done,0));transition:transform var(--t-base) var(--ease-out)}
+/* O brilho corre só enquanto uma foto está a caminho; com movimento reduzido, --t-loop é 0s e ele some. */
+#progress.busy .bar::after{content:"";position:absolute;top:0;bottom:0;left:0;width:30%;border-radius:4px;background:var(--accent);opacity:.45;
+ animation:phone-shine calc(var(--t-loop) * 7 / 6) linear infinite}
+@keyframes phone-shine{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
+@media (prefers-reduced-motion:reduce){#progress.busy .bar::after{display:none}}
+
+/* ---------- sem conexão ---------- */
+#offline{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;background:var(--card);
+ border:1.5px solid color-mix(in srgb,var(--bad) 40%,var(--line));border-radius:18px;padding:22px 20px 24px}
+main:not([data-state=offline]) #offline{display:none}
+#offline strong{font-size:22px;line-height:1.2;color:var(--bad)}
+#retry{margin-top:4px;width:100%;min-height:52px;border:0;border-radius:14px;background:var(--accent);color:var(--on-accent);font:600 17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+
+/* ---------- enviadas desta vez ---------- */
+.sent-title{margin:6px 0 0;font-size:20px}
+#sent{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+#sent:empty{display:none}
+.thumb{position:relative;margin:0;aspect-ratio:3/4;border-radius:10px;border:1.5px solid var(--line);background:var(--card);overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.pending{opacity:.55}
+.thumb .done{position:absolute;right:6px;bottom:6px;width:24px;height:24px;border-radius:12px;background:var(--amber);display:flex;align-items:center;justify-content:center}
+.thumb.pending .done{display:none}
+#log{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:14px}
+#log li{padding:10px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+#log li+li{color:var(--muted)}
+
+/* ---------- rodapé ---------- */
+.spacer{flex:1}
+.privacy{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.privacy svg{margin-top:2px}

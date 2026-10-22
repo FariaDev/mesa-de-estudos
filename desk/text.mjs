@@ -1,4 +1,5 @@
 import attachments from './src/generated/attachments.core.js';
+import {t as uiT} from './src/ui-text.mjs';
 
 /* Conteúdo da mensagem (texto + imagens): núcleo Bend (core/attachments.bend).
    O displayUserText da Mesa continua local — os marcadores de contexto/
@@ -15,12 +16,14 @@ const coerce = (value) => (typeof value === 'string' ? value : '');
 /* Blocos que o main apensa à mensagem e que o transcript não mostra. O bloco
    atual (`[Contexto da Mesa]`, core/studycontext.bend) vai até o fim; os
    marcadores antigos ficam para as conversas já gravadas. O bilhete da Conversa
-   (`[Da Conversa]`, core/handoff.bend) é apenso DEPOIS do contexto da Mesa e
-   também vai até o fim do texto — o padrão dele existe separado porque com
-   `studyContext: false` não há bloco da Mesa nenhum antes dele. */
+   (`[Da Conversa]`) saiu na #50, mas sessões gravadas antes dele ainda o trazem
+   DEPOIS do contexto da Mesa, até o fim do texto — o padrão fica separado
+   porque com `studyContext: false` não havia bloco da Mesa nenhum antes dele. */
 const CONTEXT_BLOCKS=[
+ /* Menção `@` (#53): cabeçalho e a linha de instruções; só esse trecho sai, o contexto vem depois. */
+ /\n\n\[Ferramenta pedida na Mesa:[^\]\n]*\][^\n]*\n[^\n]*/,
  /\n\n\[Da Conversa\][\s\S]*$/,
- /\n\n\[Contexto da Mesa\][\s\S]*$/,
+ /\n\n\[(?:Contexto da Mesa|Desk context)\][\s\S]*$/,
  /\n\n\[Contexto da sessão na Mesa:[\s\S]*?(?=\n\n\[Referências abertas|$)/,
  /\n\n\[Referências abertas[\s\S]*$/,
  /\n\n\[Conferência visual[\s\S]*$/,
@@ -32,7 +35,8 @@ export function displayUserText(text){
  for(const block of CONTEXT_BLOCKS)t=t.replace(block,'');
  if(/^\/conferir\b/.test(t.trim())||/Conferência visual solicitada pelo usuário/.test(text)){
   const extra=t.replace(/^\/conferir\s*/,'').replace(/^Confira minha resolução e indique o primeiro erro relevante\.?\s*/i,'').trim();
-  return extra&&extra!=='Confira minha resolução.'?`Conferir Xournal++\n${extra}`:'Conferir Xournal++';
+  const label=uiT('conferir.sessionLabel');
+  return extra&&extra!=='Confira minha resolução.'?`${label}\n${extra}`:label;
  }
  return t;
 }

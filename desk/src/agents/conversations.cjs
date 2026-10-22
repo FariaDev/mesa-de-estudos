@@ -1,24 +1,25 @@
 'use strict';
 
-const deliveryCore = require('../generated/agentdelivery.core.js').default;
+const {describeReceived, invalidValue} = require('../error-detail.mjs');
 
 /* Registro de conversa Claude da Mesa: um descritor JSON REAL por conversa em
    `runtime/conversations/claude-<uuid>.json`. A identidade que a UI/fila/estado
    usam é o CAMINHO desse arquivo — o mesmo `session` de hoje. Pi continua JSONL
    exatamente como está; este módulo nunca lê nem escreve JSONL.
+   OpenCode (#57): mesmo esquema em `opencode-<uuid>.json`, nativo `ses_…`.
 
    Descritor (schemaVersion 1):
      {
        schemaVersion: 1,
        engine: 'claude',
        id: '<uuid>',                 // = nome do arquivo (claude-<uuid>.json)
-       nativeSessionId: '<uuid>',    // separado e explícito; criado uma vez
+       nativeSessionId: '<uuid>',    // separado e explícito; criado uma vez (OpenCode: null até o servidor criar)
        nativeEstablished: false,     // só true depois de init/replay do nativo
        courseId: '<string>',
        started: <epoch ms>,
        preview: '<string>',
        model?: '<string>',
-       pinnedExecutable?: '<caminho>',
+       pinnedExecutable?: '<caminho>', // último binário observado; não fixa o launcher futuro
        delivery?: {id, status: 'transmitting'|'accepted'|'settled'|'uncertain'|'refused'},
        messages?: [normalizado por history.cjs, para exibição offline]
      }
@@ -45,6 +46,8 @@ const history = require('./history.cjs');
 const SCHEMA_VERSION = 1;
 const ENGINE_CLAUDE = 'claude';
 const ENGINE_PI = 'pi';
+const ENGINE_OPENCODE = 'opencode';
+const NATIVE_ENGINES = Object.freeze([ENGINE_CLAUDE, ENGINE_OPENCODE]);
 const CONVERSATIONS_DIR = 'conversations';
 const CORRUPT_DESCRIPTOR_CODE = 'CLAUDE_DESCRIPTOR_INVALID';
 const PATCH_ERROR_CODE = 'CLAUDE_DESCRIPTOR_PATCH';
@@ -61,9 +64,10 @@ const MAX_DELIVERY_ID = 200;
 const MAX_MESSAGE_COUNT = 5000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const DESCRIPTOR_RE = /^claude-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.json$/;
+const DESCRIPTOR_RE = /^(claude|opencode)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.json$/;
+const {validNativeId, nextNativeId} = require('./native-identity.cjs');
 
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('../../plain-object.cjs');
 const bytes = (value) => Buffer.byteLength(JSON.stringify(value));
 const isUuid = (value) => typeof value === 'string' && UUID_RE.test(value);
 const boundedString = (value, max) => typeof value === 'string' && value.length <= max;
@@ -75,7 +79,7 @@ function patchError(message) {
 }
 
 function corruptError(file) {
-  const error = new Error(`Descritor de conversa Claude inválido: ${file}`);
+  const error = new Error(`Descritor de sessão Claude inválido: ${path.basename(String(file))}`);
   error.code = CORRUPT_DESCRIPTOR_CODE;
   return error;
 }
@@ -84,19 +88,26 @@ function conversationsDir(runtime) {
   return path.join(runtime, CONVERSATIONS_DIR);
 }
 
-function descriptorName(id) {
-  return `claude-${id}.json`;
+function descriptorName(id, engine = ENGINE_CLAUDE) {
+  return `${engine}-${id}.json`;
 }
 
-function descriptorPath(runtime, id) {
-  return path.join(conversationsDir(runtime), descriptorName(id));
+function descriptorPath(runtime, id, engine = ENGINE_CLAUDE) {
+  return path.join(conversationsDir(runtime), descriptorName(id, engine));
 }
 
-/* Nome gerenciado (claude-<uuid>.json) → uuid; qualquer outro arquivo é Pi. */
+/* O motor do nome gerenciado (`claude-…`/`opencode-…`), ou null. */
+function managedEngine(file) {
+  const match = typeof file === 'string' ? DESCRIPTOR_RE.exec(path.basename(file)) : null;
+  return match ? match[1] : null;
+}
+
+
+/* Nome gerenciado (claude-/opencode-<uuid>.json) → uuid; qualquer outro arquivo é Pi. */
 function managedUuid(file) {
   if (typeof file !== 'string' || !file) return null;
   const match = DESCRIPTOR_RE.exec(path.basename(file));
-  return match ? match[1].toLowerCase() : null;
+  return match ? match[2].toLowerCase() : null;
 }
 
 function insideConversations(file, runtime) {
@@ -175,12 +186,12 @@ function validateDelivery(delivery) {
 }
 
 /* Descritor válido (schema exato). Fora disso é null — nunca Pi silencioso. */
-function validDescriptor(raw, uuid) {
+function validDescriptor(raw, uuid, engine = ENGINE_CLAUDE) {
   if (!isPlainObject(raw)) return false;
   if (raw.schemaVersion !== SCHEMA_VERSION) return false;
-  if (raw.engine !== ENGINE_CLAUDE) return false;
+  if (raw.engine !== engine) return false;
   if (!isUuid(raw.id) || raw.id.toLowerCase() !== uuid.toLowerCase()) return false;
-  if (!isUuid(raw.nativeSessionId)) return false;
+  if (!validNativeId(engine, raw.nativeSessionId)) return false;
   if (typeof raw.nativeEstablished !== 'boolean') return false;
   if (!boundedString(raw.courseId, MAX_COURSE_ID)) return false;
   if (!Number.isFinite(raw.started) || raw.started < 0) return false;
@@ -190,6 +201,8 @@ function validDescriptor(raw, uuid) {
   if (raw.pinnedExecutable !== undefined && !boundedString(raw.pinnedExecutable, MAX_PATH)) return false;
   if (raw.delivery !== undefined && !validateDelivery(raw.delivery)) return false;
   if (raw.messages !== undefined && !validateMessages(raw.messages)) return false;
+  if (raw.importedTranscript !== undefined && !boundedString(raw.importedTranscript, 50000)) return false;
+  if (raw.importedPrefixLength !== undefined && (!Number.isInteger(raw.importedPrefixLength)||raw.importedPrefixLength<0||raw.importedPrefixLength>MAX_MESSAGE_COUNT)) return false;
   return true;
 }
 
@@ -216,7 +229,7 @@ function readClaudeConversation(file, {runtime} = {}) {
   } catch {
     return null;
   }
-  return validDescriptor(raw, uuid) ? raw : null;
+  return validDescriptor(raw, uuid, managedEngine(file)) ? raw : null;
 }
 
 /* ---------- escrita ---------- */
@@ -249,22 +262,23 @@ function publishExclusive(tmp, file, payload) {
   }
 }
 
-/* Cria o descritor sem sobrescrever nada: escreve um tmp e publica com link
-   exclusivo (EEXIST → tenta outro id). Devolve o CAMINHO do arquivo. */
-function createClaudeConversation({runtime, courseId, model, effort} = {}) {
-  if (typeof runtime !== 'string' || !runtime) throw new Error('runtime obrigatório para criar conversa Claude.');
-  if (effort !== undefined && !boundedString(effort, 24)) throw new Error('effort inválido.');
+/** Cria o descritor sem sobrescrever nada: escreve um tmp e publica com link
+   exclusivo (EEXIST → tenta outro id). Devolve o CAMINHO do arquivo. @param {{runtime?: string, courseId?: string, model?: string, effort?: string, engine?: string}} [options] */
+function createClaudeConversation({runtime, courseId, model, effort, engine = ENGINE_CLAUDE} = {}) {
+  if (typeof runtime !== 'string' || !runtime) throw new Error(invalidValue('runtime', runtime, 'string(1..)'));
+  if (!NATIVE_ENGINES.includes(engine)) throw new Error(invalidValue('engine', engine, NATIVE_ENGINES.join('|')));
+  if (effort !== undefined && !boundedString(effort, 24)) throw new Error(invalidValue('effort', effort, 'string(0..24)'));
   const dir = conversationsDir(runtime);
   fs.mkdirSync(dir, {recursive: true});
   const course = typeof courseId === 'string' ? courseId.slice(0, MAX_COURSE_ID) : '';
   for (let attempt = 0; attempt < 8; attempt++) {
     const id = crypto.randomUUID();
-    const file = path.join(dir, descriptorName(id));
+    const file = path.join(dir, descriptorName(id, engine));
     const descriptor = {
       schemaVersion: SCHEMA_VERSION,
-      engine: ENGINE_CLAUDE,
+      engine,
       id,
-      nativeSessionId: crypto.randomUUID(),
+      nativeSessionId: engine === ENGINE_OPENCODE ? null : crypto.randomUUID(), // o `ses_` vem do servidor (native-identity.cjs)
       nativeEstablished: false,
       courseId: course,
       started: Date.now(),
@@ -290,70 +304,78 @@ function createClaudeConversation({runtime, courseId, model, effort} = {}) {
       throw error;
     }
   }
-  throw new Error('não foi possível reservar um arquivo de conversa Claude.');
+  throw new Error('não foi possível reservar um arquivo de sessão Claude: 8 ids sorteados já existiam.');
 }
 
 /* Mescla campos permitidos; `null` remove opcionais. Qualquer outra chave
    (id, engine, schemaVersion, path, file, runtime…) é ignorada. Em falha de
    validação/escrita o descritor anterior fica intacto. */
 function updateClaudeConversation(file, patch, {runtime} = {}) {
-  if (!isPlainObject(patch)) throw patchError('patch da conversa Claude precisa ser um objeto.');
+  if (!isPlainObject(patch)) throw patchError(invalidValue('patch da sessão Claude', patch, 'object'));
   const current = readClaudeConversation(file, {runtime});
   if (!current) {
     if (managedUuid(file) && fs.existsSync(file)) throw corruptError(file);
     return null;
   }
   const next = {...current};
-  if (Object.hasOwn(patch, 'nativeSessionId')) {
-    if (!isUuid(patch.nativeSessionId)) throw patchError('nativeSessionId inválido.');
-    if (!deliveryCore.sameNativeIdentity(current.nativeSessionId, patch.nativeSessionId)) throw patchError('nativeSessionId é imutável; comece outra conversa para usar outra sessão nativa.');
-  }
+  if (Object.hasOwn(patch, 'nativeSessionId')) next.nativeSessionId = nextNativeId(current.engine, current.nativeSessionId, patch.nativeSessionId, patchError);
   if (Object.hasOwn(patch, 'nativeEstablished')) {
-    if (typeof patch.nativeEstablished !== 'boolean') throw patchError('nativeEstablished precisa ser booleano.');
+    if (typeof patch.nativeEstablished !== 'boolean') throw patchError(invalidValue('nativeEstablished', patch.nativeEstablished, 'boolean'));
     next.nativeEstablished = patch.nativeEstablished;
   }
   if (Object.hasOwn(patch, 'courseId')) {
-    if (!boundedString(patch.courseId, MAX_COURSE_ID)) throw patchError('courseId inválido.');
+    if (!boundedString(patch.courseId, MAX_COURSE_ID)) throw patchError(invalidValue('courseId', patch.courseId, `string(0..${MAX_COURSE_ID})`));
     next.courseId = patch.courseId;
   }
   if (Object.hasOwn(patch, 'started')) {
-    if (!Number.isFinite(patch.started) || patch.started < 0) throw patchError('started inválido.');
+    if (!Number.isFinite(patch.started) || patch.started < 0) throw patchError(invalidValue('started', patch.started, 'number(0..)'));
     next.started = patch.started;
   }
   if (Object.hasOwn(patch, 'preview')) {
-    if (!boundedString(patch.preview, MAX_PREVIEW)) throw patchError('preview inválido.');
+    if (!boundedString(patch.preview, MAX_PREVIEW)) throw patchError(invalidValue('preview', patch.preview, `string(0..${MAX_PREVIEW})`));
     next.preview = patch.preview;
   }
   if (Object.hasOwn(patch, 'model')) {
     if (patch.model === null) delete next.model;
-    else if (!boundedString(patch.model, MAX_MODEL)) throw patchError('model inválido.');
+    else if (!boundedString(patch.model, MAX_MODEL)) throw patchError(invalidValue('model', patch.model, `string(0..${MAX_MODEL})|null`));
     else next.model = patch.model;
   }
   if (Object.hasOwn(patch, 'effort')) {
     if (patch.effort === null) delete next.effort;
-    else if (!boundedString(patch.effort, 24)) throw patchError('effort inválido.');
+    else if (!boundedString(patch.effort, 24)) throw patchError(invalidValue('effort', patch.effort, 'string(0..24)|null'));
     else next.effort = patch.effort;
   }
   if (Object.hasOwn(patch, 'pinnedExecutable')) {
     if (patch.pinnedExecutable === null) delete next.pinnedExecutable;
-    else if (!boundedString(patch.pinnedExecutable, MAX_PATH)) throw patchError('pinnedExecutable inválido.');
+    else if (!boundedString(patch.pinnedExecutable, MAX_PATH)) throw patchError(invalidValue('pinnedExecutable', patch.pinnedExecutable, `string(0..${MAX_PATH})|null`));
     else next.pinnedExecutable = patch.pinnedExecutable;
   }
   if (Object.hasOwn(patch, 'delivery')) {
     if (patch.delivery === null) delete next.delivery;
-    else if (!validateDelivery(patch.delivery)) throw patchError('delivery inválido.');
+    else if (!validateDelivery(patch.delivery)) throw patchError(invalidValue('delivery', patch.delivery, `{id: string(1..${MAX_DELIVERY_ID}), status}|null`));
     else next.delivery = {id: patch.delivery.id, status: patch.delivery.status};
   }
+  if (Object.hasOwn(patch, 'importedPrefixLength')) {
+    if (!Number.isInteger(patch.importedPrefixLength)||patch.importedPrefixLength<0||patch.importedPrefixLength>MAX_MESSAGE_COUNT) throw patchError(invalidValue('importedPrefixLength', patch.importedPrefixLength, `integer(0..${MAX_MESSAGE_COUNT})`));
+    next.importedPrefixLength=patch.importedPrefixLength;
+  }
   if (Object.hasOwn(patch, 'messages')) {
-    if (patch.messages === null) delete next.messages;
-    else if (!Array.isArray(patch.messages)) throw patchError('messages precisa ser uma lista normalizada.');
+    if (patch.messages === null) {delete next.messages;if(next.importedPrefixLength!==undefined)next.importedPrefixLength=0;}
+    else if (!Array.isArray(patch.messages)) throw patchError(invalidValue('messages', patch.messages, 'array|null'));
     else {
-      const messages = boundMessages(history.normalizeClaudeMessages(patch.messages));
+      const normalized=history.normalizeClaudeMessages(patch.messages);
+      const messages = boundMessages(normalized);
+      if(next.importedPrefixLength!==undefined)next.importedPrefixLength=Math.max(0,Math.min(messages.length,next.importedPrefixLength-(normalized.length-messages.length)));
       if (messages.length) next.messages = messages;
       else delete next.messages;
     }
   }
-  if (!validDescriptor(next, managedUuid(file))) throw patchError('patch produziria um descritor inválido.');
+  if (Object.hasOwn(patch, 'importedTranscript')) {
+    if (!boundedString(patch.importedTranscript, 50000)) throw patchError(invalidValue('importedTranscript', patch.importedTranscript, 'string(0..50000)'));
+    if (current.importedTranscript !== undefined && current.importedTranscript !== patch.importedTranscript) throw patchError(`importedTranscript é imutável: recebido ${describeReceived(patch.importedTranscript)}, diferente do atual.`);
+    next.importedTranscript = patch.importedTranscript;
+  }
+  if (!validDescriptor(next, managedUuid(file), current.engine)) throw patchError(`patch produziria um descritor inválido: campos ${describeReceived(patch)}.`);
   writeDescriptorAtomic(file, next);
   return next;
 }
@@ -378,7 +400,7 @@ function boundMessages(messages) {
 
 /* ---------- classificação/metadados ---------- */
 
-/* 'claude' só para descritor válido; qualquer outra coisa é 'pi'. Um arquivo
+/* 'claude'/'opencode' só para descritor válido; qualquer outra coisa é 'pi'. Um arquivo
    de nome gerenciado que existe e não valida LANÇA (nunca vira Pi calado);
    ausente não é descritor e cai no fallback Pi. */
 function conversationEngine(file, {runtime} = {}) {
@@ -386,7 +408,8 @@ function conversationEngine(file, {runtime} = {}) {
   if (!uuid) return ENGINE_PI;
   const base = typeof runtime === 'string' && runtime ? runtime : '';
   if (base && !insideConversations(file, base)) return ENGINE_PI;
-  if (readClaudeConversation(file, {runtime: base})) return ENGINE_CLAUDE;
+  const native = readClaudeConversation(file, {runtime: base});
+  if (native) return native.engine;
   if (fs.existsSync(file)) throw corruptError(file);
   return ENGINE_PI;
 }
@@ -401,10 +424,10 @@ function startedFromPiPath(file) {
 
 function conversationMetadata(file, {runtime} = {}) {
   const engine = conversationEngine(file, {runtime});
-  if (engine === ENGINE_CLAUDE) {
+  if (NATIVE_ENGINES.includes(engine)) {
     const descriptor = readClaudeConversation(file, {runtime});
     return {
-      engine: ENGINE_CLAUDE,
+      engine,
       id: descriptor.id,
       started: descriptor.started,
       preview: descriptor.preview,
@@ -454,6 +477,8 @@ module.exports = {
   SCHEMA_VERSION,
   ENGINE_CLAUDE,
   ENGINE_PI,
+  ENGINE_OPENCODE,
+  NATIVE_ENGINES,
   CONVERSATIONS_DIR,
   CORRUPT_DESCRIPTOR_CODE,
   DELIVERY_STATUSES,

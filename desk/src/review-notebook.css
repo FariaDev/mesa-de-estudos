@@ -1,0 +1,88 @@
+/* Caderno de revisão (aba).
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- caderno de revisão (aba) ---------- */
+/* Uma tela, duas colunas: à esquerda o item do dia (progresso, cartão e "Como
+   foi?"), à direita "Todos os itens" em 340px; sem itens, um bloco só no meio.
+   Serifa só no enunciado e no título do vazio (--serif); o resto é a UI. */
+/* Os leitores seguem montados (e com a largura certa) por baixo do caderno,
+   mas fora do fluxo: o quadro do caderno fica com a altura toda. */
+#references.review{position:relative}
+#references.review #pdf-grid{visibility:hidden;position:absolute;inset:0}
+#references.review .pdf-divider{display:none}
+#review-bar{display:flex;align-items:center;background:var(--surface)}
+#review-bar .review-head{flex:1;min-width:0}
+.review-head{display:flex;align-items:center;gap:var(--space-5)}
+.review-head h2{margin:0;font-size:var(--fs-md);font-weight:600;color:var(--fg-strong);white-space:nowrap}
+.review-course{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-md);color:var(--faint)}
+.review-count{margin-left:auto;font-size:var(--fs-md);color:var(--faint);white-space:nowrap}
+/* Fechar o caderno é um × sem borda, como nos outros cabeçalhos; o texto e o
+   rótulo acessível continuam vindo do núcleo. */
+.review-close{width:var(--ctl);padding:0;border-color:transparent;background:transparent;box-shadow:none;color:var(--muted);font-size:0}
+.review-close::before{content:"×";font-size:var(--fs-xl);line-height:1}
+.review-close:hover{background:var(--hover);color:var(--fg)}
+#review-view{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(200px,34%,340px);background:var(--bg)}
+#review-view[hidden]{display:none}
+.review-main{container-type:inline-size;container-name:review-main;min-width:0;min-height:0;overflow:auto;padding:var(--space-7) 32px;display:flex;flex-direction:column;gap:var(--space-6)}
+.review-progress{display:flex;align-items:baseline;gap:var(--space-5)}
+.review-kicker{font-size:var(--fs-sm);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.review-position{font-size:var(--fs-md);color:var(--faint)}
+.review-bar-track{flex:1;align-self:center;height:4px;appearance:none;border:0;border-radius:2px;background:var(--border);overflow:hidden}
+.review-bar-track::-webkit-progress-bar{background:var(--border)}
+.review-bar-track::-webkit-progress-value{background:var(--accent-fill)}
+.review-card{display:flex;flex-direction:column;gap:20px;padding:28px 32px;border:1px solid var(--border);border-radius:var(--r-xl);background:var(--surface)}
+.review-meta{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:var(--space-5);row-gap:var(--space-1);font-size:var(--fs-sm);color:var(--faint)}
+/* #61: STIX a 24px/500, que ocupa a linha como a Iowan a 26px ocupava. */
+.review-question{margin:0;font-family:var(--serif);font-weight:500;font-size:24px;line-height:1.3;color:var(--fg-strong);overflow-wrap:anywhere}
+.review-notes{display:flex;flex-direction:column;gap:var(--space-5);padding-top:var(--space-6);border-top:1px solid var(--border)}
+.review-note{display:flex;flex-direction:column;gap:var(--space-2)}
+.review-note-label{font-size:var(--fs-sm);color:var(--faint)}
+.review-attempt,.review-trouble{margin:0;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
+.review-reference-warning{margin:0;font-size:var(--fs-sm);color:var(--warn-text)}
+.review-ref{background:none;border:0;padding:0;height:auto;font:inherit;font-size:var(--fs-sm);color:var(--accent-text);text-decoration:underline;cursor:pointer;box-shadow:none}
+.review-ref:disabled{color:var(--faint);text-decoration:none;cursor:default}
+.review-actions{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
+.review-actions button{height:30px;padding:0 12px;border:0;border-radius:var(--r-md);background:transparent;box-shadow:none;color:var(--fg)}
+.review-actions button:hover{background:var(--hover)}
+.review-actions .primary{padding:0 14px;background:var(--primary);color:var(--primary-fg);font-weight:600}
+.review-actions .primary:hover{background:var(--primary-hover)}
+.review-actions .review-edit,.review-actions .review-remove{color:var(--muted)}
+.review-spacer{flex:1}
+.review-grades{display:flex;flex-direction:column;gap:var(--space-3)}
+.review-grades-title{margin:0;font-size:var(--fs-md);font-weight:400;color:var(--muted)}
+.review-grade-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-3)}
+.review-grade{height:56px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;padding:0 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--fg);text-align:left}
+.review-grade:hover{background:var(--hover)}
+.review-grade-name{font-weight:600}
+.review-grade-when{font-size:var(--fs-sm);color:var(--faint)}
+.review-all{display:flex;flex-direction:column;min-height:0;background:var(--surface);border-left:1px solid var(--border)}
+.review-all-head{height:var(--bar);flex:none;display:flex;align-items:center;gap:var(--space-3);padding:0 var(--pad);border-bottom:1px solid var(--border);box-sizing:border-box}
+.review-all-head h3{margin:0;font-size:var(--fs-md);font-weight:600;color:var(--fg)}
+.review-all-count{color:var(--faint)}
+.review-all-body{overflow:auto;padding:var(--space-3) 0}
+.review-group-title{margin:0;padding:var(--space-5) var(--pad) var(--space-1);font-size:var(--fs-sm);font-weight:600;color:var(--faint)}
+.review-row{display:flex;flex-direction:column;align-items:stretch;gap:2px;width:100%;padding:var(--space-3) var(--pad);border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--fg);text-align:left;height:auto}
+.review-row:hover{background:var(--hover)}
+.review-row[aria-current=true]{background:var(--selected)}
+.review-row-title{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.review-row-meta{display:flex;gap:var(--space-2);font-size:var(--fs-sm);color:var(--faint)}
+.review-row-src{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.review-empty-block{grid-column:1 / -1;align-self:center;justify-self:center;width:min(420px,calc(100% - 2 * var(--pad)));display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.review-empty-title{margin:0;font-family:var(--serif);font-weight:500;font-size:24px;line-height:1.2;color:var(--fg-strong)}
+.review-empty{margin:0;font-size:var(--fs-lg);line-height:1.55;color:var(--muted)}
+.review-empty strong{color:var(--fg);font-weight:600}
+.review-empty-sample{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-5);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-sm);color:var(--muted)}
+.review-empty-dot{color:var(--border-strong)}
+.review-empty-save{color:var(--accent-text);font-weight:600}
+@container review-main (max-width: 520px){
+ .review-card{padding:20px}
+ .review-question{font-size:22px}
+ .review-grade-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+#review-draft-status{font-size:var(--fs-xs);color:var(--muted)}
+
+/* Atualização conhecida: ação persistente junto aos menus, nos dois temas. */
+.header-actions #update-notice{color:var(--fg);border:1px solid var(--accent-text);background:var(--hover);font-weight:600;padding:var(--space-1) var(--space-3);white-space:nowrap}
+.header-actions #update-notice:hover{background:var(--active)}
+.header-actions #update-notice:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}

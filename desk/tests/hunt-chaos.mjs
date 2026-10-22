@@ -15,7 +15,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {withArtifacts,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,launchDesk,statusOnline,sendEnabled,toastWait,DESK} from './helpers.mjs';
+import {pickTheme,withArtifacts,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,launchDesk,statusOnline,sendEnabled,DESK,moreClick,sessionIds,openSessionById,sessionLocked,tutorMore,fillStudyTitle,resizeWindow} from './helpers.mjs';
+import {layoutStable,pollUntil} from './waits.mjs';
 
 const HUNT_PI=path.join(DESK,'tests','hunt-pi.mjs');
 try{fs.chmodSync(HUNT_PI,0o755);}catch{}
@@ -58,11 +59,11 @@ function watch(page){
 }
 function deskLog(runtime){
  try{
-  return fs.readFileSync(path.join(runtime,'desk.log'),'utf8').split('\n').filter(Boolean).map(line=>{try{return JSON.parse(line);}catch{return {src:'?',line};}});
+  return fs.readFileSync(path.join(runtime,'desk.log'),'utf8').split('\n').filter(Boolean).map(line=>{try{return JSON.parse(line);}catch{return {area:'?',msg:line};}});
  }catch{return [];}
 }
 function runtimeProblems(runtime){
- return deskLog(runtime).filter(entry=>entry.src!=='pi'||!/^\[hunt-pi\]/.test(entry.line||''));
+ return deskLog(runtime).filter(entry=>entry.area!=='pi'||!/^\[hunt-pi\]/.test(entry.msg||''));
 }
 function pdfText(runtime){try{return JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));}catch{return null;}}
 function stateJson(runtime){try{return fs.readFileSync(path.join(runtime,'desk.json'),'utf8');}catch{return '';}}
@@ -88,6 +89,22 @@ function multiPdf(pageLines){
  return Buffer.from(out,'latin1');
 }
 
+/* A queda do tutor vira o estado "sem resposta" na coluna (`#tutor-state`, #23):
+   a coluna escreve o erro e o toast não o repete. `tutorFailed` é o bloco com o
+   motivo e o "Chamar de novo"; `watchFailures` conta as quedas novas (a virada
+   para erro), para a 2ª queda não ser confundida com o erro que já está ali. */
+const TUTOR_FAILED=()=>{const b=document.querySelector('#tutor-state');return !!b&&!b.hidden&&[...b.querySelectorAll('button')].some(x=>/Chamar de novo/.test(x.textContent))&&b.textContent.trim();};
+const tutorFailureText=async(page,{timeout=30000}={})=>{
+ await page.waitForFunction(TUTOR_FAILED,undefined,{timeout});
+ return (await page.locator('#tutor-state').innerText()).trim();
+};
+const watchFailures=page=>page.evaluate(async()=>{
+ const {S}=await import('./src/state.mjs');
+ window.__tutorFailures=0;
+ let was=S.link?.state==='error';
+ window.addEventListener('desk-tutor-link',()=>{const now=S.link?.state==='error';if(now&&!was)window.__tutorFailures++;was=now;});
+});
+const nextFailure=(page,timeout=30000)=>page.waitForFunction(()=>window.__tutorFailures>=1&&!!(()=>{const b=document.querySelector('#tutor-state');return b&&!b.hidden&&[...b.querySelectorAll('button')].some(x=>/Chamar de novo/.test(x.textContent));})(),undefined,{timeout});
 async function scenario(name,fn){
  if(FILTER&&!name.includes(FILTER))return;
  console.log(`\n== ${name} ==`);
@@ -146,8 +163,8 @@ await scenario('pi-framing',async()=>{
   await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Eco de caça: terceira')),undefined,{timeout:45000});
   await sendEnabled(page,{timeout:20000});
   must('reconecta e responde depois do timeout',true);
-  const problemas=runtimeProblems(runtime).filter(e=>!/parou de responder|Resposta inválida|Pi encerrou/.test(e.line||''));
-  probe('desk.log sem estrago além dos avisos esperados',problemas.length===0,problemas.map(e=>e.line).join(' | ').slice(0,300));
+  const problemas=runtimeProblems(runtime).filter(e=>!/parou de responder|Resposta inválida|Pi encerrou|O tutor parou/.test(e.msg||''));
+  probe('desk.log sem estrago além dos avisos esperados',problemas.length===0,problemas.map(e=>e.msg).join(' | ').slice(0,300));
  });
 });
 
@@ -162,18 +179,19 @@ await scenario('pi-kill-messages',async()=>{
   seedCourse(runtime,'A');writeConfig(runtime,['A']);writeDeskJson(runtime,{session,courseId:'A'});
   const app=track(ctx,await launchDesk({runtime,env:huntEnv('kill-messages',{HUNT_PI_KILL_MESSAGES:'2'})}));
   const page=await app.firstWindow();const errs=watch(page);
-  const waitError=async()=>{await page.waitForFunction(()=>{const t=document.querySelector('#toast');return !!t&&!t.hidden&&/encerrou|parou de responder|Pi/i.test(t.textContent);},undefined,{timeout:30000});};
-  const waitQuiet=async()=>{await page.waitForFunction(()=>!document.querySelector('#toast .toast-item'),undefined,{timeout:12000});};
-  await waitError();
-  must('queda no meio do get_messages vira erro visível',true);
+  const queda=await tutorFailureText(page);
+  must('queda no meio do get_messages vira erro visível, na coluna do tutor',/encerrou|parou|tutor|Pi/i.test(queda),JSON.stringify(queda));
+  must('o erro da queda fala a língua do usuário (sem texto cru de IPC)',!/Error invoking remote method|IPC|ECONN/i.test(queda),JSON.stringify(queda));
   must('send habilitado depois da queda',await page.locator('#send').isEnabled());
-  must('abas reabilitadas depois da queda',await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].every(b=>!b.disabled)));
-  await waitQuiet();
+  must('abas reabilitadas depois da queda',await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].every(b=>!b.disabled)));
+  await watchFailures(page);
   await page.locator('#prompt').fill('mensagem após a queda 1');
   await page.locator('#send').click();
-  await page.waitForFunction(()=>{const t=document.querySelector('#toast');return !!t&&!t.hidden&&/encerrou|parou de responder|Pi/i.test(t.textContent);},undefined,{timeout:30000});
+  await nextFailure(page);
+  const segunda=(await page.locator('#tutor-state').innerText()).trim();
+  must('segunda queda também aparece na coluna, com o motivo',/encerrou|parou|tutor|Pi/i.test(segunda)&&!/Error invoking remote method|IPC|ECONN/i.test(segunda),JSON.stringify(segunda));
   must('segunda queda também destrava',await page.locator('#send').isEnabled());
-  await waitQuiet();
+  must('a queda não gera aviso flutuante repetindo o erro da coluna',await page.locator('#toast .toast-item').count()===0);
   await page.locator('#prompt').fill('mensagem após a queda 2');
   await page.locator('#send').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Eco de caça: mensagem após a queda 2')),undefined,{timeout:40000});
@@ -277,7 +295,7 @@ await scenario('switch-vs-stream',async()=>{
   must('sem pageerror no stream',errs.pageerrors.length===0,errs.pageerrors.join(' | '));
   await page.keyboard.press('Escape');
   await sendEnabled(page,{timeout:20000});
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(2500);// espera fixa: "nada acontece em 2,5 s" — a troca recusada não pode aparecer depois do abort
   probe('troca bloqueada não é aplicada depois do abort',await page.evaluate(()=>document.querySelector('#course-tabs button.active')?.dataset.id==='A'));
   // (b) atalho durante o stream + abort em seguida: a troca recusada é descartada
   //     (a mesma política de (a): o aviso "Pare a resposta" não deixa a troca
@@ -286,16 +304,16 @@ await scenario('switch-vs-stream',async()=>{
   await page.locator('#send').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Vou travar')),undefined,{timeout:15000});
   await page.keyboard.press('ControlOrMeta+3');
-  await page.waitForTimeout(800);
+  await page.waitForFunction(()=>{const t=document.querySelector('#toast');return !!t&&!t.hidden&&/Pare a resposta/i.test(t.textContent);},undefined,{timeout:5000});
   await page.keyboard.press('Escape');
   await sendEnabled(page,{timeout:45000});
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(2500);// espera fixa: "nada acontece em 2,5 s" — a troca recusada não fica pendente
   const st=await page.evaluate(()=>{
    const active=document.querySelector('#course-tabs button.active')?.dataset.id||'';
    const text=document.querySelector('#messages').textContent;
    const panels=document.querySelectorAll('.pdf-panel').length;
    const busy=!!document.querySelector('#send').disabled;
-   const sel=document.querySelector('#session-select')?.value||'';
+   const sel=document.querySelector('#session-title')?.dataset.session||'';
    return {active,panels,busy,hasA:text.includes('SEGREDO-A'),hasB:text.includes('SEGREDO-B'),sel,title:document.title};
   });
   probe('atalho recusado durante o stream não troca de matéria depois do abort',st.active==='A',JSON.stringify(st));
@@ -307,11 +325,12 @@ await scenario('switch-vs-stream',async()=>{
   await page.locator('#send').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Vou travar')),undefined,{timeout:15000});
   await page.keyboard.press('ControlOrMeta+2');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(300);// espera fixa: intervalo da rajada de atalhos (o tempo entre eles é o que se testa)
   await page.keyboard.press('ControlOrMeta+3');
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(900);// espera fixa: a rajada tem de ser tratada antes do Esc; não há estado a observar
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(9000);
+  await sendEnabled(page,{timeout:45000});
+  await page.waitForTimeout(2500);// espera fixa: "nada acontece em 2,5 s" — a fila de trocas não troca depois do abort
   const st2=await page.evaluate(()=>{
    const active=document.querySelector('#course-tabs button.active')?.dataset.id||'';
    const text=document.querySelector('#messages').textContent;
@@ -369,7 +388,7 @@ await scenario('esc-abort',async()=>{
   must('conversa segue depois do abort',true);
   // Esc repetido em rajada: não pode ligar/desligar nada nem vazar toast
   for(let i=0;i<4;i++)await page.keyboard.press('Escape');
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(600);// espera fixa: "nada acontece em 0,6 s" — o Esc em rajada não pode ligar/desligar nada nem vazar toast
   must('Esc em rajada não trava o app',await page.locator('#send').isEnabled());
   must('sem pageerror',errs.pageerrors.length===0,errs.pageerrors.join(' | '));
   probe('sem erro de console no renderer',errs.consoles.length===0,errs.consoles.join(' | ').slice(0,200));
@@ -392,10 +411,10 @@ await scenario('dialogs-stream',async()=>{
   must('leque mostra as opções do Pi',(await page.locator('#dialog-value option').allTextContents()).join(',')==='Alfa,Beta');
   const activeBefore=await page.evaluate(()=>document.querySelector('#course-tabs button.active')?.dataset.id);
   await page.keyboard.press('ControlOrMeta+2');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(300);// espera fixa: "nada acontece em 0,3 s" — o atalho não pode agir com o diálogo aberto
   must('⌘2 com diálogo aberto não troca de matéria',await page.evaluate(()=>document.querySelector('#course-tabs button.active')?.dataset.id)===activeBefore);
   await page.keyboard.press('ControlOrMeta+\\');
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(200);// espera fixa: "nada acontece em 0,2 s" — o atalho não pode agir com o diálogo aberto
   must('⌘\\ com diálogo aberto não recolhe o chat',await page.evaluate(()=>!document.body.classList.contains('chat-collapsed')));
   await page.locator('#dialog-value').selectOption('Beta');
   await page.locator('#pi-dialog .primary').click();
@@ -458,13 +477,13 @@ await scenario('rapid-ui',async()=>{
   await p1.locator('.find-toggle').click();
   await p1.locator('.pdf-find input').fill('página');
   await p1.locator('.pdf-find button').click();
-  await page.locator('.pdf-panel').first().locator('.collapse').click();
+  await moreClick(page.locator('.pdf-panel').first(),'.collapse');
   await page.waitForFunction(()=>document.querySelector('.pdf-panel').classList.contains('minimized'),undefined,{timeout:5000});
   await page.waitForSelector('.pdf-panel .pdf-hl',{timeout:90000});
   must('busca em 160 páginas acha e destaca (colapso no meio)',true);
   const count1=await p1.locator('.find-count').textContent();
   probe('contador da busca longa preenchido',/\d+/.test(count1),count1);
-  await page.locator('.pdf-panel').first().locator('.collapse').click();
+  await moreClick(page.locator('.pdf-panel').first(),'.collapse');
   await page.waitForFunction(()=>!document.querySelector('.pdf-panel').classList.contains('minimized'),undefined,{timeout:5000});
   await page.waitForSelector('.pdf-panel .pdf-hl',{timeout:20000});
   must('busca sobrevive ao colapsar/expandir',true);
@@ -473,25 +492,25 @@ await scenario('rapid-ui',async()=>{
   must('Esc limpa a busca do painel focado',true);
   // divisor durante resize da janela
   const before=await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--pdf-left'));
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,700));
-  await page.waitForTimeout(400);
+  await resizeWindow(app,page,1000,700);
+  await layoutStable(page,'.pdf-divider');
   const divider=await page.locator('.pdf-divider').boundingBox();
   await page.mouse.move(divider.x+divider.width/2,divider.y+divider.height/2);
   await page.mouse.down();
   await page.mouse.move(divider.x+200,divider.y+divider.height/2,{steps:6});
   await page.mouse.up();
-  await page.waitForTimeout(500);
+  await page.waitForFunction(v=>{const now=getComputedStyle(document.documentElement).getPropertyValue('--pdf-left').trim();return now!==''&&now!==v.trim();},before,{timeout:3000}).catch(()=>{});
   const after=await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--pdf-left'));
   probe('divisor ainda responde durante o resize',after.trim()!==before.trim()&&after.trim()!=='',`${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1200,800));
-  await page.waitForTimeout(400);
+  await resizeWindow(app,page,1200,800);
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel canvas').length>=2,undefined,{timeout:5000}).catch(()=>{});
   must('canvas continua vivo depois do resize',await page.locator('.pdf-panel canvas').count()>=2);
   // menus e diálogos em rajada
   for(let i=0;i<5;i++){
-   await page.locator('#mesa-menu .nav-trigger').click();
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.mouse.click(6,400);
   }
-  must('menus não ficam presos abertos',await page.evaluate(()=>!document.querySelector('#mesa-menu').classList.contains('open')&&document.querySelector('#mesa-menu .nav-trigger').getAttribute('aria-expanded')==='false'));
+  must('menus não ficam presos abertos',await page.evaluate(()=>!document.querySelector('#settings-menu').classList.contains('open')&&document.querySelector('#settings-menu .nav-trigger').getAttribute('aria-expanded')==='false'));
   for(let i=0;i<3;i++){
    await page.keyboard.press('ControlOrMeta+,');
    await page.waitForSelector('#settings-dialog[open]',{timeout:5000});
@@ -520,7 +539,7 @@ await scenario('rapid-ui',async()=>{
   must('desk.json continua JSON válido',pdfText(runtime)!==null,stateJson(runtime).slice(0,120));
   probe('sem erro de console no renderer',errs.consoles.length===0,errs.consoles.join(' | ').slice(0,300));
   const problemas=runtimeProblems(runtime);
-  probe('desk.log sem erros inesperados',problemas.length===0,problemas.map(e=>`${e.src}:${e.line}`).join(' | ').slice(0,300));
+  probe('desk.log sem erros inesperados',problemas.length===0,problemas.map(e=>`${e.area}:${e.msg}`).join(' | ').slice(0,300));
  });
 });
 
@@ -538,21 +557,21 @@ await scenario('persist-two-launches',async()=>{
   const errs1=watch(page1);
   await statusOnline(page1);
   await page1.waitForSelector('.pdf-panel canvas',{timeout:30000});
-  await page1.locator('#mesa-menu .nav-trigger').click();
-  await page1.locator('#theme-cycle').click();
-  await page1.locator('#theme-cycle').click();
-  await page1.waitForTimeout(500);
-  await page1.locator('#mesa-menu .nav-trigger').click();
+  await pickTheme(page1,'light');
+  await pickTheme(page1,'dark');
+  await page1.locator('#settings-menu .nav-trigger').click();
   await page1.locator('#settings').click();
   await page1.waitForSelector('#settings-dialog[open]',{timeout:10000});
+  await page1.locator('#settings-tab-avisos').click();
   await page1.locator('#density-mode').selectOption('compacta');
   await page1.locator('#settings-dialog button[value="cancel"]').last().click();
   await page1.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:5000});
   await page1.locator('#course-tabs button[data-id="B"]').click();
   await page1.waitForFunction(()=>document.querySelector('#course-tabs button.active')?.dataset.id==='B',undefined,{timeout:20000});
+  await page1.waitForFunction(async()=>{const {S}=await import('./src/state.mjs');return !S.switching&&!S.connecting;},undefined,{timeout:20000});
   await page1.locator('#prompt').fill('rascunho persistente da caça');
-  await page1.locator('#exercise-title').fill('Lista 9 · questão 3');
-  await page1.waitForTimeout(900);
+  await fillStudyTitle(page1,'Lista 9 · questão 3');
+  await pollUntil(()=>pdfText(runtime),saved=>saved?.study?.title==='Lista 9 · questão 3'&&saved?.draft==='rascunho persistente da caça',{timeout:5000,interval:100,what:'título e rascunho em desk.json',onTimeout:'return'});
   await app1.close();
   ctx.app=null;
   const persisted=pdfText(runtime);
@@ -573,7 +592,7 @@ await scenario('persist-two-launches',async()=>{
    title:document.querySelector('#exercise-title').value,
    chat:getComputedStyle(document.documentElement).getPropertyValue('--chat').trim(),
    density:localStorage.getItem('mesa.density'),
-   sessions:[...document.querySelectorAll('#session-select option')].map(o=>o.textContent),
+   sessions:document.querySelector('#session-title').textContent.trim(),
   }));
   must('tema restaurado no segundo launch',restored.theme==='dark',JSON.stringify(restored));
   must('densidade restaurada no segundo launch',restored.dense&&restored.density==='compacta',JSON.stringify(restored));
@@ -617,9 +636,13 @@ for(const variant of CORRUPT){
    const app=track(ctx,await launchDesk({runtime,env}));
    const page=await app.firstWindow();const errs=watch(page);
    await page.waitForSelector('#prompt',{timeout:20000});
-   await page.waitForTimeout(1800);
+   await page.waitForFunction(()=>{
+    const dialog=document.querySelector('#settings-dialog');
+    const tabs=document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)').length;
+    return !!dialog?.open||(tabs>0&&document.querySelectorAll('.pdf-panel').length>0);
+   },undefined,{timeout:4000}).catch(()=>{});// sem saída aproveitável: o estado abaixo reprova com o que viu
    const st=await page.evaluate(()=>({
-    tabs:[...document.querySelectorAll('#course-tabs button')].map(b=>b.dataset.id),
+    tabs:[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].map(b=>b.dataset.id),
     panels:document.querySelectorAll('.pdf-panel').length,
     settingsOpen:!!document.querySelector('#settings-dialog')?.open,
     configDialog:!!document.querySelector('#settings-dialog')?.open?document.querySelector('#settings-title')?.textContent:'',
@@ -674,8 +697,8 @@ await scenario('long-session',async()=>{
    nodes:document.querySelectorAll('#messages *').length,
    big:/fim do bloco gigante/.test(document.querySelector('#messages').textContent),
    meter:!document.querySelector('#ctx-meter').hidden,
-   select:document.querySelector('#session-select').value,
-   options:document.querySelectorAll('#session-select option').length,
+   select:document.querySelector('#session-title').dataset.session,
+   options:document.querySelectorAll('#conv-list .conv-row').length,
   }));
   must('histórico enorme renderiza',st.msgs>400,JSON.stringify(st));
   must('mensagem gigante aparece',st.big,JSON.stringify({nodes:st.nodes}));
@@ -688,18 +711,21 @@ await scenario('long-session',async()=>{
   await sendEnabled(page,{timeout:30000});
   must('conversa segue na sessão longa',true);
   // troca para a curta e volta
-  const curta=await page.evaluate(()=>[...document.querySelectorAll('#session-select option')].map(o=>o.value).find(v=>v.includes('pi-')&&document.querySelector('#session-select').value!==v));
+  const atual=await page.locator('#session-title').getAttribute('data-session');
+  const curta=(await sessionIds(page)).find(v=>v.includes('pi-')&&v!==atual);
   if(curta){
-   await page.locator('#session-select').selectOption(curta);
-   await page.waitForTimeout(2500);
-   const val=await page.locator('#session-select').inputValue();
-   must('troca de sessão não prende o seletor',val===curta,`${val}`);
-   must('seletor reabilitado',!(await page.locator('#session-select').isDisabled()));
-   const live=await page.evaluate(()=>[...document.querySelectorAll('#session-select option')].map(o=>o.value).find(v=>v!==document.querySelector('#session-select').value));
+   await openSessionById(page,curta);
+   await pollUntil(()=>page.locator('#session-title').getAttribute('data-session'),id=>id===curta,{timeout:15000,what:'a sessão curta ativa'}).catch(()=>{});
+   const val=await page.locator('#session-title').getAttribute('data-session');
+   must('troca de sessão não prende a lista',val===curta,`${val}`);
+   await pollUntil(()=>sessionLocked(page),locked=>!locked,{timeout:4000,interval:100,what:'o título da sessão reabilitado',onTimeout:'return'});
+   must('título da sessão reabilitado',!(await sessionLocked(page)));
+   const live=(await sessionIds(page)).find(v=>v!==val);
    if(live){
-    await page.locator('#session-select').selectOption(live);
-    await page.waitForTimeout(2500);
-    must('volta para a sessão longa',!(await page.locator('#session-select').isDisabled()));
+    await openSessionById(page,live);
+    await pollUntil(()=>page.locator('#session-title').getAttribute('data-session'),id=>id===live,{timeout:15000,what:'a sessão longa ativa'}).catch(()=>{});
+    await pollUntil(()=>sessionLocked(page),locked=>!locked,{timeout:4000,interval:100,what:'a sessão longa reabilitada',onTimeout:'return'});
+    must('volta para a sessão longa',!(await sessionLocked(page)));
    }
   }
   must('sem pageerror na sessão longa',errs.pageerrors.length===0,errs.pageerrors.join(' | '));
@@ -741,17 +767,17 @@ await scenario('long-token-hang',async()=>{
 });
 
 /* ====================================================================== */
-/* 11. erros do IPC não deveriam vazar boilerplate do Electron no toast */
+/* 11. erros do IPC não deveriam vazar boilerplate do Electron (a coluna do tutor escreve a falha) */
 await scenario('error-toast-ipc',async()=>{
  await withArtifacts('hunt-error-toast',async ctx=>{
   const runtime=ctx.runtime=newRuntime('hunt-erro');
   seedCourse(runtime,'A');writeConfig(runtime,['A']);writeDeskJson(runtime,{courseId:'A'});
   const app=track(ctx,await launchDesk({runtime,env:{LEARNING_DESK_PI:'/usr/bin/false'}}));
   const page=await app.firstWindow();const errs=watch(page);
-  await page.waitForFunction(()=>{const t=document.querySelector('#toast');return !!t&&t.textContent.trim().length>0;},undefined,{timeout:20000});
-  const toast=await page.locator('#toast').textContent();
-  probe('toast de falha de conexão não mostra "Error invoking remote method"',!/Error invoking remote method/.test(toast),JSON.stringify(toast.slice(0,200)));
-  probe('toast de falha fala a língua do usuário',/Pi/i.test(toast),JSON.stringify(toast.slice(0,160)));
+  const column=await tutorFailureText(page,{timeout:20000});
+  probe('erro de falha de conexão não mostra "Error invoking remote method"',!/Error invoking remote method/.test(column),JSON.stringify(column.slice(0,200)));
+  probe('erro de falha fala a língua do usuário (e cita o tutor)',/tutor|Pi/i.test(column),JSON.stringify(column.slice(0,160)));
+  must('a falha de conexão não gera aviso flutuante repetindo a coluna',await page.locator('#toast .toast-item').count()===0);
   must('send continua habilitado após a falha',await page.locator('#send').isEnabled());
   must('sem pageerror',errs.pageerrors.length===0,errs.pageerrors.join(' | '));
  });
@@ -772,14 +798,14 @@ await scenario('keyboard-a11y',async()=>{
   // tablist: roles e aria
   const tabs=await page.evaluate(()=>{
    const list=document.querySelector('#course-tabs');
-   const buttons=[...list.querySelectorAll('button')];
+   const buttons=[...list.querySelectorAll('button:not(#new-tab)')];
    return {role:list.getAttribute('role'),label:list.getAttribute('aria-label'),buttons:buttons.map(b=>({role:b.getAttribute('role'),sel:b.getAttribute('aria-selected'),tabindex:b.getAttribute('tabindex')}))};
   });
   must('course-tabs é tablist com role=tab',tabs.role==='tablist'&&tabs.buttons.every(b=>b.role==='tab'),JSON.stringify(tabs));
   must('toda aba expõe aria-selected',tabs.buttons.every(b=>b.sel!==null));
   probe('tablist usa roving tabindex',tabs.buttons.some(b=>b.tabindex!==null),JSON.stringify(tabs.buttons));
   // setas: o contrato ARIA de tablist pede navegação por setas; o app tem ⌘Tab
-  await page.locator('#course-tabs button').first().focus();
+  await page.locator('#course-tabs button[role="tab"]:not(#review-tab)').first().focus();
   const beforeArrow=await page.evaluate(()=>document.activeElement?.dataset?.id||'');
   await page.keyboard.press('ArrowRight');
   const afterArrow=await page.evaluate(()=>document.activeElement?.dataset?.id||'');
@@ -799,13 +825,13 @@ await scenario('keyboard-a11y',async()=>{
   await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:5000});
   must('Esc fecha Configurações',true);
   // Esc fecha cada diálogo
-  for(const [open,close,key] of [
+  for(const [open,,key] of [
    ['help-dialog','help-dialog','ControlOrMeta+/'],
    ['about-dialog','about-dialog',''],
    ['end-day-dialog','end-day-dialog',''],
   ]){
-   if(open==='about-dialog'){await page.locator('#mesa-menu .nav-trigger').click();await page.locator('#about').click();}
-   else if(open==='end-day-dialog'){await page.locator('#study-menu .nav-trigger').click();await page.locator('#end-day').click();}
+   if(open==='about-dialog'){await page.locator('#settings-menu .nav-trigger').click();await page.locator('#about').click();}
+   else if(open==='end-day-dialog'){await tutorMore(page,'#end-day').click();}
    else{await page.keyboard.press(key);}
    await page.waitForSelector(`#${open}[open]`,{timeout:8000});
    await page.keyboard.press('Escape');
@@ -816,25 +842,29 @@ await scenario('keyboard-a11y',async()=>{
   await page.keyboard.press('ControlOrMeta+/');
   await page.waitForSelector('#help-dialog[open]',{timeout:8000});
   await page.keyboard.press('ControlOrMeta+,');
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(400);// espera fixa: "nada acontece em 0,4 s" — o atalho não pode empilhar outro modal
   probe('⌘, com a Ajuda aberta não empilha outro modal',await page.evaluate(()=>!document.querySelector('#settings-dialog').open));
   await page.keyboard.press('Escape');
   await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:5000});
   await page.keyboard.press('Escape');
   await page.waitForFunction(()=>!document.querySelector('#help-dialog').open,undefined,{timeout:5000});
-  // Enter no menu: abre/fecha com Enter e repõe aria-expanded
-  await page.locator('#study-menu .nav-trigger').focus();
+  // Enter no menu: abre com o foco no primeiro item e repõe aria-expanded; Esc
+  // fecha e devolve o foco ao gatilho (#67, padrão de botão de menu do WAI-ARIA)
+  const trigger=page.locator('#study-menu .nav-trigger');
+  await trigger.focus();
   await page.keyboard.press('Enter');
   await page.waitForFunction(()=>document.querySelector('#study-menu').classList.contains('open'),undefined,{timeout:5000});
-  must('Enter abre o menu Estudar',await page.locator('#study-menu .nav-trigger').getAttribute('aria-expanded')==='true');
+  must('Enter abre o menu Estudar',await trigger.getAttribute('aria-expanded')==='true');
+  must('Enter leva o foco ao primeiro item',await page.evaluate(()=>document.activeElement===document.querySelector('#study-pop button[role=menuitem]:not([hidden])')));
+  await trigger.focus();
   await page.keyboard.press('Enter');
   await page.waitForFunction(()=>!document.querySelector('#study-menu').classList.contains('open'),undefined,{timeout:5000});
-  must('Enter fecha o menu Estudar',await page.locator('#study-menu .nav-trigger').getAttribute('aria-expanded')==='false');
+  must('Enter no gatilho fecha o menu Estudar',await trigger.getAttribute('aria-expanded')==='false');
   await page.keyboard.press('Enter');
   await page.waitForFunction(()=>document.querySelector('#study-menu').classList.contains('open'),undefined,{timeout:5000});
   await page.keyboard.press('Escape');
   await page.waitForFunction(()=>!document.querySelector('#study-menu').classList.contains('open'),undefined,{timeout:5000});
-  must('Esc fecha o menu aberto e tira o foco do gatilho',await page.evaluate(()=>!document.activeElement?.closest?.('#study-menu')));
+  must('Esc fecha o menu aberto e devolve o foco ao gatilho',await page.evaluate(()=>document.activeElement===document.querySelector('#study-menu .nav-trigger')));
   // aria dos controles vivos
   const aria=await page.evaluate(()=>({
    dot:{role:document.querySelector('#status-dot').getAttribute('role'),label:document.querySelector('#status-dot').getAttribute('aria-label')||document.querySelector('#status-dot').getAttribute('data-tip')||''},
@@ -844,14 +874,14 @@ await scenario('keyboard-a11y',async()=>{
    find:document.querySelector('.pdf-panel .find-toggle').getAttribute('aria-pressed'),
    collapse:document.querySelector('.pdf-panel .collapse').getAttribute('aria-pressed'),
    invert:document.querySelector('.pdf-panel .invert').getAttribute('aria-pressed'),
-   sessions:document.querySelector('#session-select').getAttribute('aria-label'),
+   sessions:document.querySelector('#session-title').getAttribute('aria-label'),
    toastRole:document.querySelector('#toast').getAttribute('role'),
    activityRole:document.querySelector('#activity').getAttribute('role'),
   }));
   must('ponto de conexão tem role=img e rótulo',aria.dot.role==='img'&&aria.dot.label.length>0,JSON.stringify(aria.dot));
   must('botões de estado expõem aria-pressed',[aria.refs,aria.auto,aria.find,aria.collapse,aria.invert].every(v=>v!=='null'&&v!==null),JSON.stringify(aria));
-  must('calculadora expõe aria-expanded',aria.calc==='true');
-  must('seletor de conversa tem aria-label',aria.sessions==='Conversa');
+  must('calculadora expõe aria-expanded (nasce recolhida: false)',aria.calc==='false');
+  must('título da sessão tem aria-label',/^Sessão/.test(aria.sessions),aria.sessions);
   must('toast é role=status',aria.toastRole==='status');
   must('faixa de atividade é role=status',aria.activityRole==='status');
   // foco devolvido ao fechar o diálogo aberto pelo atalho

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ícones animados — rodada 1</title>
+<!-- Protótipo da #61 (fase A). Animação em CSS sobre o SVG de traço, sem biblioteca: o
+     ícone segue `currentColor` e o acento da pessoa, e para com prefers-reduced-motion. -->
+<style>
+:root{--acc:#2548c7}
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+h2.part{font-size:16px;margin:32px 0 4px}
+.lead{color:#737373;margin:0 0 16px;max-width:72ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;min-width:0}
+.card h3{font-size:15px;margin:0}
+.card p{margin:2px 0 12px;color:#737373;font-size:13px}
+.big{display:grid;place-items:center;background:#f6f6f7;border-radius:10px;padding:14px;color:#3f3f46}
+.big svg{width:64px;height:64px}
+/* A barra do "pensando" como no chat de hoje, já em pt-BR */
+.thinking{display:flex;align-items:center;gap:8px;margin-top:10px;padding:7px 10px;border-radius:8px;background:#ececee;color:#3f3f46;font-size:13px}
+.thinking.dark{background:#2a2a2a;color:#d4d4d8;--acc:#8ea6ff}
+.thinking svg{width:16px;height:16px;flex:none}
+.thinking .t{margin-left:auto;color:#8a8a8a;font-variant-numeric:tabular-nums;font-size:12px}
+label.rm{display:inline-flex;gap:6px;align-items:center;font-size:13px;margin-bottom:12px}
+svg{overflow:visible}
+
+/* A1 · Faísca que respira */
+.a1 .star{transform-box:fill-box;transform-origin:center;animation:respira 1.6s ease-in-out infinite}
+.a1 .plus{animation:pisca 1.6s ease-in-out infinite .8s}
+@keyframes respira{0%,100%{transform:scale(.78) rotate(0)}50%{transform:scale(1.04) rotate(45deg)}}
+@keyframes pisca{0%,100%{opacity:.2}50%{opacity:1}}
+
+/* A2 · Lápis rabiscando: o traço é desenhado enquanto o lápis anda */
+.a2 .rabisco{stroke-dasharray:24;animation:rabisca 2s linear infinite}
+.a2 .lapis{animation:anda 2s linear infinite}
+@keyframes rabisca{0%{stroke-dashoffset:24;opacity:1}80%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes anda{0%{transform:translateX(0)}80%{transform:translateX(16px)}100%{transform:translateX(16px);opacity:0}}
+
+/* A3 · Mesinha pensando: olha para os lados e pisca */
+.a3 .pupila{animation:olha 3s ease-in-out infinite}
+.a3 .olhos{transform-box:fill-box;transform-origin:center;animation:piscar 3s infinite}
+@keyframes olha{0%,30%{transform:translate(0,-.5px)}40%,65%{transform:translate(1px,-.8px)}75%,100%{transform:translate(-1px,-.5px)}}
+@keyframes piscar{0%,46%,54%,100%{transform:scaleY(1)}50%{transform:scaleY(.1)}}
+
+/* A4 · Pontos na folha */
+.a4 .p{animation:ponto 1.2s ease-in-out infinite}
+.a4 .p:nth-of-type(2){animation-delay:.2s}.a4 .p:nth-of-type(3){animation-delay:.4s}
+@keyframes ponto{0%,100%{opacity:.2;transform:translateY(0)}40%{opacity:1;transform:translateY(-1.2px)}}
+
+/* Microinterações: tocam uma vez no clique; aqui repetem a cada 2,4 s para dar para ver */
+.m-copy .check{stroke-dasharray:14;animation:desenha 2.4s ease-out infinite}
+.m-copy .copia{animation:some 2.4s ease-out infinite}
+@keyframes desenha{0%,15%{stroke-dashoffset:14}40%,85%{stroke-dashoffset:0}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes some{0%,10%{opacity:1}20%,90%{opacity:0}100%{opacity:1}}
+.m-send .seta{animation:sobe 2.4s cubic-bezier(.3,.7,.4,1) infinite}
+@keyframes sobe{0%,10%{transform:translateY(0);opacity:1}35%{transform:translateY(-7px);opacity:0}36%{transform:translateY(7px);opacity:0}60%,100%{transform:translateY(0);opacity:1}}
+.m-save .enche{transform-box:fill-box;transform-origin:bottom;animation:enche 2.4s ease-out infinite;fill:var(--acc);stroke:none}
+.m-save .contorno.acc{stroke:var(--acc)}
+@keyframes enche{0%,15%{transform:scaleY(0)}45%,85%{transform:scaleY(1)}100%{transform:scaleY(0)}}
+.m-shot .flash{animation:flash 2.4s ease-out infinite;fill:var(--acc);stroke:none}
+.m-shot .lente{transform-box:fill-box;transform-origin:center;animation:fecha 2.4s ease-out infinite}
+@keyframes flash{0%,20%{opacity:0}25%{opacity:.5}45%,100%{opacity:0}}
+@keyframes fecha{0%,18%,40%,100%{transform:scale(1)}25%{transform:scale(.6)}}
+
+.reduz *,.reduz *::before{animation:none!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<h1>Ícones animados — rodada 1</h1>
+<p class="lead">Desenhei os nossos em vez de puxar de um banco de ícones. Lordicon e Flaticon costumam pedir atribuição ou plano pago, e o lucide-animated traria de volta o visual Lucide que estamos deixando. Os sites servem de referência de movimento; o desenho é nosso, em CSS: herda a cor do tema e o acento, pesa quase nada e para com "reduzir movimento". Tudo no traço 1,5 da rodada 1 dos ícones.</p>
+<label class="rm"><input type="checkbox" id="reduz"> Ver como fica com "reduzir movimento" ligado</label>
+
+<h2 class="part">1. "O tutor está pensando…"</h2>
+<p class="lead">É o lugar onde a animação mais ajuda: diz que algo está acontecendo sem precisar de texto. Escolha um.</p>
+<div class="grid" id="pensando"></div>
+
+<h2 class="part">2. Microinterações (tocam uma vez, no clique)</h2>
+<p class="lead">Minha sugestão é animar só estado e confirmação, não botão parado. Aqui elas repetem para dar para ver.</p>
+<div class="grid" id="micro"></div>
+
+<script>
+const svg=(cls,d)=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const pensando=[
+ ['A1 · Faísca que respira','O ícone de hoje (faísca), girando e pulsando devagar. É a troca mais discreta.',
+  svg('a1','<path class="star" d="M11 3Q11.8 10.2 19 11Q11.8 11.8 11 19Q10.2 11.8 3 11Q10.2 10.2 11 3Z"/><path class="plus" d="M19 2.5v4M17 4.5h4" stroke="var(--acc)"/>')],
+ ['A2 · Lápis rabiscando','Um lápis escreve uma linha e recomeça. Lembra o tutor "escrevendo" a resposta.',
+  svg('a2','<path class="rabisco" d="M3 18c2-3 3-3 4 0s2 3 4 0 2-3 4 0 2 3 4 0" stroke="var(--acc)"/><g class="lapis"><path d="M3 18 4.2 14.4 11 6.6l2.4 2.1-6.8 7.8Z"/><path d="M9.8 8l2.4 2.1"/></g>')],
+ ['A3 · Mesinha pensando','O mascote em miniatura olha para os lados e pisca. Só vale se o mascote A entrar.',
+  svg('a3','<rect x="3" y="6.5" width="18" height="7.5" rx="2.2" fill="currentColor" fill-opacity=".16"/><path d="M6.8 14 5.8 20M17.2 14l1 6"/><g class="olhos"><circle cx="9.6" cy="10.2" r="2" fill="#fff"/><circle cx="14.4" cy="10.2" r="2.2" fill="#fff"/></g><g class="pupila" stroke="none" fill="currentColor"><circle cx="9.8" cy="10" r="1"/><circle cx="14.6" cy="10" r="1.1"/></g>')],
+ ['A4 · Pontos na folha','Três pontos em sequência dentro de uma folha. O mais conhecido; pouco nosso.',
+  svg('a4','<rect x="5" y="3" width="14" height="18" rx="3" fill="currentColor" fill-opacity=".1"/><g stroke="none" fill="currentColor"><circle class="p" cx="9" cy="12.5" r="1.2"/><circle class="p" cx="12" cy="12.5" r="1.2"/><circle class="p" cx="15" cy="12.5" r="1.2"/></g>')],
+];
+const barra=(icone,tema)=>`<div class="thinking ${tema}">${icone}<span>O tutor está pensando…</span><span class="t">3 s</span></div>`;
+document.getElementById('pensando').innerHTML=pensando.map(([nome,nota,icone])=>`
+ <section class="card"><h3>${nome}</h3><p>${nota}</p><div class="big">${icone}</div>${barra(icone,'')}${barra(icone,'dark')}</section>`).join('');
+
+const micro=[
+ ['Copiar → copiado','As folhas somem e o visto é desenhado.',
+  svg('m-copy','<g class="copia"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></g><path class="check" d="M6 12.5l4 4 8-9" stroke="var(--acc)"/>')],
+ ['Enviar','A seta sai por cima e volta por baixo.',
+  svg('m-send','<g class="seta"><path d="M12 19V5M6.5 10.5 12 5l5.5 5.5"/></g>')],
+ ['Guardar para revisão','O marcador se enche na cor de acento.',
+  svg('m-save','<path class="enche" d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.6L6 20V5a1 1 0 0 1 1-1z"/><path class="contorno acc" d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.6L6 20V5a1 1 0 0 1 1-1z"/>')],
+ ['Conferir (captura)','A lente fecha e dá um clarão, como um obturador.',
+  svg('m-shot','<rect class="flash" x="3" y="7" width="18" height="13" rx="3"/><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8.5 7 10 4.5h4L15.5 7"/><circle class="lente" cx="12" cy="13.5" r="3.5"/>')],
+];
+document.getElementById('micro').innerHTML=micro.map(([nome,nota,icone])=>`
+ <section class="card"><h3>${nome}</h3><p>${nota}</p><div class="big">${icone}</div></section>`).join('');
+
+document.getElementById('reduz').addEventListener('change',e=>document.body.classList.toggle('reduz',e.target.checked));
+</script>
+</body>
+</html>

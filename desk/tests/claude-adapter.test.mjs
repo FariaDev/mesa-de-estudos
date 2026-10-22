@@ -19,6 +19,7 @@ import {mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import * as fx from './claude-fixtures.mjs';
+import {ptText} from './pt-text.mjs';
 
 const require = createRequire(import.meta.url);
 const {
@@ -64,21 +65,21 @@ test('snapshot expõe o contrato congelado sem prometer inferência', async () =
   assert.deepEqual(adapter.snapshot(), {
     connected: false,
     busy: false,
+    compacting: false,
     model: {provider: 'anthropic', id: 'default', name: 'Claude Code', input: ['text', 'image']},
     capabilities: {
       images: true,
       permissions: true,
-      steer: false,
-      compact: false,
+      steer: true,
+      compact: true,
       autoCompaction: false,
       modelSelection: false,
       effort: false,
-      reviewDraft: false,
-      handoff: false,
-      commands: false,
-      geogebra: false,
-      quiz: false,
-      contextUsage: false,
+      reviewDraft: true,
+      commands: true,
+      geogebra: true,
+      quiz: true,
+      contextUsage: true,
     },
     sessionId: null,
     thinkingLevel: null,
@@ -1055,7 +1056,7 @@ test('canUseTool nega caminho fora da política sem nem virar pedido na tela', a
   const item = await fx.takeInput(query);
 
   const denied = await query.options.canUseTool('Read', {file_path: '/etc/hosts'}, {requestId: 'r5', toolUseID: 't5'});
-  assert.deepEqual(denied, {behavior: 'deny', message: 'fora das pastas autorizadas desta conversa'});
+  assert.deepEqual(denied, {behavior: 'deny', message: 'fora das pastas autorizadas desta sessão'});
   assert.equal(events.of('permission_request').some((event) => event.id === 'r5'), false);
 
   await accept(query, item);
@@ -1213,8 +1214,8 @@ test('rate_limit_event de primeiro nível pausa sem encerrar o turno e deduplica
   assert.match(warnings[0].rateLimit.resetAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.ok(warnings[0].rateLimit.waitMs > 60 * 60 * 1000);
   assert.equal(warnings[0].rateLimit.utilization, 0.97);
-  assert.match(warnings[0].message, /pausada/);
-  assert.match(warnings[0].message, /janela de 5 horas/);
+  assert.match(ptText(warnings[0].message), /pausada/);
+  assert.match(ptText(warnings[0].message), /janela 5h/);
 
   const farResetsAt = Math.floor(Date.now() / 1000) + 40 * 24 * 60 * 60;
   query.emit(fx.rateLimitMessage({status: 'rejected', rateLimitType: 'seven_day', resetsAt: farResetsAt}));
@@ -1268,7 +1269,7 @@ test('allowed_warning avisa sem pausar; overage em uso continua e é interpretad
   const near = events.of('warning').filter((event) => event.code === 'CLAUDE_RATE_LIMIT_WARNING');
   assert.equal(near.length, 1);
   assert.equal(near[0].rateLimit.blocked, false);
-  assert.match(near[0].message, /próximo/);
+  assert.match(ptText(near[0].message), /próximo/);
 
   query.emit(fx.rateLimitMessage({status: 'rejected', rateLimitType: 'five_hour', resetsAt, overageStatus: 'allowed', utilization: 1}));
   await fx.tick();
@@ -1277,7 +1278,7 @@ test('allowed_warning avisa sem pausar; overage em uso continua e é interpretad
   assert.equal(overage[0].rateLimit.blocked, false);
   assert.equal(overage[0].rateLimit.overage.inUse, true);
   assert.equal(overage[0].rateLimit.overage.status, 'allowed');
-  assert.match(overage[0].message, /overage/);
+  assert.match(ptText(overage[0].message), /overage/);
   assert.equal(events.of('warning').filter((event) => event.code === 'CLAUDE_RATE_LIMITED').length, 0, 'nada de pausa com overage');
   assert.equal(adapter.snapshot().busy, true);
 
@@ -1539,13 +1540,18 @@ test('history lê só a própria sessão (ignora options.sessionId) e normaliza 
       ],
     },
     {
+      role: 'toolResult',
+      content: [{type: 'text', text: 'ok'}],
+      toolCallId: 't1',
+    },
+    {
       role: 'user',
       content: [
         {type: 'text', text: 'pergunta'},
         {type: 'image', data: 'aGVsbG8=', mimeType: 'image/png'},
       ],
     },
-  ]);
+  ], 'o tool_result sobrevive na POSIÇÃO em que aconteceu (âncora de artefato)');
   assert.ok(sdk.state.historyCalls.length >= 1);
   assert.ok(
     sdk.state.historyCalls.every((call) => call.sessionId === fx.UUID.session),
@@ -1724,6 +1730,44 @@ test('sessionId precriado vira o ID nativo da primeira consulta; retomada usa re
 
 /* ---------------- opções do SDK ---------------- */
 
+test('#51: detector injetado passa o binário real do usuário à Query, a reconexão volta ao launcher e a versão mais nova que a testada vira nota de log', async () => {
+  const sdk = fx.fakeSdk();
+  const seen = [];
+  const detectClaude = async (options) => {
+    seen.push(options.configuredPath);
+    return {
+      path: '/home/u/.local/share/claude/versions/2.1.400',
+      launcherPath: '/home/u/.local/bin/claude',
+      version: '2.1.400',
+      versionAhead: true,
+      range: {minimum: '2.1.296', tested: '2.1.301'},
+      auth: {loggedIn: true, authMethod: 'oauth', apiProvider: 'firstParty'},
+      warnings: [],
+    };
+  };
+  const {adapter} = makeAdapter({
+    sdk,
+    claudePath: '/home/u/.local/bin/claude',
+    sessionId: fx.UUID.session,
+    detectClaude,
+  });
+  await adapter.connect();
+  adapter.close();
+  await adapter.connect();
+  assert.deepEqual(seen, ['/home/u/.local/bin/claude', '/home/u/.local/bin/claude'], 'o binário resolvido não vira o "configurado" da próxima conexão');
+
+  const events = fx.collectEvents(adapter);
+  const {promise, query} = await startSend(adapter, sdk, {text: 'usa o Claude Code do usuário'});
+  assert.equal(query.options.pathToClaudeCodeExecutable, '/home/u/.local/share/claude/versions/2.1.400');
+  const item = await fx.takeInput(query);
+  await accept(query, item);
+  await promise;
+  const init = events.of('init').at(0);
+  assert.equal(init.executable, '/home/u/.local/share/claude/versions/2.1.400');
+  assert.equal('executableSource' in init, false, 'sem reserva, não há de onde mais o executável viria (#51)');
+  assert.match(ptText(init.executableNote), /2\.1\.400 é mais nova que a testada com esta Mesa \(2\.1\.301\)/);
+});
+
 test('opções do SDK: replay público, isolamento, só leitura, binário, prompt e env sem auto-update', async () => {
   const sdk = fx.fakeSdk();
   const {adapter} = makeAdapter({
@@ -1766,4 +1810,25 @@ test('opções do SDK: replay público, isolamento, só leitura, binário, promp
   await promise;
   query.emit(fx.resultMessage({userMessageUuid: fx.UUID.a}));
   await fx.waitFor(() => adapter.snapshot().busy === false, 2000, 'turno encerra');
+});
+
+test('#28: AskUserQuestion preserva a chave exata que o lookup nativo usa', async () => {
+ const {adapter,sdk}=makeAdapter();
+ const events=fx.collectEvents(adapter);
+ await adapter.connect();
+ const {promise,query}=await startSend(adapter,sdk);
+ const item=await fx.takeInput(query);await accept(query,item);await promise;
+ const question='  Qual valor?\n';
+ const raw={questions:[{question,options:[{label:'Sim'}]},{question:'Qual valor?',options:[]}]};
+ try{
+  const pending=query.options.canUseTool('AskUserQuestion',raw,{requestId:'ask-exact'});
+  const request=events.of('permission_request').at(-1);
+  assert.deepEqual(request.questions.map(q=>q.id),[question,'Qual valor?'],'identidades distintas não colapsam por trim');
+  assert.equal(adapter.respond({id:'ask-exact',answers:{[question]:'Sim','Qual valor?':'Outra'}}).ok,true);
+  const result=await pending;
+  for(const nativeQuestion of result.updatedInput.questions){
+   assert.ok(Object.hasOwn(result.updatedInput.answers,nativeQuestion.question),'lookup nativo encontra a resposta pela chave original');
+  }
+  assert.equal(result.updatedInput.answers[question],'Sim');
+ }finally{adapter.close();}
 });

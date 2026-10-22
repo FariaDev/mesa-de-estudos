@@ -1,0 +1,35 @@
+/* Avisos (#toast) e citação.
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Avisos e citação ---------- */
+
+/* Avisos (#52): no canto inferior direito, sobre a coluna do tutor e acima da
+   caixa de mensagem — nunca sobre o leitor. A borda de baixo do aviso encosta
+   na de cima do `#composer` (âncora CSS `--composer`, que acompanha a caixa
+   quando ela cresce); com o tutor recolhido o aviso sobe para o canto da
+   janela, acima do botão de reabrir. O botão Desfazer só existe no aviso que
+   desfaz algo (`#undo-notice`), nunca no aviso comum. */
+/* `#toast` é popover manual (#42: fica na camada superior, acima de diálogo
+   aberto); as regras da casca de popover do navegador (inset, margem, borda,
+   fundo) são desfeitas aqui. */
+#toast{
+ inset:auto;margin:0;border:0;padding:0;background:transparent;color:inherit;overflow:visible;
+ position:fixed;right:var(--pad);bottom:calc(var(--pad) + var(--ctl) + var(--space-3));
+ display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-3);z-index:10;
+ width:max-content;max-width:min(580px,calc(100% - 2 * var(--pad)));pointer-events:none;
+}
+body:not(.chat-collapsed) #toast{
+ bottom:calc(anchor(--composer top, 0px) + var(--space-3));
+ max-width:calc(var(--chat) - 2 * var(--pad));
+}
+.toast-item{
+ background:var(--fg-strong);color:var(--bg);padding:var(--space-3) var(--space-6);border-radius:var(--r-lg);font-size:var(--fs-md);
+ max-width:100%;overflow-wrap:anywhere;box-shadow:var(--shadow-pop);text-align:center;
+}
+#quote-btn{
+ position:fixed;z-index:9;padding:var(--space-1) 9px;border-radius:var(--r-pill);font-size:var(--fs-xs);
+ background:var(--surface);color:var(--fg);border:1px solid var(--border-strong);
+ white-space:nowrap;
+}
+#quote-btn:hover{background:var(--hover)}
+#quote-btn .icon{width:12px;height:12px}

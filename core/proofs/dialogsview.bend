@@ -133,24 +133,6 @@ def Laws.dlg_about_com_versao():
 def Laws.dlg_about_node():
   {==}
 
-def Laws.dlg_cfg_titulo_primeiro():
-  {==}
-
-def Laws.dlg_cfg_titulo():
-  {==}
-
-def Laws.dlg_cfg_lead_primeiro():
-  {==}
-
-def Laws.dlg_cfg_lead():
-  {==}
-
-def Laws.dlg_cfg_titulo_node():
-  {==}
-
-def Laws.dlg_cfg_lead_node():
-  {==}
-
 def Laws.dlg_cfg_linha():
   {==}
 
@@ -161,27 +143,6 @@ def Laws.dlg_cfg_linhas_vazio():
   {==}
 
 def Laws.dlg_cfg_linhas():
-  {==}
-
-def Laws.dlg_welcome_titulo():
-  {==}
-
-def Laws.dlg_welcome_secoes():
-  {==}
-
-def Laws.dlg_welcome_secoes_win():
-  {==}
-
-def Laws.dlg_welcome_nota_mac():
-  {==}
-
-def Laws.dlg_welcome_nota_win():
-  {==}
-
-def Laws.dlg_welcome_bloco():
-  {==}
-
-def Laws.dlg_welcome_acoes():
   {==}
 
 def Laws.dlg_upd_textos():
@@ -269,4 +230,55 @@ def Laws.dlg_comp_linha_minima():
   {==}
 
 def Laws.dlg_comp_linhas():
+  {==}
+
+def Laws.dlg_cfg_cabecalho():
+  {==}
+
+def Laws.dlg_cfg_lista_com_cabecalho():
+  {==}
+
+def Laws.dlg_upd_conferido():
+  {==}
+
+def Laws.dlg_upd_icone():
+  {==}
+
+def Laws.dlg_upd_linha_discreta():
+  {==}
+
+def Laws.dlg_upd_ultima_sem_hora():
+  {==}
+
+def Laws.dlg_comp_bolinha():
+  {==}
+
+def Laws.dlg_comp_descricao():
+  {==}
+
+def Laws.dlg_comp_nota_em_dia():
+  {==}
+
+def Laws.dlg_comp_nota_com_acao():
+  {==}
+
+def Laws.dlg_comp_nota_so_dica():
+  {==}
+
+def Laws.dlg_comp_cabeca():
+  {==}
+
+def Laws.dlg_comp_acoes():
+  {==}
+
+def Laws.dlg_comp_sem_rede_texto():
+  {==}
+
+def Laws.dlg_comp_sem_rede_dica():
+  {==}
+
+def Laws.dlg_comp_cabeca_mais_nova_que_a_testada():
+  {==}
+
+def Laws.dlg_comp_linha_com_confirmacao():
   {==}

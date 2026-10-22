@@ -1,0 +1,17 @@
+desk/tests/appcontract.test.mjs
+desk/tests/capture-new-ui.mjs
+desk/tests/capture-win.test.mjs
+desk/tests/fake-pi-dialog.mjs
+desk/tests/fake-pi.mjs
+desk/tests/framing-parity.mjs
+desk/tests/handoff.test.mjs
+desk/tests/hunt-handoff.mjs
+desk/tests/hunt-pi.mjs
+desk/tests/menu-conferir-ipc-smoke.mjs
+desk/tests/pi-contract.mjs
+desk/tests/pi-prompt-capture-ipc-smoke.mjs
+desk/tests/pi.test.mjs
+desk/tests/rpc-settled.test.mjs
+desk/tests/rpc.test.mjs
+desk/tests/send.test.mjs
+desk/tests/session-switch.mjs

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {createRequire} from 'node:module';
+import {ptMatches} from './pt-text.mjs';
 const {ClaudeService,metadata,rendererEvent}=createRequire(import.meta.url)('../src/agents/service.cjs');
 
 test('persisted uncertainty locks controls before initialization and before native mutation',async()=>{
@@ -10,9 +11,9 @@ test('persisted uncertainty locks controls before initialization and before nati
  adapter.snapshot=()=>({busy:false});adapter.connect=async()=>{};
  adapter.initializeControls=async()=>{initializations++;};adapter.setControls=async()=>{mutations++;};
  const service=new ClaudeService({adapter,uncertain:true});
- await assert.rejects(()=>service.request('initialize_controls'),/Aguarde/);
- await assert.rejects(()=>service.request('set_controls',{selection:{model:'synthetic',effort:'max'}}),/Aguarde/);
- await assert.rejects(()=>service.request('prompt',{message:'never resend'}),/incerta/);
+ await assert.rejects(()=>service.request('initialize_controls'),ptMatches(/Aguarde/));
+ await assert.rejects(()=>service.request('set_controls',{selection:{model:'synthetic',effort:'max'}}),ptMatches(/Aguarde/));
+ await assert.rejects(()=>service.request('prompt',{message:'never resend'}),ptMatches(/incerta/));
  assert.equal(mutations,0);assert.equal(initializations,0);
 });
 
@@ -57,22 +58,25 @@ test('catalog controls are dynamic and changing settings blocks concurrent sendi
  await new Promise(r=>setImmediate(r));
  assert.equal(svc.isRunning(),true);
  await assert.rejects(svc.request('prompt',{message:'concurrent'}),e=>e.notSent===true);
- await assert.rejects(svc.request('set_controls',{selection}),/Aguarde/);
+ await assert.rejects(svc.request('set_controls',{selection}),ptMatches(/Aguarde/));
  release();await pending;assert.deepEqual(saved,selection);
  assert.equal(svc.isRunning(),false);assert.equal(adapter.last,undefined);
  svc.uncertain=true;
- await assert.rejects(svc.request('set_controls',{selection}),/Aguarde/);
+ await assert.rejects(svc.request('set_controls',{selection}),ptMatches(/Aguarde/));
 });
 test('Claude service keeps its transport, conversation and capabilities separate',async()=>{
  const adapter=new Fake(),svc=new ClaudeService({adapter});const seen=[];svc.on('event',e=>seen.push(e));
- assert.equal(metadata('claude').caps.steer,false);assert.equal(metadata('pi').caps.steer,true);
+ assert.equal(metadata('claude').caps.steer,true);assert.equal(metadata('pi').caps.steer,true);
+ for(const engine of ['claude','pi','opencode','x'])assert.equal(Object.hasOwn(metadata(engine).caps,'handoff'),false,`${engine}: o bilhete saiu do contrato (#50/#49)`);
  adapter.emit('event',{type:'turn_end',conversationId:'own',runId:'run',isError:true});
  assert.deepEqual(seen,[{type:'agent_settled',conversationId:'own',runId:'run',isError:true,cancelled:false,uncertain:false}]);
- await assert.rejects(svc.request('prompt',{message:'hi',streamingBehavior:'steer'}),e=>e.notSent===true);
- assert.equal(adapter.last,undefined);
- await svc.request('prompt',{message:'image',images:[{type:'image',data:'YWJj',mimeType:'image/png'}]});
- assert.equal(adapter.last.images.length,1);assert.equal(adapter.last.text,'image');
+ /* Steer com o motor ocioso é um envio normal (#58): nada de `delivery:'steer'`. */
+ await svc.request('prompt',{message:'image',images:[{type:'image',data:'YWJj',mimeType:'image/png'}],streamingBehavior:'steer'});
+ assert.equal(adapter.last.images.length,1);assert.equal(adapter.last.text,'image');assert.equal(adapter.last.delivery,undefined);
  assert.equal((await svc.request('get_state')).isStreaming,true);
+ /* Com o turno em voo, o steer entra na consulta viva. */
+ await svc.request('prompt',{message:'agora',streamingBehavior:'steer'});
+ assert.equal(adapter.last.text,'agora');assert.equal(adapter.last.delivery,'steer');
  await svc.request('abort');assert.equal(adapter.cancelled,true);assert.equal(adapter.busy,true);
  assert.deepEqual(await svc.request('get_available_models'),{models:[]});
  svc.stop();assert.equal(adapter.stopped,true);
@@ -103,7 +107,7 @@ test('in-memory uncertainty keeps sending blocked even if the disk callback fail
  const adapter=new Fake(),svc=new ClaudeService({adapter});
  adapter.emit('event',{type:'delivery',id:'original',status:'uncertain'});
  adapter.emit('event',{type:'turn_end',uncertain:true});
- await assert.rejects(svc.request('prompt',{message:'another'}),/incerta/);
+ await assert.rejects(svc.request('prompt',{message:'another'}),ptMatches(/incerta/));
  assert.equal(adapter.last,undefined);
 });
 test('an incomplete native prefix cannot replace the recent cached conversation',async()=>{
@@ -121,4 +125,26 @@ test('display cache retains recent messages within the persistence row limit',()
  assert.equal(svc.messages.length,5000);
  assert.equal(svc.messages[0].content[0].text,'2');
  assert.equal(saved.at(-1).content[0].text,'latest');
+});
+
+test('#28: payload dos dois motores conserva capacidades sem agentLabel morto',()=>{
+ for(const engine of ['pi','claude']){
+  const data=metadata(engine);
+  assert.equal(data.engine,engine);
+  assert.equal(Object.hasOwn(data,'agentLabel'),false);
+  assert.deepEqual(data.capabilities,data.caps);
+ }
+});
+
+test('caps por motor (#57): OpenCode tem os seus, o catálogo liga modelo e esforço, e motor desconhecido fica todo fechado',()=>{
+ const open=metadata('opencode').caps;
+ assert.deepEqual([open.steer,open.compact,open.commands,open.geogebra,open.quiz,open.contextUsage,open.images],[true,true,true,true,true,true,true]);
+ assert.deepEqual([open.modelSelection,open.effort,open.autoCompaction,open.reviewDraft],[false,false,false,false]);
+ const catalog=metadata('opencode',{modelSelection:true,effort:false}).caps;
+ assert.deepEqual([catalog.modelSelection,catalog.effort],[true,false]);
+ assert.equal(metadata('opencode',{modelSelection:true,effort:true}).caps.effort,true);
+ for(const engine of ['','gemini',undefined,'__proto__']){
+  const caps=metadata(engine).caps;
+  assert.ok(Object.values(caps).every(value=>value===false),`motor ${String(engine)} não herda o Pi: ${JSON.stringify(caps)}`);
+ }
 });

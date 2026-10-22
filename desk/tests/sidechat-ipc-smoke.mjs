@@ -10,6 +10,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {_electron as electron} from '@playwright/test';
 import {testEnv} from './electron-env.mjs';
+import {ptText} from './pt-text.mjs';
 import {tinyPdf} from './helpers.mjs';
 
 const DESK = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -91,7 +92,7 @@ try {
   check('abort responde pelo canal', abort, (value) => value.aborted === true || value.aborted === false);
   await page.evaluate(() => window.desk.newSession('pi'));
   const afterSwitch = await page.evaluate((id) => window.desk.sidechatRead({id}).then(() => 'sem-erro', (error) => error.message), opened.id);
-  check('trocar de conversa encerra o escopo do chat antigo', afterSwitch, (value) => /não pertence/.test(String(value)));
+  check('trocar de conversa encerra o escopo do chat antigo', afterSwitch, (value) => /não pertence/.test(ptText(String(value))));
   const reopened = await page.evaluate(() => window.desk.sidechatOpen({refs: []}));
   check('conversa nova abre chat novo', reopened, (value) => value.id !== opened.id);
   const quiz = await page.evaluate((id) => window.desk.sidechatPrompt({id, text: 'quiz'}), reopened.id);
@@ -104,7 +105,7 @@ try {
   const quizRead = await page.evaluate((id) => window.desk.sidechatRead({id}), reopened.id);
   check('quiz respondido entra no histórico', quizRead, (value) => value.messages.some((message) => message.role === 'assistant'));
   const stale = await page.evaluate(() => window.desk.sidechatRead({id: 'sc-11111111-1111-4111-8111-111111111111'}).then(() => 'sem-erro', (error) => error.message));
-  check('id desconhecido é recusado', stale, (value) => /não encontrado/.test(String(value)));
+  check('id desconhecido é recusado', stale, (value) => /não encontrado/.test(ptText(String(value))));
 
   /* ---- reinício de verdade: transmitting no disco vira incerto no open ---- */
   await app.close();

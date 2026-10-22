@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {makeZip} from './zipkit.mjs';
+import {ptText} from './pt-text.mjs';
 
 /* Checagem do updater com fetch falso (NUNCA rede de verdade): semver, cache
    de 24 h, fallback em tags, "desconhecido" sem erro e a lista de caminhos
@@ -203,14 +204,15 @@ test('lista explícita do modo zip: o código entra (tests incluído), o resto f
     'desk/main.cjs', 'desk/updater.mjs', 'desk/index.html', 'desk/style.css', 'desk/README.md',
     'desk/package.json', 'desk/package-lock.json', 'desk/config.example.json',
     'desk/src/main.mjs', 'desk/src/generated/dialogsview.core.js', 'desk/assets/mesa.svg',
-    'desk/templates/TUTOR.md', 'desk/scripts/install-app.mjs',
+    'desk/templates/TUTOR.md', 'desk/locales/en.json', 'desk/scripts/install-app.mjs',
     'desk/tests/updateflow.test.mjs', 'desk/tests/zipkit.mjs',
     'core/dialogsview.bend', 'core/laws/dialogsview.bend', 'geogebra/x.html',
     'visual-check/windows.swift', '.githooks/pre-push', 'README.md', 'AGENTS.md', 'LICENSE', '.gitignore',
+    'docs/agents/mapa.md', 'docs/agents/customizar.md',
   ];
   const nao = [
     'desk/design-desktop.png', 'desk/debug2-layout.png', 'desk/atual.log',
-    'qualquer-coisa.txt', 'playground/x.mjs', 'docs/HISTORIA.md', 'chat/main.cjs',
+    'qualquer-coisa.txt', 'playground/x.mjs', 'docs/HISTORIA.md', 'docs/agents/sub/x.md', 'docs/agents/x.png', 'docs/reviews/x.md', 'chat/main.cjs',
   ];
   for (const rel of sim) assert.equal(updater.isReplaceable(rel), true, `substituível: ${rel}`);
   for (const rel of nao) assert.equal(updater.isReplaceable(rel), false, `fora da lista: ${rel}`);
@@ -285,7 +287,18 @@ test('A4/spawnWorker: sem node do sistema o worker NEM COMEÇA (mensagem, app de
   const vazio = tmp();
   const worker = updater.spawnWorker({runtime: ''}, {env: {}, home: vazio, dirs: [path.join(vazio, 'nada')]});
   assert.equal(worker.ok, false);
-  assert.match(worker.error, /Node do sistema/);
+  assert.match(ptText(worker.error), /Node do sistema/);
+});
+
+test('A4/worker: a cópia no tmpdir carrega sozinha, com o que ela requer ao lado (regressão da #43 fase 2)', async () => {
+  /* A #41 pôs `require('./src/i18n.mjs')` no updater e a cópia levava só o
+     pi.cjs: o worker morria com MODULE_NOT_FOUND antes do handshake. */
+  const dir = tmp();
+  const script = updater.stageWorkerFiles(dir);
+  assert.equal(path.dirname(script), dir);
+  const {execFileSync} = await import('node:child_process');
+  const out = execFileSync(process.execPath, ['-e', `require(${JSON.stringify(script)});process.stdout.write('carregou')`], {cwd: dir, encoding: 'utf8'});
+  assert.equal(out, 'carregou');
 });
 
 test('A4/handshake: status confirma o arranque; ausência no prazo falha', async () => {

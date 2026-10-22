@@ -3,25 +3,26 @@
 function cmp_new(a, b) {
   return { $: a < b ? "LT" : a === b ? "EQ" : "GT" };
 }
-function char_new(code) {
-  if (code > 1114111 || code >= 55296 && code <= 57343) {
-    throw "bend: " + code + " is not a Unicode scalar value";
-  }
-  return String.fromCodePoint(code);
+function char_len(s) {
+  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
 }
-function run_jump(f, x) {
-  return { $: "$JMP", f, x };
+function char_code(s) {
+  return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
+}
+function str_in(s) {
+  return s.replace(/\p{Cs}/gu, "�");
 }
 function run_loop(r) {
   while (r !== null && typeof r === "object" && r.$ === "$JMP") {
-    r = r.f(...r.x);
+    r = r.f(r.x);
   }
   return r;
 }
 function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
-function $outcome$(_accepted_0, _mayHaveSent_0) {
+var $0eff = Object.create(null);
+function $outcome(_accepted_0, _mayHaveSent_0) {
   if (_accepted_0) {
     return { $: "DeliveryOutcome.Accepted" };
   } else {
@@ -32,7 +33,7 @@ function $outcome$(_accepted_0, _mayHaveSent_0) {
     }
   }
 }
-function $mayRetry$(_state_0) {
+function $mayRetry(_state_0) {
   if (_state_0.$ === "DeliveryOutcome.Refused") {
     return true;
   } else if (_state_0.$ === "DeliveryOutcome.Accepted") {
@@ -41,104 +42,99 @@ function $mayRetry$(_state_0) {
     return false;
   }
 }
-function $mayAdvanceQueue$(_busy_0, _permissionPending_0, _uncertain_0, _cancelled_0) {
-  return run_jump($Bool$and$, [run_loop($Bool$not$(_busy_0)), run_loop($Bool$and$(run_loop($Bool$not$(_permissionPending_0)), run_loop($Bool$and$(run_loop($Bool$not$(_uncertain_0)), run_loop($Bool$not$(_cancelled_0))))))]);
+function $mayAdvanceQueue(_busy_0, _permissionPending_0, _uncertain_0, _cancelled_0) {
+  return $Bool_and($Bool_not(_busy_0), $Bool_and($Bool_not(_permissionPending_0), $Bool_and($Bool_not(_uncertain_0), $Bool_not(_cancelled_0))));
 }
-function $canBegin$(_busy_0, _uncertain_0) {
-  return run_jump($Bool$and$, [run_loop($Bool$not$(_busy_0)), run_loop($Bool$not$(_uncertain_0))]);
+function $canBegin(_busy_0, _uncertain_0) {
+  return $Bool_and($Bool_not(_busy_0), $Bool_not(_uncertain_0));
 }
-function $sameNativeIdentity$(_existing_0, _requested_0) {
-  return run_jump($String$eq$, [_existing_0, _requested_0]);
+function $sameNativeIdentity(_existing_0, _requested_0) {
+  return $String_eq(_existing_0, _requested_0);
 }
-function $canChangeControls$(_busy_0, _hasTurn_0, _permissionPending_0, _uncertain_0) {
-  return run_jump($Bool$and$, [run_loop($canBegin$(_busy_0, _uncertain_0)), run_loop($Bool$and$(run_loop($Bool$not$(_hasTurn_0)), run_loop($Bool$not$(_permissionPending_0))))]);
+function $canChangeControls(_busy_0, _hasTurn_0, _permissionPending_0, _uncertain_0) {
+  return $Bool_and($canBegin(_busy_0, _uncertain_0), $Bool_and($Bool_not(_hasTurn_0), $Bool_not(_permissionPending_0)));
 }
-function $Bool$and$(_a_0, _b_0) {
+function $canSteer(_turnInFlight_0, _sending_0, _configuring_0, _uncertain_0) {
+  return $Bool_and(_turnInFlight_0, $Bool_and($Bool_not(_sending_0), $Bool_and($Bool_not(_configuring_0), $Bool_not(_uncertain_0))));
+}
+function $Bool_and(_a_0, _b_0) {
   if (!_a_0) {
     return false;
   } else {
     return _b_0;
   }
 }
-function $Bool$not$(_b_0) {
+function $Bool_not(_b_0) {
   if (!_b_0) {
     return true;
   } else {
     return false;
   }
 }
-function $String$eq$(_a_0, _b_0) {
-  return run_jump($String$eq$fin$, [run_loop($String$cmp$(_a_0, _b_0))]);
+function $String_eq(_a_0, _b_0) {
+  return $Cmp_is_eq($String_order(_a_0, _b_0));
 }
-function $String$eq$fin$(_r_0) {
-  const _t_0 = _r_0["fst"];
-  const _a2_0 = _t_0["fst"];
-  const _b2_0 = _t_0["snd"];
-  const _c_0 = _r_0["snd"];
-  return run_jump($Cmp$is_eq$, [_c_0]);
-}
-function $String$cmp$(_a_0, _b_0) {
-  if (_a_0 === "") {
-    if (_b_0 === "") {
-      return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: "", ["snd"]: "" }, ["snd"]: { $: "EQ" } };
-    } else {
-      const _h_0 = _b_0.codePointAt(0) > 65535 ? _b_0.slice(0, 2) : _b_0[0];
-      const _t_0 = _b_0.codePointAt(0) > 65535 ? _b_0.slice(2) : _b_0.slice(1);
-      return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: "", ["snd"]: _h_0 + _t_0 }, ["snd"]: { $: "LT" } };
-    }
-  } else {
-    const _h_1 = _a_0.codePointAt(0) > 65535 ? _a_0.slice(0, 2) : _a_0[0];
-    const _t_1 = _a_0.codePointAt(0) > 65535 ? _a_0.slice(2) : _a_0.slice(1);
-    if (_b_0 === "") {
-      return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: _h_1 + _t_1, ["snd"]: "" }, ["snd"]: { $: "GT" } };
-    } else {
-      const _h2_0 = _b_0.codePointAt(0) > 65535 ? _b_0.slice(0, 2) : _b_0[0];
-      const _t2_0 = _b_0.codePointAt(0) > 65535 ? _b_0.slice(2) : _b_0.slice(1);
-      return run_jump($String$cmp$fin$, [_t_1, _t2_0, run_loop($Char$cmp$(_h_1, _h2_0))]);
-    }
-  }
-}
-function $Cmp$is_eq$(_c_0) {
-  if (_c_0.$ === "LT") {
-    return false;
-  } else if (_c_0.$ === "EQ") {
+function $Cmp_is_eq(_c_0) {
+  if (_c_0.$ === "EQ") {
     return true;
   } else {
     return false;
   }
 }
-function $String$cmp$fin$(_t1_0, _t2_0, _hc_0) {
-  const _t_0 = _hc_0["fst"];
-  const _h1b_0 = _t_0["fst"];
-  const _h2b_0 = _t_0["snd"];
-  const _t_1 = _hc_0["snd"];
-  if (_t_1.$ === "LT") {
-    return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: _h1b_0 + _t1_0, ["snd"]: _h2b_0 + _t2_0 }, ["snd"]: { $: "LT" } };
-  } else if (_t_1.$ === "EQ") {
-    return run_jump($String$cmp$rec$, [_h1b_0, _h2b_0, run_loop($String$cmp$(_t1_0, _t2_0))]);
-  } else {
-    return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: _h1b_0 + _t1_0, ["snd"]: _h2b_0 + _t2_0 }, ["snd"]: { $: "GT" } };
+function $String_order(_a_0, _b_0) {
+  return $String_order_go(_a_0, _b_0, { $: "EQ" });
+}
+function $String_order_go($0, $1, $2) {
+  for (;; ) {
+    {
+      const _a_0 = $0;
+      const _b_0 = $1;
+      const _c_0 = $2;
+      if (_a_0 === "") {
+        if (_b_0 !== "") {
+          if (_c_0.$ === "EQ") {
+            return { $: "LT" };
+          } else {
+            return _c_0;
+          }
+        } else {
+          return _c_0;
+        }
+      } else {
+        const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _t_2 = _a_0.slice(char_len(_a_0));
+        if (_b_0 === "") {
+          if (_c_0.$ === "EQ") {
+            return { $: "GT" };
+          } else {
+            return _c_0;
+          }
+        } else {
+          const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _t2_0 = _b_0.slice(char_len(_b_0));
+          if (_c_0.$ === "EQ") {
+            const _x_0 = char_code(_t_1);
+            const _x_1 = char_code(_t_3);
+            $0 = _t_2;
+            $1 = _t2_0;
+            $2 = cmp_new(_x_0, _x_1);
+            continue;
+          } else {
+            return _c_0;
+          }
+        }
+      }
+    }
   }
 }
-function $Char$cmp$(_a_0, _b_0) {
-  const _x_0 = _a_0.codePointAt(0);
-  const _y_0 = _b_0.codePointAt(0);
-  return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: char_new(_x_0), ["snd"]: char_new(_y_0) }, ["snd"]: cmp_new(_x_0, _y_0) };
-}
-function $String$cmp$rec$(_h1b_0, _h2b_0, _rr_0) {
-  const _t_0 = _rr_0["fst"];
-  const _t1b_0 = _t_0["fst"];
-  const _t2b_0 = _t_0["snd"];
-  const _r_0 = _rr_0["snd"];
-  return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: _h1b_0 + _t1b_0, ["snd"]: _h2b_0 + _t2b_0 }, ["snd"]: _r_0 };
-}
 var agentdelivery_default = {
-  outcome: run_lib($outcome$, 2),
-  mayRetry: run_lib($mayRetry$, 1),
-  mayAdvanceQueue: run_lib($mayAdvanceQueue$, 4),
-  canBegin: run_lib($canBegin$, 2),
-  sameNativeIdentity: run_lib($sameNativeIdentity$, 2),
-  canChangeControls: run_lib($canChangeControls$, 4)
+  outcome: run_lib((a0, a1) => run_loop($outcome(a0, a1)), 2),
+  mayRetry: run_lib((a0) => run_loop($mayRetry(a0)), 1),
+  mayAdvanceQueue: run_lib((a0, a1, a2, a3) => run_loop($mayAdvanceQueue(a0, a1, a2, a3)), 4),
+  canBegin: run_lib((a0, a1) => run_loop($canBegin(a0, a1)), 2),
+  sameNativeIdentity: run_lib((a0, a1) => run_loop($sameNativeIdentity(str_in(a0), str_in(a1))), 2),
+  canChangeControls: run_lib((a0, a1, a2, a3) => run_loop($canChangeControls(a0, a1, a2, a3)), 4),
+  canSteer: run_lib((a0, a1, a2, a3) => run_loop($canSteer(a0, a1, a2, a3)), 4)
 };
 export {
   agentdelivery_default as default

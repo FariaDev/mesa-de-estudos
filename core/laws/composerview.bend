@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../composerview.bend as C
 import ../view.bend as V
 
@@ -14,19 +15,19 @@ import ../view.bend as V
 
 law composer_label_um:
   for count: String
-  {C.queueLabel(False{}, False{}, count) == "Na fila" : String}
+  {C.queueLabel(False{}, False{}, count) == M.msg("queue.queued") : String}
 
 law composer_label_muitos:
   for count: String
-  {C.queueLabel(False{}, True{}, count) == String.append("Na fila · ", count) : String}
+  {C.queueLabel(False{}, True{}, count) == M.msg1("queue.queuedCount", "count", count) : String}
 
 law composer_label_recuperadas_um:
   for count: String
-  {C.queueLabel(True{}, False{}, count) == "Recuperadas" : String}
+  {C.queueLabel(True{}, False{}, count) == M.msg("queue.recovered") : String}
 
 law composer_label_recuperadas_muitos:
   for count: String
-  {C.queueLabel(True{}, True{}, count) == String.append("Recuperadas · ", count) : String}
+  {C.queueLabel(True{}, True{}, count) == M.msg1("queue.recoveredCount", "count", count) : String}
 
 # ---------- ações da faixa ----------
 
@@ -62,7 +63,7 @@ law composer_title_sending:
 
 law composer_title_idle:
   for text: String
-  {C.queueItemTitle(text, False{}) == String.append(text, C.queueEditHint()) : String}
+  {C.queueItemTitle(text, False{}) == M.msg1("queue.editTitle", "text", text) : String}
 
 # ---------- classes da faixa / do item ----------
 
@@ -150,19 +151,19 @@ law composer_strip_live:
   {V.attrGet(V.attrsOf(C.queueStripView(False{}, label, Nil{}, False{}, False{})), "aria-live") == Some{"polite"} : Maybe<&2, String>}
 
 law composer_strip_closing_data:
-  {V.attrGet(V.attrsOf(C.queueStripView(True{}, "Na fila", Nil{}, False{}, False{})), "data-closing") == Some{"1"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(C.queueStripView(True{}, M.msg("queue.queued"), Nil{}, False{}, False{})), "data-closing") == Some{"1"} : Maybe<&2, String>}
 
 law composer_strip_open_data:
-  {V.attrGet(V.attrsOf(C.queueStripView(False{}, "Na fila", Nil{}, False{}, False{})), "data-closing") == None{} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(C.queueStripView(False{}, M.msg("queue.queued"), Nil{}, False{}, False{})), "data-closing") == None{} : Maybe<&2, String>}
 
 law composer_strip_actions_class:
-  {V.attrGet(V.attrsOf(kid(C.queueStripView(False{}, "Na fila", Nil{}, True{}, True{}), 1n)), "class") == Some{"queue-actions"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(kid(C.queueStripView(False{}, M.msg("queue.queued"), Nil{}, True{}, True{}), 1n)), "class") == Some{"queue-actions"} : Maybe<&2, String>}
 
 law composer_send_now_text:
-  {kidText(C.queueSendNowBtn(True{}), 0n) == "Enviar agora" : String}
+  {kidText(C.queueSendNowBtn(True{}), 0n) == M.msg("queue.sendNow") : String}
 
 law composer_clear_text:
-  {kidText(C.queueClearBtn(True{}), 0n) == "Limpar" : String}
+  {kidText(C.queueClearBtn(True{}), 0n) == M.msg("queue.clear") : String}
 
 law composer_item_tag:
   {V.tagOf(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}})) == "div" : String}
@@ -186,64 +187,3 @@ law composer_banner_tag:
 
 law composer_banner_id:
   {V.attrGet(V.attrsOf(C.editBannerView(True{}, False{})), "id") == Some{"edit-banner"} : Maybe<&2, String>}
-
-# ---------- painel de ajustes (Mesa) ----------
-
-law composer_settings_panel_id:
-  {V.attrGet(V.attrsOf(C.settingsPanel(True{})), "id")
-    == Some{"pi-settings-panel"} : Maybe<&2, String>}
-
-law composer_settings_panel_classe:
-  {V.attrGet(V.attrsOf(C.settingsPanel(True{})), "class")
-    == Some{"settings-panel"} : Maybe<&2, String>}
-
-law composer_settings_toggle_id:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "id")
-    == Some{"settings-toggle"} : Maybe<&2, String>}
-
-law composer_settings_toggle_rotulo:
-  {kidText(kid(C.settingsPanel(True{}), 0n), 0n) == "Ajustes" : String}
-
-law composer_settings_toggle_titulo:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "title")
-    == Some{"Modelo, esforço e resumo automático"} : Maybe<&2, String>}
-
-law composer_settings_toggle_clique:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "on:click")
-    == Some{"ToggleSettings"} : Maybe<&2, String>}
-
-law composer_settings_toggle_controles:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "aria-controls")
-    == Some{"pi-settings-body"} : Maybe<&2, String>}
-
-law composer_settings_aberto_aria:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "aria-expanded")
-    == Some{"true"} : Maybe<&2, String>}
-
-law composer_settings_fechado_aria:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(False{}), 0n)), "aria-expanded")
-    == Some{"false"} : Maybe<&2, String>}
-
-law composer_settings_aberto_classe:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 0n)), "class")
-    == Some{"settings-toggle open"} : Maybe<&2, String>}
-
-law composer_settings_fechado_classe:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(False{}), 0n)), "class")
-    == Some{"settings-toggle"} : Maybe<&2, String>}
-
-law composer_settings_corpo_id:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 1n)), "id")
-    == Some{"pi-settings-body"} : Maybe<&2, String>}
-
-law composer_settings_corpo_classe:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 1n)), "class")
-    == Some{"settings-body"} : Maybe<&2, String>}
-
-law composer_settings_aberto_visivel:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(True{}), 1n)), "hidden")
-    == None{} : Maybe<&2, String>}
-
-law composer_settings_fechado_oculto:
-  {V.attrGet(V.attrsOf(kid(C.settingsPanel(False{}), 1n)), "hidden")
-    == Some{""} : Maybe<&2, String>}

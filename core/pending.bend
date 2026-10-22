@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 
 # ---------------------------------------------------------------------------
 # Fila guardada no disco (Mesa): `runtime/pending.json`.
@@ -107,3 +108,98 @@ def retryDelay(retry: Nat) -> U32:
       8000
     case _:
       0
+
+# ---------------------------------------------------------------------------
+# Enviar com o tutor desligado (ticket #18).
+#
+# Escrever e enviar sem o tutor ligado não vai direto ao Pi: a mensagem é
+# GUARDADA na fila (a que já persiste por sessão) e a conexão é chamada. Quando
+# o tutor atende, a fila sai — uma vez, na ordem. O host mede os fatos (ligado,
+# ocupado, comando digitado, texto, anexos) e este núcleo decide.
+#
+#   - ligado: vai direto (nada a guardar);
+#   - ocupado (resposta em andamento): a fila de sempre cuida — não é "guardada";
+#   - comando digitado (/compact, /conferir): não vira mensagem guardada;
+#   - o que não vale guardar (vazio, sem anexo) nunca entra (`keepItem`).
+# ---------------------------------------------------------------------------
+
+def keptWhileOff.ready(command: Bool, usable: Bool) -> Bool:
+  match command:
+    case True{}:
+      False{}
+    case False{}:
+      usable
+
+def keptWhileOff.idle(busy: Bool, command: Bool, usable: Bool) -> Bool:
+  match busy:
+    case True{}:
+      False{}
+    case False{}:
+      keptWhileOff.ready(command, usable)
+
+def keptWhileOff(connected: Bool, busy: Bool, command: Bool, text: String, imageCount: Nat) -> Bool:
+  match connected:
+    case True{}:
+      False{}
+    case False{}:
+      keptWhileOff.idle(busy, command, keepItem(text, imageCount))
+
+# O que a faixa da fila diz enquanto o tutor não atende. `plain` é o rótulo
+# comum da fila (`composerview.queueLabel`, "Na fila" ou "Recuperadas"): a fila
+# recuperada de outra execução continua dizendo de onde veio — nada nela sai
+# sozinho —, e com o tutor atendendo vale o rótulo comum.
+def keptLabel(many: Bool, count: String) -> String:
+  match many:
+    case False{}:
+      M.msg("pending.kept")
+    case True{}:
+      M.msg1("pending.keptMany", "count", count)
+
+def stripLabel.off(tutorOff: Bool, many: Bool, count: String, plain: String) -> String:
+  match tutorOff:
+    case True{}:
+      keptLabel(many, count)
+    case False{}:
+      plain
+
+def stripLabel(recovered: Bool, tutorOff: Bool, many: Bool, count: String, plain: String) -> String:
+  match recovered:
+    case True{}:
+      plain
+    case False{}:
+      stripLabel.off(tutorOff, many, count, plain)
+
+# A fila guardada sai quando o tutor PASSA a atender — não a cada checagem de
+# saúde que repete "ligado".
+def tutorAnswered(wasOnline: Bool, isOnline: Bool) -> Bool:
+  match wasOnline:
+    case True{}:
+      False{}
+    case False{}:
+      isOnline
+
+# Tutor atendeu, mas a fila está vetada por algo que NÃO se resolve sozinho
+# (entrega incerta ou cancelamento em confirmação): a mensagem guardada não pode
+# ficar parada sem saída — ela é SEGURADA, e a faixa passa a oferecer "Enviar
+# agora". Resposta em andamento e permissão pendente não entram: esses vetos
+# passam sozinhos (o `desk-idle` solta a fila).
+def holdAfterAnswer.stuck(uncertain: Bool, cancelled: Bool) -> Bool:
+  match uncertain:
+    case True{}:
+      True{}
+    case False{}:
+      cancelled
+
+def holdAfterAnswer.free(permissionPending: Bool, uncertain: Bool, cancelled: Bool) -> Bool:
+  match permissionPending:
+    case True{}:
+      False{}
+    case False{}:
+      holdAfterAnswer.stuck(uncertain, cancelled)
+
+def holdAfterAnswer(busy: Bool, permissionPending: Bool, uncertain: Bool, cancelled: Bool) -> Bool:
+  match busy:
+    case True{}:
+      False{}
+    case False{}:
+      holdAfterAnswer.free(permissionPending, uncertain, cancelled)

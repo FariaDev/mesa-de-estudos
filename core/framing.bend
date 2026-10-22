@@ -3,7 +3,7 @@ import Base
 # ---------------------------------------------------------------------------
 # Framing das linhas JSON-RPC do stdout do Pi.
 #
-# No host (chat/rpc.cjs e o gêmeo desk/rpc.cjs):
+# No host (desk/rpc.cjs; o gêmeo chat/rpc.cjs saiu na #50):
 #   buffer += chunk
 #   se buffer.length > 33554432 → derruba a conexão e descarta TUDO
 #   cada '\n' fecha uma linha; o resto fica no buffer

@@ -16,7 +16,8 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,saveArtifacts} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,saveArtifacts,sessionIds,openSessionById} from './helpers.mjs';
+import {pollUntil} from './waits.mjs';
 
 const EVIDENCE=process.env.EVIDENCE==='1';
 const log=(...a)=>console.log(...a);
@@ -51,14 +52,11 @@ await withArtifacts('hunt-queue',async ctx=>{
  const firstLines=()=>entries().map(entry=>String(entry.message||'').split('\n')[0]);
  /* O log é escrito pelo fake antes de responder: esperar por ele (e não só pela
     bolha, que nasce antes do round-trip) tira a corrida do teste. */
- const waitLog=async(text,timeout=20000)=>{
-  const until=Date.now()+timeout;
-  while(Date.now()<until){
-   if(firstLines().includes(text))return;
-   await new Promise(resolve=>setTimeout(resolve,100));
-  }
-  throw new Error(`«${text}» não chegou ao Pi (log: ${JSON.stringify(firstLines())})`);
- };
+ const waitLog=(text,timeout=20000)=>pollUntil(
+  firstLines,
+  lines=>lines.includes(text),
+  {timeout,interval:100,what:`«${text}» no log do Pi`}
+ );
  /* Ações de UI por janela: o teste reabre o app no meio (bloco 7). */
  const ui=pg=>({
   bubble:text=>pg.waitForFunction(t=>[...document.querySelectorAll('.message.user .body')].some(el=>el.textContent.includes(t)),text,{timeout:20000}),
@@ -86,7 +84,8 @@ await withArtifacts('hunt-queue',async ctx=>{
  await page.locator('#prompt').press('Enter');
  await bubble('base');
  await busy();
- assert.match(await page.locator('#composer-hint').textContent(),/⏎ enfileira · .*interrompe e envia/, 'a dica do composer acompanha o turno');
+ assert.equal(await page.locator('#composer-hint').count(),0,'a dica de atalhos saiu da tela principal (os atalhos seguem valendo)');
+ assert.equal(await page.locator('#stop').isVisible(),true,'durante o turno o Parar ocupa o lugar do Enviar');
  await queueIn(['um','dois']);
  const queued=await page.evaluate(()=>({
   label:document.querySelector('.queue-label')?.textContent,
@@ -163,7 +162,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.deepEqual(stopped.rows,['segurada um','segurada dois'],'Parar não descarta a fila');
  assert.equal(stopped.label,'Na fila · 2');
  assert.equal(stopped.sendNow,true,'a faixa oferece Enviar agora');
- await page.waitForTimeout(1600);
+ await page.waitForTimeout(1600);// espera fixa: "nada acontece em 1,6 s" — depois de Parar nada sai sozinho para o Pi
  assert.ok(!firstLines().includes('segurada um')&&!firstLines().includes('segurada dois'),'nada sai sozinho depois de Parar');
  const held=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
  assert.equal(held[current].held,true,'a guarda do Parar vai para o disco');
@@ -186,14 +185,14 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.equal((await strip()).clear,true,'Limpar aparece na faixa segurada');
  page.once('dialog',dialog=>dialog.dismiss());
  await page.locator('.queue-clear').click();
- await page.waitForTimeout(500);
+ await page.waitForTimeout(500);// espera fixa: "nada acontece em 0,5 s" — cancelar a confirmação não pode esvaziar a fila
  assert.equal(await page.locator('.queue-item').count(),2,'cancelar a confirmação mantém a fila');
  page.once('dialog',dialog=>dialog.accept());
  await page.locator('.queue-clear').click();
  await toastWait(page,'Fila limpa.');
  await page.waitForFunction(()=>!document.querySelector('.queue-strip'),undefined,{timeout:10000});
  assert.equal(await page.locator('.queue-item').count(),0,'Limpar some com a faixa');
- await page.waitForTimeout(1600);
+ await page.waitForTimeout(1600);// espera fixa: "nada acontece em 1,6 s" — o que foi limpo não chega ao Pi
  assert.ok(!firstLines().includes('descartavel um')&&!firstLines().includes('descartavel dois'),'o que foi limpo não vai para o Pi');
  const emptied=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
  assert.ok(!emptied[current]||emptied[current].items.length===0,'o arquivo fica sem a fila');
@@ -220,7 +219,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  app=ctx.app=await launchDesk({runtime,env});
  page=await app.firstWindow();
  windows.push(watch(page));
- ({bubble,busy,idle,settle,queueIn,rows,strip}=ui(page));
+ ({busy,idle,settle,queueIn,strip}=ui(page));
  await statusOnline(page);
  await toastWait(page,'mensagens pendentes foram recuperadas');
  const recovered=await strip();
@@ -228,7 +227,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.equal(recovered.label,'Recuperadas · 2','a faixa diz que a fila veio do disco');
  assert.deepEqual(recovered.rows,['com anexo','sem anexo'],'os itens voltam na ordem, com o texto');
  assert.equal(recovered.sendNow,true,'Enviar agora aparece: nada sai sozinho');
- await page.waitForTimeout(1600);
+ await page.waitForTimeout(1600);// espera fixa: "nada acontece em 1,6 s" — reabrir com fila recuperada não envia nada sozinho
  assert.ok(!firstLines().includes('com anexo'),'reabrir não envia nada sozinho');
  await page.locator('.queue-send-now').click();
  await waitLog('com anexo');
@@ -248,16 +247,16 @@ await withArtifacts('hunt-queue',async ctx=>{
  await toastWait(page,'a fila ficou segurada');
  await idle();
  assert.deepEqual((await strip()).rows,['fica na A']);
- const otherValue=await page.evaluate(()=>{const s=document.querySelector('#session-select');return [...s.options].map(o=>o.value).find(v=>v.endsWith('pi-1700000001000.jsonl'));});
- assert.ok(otherValue,'a outra conversa aparece no seletor');
- await page.locator('#session-select').selectOption(otherValue);
+ const otherValue=(await sessionIds(page)).find(v=>v.endsWith('pi-1700000001000.jsonl'));
+ assert.ok(otherValue,'a outra sessão aparece na lista');
+ await openSessionById(page,otherValue);
  await page.waitForFunction(()=>!document.querySelector('.queue-strip'),undefined,{timeout:30000});
  assert.equal(await page.locator('.queue-item').count(),0,'a conversa B nasce sem a fila da A');
  await statusOnline(page);
  const parked=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
  assert.deepEqual(parked[current].items.map(item=>item.text),['fica na A'],'a fila da A fica no disco enquanto se está na B');
  assert.equal(parked[other],undefined,'a B não ganhou fila nenhuma');
- await page.locator('#session-select').selectOption(current);
+ await openSessionById(page,current);
  await page.waitForFunction(()=>!!document.querySelector('.queue-item'),undefined,{timeout:30000});
  await statusOnline(page);
  const back=await strip();
@@ -284,7 +283,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  app=ctx.app=await launchDesk({runtime,env:{...env,FAKE_PI_CHAOS:'state-fail'}});
  page=await app.firstWindow();
  windows.push(watch(page));
- ({bubble,busy,idle,settle,queueIn,rows,strip}=ui(page));
+ ({settle}=ui(page));
  await statusOnline(page);
  await toastWait(page,'pendente foi recuperada');
  await page.locator('.queue-send-now').click();
@@ -293,7 +292,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  await page.waitForFunction(()=>!document.querySelector('.queue-strip'),undefined,{timeout:30000});
  await settle();
  /* O turno do item aceito termina (agent_end do fake) e a fila não pode repetir. */
- await page.waitForTimeout(1800);
+ await page.waitForTimeout(1800);// espera fixa: "nada acontece em 1,8 s" — o turno do item aceito termina e a fila não pode repetir o envio
  const repeated=entries().filter(entry=>String(entry.message).split('\n')[0]==='fila com estado falho');
  log('[fila] depois do estado falho:',JSON.stringify(firstLines()));
  assert.equal(repeated.length,1,`a mensagem aceita não é reenviada (log: ${JSON.stringify(firstLines())})`);

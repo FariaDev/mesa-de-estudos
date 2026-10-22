@@ -1,0 +1,330 @@
+/* Área de referências: leitores de PDF, barra de painel, navegação, "Mais opções", página e folha Lista 0.
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Área de referências ---------- */
+
+/* Três planos colados: leitores, a linha da divisória (1px) e o tutor. */
+main{height:calc(100vh - var(--header));display:grid;grid-template-columns:minmax(0,1fr) 1px var(--chat)}
+#references{display:flex;flex-direction:column;min-width:0;overflow:hidden;background:var(--bg)}
+#pdf-grid{display:flex;flex:1;min-height:0}
+
+/* Barra de painel: --bar por linha, recuo de --pad e uma linha de 1px embaixo
+   (dentro da conta). Os controles têm --ctl; onde a barra quebra, cada linha
+   continua com --bar (a do leitor nunca quebra: é uma linha só). A altura dos
+   controles entra com especificidade zero (`:where`): quem precisa de outra
+   (campo de página, botão de texto) a dá. */
+.pdf-panel>.pdf-title,.chat-head,.sidechat-head,#ggb-bar,#free-bar,#review-bar{
+ min-height:var(--bar);padding:var(--bar-y) var(--pad) calc(var(--bar-y) - 1px);row-gap:calc(var(--bar-y) * 2);
+ border:0;border-bottom:1px solid var(--border);border-radius:0;margin:0;
+}
+:where(.pdf-panel>.pdf-title,.chat-head,.sidechat-head,#ggb-bar,#free-bar,#review-bar,#calc-bar) :is(button,select,input){height:var(--ctl)}
+#pdf-grid.single .pdf-panel{flex:1 1 0}
+#pdf-grid.single .pdf-divider{display:none}
+
+.pdf-divider{cursor:col-resize;background:var(--border-strong);width:1px;position:relative;flex:0 0 1px;z-index:5}
+.pdf-divider:after{content:"";position:absolute;top:0;bottom:0;left:-3px;width:7px}
+.pdf-divider:hover,.pdf-divider:focus-visible{background:var(--muted)}
+
+.pdf-panel{
+ background:var(--surface);
+ overflow:hidden;display:flex;flex-direction:column;min-width:0;outline:none;flex:1 1 0;
+ /* Âncora do popover de navegação (favoritos + sumário), que o host monta. */
+ position:relative;
+}
+
+/* ---------- popover de navegação do leitor (core/pdfnav.bend) ---------- */
+
+.pdf-nav-pop{
+ position:absolute;top:calc(var(--bar) - var(--space-1));right:var(--space-2);z-index:12;
+ width:min(330px,92%);max-height:min(60%,420px);overflow:auto;
+ display:flex;flex-direction:column;gap:var(--space-3);
+ padding:var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-md);
+ background:var(--surface);box-shadow:var(--shadow-pop);
+}
+.nav-section{display:flex;flex-direction:column;gap:var(--space-hairline)}
+.nav-section h4{
+ margin:0 0 var(--space-1);padding:0 var(--space-2);font-size:var(--fs-2xs);
+ text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;
+}
+.nav-save{justify-content:flex-start;text-align:left}
+.nav-empty{margin:0;padding:0 var(--space-2);color:var(--muted);font-size:var(--fs-sm)}
+.nav-row{display:flex;align-items:center;gap:var(--space-hairline)}
+.nav-bookmark{
+ flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);
+ padding:var(--space-1) var(--space-2);background:transparent;border-color:transparent;box-shadow:none;
+ font-size:var(--fs-sm);text-align:left;
+}
+.nav-bookmark .nav-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-bookmark.current{background:var(--selected);color:var(--fg-strong)}
+.nav-page{color:var(--muted);font-size:var(--fs-xs);flex:0 0 auto}
+.nav-bookmark-remove{width:24px;height:24px} /* #67: alvo mínimo de 24px (WCAG 2.5.8) */
+.nav-outline{
+ display:block;width:100%;padding:var(--space-1) var(--space-2);background:transparent;
+ border-color:transparent;box-shadow:none;font-size:var(--fs-sm);text-align:left;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.nav-outline[data-depth="1"]{padding-left:calc(var(--space-2) + 14px)}
+.nav-outline[data-depth="2"]{padding-left:calc(var(--space-2) + 28px)}
+.nav-outline[data-depth="3"]{padding-left:calc(var(--space-2) + 42px)}
+.nav-bookmark:hover,.nav-outline:hover,.nav-save:hover{background:var(--hover)}
+body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
+/* 240px é o mínimo de um leitor com a barra única (material legível, último
+   ícone a --pad da borda): numa janela de 900px os dois leitores dividem a
+   coluna ao meio em vez de o segundo ficar com o resto. */
+.pdf-panel.pinned{flex:0 0 clamp(240px,var(--pdf-left,50%),calc(100% - var(--pdf-other,240px)))}
+#pdf-grid.other-min{--pdf-other:120px}
+/* com um leitor minimizado, o split não vale: o que sobrou ocupa a mesa */
+#pdf-grid.has-min .pdf-panel.pinned{flex:0 0 auto}
+#pdf-grid.has-other-min .pdf-panel.pinned{flex:1 1 0}
+/* Leitor recolhido: uma faixa estreita com o rótulo na vertical e o botão que
+   reabre; o resto do painel (barra, palco, busca, menus) some enquanto isso. A
+   faixa de cima tem a altura das barras, para a linha de 1px casar com elas. */
+#pdf-grid .pdf-panel.minimized,#pdf-grid .pdf-panel.pinned.minimized{flex:0 0 var(--strip);max-width:var(--strip);min-width:0}
+.pdf-panel.minimized>:not(.pdf-restore){display:none!important}
+.pdf-restore{display:none}
+.pdf-panel.minimized .pdf-restore{
+ display:flex;flex-direction:column;align-items:center;flex:1;min-height:0;width:100%;
+ padding:0;border:0;border-radius:0;background:var(--surface);color:var(--muted);gap:0;
+}
+.pdf-restore:hover{background:var(--hover);color:var(--fg)}
+.pdf-restore-icon{display:flex;align-items:center;justify-content:center;flex:none;width:100%;height:var(--bar);border-bottom:1px solid var(--border)}
+#pdf-grid>.pdf-panel .pdf-restore-icon svg{transform:scaleX(-1)}
+.pdf-restore-label{
+ writing-mode:vertical-rl;flex:0 1 auto;min-height:0;margin-top:var(--space-4);
+ font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* A faixa do segundo leitor encolhe a área de apoio até a largura dela; sem a
+   divisória (não há o que arrastar), a área traz a sua linha de 1px. */
+#support-slot:has(>#support-body:not(.chat)>.pdf-panel.minimized){flex:0 0 var(--strip)}
+#pdf-grid:has(.pdf-panel.minimized) .pdf-divider{display:none}
+#pdf-grid:has(.pdf-panel.minimized) #support-slot{border-left:1px solid var(--border-strong)}
+/* Formulário recolhido (dois leitores): o slot vira a faixa de reabrir, com a
+   mesma forma do leitor recolhido — ícone sob a altura das barras e o rótulo na
+   vertical. O chat lateral e o segundo leitor não aparecem nesse estado. */
+#support-restore{display:none}
+#support-slot.collapsed,#pdf-grid.single #support-slot.collapsed{flex:0 0 var(--strip);max-width:var(--strip);border-left:1px solid var(--border-strong)}
+#support-slot.collapsed>#support-body{display:none}
+#support-slot.collapsed>#support-restore{
+ display:flex;flex-direction:column;align-items:center;flex:1;min-height:0;width:100%;
+ padding:0;border:0;border-radius:0;background:var(--surface);color:var(--muted);gap:0;box-shadow:none;
+}
+#support-restore:hover{background:var(--hover);color:var(--fg)}
+/* Painel ativo (#42): uma regra só para os leitores, a coluna do tutor e o
+   chat lateral. O painel onde está o foco (alvo das setas, da busca, do campo
+   de mensagem) ganha o contorno de foco por dentro — nenhum deles tem borda
+   própria para trocar de cor. O contorno não pega clique e fica abaixo dos
+   menus que abrem do painel. */
+#sidebar{position:relative}
+:is(.pdf-panel,#sidebar,#sidechat):focus-within::after{content:"";position:absolute;inset:0;z-index:7;border:1px solid var(--ring);pointer-events:none}
+/* Uma linha só, de 40px: rótulo, material, voltar, página, busca, favoritos e
+   Mais opções. Nada quebra nem passa da borda — o rótulo e o material encolhem
+   com reticências; o resto tem tamanho fixo. O último ícone (Mais opções)
+   termina a --pad da borda do leitor. */
+.pdf-panel>.pdf-title{display:flex;align-items:center;column-gap:var(--space-1);padding-right:var(--bar-end);flex-wrap:nowrap}
+.pdf-panel>.pdf-title>*{flex:none}
+.pdf-panel>.pdf-title strong{font-size:var(--fs-sm);font-weight:600;flex:0 1 auto;min-width:0;max-width:34%;line-height:var(--ctl);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg-strong);margin-right:var(--space-1)}
+.pdf-panel>.pdf-title .pdf-select{flex:1 1 0;min-width:44px;margin-right:var(--space-1)}
+/* Controles da barra a 13px (#27 B6); em leitor estreito (dois leitores em
+   900px) voltam a 12px para o material mostrar o nome. */
+.pdf-panel>.pdf-title :is(strong,.pdf-select,.page-number){font-size:var(--fs-md)}
+/* Leitor estreito (dois leitores numa janela de 900px): a barra é o contêiner e
+   cede espaço em duas etapas, sempre na mesma linha — primeiro o total de
+   páginas (o campo de página e o rodapé dizem onde está) e a folga entre
+   controles; depois os botões encolhem de 28 para 24px, o rótulo, que também
+   é o nome acessível do leitor, sai da vista e as setas de página cedem. O
+   material nunca passa de 44px mínimos e o último ícone continua a --pad da
+   borda. */
+.pdf-panel>.pdf-title{container-type:inline-size;container-name:reader-bar}
+/* Um contêiner não estiliza a si mesmo: o `column-gap` da barra (4px) não muda
+   aqui, então a folga de 2px sai de uma margem de -2px nos controles. */
+@container reader-bar (max-width:330px){
+ .pdf-panel>.pdf-title :is(strong,.pdf-select,.page-number){font-size:var(--fs-sm)}
+ .pdf-panel>.pdf-title>*+*{margin-left:calc(var(--space-0) - var(--space-1))}
+ .pdf-panel>.pdf-title .page-total{display:none}
+ .pdf-panel>.pdf-title strong{margin-right:var(--space-0);max-width:28%}
+ .pdf-panel>.pdf-title .pdf-select{margin-right:var(--space-0)}
+}
+@container reader-bar (max-width:290px){
+ .pdf-panel>.pdf-title .more{margin-right:var(--space-0)}
+ .pdf-panel>.pdf-title button.icon-btn{width:24px}
+ .pdf-panel>.pdf-title .page-number{width:30px}
+ .pdf-panel>.pdf-title strong{display:none}
+ /* Terceiro degrau (#23): as setas de página cedem antes do nome do material
+    (o campo de página, a rolagem contínua e as teclas seguem navegando), para
+    o seletor mostrar pelo menos 8 caracteres do nome. */
+ .pdf-panel>.pdf-title .prev,.pdf-panel>.pdf-title .next{display:none}
+ /* sem o rótulo, o material abre a barra: a margem negativa de cima não vale */
+ .pdf-panel>.pdf-title strong+.pdf-select{margin-left:0}
+}
+/* Leitor sem material (#27 B3): a barra é rótulo + "Nenhum material" + Mais
+   opções. O seletor segue no DOM (nome acessível, valor), mas se lê como texto. */
+.pdf-panel[data-no-material]>.pdf-title :is(.back,.prev,.next,.page-number,.page-total,.find-toggle,.nav){display:none}
+.pdf-panel[data-no-material]>.pdf-title .pdf-select{
+ border-color:transparent;background:transparent;color:var(--faint);appearance:none;-webkit-appearance:none;
+ pointer-events:none;padding:0 var(--space-3);
+}
+.pdf-select{
+ margin:0;border:1px solid var(--border);
+ background:var(--surface);color:var(--fg);padding:0 var(--space-2);
+ border-radius:var(--r-xs);text-overflow:ellipsis;font-size:var(--fs-sm);
+}
+.page-number{
+ width:34px;border:1px solid var(--border);border-radius:var(--r-2xs);text-align:center;
+ padding:0 3px;background:var(--surface);color:var(--fg);font-size:var(--fs-sm);
+}
+.pdf-title .page-number{height:24px}
+.page-total{font-size:var(--fs-xs);color:var(--faint);line-height:var(--ctl);white-space:nowrap;font-variant-numeric:tabular-nums}
+.zoom-label{font-size:var(--fs-xs);min-width:36px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* ---------- menu "Mais opções" do leitor (core/pdfpageview.bend) ---------- */
+
+.pdf-more-pop{
+ position:absolute;top:calc(var(--bar) - var(--space-1));right:var(--space-2);z-index:12;
+ display:flex;flex-direction:column;gap:var(--space-hairline);
+ width:min(260px,calc(100% - var(--space-5)));padding:var(--space-1);
+ border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow-pop);
+}
+.more-item{
+ justify-content:flex-start;width:100%;height:var(--ctl);padding:0 var(--space-2);gap:var(--space-3);
+ border-color:transparent;background:transparent;box-shadow:none;color:var(--fg);
+ font-size:var(--fs-sm);text-align:left;
+}
+.more-item span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.more-item:hover{background:var(--hover)}
+.more-item:active{background:var(--active)}
+.more-item[aria-pressed="true"],.more-item[aria-expanded="true"]{background:var(--selected);color:var(--fg-strong)}
+/* Página escura (#42) é liga/desliga: o estado aparece escrito à direita. */
+.more-item.invert::after{content:'Desligada';margin-left:auto;padding-left:var(--space-3);font-size:var(--fs-xs);color:var(--faint)}
+.more-item.invert[aria-pressed="true"]::after{content:'Ligada';color:var(--accent-text)}
+.more-zoom{display:flex;align-items:center;justify-content:space-between;height:var(--ctl);padding:0 var(--space-1) 0 var(--space-2);font-size:var(--fs-sm);color:var(--fg)}
+.more-zoom-ctl{display:inline-flex;align-items:center}
+.pdf-more-pop .icon-btn{color:var(--fg)}
+.pdf-stage{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+.pdf-viewport{
+ overflow:auto;flex:1;position:relative;min-height:0;
+ /* A faixa reservada da barra (e o trilho) tem a cor da superfície, não do
+    palco: com barra de rolagem clássica ela era uma borda cinza entre a página
+    e o divisor. `--gutter` é a largura dessa faixa, medida no `render` do pdf.mjs. */
+ background:linear-gradient(var(--surface),var(--surface)) right top/var(--gutter,0px) 100% no-repeat border-box,var(--stage);
+ scrollbar-width:thin;scrollbar-color:var(--border-strong) var(--surface);
+
+ /* Com barra de rolagem clássica (mouse ligado), o espaço dela fica reservado:
+    sem isso a página era medida sem a barra e, quando a barra aparecia, sobrava
+    11px para o lado e surgia rolagem horizontal. */
+ scrollbar-gutter:stable;
+}
+.pdf-viewport.inverted .pdf-page canvas,.pdf-viewport.inverted .pdf-page img{filter:invert(1) hue-rotate(180deg)}
+/* Página escura (#42): o papel atrás do desenho também vira escuro — sem
+   filete branco entre a página e a próxima. */
+.pdf-viewport.inverted .pdf-page{background:#000}
+/* A página vai de uma borda à outra do leitor (o `render` do pdf.mjs mede a
+   largura útil do palco); entre uma página e outra sobra uma faixa do palco. */
+.pdf-document{display:flex;flex-direction:column;align-items:center;gap:var(--space-2);min-width:max-content}
+/* A página é sempre branca com texto escuro: os tons dela são os do tema claro
+   nos dois temas (`only light` faz o light-dark() resolver para o claro aqui). */
+.pdf-page{display:flex;align-items:center;justify-content:center;background:white;position:relative;color-scheme:only light}
+.pdf-page canvas{display:block;background:white}
+/* Cor fixa: o template do material redefine --muted dentro de .pdf-page. */
+.pdf-page::before{content:attr(data-page);position:absolute;right:var(--space-2);bottom:var(--space-1);font-size:var(--fs-2xs);color:#525252;opacity:.65}
+.pdf-page:not([data-rendered]){overflow:hidden}
+.pdf-page:not([data-rendered])::after{
+ content:"";position:absolute;inset:0;
+ background:linear-gradient(100deg,transparent 30%,var(--border-strong) 50%,transparent 70%);
+ transform:translateX(-100%);animation:pdf-shimmer var(--t-loop) var(--ease-move) infinite;
+}
+@keyframes pdf-shimmer{to{transform:translateX(100%)}}
+.textLayer{
+ position:absolute;inset:0;overflow:clip;z-index:0;text-align:initial;line-height:1;
+ letter-spacing:normal;word-spacing:normal;transform-origin:0 0;color-scheme:only light;
+ --min-font-size:1;--min-font-size-inv:calc(1 / var(--min-font-size));--scale-round-x:1px;--scale-round-y:1px;
+ --text-scale-factor:calc(var(--total-scale-factor,1) * var(--min-font-size));
+}
+/* O PDF.js posiciona os `span` nas coordenadas cruas da página e marca a
+   camada com a rotação efetiva (nativa + a volta do usuário); estas regras
+   (as mesmas do viewer do PDF.js) giram a camada inteira para o texto
+   selecionável acompanhar o canvas girado — a página em si não usa transform. */
+.textLayer[data-main-rotation="90"]{transform:rotate(90deg) translateY(-100%)}
+.textLayer[data-main-rotation="180"]{transform:rotate(180deg) translate(-100%,-100%)}
+.textLayer[data-main-rotation="270"]{transform:rotate(270deg) translateX(-100%)}
+.textLayer .markedContent{display:contents}
+.textLayer :is(span,br){
+ position:absolute;white-space:pre;color:transparent;cursor:text;user-select:text;transform-origin:0 0;
+ --font-height:0;--scale-x:1;--rotate:0deg;
+ font-size:calc(var(--text-scale-factor) * var(--font-height));
+ transform:rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.textLayer :is(span,br)::selection{background:rgb(0 0 255/.25);color:transparent}
+.pdf-hl{background:var(--find-mark);border-radius:var(--r-2xs);color:inherit;font-style:normal}
+.pdf-placeholder{font-size:var(--fs-md);text-align:center;margin:72px 24px;color:var(--muted);line-height:1.5}
+/* Folha "Lista 0" (core/readersheet.bend): o leitor sem material de uma matéria.
+   É papel, como a página do PDF: branca com texto escuro nos dois temas (`only
+   light` resolve o light-dark() para o claro aqui) e os links usam o tom de
+   acento legível sobre branco (--accent-paper), não o do tema. O recuo é em
+   porcentagem e o texto acompanha a largura do próprio leitor (container
+   query), então a folha cabe inteira num leitor de ~450px sem cortar. */
+.reader-sheet{
+ --sheet-ink:#171717;--sheet-soft:#525252;--sheet-line:#9a9aa6;
+ container-type:inline-size;color-scheme:only light;
+ display:flex;flex-direction:column;
+ width:100%;min-height:100%;
+ padding:clamp(24px,11%,58px) clamp(20px,10%,52px);
+ background:#fff;color:var(--sheet-ink);text-align:left;
+ /* Papel (#27 B13): serifada, como a página do PDF. Desde a #61 a folha é STIX
+    inteira, link e quadro de soltar incluídos. Medidas do canvas de 520px,
+    escaladas pelo leitor. */
+ font-family:var(--serif);font-size:clamp(13px,3.1cqw,16px);line-height:1.5;
+}
+.reader-sheet :is(h1,p,ol){margin:0}
+.reader-sheet .sheet-title{font-size:clamp(17px,4cqw,21px);font-weight:700;line-height:1.2;text-align:center}
+.reader-sheet .sheet-course{margin:2px 0 clamp(18px,5.8cqw,30px);text-align:center;font-style:italic;color:var(--sheet-ink)}
+.reader-sheet .sheet-intro{margin-bottom:clamp(12px,3.8cqw,20px)}
+.reader-sheet .sheet-items{padding-left:1.7em;display:flex;flex-direction:column;gap:clamp(10px,3.5cqw,18px)}
+.reader-sheet .sheet-item::marker{font-weight:400;color:var(--sheet-ink)}
+.reader-sheet .sheet-link{
+ /* O padding vertical só amplia o alvo do clique (inline não muda a linha). */
+ display:inline;padding:4px 0;margin:0;border:0;border-radius:var(--r-2xs);
+ background:transparent;box-shadow:none;color:var(--accent-paper);
+ font-family:inherit;font-size:.9em;font-weight:600;
+ text-decoration:underline;text-underline-offset:3px;white-space:nowrap;
+}
+.reader-sheet .sheet-link:hover,.reader-sheet .sheet-link:active{background:transparent;text-decoration-thickness:2px}
+.reader-sheet .sheet-link:focus-visible{outline-color:var(--accent-paper)}
+.reader-sheet .sheet-drop{
+ margin-top:clamp(18px,5.4cqw,28px);display:flex;flex-direction:column;align-items:center;gap:var(--space-2);
+ padding:clamp(14px,4.2cqw,22px) var(--space-5);text-align:center;
+ border:1px dashed var(--sheet-line);border-radius:12px;color:var(--sheet-soft);
+}
+.reader-sheet .sheet-drop strong{font-size:var(--fs-lg);font-weight:600;color:var(--sheet-ink)}
+.reader-sheet .sheet-drop small{font-size:var(--fs-sm)}
+.reader-sheet .sheet-drop-icon{display:inline-flex;color:var(--sheet-soft)}
+.reader-sheet .sheet-drop-icon .icon{width:22px;height:22px}
+.pdf-find{
+ display:flex;min-height:var(--bar);padding:0 var(--pad);border-top:1px solid var(--border);
+ gap:var(--space-2);align-items:center;transition:border-color var(--t-fast) var(--ease-out);
+}
+.pdf-find:focus-within{border-color:var(--border-strong)}
+.pdf-find input{min-width:0;flex:1;background:transparent;border:0;font-size:var(--fs-sm);color:var(--fg);outline:none}
+.pdf-find input::placeholder{color:var(--faint)}
+.pdf-find button{font-size:var(--fs-sm);height:var(--ctl);padding:0 var(--space-3)}
+.find-count{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.find-count.none{color:var(--faint)}
+.pdf-foot{
+ position:absolute;left:0;right:0;bottom:0;padding:var(--space-1) var(--space-3);color:var(--muted);font-size:var(--fs-2xs);
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
+ background:linear-gradient(transparent,var(--stage));
+}
+
+#divider{cursor:col-resize;background:var(--border-strong);width:1px;position:relative;z-index:5}
+#divider:after{content:"";position:absolute;left:-3px;top:0;bottom:0;width:7px}
+#divider:hover,#divider:focus-visible{background:var(--muted)}
+body.chat-collapsed main{grid-template-columns:minmax(0,1fr) 1px 260px}
+body.chat-collapsed #chat{display:none}
+/* Com o tutor recolhido sobra a coluna da calculadora: o botão de reabrir
+   mora no pé dela, onde o tutor volta, sem cobrir barra nenhuma. */
+#chat-restore{
+ position:fixed;right:var(--pad);bottom:var(--pad);z-index:9;
+ padding:var(--space-1) 9px;border-radius:var(--r-pill);font-size:var(--fs-xs);
+ background:var(--surface);color:var(--fg);border:1px solid var(--border-strong);
+ white-space:nowrap;
+}
+#chat-restore:hover{background:var(--hover)}

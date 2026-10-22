@@ -2,6 +2,8 @@ import {icon} from '../icons.mjs';
 import {build, htmlNode, renderChildren} from './view-host.mjs';
 import core from './generated/slashview.core.js';
 import {supportsCapability} from './state.mjs';
+import {t} from './ui-text.mjs';
+import {message} from './i18n.mjs';
 
 /* Menu de comandos slash do Pi na Mesa (mesma mecânica do app Conversa):
    digitar "/" abre a lista filtrada pelo trecho digitado; ↑↓ navega com wrap,
@@ -26,7 +28,7 @@ const WIDTH=400;           // largura preferida do popover (o CSS limita à jane
 const TTL=5*60*1000;       // revalida a lista com folga de 5 min
 const TRIGGER=/^\/(\S*)$/; // só abre com "/" inicial e ainda sem espaço
 const LOCAL=[
- {name:'compact',description:'Resumir o contexto da conversa',argumentHint:'[instruções]'},
+ {name:'compact',description:message('slash.compact.desc'),argumentHint:message('slash.compact.hint')},
 ];
 
 const Nil={$:'Nil'};
@@ -286,6 +288,8 @@ const ITEM_HANDLERS={
 function buildMenu(){
  menu=build(core.slashMenuView(false,Nil,''));
  list=menu.querySelector('#slash-list');
+ /* O núcleo `slashview` é compartilhado com a Conversa ("Comandos do Pi"); na Mesa a palavra é Tutor. */
+ list?.setAttribute('aria-label',t('slash.tutorList'));list?.setAttribute('data-i18n-attr','aria-label=slash.tutorList');
  document.body.append(menu);
 }
 

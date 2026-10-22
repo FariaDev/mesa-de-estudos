@@ -1,0 +1,150 @@
+/* Popover de modelo e esforço (#59, acabamento visual): uma superfície só, no
+   jeito do seletor do T3 Code. Trilho de ícones à esquerda (estrela, relógio,
+   faísca e o logo de cada provedor), busca sublinhada com lupa, lista de linhas
+   em duas camadas (nome em cima; logo e provedor embaixo) com a estrela de
+   favorito à direita, e a faixa de esforço no rodapé. Sem título visível nem
+   bordas internas: o "Modelo" é `aria-label`. Saiu do header.css, que agora só
+   aponta para cá.
+
+   `.chat-pop.model-pop` (duas classes) porque o `.chat-pop` do tutor-chat.css
+   vem depois na cascata e, com uma classe só, ganhava: era por isso que o
+   popover ficava em `max-content` (~240px) mesmo com a largura pedida aqui. */
+.chat-pop.model-pop{
+ gap:0;width:min(360px,calc(100% - var(--space-3)));padding:0;overflow:hidden;
+}
+.pi-settings{display:flex;flex-direction:column;min-height:0}
+.pi-settings[hidden]{display:none}
+.model-field{display:block;min-height:0}
+.model-field[hidden]{display:none}
+.model-picker{
+ display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr);
+ background:transparent;
+}
+
+/* ---------- trilho ---------- */
+.model-rail{
+ grid-column:1;grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:var(--space-1);width:44px;
+ padding:var(--space-3) 0;overflow-x:hidden;overflow-y:auto;contain:size;scrollbar-width:none;
+}
+.model-rail::-webkit-scrollbar{display:none}
+.model-rail[hidden]{display:none}
+.model-rail-item{
+ position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+ border-radius:var(--r-md);color:var(--faint);cursor:pointer;user-select:none;
+ transition:background var(--t-fast) var(--ease-out),color var(--t-fast) var(--ease-out);
+}
+.model-rail-item .icon{width:16px;height:16px}
+/* Monograma do provedor sem logo (ajustes do seletor): as letras do nome na cor
+   da paleta categórica (`--mesa-chart-N`, posta na caixa por `model-picker-ui`),
+   sobre o mesmo tom bem claro. */
+.provider-mono{
+ --mono:var(--mesa-chart-1,var(--accent-text));
+ display:inline-flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;border-radius:var(--r-xs);
+ background:color-mix(in oklab,var(--mono) 16%,transparent);color:var(--mono);
+ font-size:var(--fs-2xs);font-weight:700;line-height:1;letter-spacing:-.02em;
+}
+.provider-mono[data-slot="2"]{--mono:var(--mesa-chart-2,var(--accent-text))}
+.provider-mono[data-slot="3"]{--mono:var(--mesa-chart-3,var(--accent-text))}
+.provider-mono[data-slot="4"]{--mono:var(--mesa-chart-4,var(--accent-text))}
+.provider-mono[data-slot="5"]{--mono:var(--mesa-chart-5,var(--accent-text))}
+.provider-mono[data-slot="6"]{--mono:var(--mesa-chart-6,var(--accent-text))}
+.model-row-logo .provider-mono,.model-section-logo .provider-mono{width:13px;height:13px;border-radius:3px;font-size:8px}
+.model-rail-item:hover{background:var(--hover);color:var(--fg)}
+.model-rail-item.active{background:var(--active);color:var(--fg-strong)}
+/* O traço de acento à esquerda do item ativo, colado na borda do popover. */
+.model-rail-item.active::before{content:"";position:absolute;left:-7px;top:7px;bottom:7px;width:2px;border-radius:var(--r-pill);background:var(--accent-fill)}
+
+/* ---------- busca ---------- */
+#model-search{
+ grid-column:2;grid-row:1;display:block;width:100%;height:40px;padding:0 var(--space-5) 0 34px;border:0;
+ border-bottom:1px solid var(--border);border-radius:0;background:transparent;font-size:var(--fs-md);color:var(--fg);
+}
+#model-search:focus-visible{outline:none;border-bottom-color:var(--accent-fill)}
+#model-search::placeholder{color:var(--faint)}
+.model-picker[data-disabled="1"] #model-search{color:var(--faint)}
+.model-search-icon{grid-column:2;grid-row:1;align-self:center;margin-left:var(--space-5);color:var(--faint);pointer-events:none;display:inline-flex}
+.model-search-icon .icon{width:15px;height:15px}
+
+/* ---------- lista ---------- */
+/* A barra de rolagem fica fina e só aparece com o ponteiro na lista. */
+.model-list{
+ grid-column:2;grid-row:3;max-height:min(520px,58vh);overflow-y:auto;overscroll-behavior:contain;
+ padding:var(--space-1) var(--space-2) var(--space-2) var(--space-1);scroll-padding-block:var(--space-1);
+ scrollbar-width:thin;scrollbar-color:transparent transparent;
+}
+.model-list:hover{scrollbar-color:var(--border-strong) transparent}
+.model-list:empty{display:none}
+.model-empty{grid-column:2;grid-row:2;margin:0;padding:var(--space-5);font-size:var(--fs-sm);color:var(--muted);overflow-wrap:anywhere}
+.model-empty[hidden]{display:none}
+.model-group+.model-group{margin-top:var(--space-1)}
+.model-group-title{padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--fs-xs);font-weight:600;color:var(--faint)}
+/* Ajustes do seletor: o subtítulo do fabricante dentro de um provedor grande.
+   A linha de 35px deixava os modelos grudados (relato do autor, 2026-10-21):
+   agora são 48px (nome 14/18px, 2px de folga, segunda linha 12/16px, 6px em
+   cima e embaixo), uns 9 modelos à vista. Com ~450 modelos, as linhas fora da
+   vista não entram no layout (`content-visibility`); a altura reservada é a
+   mesma da linha, para a centragem ao abrir não errar. */
+.model-section-title{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-4) var(--space-3) var(--space-1);font-size:var(--fs-xs);font-weight:500;color:var(--muted)}
+.model-row{
+ display:flex;align-items:center;gap:var(--space-3);min-height:48px;padding:var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+ border-radius:var(--r-md);cursor:pointer;color:var(--fg);
+}
+/* Só as linhas de modelo (são centenas): o navegador pula as fora da vista. A
+   medida de reserva é a do conteúdo: 18 + 2 + 16 = 36px, que com o padding de
+   6+6 dá os mesmos 48px da desenhada, e alinhar o topo ao abrir não erra. */
+.model-row[data-row]{content-visibility:auto;contain-intrinsic-size:auto 36px}
+.model-row.active{background:var(--hover)}
+.model-row[aria-selected="true"]{background:var(--active)}
+.model-row-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-0)}
+.model-row-top{display:flex;align-items:center;gap:var(--space-2);min-width:0}
+.model-row-name{min-width:0;font-size:var(--fs-lg);line-height:18px;font-weight:500;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.model-row-badge{
+ flex:none;padding:0 var(--space-1);border-radius:var(--r-2xs);background:var(--tint);color:var(--accent-text);
+ font-size:var(--fs-2xs);font-weight:600;line-height:16px;letter-spacing:.02em;text-transform:uppercase;
+}
+.model-row-meta{display:flex;align-items:center;gap:5px;min-width:0;font-size:var(--fs-sm);line-height:16px;color:var(--muted)}
+.model-row-logo,.model-section-logo{display:inline-flex;flex:none;color:var(--faint)}
+.model-row-logo .icon,.model-section-logo .icon{width:12px;height:12px}
+.model-row-provider{flex:none;white-space:nowrap}
+.model-row-note{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.model-row-provider+.model-row-note::before{content:"·";margin-right:5px}
+.model-row-check{display:inline-flex;flex:none;width:14px;color:var(--fg-strong);opacity:0}
+.model-row-check .icon{width:14px;height:14px}
+.model-row[aria-selected="true"] .model-row-check{opacity:1}
+/* A estrela aparece na linha sob o ponteiro (ou ativa) e fica acesa no favorito. */
+.model-row-star{
+ display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;
+ border-radius:var(--r-sm);color:var(--faint);opacity:0;transition:opacity var(--t-fast) var(--ease-out),color var(--t-fast) var(--ease-out);
+}
+.model-row-star .icon{width:14px;height:14px}
+.model-row:is(:hover,.active) .model-row-star{opacity:1}
+.model-row-star:hover{color:var(--fg-strong);background:var(--active)}
+.model-row-star[data-favorite="1"]{opacity:1;color:var(--warn-text)}
+.model-row-star[data-favorite="1"] .icon{fill:currentColor}
+/* Anúncio da estrela pelo teclado (#58): só para o leitor de tela. */
+.model-picker-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.model-row[aria-disabled="true"]{cursor:default;color:var(--muted)}
+.model-row[aria-disabled="true"] .model-row-name{color:var(--muted);font-weight:400}
+.model-list[aria-disabled="true"] .model-row{cursor:default}
+.model-list[aria-disabled="true"] .model-row-name{color:var(--muted)}
+
+/* ---------- faixa de esforço (rodapé) ---------- */
+.effort-field{
+ display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;padding:var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+ background:var(--side);font-size:var(--fs-xs);color:var(--muted);
+}
+.effort-field[hidden]{display:none}
+#effort-label{flex:none}
+.effort-strip{display:flex;flex:1;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-0);min-width:0}
+.chat-pop .effort-strip .effort-option{
+ width:auto;height:24px;padding:0 var(--space-3);justify-content:center;border:0;border-radius:var(--r-sm);
+ background:transparent;color:var(--muted);font-size:var(--fs-xs);font-weight:500;white-space:nowrap;
+}
+.chat-pop .effort-strip .effort-option:hover{background:var(--hover);color:var(--fg)}
+.chat-pop .effort-strip .effort-option[aria-checked="true"]{background:var(--surface);color:var(--fg-strong);box-shadow:0 0 0 1px var(--border)}
+.chat-pop .effort-strip .effort-option:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.chat-pop .effort-strip[aria-disabled="true"] .effort-option{cursor:default;color:var(--faint)}
+.chat-pop .effort-strip[aria-disabled="true"] .effort-option:hover{background:transparent}
+.chat-pop .effort-strip[aria-disabled="true"] .effort-option[aria-checked="true"]{background:var(--surface);color:var(--muted)}
+/* Sem seletor (tutor desligado, motor fixo), o aviso do núcleo ocupa a superfície. */
+.chat-pop.model-pop .model-pop-note{padding:var(--space-5)}

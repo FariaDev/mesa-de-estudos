@@ -1,4 +1,6 @@
 Mesa de Estudos.app/
+# Conversa aposentada na #50: instalações antigas ainda têm esses restos no disco,
+# e eles continuam ignorados para não aparecerem como arquivo novo no git.
 Conversa.app/
 desk/node_modules/
 desk/.runtime/

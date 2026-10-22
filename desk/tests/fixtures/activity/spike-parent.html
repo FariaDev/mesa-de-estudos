@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>spike parent</title>
+<style>
+  body { font: 14px system-ui; margin: 0; padding: 12px; }
+  #host { width: 460px; height: 320px; border: 1px solid #777; overflow: hidden; }
+  iframe { width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<div id="host"></div>
+<script>
+  window.__beat = 0;
+  window.__messages = [];
+  setInterval(() => { window.__beat += 1; }, 4);
+  window.mount = function (url) {
+    const old = document.getElementById('art');
+    if (old) old.remove();
+    const frame = document.createElement('iframe');
+    frame.id = 'art';
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.src = url;
+    document.getElementById('host').appendChild(frame);
+    return true;
+  };
+  window.unmount = function () {
+    const frame = document.getElementById('art');
+    if (frame) frame.remove();
+    return !document.getElementById('art');
+  };
+  window.addEventListener('message', (event) => {
+    if (window.__messages.length < 4000) {
+      window.__messages.push({origin: event.origin, data: event.data});
+    }
+  });
+</script>
+</body>
+</html>

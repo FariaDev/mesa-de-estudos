@@ -10,12 +10,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf} from './helpers.mjs';
+import {artifactDir,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,fillStudyTitle} from './helpers.mjs';
+import {pollUntil} from './waits.mjs';
 
-const DESK=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const STAMP=new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'');
-const ART=path.join(DESK,'tests','artifacts',`hunt-review-${STAMP}`);
+const ART=artifactDir(`hunt-review-${STAMP}`);
 fs.mkdirSync(ART,{recursive:true});
 const slice=(s,n=60)=>String(s??'').replace(/\s+/g,' ').trim().slice(0,n);
 const slug=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,50);
@@ -108,19 +107,17 @@ if(only('caderno')){
    try{return (JSON.parse(fs.readFileSync(fileOf(),'utf8')).A)||[];}catch{return [];}
   };
   const openCaderno=async()=>{
-   const isOpen=await page.evaluate(()=>document.querySelector('#study-menu')?.classList.contains('open')===true);
-   if(!isOpen)await page.locator('#study-menu .nav-trigger').click();
-   await page.locator('#study-pop #review-open').click();
+   await page.locator('#review-tab').click();
   };
 
-  /* O `#connect` da boas-vindas é re-renderizado enquanto o app sobe: o clique
+  /* O `#connect` do estado do tutor é re-renderizado enquanto o app sobe: o clique
      do Playwright morre em "detached". Clica pelo DOM e tenta de novo até o
      histórico estar pintado. */
   const connectIfNeeded=async()=>{
    for(let i=0;i<12;i++){
     if(await page.locator('.message').count())return;
     await page.evaluate(()=>document.querySelector('#connect')?.click());
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(500); // espera fixa: intervalo entre tentativas de conectar (o #connect é re-renderizado enquanto o app sobe)
    }
   };
 
@@ -131,7 +128,7 @@ if(only('caderno')){
    const button=page.locator('.message.assistant button.msg-review').first();
    assert.equal((await button.textContent()).trim(),'Guardar para revisar');
    assert.equal(await page.locator('.message.user button.msg-review').count(),0,'o usuário não guarda a própria fala');
-   await page.fill('#exercise-title','Lista 3 — Limites');
+   await fillStudyTitle(page,'Lista 3 — Limites');
   });
 
   await s.step('Guardar abre o diálogo pré-preenchido (questão, tentativa, trecho e referência)',async()=>{
@@ -162,7 +159,7 @@ if(only('caderno')){
    await page.locator('#review-save').click();
    await page.waitForFunction(()=>!document.querySelector('#review-dialog').open);
    // O arquivo é escrito pelo IPC depois do fechamento do diálogo: espera.
-   for(let i=0;i<20&&itemsOf().length!==1;i++)await page.waitForTimeout(250);
+   await pollUntil(itemsOf,items=>items.length===1,{timeout:5000,interval:250,what:'o item salvo no arquivo da matéria',onTimeout:'return'});
    const saved=itemsOf();
    assert.equal(saved.length,1);
    assert.deepEqual(saved[0],{
@@ -178,8 +175,9 @@ if(only('caderno')){
    await page.waitForSelector('#references.review');
    assert.equal(await page.locator('#review-view').isVisible(),true);
    assert.equal(await page.locator('.review-item').count(),1);
-   assert.equal((await page.locator('.review-count').textContent()).trim(),'1 item');
-   assert.equal((await page.locator('.review-open').textContent()).trim(),'Lista 3 — Limites');
+   await page.waitForFunction(()=>document.querySelector('.review-count')?.textContent.trim()==='1 para hoje · 1 no caderno');
+   assert.equal((await page.locator('.review-question').textContent()).trim(),'Lista 3 — Limites');
+   assert.equal((await page.locator('.review-position').textContent()).trim(),'1 de 1');
    assert.equal((await page.locator('.review-trouble').textContent()).trim(),'pela direita');
    assert.equal((await page.locator('.review-attempt').textContent()).trim(),'tentei dividir por x²');
    assert.equal((await page.locator('.review-ref').textContent()).trim(),'Limites, p. 1');
@@ -204,14 +202,14 @@ if(only('caderno')){
   });
 
   await s.step('clicar no item abre a edição e salvar atualiza a linha',async()=>{
-   await page.locator('.review-open').click();
+   await page.locator('.review-edit').click();
    await page.waitForSelector('#review-dialog[open]');
    assert.equal(await page.locator('#review-question').inputValue(),'Lista 3 — Limites');
    await page.fill('#review-difficulty','fatoração');
    await page.locator('#review-save').click();
    await page.waitForFunction(()=>!document.querySelector('#review-dialog').open);
    await page.waitForFunction(()=>document.querySelector('.review-trouble')?.textContent.trim()==='fatoração');
-   assert.equal((await page.locator('.review-count').textContent()).trim(),'1 item','editar não duplica');
+   assert.equal(await page.locator('.review-row').count(),1,'editar não duplica');
    assert.equal(itemsOf()[0].difficulty,'fatoração');
   });
 
@@ -220,6 +218,7 @@ if(only('caderno')){
    await page.locator('.review-remove').click();
    await page.waitForSelector('.review-empty');
    assert.equal(await page.locator('.review-item').count(),0);
+   assert.equal((await page.locator('.review-empty-title').textContent()).trim(),'Nada guardado ainda');
    assert.equal((await page.locator('.review-count').textContent()).trim(),'0 itens');
    assert.deepEqual(itemsOf(),[]);
   });
@@ -231,7 +230,7 @@ if(only('caderno')){
    await openCaderno();
    await page.waitForSelector('#references.review');
    assert.equal(await page.evaluate(()=>document.querySelector('#references').classList.contains('ggb')),false);
-   assert.equal(await page.locator('#ggb-bar').isVisible(),false);
+   await page.locator('#ggb-bar').waitFor({state:'hidden',timeout:2000}); // sai com fade (#63)
   });
 
   await s.step('sem erros de página',async()=>{

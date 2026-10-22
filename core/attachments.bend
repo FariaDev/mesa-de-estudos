@@ -1,7 +1,7 @@
 import Base
 
 # ---------------------------------------------------------------------------
-# Núcleo da política de anexos (Mesa + Conversa) e do conteúdo de mensagem.
+# Núcleo da política de anexos (Mesa; a Conversa também o usava até a #50) e do conteúdo de mensagem.
 #
 # O host faz o mundo: lê bytes (FileReader/fs), decodifica base64, mede
 # tamanhos, comprime/redimensiona e persiste. O núcleo decide o que entra e
@@ -33,15 +33,15 @@ import Base
 #   - SendIn.overSend: os bytes depois da redução passaram de 8 MiB.
 #   - SendIn.overTotal: a soma dos bytes das imagens que passaram nos critérios
 #     anteriores, incluindo esta, passou de 28 MiB.
-#   - os números são a fonte única dos hosts: main e renderer leem daqui (só o
-#     preload, em sandbox, repete o literal — pinado por
-#     `chat/tests/limits-parity.test.mjs`).
+#   - os números são a fonte única dos hosts: main e renderer leem daqui (o
+#     preload da Conversa, em sandbox, repetia o literal e tinha um teste de
+#     paridade; os dois saíram com ela na #50).
 #
 # Medidas diferentes, tetos iguais: o rascunho mede o data URL em chars e o
 # envio mede bytes decodificados — base64 infla 4/3, então 16 MiB de chars
 # valem ~12 MiB de arquivo. A Mesa recusa já ao anexar com o teto do envio
 # (`maxRawBytes`, em bytes): a mesma recusa que o main faria depois, um passo
-# antes. A Conversa mede o rascunho em chars (`maxDraftChars`) e o envio em
+# antes. A Conversa (aposentada na #50) media o rascunho em chars (`maxDraftChars`) e o envio em
 # bytes, como o contrato acima descreve.
 #
 # Sem dedupe: nenhum dos apps deduplica anexos hoje.
@@ -550,10 +550,3 @@ def sentMimes(r: SendResult) -> List<&2, String>:
       mimes
     case SendResult.Bad{reason}:
       Nil{}
-
-def sentReason(r: SendResult) -> Maybe<&2, AttachError>:
-  match r:
-    case SendResult.Ok{mimes}:
-      None{}
-    case SendResult.Bad{reason}:
-      Some{reason}

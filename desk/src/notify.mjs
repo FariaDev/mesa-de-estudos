@@ -1,9 +1,10 @@
 import {build,preserveFocus,renderChildren} from './view-host.mjs';
 import aux from './generated/auxview.core.js';
+import {LANGUAGE_EVENT,t} from './ui-text.mjs';
 
 // Avisos quando o turno do Pi termina na Mesa: som (WebAudio, sem assets), notificação nativa e selo no Dock.
 // Som e notificação são independentes; "Avisar mesmo com a janela em foco" derruba o silêncio de quem está olhando.
-// Portado de chat/src/features/notify.mjs. Sem import de state.mjs: os controles são achados por id.
+// Portado da Conversa (chat/src/features/notify.mjs, aposentada na #50). Sem import de state.mjs: os controles são achados por id.
 //
 // A seção "Avisos de conclusão" (#notify-mode) é a árvore do `core/auxview.bend`
 // (`notifyRows`/`notifyGroup`): o núcleo decide as linhas, os rótulos e o
@@ -14,8 +15,6 @@ const TITLE='Mesa de Estudos';
 const DEFAULTS={sound:true,notify:true,focused:false};
 // Modos antigos (um select com 4 opções) migrados sem perder a escolha.
 const LEGACY={off:{sound:false,notify:false},notify:{sound:false,notify:true},sound:{sound:true,notify:false},both:{sound:true,notify:true}};
-const FALLBACK='Resposta pronta.';
-const ERROR_FALLBACK='Erro do Pi.';
 
 // Bipe: pico ~0.12, attack ~10 ms, release ~200 ms; duas notas curtas (~90 ms), a 2ª ~110 ms depois.
 const PEAK=0.12,ATTACK=0.01,RELEASE=0.2,NOTE=0.09,DELAY=0.11;
@@ -137,7 +136,7 @@ function assistantPreview(){
  const bodies=document.querySelectorAll('.message.assistant .body');
  const node=bodies.length?bodies[bodies.length-1]:null;
  const text=node?(node.innerText||node.textContent||''):'';
- return normalize(text)||FALLBACK;
+ return normalize(text)||t('notify.replyReady');
 }
 
 function focused(){
@@ -184,7 +183,7 @@ function onEvent(e){
  }
  if(e.type==='desk_error'){
   errored=true;
-  announce(normalize(e.message)||ERROR_FALLBACK);
+  announce(normalize(e.message)||t('notify.tutorError'));
  }
 }
 
@@ -218,6 +217,7 @@ function buildSettings(){
 }
 
 export async function init(){
+ window.addEventListener(LANGUAGE_EVENT,syncControls);
  buildSettings(); // controles sincronizam mesmo em modo de teste (o diálogo abre normalmente)
  // Sem a API de teste, assume modo de teste (não registra listeners nem toca som).
  const test=typeof window.desk.testMode==='function'?await window.desk.testMode().catch(()=>true):true;

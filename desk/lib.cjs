@@ -1,9 +1,10 @@
 const path=require('node:path');
 const core=require('./src/generated/sessions.core.js').default;
+const {toNat}=require('./src/bend-nat.mjs');
 
 /* Rótulos/preview de sessão: o núcleo Bend (core/sessions.bend) decide; o host
    faz o split/JSON.parse, o filtro por arquivo e a data local (componentes).
-   Mesmo núcleo do chat/lib.cjs — a lógica não é mais duplicada.
+   Núcleo `sessions` (antes dividido com o chat/lib.cjs da Conversa, aposentada na #50).
    Degradação defensiva (issue bendlang/bend#798): se o núcleo falhar, o
    preview e o rótulo caem em extratores locais em vez de derrubar a lista de
    sessões ou engolir para vazio. */
@@ -57,21 +58,6 @@ function placeWindow(displays,primaryId,savedBounds){
  };
 }
 
-function xournalCandidates(windows){
- return (windows||[]).filter(w=>{
-  const b=w.bounds||{};
-  const width=b.Width??b.width??0;
-  const height=b.Height??b.height??0;
-  return /^xournal(?:\+\+|pp)?$/i.test(w.app||'')&&width>100&&height>100;
- });
-}
-
-function chooseXournal(windows){
- const selected=xournalCandidates(windows);
- if(selected.length!==1)throw Error(selected.length?'Há várias janelas do Xournal++. Deixe só a resolução visível.':'Abra a resolução no Xournal++ e mantenha a janela não minimizada no desktop atual.');
- return selected[0];
-}
-
 function sessionStartedFromPath(file){
  return Number(core.sessionStartedFromPath(String(file||'')));
 }
@@ -101,7 +87,7 @@ function degradedPreview(raw){
 /* Rótulo local (só quando o núcleo falha): mesma forma do núcleo — data
    `dd/mm, hh:mm` (ou "Conversa") + separador + nota em 40. */
 function labelFallback(preview,valid,d){
- const when=valid?`${pad2(d.getDate())}/${pad2(d.getMonth()+1)}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}`:'Conversa';
+ const when=valid?`${pad2(d.getDate())}/${pad2(d.getMonth()+1)}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}`:'Sessão';
  const note=String(preview||'').replace(/\s+/g,' ').trim().slice(0,40);
  return note?`${when} · ${note}`:when;
 }
@@ -131,8 +117,11 @@ function formatSessionLabel({started,preview,path}){
  const d=t?new Date(t):null;
  const valid=!!(d&&!Number.isNaN(d.getTime()));
  try{
-  return core.formatSessionLabel('',String(preview||''),false,valid,
-   valid?BigInt(d.getDate()):0n,valid?BigInt(d.getMonth()+1):0n,valid?BigInt(d.getHours()):0n,valid?BigInt(d.getMinutes()):0n);
+  /* O núcleo `sessions` nasceu compartilhado com a Conversa e diz "Conversa" sem data;
+     na Mesa a palavra é Sessão. */
+  const label=core.formatSessionLabel('',String(preview||''),false,valid,
+   valid?toNat(d.getDate()):0,valid?toNat(d.getMonth()+1):0,valid?toNat(d.getHours()):0,valid?toNat(d.getMinutes()):0);
+  return label.startsWith('Conversa')?'Sessão'+label.slice('Conversa'.length):label;
  }catch{
   /* O núcleo não deve falhar com o preview tail-safe; se algo inesperado
      acontecer, o rótulo degrada em vez de derrubar a lista de sessões (#798). */
@@ -150,4 +139,13 @@ function sessionPreviewFromJsonl(raw){
  }
 }
 
-module.exports={placeWindow,chooseXournal,xournalCandidates,sessionStartedFromPath,formatSessionLabel,sessionPreviewFromJsonl,imageCandidates};
+/* Prefixo do motor nativo no rótulo da sessão; o Pi não tem prefixo (#57). */
+const ENGINE_LABEL_PREFIX=Object.freeze({claude:'Claude Code · ',opencode:'OpenCode · '});
+/**
+ * @param {unknown} engine
+ * @returns {string}
+ * @example engineLabelPrefix('opencode') // 'OpenCode · '
+ */
+function engineLabelPrefix(engine){return typeof engine==='string'&&Object.hasOwn(ENGINE_LABEL_PREFIX,engine)?ENGINE_LABEL_PREFIX[engine]:'';}
+
+module.exports={placeWindow,sessionStartedFromPath,formatSessionLabel,engineLabelPrefix,sessionPreviewFromJsonl,imageCandidates};
