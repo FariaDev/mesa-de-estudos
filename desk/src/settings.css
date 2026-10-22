@@ -1,0 +1,112 @@
+/* Configurações com seções na lateral (ticket #20).
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Configurações com seções na lateral (ticket #20) ----------
+   Uma coluna de navegação (`--side`), o corpo da seção que rola e um rodapé
+   fixo com Cancelar/Salvar. Recuo interno de 16px nas três partes; o item da
+   seção corrente usa o papel de seleção (`--selected`, cinza neutro), nunca o
+   acento. O diálogo cabe em 900×650: só o corpo rola. */
+#settings-dialog{width:min(780px,94vw);max-width:none;height:min(540px,90vh);max-height:90vh;padding:0;overflow:hidden;border-radius:var(--r-3xl)}
+#settings-dialog[open]{display:flex;flex-direction:column}
+#settings-dialog form{display:grid;grid-template-columns:164px minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;flex:1;min-height:0;max-height:none;padding:0}
+.settings-nav{grid-column:1;grid-row:1;display:flex;flex-direction:column;gap:var(--space-4);min-height:0;overflow:auto;padding:var(--space-6);background:var(--side);border-right:1px solid var(--border)}
+.settings-nav h2{margin:0;font-size:var(--fs-xl);font-weight:600;color:var(--fg-strong)}
+.settings-tabs{display:flex;flex-direction:column;gap:var(--space-0)}
+.settings-tab{display:flex;align-items:center;justify-content:flex-start;width:100%;height:auto;min-height:30px;padding:6px var(--space-4);border:0;border-radius:var(--r-md);background:transparent;box-shadow:none;color:var(--muted);font-size:var(--fs-md);line-height:1.3;text-align:left;cursor:pointer}
+.settings-tab:hover{background:var(--hover);color:var(--fg)}
+/* Peso 500 no item marcado: com 600 "Recursos da mesa" passava a quebrar em
+   duas linhas só ao ser escolhido, e a lista pulava. */
+.settings-tab[aria-current="page"]{background:var(--selected);color:var(--fg-strong);font-weight:500}
+#settings-dialog .settings-body{grid-column:2;grid-row:1;display:block;min-height:0;max-height:none;overflow:auto;padding:var(--space-6);border-top:0;background:var(--surface)}
+#settings-dialog .settings-body .help-lead{margin:0 0 var(--space-6)}
+#settings-dialog .settings-actions{grid-column:1/-1;grid-row:2;display:flex;align-items:center;gap:var(--space-3);margin:0;padding:0 var(--space-6);min-height:52px;border-top:1px solid var(--border);background:var(--surface)}
+#settings-dialog .settings-actions button{height:30px;padding:0 var(--space-5);border-radius:var(--r-md);font-weight:600}
+.settings-hint{margin-right:auto;font-size:var(--fs-sm);color:var(--faint)}
+/* Respondendo com mudança pendente (#42): a frase do rodapé é o motivo do
+   Salvar desligado, então sobe para --muted. O erro de salvar ocupa o lugar
+   dela, ao lado do Salvar, em cor de perigo. */
+.settings-hint.waiting{color:var(--muted)}
+.settings-hint[hidden]{display:none}
+.settings-error{margin-right:auto;min-width:0;font-size:var(--fs-sm);line-height:1.4;color:var(--danger-text)}
+.settings-error[hidden]{display:none}
+#settings-form .set-sec{display:flex;flex-direction:column;margin:0;padding:0;border:0}
+.set-head{margin:0 0 var(--space-6)}
+.set-head h3{margin:0;font-size:var(--fs-xl);font-weight:600;letter-spacing:0;text-transform:none;color:var(--fg-strong)}
+.set-head p{margin:var(--space-1) 0 0;font-size:var(--fs-md);line-height:1.5;color:var(--muted)}
+.set-link{align-self:flex-start;height:auto;padding:0;border:0;background:transparent;box-shadow:none;color:var(--accent-text);font-size:var(--fs-sm);cursor:pointer}
+.set-link:hover{text-decoration:underline}
+.cfg-course.has-error{margin-bottom:var(--space-1)}
+#settings-dialog [aria-invalid="true"]{border-color:var(--danger)}
+.cfg-error{margin:0 0 var(--space-3);font-size:var(--fs-sm);line-height:1.4;color:var(--danger-text)}
+#settings-form .set-sec label{margin-bottom:var(--space-4)}
+#settings-form .set-sec label:last-child{margin-bottom:0}
+#settings-form .set-sec .fine{margin:0 0 var(--space-3)}
+#settings-form .set-sec>label:not(.set-check){display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2)}
+#settings-form .set-sec>label:not(.set-check) input[type="text"]{align-self:stretch}
+#settings-form .set-sec>label:not(.set-check) .path-row{align-self:stretch}
+/* Leitores no ritmo de Matérias (ticket #23): "Layouts pessoais…" é link de
+   ação como "Adicionar matéria"; os blocos se separam pelo mesmo espaço que o
+   título tem do conteúdo (--space-6), sem filete nem recuo da legenda; legenda →
+   primeiro campo = espaço entre linhas de matéria (--space-3). */
+#settings-dialog #cfg-layout .layout-presets-open{
+ display:block;height:auto;margin:0 0 var(--space-6);padding:0;border:0;background:transparent;box-shadow:none;
+ color:var(--accent-text);font-size:var(--fs-sm);font-weight:400;cursor:pointer;text-align:left;
+}
+#settings-dialog #cfg-layout .layout-presets-open:hover{text-decoration:underline}
+#cfg-layout .set-sec{margin:0 0 var(--space-6);padding:0;border:0}
+#cfg-layout .set-sec>legend{display:block;margin:0 0 var(--space-3)!important;padding:0!important;font-size:var(--fs-sm-half)!important;color:var(--muted)}
+#cfg-layout .set-sec>.fine,#cfg-layout .set-sec>.cfg-layout-prefer>.fine{margin:var(--space-1) 0 var(--space-3)}
+#cfg-layout .cfg-layout-preview{margin:0!important}
+.set-group{display:flex;flex-direction:column;gap:var(--space-1);margin:0 0 var(--space-2)}
+.set-group-label{font-size:var(--fs-sm-half);color:var(--muted)}
+/* Cor de acento (ticket #9): seis opções em linha que quebra; a marcada leva o
+   cinza de seleção, nunca o próprio acento (o acento é do que age). */
+.accent-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-1)}
+.accent-option{height:var(--ctl);padding:0 var(--space-3) 0 var(--space-2);gap:var(--space-2);justify-content:flex-start;font-size:var(--fs-sm);color:var(--fg)}
+.accent-option[aria-checked="true"]{background:var(--selected);border-color:var(--border-strong);color:var(--fg-strong);font-weight:600}
+.accent-dot{width:12px;height:12px;flex:none;border-radius:var(--r-round);background:var(--acc-blue)}
+.accent-option[data-accent="violet"] .accent-dot{background:var(--acc-violet)}
+.accent-option[data-accent="green"] .accent-dot{background:var(--acc-green)}
+.accent-option[data-accent="orange"] .accent-dot{background:var(--acc-orange)}
+.accent-option[data-accent="pink"] .accent-dot{background:var(--acc-pink)}
+.accent-option[data-accent="graphite"] .accent-dot{background:var(--acc-graphite);box-shadow:inset 0 0 0 1px var(--border-strong)}
+.set-check{display:flex;flex-direction:row;align-items:center;gap:var(--space-3);margin:0;font-size:var(--fs-sm-half);color:var(--muted);cursor:pointer}
+.settings-body .set-check{display:flex;flex-direction:row;align-items:center}
+.set-check input[type=checkbox]{width:15px;height:15px;flex:none;margin:0;padding:0;border:0;border-radius:var(--r-2xs);background:none;accent-color:var(--primary);cursor:pointer}
+.set-check:hover{color:var(--fg)}
+.fine{font-size:var(--fs-sm);color:var(--faint);margin:0 0 var(--space-4)}
+/* Ritmo das seções (teste à mão): o rótulo cola no próprio controle (6px) e os
+   grupos se separam pelo mesmo espaço dos blocos de Matérias e Leitores (16px);
+   a explicação de uma caixa fica junto dela (4px). Controles com 30px, como os
+   campos de matéria. */
+#settings-form .set-sec>label:not(.set-check){gap:var(--space-2);margin-bottom:var(--space-6)}
+#settings-form .set-sec>label:not(.set-check):last-child{margin-bottom:0}
+#settings-form .set-sec>label:not(.set-check) .path-row{margin-top:0}
+#settings-form .set-sec>.set-group{gap:var(--space-2);margin:0 0 var(--space-6)}
+#settings-form .set-sec>.set-group:last-child{margin-bottom:0}
+#settings-form .set-sec>.set-group>.set-check{margin:0 0 var(--space-0)}
+#settings-form .set-sec>.set-check+.fine{margin:calc(-1*var(--space-2)) 0 var(--space-5) 23px}
+#settings-dialog .settings-body select,#settings-dialog .settings-body input[type="text"]{height:30px;padding-block:0}
+/* Leitor 1/2 no mesmo ritmo: rótulo a 6px do campo, explicação a 4px, próximo
+   rótulo a 16px. Os termos empilham a 6px; "Adicionar termo" é a ação fantasma
+   com + de "Adicionar matéria" e o × de remover não tem borda, como o da matéria. */
+#settings-form #cfg-layout .cfg-layout-panel>label,#settings-form #cfg-layout .cfg-layout-prefer-title{display:block;margin:0 0 var(--space-2);font-size:var(--fs-sm-half);color:var(--muted)}
+#settings-form #cfg-layout .cfg-layout-panel>.fine,#settings-form #cfg-layout .cfg-layout-prefer>.fine{margin:var(--space-1) 0 var(--space-6)}
+#settings-form #cfg-layout .cfg-layout-panel>.fine:last-child{margin-bottom:0}
+#cfg-layout .cfg-layout-prefer{display:flex;flex-direction:column}
+#cfg-layout .cfg-layout-prefer-list{display:flex;flex-direction:column;gap:var(--space-2)}
+#cfg-layout .cfg-layout-prefer-row{margin:0;align-items:center}
+#cfg-layout .cfg-layout-prefer-remove{width:var(--ctl);height:var(--ctl);flex:none;padding:0;border:0;background:transparent;box-shadow:none;font-size:18px;font-weight:400;line-height:1;color:var(--muted)}
+#cfg-layout .cfg-layout-prefer-remove:hover{background:var(--hover);color:var(--danger-text)}
+#settings-dialog #cfg-layout .cfg-layout-prefer-add{
+ display:inline-flex;align-items:center;align-self:flex-start;gap:var(--space-3);height:30px;margin:var(--space-2) 0 0 calc(-1 * var(--space-4));padding:0 var(--space-4);
+ border:0;border-radius:var(--r-md);background:transparent;box-shadow:none;color:var(--accent-text);font-size:var(--fs-md);font-weight:500;
+}
+#settings-dialog #cfg-layout .cfg-layout-prefer-add::before{content:"+" / "";font-size:var(--fs-xl);font-weight:400;line-height:1}
+#settings-dialog #cfg-layout .cfg-layout-prefer-add:hover{background:var(--hover)}
+
+[hidden]{display:none!important}
+@media(max-width:1150px){
+ .header-actions{gap:var(--space-0)}
+ .header-actions > #palette-field{width:150px}
+}

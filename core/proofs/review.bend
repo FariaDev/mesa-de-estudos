@@ -6,7 +6,6 @@ import Base
 import ../laws/review.bend as Laws
 import ../review.bend as N
 
-
 def Laws.review_max_question():
   {==}
 
@@ -109,46 +108,163 @@ def Laws.review_ref_hint_line():
 def Laws.review_ref_hint_none():
   {==}
 
-def Laws.review_row_kids():
+def Laws.review_count_line_due():
   {==}
 
-def Laws.review_row_kids_thin():
+def Laws.review_count_line_none_due():
   {==}
 
-def Laws.review_row_first_id():
+def Laws.review_count_line_empty():
   {==}
 
-def Laws.review_row_open_handler():
+def Laws.review_count_line_unknown():
   {==}
 
-def Laws.review_row_ref_page():
+def Laws.review_count_line_unknown_one():
   {==}
 
-def Laws.review_row_similar_handler():
+def Laws.review_progress_text():
   {==}
 
-def Laws.review_row_remove_handler():
+def Laws.review_progress_shown_after_done():
   {==}
 
-def Laws.review_trouble_empty_is_nil():
+def Laws.review_progress_total_after_done():
   {==}
 
-def Laws.review_trouble_text():
+def Laws.review_due_count():
   {==}
 
-def Laws.review_attempt_empty_is_nil():
+def Laws.review_later_count():
   {==}
 
-def Laws.review_bar_kids():
+def Laws.review_position_second():
+  {==}
+
+def Laws.review_position_absent():
+  {==}
+
+def Laws.review_current_chosen():
+  {==}
+
+def Laws.review_current_chosen_later():
+  {==}
+
+def Laws.review_current_vanished_goes_first_due():
+  {==}
+
+def Laws.review_current_nothing_due_first():
+  {==}
+
+def Laws.review_current_empty():
+  {==}
+
+def Laws.review_grade_errei_tomorrow():
+  {==}
+
+def Laws.review_grade_first_facil():
+  {==}
+
+def Laws.review_grade_bom_grows():
+  {==}
+
+def Laws.review_grade_facil_grows():
+  {==}
+
+def Laws.review_grade_dificil_grows():
+  {==}
+
+def Laws.review_grades_row_buttons():
+  {==}
+
+def Laws.review_grade_button_result():
+  {==}
+
+def Laws.review_grade_button_id():
+  {==}
+
+def Laws.review_board_empty_one_block():
+  {==}
+
+def Laws.review_board_empty_class():
+  {==}
+
+def Laws.review_board_two_columns():
+  {==}
+
+def Laws.review_board_main_id():
+  {==}
+
+def Laws.review_board_aside_id():
+  {==}
+
+def Laws.review_main_with_grades():
+  {==}
+
+def Laws.review_main_without_grades():
+  {==}
+
+def Laws.review_card_id():
+  {==}
+
+def Laws.review_card_question():
+  {==}
+
+def Laws.review_card_parts_full():
+  {==}
+
+def Laws.review_card_parts_thin():
+  {==}
+
+def Laws.review_card_parts_warn():
+  {==}
+
+def Laws.review_card_ref_disabled_on_warn():
+  {==}
+
+def Laws.review_card_ref_page():
+  {==}
+
+def Laws.review_card_ref_text():
+  {==}
+
+def Laws.review_aside_count():
+  {==}
+
+def Laws.review_aside_groups():
+  {==}
+
+def Laws.review_aside_one_group():
+  {==}
+
+def Laws.review_aside_group_title():
+  {==}
+
+def Laws.review_aside_current_marked():
+  {==}
+
+def Laws.review_aside_other_not_marked():
+  {==}
+
+def Laws.review_bar_kids_course():
+  {==}
+
+def Laws.review_bar_kids_bare():
   {==}
 
 def Laws.review_bar_title():
+  {==}
+
+def Laws.review_bar_course():
   {==}
 
 def Laws.review_bar_count():
   {==}
 
 def Laws.review_bar_close_handler():
+  {==}
+
+def Laws.review_bar_close_label():
   {==}
 
 def Laws.review_dialog_kids():
@@ -161,18 +277,6 @@ def Laws.review_dialog_save_id():
   {==}
 
 def Laws.review_dialog_ref_hint():
-  {==}
-
-def Laws.review_similar_prompt():
-  {==}
-
-def Laws.review_similar_prompt_no_trouble():
-  {==}
-
-def Laws.review_redo_prompt():
-  {==}
-
-def Laws.review_ref_suffix_empty():
   {==}
 
 def Laws.review_save_action_label():
@@ -188,4 +292,10 @@ def Laws.review_draft_stale():
   {==}
 
 def Laws.review_draft_edited():
+  {==}
+
+def Laws.review_empty_title():
+  {==}
+
+def Laws.review_empty_lead():
   {==}

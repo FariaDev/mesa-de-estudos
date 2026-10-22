@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
@@ -85,72 +86,72 @@ def bookmarkLabel(name: String) -> String:
   name
 
 def bookmarkTitle(name: String, page: Nat) -> String:
-  "Abrir " ++ name ++ " na " ++ pageLabel(page)
+  M.msg2("pdf.ref.title", "name", name, "page", Nat.show(page))
 
 def bookmarkAria(name: String, page: Nat) -> String:
-  "Abrir o favorito " ++ name ++ ", " ++ pageLabel(page)
+  M.msg2("pdf.nav.bookmarkAria", "name", name, "page", Nat.show(page))
 
 def removeLabel() -> String:
-  "Remover"
+  M.msg("common.remove")
 
 def removeTitle(name: String) -> String:
-  "Remover o favorito " ++ name
+  M.msg1("pdf.nav.removeTitle", "name", name)
 
 def removeAria(name: String) -> String:
-  "Remover o favorito " ++ name
+  M.msg1("pdf.nav.removeTitle", "name", name)
 
 def saveLabel() -> String:
-  "Guardar esta página…"
+  M.msg("pdf.nav.save")
 
 def saveTitle() -> String:
-  "Guardar a página aberta como favorito"
+  M.msg("pdf.nav.saveTitle")
 
 def favoritesTitle() -> String:
-  "Favoritos desta matéria"
+  M.msg("pdf.nav.favorites")
 
 def favoritesEmpty() -> String:
-  "Nenhum favorito nesta matéria."
+  M.msg("pdf.nav.favoritesEmpty")
 
 def outlineTitle() -> String:
-  "Sumário deste PDF"
+  M.msg("pdf.nav.outline")
 
 def outlineEmpty() -> String:
-  "Este PDF não tem sumário."
+  M.msg("pdf.nav.outlineEmpty")
 
 def navButtonLabel() -> String:
-  "Sumário e favoritos"
+  M.msg("pdf.nav.button")
 
 def navButtonTitle() -> String:
-  "Sumário e favoritos"
+  M.msg("pdf.nav.button")
 
 def navAria(label: String) -> String:
-  "Sumário e favoritos de " ++ label
+  M.msg1("pdf.nav.ariaOf", "label", label)
 
 def navBackLabel() -> String:
-  "Voltar"
+  M.msg("pdf.nav.back")
 
 def navBackTitle() -> String:
-  "Voltar à página anterior"
+  M.msg("pdf.nav.backTitle")
 
 def navBackAria(label: String) -> String:
-  "Voltar à página anterior de " ++ label
+  M.msg1("pdf.nav.backAria", "label", label)
 
 # ---------- diálogo do favorito (o miolo; o <dialog> é do index.html) ----------
 
 def bookmarkDialogTitle() -> String:
-  "Guardar esta página"
+  M.msg("pdf.nav.dialogTitle")
 
 def bookmarkNameLabel() -> String:
-  "Nome do favorito"
+  M.msg("pdf.nav.nameLabel")
 
 def bookmarkDialogHint(name: String, page: Nat) -> String:
   name ++ ", " ++ pageLabel(page)
 
 def bookmarkSaveLabel() -> String:
-  "Salvar"
+  M.msg("common.save")
 
 def bookmarkCancelLabel() -> String:
-  "Cancelar"
+  M.msg("common.cancel")
 
 # ---------- favorito novo ----------
 
@@ -302,7 +303,7 @@ def outlineDepth(depth: Nat) -> String:
   Nat.show(clampDepth(depth))
 
 def outlineLabel(title: String, page: Nat) -> String:
-  "Ir para a p. " ++ Nat.show(page) ++ ": " ++ title
+  M.msg2("pdf.nav.goTo", "page", Nat.show(page), "title", title)
 
 def outlineRow(o: OutlineEntry) -> V.ViewNode:
   match o:

@@ -1,0 +1,63 @@
+import {reviewShot,screenshotDirectory} from './helpers.mjs';
+/* App/IPC/renderer reais, configurações em userData temporário, sem override
+   de runtime. Tutor e escolhas nativas simulados; nenhum dado pessoal. */
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+import assert from 'node:assert/strict';import {_electron as electron} from '@playwright/test';
+import {DESK,FAKE_PI,tinyPdf} from './helpers.mjs';import {testEnv} from './electron-env.mjs';
+const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-backup-e2e-')));
+const profile=path.join(root,'profile'),runtime=path.join(root,'data'),original=path.join(root,'original'),versions=path.join(root,'versions'),exportsDir=path.join(root,'exports'),imports=path.join(root,'imports');
+for(const dir of [profile,runtime,original,versions,exportsDir,imports])fs.mkdirSync(dir,{recursive:true});
+const pdf=path.join(original,'Lista.pdf'),before=tinyPdf('Exercicios de referencia');fs.writeFileSync(pdf,before);
+const session=path.join(runtime,'pi-1700000000000.jsonl');fs.writeFileSync(session,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text:'Meu estudo de teste'}]}})+'\n');
+const configFile=path.join(profile,'config.json');fs.writeFileSync(configFile,JSON.stringify({runtimePath:runtime,vaultPath:'',piPath:FAKE_PI,customField:'preservado',courses:[{id:'algebra',name:'Álgebra',path:original,extra:'metadado'}],desk:{title:'Mesa do backup',futureFlag:true,panels:[{label:'Lista',prefer:[],futurePanel:true}]}}));
+fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({courseId:'algebra',session,courseStates:{algebra:{session,sessions:[{path:session,started:1700000000000}],pdfs:[{path:pdf,page:1}],draft:'Rascunho do backup'}}}));
+const entry=path.join(profile,'entry.cjs');fs.writeFileSync(entry,`require('electron').app.setPath('userData',__dirname);require(${JSON.stringify(path.join(DESK,'main.cjs'))});`);
+const env=testEnv({LEARNING_DESK_PI:FAKE_PI});delete env.LEARNING_DESK_RUNTIME;delete env.LEARNING_VAULT;
+const out=screenshotDirectory('backup-e2e');
+let app;
+try{
+ app=await electron.launch({args:[entry],cwd:DESK,env});const page=await app.firstWindow(),errors=[];
+ page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept());
+ await page.waitForSelector('#status-dot.online',{state:'attached'});
+ const pick=async value=>{await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},value);return page.evaluate(()=>window.desk.backupPickFolder());};
+ await pick(versions);await page.evaluate(folder=>window.desk.backupConfig({destination:folder}),versions);
+ await page.evaluate(async()=>{
+  const data=await window.desk.init(),file=data.library[0].path;
+  await window.desk.reviewSave({mode:'add',item:{question:'Questão portátil',attempt:'Tentativa preservada',difficulty:'',ref:{name:'Lista.pdf',path:file,page:1}}});
+  await window.desk.studyNotesRead();await window.desk.studyNotesSave({mode:'add',item:{kind:'duvida',quote:'Referência',note:'Dúvida portátil',ref:{name:'Lista.pdf',rel:'Lista.pdf',path:file,page:1}}});
+ });
+ await page.locator('#study-menu .nav-trigger').click();await page.locator('#study-menu #study-backup-open').click();await page.waitForSelector('#mesa-backup-panel[open]');
+ await page.locator('[data-bkp-act="rodar"]').click();
+ await page.waitForFunction(()=>document.querySelector('[data-bkp-live]')?.textContent.includes('Backup concluído'),undefined,{timeout:30000});
+ const snapshot=(await page.evaluate(()=>window.desk.backupList()))[0];assert.ok(snapshot?.snapshotId);
+ await reviewShot(page,out,'01-backup.png');
+ await page.evaluate(async()=>{const current=(await window.desk.getConfig()).config;await window.desk.saveConfig({...current,desk:{...current.desk,title:'Mesa alterada'}});});
+ await page.locator('[data-bkp-nav="restaurar"]').click();await page.locator('[data-bkp-act="previa"]').first().click();
+ await page.waitForSelector('#mesa-bkp-remap');await page.locator('#mesa-bkp-remap').check();
+ await page.waitForSelector('#mesa-bkp-restore-config');await page.locator('#mesa-bkp-restore-config').check();
+ await reviewShot(page,out,'02-previa-restauracao.png');
+ await page.locator('[data-bkp-act="aplicar"]').click();
+ await page.waitForFunction(()=>document.querySelector('[data-bkp-live]')?.textContent.includes('Restaurado:'),undefined,{timeout:30000});
+ await page.waitForSelector('#status-dot.online',{state:'attached'});
+ assert.ok(await page.evaluate(async()=>{const {S}=await import('./src/state.mjs');return S.connected;}));
+ assert.match(await page.locator('#messages').innerText(),/Meu estudo de teste/);
+ const restored=await page.evaluate(()=>window.desk.init()),config=JSON.parse(fs.readFileSync(configFile,'utf8'));
+ assert.equal(config.desk.title,'Mesa do backup');assert.equal(config.runtimePath,runtime);
+ assert.equal(config.customField,'preservado');assert.equal(config.desk.futureFlag,true);assert.equal(config.desk.panels[0].futurePanel,true);assert.equal(config.courses[0].extra,'metadado');
+ assert.notEqual(config.courses[0].path,original);assert.ok(config.courses[0].path.startsWith(runtime+path.sep));
+ assert.ok(restored.library.some(item=>item.path.startsWith(config.courses[0].path+path.sep)));
+ assert.deepEqual(fs.readFileSync(pdf),before,'a restauração preserva o material original');
+ await page.locator('[data-bkp-act="fechar"]').first().click();
+ await pick(exportsDir);const exported=await page.evaluate(directory=>window.desk.shareExportCourse({directory,conversations:true}),exportsDir);
+ const packageFile=exported.file||exported.path;assert.ok(packageFile&&fs.existsSync(packageFile));
+ await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},packageFile);
+ await page.evaluate(()=>window.desk.sharePickFile());await pick(imports);
+ const imported=await page.evaluate(({file,directory})=>window.desk.shareImportCourse({file,directory}),{file:packageFile,directory:imports});
+ assert.ok(imported.courseId&&imported.courseId!=='algebra');
+ assert.equal(JSON.parse(fs.readFileSync(configFile,'utf8')).customField,'preservado');
+ const data=await page.evaluate(id=>window.desk.switchCourse(id),imported.courseId);assert.ok(data.review.some(item=>item.question==='Questão portátil'));
+ const notes=await page.evaluate(()=>window.desk.studyNotesRead());assert.equal(notes.items[0].note,'Dúvida portátil');
+ assert.ok(data.library.some(item=>item.path===notes.items[0].ref.path));assert.ok(data.sessions.length);
+ assert.deepEqual(fs.readFileSync(pdf),before);assert.deepEqual(errors,[]);
+ console.log('BACKUP E2E PASSED: userData normal, versão real, prévia, remap pela UI, configurações pessoais/extras, original preservado, exportação/importação, notas/Caderno/conversas visíveis. Dados sintéticos; tutor e diálogos nativos simulados.');
+}finally{if(app)await app.close();fs.rmSync(root,{recursive:true,force:true});}

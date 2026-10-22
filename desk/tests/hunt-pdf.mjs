@@ -2,9 +2,10 @@
 // busca contra o algoritmo do Electron antigo) + fase de app (harness do
 // ui-smoke, runtime temporário, fake Pi, PDFs gerados no runtime).
 // Roda da pasta desk: `node tests/hunt-pdf.mjs`.
-import path from 'node:path';import fs from 'node:fs';import {fileURLToPath} from 'node:url';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,writeDeskJson,writeConfigJson,statusOnline,toastWait} from './helpers.mjs';
+import path from 'node:path';import fs from 'node:fs';
+import {artifactDir,withArtifacts,launchDesk,newRuntime,seedCourse,writeDeskJson,writeConfigJson,statusOnline,toastWait,menuLocator,resizeWindow} from './helpers.mjs';
 import pdfPage from '../src/generated/pdfpageview.core.js';
+import {pdfRenderIdle} from './waits.mjs';
 
 /* ------------------------------------------------------------------ */
 /* Fase 0 — fuzz do realce (hlSegments × algoritmo antigo do pdf.mjs)  */
@@ -100,7 +101,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
  const formul=path.join(stress,'Formul.pdf');
  const extra=path.join(stress,'Extra.pdf');
  fs.writeFileSync(lista,multiPagePdf(220,(n,total)=>`Página ${n} de ${total} - integral comum`));
- fs.writeFileSync(formul,multiPagePdf(3,(n,total)=>`Fórmula ${n}: ação`));
+ fs.writeFileSync(formul,multiPagePdf(3,(n)=>`Fórmula ${n}: ação`));
  fs.writeFileSync(extra,multiPagePdf(1,()=>`Outro documento qualquer`));
  const vazia=seedCourse(runtime,'Vazia');
  writeDeskJson(runtime,{courseId:'Estresse',pdfs:[{path:lista,page:200,zoom:1.4,scrollX:0,scrollY:0,invert:false},{path:formul,minimized:true}],layoutVersion:1});
@@ -116,13 +117,26 @@ await withArtifacts('hunt-pdf',async ctx=>{
  page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text());});
  const p0=page.locator('.pdf-panel').nth(0);
  const p1=page.locator('.pdf-panel').nth(1);
- const settle=ms=>page.waitForTimeout(ms);
- const field=(idx,sel)=>page.locator('.pdf-panel').nth(idx).locator(sel);
+ const settle=()=>pdfRenderIdle(page);
+ const field=(idx,sel)=>menuLocator(page.locator('.pdf-panel').nth(idx),sel);
  const num=(idx,sel)=>page.locator('.pdf-panel').nth(idx).locator(sel).inputValue();
  /* 45s (e não 30s): a suíte roda hunts em paralelo e o doc de 220 páginas
     atrasa a pintura sob carga — o timeout curto virava falso negativo. */
  const waitNum=(idx,value)=>page.waitForFunction(([i,v])=>document.querySelectorAll('.pdf-panel')[i]?.querySelector('.page-number')?.value===String(v),[idx,value],{timeout:45000});
  const waitCanvas=(idx,n)=>page.waitForFunction(([i,p])=>{const panel=document.querySelectorAll('.pdf-panel')[i];const el=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page===String(p));return !!el&&!!el.querySelector('canvas');},[idx,n],{timeout:45000});
+ /* Página pintada NO LAYOUT DE AGORA. Quando o leitor muda de largura, o
+    `render()` solta os canvases e recria as páginas; até repintar, ou a página
+    ainda é a da largura antiga ou fica sem canvas (o "canvas nítido: null" de
+    antes). Pintada = canvas na página cuja largura é a do leitor agora
+    (largura útil da área × zoom), a mesma conta do `render()`. */
+ const waitPainted=(idx,n)=>page.waitForFunction(([i,p])=>{
+  const panel=document.querySelectorAll('.pdf-panel')[i],box=panel?.querySelector('.pdf-viewport');
+  const el=panel?.querySelector(`.pdf-page[data-page="${p}"]`);
+  if(!box||!el||!el.dataset.rendered||!el.querySelector(':scope > canvas'))return false;
+  const s=getComputedStyle(box),available=box.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight);
+  const zoom=parseInt(panel.querySelector('.zoom-label').textContent,10)/100;
+  return Math.abs(parseFloat(el.style.width)-available*zoom)<1;
+ },[idx,n],{timeout:45000});
  const waitFindText=(idx,text)=>page.waitForFunction(([i,t])=>{const panel=document.querySelectorAll('.pdf-panel')[i];const c=panel?.querySelector('.find-count');return !!c&&!c.hidden&&c.textContent.trim()===t;},[idx,text],{timeout:60000});
 
  try{
@@ -155,7 +169,9 @@ await withArtifacts('hunt-pdf',async ctx=>{
   check('restaurar o leitor minimizado mantém a página 1',(await num(1,'.page-number'))==='1');
   check('rodapé do leitor restaurado fica pronto',(await field(1,'.pdf-foot').textContent()).includes('Página 1 de 3 · rolagem contínua · Formul.pdf'),(await field(1,'.pdf-foot').textContent()).trim());
 
-  // nitidez: canvas com fator >= 2 (dpr ou 2)
+  // nitidez: canvas com fator >= 2 (dpr ou 2), medido depois de o leitor 1
+  // repintar na largura nova (restaurar o leitor 2 o estreitou)
+  await waitPainted(0,200);
   const crisp=await page.evaluate(()=>{const c=document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-page[data-page="200"] canvas');return c?{w:c.width,cw:c.clientWidth}:null;});
   check('canvas nítido: backing store >= 2x o CSS',!!crisp&&crisp.w>=crisp.cw*2-2,JSON.stringify(crisp));
 
@@ -174,13 +190,13 @@ await withArtifacts('hunt-pdf',async ctx=>{
   // scroll até a página 100 e zoom durante o scroll (assenta o layout: um
   // render em voo ignora o scroll e o `scrollY` do host ficaria velho)
   await page.evaluate(()=>{const panel=document.querySelectorAll('.pdf-panel')[0],box=panel.querySelector('.pdf-viewport'),pg=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page==='100');box.scrollTop=pg.offsetTop;box.dispatchEvent(new Event('scroll'));});
-  await page.waitForTimeout(300);
+  await pdfRenderIdle(page);
   await page.evaluate(()=>{const panel=document.querySelectorAll('.pdf-panel')[0],box=panel.querySelector('.pdf-viewport');box.dispatchEvent(new Event('scroll'));});
   await waitNum(0,100);
   const beforeZoom=await page.evaluate(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-viewport').scrollTop);
   await field(0,'.in').click();
   check('zoom: rótulo atualiza na hora',(await field(0,'.zoom-label').textContent()).trim()==='160%',(await field(0,'.zoom-label').textContent()).trim());
-  await settle(900);await waitCanvas(0,100);
+  await settle();await waitCanvas(0,100);
   check('zoom durante o scroll mantém a página atual',(await num(0,'.page-number'))==='100',(await num(0,'.page-number')));
   const zoomed=await page.evaluate(()=>{const panel=document.querySelectorAll('.pdf-panel')[0],box=panel.querySelector('.pdf-viewport'),pg=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page==='100');return {top:box.scrollTop,pgTop:pg.offsetTop,pgBottom:pg.offsetTop+pg.offsetHeight,boxBottom:box.scrollTop+box.clientHeight};});
   check('zoom durante o scroll preserva a posição',zoomed.top>=zoomed.pgTop-2&&zoomed.top<=zoomed.pgBottom&&zoomed.top>beforeZoom,JSON.stringify({antes:Math.round(beforeZoom),...Object.fromEntries(Object.entries(zoomed).map(([k,v])=>[k,Math.round(v)]))}));
@@ -188,25 +204,25 @@ await withArtifacts('hunt-pdf',async ctx=>{
   // zoom pelo wheel com ctrl
   const zoomBefore=await field(0,'.zoom-label').textContent();
   await field(0,'.pdf-viewport').evaluate(el=>el.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,ctrlKey:true,bubbles:true,cancelable:true})));
-  await settle(200);
+  await settle();
   check('ctrl+wheel aumenta o zoom',parseInt(await field(0,'.zoom-label').textContent(),10)>parseInt(zoomBefore,10),`${zoomBefore} → ${await field(0,'.zoom-label').textContent()}`);
-  await settle(900);
+  await settle();
   check('ctrl+wheel não perde a página',(await num(0,'.page-number'))==='100',(await num(0,'.page-number')));
 
   // redimensionar a janela mantém a página
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1050,760));
-  await settle(1200);
+  await resizeWindow(app,page,1050,760);
+  await settle();
   check('redimensionar a janela mantém a página atual',(await num(0,'.page-number'))==='100',(await num(0,'.page-number')));
-  await waitCanvas(0,100);
+  await waitPainted(0,100);
   check('redimensionar a janela repinta a página visível',true);
 
   // ajustar à largura volta o zoom para 100% e mantém a página
   await field(0,'.fit').click();
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.zoom-label').textContent.trim()==='100%',undefined,{timeout:5000});
-  await settle(900);
+  await settle();
   check('fit zera o zoom e mantém a página atual',(await num(0,'.page-number'))==='100',(await num(0,'.page-number')));
   await field(0,'.in').click();
-  await settle(900);
+  await settle();
 
   // colapso/expansão: ícone sobrevive ao swap e foco de teclado fica
   check('collapse: SVG antes de minimizar',(await field(0,'.collapse svg.icon').count())===1);
@@ -217,13 +233,16 @@ await withArtifacts('hunt-pdf',async ctx=>{
   await field(0,'.collapse').click();
   await page.waitForFunction(()=>!document.querySelector('.pdf-panel').classList.contains('minimized'),undefined,{timeout:5000});
   check('collapse: SVG depois de restaurar',(await field(0,'.collapse svg.icon').count())===1);
+  // teclado: Mais opções → Recolher; o foco vai para a faixa, e a faixa reabre
+  await field(0,'.more').focus();
+  await page.keyboard.press('Enter');
   await field(0,'.collapse').focus();
   await page.keyboard.press('Enter');
   await page.waitForFunction(()=>document.querySelector('.pdf-panel').classList.contains('minimized'),undefined,{timeout:5000});
-  check('collapse: foco continua no botão (teclado)',await page.evaluate(()=>document.activeElement?.classList.contains('collapse')));
+  check('collapse: foco vai para a faixa recolhida (teclado)',await page.evaluate(()=>document.activeElement?.classList.contains('pdf-restore')));
   await page.keyboard.press('Enter');
   await page.waitForFunction(()=>!document.querySelector('.pdf-panel').classList.contains('minimized'),undefined,{timeout:5000});
-  check('collapse: restaurar devolve o foco',await page.evaluate(()=>document.activeElement?.classList.contains('collapse')));
+  check('collapse: reabrir devolve o foco para Mais opções',await page.evaluate(()=>document.activeElement?.classList.contains('more')));
 
   // os dois leitores minimizados: classes do grid por combinação
   const gridClasses=()=>page.evaluate(()=>({otherMin:document.querySelector('#pdf-grid').classList.contains('other-min'),hasMin:document.querySelector('#pdf-grid').classList.contains('has-min'),hasOtherMin:document.querySelector('#pdf-grid').classList.contains('has-other-min')}));
@@ -290,7 +309,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.page-total').textContent==='/ 220',undefined,{timeout:30000});
   await field(0,'.page-number').fill('150');await field(0,'.page-number').press('Enter');await waitNum(0,150);
   await field(0,'.in').click();
-  await settle(900);
+  await settle();
   const memoPage=await num(0,'.page-number'),memoZoom=(await field(0,'.zoom-label').textContent()).trim();
   await field(0,'.pdf-select').selectOption(extra);
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelectorAll('.pdf-page').length===1,undefined,{timeout:30000});
@@ -315,7 +334,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
   const hl0=await p0.locator('.pdf-hl').first().evaluate(el=>el.textContent);
   check('destaque no doc grande usa o texto original',hl0==='integral comum',hl0);
   await field(0,'.in').click();
-  await settle(900);
+  await settle();
   await page.waitForFunction(()=>{const c=document.querySelectorAll('.pdf-panel')[0].querySelector('.find-count');return !!c&&!c.hidden&&/^\d+\/220$/.test(c.textContent.trim());},undefined,{timeout:10000});
   const zoomPage=Number(await num(0,'.page-number'));
   check('zoom com busca ativa mantém contador e destaque',Math.abs(zoomPage-200)<=2&&(await p0.locator('.pdf-hl').count())>0,`página ${zoomPage}, ${await p0.locator('.pdf-hl').count()} destaques`);
@@ -326,7 +345,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
   await waitFindText(0,'1/1');
   check('termo de ocorrência única vai para a página 200',(await num(0,'.page-number'))==='200',(await num(0,'.page-number')));
   await field(0,'.page-number').fill('1');await field(0,'.page-number').press('Enter');await waitNum(0,1);
-  await waitFindText(0,'1 ocorrências');
+  await waitFindText(0,'1 ocorrência'); // plural do catálogo desde a #41 fase 2
   check('contador na página sem hit mostra o total',true);
   await field(0,'.page-number').fill('200');await field(0,'.page-number').press('Enter');await waitNum(0,200);
 
@@ -358,15 +377,16 @@ await withArtifacts('hunt-pdf',async ctx=>{
   await page.locator('#attachments .attachment-remove').click();
 
   // troca de matéria: ida e volta com layout salvo
+  // a janela está em 1050px: abaixo de 1100px as abas viram seletor, então o clique vai direto no botão da aba
   await statusOnline(page);
   const beforeSwitch=await page.evaluate(()=>({page:document.querySelectorAll('.pdf-panel')[0].querySelector('.page-number').value,zoom:document.querySelectorAll('.pdf-panel')[0].querySelector('.zoom-label').textContent}));
-  await page.locator('#course-tabs button[data-id="Vazia"]').click();
+  await page.locator('#course-tabs button[data-id="Vazia"]').dispatchEvent('click');
   await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="Vazia"]').classList.contains('active'),undefined,{timeout:30000});
-  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0]?.querySelector('.pdf-placeholder'),undefined,{timeout:30000});
-  check('matéria vazia mostra placeholders',await page.locator('.pdf-placeholder').count()===2);
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0]?.querySelector('.reader-sheet'),undefined,{timeout:30000});
+  check('matéria vazia mostra a folha Lista 0 em cada leitor',await page.locator('.reader-sheet').count()===2);
   const emptyAria=await page.evaluate(()=>document.querySelectorAll('.pdf-panel')[0]?.querySelector('.invert')?.getAttribute('aria-pressed'));
   check('invert sem doc mantém aria-pressed="false" do contrato antigo',emptyAria==='false',`aria-pressed=${JSON.stringify(emptyAria)}`);
-  await page.locator('#course-tabs button[data-id="Estresse"]').click();
+  await page.locator('#course-tabs button[data-id="Estresse"]').dispatchEvent('click');
   await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="Estresse"]').classList.contains('active'),undefined,{timeout:30000});
   await waitNum(0,Number(beforeSwitch.page));
   check('volta da matéria restaura página',(await num(0,'.page-number'))===String(beforeSwitch.page));
@@ -378,13 +398,13 @@ await withArtifacts('hunt-pdf',async ctx=>{
  }catch(e){
   check('execução do roteiro',false,e.stack?.split('\n').slice(0,3).join(' | ')||e.message);
  }
- await page.screenshot({path:path.join(path.dirname(fileURLToPath(import.meta.url)),'artifacts','hunt-pdf-final.png')}).catch(()=>{});
+ await page.screenshot({path:path.join(artifactDir('hunt-pdf'),'final.png')}).catch(()=>{});
 
  // log do runtime
  let log='';
  try{log=fs.readFileSync(path.join(runtime,'desk.log'),'utf8');}catch{}
- const rendererLog=log.split('\n').filter(Boolean).map(l=>{try{return JSON.parse(l);}catch{return null;}}).filter(e=>e&&e.src==='renderer');
- check('sem erro de renderer no desk.log',rendererLog.length===0,rendererLog.slice(0,2).map(e=>e.line).join(' | '));
+ const rendererLog=log.split('\n').filter(Boolean).map(l=>{try{return JSON.parse(l);}catch{return null;}}).filter(e=>e&&e.area==='renderer');
+ check('sem erro de renderer no desk.log',rendererLog.length===0,rendererLog.slice(0,2).map(e=>e.msg).join(' | '));
  check('sem pageerror',pageErrors.length===0,pageErrors.slice(0,3).join(' | '));
  check('sem erro no console',consoleErrors.length===0,consoleErrors.slice(0,3).join(' | '));
 

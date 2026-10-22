@@ -13,7 +13,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {basename, join} from 'node:path';
 import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -165,7 +165,7 @@ test('runtime resolve realpath e recusa symlink/arquivo fora de conversations', 
     symlinkSync(moved, file);
     assert.equal(conversations.readClaudeConversation(file, {runtime}), null, 'symlink para fora não escapa');
     assert.equal(conversations.readClaudeConversation(file) && 'lido', 'lido', 'a contenção é do read com runtime');
-    assert.throws(() => conversations.conversationEngine(file, {runtime}), (error) => error.code === conversations.CORRUPT_DESCRIPTOR_CODE);
+    assert.throws(() => conversations.conversationEngine(file, {runtime}), (error) => error.code === conversations.CORRUPT_DESCRIPTOR_CODE && !error.message.includes(runtime) && error.message.endsWith(basename(file)), 'erro de descritor só leva o nome do arquivo, sem a pasta pessoal');
   });
 });
 

@@ -83,3 +83,9 @@ def Laws.pdfref_titulo():
 
 def Laws.pdfref_aria():
   {==}
+
+def Laws.pdfref_cue_page_ingles():
+  {==}
+
+def Laws.pdfref_cue_pg_ingles():
+  {==}

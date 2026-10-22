@@ -14,7 +14,7 @@ try{
   mod.setSidechatBridge({sidechatOpen:async()=>({id:'questions-side',engine:'claude',messages:[],draft:'',busy:false}),sidechatSave:async()=>({ok:true}),onSidechatEvent:fn=>fake.listeners.push(fn),sidechatRespond:async data=>{fake.attempts.push(data);if(fake.mode==='reject')throw Error('Resposta recusada pelo host');if(fake.mode==='delay')return new Promise(resolve=>fake.pending=resolve);return {ok:true};}});
   fake.emit=event=>fake.listeners.forEach(fn=>fn({id:'questions-side',event}));window.questionTest=fake;
  });
- await page.locator('#support-tab-chat').click();await page.waitForFunction(()=>document.querySelector('#sidechat-engine')?.textContent.includes('Claude'));
+ await page.locator('#sidechat-toggle').click();await page.waitForFunction(()=>document.querySelector('#sidechat-engine')?.textContent.includes('Claude'));
  const question={question:'Quais tópicos?',header:'Tópicos',multiSelect:true,options:[{label:'A',description:'Primeiro tópico'},{label:'B',description:'Segundo tópico'}]};
  await page.evaluate(question=>window.questionTest.emit({type:'extension_ui_request',id:'multi',method:'question',questions:[question]}),question);
  const card=page.locator('.sidechat-request');await card.waitFor();

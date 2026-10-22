@@ -168,3 +168,9 @@ def Laws.sess_grupo_mistura():
 
 def Laws.sess_grupo_so_antes():
   {==}
+
+def Laws.sess_marcador_ferramenta_pedida():
+  {==}
+
+def Laws.sess_marcador_contexto_en():
+  {==}

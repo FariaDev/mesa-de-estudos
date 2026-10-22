@@ -106,7 +106,7 @@ law sess_preview_partes:
 
 # ---------- marcadores ----------
 
-# Conversa: corta `[Buscar na web]` até o fim (teste de chat/lib.cjs).
+# Conversa: corta `[Buscar na web]` até o fim (a Conversa tinha o teste em chat/lib.cjs; o marcador segue valendo para sessões gravadas).
 law sess_marcador_buscar:
   {S.sessionPreview(
     [S.SessionMsg{True{}, S.BodyString{"cotação do dólar\n\n[Buscar na web] use web_search"}}],
@@ -133,6 +133,20 @@ law sess_marcador_refs:
     [S.SessionMsg{True{}, S.BodyString{"quanto vale o limite?\n\n[Referências abertas na mesa, indicadas pelo usuário como contexto: \"/tmp/a.pdf#page=1\"]."}}],
     S.mesaCuts()
   ) == "quanto vale o limite?" : String}
+
+# Mesa: a instrução da menção `@` (#53) não vai para a prévia da lista.
+law sess_marcador_ferramenta_pedida:
+  {S.sessionPreview(
+    [S.SessionMsg{True{}, S.BodyString{"desenhe a parábola\n\n[Ferramenta pedida na Mesa: geogebra]\nUse a ferramenta geogebra nesta resposta."}}],
+    S.mesaCuts()
+  ) == "desenhe a parábola" : String}
+
+# Mesa: o bloco em inglês (interface em inglês, #41) sai da prévia como o em português.
+law sess_marcador_contexto_en:
+  {S.sessionPreview(
+    [S.SessionMsg{True{}, S.BodyString{"how much is it?\n\n[Desk context]\n- course: Calculus I"}}],
+    S.mesaCuts()
+  ) == "how much is it?" : String}
 
 # Mesa: `/conferir` vira o rótulo (teste de desk/lib.cjs).
 law sess_marcador_conferir:

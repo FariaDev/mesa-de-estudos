@@ -49,7 +49,7 @@ def freeCourseName() -> String:
   "Livre"
 
 def defaultTitle() -> String:
-  "Conversa livre"
+  "Sessão livre"
 
 # ---------- recorte (aparar antes de cortar) ----------
 

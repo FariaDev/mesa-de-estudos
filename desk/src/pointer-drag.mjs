@@ -1,6 +1,8 @@
 // Pointer capture can end without pointerup (focus loss, native gestures,
 // cancelled input). A hover must never reuse a previous drag's state.
-export function bindPointerDrag(element,move,finish=()=>{}){
+// `begin` roda quando o arrasto começa de fato (o GeoGebra congela a view
+// nativa, que ficaria por cima do divisor — ajustes do GeoGebra).
+export function bindPointerDrag(element,move,finish=()=>{},begin=()=>{}){
  const win=element.ownerDocument.defaultView;
  let pointer=null;
  const end=event=>{
@@ -14,6 +16,7 @@ export function bindPointerDrag(element,move,finish=()=>{}){
   try{element.setPointerCapture(event.pointerId);}catch{return;}
   pointer=event.pointerId;
   event.preventDefault();
+  begin();
  });
  element.addEventListener('pointermove',event=>{
   if(pointer===null||event.pointerId!==pointer)return;

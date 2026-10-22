@@ -8,7 +8,9 @@
    três são pulados — dizendo que pulou, nunca em silêncio.
 
    `npm run check` (sintaxe dos hosts) roda sempre: é barato e é o que pega o
-   arquivo pela metade de quem está editando.
+   arquivo pela metade de quem está editando. `npm run typecheck` também (#43
+   fase 3): o tsc nos arquivos da lista do `tsconfig.json` leva menos de um segundo,
+   e `npm run lint` (ESLint só com regras de erro) leva poucos segundos.
 
    Os três passos rodam por `scripts/gate-run.mjs`, que resolve o comando do npm
    por plataforma (Windows precisa de `npm.cmd` com shell) e nunca sai calado
@@ -34,6 +36,9 @@ function run(script){
 }
 
 run('check');
+/* Tipos e lint só de erros (#43 fase 3): baratos e fora do cache, como o `check`. */
+run('typecheck');
+run('lint');
 
 const {hash,count}=gateHash({root,desk});
 const forced=process.env.MESA_GATE_CACHE==='0';

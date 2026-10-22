@@ -1,9 +1,11 @@
-import {S,toast} from './state.mjs';
-import {insertMainDraft} from './chat.mjs';
-import {markup,decorateCode} from './markdown.mjs';
-import {build,renderChildren} from './view-host.mjs';
-import talkCore from './generated/talkview.core.js';
-import {MAX_ANSWER_CHARS,questionRequest,questionSubmitAction} from './claude-questions.mjs';
+import {S,toast,labelBtn} from './state.mjs';
+import {icon} from '../icons.mjs';
+import sidechatCore from './generated/sidechat.core.js';
+import {t as uiT,text as uiText,formatDate,LANGUAGE_EVENT} from './ui-text.mjs';
+import {message as uiMessage} from './i18n.mjs';
+import {deskErrorIsFatal} from './claude-questions.mjs';
+import {h,sidechatMessageCard,paintSidechatBody,copySidechatMessage,sendSidechatMessageToMain} from './sidechat-message-view.mjs';
+import {createSidechatRequests} from './sidechat-requests.mjs';
 
 /* ---------------------------------------------------------------------------
    Chat lateral: uma conversa INDEPENDENTE da principal, no espaço da área de
@@ -17,7 +19,7 @@ import {MAX_ANSWER_CHARS,questionRequest,questionSubmitAction} from './claude-qu
    - salva o rascunho no backend (com espelho em `localStorage` por matéria e
      sessão) e o restaura na abertura;
    - responde perguntas/permissões do lateral no seu próprio canal;
-   - "Levar ao chat principal" insere rascunho SEM enviar.
+   - "Levar à sessão principal" insere rascunho SEM enviar.
 
    Sem API no host (build antigo), o painel mostra indisponível e não quebra.
    --------------------------------------------------------------------------- */
@@ -32,18 +34,6 @@ const DRAFT_SAVE_MS=400;
 /* Só papéis de conversa entram no transcript; `toolResult`/`tool`/`toolCall`
    são atividade de ferramenta, não resposta do tutor (finding R2 4). */
 const CONVERSATION_ROLES=new Set(['user','assistant','system']);
-
-function h(tag,attrs={},...kids){
- const node=document.createElement(tag);
- for(const [key,value] of Object.entries(attrs)){
-  if(value==null)continue;
-  if(key==='class')node.className=String(value);
-  else if(key==='text')node.textContent=String(value);
-  else node.setAttribute(key,String(value));
- }
- for(const kid of kids.flat())if(kid!=null)node.append(kid);
- return node;
-}
 
 export function sidechatAvailable(){
  return typeof api()?.sidechatOpen==='function';
@@ -61,8 +51,8 @@ function api(){return bridgeOverride||window.desk;}
    Estado/DOM isolados: nada aqui usa `#messages`, `#prompt`, `#pi-dialog` nem a
    fila do composer principal. */
 const state={id:'',engine:'',scope:null,messages:[],draft:'',busy:false,sending:false,sendGen:0,uncertain:false,stopping:false,context:null,requests:new Map(),visible:false,gen:0,opening:null,unavailable:false};
-let root=null,promptEl=null,msgsEl=null,activityEl=null,sendEl=null,stopEl=null,ctxPop=null,engineEl=null;
-let draftTimer=0,paintTimer=0,liveText='',liveEl=null,lastRequestSeq=0;
+let root=null,promptEl=null,msgsEl=null,activityEl=null,sendEl=null,stopEl=null,ctxPop=null,engineEl=null,morePop=null,scopeTextEl=null;
+let draftTimer=0,paintTimer=0,liveText='',liveEl=null;
 /* Eventos do motor vistos durante o `await` do aceite: o aceite pode voltar
    antes (tardio) ou depois do terminal; o estado do turno sai do que o motor
    emitiu, nunca de um timer hipotético de 2,5s. */
@@ -70,35 +60,56 @@ let ackWatch=null;
 /* Os saves são serializados: o save do clique (''/B) não pode ultrapassar o
    save do debounce seguinte e ressuscitar A numa reabertura. */
 let saveChain=Promise.resolve();
+/* Perguntas/permissões do lateral no seu próprio canal (#43 fase 2: saíram
+   para sidechat-requests.mjs); o cartão vive em `state.requests`. */
+const {showRequest,answerRequest,submitFreeAnswer}=createSidechatRequests({state,api:()=>api(),messagesEl:()=>msgsEl,scrollBottom:()=>scrollBottom()});
 
 /* ---------- DOM ---------- */
 
 export function mountSidechat(container){
  if(root){if(root.parentElement!==container)container.append(root);return root;}
- root=h('section',{id:'sidechat','aria-label':'Chat lateral',hidden:''},
+ /* Mesmo desenho da coluna do tutor (ticket #19): cabeçalho de --bar (nome,
+    chat novo, Mais opções, fechar), a linha de escopo acima da caixa — no
+    lugar da "Vai junto" — e a MESMA caixa de mensagem, só com Enviar/Parar.
+    O texto da linha de escopo e o nome da única ação de contexto são do núcleo
+    (`core/sidechat.bend`); o estado, a fila e o envio seguem independentes. */
+ const menuItem=h('button',{type:'button',id:'sidechat-context',role:'menuitem','aria-haspopup':'dialog','aria-expanded':'false'});
+ menuItem.innerHTML=`${icon('textQuote')} <span></span>`;
+ root=h('section',{id:'sidechat',hidden:''},
   h('div',{class:'sidechat-head'},
-   h('h3',{class:'sidechat-head-title'},h('span',{id:'sidechat-title',text:'Chat lateral'}),h('span',{id:'sidechat-engine',class:'sidechat-engine',hidden:''})),
+   h('h3',{class:'sidechat-head-title'},h('span',{id:'sidechat-title'}),h('span',{id:'sidechat-engine',class:'sidechat-engine',hidden:''})),
    h('div',{class:'sidechat-head-actions'},
-    h('button',{type:'button',id:'sidechat-new',class:'link-btn',title:'Começar um chat lateral novo para esta conversa (o atual fica guardado)',text:'Novo'}),
-    h('button',{type:'button',id:'sidechat-context',class:'link-btn','aria-haspopup':'dialog','aria-expanded':'false',title:'Contexto copiado do principal',text:'Contexto'}),
-    h('button',{type:'button',id:'sidechat-refresh',class:'link-btn',title:'Recopiar os trechos recentes da conversa principal, os PDFs abertos e a questão ativa para o contexto do chat lateral',text:'Atualizar contexto do principal'}),
-    h('button',{type:'button',id:'sidechat-collapse',class:'icon-btn',title:'Recolher a área de apoio','aria-label':'Recolher a área de apoio'}))),
-  h('div',{id:'sidechat-context-pop',role:'dialog','aria-label':'Contexto do chat lateral',hidden:''}),
+    h('button',{type:'button',id:'sidechat-new',class:'icon-btn'}),
+    h('button',{type:'button',id:'sidechat-more',class:'icon-btn','aria-haspopup':'menu','aria-expanded':'false','aria-controls':'sidechat-more-pop'}),
+    h('button',{type:'button',id:'sidechat-close',class:'icon-btn'}))),
+  h('div',{id:'sidechat-more-pop',class:'chat-pop',role:'menu',hidden:''},menuItem),
+  h('div',{id:'sidechat-context-pop',role:'dialog',hidden:''}),
   h('div',{id:'sidechat-messages','aria-live':'polite'}),
   h('div',{id:'sidechat-activity',role:'status'}),
   h('div',{id:'sidechat-composer'},
-   h('textarea',{id:'sidechat-prompt',rows:'2',placeholder:'Pergunte no chat lateral…','aria-label':'Mensagem no chat lateral'}),
-   h('div',{class:'sidechat-actions'},
-    h('button',{type:'button',id:'sidechat-stop',hidden:'',text:'Parar'}),
-    h('button',{type:'button',id:'sidechat-send',class:'primary',text:'Enviar'}))));
+   h('div',{id:'sidechat-scope',class:'goes-along'},
+    h('span',{id:'sidechat-scope-text',role:'status'}),
+    h('button',{type:'button',id:'sidechat-refresh'})),
+   h('div',{id:'sidechat-box',class:'composer-box'},
+    h('textarea',{id:'sidechat-prompt',class:'composer-field',rows:'3'}),
+    h('div',{class:'composer-actions'},
+     h('button',{type:'button',id:'sidechat-stop',hidden:''}),
+     h('button',{type:'button',id:'sidechat-send',class:'primary'})))));
  container.append(root);
+ labelBtn(root.querySelector('#sidechat-new'),'plus');
+ labelBtn(root.querySelector('#sidechat-more'),'more');
+ labelBtn(root.querySelector('#sidechat-close'),'close');
  promptEl=root.querySelector('#sidechat-prompt');
  msgsEl=root.querySelector('#sidechat-messages');
  activityEl=root.querySelector('#sidechat-activity');
  sendEl=root.querySelector('#sidechat-send');
  stopEl=root.querySelector('#sidechat-stop');
  ctxPop=root.querySelector('#sidechat-context-pop');
+ morePop=root.querySelector('#sidechat-more-pop');
  engineEl=root.querySelector('#sidechat-engine');
+ scopeTextEl=root.querySelector('#sidechat-scope-text');
+ relabelSidechat();
+ window.addEventListener(LANGUAGE_EVENT,repaintForLanguage);
 
  promptEl.addEventListener('input',onDraftInput);
  promptEl.addEventListener('keydown',event=>{
@@ -110,18 +121,47 @@ export function mountSidechat(container){
  sendEl.addEventListener('click',()=>sendMessage());
  stopEl.addEventListener('click',()=>stopMessage());
  root.querySelector('#sidechat-new').addEventListener('click',()=>newSidechat());
- root.querySelector('#sidechat-context').addEventListener('click',()=>toggleContextPop());
+ root.querySelector('#sidechat-close').addEventListener('click',()=>window.dispatchEvent(new Event('desk-sidechat-close')));
+ root.querySelector('#sidechat-more').addEventListener('click',()=>toggleMorePop());
+ root.querySelector('#sidechat-more').addEventListener('keydown',event=>{
+  if(event.key!=='ArrowDown')return;
+  event.preventDefault();
+  if(morePop.hidden)toggleMorePop();
+  menuItem.focus();
+ });
+ morePop.addEventListener('keydown',event=>{if(event.key==='Tab')hideMorePop();});
+ menuItem.addEventListener('click',()=>{hideMorePop();toggleContextPop();});
  root.querySelector('#sidechat-refresh').addEventListener('click',()=>refreshContext());
  msgsEl.addEventListener('click',onMessagesClick);
  msgsEl.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.target?.classList?.contains('sidechat-request-input')){event.preventDefault();submitFreeAnswer(event.target.closest('.sidechat-request'));}});
  document.addEventListener('click',event=>{
+  if(morePop&&!morePop.hidden&&!event.target?.closest?.('#sidechat-more, #sidechat-more-pop'))hideMorePop();
   if(!ctxPop||ctxPop.hidden)return;
   if(event.target?.closest?.('#sidechat-context, #sidechat-context-pop'))return;
   hideContextPop();
  });
- document.addEventListener('keydown',event=>{if(event.key==='Escape'&&ctxPop&&!ctxPop.hidden)hideContextPop();});
+ document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  if(morePop&&!morePop.hidden){hideMorePop({restoreFocus:true});return;}
+  if(ctxPop&&!ctxPop.hidden)hideContextPop();
+ });
  renderAll();
  return root;
+}
+
+function toggleMorePop(){
+ if(!morePop)return;
+ if(!morePop.hidden){hideMorePop({restoreFocus:true});return;}
+ morePop.hidden=false;
+ root.querySelector('#sidechat-more')?.setAttribute('aria-expanded','true');
+}
+function hideMorePop({restoreFocus=false}={}){
+ if(!morePop||morePop.hidden)return;
+ const hadFocus=morePop.contains(document.activeElement);
+ morePop.hidden=true;
+ const trigger=root.querySelector('#sidechat-more');
+ trigger?.setAttribute('aria-expanded','false');
+ if(restoreFocus&&hadFocus)trigger?.focus();
 }
 
 export function sidechatElement(){return root;}
@@ -135,9 +175,9 @@ function onMessagesClick(event){
  const submit=target?.closest?.('.sidechat-request-submit');
  if(submit){submitFreeAnswer(submit.closest('.sidechat-request'));return;}
  const copy=target?.closest?.('.sidechat-copy');
- if(copy){copyMessage(copy);return;}
+ if(copy){copySidechatMessage(copy);return;}
  const toMain=target?.closest?.('.sidechat-to-main');
- if(toMain)toMainMessage(toMain);
+ if(toMain)sendSidechatMessageToMain(toMain);
 }
 
 /* ---------- rascunho ---------- */
@@ -209,7 +249,7 @@ function saveDraftNow(){
  const record=draftRecord(scope);
  const rev=record?.meta&&Number.isFinite(Number(record.meta.rev))?Number(record.meta.rev):null;
  const save=()=>{
-  let pending=null;
+  let pending;
   try{pending=api()?.sidechatSave?.({id,draft});}catch{return;}
   if(pending?.then)return pending.then(()=>ackDraftSave({id,draft,scope,rev}),()=>{});
   ackDraftSave({id,draft,scope,rev});
@@ -274,7 +314,7 @@ export function openSidechat({fresh=false}={}){
    adopt(payload,{scope,useLocal:!fresh});
   }catch(error){
    if(generation!==state.gen)return;
-   renderError(`Não foi possível abrir o chat lateral: ${error.message}`);
+   renderError(uiMessage('sidechat.err.open',{reason:uiText(String(error.message))}));
   }finally{
    if(generation===state.gen)state.opening=null;
   }
@@ -288,10 +328,10 @@ export function openSidechat({fresh=false}={}){
    limpo: o chat novo começa vazio (o antigo já foi salvo no backend). */
 async function newSidechat(){
  if(!sidechatAvailable()){renderUnavailable();return;}
- if(state.busy||state.sending){toast('Pare a resposta lateral antes de começar outra.');return;}
+ if(state.busy||state.sending){toast(uiMessage('sidechat.stopFirst'));return;}
  const question=state.uncertain
-  ?'A entrega anterior está incerta. Começar um chat lateral novo? O atual fica guardado e nada é reenviado.'
-  :'Começar um chat lateral novo para esta conversa? O atual continua guardado.';
+  ?uiT('sidechat.confirmNewUncertain')
+  :uiT('sidechat.confirmNew');
  if(!confirm(question))return;
  saveDraftNow();
  clearLocalDraft(state.scope||scopeOf());
@@ -341,6 +381,9 @@ export function resetSidechat(){
     terminar e o `open` escopa à sessão certa). */
  if(state.visible)setTimeout(()=>{if(state.visible&&!state.id)openSidechat();},0);
 }
+export function openSavedSidechat(payload){
+ initSidechat();state.gen++;state.opening=null;adopt(payload,{scope:scopeOf(),useLocal:true});
+}
 
 window.addEventListener('desk-conversation-changed',()=>resetSidechat());
 
@@ -388,7 +431,7 @@ async function sendMessage(){
    if(result.uncertain){
     /* Pode ter chegado: a bolha fica (não reenviamos), com o aviso do cabeçalho. */
     state.uncertain=true;
-    toast(result.error||'A entrega desta mensagem está incerta.');
+    toast(result.error||uiMessage('sidechat.err.uncertainDelivery'));
    }else{
     removeLocalMessage(localUser);
     restoreRefusedDraft(raw);
@@ -431,30 +474,30 @@ async function stopMessage(){
 
 function refsLabel(refs){
  const list=Array.isArray(refs)?refs:[];
- if(!list.length)return 'Sem referências de PDF';
+ if(!list.length)return uiT('sidechat.refs.none');
  return list.map(ref=>`${String(ref?.path||'').split(/[/\\]/).pop()||'PDF'} p.${Number(ref?.page)||1}`).join(', ');
 }
 
 function contextRows(){
  const context=state.context||{};
  const rows=[];
- rows.push(h('p',{class:'fine'},h('strong',{text:'Conversa principal'}),document.createTextNode(' Trechos recentes do chat principal e a questão ativa, copiados no momento indicado abaixo.')));
- rows.push(h('p',{class:'fine'},h('strong',{text:'PDFs e páginas'}),document.createTextNode(` ${refsLabel(context.refs)}.`)));
+ rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.main')}),document.createTextNode(` ${uiT('sidechat.ctx.mainBody')}`)));
+ rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.pdfs')}),document.createTextNode(` ${refsLabel(context.refs)}.`)));
  const study=context.study||{};
- if(study.title||study.xopp)rows.push(h('p',{class:'fine'},h('strong',{text:'Estudo'}),document.createTextNode(` ${[study.title,study.xopp&&String(study.xopp).split(/[/\\]/).pop()].filter(Boolean).join(' · ')}.`)));
- if(context.at)rows.push(h('p',{class:'fine'},h('strong',{text:'Copiado em'}),document.createTextNode(` ${formatWhen(context.at)}.`)));
- rows.push(h('p',{class:'fine',text:'O chat lateral é uma conversa independente; o contexto acima é um recorte do principal no momento da cópia. Use "Atualizar contexto do principal" para recopiar os trechos recentes, os PDFs e a questão atuais.'}));
+ if(study.title||study.xopp)rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.study')}),document.createTextNode(` ${[study.title,study.xopp&&String(study.xopp).split(/[/\\]/).pop()].filter(Boolean).join(' · ')}.`)));
+ if(context.at)rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.copiedAt')}),document.createTextNode(` ${formatWhen(context.at)}.`)));
+ rows.push(h('p',{class:'fine',text:uiT('sidechat.ctx.note')}));
  return rows;
 }
 
 function formatWhen(value){
  const date=new Date(value);if(Number.isNaN(date.getTime()))return String(value);
- return date.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+ return formatDate(date,{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 }
 
 function paintContextPop(){
  if(!ctxPop)return;
- const close=h('button',{type:'button',class:'primary',text:'Fechar'});
+ const close=h('button',{type:'button',class:'primary',text:uiT('common.close')});
  close.addEventListener('click',hideContextPop);
  ctxPop.replaceChildren(...contextRows());
  ctxPop.append(h('div',{class:'dialog-actions'},close));
@@ -473,7 +516,7 @@ function hideContextPop(){
 }
 
 export async function refreshContext(){
- if(!state.id){toast('Abra o chat lateral primeiro.');return;}
+ if(!state.id){toast(uiMessage('toast.openSidechatFirst'));return;}
  const id=state.id;
  try{
   const payload=await api().sidechatContext({id,refs:currentRefs()});
@@ -481,8 +524,9 @@ export async function refreshContext(){
   if(payload&&typeof payload==='object')state.context=payload.context&&typeof payload.context==='object'?payload.context:payload;
   if(Array.isArray(payload?.messages)&&payload.messages.length&&!state.messages.length)state.messages=payload.messages.map(normalizeMessage).filter(message=>message&&String(message.text||'').trim());
   paintContextPop();
+  paintScope();
   const context=state.context||{};
-  toast(`Contexto atualizado: ${refsLabel(context.refs)}.`);
+  toast(uiMessage('toast.contextUpdated',{refs:refsLabel(context.refs)}));
  }catch(error){
   toast(error.message);
  }
@@ -515,7 +559,7 @@ function handleEvent(event){
  if(!event||typeof event!=='object')return;
  const type=String(event.type||'');
  if(ackWatch){
-  if(type==='agent_end'||type==='agent_settled'||type==='desk_error'||type==='error')ackWatch.terminal=true;
+  if(type==='agent_end'||type==='agent_settled'||((type==='desk_error'||type==='error')&&deskErrorIsFatal(event)))ackWatch.terminal=true;
  }
  if(type==='agent_start'||type==='turn_start'){
   state.busy=true;state.stopping=false;liveText='';
@@ -548,10 +592,18 @@ function handleEvent(event){
   return;
  }
  if(type==='desk_error'||type==='error'){
+  // Native recoverable errors leave ownership with the current turn. The
+  // result/agent_settled, not an error notice, releases the composer.
+  if(!deskErrorIsFatal(event)){
+   noteText(uiMessage('sidechat.err.generic',{reason:uiText(String(event.message||uiMessage('sidechat.err.unknown')))}));
+   if(state.busy){ensureLive();schedulePaint();}
+   if(event.message)toast(String(event.message));
+   return;
+  }
   if(liveEl){liveEl.remove();liveEl=null;}
   liveText='';
   state.busy=false;state.stopping=false;paintBusy();
-  noteText(`Erro do chat lateral: ${event.message||'falha desconhecida'}`);
+  noteText(uiMessage('sidechat.err.generic',{reason:uiText(String(event.message||uiMessage('sidechat.err.unknown')))}));
   if(event.message)toast(String(event.message));
   return;
  }
@@ -579,9 +631,9 @@ function finishTurn(event){
  liveText='';
  state.busy=false;state.stopping=false;
  if(uncertain)state.uncertain=true;
- if(cancelled)noteText('Resposta cancelada no chat lateral.');
- else if(uncertain)noteText('Entrega incerta: a mensagem pode ter sido recebida. Confira antes de reenviar.');
- else if(failed)noteText(`A resposta do chat lateral falhou${event.message?`: ${event.message}`:''}.`);
+ if(cancelled)noteText(uiMessage('sidechat.note.cancelled'));
+ else if(uncertain)noteText(uiMessage('sidechat.note.uncertain'));
+ else if(failed)noteText(event.message?uiMessage('sidechat.note.failedReason',{reason:uiText(String(event.message))}):uiMessage('sidechat.note.failed'));
  renderAll();
 }
 
@@ -598,115 +650,16 @@ function schedulePaint(){
  paintTimer=setTimeout(()=>{
   paintTimer=0;
   if(!liveEl||!liveEl.isConnected)return;
-  paintBody(liveEl.querySelector('.sidechat-body'),liveText,true);
+  paintSidechatBody(liveEl.querySelector('.sidechat-body'),liveText,true);
   scrollBottom();
  },80);
-}
-
-/* ---------- perguntas/permissões (canal do lateral) ---------- */
-
-function showRequest(event){
- const requestId=String(event.id||`req-${++lastRequestSeq}`);
- const method=String(event.method||'select');
- const card=h('div',{class:'sidechat-request',role:'group','aria-label':'Pedido do chat lateral'});
- card.append(h('p',{class:'sidechat-request-title',text:String(event.title||(method==='confirm'||method==='permission'?'Permissão do chat lateral':'Pergunta do chat lateral'))}));
- if(event.message)card.append(h('p',{class:'sidechat-request-text',text:String(event.message)}));
- if(method==='question'){
-  const request=questionRequest(event.questions);
-  card._questions=request.questions;
-  if(request.ok){
-   request.questions.forEach((question,index)=>{
-    const block=h('div',{class:'sidechat-question','data-q-index':String(index)});
-    block.append(h('p',{class:'sidechat-request-q',text:question.question}));
-    const options=h('div',{class:'sidechat-q-options',role:question.multiSelect?'group':'radiogroup','aria-label':question.question});
-    for(const option of question.options){
-     const input=h('input',{type:question.multiSelect?'checkbox':'radio',name:`sq-${requestId}-${index}`,class:'sidechat-option-input',value:option.label});
-     const body=h('span',{},h('span',{text:option.label}));
-     if(option.description)body.append(h('small',{class:'sidechat-option-description',text:option.description}));
-     options.append(h('label',{class:'sidechat-q-option'},input,body));
-    }
-    const free=h('input',{type:'text',class:'sidechat-request-input',maxlength:String(MAX_ANSWER_CHARS),placeholder:question.options.length?'Outra resposta':'Digite a resposta','aria-label':`Resposta para: ${question.question}`});
-    free.addEventListener('input',()=>{if(free.value)for(const input of options.querySelectorAll('input'))input.checked=false;clearRequestError(card);});
-    options.addEventListener('change',()=>{free.value='';clearRequestError(card);});
-    block.append(options,free);card.append(block);
-   });
-   card.append(h('button',{type:'button',class:'sidechat-request-submit',text:'Responder'}));
-  }else{
-   card.append(h('p',{class:'sidechat-request-error',role:'alert',text:'Não foi possível exibir esta pergunta. Cancele o pedido para continuar.'}));
-  }
-  card.append(h('button',{type:'button',class:'sidechat-request-action',text:'Cancelar','data-answer':'cancel'}));
- }else if(method==='confirm'||method==='permission'){
-  card.append(h('div',{class:'sidechat-request-actions'},
-   h('button',{type:'button',class:'sidechat-request-action',text:'Permitir','data-answer':'ok'}),
-   h('button',{type:'button',class:'sidechat-request-action',text:'Negar','data-answer':'cancel'})));
- }else if(method==='select'&&Array.isArray(event.options)){
-  for(const option of event.options)card.append(h('button',{type:'button',class:'sidechat-option','data-value':String(option),text:String(option)}));
-  card.append(h('button',{type:'button',class:'sidechat-request-action',text:'Cancelar','data-answer':'cancel'}));
- }else{
-  card.append(h('input',{type:'text',class:'sidechat-request-input',value:String(event.prefill||''),placeholder:String(event.placeholder||''),'aria-label':'Resposta do chat lateral'}));
-  card.append(h('div',{class:'sidechat-request-actions'},
-   h('button',{type:'button',class:'sidechat-request-submit',text:'Responder'}),
-   h('button',{type:'button',class:'sidechat-request-action',text:'Cancelar','data-answer':'cancel'})));
- }
- card.dataset.requestId=requestId;
- state.requests.set(requestId,card);
- msgsEl?.append(card);
- scrollBottom();
- toast('O chat lateral está esperando uma resposta.');
-}
-
-function answerRequest(card,response){
- if(!card)return;
- sendRespond(card,response.cancelled?{cancelled:true}:response.confirmed?{confirmed:true}:{value:response.value||''});
-}
-function submitFreeAnswer(card){
- if(!card||card._responding)return;
- let payload;
- if(card._questions){
-  const picks=[...card.querySelectorAll('.sidechat-question')].map(block=>({selected:[...block.querySelectorAll('.sidechat-option-input:checked')].map(input=>input.value),text:block.querySelector('.sidechat-request-input')?.value||''}));
-  const action=questionSubmitAction(card._questions,picks,'ok');
-  if(action.action!=='answers'){
-   requestError(card,action.errors.map(error=>error.message).join(' ')||'Confira as respostas.');
-   card.querySelector(`.sidechat-question[data-q-index="${action.errors[0]?.index||0}"] input`)?.focus();
-   return;
-  }
-  payload={answers:action.answers};
- }else{
-  const inputs=[...card.querySelectorAll('.sidechat-request-input')];
-  payload=inputs.length===1?{value:inputs[0].value}:{answers:Object.fromEntries(inputs.map((input,index)=>[`Resposta ${index+1}`,input.value]))};
- }
- sendRespond(card,payload);
-}
-function clearRequestError(card){card.querySelector('.sidechat-request-error')?.remove();}
-function requestError(card,message){
- clearRequestError(card);
- card.append(h('p',{class:'sidechat-request-error',role:'alert',text:message}));
-}
-async function sendRespond(card,response){
- if(!state.id||card._responding)return;
- const id=state.id,requestId=card.dataset.requestId||'';
- const controls=[...card.querySelectorAll('input,button')];
- card._responding=true;clearRequestError(card);
- for(const control of controls)control.disabled=true;
- try{
-  const source=api();
-  if(typeof source?.sidechatRespond!=='function')throw Error('A ponte do chat lateral está indisponível.');
-  const result=await source.sidechatRespond({id,response:{id:requestId,...response}});
-  if(result?.ok===false)throw Error('A resposta não foi aceita. Confira as opções e tente novamente.');
-  if(state.id===id&&state.requests.get(requestId)===card){state.requests.delete(requestId);card.remove();}
- }catch(error){
-  if(state.id===id&&state.requests.get(requestId)===card)requestError(card,error?.message||'Não foi possível responder. Tente novamente.');
- }finally{
-  card._responding=false;
-  for(const control of controls)control.disabled=false;
- }
 }
 
 /* ---------- desenho ---------- */
 
 function engineLabel(){
  const engine=state.engine||S.engine||'pi';
- return engine==='claude'?`Claude Code (experimental)`:(engine==='pi'?'Pi':String(engine));
+ return engine==='claude'?`Claude (experimental)`:(engine==='pi'?'Tutor':String(engine));
 }
 function renderEngine(){
  if(!engineEl)return;
@@ -716,7 +669,7 @@ function renderEngine(){
 }
 function renderUnavailable(){
  if(root)root.dataset.state='unavailable';
- if(msgsEl)msgsEl.replaceChildren(h('article',{class:'sidechat-msg system'},h('div',{class:'sidechat-body',text:'Chat lateral indisponível nesta versão do host: falta a ponte `window.desk.sidechat*`. Atualize a Mesa para usar este recurso.'})));
+ if(msgsEl)msgsEl.replaceChildren(h('article',{class:'sidechat-msg system'},h('div',{class:'sidechat-body',text:uiT('sidechat.unavailable')})));
  if(sendEl)sendEl.disabled=true;
  if(promptEl)promptEl.disabled=true;
  if(activityEl)activityEl.textContent='';
@@ -728,11 +681,56 @@ function renderAll(){
  renderEngine();
  if(state.unavailable)renderUnavailable();
 }
+/* Linha de escopo: de onde veio o contexto (material e página) e que ele não
+   entra na sessão principal. O contexto copiado manda; antes de existir um (a
+   abertura ainda está em curso) vale o que está aberto nos leitores agora. */
+function scopeLabels(){
+ const refs=state.context?(Array.isArray(state.context.refs)?state.context.refs:[]):currentRefs();
+ return refs.map(ref=>`${String(ref?.path||'').split(/[/\\]/).pop()||'PDF'} p. ${Number(ref?.page)||1}`);
+}
+/* Os rótulos fixos do painel saem do catálogo (#41): montados uma vez e refeitos
+   quando a interface troca de idioma. */
+const SIDECHAT_LABELS=[
+ ['#sidechat','aria-label','sidechat.toggle.aria'],['#sidechat-title','text','sidechat.toggle.aria'],
+ ['#sidechat-new','title','sidechat.newTitle'],['#sidechat-new','aria-label','sidechat.newAria'],
+ ['#sidechat-more','title','sidechat.moreTitle'],['#sidechat-more','aria-label','sidechat.moreAria'],
+ ['#sidechat-close','title','sidechat.toggle.close'],['#sidechat-close','aria-label','sidechat.toggle.close'],
+ ['#sidechat-more-pop','aria-label','sidechat.moreAria'],['#sidechat-context-pop','aria-label','sidechat.contextAria'],
+ ['#sidechat-context','title','sidechat.contextItemTitle'],['#sidechat-context span','text','sidechat.contextItem'],
+ ['#sidechat-refresh','title','sidechat.refreshTitle'],['#sidechat-refresh','aria-label','scope.refresh'],
+ ['#sidechat-prompt','placeholder','sidechat.promptPlaceholder'],['#sidechat-prompt','aria-label','sidechat.promptAria'],
+ ['#sidechat-stop','text','sidechat.stop'],['#sidechat-send','aria-label','sidechat.sendAria']
+];
+function relabelSidechat(){
+ if(!root)return;
+ for(const [selector,attribute,key] of SIDECHAT_LABELS){
+  const el=root.querySelector(selector);
+  if(!el)continue;
+  if(attribute==='text')el.textContent=uiT(key);else el.setAttribute(attribute,uiT(key));
+ }
+ labelBtn(root.querySelector('#sidechat-send'),'arrowUp',uiT('sidechat.send'));
+ /* Em coluna estreita só o ícone fica (o CSS esconde o rótulo): a linha de escopo
+    cabe em duas linhas e o nome acessível segue completo. */
+ labelBtn(root.querySelector('#sidechat-refresh'),'rotateCw',uiT('scope.refresh'));
+}
+function repaintForLanguage(){
+ relabelSidechat();
+ renderAll();
+ if(ctxPop&&!ctxPop.hidden)paintContextPop();
+}
+function paintScope(){
+ if(!scopeTextEl)return;
+ const labels=scopeLabels();
+ const list=labels.reduceRight((tail,head)=>({$:'Con',head,tail}),{$:'Nil'});
+ const text=uiText(String(sidechatCore.scopeLine(list)));
+ if(scopeTextEl.textContent!==text)scopeTextEl.textContent=text;
+}
 function paintHeader(){
+ paintScope();
  const busy=state.busy||state.stopping;
  if(stopEl)stopEl.hidden=!busy;
  if(sendEl)sendEl.disabled=state.unavailable||state.busy;
- if(activityEl)activityEl.textContent=state.busy?(state.stopping?'Parando…':'O chat lateral está respondendo…'):(state.uncertain?'Entrega incerta nesta conversa lateral.':'');
+ if(activityEl)activityEl.textContent=state.busy?uiT(state.stopping?'sidechat.stopping':'sidechat.answering'):(state.uncertain?uiT('sidechat.uncertainShort'):'');
 }
 function paintBusy(){
  paintHeader();
@@ -741,55 +739,12 @@ function paintBusy(){
 function renderMessages(){
  if(!msgsEl)return;
  const frag=document.createDocumentFragment();
- for(const message of state.messages)frag.append(messageCard(message));
- if(!state.messages.length&&!state.uncertain)frag.append(h('p',{class:'sidechat-empty',text:'Conversa lateral independente. Ela começa com um recorte recente do contexto do principal (conversa, PDFs abertos e questão ativa).'}));
- if(state.uncertain)frag.append(h('p',{class:'sidechat-warn',text:'Há uma entrega incerta nesta conversa lateral: confira antes de reenviar.'}));
+ for(const message of state.messages)frag.append(sidechatMessageCard(message,engineLabel()));
+ if(!state.messages.length&&!state.uncertain)frag.append(h('p',{class:'sidechat-empty',text:uiT('sidechat.empty')}));
+ if(state.uncertain)frag.append(h('p',{class:'sidechat-warn',text:uiT('sidechat.warn')}));
  msgsEl.replaceChildren(frag);
  for(const card of state.requests.values())if(!card.isConnected)msgsEl.append(card);
  scrollBottom();
-}
-function messageCard(message){
- const card=h('article',{class:`sidechat-msg message ${message.role}`,role:'group'},h('div',{class:'role sidechat-role',text:message.role==='user'?'Você':message.role==='system'?'Aviso':engineLabel()}));
- const body=h('div',{class:'body sidechat-body'});
- paintBody(body,message.text,false);
- card.append(body);
- card._text=String(message.text||'');
- const actions=h('div',{class:'sidechat-msg-actions'});
- actions.append(h('button',{type:'button',class:'sidechat-copy',text:'Copiar'}));
- if(message.role==='assistant'&&String(message.text||'').trim())actions.append(h('button',{type:'button',class:'sidechat-to-main',title:'Insere esta resposta no rascunho do chat principal, sem enviar',text:'Levar ao chat principal'}));
- card.append(actions);
- return card;
-}
-function paintBody(body,text,live){
- if(!body)return;
- body.innerHTML=markup(String(text||''));
- decorateCode(body);
- if(!live)hydrateAssets(body);
-}
-/* Figuras geradas (mesmo caminho do chat principal): `readImage` → `assetKids`
-   do núcleo; sem a imagem, o fallback de texto do núcleo. */
-function hydrateAssets(node){
- for(const figure of node.querySelectorAll('figure.asset[data-asset]')){
-  const source=figure.dataset.asset||'',caption=figure.dataset.caption||'';
-  if(!source)continue;
-  window.desk.readImage(source).then(hit=>{
-   if(!figure.isConnected)return;
-   if(!hit){figure.replaceWith(build(talkCore.assetFallback(source)));return;}
-   renderChildren(figure,talkCore.assetKids({$:'AssetRow',src:hit.dataUrl,path:source,alt:caption||hit.name||'Imagem gerada',caption:caption||hit.name||''}));
-  }).catch(()=>{if(figure.isConnected)figure.replaceWith(build(talkCore.assetFallback(source)));});
- }
-}
-function copyMessage(button){
- const card=button.closest('.sidechat-msg');
- const text=card?._text||card?.querySelector('.sidechat-body')?.innerText||'';
- if(!text)return;
- navigator.clipboard.writeText(text).then(()=>toast('Mensagem lateral copiada.')).catch(error=>toast(error.message));
-}
-function toMainMessage(button){
- const card=button.closest('.sidechat-msg');
- const text=card?._text||'';
- if(!String(text).trim())return;
- if(insertMainDraft(text))toast('Resposta inserida no rascunho do chat principal — revise e envie.');
 }
 function scrollBottom(){
  if(msgsEl)msgsEl.scrollTop=msgsEl.scrollHeight;

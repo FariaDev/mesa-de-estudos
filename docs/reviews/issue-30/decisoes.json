@@ -1,0 +1,454 @@
+{
+ "tabsview.test.mjs": {
+  "D": [
+   {
+    "name": "abas: matérias, \"+\", separador, Caderno e GeoGebra na ordem",
+    "why": "core/laws/tabsview.bend + core/proofs/tabsview.bend"
+   },
+   {
+    "name": "abas: GeoGebra desativa a matéria e ativa a própria aba",
+    "why": "core/laws/tabsview.bend + core/proofs/tabsview.bend"
+   },
+   {
+    "name": "abas: disabled é fato, não texto; o \"+\" e o Caderno ficam sempre ativos",
+    "why": "core/laws/tabsview.bend + core/proofs/tabsview.bend"
+   },
+   {
+    "name": "Caderno: aba com a contagem de revisar hoje",
+    "why": "core/laws/tabsview.bend + core/proofs/tabsview.bend"
+   },
+   {
+    "name": "menu Estudar: rótulo do toggle, ARIA e painel único",
+    "why": "core/laws/tabsview.bend + core/proofs/tabsview.bend"
+   },
+   {
+    "name": "menu Estudar: Xournal++ segue a flag e a plataforma",
+    "why": "core/laws/tabsview.bend + core/proofs/tabsview.bend"
+   },
+   {
+    "name": "menu Ajustes: Configurações, Ajuda, Atalhos e Sobre",
+    "why": "core/laws/tabsview.bend + core/proofs/tabsview.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "tutorstate.test.mjs": {
+  "D": [
+   {
+    "name": "sem resposta com retomada guardada ainda mostra o motivo (o erro vem primeiro)",
+    "why": "core/laws/tutorstate.bend + core/proofs/tutorstate.bend"
+   },
+   {
+    "name": "ligado: sem retomada não há bloco; com retomada o bloco de retomada segue à vista",
+    "why": "core/laws/tutorstate.bend + core/proofs/tutorstate.bend"
+   },
+   {
+    "name": "motivo com código de saída vira uma frase em português, sem número",
+    "why": "core/laws/tutorstate.bend + core/proofs/tutorstate.bend"
+   },
+   {
+    "name": "texto da caixa de mensagem por estado do tutor",
+    "why": "core/laws/tutorstate.bend + core/proofs/tutorstate.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "tutorheader.test.mjs": {
+  "D": [
+   {
+    "name": "sessão nova: o motor padrão primeiro, o Claude Code (experimental) depois",
+    "why": "core/laws/tutorheader.bend + core/proofs/tutorheader.bend"
+   },
+   {
+    "name": "mais opções: exportar, Encerrar por hoje, contexto, compactação, resumir e recolher, nessa ordem",
+    "why": "core/laws/tutorheader.bend + core/proofs/tutorheader.bend"
+   },
+   {
+    "name": "mais opções: a compactação é um interruptor e o contexto não é botão",
+    "why": "core/laws/tutorheader.bend + core/proofs/tutorheader.bend"
+   },
+   {
+    "name": "indicador: esforço desconhecido segue como veio",
+    "why": "core/laws/tutorheader.bend + core/proofs/tutorheader.bend"
+   },
+   {
+    "name": "indicador: é um botão que abre o popover, com o estado em data-state",
+    "why": "core/laws/tutorheader.bend + core/proofs/tutorheader.bend"
+   },
+   {
+    "name": "popover: desligado explica e oferece chamar o tutor",
+    "why": "core/laws/tutorheader.bend + core/proofs/tutorheader.bend"
+   },
+   {
+    "name": "popover: ligado num motor que não troca nada diz isso em vez de ficar vazio",
+    "why": "core/laws/tutorheader.bend + core/proofs/tutorheader.bend"
+   },
+   {
+    "name": "mais opções: Resumir agora entra depois da compactação automática",
+    "why": "core/laws/tutorheader.bend + core/proofs/tutorheader.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "settingsview.test.mjs": {
+  "D": [
+   {
+    "name": "seção desconhecida ou vazia cai em Matérias",
+    "why": "core/laws/settingsview.bend + core/proofs/settingsview.bend"
+   },
+   {
+    "name": "setas da lateral: vizinhas cíclicas",
+    "why": "core/laws/settingsview.bend + core/proofs/settingsview.bend"
+   },
+   {
+    "name": "navegação: cinco botões, só a seção corrente leva aria-current",
+    "why": "core/laws/settingsview.bend + core/proofs/settingsview.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "attachview.test.mjs": {
+  "D": [
+   {
+    "name": "anexo da Mesa: img lazy, alt \"Anexo:\" e × com aria-label",
+    "why": "core/laws/attachview.bend + core/proofs/attachview.bend"
+   },
+   {
+    "name": "sem nome: alt \"Imagem anexada\" e rótulo \"Remover imagem\"",
+    "why": "core/laws/attachview.bend + core/proofs/attachview.bend"
+   },
+   {
+    "name": "lista de anexos preserva ordem e keys",
+    "why": "core/laws/attachview.bend + core/proofs/attachview.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "composerbox.test.mjs": {
+  "D": [
+   {
+    "name": "referências desligadas: a linha acompanha o alternador e não lista os materiais",
+    "why": "core/laws/composerbox.bend + core/proofs/composerbox.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "deskflags.test.mjs": {
+  "D": [
+   {
+    "name": "referências do composer: id, pressed corrente e hidden pela flag",
+    "why": "core/laws/deskflags.bend + core/proofs/deskflags.bend"
+   },
+   {
+    "name": "sem o botão de referências, pressed fica forçado e o botão some",
+    "why": "core/laws/deskflags.bend + core/proofs/deskflags.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "statusview.test.mjs": {
+  "D": [
+   {
+    "name": "rodapé vazio fica hidden, sem tooltip",
+    "why": "core/laws/statusview.bend + core/proofs/statusview.bend"
+   },
+   {
+    "name": "medidor: hidden, classes warn/hot e barra em %",
+    "why": "core/laws/statusview.bend + core/proofs/statusview.bend"
+   },
+   {
+    "name": "modelo, sessão e balão",
+    "why": "core/laws/statusview.bend + core/proofs/statusview.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "slashview.test.mjs": {
+  "D": [
+   {
+    "name": "linhas: id por índice, key, papel, ARIA e handlers do host",
+    "why": "core/laws/slashview.bend + core/proofs/slashview.bend"
+   },
+   {
+    "name": "linhas: sem ativo nenhuma acende; id cresce na ordem da lista",
+    "why": "core/laws/slashview.bend + core/proofs/slashview.bend"
+   },
+   {
+    "name": "check: slot nasce em toda linha e o SVG é do host",
+    "why": "core/laws/slashview.bend + core/proofs/slashview.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "sidechat-scope.test.mjs": {
+  "D": [
+   {
+    "name": "um material: nome, página e que não entra na sessão principal",
+    "why": "core/laws/sidechat.bend (scopeLine, scopeRefresh) + core/proofs/sidechat.bend"
+   },
+   {
+    "name": "dois materiais: na ordem dos leitores, em vírgula",
+    "why": "core/laws/sidechat.bend (scopeLine, scopeRefresh) + core/proofs/sidechat.bend"
+   },
+   {
+    "name": "sem material aberto a linha diz isso e ainda diz o escopo",
+    "why": "core/laws/sidechat.bend (scopeLine, scopeRefresh) + core/proofs/sidechat.bend"
+   },
+   {
+    "name": "a ação que renova o contexto tem um nome só",
+    "why": "core/laws/sidechat.bend (scopeLine, scopeRefresh) + core/proofs/sidechat.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "agent-core.test.mjs": {
+  "D": [
+   {
+    "name": "native catalog gates controls and active ownership blocks configuration changes",
+    "why": "core/laws/agentcaps.bend + core/laws/agentdelivery.bend (+ proofs)"
+   },
+   {
+    "name": "Claude busy messages wait; idle text and image messages can be sent",
+    "why": "core/laws/agentcaps.bend + core/laws/agentdelivery.bend (+ proofs)"
+   },
+   {
+    "name": "acknowledged and uncertain deliveries cannot be retried automatically",
+    "why": "core/laws/agentcaps.bend + core/laws/agentdelivery.bend (+ proofs)"
+   },
+   {
+    "name": "queue waits for tool/permission, uncertain delivery and confirmed cancellation",
+    "why": "core/laws/agentcaps.bend + core/laws/agentdelivery.bend (+ proofs)"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "send-offline.test.mjs": {
+  "D": [
+   {
+    "name": "tutor desligado e livre: a mensagem é guardada (e o tutor é chamado)",
+    "why": "core/laws/pending.bend (keptWhileOff, stripLabel, tutorAnswered, holdAfterAnswer) + proofs/pending.bend"
+   },
+   {
+    "name": "só anexo também é guardado; texto em branco sem anexo não",
+    "why": "core/laws/pending.bend (keptWhileOff, stripLabel, tutorAnswered, holdAfterAnswer) + proofs/pending.bend"
+   },
+   {
+    "name": "tutor ligado: nada é guardado, a mensagem vai direto",
+    "why": "core/laws/pending.bend (keptWhileOff, stripLabel, tutorAnswered, holdAfterAnswer) + proofs/pending.bend"
+   },
+   {
+    "name": "com a resposta em andamento a fila de sempre cuida: não é \"guardada\"",
+    "why": "core/laws/pending.bend (keptWhileOff, stripLabel, tutorAnswered, holdAfterAnswer) + proofs/pending.bend"
+   },
+   {
+    "name": "comando digitado (/compact, /conferir) não é guardado como mensagem",
+    "why": "core/laws/pending.bend (keptWhileOff, stripLabel, tutorAnswered, holdAfterAnswer) + proofs/pending.bend"
+   },
+   {
+    "name": "a faixa diz \"Guardada\" quando o tutor não atendeu; recuperada vence",
+    "why": "core/laws/pending.bend (keptWhileOff, stripLabel, tutorAnswered, holdAfterAnswer) + proofs/pending.bend"
+   },
+   {
+    "name": "a fila só sai quando o tutor passa a atender (e não a cada checagem de saúde)",
+    "why": "core/laws/pending.bend (keptWhileOff, stripLabel, tutorAnswered, holdAfterAnswer) + proofs/pending.bend"
+   },
+   {
+    "name": "tutor atendeu e a fila está vetada por incerteza/cancelamento: segura, com saída",
+    "why": "core/laws/pending.bend (keptWhileOff, stripLabel, tutorAnswered, holdAfterAnswer) + proofs/pending.bend"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "live-pi.mjs": {
+  "D": [
+   {
+    "name": "(arquivo inteiro, sem asserção)",
+    "why": "manual, nunca roda na rodada; chama o Pi/provedor de verdade; guardião do contrato do Pi: rpc.test.mjs + framing-parity.mjs"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "reference-live.mjs": {
+  "D": [
+   {
+    "name": "(arquivo inteiro, sem asserção)",
+    "why": "manual, sem asserção; guardião: fixtures de referência em tests/fixtures + pdf*.test.mjs"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "reference-fixture.mjs": {
+  "D": [
+   {
+    "name": "(arquivo inteiro, sem asserção)",
+    "why": "script de apoio sem asserção; não é chamado por runner nem teste"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "design-check.mjs": {
+  "D": [
+   {
+    "name": "(arquivo inteiro, sem asserção)",
+    "why": "script de 6 linhas sem asserção; coberto por syntax-check.mjs e pelo portão `check`"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "installed-smoke.mjs": {
+  "D": [
+   {
+    "name": "(arquivo inteiro, sem asserção)",
+    "why": "abre o app instalado do usuário (proibido nesta rodada); a mesma cadeia sobe em app-smoke.mjs"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "capture-new-ui.mjs": {
+  "D": [
+   {
+    "name": "(arquivo inteiro, sem asserção)",
+    "why": "só captura telas (69 s) sem asserção; guardiões: as janelas *-ui.mjs que medem as mesmas telas"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "study-history-retention.test.mjs": {
+  "D": [
+   {
+    "name": "nenhum módulo do Mesa apaga sessão por idade",
+    "why": "varredura de fonte; o guardião comportamental é \"o Pi continua lendo uma sessão de 40 dias\" + \"a Conversa agrupa…\" no mesmo arquivo"
+   },
+   {
+    "name": "o repositório não tem política de expiração de 7 dias para conversas",
+    "why": "idem (varredura de fonte)"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "claude-controls.test.mjs": {
+  "D": [
+   {
+    "name": "módulo é puro: sem imports, timers, processos, rede ou ambiente",
+    "why": "varredura de fonte; o módulo roda no teste sem nenhum host (a pureza é provada pelo próprio uso)"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "claude-questions.test.mjs": {
+  "D": [
+   {
+    "name": "módulo é puro: sem imports, DOM, timers, rede ou ambiente",
+    "why": "idem"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "claude-native-controls.test.mjs": {
+  "D": [
+   {
+    "name": "portão concorda com canChangeControls do Bend em todas as combinações",
+    "why": "core/laws/agentdelivery.bend (canChangeControls, 5 casos) + agent-core já coberto"
+   }
+  ],
+  "C": [],
+  "F": []
+ },
+ "review-undo.test.mjs": {
+  "D": [],
+  "C": [
+   {
+    "name": "token vence no prazo do host e não desfaz depois",
+    "why": "deletion-undo.test.mjs: \"prazo do host: vence no instante exato…\" (o módulo compartilhado `deletion-undo.cjs`)"
+   },
+   {
+    "name": "token inventado não permite reinserção arbitrária",
+    "why": "deletion-undo.test.mjs: \"token inventado, vazio ou acima do teto nunca vira reinserção\""
+   }
+  ],
+  "F": []
+ },
+ "pdf-notes-undo.test.mjs": {
+  "D": [],
+  "C": [
+   {
+    "name": "token vence no prazo do host",
+    "why": "deletion-undo.test.mjs: \"prazo do host…\""
+   },
+   {
+    "name": "token inventado não permite reinserção arbitrária",
+    "why": "deletion-undo.test.mjs: \"token inventado, vazio ou acima do teto…\""
+   }
+  ],
+  "F": []
+ },
+ "updateflow.test.mjs": {
+  "D": [],
+  "C": [
+   {
+    "name": "modo git: pull --ff-only; npm ci só quando o lock mudou",
+    "why": "gitreal.test.mjs \"D1: update real com git — pull ff, versão CONFERIDA, sem npm ci sem lock novo\" (git de verdade)"
+   },
+   {
+    "name": "modo git: clone com trabalho local é recusado antes de qualquer mutação (A5)",
+    "why": "gitreal.test.mjs \"D1: clone com trabalho local… é recusado SEM destruir nada\""
+   },
+   {
+    "name": "modo git: pull falha → rollback, git reset e a versão antiga reabre",
+    "why": "gitreal.test.mjs \"D1: remoto divergiu… rollback volta a versão antiga de verdade\""
+   }
+  ],
+  "F": []
+ },
+ "send.test.mjs": {
+  "D": [],
+  "C": [],
+  "F": [
+   {
+    "name": "último teste: inspeção do fonte do main",
+    "why": "passa a exercitar o ciclo de `desk/send.cjs` (comportamento), sem mover o handler"
+   }
+  ]
+ },
+ "hunt-calc-ggb.mjs": {
+  "D": [],
+  "C": [
+   {
+    "name": "blocos do avaliador da calculadora (exemplos do guia, recíprocas/inversas, GRAUS)",
+    "why": "core.test.mjs (calculator) + calculator-ui.mjs + calcview.test.mjs"
+   }
+  ],
+  "F": []
+ },
+ "calculator-ui.mjs": {
+  "D": [],
+  "C": [],
+  "F": [
+   {
+    "name": "seção 6 só captura, sem asserção",
+    "why": "capturas passam a depender de MESA_REVIEW_SHOTS"
+   }
+  ]
+ }
+}

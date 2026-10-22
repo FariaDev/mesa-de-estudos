@@ -9,7 +9,8 @@
 // girados e a barra em 900x650. PDFs sintéticos no runtime do teste; nada real
 // é tocado. Roda da pasta desk: `node tests/pdf-rotation.mjs`.
 import path from 'node:path';import fs from 'node:fs';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,writeDeskJson,writeConfigJson,toastWait,statusOnline} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,writeDeskJson,writeConfigJson,toastWait,menuLocator,resizeWindow} from './helpers.mjs';
+import {layoutStable,pdfRenderIdle,pollUntil} from './waits.mjs';
 
 /* ------------------------------------------------------------------ */
 /* PDFs de teste: 400x700 assimétricos, marcador vermelho no canto     */
@@ -73,21 +74,17 @@ await withArtifacts('pdf-rotation',async ctx=>{
  writeDeskJson(runtime,{courseId:'Girar',pdfs:[{path:um,page:1,rotation:'90'},{path:dois,page:1,rotation:90.5}],pdfRotations:{[um]:45,[dois]:'90',[tres]:-90},layoutVersion:1});
 
  const readStateAt=rt=>JSON.parse(fs.readFileSync(path.join(rt,'desk.json'),'utf8'));
- const waitStateAt=async(rt,pred,label,timeout=15000)=>{
-  const t0=Date.now();
-  for(;;){
-   let state=null;try{state=readStateAt(rt);}catch{}
-   if(state&&pred(state))return state;
-   if(Date.now()-t0>timeout)throw new Error(`desk.json não chegou em: ${label}`);
-   await new Promise(r=>setTimeout(r,150));
-  }
- };
+ const waitStateAt=(rt,pred,label,timeout=15000)=>pollUntil(
+  ()=>{try{return readStateAt(rt);}catch{return null;}},
+  state=>!!state&&pred(state),
+  {timeout,interval:150,what:`desk.json em: ${label}`}
+ );
  const readState=()=>readStateAt(runtime);
  const waitState=(pred,label)=>waitStateAt(runtime,pred,label);
 
  // Helpers por janela: os painéis giram no DOM, então tudo é re-consultado.
  function helpers(page){
-  const field=(idx,sel)=>page.locator('.pdf-panel').nth(idx).locator(sel);
+  const field=(idx,sel)=>menuLocator(page.locator('.pdf-panel').nth(idx),sel);
   // O tooltip do app troca `title` por `data-tip` nos nós novos: o rótulo da
   // orientação vale nos dois (e o aria-label sempre acompanha).
   const title=idx=>page.evaluate(i=>{const b=document.querySelectorAll('.pdf-panel')[i]?.querySelector('.rotate');return b?(b.getAttribute('title')||b.getAttribute('data-tip')||''):'';},idx);
@@ -147,7 +144,8 @@ await withArtifacts('pdf-rotation',async ctx=>{
   },[idx,pageNo]);
   const expectGeom=async(label,idx,pageNo,deg,corner,portrait)=>{
    await waitRotation(idx,pageNo,deg);
-   const g=await geom(idx,pageNo),m=await marker(idx,pageNo);
+   const m=await pollUntil(()=>marker(idx,pageNo),found=>!!found,{timeout:5000,interval:100,what:'o marcador pintado no canvas',onTimeout:'return'});
+   const g=await pollUntil(()=>geom(idx,pageNo),found=>found.spans>0&&found.canvasW>0,{timeout:5000,interval:100,what:'a página com canvas e textLayer',onTimeout:'return'});
    check(`${label}: textLayer com rotação ${deg}`,g.mainRotation===String(deg),`${g.mainRotation}`);
    check(`${label}: ${portrait?'retrato':'paisagem'} (caixa)`,portrait?g.boxH>g.boxW:g.boxW>g.boxH,`${g.boxW}x${g.boxH}`);
    check(`${label}: canvas acompanha a caixa`,portrait?g.canvasH>g.canvasW:g.canvasW>g.canvasH,`${g.canvasW}x${g.canvasH}`);
@@ -167,8 +165,8 @@ await withArtifacts('pdf-rotation',async ctx=>{
   const H=helpers(page);
   await page.waitForSelector('.pdf-panel .pdf-document .pdf-page',{timeout:30000});
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel .pdf-page canvas').length>=2,undefined,{timeout:30000});
-  const tools=await page.evaluate(()=>[...document.querySelectorAll('.pdf-panel')[0].querySelectorAll('.pdf-tools > *')].map(el=>el.className.split(' ')[0]));
-  check('toolbar: rotate é o último controle',tools.at(-1)==='rotate',tools.join(','));
+  const tools=await page.evaluate(()=>[...document.querySelectorAll('.pdf-panel')[0].querySelectorAll('.pdf-more-pop > *')].map(el=>el.className.split(' ')[0]));
+  check('menu Mais opções: rotate mora no menu',tools.includes('rotate'),tools.join(','));
   check('toolbar: botão de girar tem SVG do host',(await H.field(0,'.rotate svg.icon').count())===1);
   check('toolbar: andaime data-icon não vaza',(await H.field(0,'.rotate').getAttribute('data-icon'))===null);
   check('legado/inválido: painel 0 nasce em 0° (rotation string "90" recusada)',(await H.title(0)).includes('atual: 0°'),await H.title(0));
@@ -182,7 +180,8 @@ await withArtifacts('pdf-rotation',async ctx=>{
   await H.waitTitle(0,90);
   await toastWait(page,'Orientação: 90°',{timeout:8000});
   check('girar avisa a orientação no canal de status existente',true);
-  check('foco fica no botão de girar (swap do botão)',await page.evaluate(()=>document.activeElement?.classList.contains('rotate')));
+  /* O botão de girar mora no menu Mais opções, que fecha ao escolher: o foco volta ao gatilho (não se perde no body). */
+  check('foco volta ao Mais opções depois de girar (menu fecha, swap do botão)',await page.evaluate(()=>document.activeElement?.classList.contains('more')));
   await H.expectGeom('nativa 0 + usuário 90 (p2)',0,2,90,'RT',false);
   check('âncora: página 2 continua atual depois de girar',(await H.field(0,'.page-number').inputValue())==='2');
   await H.scrollTo(0,1);
@@ -232,7 +231,7 @@ await withArtifacts('pdf-rotation',async ctx=>{
   await H.typePage(0,2);
   await H.waitPage(0,2);await H.waitCanvas(0,2);
   await H.field(0,'.rotate').click();await H.waitTitle(0,180);
-  await page.waitForTimeout(600);
+  await pdfRenderIdle(page);
   const anchor=await page.evaluate(()=>{const panel=document.querySelectorAll('.pdf-panel')[0],box=panel.querySelector('.pdf-viewport'),el=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page==='2');return {page:panel.querySelector('.page-number').value,top:box.scrollTop,elTop:el.offsetTop,elBottom:el.offsetTop+el.offsetHeight};});
   check('âncora: girar mantém a página 2',anchor.page==='2',JSON.stringify(anchor));
   check('âncora: scroll fica dentro da página 2',anchor.top>=anchor.elTop-4&&anchor.top<=anchor.elBottom,JSON.stringify(anchor));
@@ -261,8 +260,8 @@ await withArtifacts('pdf-rotation',async ctx=>{
   // só então confirma com Enter — o valor tem de sobreviver até lá.
   const pageInput=H.field(0,'.page-number');
   await pageInput.click();await page.keyboard.press('ControlOrMeta+a');await page.keyboard.type('1');
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1462,852));
-  await page.waitForTimeout(600);
+  await resizeWindow(app,page,1462,852);
+  await page.waitForTimeout(600);// espera fixa: janela do render atrasado (ResizeObserver) — o valor digitado tem de sobreviver a ele
   check('página digitada sobrevive a um render atrasado',(await pageInput.inputValue())==='1',await pageInput.inputValue());
   await page.keyboard.press('Enter');
   await H.waitPage(0,1);
@@ -271,13 +270,13 @@ await withArtifacts('pdf-rotation',async ctx=>{
   check('paginação contínua segue funcionando girada',true);
   await H.field(0,'.fit').click();
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.zoom-label').textContent.trim()==='100%',undefined,{timeout:5000});
-  await page.waitForTimeout(700);
+  await pdfRenderIdle(page);
   const fitG=await H.geom(0,1);
   check('fit na orientação girada mantém 100% e a página',fitG.mainRotation==='270',JSON.stringify(fitG.mainRotation));
   const fitW=fitG.cssW;
   await H.field(0,'.in').click();
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.zoom-label').textContent.trim()==='120%',undefined,{timeout:5000});
-  await page.waitForTimeout(900);
+  await pdfRenderIdle(page);
   const zoomG=await H.geom(0,1);
   check('zoom na orientação girada repinta maior',zoomG.cssW>fitW*1.1,`${fitW} → ${zoomG.cssW}`);
 
@@ -314,11 +313,13 @@ await withArtifacts('pdf-rotation',async ctx=>{
   await H.waitRotation(0,1,270);
   check('voltar de novo restaura a orientação',(await H.title(0)).includes('atual: 180°'),await H.title(0));
 
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(900,650));
-  await page.waitForTimeout(500);
+  await resizeWindow(app,page,900,650);
+  await layoutStable(page,'.pdf-panel .pdf-title');
+  await page.locator('.pdf-panel').nth(0).locator('.more').click();
+  await page.locator('.pdf-panel').nth(0).locator('.pdf-more-pop').waitFor({state:'visible'});
   const small=await page.evaluate(()=>{
    const panel=document.querySelectorAll('.pdf-panel')[0];
-   const tools=panel.querySelector('.pdf-tools');
+   const tools=panel.querySelector('.pdf-title');
    const btn=panel.querySelector('.rotate');
    const r=btn.getBoundingClientRect();
    return {sw:tools.scrollWidth,cw:tools.clientWidth,btn:{x:r.x,y:r.y,w:r.width,h:r.height},vw:innerWidth,vh:innerHeight};
@@ -452,13 +453,13 @@ await withArtifacts('pdf-rotation',async ctx=>{
   await H.waitRotation(0,1,180);
   check('matéria A abre com a orientação própria',(await H.title(0)).includes('atual: 90°'),await H.title(0));
   check('matéria A abre com o zoom próprio',(await page.locator('.pdf-panel .zoom-label').textContent()).trim()==='120%');
-  await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button')].every(t=>!t.disabled),undefined,{timeout:30000});
+  await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].every(t=>!t.disabled),undefined,{timeout:30000});
   await page.locator('#course-tabs button[data-id="Outra"]').click();
   await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="Outra"]')?.classList.contains('active'),undefined,{timeout:30000});
   await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-foot')?.textContent.includes('Um.pdf')&&!!document.querySelector('.pdf-panel .pdf-page canvas'),undefined,{timeout:30000});
   await H.waitRotation(0,1,90);
   check('matéria B nasce em 0° (sem herdar A)',(await H.title(0)).includes('atual: 0°'),await H.title(0));
-  await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button')].every(t=>!t.disabled),undefined,{timeout:30000});
+  await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].every(t=>!t.disabled),undefined,{timeout:30000});
   await page.locator('#course-tabs button[data-id="Girar"]').click();
   await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="Girar"]')?.classList.contains('active'),undefined,{timeout:30000});
   await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-foot')?.textContent.includes('Um.pdf')&&!!document.querySelector('.pdf-panel .pdf-page canvas'),undefined,{timeout:30000});

@@ -1,4 +1,4 @@
-/* Smoke de UI da Mesa + Claude Code (experimental), sobre o host/IPC congelado.
+/* Smoke de UI da Mesa + Claude (experimental), sobre o host/IPC congelado.
  *
  * Roda com o harness do ui-smoke (Electron + Playwright) e SEMPRE com runtime,
  * matéria e SDK artificiais: a fixture `tests/fixtures/claude-sdk-fake.mjs` é
@@ -9,7 +9,7 @@
  *
  *   node tests/claude-ui-smoke.mjs
  *
- * Cobre: seletor `#new-session-engine` cria conversa Claude (descriptor JSON),
+ * Cobre: "Sessão nova com Claude Code" (menu `#new-session`) cria sessão Claude (descriptor JSON),
  * texto e imagem sem bolha duplicada (stream/replay/final), Pi intocado,
  * permissões (permitir/negar/cancelar com fila de diálogos e fila de mensagens
  * esperando o turno/permissão), cancelamento e incerteza sem auto-retry,
@@ -26,7 +26,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,FAKE_PI,DESK,PLOT_PNG} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,pickModel,FAKE_PI,DESK,tutorMore,newSession,openSessionById,currentSession,currentEngine,sessionRows,pageWindow} from './helpers.mjs';
 
 const FIXTURE=path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs');
 const CONVERSATIONS='conversations';
@@ -81,7 +81,8 @@ await withArtifacts('claude-ui',async ctx=>{
   FAKE_CLAUDE_TRACE:claudeTrace,
  };
  const launch=(extra={})=>launchDesk({runtime,pi:false,env:{...baseEnv,...extra}});
- const emit=(app,data)=>app.evaluate(({BrowserWindow},payload)=>{const win=BrowserWindow.getAllWindows()[0];if(win)win.webContents.send('pi-event',payload);},data);
+ /* A janela da Mesa é a primeira página do app; a prévia escondida pode vir antes em getAllWindows(). */
+ const emit=async(app,data)=>(await pageWindow(app,await app.firstWindow())).evaluate((win,payload)=>win.webContents.send('pi-event',payload),data);
  const watch=page=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))console.log('CONSOLE',m.text());});return errors;};
  const acceptNextConfirm=page=>page.once('dialog',dialog=>dialog.accept());
  const logHas=(file,text)=>claudeEntries(file).some(entry=>String(entry.text||'').includes(text));
@@ -102,15 +103,17 @@ await withArtifacts('claude-ui',async ctx=>{
  let errors=watch(page);
  await page.waitForSelector('.pdf-panel',{timeout:30000});
  await statusOnline(page);
- assert.equal(await page.locator('#pi-label').textContent(),'Pi de teste','o modelo do Pi de teste aparece como linha de base');
+ assert.equal(await currentEngine(page),'pi','a sessão de linha de base é do Pi (o título da sessão carrega o motor)');
  assert.ok(sentinelLines(piSentinel).length>=1,'o Pi de teste passou pelo trap (linha de base)');
  await page.locator('#prompt').fill('explique o teorema de Pitágoras');
  await page.locator('#send').click();
  await page.waitForSelector('#messages .message.assistant .katex',{timeout:30000});
  await sendEnabled(page,{timeout:30000});
- assert.equal(await page.locator('#new-session-engine').inputValue(),'pi','o seletor da próxima conversa nasce no motor ativo');
- assert.deepEqual(await page.locator('#new-session-engine option').evaluateAll(es=>es.map(e=>e.value)),['pi','claude'],'seletor com Pi e Claude Code (experimental)');
- const piSession=await page.locator('#session-select').inputValue();
+ await page.locator('#new-session').click();
+ assert.deepEqual((await page.locator('#new-session-pop button[role="menuitem"]').allTextContents()).map(text=>text.trim()),['Sessão nova','Sessão nova com Claude (experimental)','Sessão nova com OpenCode (modelos grátis)'],'menu com o motor padrão, o Claude (experimental) e o OpenCode (#57)');
+ await page.keyboard.press('Escape');
+ await page.locator('#new-session-pop').waitFor({state:'hidden'});
+ const piSession=await currentSession(page);
  assert.ok(piSession.endsWith('.jsonl'),'a conversa Pi usa o JSONL como chave');
  // The existing fake-Pi persists user prompts only. Seed its emitted answer
  // explicitly so rollback can also verify assistant history and LaTeX.
@@ -121,32 +124,31 @@ await withArtifacts('claude-ui',async ctx=>{
  /* Daqui em diante, qualquer processo Pi novo aparece no sentinela. */
  fs.writeFileSync(piSentinel,'');
 
- /* ---------- 2. o seletor escolhe o motor da PRÓXIMA conversa ---------- */
- const labelBefore=await page.locator('#pi-label').textContent();
- await page.locator('#new-session-engine').selectOption('claude');
- assert.equal(await page.locator('#pi-label').textContent(),labelBefore,'trocar o seletor não muda o motor da conversa atual');
- acceptNextConfirm(page);
+ /* ---------- 2. o item do menu escolhe o motor da sessão NOVA ---------- */
  await page.locator('#new-session').click();
- await page.waitForFunction(()=>document.querySelector('#pi-label')?.textContent==='Claude Code',undefined,{timeout:30000});
+ assert.equal(await currentEngine(page),'pi','abrir o menu não muda o motor da sessão atual');
+ await page.locator('#new-session-claude').click();
+ await page.waitForFunction(()=>document.querySelector('#session-title')?.dataset.engine==='claude',undefined,{timeout:30000});
  await statusOnline(page,{timeout:60000});
- const claudeSession=await page.locator('#session-select').inputValue();
+ const claudeSession=await currentSession(page);
  assert.match(claudeSession,/[/\\]conversations[/\\]claude-[\w-]+\.json$/,'a conversa Claude usa o descriptor JSON como chave');
- assert.equal(await page.locator('#new-session-engine').inputValue(),'claude','o seletor passa a apontar para o motor ativo');
- assert.match(await page.locator('#session-select option:checked').textContent(),/Claude/i,'o histórico indica o motor da conversa');
+ const claudeRow=(await sessionRows(page)).find(row=>row.id===claudeSession);
+ assert.ok(claudeRow,'a sessão Claude aparece na lista da matéria');
+ assert.match(claudeRow.meta,/Claude/i,'a lista indica o motor da sessão');
+ await page.keyboard.press('Escape');
  const descriptors=claudeDescriptorFiles(runtime);
  assert.equal(descriptors.length,1,'o descriptor JSON real nasceu em runtime/conversations');
  const descriptor=JSON.parse(fs.readFileSync(path.join(runtime,CONVERSATIONS,descriptors[0]),'utf8'));
  assert.match(descriptor.nativeSessionId,/^[0-9a-f-]{36}$/i,'o descriptor guarda o ID nativo explícito para o export');
  /* Modelo vem do catálogo nativo artificial; esforço exige escolha explícita. */
- assert.equal(await page.locator('#model-field').isHidden(),false,'modelo aparece com catálogo nativo');
- await page.locator('#model-select').selectOption(JSON.stringify(['anthropic','claude-fake']));
- await page.waitForFunction(()=>!document.querySelector('#thinking-select')?.disabled);
- assert.equal(await page.locator('#effort-field').isHidden(),false,'esforço aparece com metadado do modelo');
+ assert.equal(await page.locator('#model-field').evaluate(el=>el.hidden),false,'modelo aparece com catálogo nativo');
+ await pickModel(page,'anthropic','claude-fake');
+ await page.waitForFunction(()=>document.querySelector('#effort-strip')?.getAttribute('aria-disabled')==='false');
+ assert.equal(await page.locator('#effort-field').evaluate(el=>el.hidden),false,'esforço aparece com metadado do modelo');
  assert.equal(await page.locator('#auto-compact').isHidden(),true,'compactação automática escondida');
  assert.equal(await page.locator('#ctx-meter').isHidden(),true,'medidor de contexto escondido sem contextUsage');
- const idleHint=await page.locator('#composer-hint').textContent();
- assert.match(idleHint,/⏎ envia/,'a dica ociosa continua a do composer');
- assert.doesNotMatch(idleHint,/interrompe/,'a dica ociosa não promete steer');
+ assert.equal(await page.locator('#composer-hint').count(),0,'a dica de atalhos saiu da tela principal');
+ assert.equal(await page.locator('#send').isVisible(),true,'ocioso, o Enviar é a ação da caixa');
  assert.equal(sentinelLines(piSentinel).length,0,'a conversa Claude não iniciou nenhum processo Pi');
 
  /* ---------- 3. texto + imagem chegam ao transporte Claude (sem bolha duplicada) ---------- */
@@ -204,7 +206,7 @@ await withArtifacts('claude-ui',async ctx=>{
  await sendEnabled(page,{timeout:30000});
  /* 4c. cancelamento vindo do host (`agent_request_cancelled`): o diálogo vencido
     não recebe resposta e o próximo da fila abre no lugar. */
- const sessionNow=await page.locator('#session-select').inputValue();
+ const sessionNow=await currentSession(page);
  await emit(app,{type:'extension_ui_request',id:'ui-perm-a',method:'confirm',title:'Permissão de teste A',message:'A?',permission:true,conversationId:sessionNow});
  await page.waitForFunction(()=>document.querySelector('#pi-dialog[open]'),undefined,{timeout:10000});
  assert.equal(await page.locator('#pi-dialog').getAttribute('data-permission'),'true','permissão injetada marca o diálogo');
@@ -265,9 +267,7 @@ await withArtifacts('claude-ui',async ctx=>{
  await page.locator('#prompt').fill('[claude:stall]');
  await page.locator('#send').click();
  await page.waitForFunction(()=>!document.querySelector('#stop').hidden,undefined,{timeout:30000});
- const busyHint=await page.locator('#composer-hint').textContent();
- assert.match(busyHint,/enfileira/,'ocupado sem steer, a dica anuncia a fila');
- assert.doesNotMatch(busyHint,/interrompe/,'ocupado sem steer, a dica não promete interromper');
+ assert.equal(await page.locator('#stop').isVisible(),true,'ocupado, o Parar toma o lugar do Enviar');
  await page.locator('#prompt').fill('fila no cancelamento');
  await page.locator('#prompt').press('Enter');
  await page.waitForSelector('.queue-item',{timeout:15000});
@@ -292,7 +292,8 @@ await withArtifacts('claude-ui',async ctx=>{
  assert.equal(await page.locator('.queue-item').count(),1,'a fila guarda o item incerto para conferência');
  assert.match(await page.locator('.queue-item span').first().textContent(),/fila no cancelamento/,'o item incerto continua visível na fila');
  assert.equal(sentinelLines(piSentinel).length,0,'incerteza em conversa Claude não inicia processo Pi');
- assert.equal(sentinelLines(claudeSentinel).length,0,'o SDK fake não executa o binário do Claude (nem versão/login)');
+ /* #45: o Sobre lê a versão do Claude Code com `claude --version` (só isso); login, auth e inferência seguem proibidos. */
+ assert.equal(sentinelLines(claudeSentinel).filter(line=>!/\s--version$/.test(line)).length,0,'o SDK fake não executa o binário do Claude (nem login nem inferência; só `--version`)');
 
  /* ---------- 6. reabrir com fila recuperada e exportar pelo NATIVO ---------- */
  await app.close();
@@ -301,9 +302,9 @@ await withArtifacts('claude-ui',async ctx=>{
  page=await app.firstWindow();
  errors=errors.concat(watch(page));
  await page.waitForSelector('.pdf-panel',{timeout:30000});
- await page.waitForFunction(()=>document.querySelector('#pi-label')?.textContent==='Claude Code',undefined,{timeout:30000});
+ await page.waitForFunction(()=>document.querySelector('#session-title')?.dataset.engine==='claude',undefined,{timeout:30000});
  await statusOnline(page,{timeout:60000});
- assert.equal(await page.locator('#session-select').inputValue(),claudeSession,'a conversa Claude volta a ser a ativa');
+ assert.equal(await currentSession(page),claudeSession,'a conversa Claude volta a ser a ativa');
  assert.equal(sentinelLines(piSentinel).length,0,'a reabertura da conversa Claude não inicia processo Pi');
  await waitBody(FIXTURE_TEXT);
  assert.equal(await page.locator('.queue-item').count(),1,'a fila guardada é recuperada no boot');
@@ -317,7 +318,7 @@ await withArtifacts('claude-ui',async ctx=>{
  stored.messages.push({type:'user',uuid:crypto.randomUUID(),session_id:nativeSessionId,message:{role:'user',content:[{type:'text',text:sentinel}]}});
  fs.writeFileSync(storeFile,JSON.stringify(stored));
  const traceBefore=traceEntries(claudeTrace).length;
- await page.locator('#export-chat').click();
+ await tutorMore(page,'#export-chat').click();
  await toastWait(page,'exportada',{timeout:30000});
  const exportDir=path.join(runtime,'Mesa de Estudos');
  const exported=fs.readdirSync(exportDir).filter(name=>name.endsWith('.md')).sort();
@@ -334,15 +335,13 @@ await withArtifacts('claude-ui',async ctx=>{
  assert.ok(exportCalls.some(call=>Number(call.offset)>0),'a paginação nativa avançou além da primeira página');
  /* Conversa nova não leva a fila da conversa antiga; o item fica guardado no
     arquivo da conversa Claude e volta segurado quando ela reabre. */
- await page.locator('#new-session-engine').selectOption('pi');
- acceptNextConfirm(page);
- await page.locator('#new-session').click();
- await page.waitForFunction(()=>document.querySelector('#pi-label')?.textContent==='Pi de teste',undefined,{timeout:60000});
+ await newSession(page);
+ await page.waitForFunction(old=>document.querySelector('#session-title')?.dataset.engine==='pi'&&document.querySelector('#session-title').dataset.session!==old,claudeSession,{timeout:60000});
  await statusOnline(page,{timeout:60000});
  await page.waitForFunction(()=>document.querySelectorAll('.queue-item').length===0,undefined,{timeout:15000});
  assert.equal(await page.locator('.queue-item').count(),0,'a fila da conversa Claude não vaza para a conversa nova');
- await page.locator('#session-select').selectOption(claudeSession);
- await page.waitForFunction(()=>document.querySelector('#pi-label')?.textContent==='Claude Code',undefined,{timeout:60000});
+ await openSessionById(page,claudeSession);
+ await page.waitForFunction(()=>document.querySelector('#session-title')?.dataset.engine==='claude',undefined,{timeout:60000});
  await statusOnline(page,{timeout:60000});
  assert.equal(await page.locator('.queue-item').count(),1,'o item continua guardado na conversa Claude');
  assert.equal(await page.locator('.queue-send-now').count(),1,'segurado, pronto para "Enviar agora"');
@@ -361,8 +360,13 @@ await withArtifacts('claude-ui',async ctx=>{
  errors=errors.concat(watch(page));
  await page.waitForSelector('.pdf-panel',{timeout:30000});
  await waitBody(FIXTURE_TEXT);
- await toastWait(page,'pareamento',{timeout:30000});
- assert.equal(await page.locator('#pi-label').textContent(),'Claude Code','offline, o rótulo continua o do motor (nunca Pi)');
+ /* O binário de teste não diz a versão: fora da faixa por ilegível (#51), a
+    coluna diz o que fazer e oferece Atualizar Claude Code. */
+ await page.waitForFunction(()=>document.querySelector('#tutor-state[data-state="error"]')?.textContent.includes('não deu para ler a versão'),undefined,{timeout:30000});
+ assert.equal(await page.locator('#tutor-state #state-claude-update').count(),1,'o conserto está na coluna');
+ assert.doesNotMatch(await page.locator('#tutor-state').textContent(),/pareamento|ClaudeAdapterError/,'sem o vocabulário da ponte (#51)');
+ assert.doesNotMatch(await page.locator('#toast').textContent(),/não deu para ler a versão/,'o motivo da conexão mora na coluna, sem aviso duplicado (#23)');
+ assert.equal(await currentEngine(page),'claude','offline, o motor da sessão segue sendo o Claude Code (nunca cai para o Pi)');
  assert.equal(await page.locator('#status-dot.online').count(),0,'sem versão/login a conversa não fica online');
  assert.ok(sentinelLines(claudeSentinel).length>=1,'a falha é do binário configurado (probe da CLI), não do Pi');
  assert.equal(sentinelLines(piSentinel).length,0,'a falha do Claude não inicia nenhum processo Pi');
@@ -374,7 +378,8 @@ await withArtifacts('claude-ui',async ctx=>{
  fs.mkdirSync(fakeHome,{recursive:true});
  fs.writeFileSync(claudeSentinel,'');
  fs.writeFileSync(piSentinel,'');
- app=ctx.app=await launch({LEARNING_DESK_CLAUDE_SDK_FACTORY:'',LEARNING_DESK_CLAUDE:path.join(runtime,'claude-inexistente'),HOME:fakeHome});
+ /* A casa vazia é a do teste: sem o Claude de guarda do electron-env (#51). */
+ app=ctx.app=await launch({LEARNING_DESK_CLAUDE_SDK_FACTORY:'',LEARNING_DESK_CLAUDE:path.join(runtime,'claude-inexistente'),HOME:fakeHome,LEARNING_DESK_CLAUDE_HOME:''});
  page=await app.firstWindow();
  errors=errors.concat(watch(page));
  await page.waitForSelector('.pdf-panel',{timeout:30000});
@@ -382,21 +387,21 @@ await withArtifacts('claude-ui',async ctx=>{
  await page.waitForTimeout(1500);
  const bootToast=await page.locator('#toast').textContent();
  assert.doesNotMatch(bootToast,/Claude/,'sem binário detectado, o boot não tenta conectar (nem toasta)');
- assert.equal(await page.locator('#pi-label').textContent(),'Claude Code','rótulo do motor mesmo sem tentar conectar');
+ assert.equal(await currentEngine(page),'claude','o motor da sessão segue sendo o Claude Code mesmo sem tentar conectar');
  assert.equal(await page.locator('#status-dot.online').count(),0,'a conversa Claude fica offline sem binário');
  assert.equal(sentinelLines(claudeSentinel).length,0,'sem binário detectado, a CLI nem é executada');
  assert.equal(sentinelLines(piSentinel).length,0,'sem binário do Claude o Pi continua intocado (sem fallback)');
  /* Rollback: a conversa Pi de antes continua na lista e reabre com o histórico. */
- const sessionOptions=await page.locator('#session-select option').evaluateAll(es=>es.map(e=>({value:e.value,text:e.textContent})));
- const piOption=sessionOptions.find(option=>option.value===piSession);
- assert.ok(piOption,'a conversa Pi original continua na lista depois dos experimentos Claude');
- assert.match(sessionOptions.find(option=>option.value===claudeSession)?.text||'',/Claude/i,'a conversa Claude também continua listada');
+ const sessionRowsNow=await sessionRows(page);
+ const piRow=sessionRowsNow.find(row=>row.id===piSession);
+ assert.ok(piRow,'a conversa Pi original continua na lista depois dos experimentos Claude');
+ assert.match(sessionRowsNow.find(row=>row.id===claudeSession)?.meta||'',/Claude/i,'a conversa Claude também continua listada');
  fs.writeFileSync(piSentinel,'');
- await page.locator('#session-select').selectOption(piOption.value);
- await page.waitForFunction(()=>document.querySelector('#pi-label')?.textContent==='Pi de teste',undefined,{timeout:60000});
+ await openSessionById(page,piRow.id);
+ await page.waitForFunction(()=>document.querySelector('#session-title')?.dataset.engine==='pi',undefined,{timeout:60000});
  await statusOnline(page,{timeout:60000});
  await page.waitForFunction(()=>[...document.querySelectorAll('.message.user .body')].some(el=>el.textContent.includes('Pitágoras')),undefined,{timeout:30000});
- assert.equal(await page.locator('#new-session-engine').inputValue(),'pi','com a conversa Pi ativa, o seletor volta ao Pi');
+ assert.equal(await currentEngine(page),'pi','com a sessão Pi ativa, o título volta ao motor Pi');
  assert.ok((await page.locator('#messages .message.assistant .katex').count())>=1,'a resposta antiga do Pi continua no histórico');
  assert.equal(fs.readFileSync(piSession,'utf8'),piSnapshot,'the original Pi transcript remains byte-for-byte intact');
  assert.ok(sentinelLines(piSentinel).length>=1,'a conversa Pi continua funcional (processo iniciado pelo trap)');

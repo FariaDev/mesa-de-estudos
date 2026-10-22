@@ -39,8 +39,8 @@ law worklog_tool_vazio:
 # LAW: a agulha vale em qualquer posição, inclusive depois de um prefixo de 20k
 # chars — acima dos ~10k em que a classe #798 estourava a pilha (core/README.md).
 # É um caso concreto do checker, não medição de runtime: a escala real é
-# exercitada por `chat/tests/search-limits.test.mjs` (8k/20k/100k) e
-# `chat/tests/framing-parity.mjs` (12 MB). Medido: o portão de provas sai de
+# exercitada pelos testes de escala que existiam na Conversa
+# (`search-limits` 8k/20k/100k e `framing-parity` 12 MB; tag `conversa-final`). Medido: o portão de provas sai de
 # ~4 s (com 200n) para ~10 s (20k) e ~37 s (100k), então 20k é o teto prático.
 law worklog_tool_longo:
   {L.toolKind(String.append(String.from_list(List.replicate(Char, 20000n, 'a')), "open_reference")) == L.Reference{} : L.StepKind}

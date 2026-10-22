@@ -4,121 +4,133 @@ function cmp_new(a, b) {
   return { $: a < b ? "LT" : a === b ? "EQ" : "GT" };
 }
 function nat_divmod(a, b) {
-  return b === 0n ? { $: "Tuple", fst: 0n, snd: a } : { $: "Tuple", fst: a / b, snd: a % b };
+  return b === 0 ? { $: "Tuple", fst: 0, snd: a } : { $: "Tuple", fst: Math.trunc(a / b), snd: a % b };
 }
 function nat_chk(n) {
-  if (n > 281474976710655n) {
+  if (n > 281474976710655) {
     throw "bend: a Nat past the largest immediate 2^48-1";
   }
   return n;
 }
-function char_new(code) {
-  if (code > 1114111 || code >= 55296 && code <= 57343) {
-    throw "bend: " + code + " is not a Unicode scalar value";
-  }
-  return String.fromCodePoint(code);
+function nat_in(n) {
+  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
 }
-function run_jump(f, x) {
-  return { $: "$JMP", f, x };
+var char_new = function char_new(c) {
+  return c < 55296 || c >= 57344 && c <= 1114111 ? String.fromCodePoint(c) : String.fromCharCode(56320, c >>> 22, c >>> 11 & 2047, c & 2047);
+};
+function char_len(s) {
+  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+}
+function char_code(s) {
+  return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
+}
+function str_out(s) {
+  return s.replace(/\uDC00[^]{3}/gu, "�");
+}
+function str_in(s) {
+  return s.replace(/\p{Cs}/gu, "�");
 }
 function run_loop(r) {
   while (r !== null && typeof r === "object" && r.$ === "$JMP") {
-    r = r.f(...r.x);
+    r = r.f(r.x);
   }
   return r;
 }
 function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
-function $view$attr$(_name_0, _value_0) {
-  return { $: "ViewAttr", ["name"]: _name_0, ["value"]: _value_0 };
+var $0eff = Object.create(null);
+function $msg_mark() {
+  return "";
 }
-function $view$classOn$(_name_0, _on_0) {
-  return { $: "ViewClass", ["name"]: _name_0, ["on"]: _on_0 };
+function $msg_sep() {
+  return "";
 }
-function $view$viewEl$(_tag_0, _attrs_0, _kids_0) {
-  return { $: "ViewEl", ["tag"]: _tag_0, ["attrs"]: _attrs_0, ["kids"]: _kids_0 };
+function $msg_pack(_parts_0) {
+  const _x_0 = $msg_mark();
+  const _x_1 = $String_join(_parts_0, $msg_sep());
+  return _x_0 + _x_1;
 }
-function $view$viewText$(_s_0) {
-  return { $: "ViewText", ["text"]: _s_0 };
+function $msg_msg(_key_0) {
+  return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Nil" } });
 }
-function $view$viewKey$(_tag_0, _key_0, _attrs_0, _kids_0) {
-  return run_jump($view$viewEl$, [_tag_0, { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "key", ["value"]: _key_0 }, ["tail"]: _attrs_0 }, _kids_0]);
+function $msg_msg1(_key_0, _n1_0, _v1_0) {
+  return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Nil" } } } });
 }
-function $view$tagOf$(_n_0) {
+function $msg_msg2(_key_0, _n1_0, _v1_0, _n2_0, _v2_0) {
+  return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Nil" } } } } } });
+}
+function $msg_msg3(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0) {
+  return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Nil" } } } } } } } });
+}
+function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_0) {
+  return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
+}
+function $msg_isMsg(_s_0) {
+  return $String_starts_with(_s_0, $msg_mark());
+}
+function $view_attr(_name_0, _value_0) {
+  return { $: "ViewAttr", name: _name_0, value: _value_0 };
+}
+function $view_classOn(_name_0, _on_0) {
+  return { $: "ViewClass", name: _name_0, on: _on_0 };
+}
+function $view_viewEl(_tag_0, _attrs_0, _kids_0) {
+  return { $: "ViewEl", tag: _tag_0, attrs: _attrs_0, kids: _kids_0 };
+}
+function $view_viewText(_s_0) {
+  return { $: "ViewText", text: _s_0 };
+}
+function $view_viewKey(_tag_0, _key_0, _attrs_0, _kids_0) {
+  return $view_viewEl(_tag_0, { $: "Con", head: { $: "ViewAttr", name: "key", value: _key_0 }, tail: _attrs_0 }, _kids_0);
+}
+function $view_tagOf(_n_0) {
   if (_n_0.$ === "ViewEl") {
     const _tag_0 = _n_0["tag"];
-    const _attrs_0 = _n_0["attrs"];
-    const _kids_0 = _n_0["kids"];
     return _tag_0;
   } else {
-    const _text_0 = _n_0["text"];
     return "";
   }
 }
-function $view$attrsOf$(_n_0) {
+function $view_attrsOf(_n_0) {
   if (_n_0.$ === "ViewEl") {
-    const _tag_0 = _n_0["tag"];
     const _attrs_0 = _n_0["attrs"];
-    const _kids_0 = _n_0["kids"];
     return _attrs_0;
   } else {
-    const _text_0 = _n_0["text"];
     return { $: "Nil" };
   }
 }
-function $view$kidsOf$(_n_0) {
+function $view_kidsOf(_n_0) {
   if (_n_0.$ === "ViewEl") {
-    const _tag_0 = _n_0["tag"];
-    const _attrs_0 = _n_0["attrs"];
     const _kids_0 = _n_0["kids"];
     return _kids_0;
   } else {
-    const _text_0 = _n_0["text"];
     return { $: "Nil" };
   }
 }
-function $view$textOf$(_n_0) {
+function $view_textOf(_n_0) {
   if (_n_0.$ === "ViewEl") {
-    const _tag_0 = _n_0["tag"];
-    const _attrs_0 = _n_0["attrs"];
-    const _kids_0 = _n_0["kids"];
     return "";
   } else {
     const _text_0 = _n_0["text"];
     return _text_0;
   }
 }
-function $view$isEl$(_n_0) {
+function $view_isText(_n_0) {
   if (_n_0.$ === "ViewEl") {
-    const _tag_0 = _n_0["tag"];
-    const _attrs_0 = _n_0["attrs"];
-    const _kids_0 = _n_0["kids"];
-    return true;
-  } else {
-    const _text_0 = _n_0["text"];
-    return false;
-  }
-}
-function $view$isText$(_n_0) {
-  if (_n_0.$ === "ViewEl") {
-    const _tag_0 = _n_0["tag"];
-    const _attrs_0 = _n_0["attrs"];
-    const _kids_0 = _n_0["kids"];
     return false;
   } else {
-    const _text_0 = _n_0["text"];
     return true;
   }
 }
-function $view$attrGet$choose$(_av_0, _rest_0, _same_0) {
+function $view_attrGet_choose(_av_0, _rest_0, _same_0) {
   if (_same_0) {
-    return { $: "Some", ["value"]: _av_0 };
+    return { $: "Some", value: _av_0 };
   } else {
     return _rest_0;
   }
 }
-function $view$attrGet$go$(_attrs_0, _name_0) {
+function $view_attrGet_go(_attrs_0, _name_0) {
   if (_attrs_0.$ === "Nil") {
     return { $: "None" };
   } else {
@@ -126,60 +138,60 @@ function $view$attrGet$go$(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return run_jump($view$attrGet$choose$, [_av_0, run_loop($view$attrGet$go$(_t_1, _name_0)), run_loop($String$eq$(_an_0, _name_0))]);
+    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
   }
 }
-function $view$attrGet$(_attrs_0, _name_0) {
-  return run_jump($view$attrGet$go$, [_attrs_0, _name_0]);
+function $view_attrGet(_attrs_0, _name_0) {
+  return $view_attrGet_go(_attrs_0, _name_0);
 }
-function $view$attrWhen$(_cond_0, _a_0) {
+function $view_attrWhen(_cond_0, _a_0) {
   if (_cond_0) {
-    return { $: "Con", ["head"]: _a_0, ["tail"]: { $: "Nil" } };
+    return { $: "Con", head: _a_0, tail: { $: "Nil" } };
   } else {
     return { $: "Nil" };
   }
 }
-function $view$attrConcat$(_xs_0, _ys_0) {
-  return run_jump($List$append$, [_xs_0, _ys_0]);
+function $view_attrConcat(_xs_0, _ys_0) {
+  return $List_append(_xs_0, _ys_0);
 }
-function $view$attrJoin$(_xss_0) {
-  return run_jump($List$concat$, [_xss_0]);
+function $view_attrJoin(_xss_0) {
+  return $List_concat(_xss_0);
 }
-function $view$attrId$(_value_0) {
-  return { $: "ViewAttr", ["name"]: "id", ["value"]: _value_0 };
+function $view_attrId(_value_0) {
+  return { $: "ViewAttr", name: "id", value: _value_0 };
 }
-function $view$attrClass$(_value_0) {
-  return { $: "ViewAttr", ["name"]: "class", ["value"]: _value_0 };
+function $view_attrClass(_value_0) {
+  return { $: "ViewAttr", name: "class", value: _value_0 };
 }
-function $view$attrType$(_value_0) {
-  return { $: "ViewAttr", ["name"]: "type", ["value"]: _value_0 };
+function $view_attrType(_value_0) {
+  return { $: "ViewAttr", name: "type", value: _value_0 };
 }
-function $view$attrTitle$(_value_0) {
-  return { $: "ViewAttr", ["name"]: "title", ["value"]: _value_0 };
+function $view_attrTitle(_value_0) {
+  return { $: "ViewAttr", name: "title", value: _value_0 };
 }
-function $view$attrKey$(_value_0) {
-  return { $: "ViewAttr", ["name"]: "key", ["value"]: _value_0 };
+function $view_attrKey(_value_0) {
+  return { $: "ViewAttr", name: "key", value: _value_0 };
 }
-function $view$attrOn$(_event_0, _handler_0) {
-  return { $: "ViewAttr", ["name"]: "on:" + _event_0, ["value"]: _handler_0 };
+function $view_attrOn(_event_0, _handler_0) {
+  return { $: "ViewAttr", name: "on:" + _event_0, value: _handler_0 };
 }
-function $view$attrData$(_name_0, _value_0) {
-  return { $: "ViewAttr", ["name"]: "data-" + _name_0, ["value"]: _value_0 };
+function $view_attrData(_name_0, _value_0) {
+  return { $: "ViewAttr", name: "data-" + _name_0, value: _value_0 };
 }
-function $view$attrAria$(_name_0, _value_0) {
-  return { $: "ViewAttr", ["name"]: "aria-" + _name_0, ["value"]: _value_0 };
+function $view_attrAria(_name_0, _value_0) {
+  return { $: "ViewAttr", name: "aria-" + _name_0, value: _value_0 };
 }
-function $view$boolStr$(_on_0) {
+function $view_boolStr(_on_0) {
   if (_on_0) {
     return "true";
   } else {
     return "false";
   }
 }
-function $view$attrBool$(_name_0, _on_0) {
-  return { $: "ViewAttr", ["name"]: _name_0, ["value"]: run_loop($view$boolStr$(_on_0)) };
+function $view_attrBool(_name_0, _on_0) {
+  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
 }
-function $view$classAppend$empty$(_acc_0, _name_0, _empty_0) {
+function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
     return _name_0;
   } else {
@@ -187,2065 +199,2683 @@ function $view$classAppend$empty$(_acc_0, _name_0, _empty_0) {
     return _acc_0 + _x_0;
   }
 }
-function $view$classAppend$(_acc_0, _name_0) {
-  return run_jump($view$classAppend$empty$, [_acc_0, _name_0, run_loop($String$is_empty$(_acc_0))]);
+function $view_classAppend(_acc_0, _name_0) {
+  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
 }
-function $view$classNext$emptyName$(_name_0, _acc_0, _emptyName_0) {
+function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
     return _acc_0;
   } else {
-    return run_jump($view$classAppend$, [_acc_0, _name_0]);
+    return $view_classAppend(_acc_0, _name_0);
   }
 }
-function $view$classNext$on$(_name_0, _on_0, _acc_0) {
+function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return run_jump($view$classNext$emptyName$, [_name_0, _acc_0, run_loop($String$is_empty$(_name_0))]);
+    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
   }
 }
-function $view$classValue$go$(_xs_0, _acc_0) {
-  if (_xs_0.$ === "Nil") {
-    return _acc_0;
-  } else {
-    const _t_0 = _xs_0["head"];
-    const _name_0 = _t_0["name"];
-    const _on_0 = _t_0["on"];
-    const _t_1 = _xs_0["tail"];
-    return run_jump($view$classValue$go$, [_t_1, run_loop($view$classNext$on$(_name_0, _on_0, _acc_0))]);
+function $view_classValue_go($0, $1) {
+  for (;; ) {
+    {
+      const _xs_0 = $0;
+      const _acc_0 = $1;
+      if (_xs_0.$ === "Nil") {
+        return _acc_0;
+      } else {
+        const _t_0 = _xs_0["head"];
+        const _name_0 = _t_0["name"];
+        const _on_0 = _t_0["on"];
+        const _t_1 = _xs_0["tail"];
+        $0 = _t_1;
+        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        continue;
+      }
+    }
   }
 }
-function $view$classValue$(_xs_0) {
-  return run_jump($view$classValue$go$, [_xs_0, ""]);
+function $view_classValue(_xs_0) {
+  return $view_classValue_go(_xs_0, "");
 }
-function $view$classes$(_xs_0) {
-  return { $: "ViewAttr", ["name"]: "class", ["value"]: run_loop($view$classValue$(_xs_0)) };
+function $view_classes(_xs_0) {
+  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
 }
-function $view$viewWhen$(_cond_0, _node_0) {
+function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
-    return { $: "Con", ["head"]: _node_0, ["tail"]: { $: "Nil" } };
+    return { $: "Con", head: _node_0, tail: { $: "Nil" } };
   } else {
     return { $: "Nil" };
   }
 }
-function $view$viewWhenAll$(_cond_0, _nodes_0) {
+function $view_viewWhenAll(_cond_0, _nodes_0) {
   if (_cond_0) {
     return _nodes_0;
   } else {
     return { $: "Nil" };
   }
 }
-function $view$viewConcat$(_xs_0, _ys_0) {
-  return run_jump($List$append$, [_xs_0, _ys_0]);
+function $view_viewConcat(_xs_0, _ys_0) {
+  return $List_append(_xs_0, _ys_0);
 }
-function $view$viewJoin$(_xss_0) {
-  return run_jump($List$concat$, [_xss_0]);
+function $view_viewJoin(_xss_0) {
+  return $List_concat(_xss_0);
 }
-function $view$viewMapText$(_xs_0) {
-  return run_jump($view$viewMap$0$, [_xs_0]);
+function $view_viewMapText(_xs_0) {
+  return $view_viewMap_0(_xs_0);
 }
-function $view$asTextI$(_i_0, _s_0) {
-  return run_jump($view$viewText$, [_s_0]);
+function $view_asTextI(_i_0, _s_0) {
+  return $view_viewText(_s_0);
 }
-function $view$viewMapTextI$go$(_xs_0, _i_0) {
-  return run_jump($view$viewMapI$go$0$, [_xs_0, _i_0]);
+function $view_viewMapTextI_go(_xs_0, _i_0) {
+  return $view_viewMapI_go_0(_xs_0, _i_0);
 }
-function $view$viewMapTextI$(_xs_0) {
-  return run_jump($view$viewMapTextI$go$, [_xs_0, 0n]);
+function $view_viewMapTextI(_xs_0) {
+  return $view_viewMapTextI_go(_xs_0, 0);
 }
-function $pdfnav$maxName$() {
-  return 60n;
+function $pdfnav_maxName() {
+  return 60;
 }
-function $pdfnav$maxPath$() {
-  return BigInt(1024);
+function $pdfnav_maxPath() {
+  return 1024;
 }
-function $pdfnav$maxBookmarks$() {
-  return 200n;
+function $pdfnav_maxBookmarks() {
+  return 200;
 }
-function $pdfnav$maxOutline$() {
-  return 40n;
+function $pdfnav_maxOutline() {
+  return 40;
 }
-function $pdfnav$maxDepth$() {
-  return 3n;
+function $pdfnav_maxDepth() {
+  return 3;
 }
-function $pdfnav$cutName$if$(_text_0, _limit_0, _over_0) {
+function $pdfnav_cutName_if(_text_0, _limit_0, _over_0) {
   if (!_over_0) {
     return _text_0;
   } else {
-    return run_jump($String$take$, [_text_0, _limit_0]);
+    return $String_take(_text_0, _limit_0);
   }
 }
-function $pdfnav$cutName$(_text_0, _limit_0) {
-  return run_jump($pdfnav$cutName$if$, [_text_0, _limit_0, run_loop($Nat$is_gt$(BigInt([..._text_0].length), _limit_0))]);
+function $pdfnav_cutName(_text_0, _limit_0) {
+  return $pdfnav_cutName_if(_text_0, _limit_0, $Nat_is_gt([...str_out(_text_0)].length, _limit_0));
 }
-function $pdfnav$fitName$(_text_0) {
-  return run_jump($pdfnav$cutName$, [run_loop($String$trim$(_text_0)), run_loop($pdfnav$maxName$())]);
+function $pdfnav_fitName(_text_0) {
+  return $pdfnav_cutName($String_trim(_text_0), $pdfnav_maxName());
 }
-function $pdfnav$keepName$blank$(_blank_0) {
+function $pdfnav_keepName_blank(_blank_0) {
   if (_blank_0) {
     return false;
   } else {
     return true;
   }
 }
-function $pdfnav$keepName$(_name_0) {
-  return run_jump($pdfnav$keepName$blank$, [run_loop($String$is_empty$(run_loop($String$trim$(_name_0))))]);
+function $pdfnav_keepName(_name_0) {
+  return $pdfnav_keepName_blank($String_is_empty($String_trim(_name_0)));
 }
-function $pdfnav$pageLabel$(_page_0) {
-  const _x_0 = run_loop($Nat$show$(_page_0));
+function $pdfnav_pageLabel(_page_0) {
+  const _x_0 = $Nat_show(_page_0);
   return "p. " + _x_0;
 }
-function $pdfnav$bookmarkLabel$(_name_0) {
+function $pdfnav_bookmarkLabel(_name_0) {
   return _name_0;
 }
-function $pdfnav$bookmarkTitle$(_name_0, _page_0) {
-  const _x_0 = run_loop($pdfnav$pageLabel$(_page_0));
-  const _x_1 = " na " + _x_0;
-  const _x_2 = _name_0 + _x_1;
-  return "Abrir " + _x_2;
+function $pdfnav_bookmarkTitle(_name_0, _page_0) {
+  return $msg_msg2("pdf.ref.title", "name", _name_0, "page", $Nat_show(_page_0));
 }
-function $pdfnav$bookmarkAria$(_name_0, _page_0) {
-  const _x_0 = run_loop($pdfnav$pageLabel$(_page_0));
-  const _x_1 = ", " + _x_0;
-  const _x_2 = _name_0 + _x_1;
-  return "Abrir o favorito " + _x_2;
+function $pdfnav_bookmarkAria(_name_0, _page_0) {
+  return $msg_msg2("pdf.nav.bookmarkAria", "name", _name_0, "page", $Nat_show(_page_0));
 }
-function $pdfnav$removeLabel$() {
-  return "Remover";
+function $pdfnav_removeLabel() {
+  return $msg_msg("common.remove");
 }
-function $pdfnav$removeTitle$(_name_0) {
-  return "Remover o favorito " + _name_0;
+function $pdfnav_removeTitle(_name_0) {
+  return $msg_msg1("pdf.nav.removeTitle", "name", _name_0);
 }
-function $pdfnav$removeAria$(_name_0) {
-  return "Remover o favorito " + _name_0;
+function $pdfnav_removeAria(_name_0) {
+  return $msg_msg1("pdf.nav.removeTitle", "name", _name_0);
 }
-function $pdfnav$saveLabel$() {
-  return "Guardar esta página…";
+function $pdfnav_saveLabel() {
+  return $msg_msg("pdf.nav.save");
 }
-function $pdfnav$saveTitle$() {
-  return "Guardar a página aberta como favorito";
+function $pdfnav_saveTitle() {
+  return $msg_msg("pdf.nav.saveTitle");
 }
-function $pdfnav$favoritesTitle$() {
-  return "Favoritos desta matéria";
+function $pdfnav_favoritesTitle() {
+  return $msg_msg("pdf.nav.favorites");
 }
-function $pdfnav$favoritesEmpty$() {
-  return "Nenhum favorito nesta matéria.";
+function $pdfnav_favoritesEmpty() {
+  return $msg_msg("pdf.nav.favoritesEmpty");
 }
-function $pdfnav$outlineTitle$() {
-  return "Sumário deste PDF";
+function $pdfnav_outlineTitle() {
+  return $msg_msg("pdf.nav.outline");
 }
-function $pdfnav$outlineEmpty$() {
-  return "Este PDF não tem sumário.";
+function $pdfnav_outlineEmpty() {
+  return $msg_msg("pdf.nav.outlineEmpty");
 }
-function $pdfnav$navButtonLabel$() {
-  return "Sumário e favoritos";
+function $pdfnav_navButtonLabel() {
+  return $msg_msg("pdf.nav.button");
 }
-function $pdfnav$navButtonTitle$() {
-  return "Sumário e favoritos";
+function $pdfnav_navButtonTitle() {
+  return $msg_msg("pdf.nav.button");
 }
-function $pdfnav$navAria$(_label_0) {
-  return "Sumário e favoritos de " + _label_0;
+function $pdfnav_navAria(_label_0) {
+  return $msg_msg1("pdf.nav.ariaOf", "label", _label_0);
 }
-function $pdfnav$navBackLabel$() {
-  return "Voltar";
+function $pdfnav_navBackLabel() {
+  return $msg_msg("pdf.nav.back");
 }
-function $pdfnav$navBackTitle$() {
-  return "Voltar à página anterior";
+function $pdfnav_navBackTitle() {
+  return $msg_msg("pdf.nav.backTitle");
 }
-function $pdfnav$navBackAria$(_label_0) {
-  return "Voltar à página anterior de " + _label_0;
+function $pdfnav_navBackAria(_label_0) {
+  return $msg_msg1("pdf.nav.backAria", "label", _label_0);
 }
-function $pdfnav$bookmarkDialogTitle$() {
-  return "Guardar esta página";
+function $pdfnav_bookmarkDialogTitle() {
+  return $msg_msg("pdf.nav.dialogTitle");
 }
-function $pdfnav$bookmarkNameLabel$() {
-  return "Nome do favorito";
+function $pdfnav_bookmarkNameLabel() {
+  return $msg_msg("pdf.nav.nameLabel");
 }
-function $pdfnav$bookmarkDialogHint$(_name_0, _page_0) {
-  const _x_0 = run_loop($pdfnav$pageLabel$(_page_0));
+function $pdfnav_bookmarkDialogHint(_name_0, _page_0) {
+  const _x_0 = $pdfnav_pageLabel(_page_0);
   const _x_1 = ", " + _x_0;
   return _name_0 + _x_1;
 }
-function $pdfnav$bookmarkSaveLabel$() {
-  return "Salvar";
+function $pdfnav_bookmarkSaveLabel() {
+  return $msg_msg("common.save");
 }
-function $pdfnav$bookmarkCancelLabel$() {
-  return "Cancelar";
+function $pdfnav_bookmarkCancelLabel() {
+  return $msg_msg("common.cancel");
 }
-function $pdfnav$pageFloor$if$(_page_0, _low_0) {
+function $pdfnav_pageFloor_if(_page_0, _low_0) {
   if (_low_0) {
-    return 1n;
+    return 1;
   } else {
     return _page_0;
   }
 }
-function $pdfnav$pageFloor$(_page_0) {
-  return run_jump($pdfnav$pageFloor$if$, [_page_0, _page_0 < 1n]);
+function $pdfnav_pageFloor(_page_0) {
+  return $pdfnav_pageFloor_if(_page_0, _page_0 < 1);
 }
-function $pdfnav$fitPath$(_text_0) {
-  return run_jump($pdfnav$cutName$, [run_loop($String$trim$(_text_0)), run_loop($pdfnav$maxPath$())]);
+function $pdfnav_fitPath(_text_0) {
+  return $pdfnav_cutName($String_trim(_text_0), $pdfnav_maxPath());
 }
-function $pdfnav$newBookmark$(_name_0, _path_0, _page_0) {
-  return { $: "Bookmark", ["name"]: run_loop($pdfnav$fitName$(_name_0)), ["path"]: run_loop($pdfnav$fitPath$(_path_0)), ["page"]: run_loop($pdfnav$pageFloor$(_page_0)) };
+function $pdfnav_newBookmark(_name_0, _path_0, _page_0) {
+  return { $: "Bookmark", name: $pdfnav_fitName(_name_0), path: $pdfnav_fitPath(_path_0), page: $pdfnav_pageFloor(_page_0) };
 }
-function $pdfnav$keepBookmark$path$(_noPath_0) {
+function $pdfnav_keepBookmark_path(_noPath_0) {
   if (_noPath_0) {
     return false;
   } else {
     return true;
   }
 }
-function $pdfnav$keepBookmark$(_bm_0) {
+function $pdfnav_keepBookmark(_bm_0) {
   const _name_0 = _bm_0["name"];
   const _path_0 = _bm_0["path"];
-  const __0 = _bm_0["page"];
-  return run_jump($Bool$and$, [run_loop($pdfnav$keepName$blank$(run_loop($String$is_empty$(run_loop($String$trim$(_name_0)))))), run_loop($pdfnav$keepBookmark$path$(run_loop($String$is_empty$(run_loop($String$trim$(_path_0))))))]);
+  return $Bool_and($pdfnav_keepName_blank($String_is_empty($String_trim(_name_0))), $pdfnav_keepBookmark_path($String_is_empty($String_trim(_path_0))));
 }
-function $pdfnav$sameBookmark$(_a_0, _b_0) {
+function $pdfnav_sameBookmark(_a_0, _b_0) {
   const _name_0 = _a_0["name"];
   const _path_0 = _a_0["path"];
-  const __0 = _a_0["page"];
   const _name2_0 = _b_0["name"];
   const _path2_0 = _b_0["path"];
-  const __1 = _b_0["page"];
-  return run_jump($Bool$and$, [run_loop($String$eq$(_name_0, _name2_0)), run_loop($String$eq$(_path_0, _path2_0))]);
+  return $Bool_and($String_eq(_name_0, _name2_0), $String_eq(_path_0, _path2_0));
 }
-function $pdfnav$dropSame$head$(_h_0, _rest_0, _same_0) {
+function $pdfnav_dropSame_head(_h_0, _rest_0, _same_0) {
   if (_same_0) {
     return _rest_0;
   } else {
-    return { $: "Con", ["head"]: _h_0, ["tail"]: _rest_0 };
+    return { $: "Con", head: _h_0, tail: _rest_0 };
   }
 }
-function $pdfnav$dropSame$go$(_bs_0, _bm_0) {
+function $pdfnav_dropSame_go(_bs_0, _bm_0) {
   if (_bs_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _bs_0["head"];
     const _t_0 = _bs_0["tail"];
-    return run_jump($pdfnav$dropSame$head$, [_h_0, run_loop($pdfnav$dropSame$go$(_t_0, _bm_0)), run_loop($pdfnav$sameBookmark$(_h_0, _bm_0))]);
+    return $pdfnav_dropSame_head(_h_0, $pdfnav_dropSame_go(_t_0, _bm_0), $pdfnav_sameBookmark(_h_0, _bm_0));
   }
 }
-function $pdfnav$takeList$go$(_xs_0, _n_0) {
+function $pdfnav_takeList_go(_xs_0, _n_0) {
   if (_xs_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    if (_n_0 === 0n) {
+    if (_n_0 === 0) {
       return { $: "Nil" };
     } else {
-      const _p_0 = _n_0 - 1n;
-      return { $: "Con", ["head"]: _h_0, ["tail"]: run_loop($pdfnav$takeList$go$(_t_0, _p_0)) };
+      const _p_0 = _n_0 - 1;
+      return { $: "Con", head: _h_0, tail: $pdfnav_takeList_go(_t_0, _p_0) };
     }
   }
 }
-function $pdfnav$addBookmark$(_bs_0, _bm_0) {
-  return run_jump($pdfnav$takeList$go$, [{ $: "Con", ["head"]: _bm_0, ["tail"]: run_loop($pdfnav$dropSame$go$(_bs_0, _bm_0)) }, run_loop($pdfnav$maxBookmarks$())]);
+function $pdfnav_addBookmark(_bs_0, _bm_0) {
+  return $pdfnav_takeList_go({ $: "Con", head: _bm_0, tail: $pdfnav_dropSame_go(_bs_0, _bm_0) }, $pdfnav_maxBookmarks());
 }
-function $pdfnav$removeBookmark$(_bs_0, _bm_0) {
-  return run_jump($pdfnav$dropSame$go$, [_bs_0, _bm_0]);
+function $pdfnav_removeBookmark(_bs_0, _bm_0) {
+  return $pdfnav_dropSame_go(_bs_0, _bm_0);
 }
-function $pdfnav$emptyBooks$(_bs_0) {
-  return run_jump($Nat$is_eq$, [run_loop($List$length$(_bs_0)), 0n]);
+function $pdfnav_emptyBooks(_bs_0) {
+  return $Nat_is_eq($List_length(_bs_0), 0);
 }
-function $pdfnav$emptyOutline$(_os_0) {
-  return run_jump($Nat$is_eq$, [run_loop($List$length$(_os_0)), 0n]);
+function $pdfnav_emptyOutline(_os_0) {
+  return $Nat_is_eq($List_length(_os_0), 0);
 }
-function $pdfnav$bookmarkRow$(_id_0, _bm_0, _currentPath_0) {
+function $pdfnav_bookmarkRow(_id_0, _bm_0, _currentPath_0) {
   const _name_0 = _bm_0["name"];
   const _path_0 = _bm_0["path"];
   const _page_0 = _bm_0["page"];
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("nav-row")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewEl$("button", { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$classes$({ $: "Con", ["head"]: run_loop($view$classOn$("nav-bookmark", true)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("current", run_loop($String$eq$(_path_0, _currentPath_0)))), ["tail"]: { $: "Nil" } } })), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("id", run_loop($Nat$show$(_id_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("page", run_loop($Nat$show$(_page_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("path", _path_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($pdfnav$bookmarkTitle$(_name_0, _page_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($pdfnav$bookmarkAria$(_name_0, _page_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "OpenBookmark")), ["tail"]: { $: "Nil" } } } } } } } } }, { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("nav-name")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($pdfnav$bookmarkLabel$(_name_0)))), ["tail"]: { $: "Nil" } })), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("nav-page")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($pdfnav$pageLabel$(_page_0)))), ["tail"]: { $: "Nil" } })), ["tail"]: { $: "Nil" } } })), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("button", { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$classes$({ $: "Con", ["head"]: run_loop($view$classOn$("icon-btn", true)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("nav-bookmark-remove", true)), ["tail"]: { $: "Nil" } } })), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("icon", "minus")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("id", run_loop($Nat$show$(_id_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($pdfnav$removeTitle$(_name_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($pdfnav$removeAria$(_name_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "RemoveBookmark")), ["tail"]: { $: "Nil" } } } } } } } }, { $: "Nil" })), ["tail"]: { $: "Nil" } } }]);
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("nav-row"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("nav-bookmark", true), tail: { $: "Con", head: $view_classOn("current", $String_eq(_path_0, _currentPath_0)), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_attrData("id", $Nat_show(_id_0)), tail: { $: "Con", head: $view_attrData("page", $Nat_show(_page_0)), tail: { $: "Con", head: $view_attrData("path", _path_0), tail: { $: "Con", head: $view_attrTitle($pdfnav_bookmarkTitle(_name_0, _page_0)), tail: { $: "Con", head: $view_attrAria("label", $pdfnav_bookmarkAria(_name_0, _page_0)), tail: { $: "Con", head: $view_attrOn("click", "OpenBookmark"), tail: { $: "Nil" } } } } } } } } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("nav-name"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($pdfnav_bookmarkLabel(_name_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("nav-page"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($pdfnav_pageLabel(_page_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("icon-btn", true), tail: { $: "Con", head: $view_classOn("nav-bookmark-remove", true), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_attrData("icon", "minus"), tail: { $: "Con", head: $view_attrData("id", $Nat_show(_id_0)), tail: { $: "Con", head: $view_attrTitle($pdfnav_removeTitle(_name_0)), tail: { $: "Con", head: $view_attrAria("label", $pdfnav_removeAria(_name_0)), tail: { $: "Con", head: $view_attrOn("click", "RemoveBookmark"), tail: { $: "Nil" } } } } } } } }, { $: "Nil" }), tail: { $: "Nil" } } });
 }
-function $pdfnav$bookmarkRows$go$(_bs_0, _currentPath_0, _i_0) {
+function $pdfnav_bookmarkRows_go(_bs_0, _currentPath_0, _i_0) {
   if (_bs_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _bs_0["head"];
     const _t_0 = _bs_0["tail"];
-    return { $: "Con", ["head"]: run_loop($pdfnav$bookmarkRow$(_i_0, _h_0, _currentPath_0)), ["tail"]: run_loop($pdfnav$bookmarkRows$go$(_t_0, _currentPath_0, nat_chk(_i_0 + 1n))) };
+    return { $: "Con", head: $pdfnav_bookmarkRow(_i_0, _h_0, _currentPath_0), tail: $pdfnav_bookmarkRows_go(_t_0, _currentPath_0, nat_chk(_i_0 + 1)) };
   }
 }
-function $pdfnav$bookmarkRows$(_bs_0, _currentPath_0) {
-  return run_jump($pdfnav$bookmarkRows$go$, [_bs_0, _currentPath_0, 0n]);
+function $pdfnav_bookmarkRows(_bs_0, _currentPath_0) {
+  return $pdfnav_bookmarkRows_go(_bs_0, _currentPath_0, 0);
 }
-function $pdfnav$clampDepth$if$(_depth_0, _over_0) {
+function $pdfnav_clampDepth_if(_depth_0, _over_0) {
   if (_over_0) {
-    return run_jump($pdfnav$maxDepth$, []);
+    return $pdfnav_maxDepth();
   } else {
     return _depth_0;
   }
 }
-function $pdfnav$clampDepth$(_depth_0) {
-  return run_jump($pdfnav$clampDepth$if$, [_depth_0, run_loop($Nat$is_gt$(_depth_0, run_loop($pdfnav$maxDepth$())))]);
+function $pdfnav_clampDepth(_depth_0) {
+  return $pdfnav_clampDepth_if(_depth_0, $Nat_is_gt(_depth_0, $pdfnav_maxDepth()));
 }
-function $pdfnav$outlineDepth$(_depth_0) {
-  return run_jump($Nat$show$, [run_loop($pdfnav$clampDepth$(_depth_0))]);
+function $pdfnav_outlineDepth(_depth_0) {
+  return $Nat_show($pdfnav_clampDepth(_depth_0));
 }
-function $pdfnav$outlineLabel$(_title_0, _page_0) {
-  const _x_0 = run_loop($Nat$show$(_page_0));
-  const _x_1 = ": " + _title_0;
-  const _x_2 = _x_0 + _x_1;
-  return "Ir para a p. " + _x_2;
+function $pdfnav_outlineLabel(_title_0, _page_0) {
+  return $msg_msg2("pdf.nav.goTo", "page", $Nat_show(_page_0), "title", _title_0);
 }
-function $pdfnav$outlineRow$(_o_0) {
+function $pdfnav_outlineRow(_o_0) {
   const _title_0 = _o_0["title"];
   const _page_0 = _o_0["page"];
   const _depth_0 = _o_0["depth"];
-  return run_jump($view$viewEl$, ["button", { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrClass$("nav-outline")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("depth", run_loop($pdfnav$outlineDepth$(_depth_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("page", run_loop($Nat$show$(_page_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($pdfnav$outlineLabel$(_title_0, _page_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($pdfnav$outlineLabel$(_title_0, _page_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "OpenOutline")), ["tail"]: { $: "Nil" } } } } } } } }, { $: "Con", ["head"]: run_loop($view$viewText$(_title_0)), ["tail"]: { $: "Nil" } }]);
+  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("nav-outline"), tail: { $: "Con", head: $view_attrData("depth", $pdfnav_outlineDepth(_depth_0)), tail: { $: "Con", head: $view_attrData("page", $Nat_show(_page_0)), tail: { $: "Con", head: $view_attrTitle($pdfnav_outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $view_attrAria("label", $pdfnav_outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $view_attrOn("click", "OpenOutline"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } });
 }
-function $pdfnav$outlineRows$(_os_0) {
-  return run_jump($view$viewMap$1$, [_os_0]);
+function $pdfnav_outlineRows(_os_0) {
+  return $view_viewMap_1(_os_0);
 }
-function $pdfnav$navEmpty$(_text_0) {
-  return run_jump($view$viewEl$, ["p", { $: "Con", ["head"]: run_loop($view$attrClass$("nav-empty")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewText$(_text_0)), ["tail"]: { $: "Nil" } }]);
+function $pdfnav_navEmpty(_text_0) {
+  return $view_viewEl("p", { $: "Con", head: $view_attrClass("nav-empty"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } });
 }
-function $pdfnav$navSaveButton$() {
-  return run_jump($view$viewEl$, ["button", { $: "Con", ["head"]: run_loop($view$attrType$("button")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrClass$("nav-save")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($pdfnav$saveTitle$()))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($pdfnav$saveTitle$()))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "SaveBookmark")), ["tail"]: { $: "Nil" } } } } } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($pdfnav$saveLabel$()))), ["tail"]: { $: "Nil" } }]);
+function $pdfnav_navSaveButton() {
+  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("nav-save"), tail: { $: "Con", head: $view_attrTitle($pdfnav_saveTitle()), tail: { $: "Con", head: $view_attrAria("label", $pdfnav_saveTitle()), tail: { $: "Con", head: $view_attrOn("click", "SaveBookmark"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $view_viewText($pdfnav_saveLabel()), tail: { $: "Nil" } });
 }
-function $pdfnav$navSection$(_title_0, _empty_0, _emptyText_0, _rows_0) {
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("nav-section")), ["tail"]: { $: "Nil" } }, run_loop($view$viewJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$viewEl$("h4", { $: "Nil" }, { $: "Con", ["head"]: run_loop($view$viewText$(_title_0)), ["tail"]: { $: "Nil" } })), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($view$viewWhen$(_empty_0, run_loop($pdfnav$navEmpty$(_emptyText_0)))), ["tail"]: { $: "Con", ["head"]: _rows_0, ["tail"]: { $: "Nil" } } } }))]);
+function $pdfnav_navSection(_title_0, _empty_0, _emptyText_0, _rows_0) {
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("nav-section"), tail: { $: "Nil" } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("h4", { $: "Nil" }, { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen(_empty_0, $pdfnav_navEmpty(_emptyText_0)), tail: { $: "Con", head: _rows_0, tail: { $: "Nil" } } } }));
 }
-function $pdfnav$navPopover$(_open_0, _bs_0, _os_0, _currentPath_0) {
-  return run_jump($view$viewEl$, ["div", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$classes$({ $: "Con", ["head"]: run_loop($view$classOn$("pdf-nav-pop", true)), ["tail"]: { $: "Nil" } })), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrWhen$(run_loop($Bool$not$(_open_0)), run_loop($view$attr$("hidden", "")))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($pdfnav$navButtonTitle$()))), ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Nil" } } } })), { $: "Con", ["head"]: run_loop($pdfnav$navSaveButton$()), ["tail"]: { $: "Con", ["head"]: run_loop($pdfnav$navSection$(run_loop($pdfnav$favoritesTitle$()), run_loop($pdfnav$emptyBooks$(_bs_0)), run_loop($pdfnav$favoritesEmpty$()), run_loop($pdfnav$bookmarkRows$(_bs_0, _currentPath_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($pdfnav$navSection$(run_loop($pdfnav$outlineTitle$()), run_loop($pdfnav$emptyOutline$(_os_0)), run_loop($pdfnav$outlineEmpty$()), run_loop($pdfnav$outlineRows$(_os_0)))), ["tail"]: { $: "Nil" } } } }]);
+function $pdfnav_navPopover(_open_0, _bs_0, _os_0, _currentPath_0) {
+  return $view_viewEl("div", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("pdf-nav-pop", true), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_attrWhen($Bool_not(_open_0), $view_attr("hidden", "")), tail: { $: "Con", head: { $: "Con", head: $view_attrAria("label", $pdfnav_navButtonTitle()), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }), { $: "Con", head: $pdfnav_navSaveButton(), tail: { $: "Con", head: $pdfnav_navSection($pdfnav_favoritesTitle(), $pdfnav_emptyBooks(_bs_0), $pdfnav_favoritesEmpty(), $pdfnav_bookmarkRows(_bs_0, _currentPath_0)), tail: { $: "Con", head: $pdfnav_navSection($pdfnav_outlineTitle(), $pdfnav_emptyOutline(_os_0), $pdfnav_outlineEmpty(), $pdfnav_outlineRows(_os_0)), tail: { $: "Nil" } } } });
 }
-function $pdfview$modeContinuous$() {
-  return "rolagem contínua";
+function $pdfview_placeholderText() {
+  return $msg_msg("pdf.placeholder");
 }
-function $pdfview$placeholderText$() {
-  return "Escolha um PDF da biblioteca ou abra um arquivo local.";
+function $pdfview_footLoadingText() {
+  return $msg_msg("pdf.loading");
 }
-function $pdfview$footLoadingText$() {
-  return "Carregando…";
+function $pdfview_footErrorText() {
+  return $msg_msg("pdf.openFailed");
 }
-function $pdfview$footErrorText$() {
-  return "Não foi possível abrir o PDF.";
-}
-function $pdfview$pageTotalDash$() {
+function $pdfview_pageTotalDash() {
   return "/ —";
 }
-function $pdfview$gridFlags$(_selfMin_0, _otherMin_0) {
+function $pdfview_gridFlags(_selfMin_0, _otherMin_0) {
   if (!_selfMin_0) {
     if (!_otherMin_0) {
-      return { $: "GridFlags", ["otherMin"]: false, ["hasMin"]: false, ["hasOtherMin"]: false };
+      return { $: "GridFlags", otherMin: false, hasMin: false, hasOtherMin: false };
     } else {
-      return { $: "GridFlags", ["otherMin"]: true, ["hasMin"]: true, ["hasOtherMin"]: false };
+      return { $: "GridFlags", otherMin: true, hasMin: true, hasOtherMin: false };
     }
   } else {
     if (!_otherMin_0) {
-      return { $: "GridFlags", ["otherMin"]: false, ["hasMin"]: true, ["hasOtherMin"]: true };
+      return { $: "GridFlags", otherMin: false, hasMin: true, hasOtherMin: true };
     } else {
-      return { $: "GridFlags", ["otherMin"]: false, ["hasMin"]: true, ["hasOtherMin"]: false };
+      return { $: "GridFlags", otherMin: false, hasMin: true, hasOtherMin: false };
     }
   }
 }
-function $pdfview$panelFlags$(_minimized_0, _pinned_0) {
-  return { $: "PanelFlags", ["minimized"]: _minimized_0, ["pinned"]: _pinned_0 };
+function $pdfview_panelFlags(_minimized_0, _pinned_0) {
+  return { $: "PanelFlags", minimized: _minimized_0, pinned: _pinned_0 };
 }
-function $pdfview$navChrome$(_hasDoc_0, _atFirst_0, _atLast_0) {
+function $pdfview_navChrome(_hasDoc_0, _atFirst_0, _atLast_0) {
   if (!_hasDoc_0) {
-    return { $: "NavChrome", ["prevDisabled"]: true, ["nextDisabled"]: true };
+    return { $: "NavChrome", prevDisabled: true, nextDisabled: true };
   } else {
-    return { $: "NavChrome", ["prevDisabled"]: _atFirst_0, ["nextDisabled"]: _atLast_0 };
+    return { $: "NavChrome", prevDisabled: _atFirst_0, nextDisabled: _atLast_0 };
   }
 }
-function $pdfview$collapseTitle$(_minimized_0) {
+function $pdfview_collapseTitle(_minimized_0) {
   if (_minimized_0) {
-    return "Restaurar este leitor";
+    return $msg_msg("pdf.restore");
   } else {
-    return "Minimizar este leitor";
+    return $msg_msg("pdf.minimize");
   }
 }
-function $pdfview$disabledAttr$(_on_0) {
-  return run_jump($view$attrWhen$, [_on_0, run_loop($view$attr$("disabled", "disabled"))]);
+function $pdfview_disabledAttr(_on_0) {
+  return $view_attrWhen(_on_0, $view_attr("disabled", "disabled"));
 }
-function $pdfview$pageNumberValue$(_page_0) {
-  return run_jump($Nat$show$, [_page_0]);
+function $pdfview_pageNumberValue(_page_0) {
+  return $Nat_show(_page_0);
 }
-function $pdfview$pageNumberMax$(_total_0) {
-  return run_jump($Nat$show$, [_total_0]);
+function $pdfview_pageNumberMax(_total_0) {
+  return $Nat_show(_total_0);
 }
-function $pdfview$pageTotalText$(_n_0) {
-  const _x_0 = run_loop($Nat$show$(_n_0));
+function $pdfview_pageTotalText(_n_0) {
+  const _x_0 = $Nat_show(_n_0);
   return "/ " + _x_0;
 }
-function $pdfview$zoomLabelText$(_pct_0) {
-  const _x_0 = run_loop($Nat$show$(_pct_0));
+function $pdfview_zoomLabelText(_pct_0) {
+  const _x_0 = $Nat_show(_pct_0);
   return _x_0 + "%";
 }
-function $pdfview$footReadyText$(_page_0, _total_0, _mode_0, _file_0) {
-  const _x_0 = " · " + _file_0;
-  const _x_1 = _mode_0 + _x_0;
-  const _x_2 = run_loop($Nat$show$(_total_0));
-  const _x_3 = " · " + _x_1;
-  const _x_4 = _x_2 + _x_3;
-  const _x_5 = run_loop($Nat$show$(_page_0));
-  const _x_6 = " de " + _x_4;
-  const _x_7 = _x_5 + _x_6;
-  return "Página " + _x_7;
+function $pdfview_footReadyText(_page_0, _total_0, _file_0) {
+  return $msg_msg3("pdf.foot.ready", "page", $Nat_show(_page_0), "total", $Nat_show(_total_0), "file", _file_0);
 }
-function $pdfview$findCountChrome$shown$(_shown_0, _index_0, _total_0) {
+function $pdfview_findCountChrome_shown(_shown_0, _index_0, _total_0) {
   if (_shown_0) {
-    const _x_0 = run_loop($Nat$show$(_total_0));
-    const _x_1 = run_loop($Nat$show$(_index_0));
+    const _x_0 = $Nat_show(_total_0);
+    const _x_1 = $Nat_show(_index_0);
     const _x_2 = "/" + _x_0;
-    return { $: "CountChrome", ["hidden"]: false, ["text"]: _x_1 + _x_2 };
+    return { $: "CountChrome", hidden: false, text: _x_1 + _x_2 };
   } else {
-    const _x_3 = run_loop($Nat$show$(_total_0));
-    return { $: "CountChrome", ["hidden"]: false, ["text"]: _x_3 + " ocorrências" };
+    return { $: "CountChrome", hidden: false, text: $msg_msg1("pdf.find.count", "count", $Nat_show(_total_0)) };
   }
 }
-function $pdfview$findCountChrome$(_hidden_0, _shown_0, _index_0, _total_0) {
+function $pdfview_findCountChrome(_hidden_0, _shown_0, _index_0, _total_0) {
   if (_hidden_0) {
-    return { $: "CountChrome", ["hidden"]: true, ["text"]: "" };
+    return { $: "CountChrome", hidden: true, text: "" };
   } else {
-    return run_jump($pdfview$findCountChrome$shown$, [_shown_0, _index_0, _total_0]);
+    return $pdfview_findCountChrome_shown(_shown_0, _index_0, _total_0);
   }
 }
-function $pdfview$gridClass$(_selfMin_0, _otherMin_0) {
+function $pdfview_gridClass(_selfMin_0, _otherMin_0) {
   if (!_selfMin_0) {
     if (!_otherMin_0) {
-      return run_jump($view$classes$, [{ $: "Con", ["head"]: run_loop($view$classOn$("other-min", false)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("has-min", false)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("has-other-min", false)), ["tail"]: { $: "Nil" } } } }]);
+      return $view_classes({ $: "Con", head: $view_classOn("other-min", false), tail: { $: "Con", head: $view_classOn("has-min", false), tail: { $: "Con", head: $view_classOn("has-other-min", false), tail: { $: "Nil" } } } });
     } else {
-      return run_jump($view$classes$, [{ $: "Con", ["head"]: run_loop($view$classOn$("other-min", true)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("has-min", true)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("has-other-min", false)), ["tail"]: { $: "Nil" } } } }]);
+      return $view_classes({ $: "Con", head: $view_classOn("other-min", true), tail: { $: "Con", head: $view_classOn("has-min", true), tail: { $: "Con", head: $view_classOn("has-other-min", false), tail: { $: "Nil" } } } });
     }
   } else {
     if (!_otherMin_0) {
-      return run_jump($view$classes$, [{ $: "Con", ["head"]: run_loop($view$classOn$("other-min", false)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("has-min", true)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("has-other-min", true)), ["tail"]: { $: "Nil" } } } }]);
+      return $view_classes({ $: "Con", head: $view_classOn("other-min", false), tail: { $: "Con", head: $view_classOn("has-min", true), tail: { $: "Con", head: $view_classOn("has-other-min", true), tail: { $: "Nil" } } } });
     } else {
-      return run_jump($view$classes$, [{ $: "Con", ["head"]: run_loop($view$classOn$("other-min", false)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("has-min", true)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("has-other-min", false)), ["tail"]: { $: "Nil" } } } }]);
+      return $view_classes({ $: "Con", head: $view_classOn("other-min", false), tail: { $: "Con", head: $view_classOn("has-min", true), tail: { $: "Con", head: $view_classOn("has-other-min", false), tail: { $: "Nil" } } } });
     }
   }
 }
-function $pdfview$panelClass$(_minimized_0, _pinned_0) {
-  return run_jump($view$classes$, [{ $: "Con", ["head"]: run_loop($view$classOn$("pdf-panel", true)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("minimized", _minimized_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$classOn$("pinned", _pinned_0)), ["tail"]: { $: "Nil" } } } }]);
+function $pdfview_panelClass(_minimized_0, _pinned_0) {
+  return $view_classes({ $: "Con", head: $view_classOn("pdf-panel", true), tail: { $: "Con", head: $view_classOn("minimized", _minimized_0), tail: { $: "Con", head: $view_classOn("pinned", _pinned_0), tail: { $: "Nil" } } } });
 }
-function $pdfview$label$(_s_0) {
-  return run_jump($view$viewText$, [_s_0]);
+function $pdfview_label(_s_0) {
+  return $view_viewText(_s_0);
 }
-function $pdfview$placeholder$() {
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-placeholder")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($pdfview$placeholderText$()))), ["tail"]: { $: "Nil" } }]);
+function $pdfview_placeholder() {
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-placeholder"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($pdfview_placeholderText()), tail: { $: "Nil" } });
 }
-function $pdfview$pageTotalEmpty$() {
-  return run_jump($view$viewText$, [run_loop($pdfview$pageTotalDash$())]);
+function $pdfview_pageTotalEmpty() {
+  return $view_viewText($pdfview_pageTotalDash());
 }
-function $pdfview$pageTotal$(_n_0) {
-  return run_jump($view$viewText$, [run_loop($pdfview$pageTotalText$(_n_0))]);
+function $pdfview_pageTotal(_n_0) {
+  return $view_viewText($pdfview_pageTotalText(_n_0));
 }
-function $pdfview$zoomLabel$(_pct_0) {
-  return run_jump($view$viewText$, [run_loop($pdfview$zoomLabelText$(_pct_0))]);
+function $pdfview_zoomLabel(_pct_0) {
+  return $view_viewText($pdfview_zoomLabelText(_pct_0));
 }
-function $pdfview$footLoading$() {
-  return run_jump($view$viewText$, [run_loop($pdfview$footLoadingText$())]);
+function $pdfview_footLoading() {
+  return $view_viewText($pdfview_footLoadingText());
 }
-function $pdfview$footError$() {
-  return run_jump($view$viewText$, [run_loop($pdfview$footErrorText$())]);
+function $pdfview_footError() {
+  return $view_viewText($pdfview_footErrorText());
 }
-function $pdfview$footReady$(_page_0, _total_0, _mode_0, _file_0) {
-  return run_jump($view$viewText$, [run_loop($pdfview$footReadyText$(_page_0, _total_0, _mode_0, _file_0))]);
+function $pdfview_footReady(_page_0, _total_0, _file_0) {
+  return $view_viewText($pdfview_footReadyText(_page_0, _total_0, _file_0));
 }
-function $pdfview$findCountLabel$(_c_0) {
-  const _hidden_0 = _c_0["hidden"];
+function $pdfview_footReadyTextLabeled_if(_page_0, _total_0, _file_0, _label_0, _empty_0) {
+  if (_empty_0) {
+    return $pdfview_footReadyText(_page_0, _total_0, _file_0);
+  } else {
+    return $msg_msg4("pdf.foot.readyLabeled", "page", $Nat_show(_page_0), "total", $Nat_show(_total_0), "label", _label_0, "file", _file_0);
+  }
+}
+function $pdfview_footReadyTextLabeled(_page_0, _total_0, _file_0, _label_0) {
+  return $pdfview_footReadyTextLabeled_if(_page_0, _total_0, _file_0, _label_0, $String_is_empty(_label_0));
+}
+function $pdfview_footReadyLabeled(_page_0, _total_0, _file_0, _label_0) {
+  const _text_0 = $pdfview_footReadyTextLabeled(_page_0, _total_0, _file_0, _label_0);
+  return $view_viewEl("span", { $: "Con", head: $view_attrTitle(_text_0), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } });
+}
+function $pdfview_findCountLabel(_c_0) {
   const _text_0 = _c_0["text"];
-  return run_jump($view$viewText$, [_text_0]);
+  return $view_viewText(_text_0);
 }
-function $emptyOptionLabel$() {
-  return "Escolha um PDF…";
+function $readersheet_sheetTitle() {
+  return $msg_msg("sheet.title");
 }
-function $findPlaceholder$() {
-  return "Buscar neste PDF…";
+function $readersheet_introText() {
+  return $msg_msg("sheet.intro");
 }
-function $findButtonLabel$() {
-  return "Buscar";
+function $readersheet_dragText() {
+  return $msg_msg("sheet.drag");
 }
-function $openTitle$() {
-  return "Abrir outro PDF";
+function $readersheet_openText() {
+  return $msg_msg("sheet.open");
 }
-function $findTitle$() {
-  return "Buscar";
+function $readersheet_folderText() {
+  return $msg_msg("sheet.folder");
 }
-function $shotTitle$() {
-  return "Mandar esta página como imagem no chat";
+function $readersheet_tutorText() {
+  return $msg_msg("sheet.tutor");
 }
-function $prevAria$() {
-  return "Página anterior";
+function $readersheet_openLabel() {
+  return $msg_msg("sheet.openLabel");
 }
-function $nextAria$() {
-  return "Próxima página";
+function $readersheet_folderLabel() {
+  return $msg_msg("sheet.folderLabel");
 }
-function $outAria$() {
-  return "Diminuir zoom";
+function $readersheet_tutorLabel() {
+  return $msg_msg("sheet.tutorLabel");
 }
-function $inAria$() {
-  return "Aumentar zoom";
+function $readersheet_dropTitle() {
+  return $msg_msg("sheet.dropTitle");
 }
-function $fitTitle$() {
-  return "Ajustar à largura";
+function $readersheet_dropHelp() {
+  return $msg_msg("sheet.dropHelp");
 }
-function $invertTitle$() {
-  return "Inverter cores da página (tema escuro)";
+function $readersheet_sheetAria(_course_0) {
+  return $msg_msg1("sheet.aria", "course", _course_0);
 }
-function $invertAria$() {
-  return "Inverter cores da página";
+function $readersheet_courseLine_pick(_blank_0, _course_0) {
+  if (_blank_0) {
+    return $msg_msg("sheet.courseBlank");
+  } else {
+    return $msg_msg1("sheet.course", "course", _course_0);
+  }
 }
-function $dividerAria$() {
-  return "Redimensionar leitores de PDF";
+function $readersheet_courseLine(_course_0) {
+  return $readersheet_courseLine_pick($String_is_empty($String_trim(_course_0)), $String_trim(_course_0));
 }
-function $documentAria$(_label_0) {
-  return "Documento de " + _label_0;
+function $readersheet_tutorSeed_pick(_blank_0, _course_0) {
+  if (_blank_0) {
+    return $msg_msg("sheet.seedBlank");
+  } else {
+    return $msg_msg1("sheet.seed", "course", _course_0);
+  }
 }
-function $openAria$(_label_0) {
-  return "Abrir PDF em " + _label_0;
+function $readersheet_tutorSeed(_course_0) {
+  return $readersheet_tutorSeed_pick($String_is_empty($String_trim(_course_0)), $String_trim(_course_0));
 }
-function $findAria$(_label_0) {
-  return "Buscar em " + _label_0;
+function $readersheet_link(_label_0, _handler_0) {
+  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("sheet-link"), tail: { $: "Con", head: $view_attrOn("click", _handler_0), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } });
 }
-function $pageAria$(_label_0) {
-  return "Página de " + _label_0;
+function $readersheet_plainItem(_text_0) {
+  return $view_viewEl("li", { $: "Con", head: $view_attrClass("sheet-item"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } });
 }
-function $rotationStep$() {
-  return 90n;
+function $readersheet_linkItem(_text_0, _label_0, _handler_0) {
+  return $view_viewEl("li", { $: "Con", head: $view_attrClass("sheet-item"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Con", head: $view_viewText(" "), tail: { $: "Con", head: $readersheet_link(_label_0, _handler_0), tail: { $: "Nil" } } } });
 }
-function $rotationNext$(_rotation_0) {
-  const _x_0 = run_loop($rotationStep$());
-  return run_jump($Nat$mod$, [nat_chk(_rotation_0 + _x_0), BigInt(360)]);
+function $readersheet_items() {
+  return { $: "Con", head: $readersheet_plainItem($readersheet_dragText()), tail: { $: "Con", head: $readersheet_linkItem($readersheet_openText(), $readersheet_openLabel(), "OpenFile"), tail: { $: "Con", head: $readersheet_linkItem($readersheet_folderText(), $readersheet_folderLabel(), "RevealFolder"), tail: { $: "Con", head: $readersheet_linkItem($readersheet_tutorText(), $readersheet_tutorLabel(), "AskTutor"), tail: { $: "Nil" } } } } };
 }
-function $rotationValid$(_rotation_0) {
-  if (_rotation_0 === 0n) {
+function $readersheet_dropZone() {
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("sheet-drop"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("sheet-drop-icon"), tail: { $: "Con", head: $view_attrData("icon", "download"), tail: { $: "Con", head: $view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("strong", { $: "Nil" }, { $: "Con", head: $view_viewText($readersheet_dropTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("small", { $: "Nil" }, { $: "Con", head: $view_viewText($readersheet_dropHelp()), tail: { $: "Nil" } }), tail: { $: "Nil" } } } });
+}
+function $readersheet_sheet(_course_0) {
+  return $view_viewEl("article", { $: "Con", head: $view_attrClass("reader-sheet"), tail: { $: "Con", head: $view_attrAria("label", $readersheet_sheetAria(_course_0)), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewEl("h1", { $: "Con", head: $view_attrClass("sheet-title"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($readersheet_sheetTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("sheet-course"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($readersheet_courseLine(_course_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("sheet-intro"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($readersheet_introText()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("ol", { $: "Con", head: $view_attrClass("sheet-items"), tail: { $: "Nil" } }, $readersheet_items()), tail: { $: "Con", head: $readersheet_dropZone(), tail: { $: "Nil" } } } } } });
+}
+function $emptyOptionLabel() {
+  return $msg_msg("pdf.view.empty");
+}
+function $findPlaceholder() {
+  return $msg_msg("pdf.view.findPlaceholder");
+}
+function $findButtonLabel() {
+  return $msg_msg("common.search");
+}
+function $openTitle() {
+  return $msg_msg("pdf.view.open");
+}
+function $findTitle() {
+  return $msg_msg("common.search");
+}
+function $shotTitle() {
+  return $msg_msg("pdf.view.shot");
+}
+function $prevAria() {
+  return $msg_msg("pdf.view.prev");
+}
+function $nextAria() {
+  return $msg_msg("pdf.view.next");
+}
+function $outAria() {
+  return $msg_msg("pdf.view.zoomOut");
+}
+function $inAria() {
+  return $msg_msg("pdf.view.zoomIn");
+}
+function $fitTitle() {
+  return $msg_msg("pdf.view.fit");
+}
+function $invertTitle() {
+  return $msg_msg("pdf.view.invertTitle");
+}
+function $invertAria() {
+  return $msg_msg("pdf.view.invert");
+}
+function $dividerAria() {
+  return $msg_msg("pdf.view.divider");
+}
+function $documentAria(_label_0) {
+  return $msg_msg1("pdf.view.docAria", "label", _label_0);
+}
+function $openAria(_label_0) {
+  return $msg_msg1("pdf.view.openAria", "label", _label_0);
+}
+function $findAria(_label_0) {
+  return $msg_msg1("pdf.view.findAria", "label", _label_0);
+}
+function $pageAria(_label_0) {
+  return $msg_msg1("pdf.view.pageAria", "label", _label_0);
+}
+function $moreTitle() {
+  return $msg_msg("pdf.view.more");
+}
+function $moreAria(_label_0) {
+  return $msg_msg1("pdf.view.moreAria", "label", _label_0);
+}
+function $restoreAria(_label_0) {
+  return $msg_msg1("pdf.view.restoreAria", "label", _label_0);
+}
+function $zoomRowLabel() {
+  return $msg_msg("pdf.view.zoom");
+}
+function $shotMenuLabel() {
+  return $msg_msg("pdf.view.shotMenu");
+}
+function $invertMenuLabel() {
+  return $msg_msg("pdf.view.invert");
+}
+function $printedMenuLabel() {
+  return $msg_msg("pdf.view.printedMenu");
+}
+function $rotationStep() {
+  return 90;
+}
+function $rotationNext(_rotation_0) {
+  const _x_0 = $rotationStep();
+  return $Nat_mod(nat_chk(_rotation_0 + _x_0), 360);
+}
+function $rotationValid(_rotation_0) {
+  if (_rotation_0 === 0) {
     return true;
-  } else if (_rotation_0 === 1n) {
-    const _5_0 = _rotation_0 - 1n;
+  } else if (_rotation_0 === 1) {
     return false;
-  } else if (_rotation_0 === 2n) {
-    const _6_0 = _rotation_0 - 2n;
+  } else if (_rotation_0 === 2) {
     return false;
-  } else if (_rotation_0 === 3n) {
-    const _7_0 = _rotation_0 - 3n;
+  } else if (_rotation_0 === 3) {
     return false;
-  } else if (_rotation_0 === 4n) {
-    const _8_0 = _rotation_0 - 4n;
+  } else if (_rotation_0 === 4) {
     return false;
-  } else if (_rotation_0 === 5n) {
-    const _9_0 = _rotation_0 - 5n;
+  } else if (_rotation_0 === 5) {
     return false;
-  } else if (_rotation_0 === 6n) {
-    const _10_0 = _rotation_0 - 6n;
+  } else if (_rotation_0 === 6) {
     return false;
-  } else if (_rotation_0 === 7n) {
-    const _11_0 = _rotation_0 - 7n;
+  } else if (_rotation_0 === 7) {
     return false;
-  } else if (_rotation_0 === 8n) {
-    const _12_0 = _rotation_0 - 8n;
+  } else if (_rotation_0 === 8) {
     return false;
-  } else if (_rotation_0 === 9n) {
-    const _13_0 = _rotation_0 - 9n;
+  } else if (_rotation_0 === 9) {
     return false;
-  } else if (_rotation_0 === 10n) {
-    const _14_0 = _rotation_0 - 10n;
+  } else if (_rotation_0 === 10) {
     return false;
-  } else if (_rotation_0 === 11n) {
-    const _15_0 = _rotation_0 - 11n;
+  } else if (_rotation_0 === 11) {
     return false;
-  } else if (_rotation_0 === 12n) {
-    const _16_0 = _rotation_0 - 12n;
+  } else if (_rotation_0 === 12) {
     return false;
-  } else if (_rotation_0 === 13n) {
-    const _17_0 = _rotation_0 - 13n;
+  } else if (_rotation_0 === 13) {
     return false;
-  } else if (_rotation_0 === 14n) {
-    const _18_0 = _rotation_0 - 14n;
+  } else if (_rotation_0 === 14) {
     return false;
-  } else if (_rotation_0 === 15n) {
-    const _19_0 = _rotation_0 - 15n;
+  } else if (_rotation_0 === 15) {
     return false;
-  } else if (_rotation_0 === 16n) {
-    const _20_0 = _rotation_0 - 16n;
+  } else if (_rotation_0 === 16) {
     return false;
-  } else if (_rotation_0 === 17n) {
-    const _21_0 = _rotation_0 - 17n;
+  } else if (_rotation_0 === 17) {
     return false;
-  } else if (_rotation_0 === 18n) {
-    const _22_0 = _rotation_0 - 18n;
+  } else if (_rotation_0 === 18) {
     return false;
-  } else if (_rotation_0 === 19n) {
-    const _23_0 = _rotation_0 - 19n;
+  } else if (_rotation_0 === 19) {
     return false;
-  } else if (_rotation_0 === 20n) {
-    const _24_0 = _rotation_0 - 20n;
+  } else if (_rotation_0 === 20) {
     return false;
-  } else if (_rotation_0 === 21n) {
-    const _25_0 = _rotation_0 - 21n;
+  } else if (_rotation_0 === 21) {
     return false;
-  } else if (_rotation_0 === 22n) {
-    const _26_0 = _rotation_0 - 22n;
+  } else if (_rotation_0 === 22) {
     return false;
-  } else if (_rotation_0 === 23n) {
-    const _27_0 = _rotation_0 - 23n;
+  } else if (_rotation_0 === 23) {
     return false;
-  } else if (_rotation_0 === 24n) {
-    const _28_0 = _rotation_0 - 24n;
+  } else if (_rotation_0 === 24) {
     return false;
-  } else if (_rotation_0 === 25n) {
-    const _29_0 = _rotation_0 - 25n;
+  } else if (_rotation_0 === 25) {
     return false;
-  } else if (_rotation_0 === 26n) {
-    const _30_0 = _rotation_0 - 26n;
+  } else if (_rotation_0 === 26) {
     return false;
-  } else if (_rotation_0 === 27n) {
-    const _31_0 = _rotation_0 - 27n;
+  } else if (_rotation_0 === 27) {
     return false;
-  } else if (_rotation_0 === 28n) {
-    const _32_0 = _rotation_0 - 28n;
+  } else if (_rotation_0 === 28) {
     return false;
-  } else if (_rotation_0 === 29n) {
-    const _33_0 = _rotation_0 - 29n;
+  } else if (_rotation_0 === 29) {
     return false;
-  } else if (_rotation_0 === 30n) {
-    const _34_0 = _rotation_0 - 30n;
+  } else if (_rotation_0 === 30) {
     return false;
-  } else if (_rotation_0 === 31n) {
-    const _35_0 = _rotation_0 - 31n;
+  } else if (_rotation_0 === 31) {
     return false;
-  } else if (_rotation_0 === 32n) {
-    const _36_0 = _rotation_0 - 32n;
+  } else if (_rotation_0 === 32) {
     return false;
-  } else if (_rotation_0 === 33n) {
-    const _37_0 = _rotation_0 - 33n;
+  } else if (_rotation_0 === 33) {
     return false;
-  } else if (_rotation_0 === 34n) {
-    const _38_0 = _rotation_0 - 34n;
+  } else if (_rotation_0 === 34) {
     return false;
-  } else if (_rotation_0 === 35n) {
-    const _39_0 = _rotation_0 - 35n;
+  } else if (_rotation_0 === 35) {
     return false;
-  } else if (_rotation_0 === 36n) {
-    const _40_0 = _rotation_0 - 36n;
+  } else if (_rotation_0 === 36) {
     return false;
-  } else if (_rotation_0 === 37n) {
-    const _41_0 = _rotation_0 - 37n;
+  } else if (_rotation_0 === 37) {
     return false;
-  } else if (_rotation_0 === 38n) {
-    const _42_0 = _rotation_0 - 38n;
+  } else if (_rotation_0 === 38) {
     return false;
-  } else if (_rotation_0 === 39n) {
-    const _43_0 = _rotation_0 - 39n;
+  } else if (_rotation_0 === 39) {
     return false;
-  } else if (_rotation_0 === 40n) {
-    const _44_0 = _rotation_0 - 40n;
+  } else if (_rotation_0 === 40) {
     return false;
-  } else if (_rotation_0 === 41n) {
-    const _45_0 = _rotation_0 - 41n;
+  } else if (_rotation_0 === 41) {
     return false;
-  } else if (_rotation_0 === 42n) {
-    const _46_0 = _rotation_0 - 42n;
+  } else if (_rotation_0 === 42) {
     return false;
-  } else if (_rotation_0 === 43n) {
-    const _47_0 = _rotation_0 - 43n;
+  } else if (_rotation_0 === 43) {
     return false;
-  } else if (_rotation_0 === 44n) {
-    const _48_0 = _rotation_0 - 44n;
+  } else if (_rotation_0 === 44) {
     return false;
-  } else if (_rotation_0 === 45n) {
-    const _49_0 = _rotation_0 - 45n;
+  } else if (_rotation_0 === 45) {
     return false;
-  } else if (_rotation_0 === 46n) {
-    const _50_0 = _rotation_0 - 46n;
+  } else if (_rotation_0 === 46) {
     return false;
-  } else if (_rotation_0 === 47n) {
-    const _51_0 = _rotation_0 - 47n;
+  } else if (_rotation_0 === 47) {
     return false;
-  } else if (_rotation_0 === 48n) {
-    const _52_0 = _rotation_0 - 48n;
+  } else if (_rotation_0 === 48) {
     return false;
-  } else if (_rotation_0 === 49n) {
-    const _53_0 = _rotation_0 - 49n;
+  } else if (_rotation_0 === 49) {
     return false;
-  } else if (_rotation_0 === 50n) {
-    const _54_0 = _rotation_0 - 50n;
+  } else if (_rotation_0 === 50) {
     return false;
-  } else if (_rotation_0 === 51n) {
-    const _55_0 = _rotation_0 - 51n;
+  } else if (_rotation_0 === 51) {
     return false;
-  } else if (_rotation_0 === 52n) {
-    const _56_0 = _rotation_0 - 52n;
+  } else if (_rotation_0 === 52) {
     return false;
-  } else if (_rotation_0 === 53n) {
-    const _57_0 = _rotation_0 - 53n;
+  } else if (_rotation_0 === 53) {
     return false;
-  } else if (_rotation_0 === 54n) {
-    const _58_0 = _rotation_0 - 54n;
+  } else if (_rotation_0 === 54) {
     return false;
-  } else if (_rotation_0 === 55n) {
-    const _59_0 = _rotation_0 - 55n;
+  } else if (_rotation_0 === 55) {
     return false;
-  } else if (_rotation_0 === 56n) {
-    const _60_0 = _rotation_0 - 56n;
+  } else if (_rotation_0 === 56) {
     return false;
-  } else if (_rotation_0 === 57n) {
-    const _61_0 = _rotation_0 - 57n;
+  } else if (_rotation_0 === 57) {
     return false;
-  } else if (_rotation_0 === 58n) {
-    const _62_0 = _rotation_0 - 58n;
+  } else if (_rotation_0 === 58) {
     return false;
-  } else if (_rotation_0 === 59n) {
-    const _63_0 = _rotation_0 - 59n;
+  } else if (_rotation_0 === 59) {
     return false;
-  } else if (_rotation_0 === 60n) {
-    const _64_0 = _rotation_0 - 60n;
+  } else if (_rotation_0 === 60) {
     return false;
-  } else if (_rotation_0 === 61n) {
-    const _65_0 = _rotation_0 - 61n;
+  } else if (_rotation_0 === 61) {
     return false;
-  } else if (_rotation_0 === 62n) {
-    const _66_0 = _rotation_0 - 62n;
+  } else if (_rotation_0 === 62) {
     return false;
-  } else if (_rotation_0 === 63n) {
-    const _67_0 = _rotation_0 - 63n;
+  } else if (_rotation_0 === 63) {
     return false;
-  } else if (_rotation_0 === 64n) {
-    const _68_0 = _rotation_0 - 64n;
+  } else if (_rotation_0 === 64) {
     return false;
-  } else if (_rotation_0 === 65n) {
-    const _69_0 = _rotation_0 - 65n;
+  } else if (_rotation_0 === 65) {
     return false;
-  } else if (_rotation_0 === 66n) {
-    const _70_0 = _rotation_0 - 66n;
+  } else if (_rotation_0 === 66) {
     return false;
-  } else if (_rotation_0 === 67n) {
-    const _71_0 = _rotation_0 - 67n;
+  } else if (_rotation_0 === 67) {
     return false;
-  } else if (_rotation_0 === 68n) {
-    const _72_0 = _rotation_0 - 68n;
+  } else if (_rotation_0 === 68) {
     return false;
-  } else if (_rotation_0 === 69n) {
-    const _73_0 = _rotation_0 - 69n;
+  } else if (_rotation_0 === 69) {
     return false;
-  } else if (_rotation_0 === 70n) {
-    const _74_0 = _rotation_0 - 70n;
+  } else if (_rotation_0 === 70) {
     return false;
-  } else if (_rotation_0 === 71n) {
-    const _75_0 = _rotation_0 - 71n;
+  } else if (_rotation_0 === 71) {
     return false;
-  } else if (_rotation_0 === 72n) {
-    const _76_0 = _rotation_0 - 72n;
+  } else if (_rotation_0 === 72) {
     return false;
-  } else if (_rotation_0 === 73n) {
-    const _77_0 = _rotation_0 - 73n;
+  } else if (_rotation_0 === 73) {
     return false;
-  } else if (_rotation_0 === 74n) {
-    const _78_0 = _rotation_0 - 74n;
+  } else if (_rotation_0 === 74) {
     return false;
-  } else if (_rotation_0 === 75n) {
-    const _79_0 = _rotation_0 - 75n;
+  } else if (_rotation_0 === 75) {
     return false;
-  } else if (_rotation_0 === 76n) {
-    const _80_0 = _rotation_0 - 76n;
+  } else if (_rotation_0 === 76) {
     return false;
-  } else if (_rotation_0 === 77n) {
-    const _81_0 = _rotation_0 - 77n;
+  } else if (_rotation_0 === 77) {
     return false;
-  } else if (_rotation_0 === 78n) {
-    const _82_0 = _rotation_0 - 78n;
+  } else if (_rotation_0 === 78) {
     return false;
-  } else if (_rotation_0 === 79n) {
-    const _83_0 = _rotation_0 - 79n;
+  } else if (_rotation_0 === 79) {
     return false;
-  } else if (_rotation_0 === 80n) {
-    const _84_0 = _rotation_0 - 80n;
+  } else if (_rotation_0 === 80) {
     return false;
-  } else if (_rotation_0 === 81n) {
-    const _85_0 = _rotation_0 - 81n;
+  } else if (_rotation_0 === 81) {
     return false;
-  } else if (_rotation_0 === 82n) {
-    const _86_0 = _rotation_0 - 82n;
+  } else if (_rotation_0 === 82) {
     return false;
-  } else if (_rotation_0 === 83n) {
-    const _87_0 = _rotation_0 - 83n;
+  } else if (_rotation_0 === 83) {
     return false;
-  } else if (_rotation_0 === 84n) {
-    const _88_0 = _rotation_0 - 84n;
+  } else if (_rotation_0 === 84) {
     return false;
-  } else if (_rotation_0 === 85n) {
-    const _89_0 = _rotation_0 - 85n;
+  } else if (_rotation_0 === 85) {
     return false;
-  } else if (_rotation_0 === 86n) {
-    const _90_0 = _rotation_0 - 86n;
+  } else if (_rotation_0 === 86) {
     return false;
-  } else if (_rotation_0 === 87n) {
-    const _91_0 = _rotation_0 - 87n;
+  } else if (_rotation_0 === 87) {
     return false;
-  } else if (_rotation_0 === 88n) {
-    const _92_0 = _rotation_0 - 88n;
+  } else if (_rotation_0 === 88) {
     return false;
-  } else if (_rotation_0 === 89n) {
-    const _93_0 = _rotation_0 - 89n;
+  } else if (_rotation_0 === 89) {
     return false;
-  } else if (_rotation_0 === 90n) {
+  } else if (_rotation_0 === 90) {
     return true;
-  } else if (_rotation_0 === 91n) {
-    const _95_0 = _rotation_0 - 91n;
+  } else if (_rotation_0 === 91) {
     return false;
-  } else if (_rotation_0 === 92n) {
-    const _96_0 = _rotation_0 - 92n;
+  } else if (_rotation_0 === 92) {
     return false;
-  } else if (_rotation_0 === 93n) {
-    const _97_0 = _rotation_0 - 93n;
+  } else if (_rotation_0 === 93) {
     return false;
-  } else if (_rotation_0 === 94n) {
-    const _98_0 = _rotation_0 - 94n;
+  } else if (_rotation_0 === 94) {
     return false;
-  } else if (_rotation_0 === 95n) {
-    const _99_0 = _rotation_0 - 95n;
+  } else if (_rotation_0 === 95) {
     return false;
-  } else if (_rotation_0 === 96n) {
-    const _100_0 = _rotation_0 - 96n;
+  } else if (_rotation_0 === 96) {
     return false;
-  } else if (_rotation_0 === 97n) {
-    const _101_0 = _rotation_0 - 97n;
+  } else if (_rotation_0 === 97) {
     return false;
-  } else if (_rotation_0 === 98n) {
-    const _102_0 = _rotation_0 - 98n;
+  } else if (_rotation_0 === 98) {
     return false;
-  } else if (_rotation_0 === 99n) {
-    const _103_0 = _rotation_0 - 99n;
+  } else if (_rotation_0 === 99) {
     return false;
-  } else if (_rotation_0 === 100n) {
-    const _104_0 = _rotation_0 - 100n;
+  } else if (_rotation_0 === 100) {
     return false;
-  } else if (_rotation_0 === 101n) {
-    const _105_0 = _rotation_0 - 101n;
+  } else if (_rotation_0 === 101) {
     return false;
-  } else if (_rotation_0 === 102n) {
-    const _106_0 = _rotation_0 - 102n;
+  } else if (_rotation_0 === 102) {
     return false;
-  } else if (_rotation_0 === 103n) {
-    const _107_0 = _rotation_0 - 103n;
+  } else if (_rotation_0 === 103) {
     return false;
-  } else if (_rotation_0 === 104n) {
-    const _108_0 = _rotation_0 - 104n;
+  } else if (_rotation_0 === 104) {
     return false;
-  } else if (_rotation_0 === 105n) {
-    const _109_0 = _rotation_0 - 105n;
+  } else if (_rotation_0 === 105) {
     return false;
-  } else if (_rotation_0 === 106n) {
-    const _110_0 = _rotation_0 - 106n;
+  } else if (_rotation_0 === 106) {
     return false;
-  } else if (_rotation_0 === 107n) {
-    const _111_0 = _rotation_0 - 107n;
+  } else if (_rotation_0 === 107) {
     return false;
-  } else if (_rotation_0 === 108n) {
-    const _112_0 = _rotation_0 - 108n;
+  } else if (_rotation_0 === 108) {
     return false;
-  } else if (_rotation_0 === 109n) {
-    const _113_0 = _rotation_0 - 109n;
+  } else if (_rotation_0 === 109) {
     return false;
-  } else if (_rotation_0 === 110n) {
-    const _114_0 = _rotation_0 - 110n;
+  } else if (_rotation_0 === 110) {
     return false;
-  } else if (_rotation_0 === 111n) {
-    const _115_0 = _rotation_0 - 111n;
+  } else if (_rotation_0 === 111) {
     return false;
-  } else if (_rotation_0 === 112n) {
-    const _116_0 = _rotation_0 - 112n;
+  } else if (_rotation_0 === 112) {
     return false;
-  } else if (_rotation_0 === 113n) {
-    const _117_0 = _rotation_0 - 113n;
+  } else if (_rotation_0 === 113) {
     return false;
-  } else if (_rotation_0 === 114n) {
-    const _118_0 = _rotation_0 - 114n;
+  } else if (_rotation_0 === 114) {
     return false;
-  } else if (_rotation_0 === 115n) {
-    const _119_0 = _rotation_0 - 115n;
+  } else if (_rotation_0 === 115) {
     return false;
-  } else if (_rotation_0 === 116n) {
-    const _120_0 = _rotation_0 - 116n;
+  } else if (_rotation_0 === 116) {
     return false;
-  } else if (_rotation_0 === 117n) {
-    const _121_0 = _rotation_0 - 117n;
+  } else if (_rotation_0 === 117) {
     return false;
-  } else if (_rotation_0 === 118n) {
-    const _122_0 = _rotation_0 - 118n;
+  } else if (_rotation_0 === 118) {
     return false;
-  } else if (_rotation_0 === 119n) {
-    const _123_0 = _rotation_0 - 119n;
+  } else if (_rotation_0 === 119) {
     return false;
-  } else if (_rotation_0 === 120n) {
-    const _124_0 = _rotation_0 - 120n;
+  } else if (_rotation_0 === 120) {
     return false;
-  } else if (_rotation_0 === 121n) {
-    const _125_0 = _rotation_0 - 121n;
+  } else if (_rotation_0 === 121) {
     return false;
-  } else if (_rotation_0 === 122n) {
-    const _126_0 = _rotation_0 - 122n;
+  } else if (_rotation_0 === 122) {
     return false;
-  } else if (_rotation_0 === 123n) {
-    const _127_0 = _rotation_0 - 123n;
+  } else if (_rotation_0 === 123) {
     return false;
-  } else if (_rotation_0 === 124n) {
-    const _128_0 = _rotation_0 - 124n;
+  } else if (_rotation_0 === 124) {
     return false;
-  } else if (_rotation_0 === 125n) {
-    const _129_0 = _rotation_0 - 125n;
+  } else if (_rotation_0 === 125) {
     return false;
-  } else if (_rotation_0 === 126n) {
-    const _130_0 = _rotation_0 - 126n;
+  } else if (_rotation_0 === 126) {
     return false;
-  } else if (_rotation_0 === 127n) {
-    const _131_0 = _rotation_0 - 127n;
+  } else if (_rotation_0 === 127) {
     return false;
-  } else if (_rotation_0 === 128n) {
-    const _132_0 = _rotation_0 - 128n;
+  } else if (_rotation_0 === 128) {
     return false;
-  } else if (_rotation_0 === 129n) {
-    const _133_0 = _rotation_0 - 129n;
+  } else if (_rotation_0 === 129) {
     return false;
-  } else if (_rotation_0 === 130n) {
-    const _134_0 = _rotation_0 - 130n;
+  } else if (_rotation_0 === 130) {
     return false;
-  } else if (_rotation_0 === 131n) {
-    const _135_0 = _rotation_0 - 131n;
+  } else if (_rotation_0 === 131) {
     return false;
-  } else if (_rotation_0 === 132n) {
-    const _136_0 = _rotation_0 - 132n;
+  } else if (_rotation_0 === 132) {
     return false;
-  } else if (_rotation_0 === 133n) {
-    const _137_0 = _rotation_0 - 133n;
+  } else if (_rotation_0 === 133) {
     return false;
-  } else if (_rotation_0 === 134n) {
-    const _138_0 = _rotation_0 - 134n;
+  } else if (_rotation_0 === 134) {
     return false;
-  } else if (_rotation_0 === 135n) {
-    const _139_0 = _rotation_0 - 135n;
+  } else if (_rotation_0 === 135) {
     return false;
-  } else if (_rotation_0 === 136n) {
-    const _140_0 = _rotation_0 - 136n;
+  } else if (_rotation_0 === 136) {
     return false;
-  } else if (_rotation_0 === 137n) {
-    const _141_0 = _rotation_0 - 137n;
+  } else if (_rotation_0 === 137) {
     return false;
-  } else if (_rotation_0 === 138n) {
-    const _142_0 = _rotation_0 - 138n;
+  } else if (_rotation_0 === 138) {
     return false;
-  } else if (_rotation_0 === 139n) {
-    const _143_0 = _rotation_0 - 139n;
+  } else if (_rotation_0 === 139) {
     return false;
-  } else if (_rotation_0 === 140n) {
-    const _144_0 = _rotation_0 - 140n;
+  } else if (_rotation_0 === 140) {
     return false;
-  } else if (_rotation_0 === 141n) {
-    const _145_0 = _rotation_0 - 141n;
+  } else if (_rotation_0 === 141) {
     return false;
-  } else if (_rotation_0 === 142n) {
-    const _146_0 = _rotation_0 - 142n;
+  } else if (_rotation_0 === 142) {
     return false;
-  } else if (_rotation_0 === 143n) {
-    const _147_0 = _rotation_0 - 143n;
+  } else if (_rotation_0 === 143) {
     return false;
-  } else if (_rotation_0 === 144n) {
-    const _148_0 = _rotation_0 - 144n;
+  } else if (_rotation_0 === 144) {
     return false;
-  } else if (_rotation_0 === 145n) {
-    const _149_0 = _rotation_0 - 145n;
+  } else if (_rotation_0 === 145) {
     return false;
-  } else if (_rotation_0 === 146n) {
-    const _150_0 = _rotation_0 - 146n;
+  } else if (_rotation_0 === 146) {
     return false;
-  } else if (_rotation_0 === 147n) {
-    const _151_0 = _rotation_0 - 147n;
+  } else if (_rotation_0 === 147) {
     return false;
-  } else if (_rotation_0 === 148n) {
-    const _152_0 = _rotation_0 - 148n;
+  } else if (_rotation_0 === 148) {
     return false;
-  } else if (_rotation_0 === 149n) {
-    const _153_0 = _rotation_0 - 149n;
+  } else if (_rotation_0 === 149) {
     return false;
-  } else if (_rotation_0 === 150n) {
-    const _154_0 = _rotation_0 - 150n;
+  } else if (_rotation_0 === 150) {
     return false;
-  } else if (_rotation_0 === 151n) {
-    const _155_0 = _rotation_0 - 151n;
+  } else if (_rotation_0 === 151) {
     return false;
-  } else if (_rotation_0 === 152n) {
-    const _156_0 = _rotation_0 - 152n;
+  } else if (_rotation_0 === 152) {
     return false;
-  } else if (_rotation_0 === 153n) {
-    const _157_0 = _rotation_0 - 153n;
+  } else if (_rotation_0 === 153) {
     return false;
-  } else if (_rotation_0 === 154n) {
-    const _158_0 = _rotation_0 - 154n;
+  } else if (_rotation_0 === 154) {
     return false;
-  } else if (_rotation_0 === 155n) {
-    const _159_0 = _rotation_0 - 155n;
+  } else if (_rotation_0 === 155) {
     return false;
-  } else if (_rotation_0 === 156n) {
-    const _160_0 = _rotation_0 - 156n;
+  } else if (_rotation_0 === 156) {
     return false;
-  } else if (_rotation_0 === 157n) {
-    const _161_0 = _rotation_0 - 157n;
+  } else if (_rotation_0 === 157) {
     return false;
-  } else if (_rotation_0 === 158n) {
-    const _162_0 = _rotation_0 - 158n;
+  } else if (_rotation_0 === 158) {
     return false;
-  } else if (_rotation_0 === 159n) {
-    const _163_0 = _rotation_0 - 159n;
+  } else if (_rotation_0 === 159) {
     return false;
-  } else if (_rotation_0 === 160n) {
-    const _164_0 = _rotation_0 - 160n;
+  } else if (_rotation_0 === 160) {
     return false;
-  } else if (_rotation_0 === 161n) {
-    const _165_0 = _rotation_0 - 161n;
+  } else if (_rotation_0 === 161) {
     return false;
-  } else if (_rotation_0 === 162n) {
-    const _166_0 = _rotation_0 - 162n;
+  } else if (_rotation_0 === 162) {
     return false;
-  } else if (_rotation_0 === 163n) {
-    const _167_0 = _rotation_0 - 163n;
+  } else if (_rotation_0 === 163) {
     return false;
-  } else if (_rotation_0 === 164n) {
-    const _168_0 = _rotation_0 - 164n;
+  } else if (_rotation_0 === 164) {
     return false;
-  } else if (_rotation_0 === 165n) {
-    const _169_0 = _rotation_0 - 165n;
+  } else if (_rotation_0 === 165) {
     return false;
-  } else if (_rotation_0 === 166n) {
-    const _170_0 = _rotation_0 - 166n;
+  } else if (_rotation_0 === 166) {
     return false;
-  } else if (_rotation_0 === 167n) {
-    const _171_0 = _rotation_0 - 167n;
+  } else if (_rotation_0 === 167) {
     return false;
-  } else if (_rotation_0 === 168n) {
-    const _172_0 = _rotation_0 - 168n;
+  } else if (_rotation_0 === 168) {
     return false;
-  } else if (_rotation_0 === 169n) {
-    const _173_0 = _rotation_0 - 169n;
+  } else if (_rotation_0 === 169) {
     return false;
-  } else if (_rotation_0 === 170n) {
-    const _174_0 = _rotation_0 - 170n;
+  } else if (_rotation_0 === 170) {
     return false;
-  } else if (_rotation_0 === 171n) {
-    const _175_0 = _rotation_0 - 171n;
+  } else if (_rotation_0 === 171) {
     return false;
-  } else if (_rotation_0 === 172n) {
-    const _176_0 = _rotation_0 - 172n;
+  } else if (_rotation_0 === 172) {
     return false;
-  } else if (_rotation_0 === 173n) {
-    const _177_0 = _rotation_0 - 173n;
+  } else if (_rotation_0 === 173) {
     return false;
-  } else if (_rotation_0 === 174n) {
-    const _178_0 = _rotation_0 - 174n;
+  } else if (_rotation_0 === 174) {
     return false;
-  } else if (_rotation_0 === 175n) {
-    const _179_0 = _rotation_0 - 175n;
+  } else if (_rotation_0 === 175) {
     return false;
-  } else if (_rotation_0 === 176n) {
-    const _180_0 = _rotation_0 - 176n;
+  } else if (_rotation_0 === 176) {
     return false;
-  } else if (_rotation_0 === 177n) {
-    const _181_0 = _rotation_0 - 177n;
+  } else if (_rotation_0 === 177) {
     return false;
-  } else if (_rotation_0 === 178n) {
-    const _182_0 = _rotation_0 - 178n;
+  } else if (_rotation_0 === 178) {
     return false;
-  } else if (_rotation_0 === 179n) {
-    const _183_0 = _rotation_0 - 179n;
+  } else if (_rotation_0 === 179) {
     return false;
-  } else if (_rotation_0 === 180n) {
+  } else if (_rotation_0 === 180) {
     return true;
-  } else if (_rotation_0 === 181n) {
-    const _185_0 = _rotation_0 - 181n;
+  } else if (_rotation_0 === 181) {
     return false;
-  } else if (_rotation_0 === 182n) {
-    const _186_0 = _rotation_0 - 182n;
+  } else if (_rotation_0 === 182) {
     return false;
-  } else if (_rotation_0 === 183n) {
-    const _187_0 = _rotation_0 - 183n;
+  } else if (_rotation_0 === 183) {
     return false;
-  } else if (_rotation_0 === 184n) {
-    const _188_0 = _rotation_0 - 184n;
+  } else if (_rotation_0 === 184) {
     return false;
-  } else if (_rotation_0 === 185n) {
-    const _189_0 = _rotation_0 - 185n;
+  } else if (_rotation_0 === 185) {
     return false;
-  } else if (_rotation_0 === 186n) {
-    const _190_0 = _rotation_0 - 186n;
+  } else if (_rotation_0 === 186) {
     return false;
-  } else if (_rotation_0 === 187n) {
-    const _191_0 = _rotation_0 - 187n;
+  } else if (_rotation_0 === 187) {
     return false;
-  } else if (_rotation_0 === 188n) {
-    const _192_0 = _rotation_0 - 188n;
+  } else if (_rotation_0 === 188) {
     return false;
-  } else if (_rotation_0 === 189n) {
-    const _193_0 = _rotation_0 - 189n;
+  } else if (_rotation_0 === 189) {
     return false;
-  } else if (_rotation_0 === 190n) {
-    const _194_0 = _rotation_0 - 190n;
+  } else if (_rotation_0 === 190) {
     return false;
-  } else if (_rotation_0 === 191n) {
-    const _195_0 = _rotation_0 - 191n;
+  } else if (_rotation_0 === 191) {
     return false;
-  } else if (_rotation_0 === 192n) {
-    const _196_0 = _rotation_0 - 192n;
+  } else if (_rotation_0 === 192) {
     return false;
-  } else if (_rotation_0 === 193n) {
-    const _197_0 = _rotation_0 - 193n;
+  } else if (_rotation_0 === 193) {
     return false;
-  } else if (_rotation_0 === 194n) {
-    const _198_0 = _rotation_0 - 194n;
+  } else if (_rotation_0 === 194) {
     return false;
-  } else if (_rotation_0 === 195n) {
-    const _199_0 = _rotation_0 - 195n;
+  } else if (_rotation_0 === 195) {
     return false;
-  } else if (_rotation_0 === 196n) {
-    const _200_0 = _rotation_0 - 196n;
+  } else if (_rotation_0 === 196) {
     return false;
-  } else if (_rotation_0 === 197n) {
-    const _201_0 = _rotation_0 - 197n;
+  } else if (_rotation_0 === 197) {
     return false;
-  } else if (_rotation_0 === 198n) {
-    const _202_0 = _rotation_0 - 198n;
+  } else if (_rotation_0 === 198) {
     return false;
-  } else if (_rotation_0 === 199n) {
-    const _203_0 = _rotation_0 - 199n;
+  } else if (_rotation_0 === 199) {
     return false;
-  } else if (_rotation_0 === 200n) {
-    const _204_0 = _rotation_0 - 200n;
+  } else if (_rotation_0 === 200) {
     return false;
-  } else if (_rotation_0 === 201n) {
-    const _205_0 = _rotation_0 - 201n;
+  } else if (_rotation_0 === 201) {
     return false;
-  } else if (_rotation_0 === 202n) {
-    const _206_0 = _rotation_0 - 202n;
+  } else if (_rotation_0 === 202) {
     return false;
-  } else if (_rotation_0 === 203n) {
-    const _207_0 = _rotation_0 - 203n;
+  } else if (_rotation_0 === 203) {
     return false;
-  } else if (_rotation_0 === 204n) {
-    const _208_0 = _rotation_0 - 204n;
+  } else if (_rotation_0 === 204) {
     return false;
-  } else if (_rotation_0 === 205n) {
-    const _209_0 = _rotation_0 - 205n;
+  } else if (_rotation_0 === 205) {
     return false;
-  } else if (_rotation_0 === 206n) {
-    const _210_0 = _rotation_0 - 206n;
+  } else if (_rotation_0 === 206) {
     return false;
-  } else if (_rotation_0 === 207n) {
-    const _211_0 = _rotation_0 - 207n;
+  } else if (_rotation_0 === 207) {
     return false;
-  } else if (_rotation_0 === 208n) {
-    const _212_0 = _rotation_0 - 208n;
+  } else if (_rotation_0 === 208) {
     return false;
-  } else if (_rotation_0 === 209n) {
-    const _213_0 = _rotation_0 - 209n;
+  } else if (_rotation_0 === 209) {
     return false;
-  } else if (_rotation_0 === 210n) {
-    const _214_0 = _rotation_0 - 210n;
+  } else if (_rotation_0 === 210) {
     return false;
-  } else if (_rotation_0 === 211n) {
-    const _215_0 = _rotation_0 - 211n;
+  } else if (_rotation_0 === 211) {
     return false;
-  } else if (_rotation_0 === 212n) {
-    const _216_0 = _rotation_0 - 212n;
+  } else if (_rotation_0 === 212) {
     return false;
-  } else if (_rotation_0 === 213n) {
-    const _217_0 = _rotation_0 - 213n;
+  } else if (_rotation_0 === 213) {
     return false;
-  } else if (_rotation_0 === 214n) {
-    const _218_0 = _rotation_0 - 214n;
+  } else if (_rotation_0 === 214) {
     return false;
-  } else if (_rotation_0 === 215n) {
-    const _219_0 = _rotation_0 - 215n;
+  } else if (_rotation_0 === 215) {
     return false;
-  } else if (_rotation_0 === 216n) {
-    const _220_0 = _rotation_0 - 216n;
+  } else if (_rotation_0 === 216) {
     return false;
-  } else if (_rotation_0 === 217n) {
-    const _221_0 = _rotation_0 - 217n;
+  } else if (_rotation_0 === 217) {
     return false;
-  } else if (_rotation_0 === 218n) {
-    const _222_0 = _rotation_0 - 218n;
+  } else if (_rotation_0 === 218) {
     return false;
-  } else if (_rotation_0 === 219n) {
-    const _223_0 = _rotation_0 - 219n;
+  } else if (_rotation_0 === 219) {
     return false;
-  } else if (_rotation_0 === 220n) {
-    const _224_0 = _rotation_0 - 220n;
+  } else if (_rotation_0 === 220) {
     return false;
-  } else if (_rotation_0 === 221n) {
-    const _225_0 = _rotation_0 - 221n;
+  } else if (_rotation_0 === 221) {
     return false;
-  } else if (_rotation_0 === 222n) {
-    const _226_0 = _rotation_0 - 222n;
+  } else if (_rotation_0 === 222) {
     return false;
-  } else if (_rotation_0 === 223n) {
-    const _227_0 = _rotation_0 - 223n;
+  } else if (_rotation_0 === 223) {
     return false;
-  } else if (_rotation_0 === 224n) {
-    const _228_0 = _rotation_0 - 224n;
+  } else if (_rotation_0 === 224) {
     return false;
-  } else if (_rotation_0 === 225n) {
-    const _229_0 = _rotation_0 - 225n;
+  } else if (_rotation_0 === 225) {
     return false;
-  } else if (_rotation_0 === 226n) {
-    const _230_0 = _rotation_0 - 226n;
+  } else if (_rotation_0 === 226) {
     return false;
-  } else if (_rotation_0 === 227n) {
-    const _231_0 = _rotation_0 - 227n;
+  } else if (_rotation_0 === 227) {
     return false;
-  } else if (_rotation_0 === 228n) {
-    const _232_0 = _rotation_0 - 228n;
+  } else if (_rotation_0 === 228) {
     return false;
-  } else if (_rotation_0 === 229n) {
-    const _233_0 = _rotation_0 - 229n;
+  } else if (_rotation_0 === 229) {
     return false;
-  } else if (_rotation_0 === 230n) {
-    const _234_0 = _rotation_0 - 230n;
+  } else if (_rotation_0 === 230) {
     return false;
-  } else if (_rotation_0 === 231n) {
-    const _235_0 = _rotation_0 - 231n;
+  } else if (_rotation_0 === 231) {
     return false;
-  } else if (_rotation_0 === 232n) {
-    const _236_0 = _rotation_0 - 232n;
+  } else if (_rotation_0 === 232) {
     return false;
-  } else if (_rotation_0 === 233n) {
-    const _237_0 = _rotation_0 - 233n;
+  } else if (_rotation_0 === 233) {
     return false;
-  } else if (_rotation_0 === 234n) {
-    const _238_0 = _rotation_0 - 234n;
+  } else if (_rotation_0 === 234) {
     return false;
-  } else if (_rotation_0 === 235n) {
-    const _239_0 = _rotation_0 - 235n;
+  } else if (_rotation_0 === 235) {
     return false;
-  } else if (_rotation_0 === 236n) {
-    const _240_0 = _rotation_0 - 236n;
+  } else if (_rotation_0 === 236) {
     return false;
-  } else if (_rotation_0 === 237n) {
-    const _241_0 = _rotation_0 - 237n;
+  } else if (_rotation_0 === 237) {
     return false;
-  } else if (_rotation_0 === 238n) {
-    const _242_0 = _rotation_0 - 238n;
+  } else if (_rotation_0 === 238) {
     return false;
-  } else if (_rotation_0 === 239n) {
-    const _243_0 = _rotation_0 - 239n;
+  } else if (_rotation_0 === 239) {
     return false;
-  } else if (_rotation_0 === 240n) {
-    const _244_0 = _rotation_0 - 240n;
+  } else if (_rotation_0 === 240) {
     return false;
-  } else if (_rotation_0 === 241n) {
-    const _245_0 = _rotation_0 - 241n;
+  } else if (_rotation_0 === 241) {
     return false;
-  } else if (_rotation_0 === 242n) {
-    const _246_0 = _rotation_0 - 242n;
+  } else if (_rotation_0 === 242) {
     return false;
-  } else if (_rotation_0 === 243n) {
-    const _247_0 = _rotation_0 - 243n;
+  } else if (_rotation_0 === 243) {
     return false;
-  } else if (_rotation_0 === 244n) {
-    const _248_0 = _rotation_0 - 244n;
+  } else if (_rotation_0 === 244) {
     return false;
-  } else if (_rotation_0 === 245n) {
-    const _249_0 = _rotation_0 - 245n;
+  } else if (_rotation_0 === 245) {
     return false;
-  } else if (_rotation_0 === 246n) {
-    const _250_0 = _rotation_0 - 246n;
+  } else if (_rotation_0 === 246) {
     return false;
-  } else if (_rotation_0 === 247n) {
-    const _251_0 = _rotation_0 - 247n;
+  } else if (_rotation_0 === 247) {
     return false;
-  } else if (_rotation_0 === 248n) {
-    const _252_0 = _rotation_0 - 248n;
+  } else if (_rotation_0 === 248) {
     return false;
-  } else if (_rotation_0 === 249n) {
-    const _253_0 = _rotation_0 - 249n;
+  } else if (_rotation_0 === 249) {
     return false;
-  } else if (_rotation_0 === 250n) {
-    const _254_0 = _rotation_0 - 250n;
+  } else if (_rotation_0 === 250) {
     return false;
-  } else if (_rotation_0 === 251n) {
-    const _255_0 = _rotation_0 - 251n;
+  } else if (_rotation_0 === 251) {
     return false;
-  } else if (_rotation_0 === 252n) {
-    const _256_0 = _rotation_0 - 252n;
+  } else if (_rotation_0 === 252) {
     return false;
-  } else if (_rotation_0 === 253n) {
-    const _257_0 = _rotation_0 - 253n;
+  } else if (_rotation_0 === 253) {
     return false;
-  } else if (_rotation_0 === 254n) {
-    const _258_0 = _rotation_0 - 254n;
+  } else if (_rotation_0 === 254) {
     return false;
-  } else if (_rotation_0 === 255n) {
-    const _259_0 = _rotation_0 - 255n;
+  } else if (_rotation_0 === 255) {
     return false;
-  } else if (_rotation_0 === 256n) {
-    const _260_0 = _rotation_0 - 256n;
+  } else if (_rotation_0 === 256) {
     return false;
-  } else if (_rotation_0 === 257n) {
-    const _261_0 = _rotation_0 - 257n;
+  } else if (_rotation_0 === 257) {
     return false;
-  } else if (_rotation_0 === 258n) {
-    const _262_0 = _rotation_0 - 258n;
+  } else if (_rotation_0 === 258) {
     return false;
-  } else if (_rotation_0 === 259n) {
-    const _263_0 = _rotation_0 - 259n;
+  } else if (_rotation_0 === 259) {
     return false;
-  } else if (_rotation_0 === 260n) {
-    const _264_0 = _rotation_0 - 260n;
+  } else if (_rotation_0 === 260) {
     return false;
-  } else if (_rotation_0 === 261n) {
-    const _265_0 = _rotation_0 - 261n;
+  } else if (_rotation_0 === 261) {
     return false;
-  } else if (_rotation_0 === 262n) {
-    const _266_0 = _rotation_0 - 262n;
+  } else if (_rotation_0 === 262) {
     return false;
-  } else if (_rotation_0 === 263n) {
-    const _267_0 = _rotation_0 - 263n;
+  } else if (_rotation_0 === 263) {
     return false;
-  } else if (_rotation_0 === 264n) {
-    const _268_0 = _rotation_0 - 264n;
+  } else if (_rotation_0 === 264) {
     return false;
-  } else if (_rotation_0 === 265n) {
-    const _269_0 = _rotation_0 - 265n;
+  } else if (_rotation_0 === 265) {
     return false;
-  } else if (_rotation_0 === 266n) {
-    const _270_0 = _rotation_0 - 266n;
+  } else if (_rotation_0 === 266) {
     return false;
-  } else if (_rotation_0 === 267n) {
-    const _271_0 = _rotation_0 - 267n;
+  } else if (_rotation_0 === 267) {
     return false;
-  } else if (_rotation_0 === 268n) {
-    const _272_0 = _rotation_0 - 268n;
+  } else if (_rotation_0 === 268) {
     return false;
-  } else if (_rotation_0 === 269n) {
-    const _273_0 = _rotation_0 - 269n;
+  } else if (_rotation_0 === 269) {
     return false;
-  } else if (_rotation_0 === 270n) {
+  } else if (_rotation_0 === 270) {
     return true;
   } else {
-    const _274_0 = _rotation_0 - 270n;
     return false;
   }
 }
-function $rotationNormalize$if$(_rotation_0, _valid_0) {
+function $rotationNormalize_if(_rotation_0, _valid_0) {
   if (_valid_0) {
     return _rotation_0;
   } else {
-    return 0n;
+    return 0;
   }
 }
-function $rotationNormalize$(_rotation_0) {
-  return run_jump($rotationNormalize$if$, [_rotation_0, run_loop($rotationValid$(_rotation_0))]);
+function $rotationNormalize(_rotation_0) {
+  return $rotationNormalize_if(_rotation_0, $rotationValid(_rotation_0));
 }
-function $rotateTitle$(_rotation_0) {
-  const _x_0 = run_loop($Nat$show$(_rotation_0));
-  const _x_1 = _x_0 + "°";
-  return "Girar 90° — orientação atual: " + _x_1;
+function $rotateTitle(_rotation_0) {
+  return $msg_msg1("pdf.view.rotateTitle", "deg", $Nat_show(_rotation_0));
 }
-function $rotateAria$(_label_0, _rotation_0) {
-  const _x_0 = run_loop($Nat$show$(_rotation_0));
-  const _x_1 = _x_0 + "°)";
-  const _x_2 = " (atual: " + _x_1;
-  const _x_3 = _label_0 + _x_2;
-  return "Girar página de " + _x_3;
+function $rotateAria(_label_0, _rotation_0) {
+  return $msg_msg2("pdf.view.rotateAria", "label", _label_0, "deg", $Nat_show(_rotation_0));
 }
-function $rotateToast$(_rotation_0) {
-  const _x_0 = run_loop($Nat$show$(_rotation_0));
-  const _x_1 = _x_0 + "°";
-  return "Orientação: " + _x_1;
+function $rotateToast(_rotation_0) {
+  return $msg_msg1("pdf.view.rotateToast", "deg", $Nat_show(_rotation_0));
 }
-function $optionKids$(_name_0) {
-  return { $: "Con", ["head"]: run_loop($view$viewText$(_name_0)), ["tail"]: { $: "Nil" } };
+function $printedOffsetLabel_positive(_n_0) {
+  if (_n_0 === 0) {
+    return "";
+  } else {
+    const _p_0 = _n_0 - 1;
+    return $Nat_show(nat_chk(_p_0 + 1));
+  }
 }
-function $optionNode$(_option_0, _path_0) {
+function $printedOffsetLabel_signed(_negative_0, _magnitude_0, _physical_0) {
+  if (_negative_0) {
+    return $printedOffsetLabel_positive(_physical_0 < _magnitude_0 ? 0 : _physical_0 - _magnitude_0);
+  } else {
+    return $Nat_show(nat_chk(_physical_0 + _magnitude_0));
+  }
+}
+function $printedOffsetLabel(_offset_0, _physical_0) {
+  if (_offset_0.$ === "OffsetAuto") {
+    return "";
+  } else {
+    const _negative_0 = _offset_0["negative"];
+    const _magnitude_0 = _offset_0["magnitude"];
+    return $printedOffsetLabel_signed(_negative_0, _magnitude_0, _physical_0);
+  }
+}
+function $printedLabel_own_if(_label_0, _offset_0, _physical_0, _empty_0) {
+  if (_empty_0) {
+    return $printedOffsetLabel(_offset_0, _physical_0);
+  } else {
+    return _label_0;
+  }
+}
+function $printedLabel_own(_label_0, _offset_0, _physical_0) {
+  return $printedLabel_own_if(_label_0, _offset_0, _physical_0, $String_is_empty(_label_0));
+}
+function $printedLabel_go($0, $1, $2, $3) {
+  for (;; ) {
+    {
+      const _own_0 = $0;
+      const _offset_0 = $1;
+      const _original_0 = $2;
+      const _i_0 = $3;
+      if (_own_0.$ === "Nil") {
+        return $printedOffsetLabel(_offset_0, _original_0);
+      } else {
+        const _h_0 = _own_0["head"];
+        const _t_0 = _own_0["tail"];
+        if (_i_0 === 0) {
+          return $printedLabel_own(_h_0, _offset_0, _original_0);
+        } else {
+          const _p_0 = _i_0 - 1;
+          $0 = _t_0;
+          $1 = _offset_0;
+          $2 = _original_0;
+          $3 = _p_0;
+          continue;
+        }
+      }
+    }
+  }
+}
+function $printedLabel(_own_0, _offset_0, _physical_0) {
+  return $printedLabel_go(_own_0, _offset_0, _physical_0, _physical_0 < 1 ? 0 : _physical_0 - 1);
+}
+function $isDigitChar(_c_0) {
+  const _u_0 = $Char_to_u32(_c_0);
+  return $Bool_and(_u_0 >= 48, _u_0 <= 57);
+}
+function $printedDigits_go($0, $1) {
+  for (;; ) {
+    {
+      const _s_0 = $0;
+      const _ok_0 = $1;
+      if (_s_0 === "") {
+        return _ok_0;
+      } else {
+        const _h_0 = _s_0.slice(0, char_len(_s_0));
+        const _t_0 = _s_0.slice(char_len(_s_0));
+        $0 = _t_0;
+        $1 = $Bool_and(_ok_0, $isDigitChar(_h_0));
+        continue;
+      }
+    }
+  }
+}
+function $printedDigits(_text_0) {
+  return $printedDigits_go(_text_0, true);
+}
+function $printedNumber_parsed(_parsed_0) {
+  if (_parsed_0.$ === "Some") {
+    const _n_0 = _parsed_0["value"];
+    return { $: "Some", value: _n_0 };
+  } else {
+    return { $: "None" };
+  }
+}
+function $printedNumber_if(_text_0, _empty_0, _digits_0) {
+  if (_empty_0) {
+    return { $: "None" };
+  } else {
+    if (!_digits_0) {
+      return { $: "None" };
+    } else {
+      return $printedNumber_parsed($U32_read(_text_0));
+    }
+  }
+}
+function $printedNumber(_text_0) {
+  return $printedNumber_if(_text_0, $String_is_empty(_text_0), $printedDigits(_text_0));
+}
+function $printedMatches_cmp(_candidate_0, _text_0, _fold_0) {
+  if (!_fold_0) {
+    return $String_eq(_candidate_0, _text_0);
+  } else {
+    return $String_eq($String_to_lower(_candidate_0), $String_to_lower(_text_0));
+  }
+}
+function $printedMatches_push(_out_0, _n_0, _same_0) {
+  if (_same_0) {
+    return $List_append(_out_0, { $: "Con", head: _n_0, tail: { $: "Nil" } });
+  } else {
+    return _out_0;
+  }
+}
+function $printedMatches_go($0, $1, $2, $3, $4) {
+  for (;; ) {
+    {
+      const _own_0 = $0;
+      const _text_0 = $1;
+      const _fold_0 = $2;
+      const _n_0 = $3;
+      const _out_0 = $4;
+      if (_own_0.$ === "Nil") {
+        return _out_0;
+      } else {
+        const _h_0 = _own_0["head"];
+        const _t_0 = _own_0["tail"];
+        $0 = _t_0;
+        $1 = _text_0;
+        $2 = _fold_0;
+        $3 = nat_chk(_n_0 + 1);
+        $4 = $printedMatches_push(_out_0, _n_0, $printedMatches_cmp(_h_0, _text_0, _fold_0));
+        continue;
+      }
+    }
+  }
+}
+function $printedPick_first_if(_first_0, _candidate_0, _zero_0) {
+  if (_zero_0) {
+    return _candidate_0;
+  } else {
+    return _first_0;
+  }
+}
+function $printedPick_first(_first_0, _candidate_0) {
+  return $printedPick_first_if(_first_0, _candidate_0, $Nat_is_eq(_first_0, 0));
+}
+function $printedPick_best_min_if(_candidate_0, _best_0, _lt_0) {
+  if (_lt_0) {
+    return _candidate_0;
+  } else {
+    return _best_0;
+  }
+}
+function $printedPick_best_min(_candidate_0, _best_0) {
+  return $printedPick_best_min_if(_candidate_0, _best_0, _candidate_0 < _best_0);
+}
+function $printedPick_best_none(_best_0, _candidate_0, _zero_0) {
+  if (_zero_0) {
+    return _candidate_0;
+  } else {
+    return $printedPick_best_min(_candidate_0, _best_0);
+  }
+}
+function $printedPick_best_if(_best_0, _candidate_0, _current_0, _gt_0) {
+  if (!_gt_0) {
+    return _best_0;
+  } else {
+    return $printedPick_best_none(_best_0, _candidate_0, $Nat_is_eq(_best_0, 0));
+  }
+}
+function $printedPick_best(_best_0, _candidate_0, _current_0) {
+  return $printedPick_best_if(_best_0, _candidate_0, _current_0, $Nat_is_gt(_candidate_0, _current_0));
+}
+function $printedPick_fin_if(_first_0, _best_0, _zero_0) {
+  if (_zero_0) {
+    return _first_0;
+  } else {
+    return _best_0;
+  }
+}
+function $printedPick_fin(_first_0, _best_0) {
+  return $printedPick_fin_if(_first_0, _best_0, $Nat_is_eq(_best_0, 0));
+}
+function $printedPick_go($0, $1, $2, $3) {
+  for (;; ) {
+    {
+      const _matches_0 = $0;
+      const _current_0 = $1;
+      const _first_0 = $2;
+      const _best_0 = $3;
+      if (_matches_0.$ === "Nil") {
+        return $printedPick_fin(_first_0, _best_0);
+      } else {
+        const _h_0 = _matches_0["head"];
+        const _t_0 = _matches_0["tail"];
+        $0 = _t_0;
+        $1 = _current_0;
+        $2 = $printedPick_first(_first_0, _h_0);
+        $3 = $printedPick_best(_best_0, _h_0, _current_0);
+        continue;
+      }
+    }
+  }
+}
+function $resolvePrinted_inBounds_if(_page_0, _total_0, _ok_0) {
+  if (_ok_0) {
+    return { $: "Some", value: _page_0 };
+  } else {
+    return { $: "None" };
+  }
+}
+function $resolvePrinted_inBounds(_page_0, _total_0) {
+  return $resolvePrinted_inBounds_if(_page_0, _total_0, $Bool_and($Nat_is_ge(_page_0, 1), $Nat_is_le(_page_0, _total_0)));
+}
+function $resolvePrinted_shift(_negative_0, _magnitude_0, _printed_0, _total_0) {
+  if (_negative_0) {
+    return $resolvePrinted_inBounds(nat_chk(_printed_0 + _magnitude_0), _total_0);
+  } else {
+    return $resolvePrinted_inBounds(_printed_0 < _magnitude_0 ? 0 : _printed_0 - _magnitude_0, _total_0);
+  }
+}
+function $resolvePrinted_byOffset_value(_offset_0, _printed_0, _total_0) {
+  if (_offset_0.$ === "OffsetAuto") {
+    return $resolvePrinted_inBounds(_printed_0, _total_0);
+  } else {
+    const _negative_0 = _offset_0["negative"];
+    const _magnitude_0 = _offset_0["magnitude"];
+    return $resolvePrinted_shift(_negative_0, _magnitude_0, _printed_0, _total_0);
+  }
+}
+function $resolvePrinted_byOffset_parsed(_offset_0, _total_0, _parsed_0) {
+  if (_parsed_0.$ === "None") {
+    return { $: "None" };
+  } else {
+    const _printed_0 = _parsed_0["value"];
+    return $resolvePrinted_byOffset_value(_offset_0, _printed_0, _total_0);
+  }
+}
+function $resolvePrinted_byOffset(_offset_0, _text_0, _total_0) {
+  return $resolvePrinted_byOffset_parsed(_offset_0, _total_0, $printedNumber(_text_0));
+}
+function $resolvePrinted_folded_matches(_text_0, _total_0, _current_0, _matches_0) {
+  if (_matches_0.$ === "Nil") {
+    return { $: "None" };
+  } else {
+    const _h_0 = _matches_0["head"];
+    const _t_0 = _matches_0["tail"];
+    return $resolvePrinted_inBounds($printedPick_go({ $: "Con", head: _h_0, tail: _t_0 }, _current_0, 0, 0), _total_0);
+  }
+}
+function $resolvePrinted_folded(_own_0, _text_0, _total_0, _current_0) {
+  return $resolvePrinted_folded_matches(_text_0, _total_0, _current_0, $printedMatches_go(_own_0, _text_0, true, 1, { $: "Nil" }));
+}
+function $resolvePrinted_own_matches(_own_0, _text_0, _total_0, _current_0, _matches_0) {
+  if (_matches_0.$ === "Nil") {
+    return $resolvePrinted_folded(_own_0, _text_0, _total_0, _current_0);
+  } else {
+    const _h_0 = _matches_0["head"];
+    const _t_0 = _matches_0["tail"];
+    return $resolvePrinted_inBounds($printedPick_go({ $: "Con", head: _h_0, tail: _t_0 }, _current_0, 0, 0), _total_0);
+  }
+}
+function $resolvePrinted_own(_own_0, _text_0, _total_0, _current_0) {
+  return $resolvePrinted_own_matches(_own_0, _text_0, _total_0, _current_0, $printedMatches_go(_own_0, _text_0, false, 1, { $: "Nil" }));
+}
+function $resolvePrinted_if(_own_0, _offset_0, _total_0, _current_0, _text_0) {
+  if (_own_0.$ === "Nil") {
+    return $resolvePrinted_byOffset(_offset_0, _text_0, _total_0);
+  } else {
+    const _h_0 = _own_0["head"];
+    const _t_0 = _own_0["tail"];
+    return $resolvePrinted_own({ $: "Con", head: _h_0, tail: _t_0 }, _text_0, _total_0, _current_0);
+  }
+}
+function $resolvePrinted_empty(_own_0, _offset_0, _total_0, _current_0, _text_0, _empty_0) {
+  if (_empty_0) {
+    return { $: "None" };
+  } else {
+    return $resolvePrinted_if(_own_0, _offset_0, _total_0, _current_0, _text_0);
+  }
+}
+function $resolvePrinted(_own_0, _offset_0, _total_0, _current_0, _text_0) {
+  const _trimmed_0 = $String_trim(_text_0);
+  return $resolvePrinted_empty(_own_0, _offset_0, _total_0, _current_0, _trimmed_0, $String_is_empty(_trimmed_0));
+}
+function $printedTitle() {
+  return $msg_msg("pdf.printed.title");
+}
+function $printedInputPlaceholder() {
+  return $msg_msg("pdf.printed.placeholder");
+}
+function $printedInputAria(_label_0) {
+  return $msg_msg1("pdf.printed.inputAria", "label", _label_0);
+}
+function $printedGoLabel() {
+  return $msg_msg("pdf.printed.go");
+}
+function $printedToggleTitle() {
+  return $msg_msg("pdf.printed.toggleTitle");
+}
+function $printedToggleAria(_label_0) {
+  return $msg_msg1("pdf.printed.toggleAria", "label", _label_0);
+}
+function $printedOffsetFieldLabel() {
+  return $msg_msg("pdf.printed.offset");
+}
+function $printedOffsetTitle() {
+  return $msg_msg("pdf.printed.offsetTitle");
+}
+function $printedOffsetInputAria(_label_0) {
+  return $msg_msg1("pdf.printed.offsetAria", "label", _label_0);
+}
+function $printedOffsetSaveLabel() {
+  return $msg_msg("pdf.printed.save");
+}
+function $printedOffsetAutoLabel() {
+  return $msg_msg("pdf.printed.auto");
+}
+function $printedOwnLabel() {
+  return $msg_msg("pdf.printed.own");
+}
+function $printedAutoLabel() {
+  return $msg_msg("pdf.printed.noAdjust");
+}
+function $printedOwnHint() {
+  return $msg_msg("pdf.printed.ownHint");
+}
+function $printedNoApiHint() {
+  return $msg_msg("pdf.printed.noApi");
+}
+function $printedStatusText_signed(_negative_0, _magnitude_0) {
+  if (_negative_0) {
+    return $msg_msg1("pdf.printed.minus", "n", $Nat_show(_magnitude_0));
+  } else {
+    return $msg_msg1("pdf.printed.plus", "n", $Nat_show(_magnitude_0));
+  }
+}
+function $printedStatusText(_own_0, _offset_0) {
+  if (_own_0) {
+    return $printedOwnLabel();
+  } else {
+    if (_offset_0.$ === "OffsetAuto") {
+      return $printedAutoLabel();
+    } else {
+      const _negative_0 = _offset_0["negative"];
+      const _magnitude_0 = _offset_0["magnitude"];
+      return $printedStatusText_signed(_negative_0, _magnitude_0);
+    }
+  }
+}
+function $printedCurrentText_if(_label_0, _empty_0) {
+  if (_empty_0) {
+    return $msg_msg("pdf.printed.noLabel");
+  } else {
+    return $msg_msg1("pdf.printed.current", "label", _label_0);
+  }
+}
+function $printedCurrentText(_label_0) {
+  return $printedCurrentText_if(_label_0, $String_is_empty(_label_0));
+}
+function $printedFoundText(_text_0, _page_0) {
+  return $msg_msg2("pdf.printed.found", "text", _text_0, "page", $Nat_show(_page_0));
+}
+function $printedNotFoundText() {
+  return $msg_msg("pdf.printed.notFound");
+}
+function $printedInvalidText() {
+  return $msg_msg("pdf.printed.invalid");
+}
+function $printedBadOffsetText() {
+  return $msg_msg("pdf.printed.badOffset");
+}
+function $dropHintText(_label_0) {
+  return $msg_msg1("pdf.drop.hint", "label", _label_0);
+}
+function $dropOpeningText() {
+  return $msg_msg("pdf.drop.opening");
+}
+function $dropOpenedText(_name_0, _label_0) {
+  return $msg_msg2("pdf.drop.opened", "name", _name_0, "label", _label_0);
+}
+function $dropUnavailableText() {
+  return $msg_msg("pdf.drop.unavailable");
+}
+function $dropInvalidText() {
+  return $msg_msg("pdf.drop.invalid");
+}
+function $printedSavedAutoText() {
+  return $msg_msg("pdf.printed.savedAuto");
+}
+function $printedSavedOffsetText_signed(_negative_0, _magnitude_0) {
+  if (_negative_0) {
+    return $msg_msg1("pdf.printed.savedMinus", "n", $Nat_show(_magnitude_0));
+  } else {
+    return $msg_msg1("pdf.printed.savedPlus", "n", $Nat_show(_magnitude_0));
+  }
+}
+function $printedSavedOffsetText(_offset_0) {
+  if (_offset_0.$ === "OffsetAuto") {
+    return $printedSavedAutoText();
+  } else {
+    const _negative_0 = _offset_0["negative"];
+    const _magnitude_0 = _offset_0["magnitude"];
+    return $printedSavedOffsetText_signed(_negative_0, _magnitude_0);
+  }
+}
+function $optionKids(_name_0) {
+  return { $: "Con", head: $view_viewText(_name_0), tail: { $: "Nil" } };
+}
+function $optionNode(_option_0, _path_0) {
   const _name_0 = _option_0["name"];
   const _optionPath_0 = _option_0["path"];
-  return run_jump($view$viewEl$, ["option", run_loop($view$attrJoin$({ $: "Con", ["head"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "value", ["value"]: _optionPath_0 }, ["tail"]: { $: "Nil" } }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrWhen$(run_loop($String$eq$(_optionPath_0, _path_0)), { $: "ViewAttr", ["name"]: "selected", ["value"]: "" })), ["tail"]: { $: "Nil" } } })), run_loop($optionKids$(_name_0))]);
+  return $view_viewEl("option", $view_attrJoin({ $: "Con", head: { $: "Con", head: { $: "ViewAttr", name: "value", value: _optionPath_0 }, tail: { $: "Nil" } }, tail: { $: "Con", head: $view_attrWhen($String_eq(_optionPath_0, _path_0), { $: "ViewAttr", name: "selected", value: "" }), tail: { $: "Nil" } } }), $optionKids(_name_0));
 }
-function $optionEmpty$() {
-  return run_jump($view$viewEl$, ["option", { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "value", ["value"]: "" }, ["tail"]: { $: "Nil" } }, run_loop($optionKids$(run_loop($emptyOptionLabel$())))]);
+function $optionEmpty() {
+  return $view_viewEl("option", { $: "Con", head: { $: "ViewAttr", name: "value", value: "" }, tail: { $: "Nil" } }, $optionKids($emptyOptionLabel()));
 }
-function $optionNodes$go$(_options_0, _path_0) {
+function $optionNodes_go(_options_0, _path_0) {
   if (_options_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _options_0["head"];
     const _t_0 = _options_0["tail"];
-    return { $: "Con", ["head"]: run_loop($optionNode$(_h_0, _path_0)), ["tail"]: run_loop($optionNodes$go$(_t_0, _path_0)) };
+    return { $: "Con", head: $optionNode(_h_0, _path_0), tail: $optionNodes_go(_t_0, _path_0) };
   }
 }
-function $optionNodes$(_options_0, _path_0) {
-  return { $: "Con", ["head"]: run_loop($optionEmpty$()), ["tail"]: run_loop($optionNodes$go$(_options_0, _path_0)) };
+function $optionNodes(_options_0, _path_0) {
+  return { $: "Con", head: $optionEmpty(), tail: $optionNodes_go(_options_0, _path_0) };
 }
-function $selectNode$(_label_0, _options_0, _path_0) {
-  return run_jump($view$viewEl$, ["select", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-select")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($documentAria$(_label_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("change", "OpenDoc")), ["tail"]: { $: "Nil" } } } }, run_loop($optionNodes$(_options_0, _path_0))]);
+function $selectNode(_label_0, _options_0, _path_0) {
+  return $view_viewEl("select", { $: "Con", head: $view_attrClass("pdf-select"), tail: { $: "Con", head: $view_attrAria("label", $documentAria(_label_0)), tail: { $: "Con", head: $view_attrOn("change", "OpenDoc"), tail: { $: "Nil" } } } }, $optionNodes(_options_0, _path_0));
 }
-function $iconBtnAttrs$(_cls_0, _iconName_0, _aria_0) {
-  return { $: "Con", ["head"]: run_loop($view$attrClass$(_cls_0 + " icon-btn")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", _aria_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("icon", _iconName_0)), ["tail"]: { $: "Nil" } } } };
+function $iconBtnAttrs(_cls_0, _iconName_0, _aria_0) {
+  return { $: "Con", head: $view_attrClass(_cls_0 + " icon-btn"), tail: { $: "Con", head: $view_attrAria("label", _aria_0), tail: { $: "Con", head: $view_attrData("icon", _iconName_0), tail: { $: "Nil" } } } };
 }
-function $openBtn$(_label_0) {
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$("open", "plus", run_loop($openAria$(_label_0)))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($openTitle$()))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "OpenFile")), ["tail"]: { $: "Nil" } } }, ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
+function $itemAttrs(_cls_0, _iconName_0, _aria_0) {
+  return { $: "Con", head: $view_attrClass(_cls_0 + " more-item"), tail: { $: "Con", head: $view_attrAria("label", _aria_0), tail: { $: "Con", head: $view_attrData("icon", _iconName_0), tail: { $: "Nil" } } } };
 }
-function $findToggleBtn$(_label_0, _open_0) {
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$("find-toggle", "search", run_loop($findAria$(_label_0)))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($findTitle$()))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrBool$("aria-pressed", _open_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "ToggleFind")), ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
+function $iconBtn(_cls_0, _iconName_0, _aria_0, _handler_0) {
+  return $view_viewEl("button", $view_attrConcat($iconBtnAttrs(_cls_0, _iconName_0, _aria_0), { $: "Con", head: $view_attrOn("click", _handler_0), tail: { $: "Nil" } }), { $: "Nil" });
 }
-function $shotBtn$(_label_0) {
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$("page-shot", "camera", run_loop($shotTitle$()))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($shotTitle$()))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "PageShot")), ["tail"]: { $: "Nil" } } }, ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
+function $openBtn(_label_0) {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $itemAttrs("open", "plus", $openAria(_label_0)), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($openTitle()), tail: { $: "Con", head: $view_attrOn("click", "OpenFile"), tail: { $: "Nil" } } }, tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($openTitle()), tail: { $: "Nil" } });
 }
-function $collapseIcon$(_minimized_0) {
+function $findToggleBtn(_label_0, _open_0) {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $iconBtnAttrs("find-toggle", "search", $findAria(_label_0)), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($findTitle()), tail: { $: "Con", head: $view_attrBool("aria-pressed", _open_0), tail: { $: "Con", head: $view_attrOn("click", "ToggleFind"), tail: { $: "Nil" } } } }, tail: { $: "Nil" } } }), { $: "Nil" });
+}
+function $shotBtn(_label_0) {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $itemAttrs("page-shot", "camera", $shotTitle()), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($shotTitle()), tail: { $: "Con", head: $view_attrOn("click", "PageShot"), tail: { $: "Nil" } } }, tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($shotMenuLabel()), tail: { $: "Nil" } });
+}
+function $collapseIcon(_minimized_0) {
   if (_minimized_0) {
     return "chevronUp";
   } else {
     return "chevronDown";
   }
 }
-function $collapseBtn$(_minimized_0) {
-  const _title_0 = run_loop($pdfview$collapseTitle$(_minimized_0));
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$("collapse", run_loop($collapseIcon$(_minimized_0)), _title_0)), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(_title_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrBool$("aria-pressed", _minimized_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "ToggleCollapse")), ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
+function $collapseBtn(_minimized_0) {
+  const _title_0 = $pdfview_collapseTitle(_minimized_0);
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $itemAttrs("collapse", $collapseIcon(_minimized_0), _title_0), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle(_title_0), tail: { $: "Con", head: $view_attrBool("aria-pressed", _minimized_0), tail: { $: "Con", head: $view_attrOn("click", "ToggleCollapse"), tail: { $: "Nil" } } } }, tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } });
 }
-function $navBackTitle$() {
-  return run_jump($pdfnav$navBackTitle$, []);
+function $navBackTitle() {
+  return $pdfnav_navBackTitle();
 }
-function $navBackAria$(_label_0) {
-  return run_jump($pdfnav$navBackAria$, [_label_0]);
+function $navBackAria(_label_0) {
+  return $pdfnav_navBackAria(_label_0);
 }
-function $navBtn$(_label_0) {
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$("nav", "book", run_loop($pdfnav$navAria$(_label_0)))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($pdfnav$navButtonTitle$()))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrBool$("aria-expanded", false)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "ToggleNav")), ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
+function $navBtn(_label_0) {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $iconBtnAttrs("nav", "bookmark", $pdfnav_navAria(_label_0)), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($pdfnav_navButtonTitle()), tail: { $: "Con", head: $view_attrBool("aria-expanded", false), tail: { $: "Con", head: $view_attrOn("click", "ToggleNav"), tail: { $: "Nil" } } } }, tail: { $: "Nil" } } }), { $: "Nil" });
 }
-function $backBtn$(_label_0) {
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$("back", "chevronLeft", run_loop($navBackAria$(_label_0)))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($navBackTitle$()))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "NavBack")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attr$("hidden", "")), ["tail"]: { $: "Nil" } } } }, ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
+function $backBtn(_label_0) {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $iconBtnAttrs("back", "chevronLeft", $navBackAria(_label_0)), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($navBackTitle()), tail: { $: "Con", head: $view_attrOn("click", "NavBack"), tail: { $: "Con", head: $view_attr("hidden", ""), tail: { $: "Nil" } } } }, tail: { $: "Nil" } } }), { $: "Nil" });
 }
-function $titleBar$(_shell_0) {
+function $moreBtn(_label_0) {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $iconBtnAttrs("more", "more", $moreAria(_label_0)), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($moreTitle()), tail: { $: "Con", head: $view_attrBool("aria-expanded", false), tail: { $: "Con", head: $view_attrOn("click", "ToggleMore"), tail: { $: "Nil" } } } }, tail: { $: "Nil" } } }), { $: "Nil" });
+}
+function $rotateBtn(_label_0, _rotation_0) {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $itemAttrs("rotate", "rotateCw", $rotateAria(_label_0, _rotation_0)), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($rotateTitle(_rotation_0)), tail: { $: "Con", head: $view_attrOn("click", "Rotate"), tail: { $: "Nil" } } }, tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($msg_msg("pdf.view.rotate")), tail: { $: "Nil" } });
+}
+function $pageInput(_label_0) {
+  return $view_viewEl("input", { $: "Con", head: $view_attrClass("page-number"), tail: { $: "Con", head: { $: "ViewAttr", name: "type", value: "number" }, tail: { $: "Con", head: { $: "ViewAttr", name: "min", value: "1" }, tail: { $: "Con", head: { $: "ViewAttr", name: "value", value: "1" }, tail: { $: "Con", head: $view_attrAria("label", $pageAria(_label_0)), tail: { $: "Con", head: $view_attrOn("change", "GotoPage"), tail: { $: "Nil" } } } } } } }, { $: "Nil" });
+}
+function $titleBar(_shell_0) {
+  const _label_0 = _shell_0["label"];
+  const _options_0 = _shell_0["options"];
+  const _path_0 = _shell_0["path"];
+  const _findOpen_0 = _shell_0["findOpen"];
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-title"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("strong", { $: "Nil" }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $selectNode(_label_0, _options_0, _path_0), tail: { $: "Con", head: $backBtn(_label_0), tail: { $: "Con", head: $iconBtn("prev", "chevronLeft", $prevAria(), "Prev"), tail: { $: "Con", head: $pageInput(_label_0), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("page-total"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Con", head: $iconBtn("next", "chevronRight", $nextAria(), "Next"), tail: { $: "Con", head: $findToggleBtn(_label_0, _findOpen_0), tail: { $: "Con", head: $navBtn(_label_0), tail: { $: "Con", head: $moreBtn(_label_0), tail: { $: "Nil" } } } } } } } } } } });
+}
+function $fitBtn() {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $itemAttrs("fit", "unfold", $fitTitle()), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($fitTitle()), tail: { $: "Con", head: $view_attrOn("click", "Fit"), tail: { $: "Nil" } } }, tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($fitTitle()), tail: { $: "Nil" } });
+}
+function $invertBtn() {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $itemAttrs("invert", "contrast", $invertAria()), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($invertTitle()), tail: { $: "Con", head: $view_attrOn("click", "ToggleInvert"), tail: { $: "Nil" } } }, tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($invertMenuLabel()), tail: { $: "Nil" } });
+}
+function $zoomRow() {
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("more-zoom"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("more-zoom-title"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($zoomRowLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("more-zoom-ctl"), tail: { $: "Nil" } }, { $: "Con", head: $iconBtn("out", "minus", $outAria(), "ZoomOut"), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("zoom-label"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Con", head: $iconBtn("in", "plus", $inAria(), "ZoomIn"), tail: { $: "Nil" } } } }), tail: { $: "Nil" } } });
+}
+function $moreMenu(_label_0, _rotation_0, _minimized_0) {
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-more-pop"), tail: { $: "Con", head: $view_attr("role", "group"), tail: { $: "Con", head: $view_attrAria("label", $moreAria(_label_0)), tail: { $: "Con", head: $view_attr("hidden", ""), tail: { $: "Nil" } } } } }, { $: "Con", head: $openBtn(_label_0), tail: { $: "Con", head: $shotBtn(_label_0), tail: { $: "Con", head: $zoomRow(), tail: { $: "Con", head: $fitBtn(), tail: { $: "Con", head: $invertBtn(), tail: { $: "Con", head: $rotateBtn(_label_0, _rotation_0), tail: { $: "Con", head: $collapseBtn(_minimized_0), tail: { $: "Nil" } } } } } } } });
+}
+function $restoreBtn(_label_0) {
+  return $view_viewEl("button", { $: "Con", head: $view_attrClass("pdf-restore"), tail: { $: "Con", head: $view_attrAria("label", $restoreAria(_label_0)), tail: { $: "Con", head: $view_attrTitle($restoreAria(_label_0)), tail: { $: "Con", head: $view_attrOn("click", "ToggleCollapse"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("pdf-restore-icon"), tail: { $: "Con", head: $view_attrData("icon", "chevronLeft"), tail: { $: "Nil" } } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("pdf-restore-label"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
+}
+function $stage() {
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-stage"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-viewport"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-foot"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Nil" } } });
+}
+function $findForm(_label_0) {
+  return $view_viewEl("form", { $: "Con", head: $view_attrClass("pdf-find"), tail: { $: "Con", head: $view_attrOn("submit", "Find"), tail: { $: "Con", head: { $: "ViewAttr", name: "hidden", value: "" }, tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewEl("input", { $: "Con", head: { $: "ViewAttr", name: "placeholder", value: $findPlaceholder() }, tail: { $: "Con", head: $view_attrAria("label", $findAria(_label_0)), tail: { $: "Nil" } } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("find-count"), tail: { $: "Con", head: { $: "ViewAttr", name: "hidden", value: "" }, tail: { $: "Nil" } } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("button", { $: "Nil" }, { $: "Con", head: $view_viewText($findButtonLabel()), tail: { $: "Nil" } }), tail: { $: "Nil" } } } });
+}
+function $panelShell(_shell_0) {
   const _label_0 = _shell_0["label"];
   const _options_0 = _shell_0["options"];
   const _path_0 = _shell_0["path"];
   const _minimized_0 = _shell_0["minimized"];
   const _findOpen_0 = _shell_0["findOpen"];
   const _rotation_0 = _shell_0["rotation"];
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-title")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewEl$("strong", { $: "Nil" }, { $: "Con", ["head"]: run_loop($view$viewText$(_label_0)), ["tail"]: { $: "Nil" } })), ["tail"]: { $: "Con", ["head"]: run_loop($selectNode$(_label_0, _options_0, _path_0)), ["tail"]: { $: "Con", ["head"]: run_loop($openBtn$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($findToggleBtn$(_label_0, _findOpen_0)), ["tail"]: { $: "Con", ["head"]: run_loop($shotBtn$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($backBtn$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($navBtn$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($collapseBtn$(_minimized_0)), ["tail"]: { $: "Nil" } } } } } } } } }]);
+  return $view_viewEl("section", { $: "Con", head: $pdfview_panelClass(_minimized_0, false), tail: { $: "Con", head: $view_attrAria("label", _label_0), tail: { $: "Con", head: { $: "ViewAttr", name: "tabindex", value: "0" }, tail: { $: "Nil" } } } }, { $: "Con", head: $titleBar({ $: "PdfShell", label: _label_0, options: _options_0, path: _path_0, minimized: _minimized_0, findOpen: _findOpen_0, rotation: _rotation_0 }), tail: { $: "Con", head: $stage(), tail: { $: "Con", head: $findForm(_label_0), tail: { $: "Con", head: $moreMenu(_label_0, _rotation_0, _minimized_0), tail: { $: "Con", head: $restoreBtn(_label_0), tail: { $: "Nil" } } } } } });
 }
-function $iconBtn$(_cls_0, _iconName_0, _aria_0, _handler_0) {
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrConcat$(run_loop($iconBtnAttrs$(_cls_0, _iconName_0, _aria_0)), { $: "Con", ["head"]: run_loop($view$attrOn$("click", _handler_0)), ["tail"]: { $: "Nil" } })), { $: "Nil" }]);
+function $divider() {
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-divider"), tail: { $: "Con", head: { $: "ViewAttr", name: "tabindex", value: "0" }, tail: { $: "Con", head: { $: "ViewAttr", name: "role", value: "separator" }, tail: { $: "Con", head: $view_attrAria("label", $dividerAria()), tail: { $: "Nil" } } } } }, { $: "Nil" });
 }
-function $titleIconBtn$(_cls_0, _iconName_0, _title_0, _aria_0, _handler_0) {
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$(_cls_0, _iconName_0, _aria_0)), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(_title_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", _handler_0)), ["tail"]: { $: "Nil" } } }, ["tail"]: { $: "Nil" } } })), { $: "Nil" }]);
-}
-function $rotateBtn$(_label_0, _rotation_0) {
-  return run_jump($view$viewEl$, ["button", run_loop($view$attrJoin$({ $: "Con", ["head"]: run_loop($iconBtnAttrs$("rotate", "rotateCw", run_loop($rotateAria$(_label_0, _rotation_0)))), ["tail"]: { $: "Con", ["head"]: { $: "Con", ["head"]: run_loop($view$attrTitle$(run_loop($rotateTitle$(_rotation_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("click", "Rotate")), ["tail"]: { $: "Nil" } } }, ["tail"]: { $: "Nil" } } })), { $: "Con", ["head"]: run_loop($view$viewText$("Girar")), ["tail"]: { $: "Nil" } }]);
-}
-function $pageInput$(_label_0) {
-  return run_jump($view$viewEl$, ["input", { $: "Con", ["head"]: run_loop($view$attrClass$("page-number")), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "type", ["value"]: "number" }, ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "min", ["value"]: "1" }, ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "value", ["value"]: "1" }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($pageAria$(_label_0)))), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("change", "GotoPage")), ["tail"]: { $: "Nil" } } } } } } }, { $: "Nil" }]);
-}
-function $toolsBar$(_label_0, _rotation_0) {
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-tools")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($iconBtn$("prev", "chevronLeft", run_loop($prevAria$()), "Prev")), ["tail"]: { $: "Con", ["head"]: run_loop($pageInput$(_label_0)), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("page-total")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("next", "chevronRight", run_loop($nextAria$()), "Next")), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("out", "minus", run_loop($outAria$()), "ZoomOut")), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("zoom-label")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($iconBtn$("in", "plus", run_loop($inAria$()), "ZoomIn")), ["tail"]: { $: "Con", ["head"]: run_loop($titleIconBtn$("fit", "unfold", run_loop($fitTitle$()), run_loop($fitTitle$()), "Fit")), ["tail"]: { $: "Con", ["head"]: run_loop($titleIconBtn$("invert", "contrast", run_loop($invertTitle$()), run_loop($invertAria$()), "ToggleInvert")), ["tail"]: { $: "Con", ["head"]: run_loop($rotateBtn$(_label_0, _rotation_0)), ["tail"]: { $: "Nil" } } } } } } } } } } }]);
-}
-function $stage$() {
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-stage")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewEl$("div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-viewport")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-foot")), ["tail"]: { $: "Nil" } }, { $: "Nil" })), ["tail"]: { $: "Nil" } } }]);
-}
-function $findForm$(_label_0) {
-  return run_jump($view$viewEl$, ["form", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-find")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrOn$("submit", "Find")), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "hidden", ["value"]: "" }, ["tail"]: { $: "Nil" } } } }, { $: "Con", ["head"]: run_loop($view$viewEl$("input", { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "placeholder", ["value"]: run_loop($findPlaceholder$()) }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($findAria$(_label_0)))), ["tail"]: { $: "Nil" } } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("span", { $: "Con", ["head"]: run_loop($view$attrClass$("find-count")), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "hidden", ["value"]: "" }, ["tail"]: { $: "Nil" } } }, { $: "Nil" })), ["tail"]: { $: "Con", ["head"]: run_loop($view$viewEl$("button", { $: "Nil" }, { $: "Con", ["head"]: run_loop($view$viewText$(run_loop($findButtonLabel$()))), ["tail"]: { $: "Nil" } })), ["tail"]: { $: "Nil" } } } }]);
-}
-function $panelShell$(_shell_0) {
-  const _label_0 = _shell_0["label"];
-  const _options_0 = _shell_0["options"];
-  const _path_0 = _shell_0["path"];
-  const _minimized_0 = _shell_0["minimized"];
-  const _findOpen_0 = _shell_0["findOpen"];
-  const _rotation_0 = _shell_0["rotation"];
-  return run_jump($view$viewEl$, ["section", { $: "Con", ["head"]: run_loop($pdfview$panelClass$(_minimized_0, false)), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", _label_0)), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "tabindex", ["value"]: "0" }, ["tail"]: { $: "Nil" } } } }, { $: "Con", ["head"]: run_loop($titleBar$({ $: "PdfShell", ["label"]: _label_0, ["options"]: _options_0, ["path"]: _path_0, ["minimized"]: _minimized_0, ["findOpen"]: _findOpen_0, ["rotation"]: _rotation_0 })), ["tail"]: { $: "Con", ["head"]: run_loop($toolsBar$(_label_0, _rotation_0)), ["tail"]: { $: "Con", ["head"]: run_loop($stage$()), ["tail"]: { $: "Con", ["head"]: run_loop($findForm$(_label_0)), ["tail"]: { $: "Nil" } } } } }]);
-}
-function $divider$() {
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-divider")), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "tabindex", ["value"]: "0" }, ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "role", ["value"]: "separator" }, ["tail"]: { $: "Con", ["head"]: run_loop($view$attrAria$("label", run_loop($dividerAria$()))), ["tail"]: { $: "Nil" } } } } }, { $: "Nil" }]);
-}
-function $pageStyle$(_width_0, _height_0) {
+function $pageStyle(_width_0, _height_0) {
   const _x_0 = ";height:" + _height_0;
   const _x_1 = _width_0 + _x_0;
   return "width:" + _x_1;
 }
-function $pageNode$(_box_0) {
+function $pageNode(_box_0) {
   const _n_0 = _box_0["n"];
   const _width_0 = _box_0["width"];
   const _height_0 = _box_0["height"];
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-page")), ["tail"]: { $: "Con", ["head"]: run_loop($view$attrData$("page", run_loop($Nat$show$(_n_0)))), ["tail"]: { $: "Con", ["head"]: { $: "ViewAttr", ["name"]: "style", ["value"]: run_loop($pageStyle$(_width_0, _height_0)) }, ["tail"]: { $: "Nil" } } } }, { $: "Nil" }]);
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-page"), tail: { $: "Con", head: $view_attrData("page", $Nat_show(_n_0)), tail: { $: "Con", head: { $: "ViewAttr", name: "style", value: $pageStyle(_width_0, _height_0) }, tail: { $: "Nil" } } } }, { $: "Nil" });
 }
-function $pageNodes$(_boxes_0) {
+function $pageNodes(_boxes_0) {
   if (_boxes_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _boxes_0["head"];
     const _t_0 = _boxes_0["tail"];
-    return { $: "Con", ["head"]: run_loop($pageNode$(_h_0)), ["tail"]: run_loop($pageNodes$(_t_0)) };
+    return { $: "Con", head: $pageNode(_h_0), tail: $pageNodes(_t_0) };
   }
 }
-function $docFrame$(_boxes_0) {
-  return run_jump($view$viewEl$, ["div", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-document")), ["tail"]: { $: "Nil" } }, run_loop($pageNodes$(_boxes_0))]);
+function $docFrame(_boxes_0) {
+  return $view_viewEl("div", { $: "Con", head: $view_attrClass("pdf-document"), tail: { $: "Nil" } }, $pageNodes(_boxes_0));
 }
-function $viewport$(_state_0, _boxes_0) {
+function $viewport(_state_0, _boxes_0) {
   if (_state_0.$ === "PdfEmpty") {
-    return { $: "Some", ["value"]: run_loop($pdfview$placeholder$()) };
+    return { $: "Some", value: $pdfview_placeholder() };
+  } else if (_state_0.$ === "PdfSheet") {
+    const _course_0 = _state_0["course"];
+    return { $: "Some", value: $readersheet_sheet(_course_0) };
   } else if (_state_0.$ === "PdfReady") {
-    return { $: "Some", ["value"]: run_loop($docFrame$(_boxes_0)) };
+    return { $: "Some", value: $docFrame(_boxes_0) };
   } else if (_state_0.$ === "PdfLoading") {
     return { $: "None" };
   } else {
     return { $: "None" };
   }
 }
-function $hlPush$(_seg_0, _out_0) {
-  return { $: "Con", ["head"]: _seg_0, ["tail"]: _out_0 };
+function $hlPush(_seg_0, _out_0) {
+  return { $: "Con", head: _seg_0, tail: _out_0 };
 }
-function $hlFlush$if$(_pend_0, _out_0, _empty_0) {
+function $hlFlush_if(_pend_0, _out_0, _empty_0) {
   if (_empty_0) {
     return _out_0;
   } else {
-    return run_jump($hlPush$, [{ $: "PdfHlSeg", ["text"]: run_loop($String$reverse$(_pend_0)), ["hit"]: false }, _out_0]);
+    return $hlPush({ $: "PdfHlSeg", text: $String_reverse(_pend_0), hit: false }, _out_0);
   }
 }
-function $hlFlush$(_pend_0, _out_0) {
-  return run_jump($hlFlush$if$, [_pend_0, _out_0, run_loop($String$is_empty$(_pend_0))]);
+function $hlFlush(_pend_0, _out_0) {
+  return $hlFlush_if(_pend_0, _out_0, $String_is_empty(_pend_0));
 }
-function $hlScan$(_text_0, _folded_0, _term_0, _n_0, _rem_0, _fact_0, _pend_0, _out_0) {
-  if (_text_0 === "") {
-    return run_jump($hlFlush$, [_pend_0, _out_0]);
-  } else {
-    const __0 = _text_0.codePointAt(0) > 65535 ? _text_0.slice(0, 2) : _text_0[0];
-    const _t_0 = _text_0.codePointAt(0) > 65535 ? _text_0.slice(2) : _text_0.slice(1);
-    if (_rem_0 === "") {
-      if (_fact_0) {
-        return run_jump($hlScan$, [_t_0, run_loop($String$drop$(_folded_0, 1n)), _term_0, _n_0, run_loop($String$drop$(_term_0, 1n)), run_loop($String$starts_with$(run_loop($String$drop$(_folded_0, 1n)), _term_0)), "", run_loop($hlPush$({ $: "PdfHlSeg", ["text"]: run_loop($String$take$(__0 + _t_0, _n_0)), ["hit"]: true }, run_loop($hlFlush$(_pend_0, _out_0))))]);
+function $hlScan($0, $1, $2, $3, $4, $5, $6, $7) {
+  for (;; ) {
+    {
+      const _text_0 = $0;
+      const _folded_0 = $1;
+      const _term_0 = $2;
+      const _n_0 = $3;
+      const _rem_0 = $4;
+      const _fact_0 = $5;
+      const _pend_0 = $6;
+      const _out_0 = $7;
+      if (_text_0 === "") {
+        return $hlFlush(_pend_0, _out_0);
       } else {
-        const _x_0 = run_loop($String$take$(__0 + _t_0, 1n));
-        return run_jump($hlScan$, [_t_0, run_loop($String$drop$(_folded_0, 1n)), _term_0, _n_0, "", run_loop($String$starts_with$(run_loop($String$drop$(_folded_0, 1n)), _term_0)), _x_0 + _pend_0, _out_0]);
+        const __0 = _text_0.slice(0, char_len(_text_0));
+        const _t_0 = _text_0.slice(char_len(_text_0));
+        if (_rem_0 === "") {
+          if (_fact_0) {
+            $0 = _t_0;
+            $1 = $String_drop(_folded_0, 1);
+            $2 = _term_0;
+            $3 = _n_0;
+            $4 = $String_drop(_term_0, 1);
+            $5 = $String_starts_with($String_drop(_folded_0, 1), _term_0);
+            $6 = "";
+            $7 = $hlPush({ $: "PdfHlSeg", text: $String_take(__0 + _t_0, _n_0), hit: true }, $hlFlush(_pend_0, _out_0));
+            continue;
+          } else {
+            const _x_0 = $String_take(__0 + _t_0, 1);
+            $0 = _t_0;
+            $1 = $String_drop(_folded_0, 1);
+            $2 = _term_0;
+            $3 = _n_0;
+            $4 = "";
+            $5 = $String_starts_with($String_drop(_folded_0, 1), _term_0);
+            $6 = _x_0 + _pend_0;
+            $7 = _out_0;
+            continue;
+          }
+        } else {
+          const _rs_0 = _rem_0.slice(char_len(_rem_0));
+          $0 = _t_0;
+          $1 = $String_drop(_folded_0, 1);
+          $2 = _term_0;
+          $3 = _n_0;
+          $4 = _rs_0;
+          $5 = $String_starts_with($String_drop(_folded_0, 1), _term_0);
+          $6 = _pend_0;
+          $7 = _out_0;
+          continue;
+        }
       }
-    } else {
-      const __1 = _rem_0.codePointAt(0) > 65535 ? _rem_0.slice(0, 2) : _rem_0[0];
-      const _rs_0 = _rem_0.codePointAt(0) > 65535 ? _rem_0.slice(2) : _rem_0.slice(1);
-      return run_jump($hlScan$, [_t_0, run_loop($String$drop$(_folded_0, 1n)), _term_0, _n_0, _rs_0, run_loop($String$starts_with$(run_loop($String$drop$(_folded_0, 1n)), _term_0)), _pend_0, _out_0]);
     }
   }
 }
-function $hlNode$go$(_text_0, _hit_0) {
+function $hlNode_go(_text_0, _hit_0) {
   if (_hit_0) {
-    return run_jump($view$viewEl$, ["i", { $: "Con", ["head"]: run_loop($view$attrClass$("pdf-hl")), ["tail"]: { $: "Nil" } }, { $: "Con", ["head"]: run_loop($view$viewText$(_text_0)), ["tail"]: { $: "Nil" } }]);
+    return $view_viewEl("i", { $: "Con", head: $view_attrClass("pdf-hl"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } });
   } else {
-    return run_jump($view$viewText$, [_text_0]);
+    return $view_viewText(_text_0);
   }
 }
-function $hlNode$(_seg_0) {
+function $hlNode(_seg_0) {
   const _text_0 = _seg_0["text"];
   const _hit_0 = _seg_0["hit"];
-  return run_jump($hlNode$go$, [_text_0, _hit_0]);
+  return $hlNode_go(_text_0, _hit_0);
 }
-function $hlNodes$(_segs_0, _acc_0) {
-  if (_segs_0.$ === "Nil") {
-    return _acc_0;
-  } else {
-    const _h_0 = _segs_0["head"];
-    const _t_0 = _segs_0["tail"];
-    return run_jump($hlNodes$, [_t_0, { $: "Con", ["head"]: run_loop($hlNode$(_h_0)), ["tail"]: _acc_0 }]);
+function $hlNodes($0, $1) {
+  for (;; ) {
+    {
+      const _segs_0 = $0;
+      const _acc_0 = $1;
+      if (_segs_0.$ === "Nil") {
+        return _acc_0;
+      } else {
+        const _h_0 = _segs_0["head"];
+        const _t_0 = _segs_0["tail"];
+        $0 = _t_0;
+        $1 = { $: "Con", head: $hlNode(_h_0), tail: _acc_0 };
+        continue;
+      }
+    }
   }
 }
-function $hlSegments$if$(_text_0, _folded_0, _term_0, _empty_0) {
+function $hlSegments_if(_text_0, _folded_0, _term_0, _empty_0) {
   if (_empty_0) {
-    return { $: "Con", ["head"]: run_loop($view$viewText$(_text_0)), ["tail"]: { $: "Nil" } };
+    return { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } };
   } else {
-    return run_jump($hlNodes$, [run_loop($hlScan$(_text_0, _folded_0, _term_0, BigInt([..._term_0].length), "", run_loop($String$starts_with$(_folded_0, _term_0)), "", { $: "Nil" })), { $: "Nil" }]);
+    return $hlNodes($hlScan(_text_0, _folded_0, _term_0, [...str_out(_term_0)].length, "", $String_starts_with(_folded_0, _term_0), "", { $: "Nil" }), { $: "Nil" });
   }
 }
-function $hlSegments$(_text_0, _folded_0, _term_0) {
-  return run_jump($hlSegments$if$, [_text_0, _folded_0, _term_0, run_loop($String$is_empty$(_term_0))]);
+function $hlSegments(_text_0, _folded_0, _term_0) {
+  return $hlSegments_if(_text_0, _folded_0, _term_0, $String_is_empty(_term_0));
 }
-function $String$eq$(_a_0, _b_0) {
-  return run_jump($String$eq$fin$, [run_loop($String$cmp$(_a_0, _b_0))]);
+function $printedInput(_label_0) {
+  return $view_viewEl("input", { $: "Con", head: $view_attrClass("printed-input"), tail: { $: "Con", head: $view_attrType("text"), tail: { $: "Con", head: { $: "ViewAttr", name: "placeholder", value: $printedInputPlaceholder() }, tail: { $: "Con", head: { $: "ViewAttr", name: "autocomplete", value: "off" }, tail: { $: "Con", head: $view_attrAria("label", $printedInputAria(_label_0)), tail: { $: "Nil" } } } } } }, { $: "Nil" });
 }
-function $List$append$(_xs_0, _ys_0) {
+function $printedGoBtn() {
+  return $view_viewEl("button", { $: "Con", head: $view_attrClass("printed-go"), tail: { $: "Con", head: $view_attrType("submit"), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText($printedGoLabel()), tail: { $: "Nil" } });
+}
+function $printedStatusNode() {
+  return $view_viewEl("span", { $: "Con", head: $view_attrClass("printed-status"), tail: { $: "Con", head: $view_attrAria("live", "polite"), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText($printedAutoLabel()), tail: { $: "Nil" } });
+}
+function $printedOffsetInput(_label_0) {
+  return $view_viewEl("input", { $: "Con", head: $view_attrClass("printed-offset"), tail: { $: "Con", head: $view_attrType("number"), tail: { $: "Con", head: { $: "ViewAttr", name: "step", value: "1" }, tail: { $: "Con", head: { $: "ViewAttr", name: "min", value: "-1000000" }, tail: { $: "Con", head: { $: "ViewAttr", name: "max", value: "1000000" }, tail: { $: "Con", head: { $: "ViewAttr", name: "inputmode", value: "numeric" }, tail: { $: "Con", head: $view_attrAria("label", $printedOffsetInputAria(_label_0)), tail: { $: "Nil" } } } } } } } }, { $: "Nil" });
+}
+function $printedOffsetSaveBtn() {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrClass("printed-offset-save"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrOn("click", "PrintedOffsetSave"), tail: { $: "Nil" } } } }, tail: { $: "Nil" } }), { $: "Con", head: $view_viewText($printedOffsetSaveLabel()), tail: { $: "Nil" } });
+}
+function $printedOffsetAutoBtn() {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrClass("printed-offset-auto"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrOn("click", "PrintedOffsetAuto"), tail: { $: "Nil" } } } }, tail: { $: "Nil" } }), { $: "Con", head: $view_viewText($printedOffsetAutoLabel()), tail: { $: "Nil" } });
+}
+function $printedOffsetEditor(_label_0) {
+  return $view_viewEl("span", { $: "Con", head: $view_attrClass("printed-offset-editor"), tail: { $: "Con", head: $view_attrTitle($printedOffsetTitle()), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewEl("label", { $: "Con", head: $view_attrClass("printed-offset-label"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($printedOffsetFieldLabel()), tail: { $: "Con", head: $printedOffsetInput(_label_0), tail: { $: "Nil" } } }), tail: { $: "Con", head: $printedOffsetSaveBtn(), tail: { $: "Con", head: $printedOffsetAutoBtn(), tail: { $: "Nil" } } } });
+}
+function $printedRow(_label_0, _open_0) {
+  return $view_viewEl("form", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrClass("pdf-printed"), tail: { $: "Con", head: $view_attrOn("submit", "GoPrinted"), tail: { $: "Con", head: $view_attrAria("label", $printedToggleAria(_label_0)), tail: { $: "Nil" } } } }, tail: { $: "Con", head: $view_attrWhen($Bool_not(_open_0), $view_attr("hidden", "")), tail: { $: "Nil" } } }), { $: "Con", head: $printedInput(_label_0), tail: { $: "Con", head: $printedGoBtn(), tail: { $: "Con", head: $printedStatusNode(), tail: { $: "Con", head: $printedOffsetEditor(_label_0), tail: { $: "Nil" } } } } });
+}
+function $printedToggleBtn(_label_0, _open_0) {
+  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: $itemAttrs("printed-toggle", "scan", $printedToggleAria(_label_0)), tail: { $: "Con", head: { $: "Con", head: $view_attrTitle($printedToggleTitle()), tail: { $: "Con", head: $view_attrBool("aria-expanded", _open_0), tail: { $: "Con", head: $view_attrOn("click", "TogglePrinted"), tail: { $: "Nil" } } } }, tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($printedMenuLabel()), tail: { $: "Nil" } });
+}
+function $dropHint(_label_0) {
+  return $view_viewEl("div", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrClass("pdf-drop-hint"), tail: { $: "Con", head: $view_attr("hidden", ""), tail: { $: "Nil" } } }, tail: { $: "Nil" } }), { $: "Con", head: $view_viewText($dropHintText(_label_0)), tail: { $: "Nil" } });
+}
+function $String_join(_xs_0, _sep_0) {
+  if (_xs_0.$ === "Nil") {
+    return "";
+  } else {
+    const _h_0 = _xs_0["head"];
+    const _t_0 = _xs_0["tail"];
+    return $String_join_go(_t_0, _h_0, _sep_0);
+  }
+}
+function $String_starts_with($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _s_0 = $0;
+        const _p_0 = $1;
+        if (_s_0 === "") {
+          if (_p_0 === "") {
+            return true;
+          } else {
+            return false;
+          }
+        } else {
+          const _h_1 = _s_0.slice(0, char_len(_s_0));
+          const _t_1 = _s_0.slice(char_len(_s_0));
+          if (_p_0 === "") {
+            return true;
+          } else {
+            const _y_0 = _p_0.slice(0, char_len(_p_0));
+            const _yt_0 = _p_0.slice(char_len(_p_0));
+            $0 = _t_1;
+            $1 = _yt_0;
+            $2 = $Char_is_eq(_h_1, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _t_0 = $0;
+        const _pt_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _t_0;
+          $1 = _pt_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
+}
+function $String_eq(_a_0, _b_0) {
+  return $Cmp_is_eq($String_order(_a_0, _b_0));
+}
+function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
     return _ys_0;
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", ["head"]: _h_0, ["tail"]: run_loop($List$append$(_t_0, _ys_0)) };
+    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
   }
 }
-function $List$concat$(_xss_0) {
+function $List_concat(_xss_0) {
   if (_xss_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return run_jump($List$append$, [_h_0, run_loop($List$concat$(_t_0))]);
+    return $List_append(_h_0, $List_concat(_t_0));
   }
 }
-function $String$is_empty$(_s_0) {
+function $String_is_empty(_s_0) {
   if (_s_0 === "") {
     return true;
   } else {
-    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
-    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
     return false;
   }
 }
-function $view$viewMap$0$(_xs_0) {
+function $view_viewMap_0(_xs_0) {
   if (_xs_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", ["head"]: run_loop($view$viewText$(_h_0)), ["tail"]: run_loop($view$viewMap$0$(_t_0)) };
+    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
   }
 }
-function $view$viewMapI$go$0$(_xs_0, _i_0) {
+function $view_viewMapI_go_0(_xs_0, _i_0) {
   if (_xs_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", ["head"]: run_loop($view$asTextI$(_i_0, _h_0)), ["tail"]: run_loop($view$viewMapI$go$0$(_t_0, nat_chk(_i_0 + 1n))) };
+    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
-function $String$take$(_s_0, _n_0) {
+function $String_take(_s_0, _n_0) {
   if (_s_0 === "") {
     return "";
   } else {
-    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
-    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
-    if (_n_0 === 0n) {
+    const _h_0 = _s_0.slice(0, char_len(_s_0));
+    const _t_0 = _s_0.slice(char_len(_s_0));
+    if (_n_0 === 0) {
       return "";
     } else {
-      const _p_0 = _n_0 - 1n;
-      return _h_0 + run_loop($String$take$(_t_0, _p_0));
+      const _p_0 = _n_0 - 1;
+      return _h_0 + $String_take(_t_0, _p_0);
     }
   }
 }
-function $Nat$is_gt$(_a_0, _b_0) {
-  return run_jump($Cmp$is_gt$, [cmp_new(_a_0, _b_0)]);
+function $Nat_is_gt(_a_0, _b_0) {
+  return $Cmp_is_gt(cmp_new(_a_0, _b_0));
 }
-function $String$trim$(_s_0) {
-  return run_jump($String$trim_end$, [run_loop($String$trim_start$(_s_0))]);
+function $String_trim(_s_0) {
+  return $String_trim_end($String_trim_start(_s_0));
 }
-function $Nat$show$(_n_0) {
+function $Nat_show(_n_0) {
   const _m_0 = _n_0;
-  return run_jump($Nat$show$fin$, [_m_0, "", run_loop($Nat$show$put$(nat_divmod(_m_0, 10n)))]);
+  return $Nat_show_fin(_m_0, "", $Nat_show_put(nat_divmod(_m_0, 10)));
 }
-function $Bool$and$(_a_0, _b_0) {
+function $Bool_and(_a_0, _b_0) {
   if (!_a_0) {
     return false;
   } else {
     return _b_0;
   }
 }
-function $Nat$is_eq$(_a_0, _b_0) {
-  return run_jump($Cmp$is_eq$, [cmp_new(_a_0, _b_0)]);
+function $Nat_is_eq(_a_0, _b_0) {
+  return $Cmp_is_eq(cmp_new(_a_0, _b_0));
 }
-function $List$length$(_xs_0) {
+function $List_length(_xs_0) {
   if (_xs_0.$ === "Nil") {
-    return 0n;
+    return 0;
   } else {
-    const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return nat_chk(run_loop($List$length$(_t_0)) + 1n);
+    return nat_chk($List_length(_t_0) + 1);
   }
 }
-function $view$viewMap$1$(_xs_0) {
+function $view_viewMap_1(_xs_0) {
   if (_xs_0.$ === "Nil") {
     return { $: "Nil" };
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", ["head"]: run_loop($pdfnav$outlineRow$(_h_0)), ["tail"]: run_loop($view$viewMap$1$(_t_0)) };
+    return { $: "Con", head: $pdfnav_outlineRow(_h_0), tail: $view_viewMap_1(_t_0) };
   }
 }
-function $Bool$not$(_b_0) {
+function $Bool_not(_b_0) {
   if (!_b_0) {
     return true;
   } else {
     return false;
   }
 }
-function $Nat$mod$(_a_0, _b_0) {
-  return run_jump($Nat$mod$fin$, [nat_divmod(_a_0, _b_0)]);
+function $Nat_mod(_a_0, _b_0) {
+  return $Pair_snd(nat_divmod(_a_0, _b_0));
 }
-function $String$reverse$(_s_0) {
-  return run_jump($String$reverse$go$, [_s_0, ""]);
+function $Char_to_u32(_c_0) {
+  return char_code(_c_0);
 }
-function $String$drop$(_s_0, _n_0) {
+function $U32_read(_s_0) {
+  if (_s_0 === "") {
+    return { $: "None" };
+  } else {
+    const _h_0 = _s_0.slice(0, char_len(_s_0));
+    const _t_0 = _s_0.slice(char_len(_s_0));
+    return $U32_read_go(_h_0 + _t_0, 0);
+  }
+}
+function $String_to_lower(_s_0) {
   if (_s_0 === "") {
     return "";
   } else {
-    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
-    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
-    if (_n_0 === 0n) {
-      return _h_0 + _t_0;
-    } else {
-      const _p_0 = _n_0 - 1n;
-      return run_jump($String$drop$, [_t_0, _p_0]);
+    const _h_0 = _s_0.slice(0, char_len(_s_0));
+    const _t_0 = _s_0.slice(char_len(_s_0));
+    return $Char_to_lower(_h_0) + $String_to_lower(_t_0);
+  }
+}
+function $Nat_is_ge(_a_0, _b_0) {
+  return $Cmp_is_ge(cmp_new(_a_0, _b_0));
+}
+function $Nat_is_le(_a_0, _b_0) {
+  return $Cmp_is_le(cmp_new(_a_0, _b_0));
+}
+function $String_reverse(_s_0) {
+  return $String_reverse_go(_s_0, "");
+}
+function $String_drop($0, $1) {
+  for (;; ) {
+    {
+      const _s_0 = $0;
+      const _n_0 = $1;
+      if (_s_0 === "") {
+        return "";
+      } else {
+        const _h_0 = _s_0.slice(0, char_len(_s_0));
+        const _t_0 = _s_0.slice(char_len(_s_0));
+        if (_n_0 === 0) {
+          return _h_0 + _t_0;
+        } else {
+          const _p_0 = _n_0 - 1;
+          $0 = _t_0;
+          $1 = _p_0;
+          continue;
+        }
+      }
     }
   }
 }
-function $String$starts_with$(_s_0, _p_0) {
-  if (_s_0 === "") {
-    if (_p_0 === "") {
-      return true;
-    } else {
-      const _h_0 = _p_0.codePointAt(0) > 65535 ? _p_0.slice(0, 2) : _p_0[0];
-      const _t_0 = _p_0.codePointAt(0) > 65535 ? _p_0.slice(2) : _p_0.slice(1);
-      return false;
-    }
+function $String_join_go(_xs_0, _h_0, _sep_0) {
+  if (_xs_0.$ === "Nil") {
+    return _h_0;
   } else {
-    const _h_1 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
-    const _t_1 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
-    if (_p_0 === "") {
-      return true;
-    } else {
-      const _y_0 = _p_0.codePointAt(0) > 65535 ? _p_0.slice(0, 2) : _p_0[0];
-      const _yt_0 = _p_0.codePointAt(0) > 65535 ? _p_0.slice(2) : _p_0.slice(1);
-      return run_jump($String$starts_with$if$, [_t_1, _yt_0, run_loop($Char$is_eq$(_h_1, _y_0))]);
-    }
+    const _h2_0 = _xs_0["head"];
+    const _t_0 = _xs_0["tail"];
+    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_1 = _sep_0 + _x_0;
+    return _h_0 + _x_1;
   }
 }
-function $String$eq$fin$(_r_0) {
-  const _t_0 = _r_0["fst"];
-  const _a2_0 = _t_0["fst"];
-  const _b2_0 = _t_0["snd"];
-  const _c_0 = _r_0["snd"];
-  return run_jump($Cmp$is_eq$, [_c_0]);
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _x_1 = char_code(_b_0);
+  return _x_0 === _x_1;
 }
-function $String$cmp$(_a_0, _b_0) {
-  if (_a_0 === "") {
-    if (_b_0 === "") {
-      return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: "", ["snd"]: "" }, ["snd"]: { $: "EQ" } };
-    } else {
-      const _h_0 = _b_0.codePointAt(0) > 65535 ? _b_0.slice(0, 2) : _b_0[0];
-      const _t_0 = _b_0.codePointAt(0) > 65535 ? _b_0.slice(2) : _b_0.slice(1);
-      return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: "", ["snd"]: _h_0 + _t_0 }, ["snd"]: { $: "LT" } };
-    }
-  } else {
-    const _h_1 = _a_0.codePointAt(0) > 65535 ? _a_0.slice(0, 2) : _a_0[0];
-    const _t_1 = _a_0.codePointAt(0) > 65535 ? _a_0.slice(2) : _a_0.slice(1);
-    if (_b_0 === "") {
-      return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: _h_1 + _t_1, ["snd"]: "" }, ["snd"]: { $: "GT" } };
-    } else {
-      const _h2_0 = _b_0.codePointAt(0) > 65535 ? _b_0.slice(0, 2) : _b_0[0];
-      const _t2_0 = _b_0.codePointAt(0) > 65535 ? _b_0.slice(2) : _b_0.slice(1);
-      return run_jump($String$cmp$fin$, [_t_1, _t2_0, run_loop($Char$cmp$(_h_1, _h2_0))]);
-    }
-  }
-}
-function $Cmp$is_gt$(_c_0) {
-  if (_c_0.$ === "LT") {
-    return false;
-  } else if (_c_0.$ === "EQ") {
-    return false;
-  } else {
-    return true;
-  }
-}
-function $String$trim_end$(_s_0) {
-  return run_jump($String$reverse$, [run_loop($String$trim_start$(run_loop($String$reverse$(_s_0))))]);
-}
-function $String$trim_start$(_s_0) {
-  if (_s_0 === "") {
-    return "";
-  } else {
-    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
-    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
-    return run_jump($String$trim_start$if$, [_h_0, _t_0, run_loop($Char$is_space$(_h_0))]);
-  }
-}
-function $Nat$show$fin$(_g_0, _acc_0, _dq_0) {
-  const _d_0 = _dq_0["fst"];
-  const _t_0 = _dq_0["snd"];
-  if (_t_0 === 0n) {
-    return _d_0 + _acc_0;
-  } else {
-    const _p_0 = _t_0 - 1n;
-    return run_jump($Nat$show$go$, [_g_0, nat_chk(_p_0 + 1n), _d_0 + _acc_0]);
-  }
-}
-function $Nat$show$put$(_qr_0) {
-  const _q_0 = _qr_0["fst"];
-  const _r_0 = _qr_0["snd"];
-  const _x_0 = nat_chk(48n + _r_0);
-  return { $: "Tuple", ["fst"]: char_new(Number(_x_0 & 0xFFFFFFFFn)), ["snd"]: _q_0 };
-}
-function $Cmp$is_eq$(_c_0) {
-  if (_c_0.$ === "LT") {
-    return false;
-  } else if (_c_0.$ === "EQ") {
+function $Cmp_is_eq(_c_0) {
+  if (_c_0.$ === "EQ") {
     return true;
   } else {
     return false;
   }
 }
-function $Nat$mod$fin$(_qr_0) {
+function $String_order(_a_0, _b_0) {
+  return $String_order_go(_a_0, _b_0, { $: "EQ" });
+}
+function $Cmp_is_gt(_c_0) {
+  if (_c_0.$ === "GT") {
+    return true;
+  } else {
+    return false;
+  }
+}
+function $String_trim_end(_s_0) {
+  return $String_reverse($String_trim_start($String_reverse(_s_0)));
+}
+function $String_trim_start($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _s_0 = $0;
+        if (_s_0 === "") {
+          return "";
+        } else {
+          const _h_0 = _s_0.slice(0, char_len(_s_0));
+          const _t_0 = _s_0.slice(char_len(_s_0));
+          $0 = _t_0;
+          $1 = _h_0;
+          $2 = $Char_is_space(_h_0);
+          $pc = 1;
+          continue;
+        }
+      }
+      case 1: {
+        const _t_0 = $0;
+        const _h_0 = $1;
+        const _space_0 = $2;
+        if (!_space_0) {
+          return _h_0 + _t_0;
+        } else {
+          $0 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
+}
+function $Nat_show_fin($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _g_0 = $0;
+        const _acc_0 = $1;
+        const _dq_0 = $2;
+        const _d_0 = _dq_0["fst"];
+        const _t_0 = _dq_0["snd"];
+        if (_t_0 === 0) {
+          return _d_0 + _acc_0;
+        } else {
+          const _p_0 = _t_0 - 1;
+          $0 = _g_0;
+          $1 = nat_chk(_p_0 + 1);
+          $2 = _d_0 + _acc_0;
+          $pc = 1;
+          continue;
+        }
+      }
+      case 1: {
+        const _f_0 = $0;
+        const _n_0 = $1;
+        const _acc_0 = $2;
+        if (_f_0 === 0) {
+          return _acc_0;
+        } else {
+          const _g_0 = _f_0 - 1;
+          $0 = _g_0;
+          $1 = _acc_0;
+          $2 = $Nat_show_put(nat_divmod(_n_0, 10));
+          $pc = 0;
+          continue;
+        }
+      }
+    }
+}
+function $Nat_show_put(_qr_0) {
   const _q_0 = _qr_0["fst"];
   const _r_0 = _qr_0["snd"];
-  return _r_0;
+  const _x_0 = nat_chk(48 + _r_0);
+  return { $: "Tuple", fst: char_new(_x_0 >>> 0), snd: _q_0 };
 }
-function $String$reverse$go$(_s_0, _acc_0) {
-  if (_s_0 === "") {
-    return _acc_0;
-  } else {
-    const _h_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(0, 2) : _s_0[0];
-    const _t_0 = _s_0.codePointAt(0) > 65535 ? _s_0.slice(2) : _s_0.slice(1);
-    return run_jump($String$reverse$go$, [_t_0, _h_0 + _acc_0]);
-  }
+function $Pair_snd(_p_0) {
+  const _b_0 = _p_0["snd"];
+  return _b_0;
 }
-function $String$starts_with$if$(_t_0, _pt_0, _same_0) {
-  if (!_same_0) {
+function $U32_read_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _s_0 = $0;
+        const _acc_0 = $1;
+        if (_s_0 === "") {
+          return { $: "Some", value: _acc_0 };
+        } else {
+          const _t_0 = _s_0.slice(0, char_len(_s_0));
+          const _t_1 = _s_0.slice(char_len(_s_0));
+          const _x_0 = char_code(_t_0);
+          const _x_1 = Math.imul(_acc_0, 10) >>> 0;
+          const _x_2 = _x_0 - 48 >>> 0;
+          const _n_0 = _x_1 + _x_2 >>> 0;
+          const _x_3 = _n_0 / 10 >>> 0;
+          $0 = _t_1;
+          $1 = _n_0;
+          $2 = _x_3 === _acc_0;
+          $pc = 1;
+          continue;
+        }
+      }
+      case 1: {
+        const _t_0 = $0;
+        const _n_0 = $1;
+        const _ok_0 = $2;
+        if (_ok_0) {
+          $0 = _t_0;
+          $1 = _n_0;
+          $pc = 0;
+          continue;
+        } else {
+          return { $: "None" };
+        }
+      }
+    }
+}
+function $Char_to_lower(_c_0) {
+  const _x_0 = $Bool_to_u32($Char_is_upper(_c_0));
+  const _x_1 = char_code(_c_0);
+  const _x_2 = Math.imul(_x_0, 32) >>> 0;
+  return char_new(_x_1 + _x_2 >>> 0);
+}
+function $Cmp_is_ge(_c_0) {
+  if (_c_0.$ === "LT") {
     return false;
   } else {
-    return run_jump($String$starts_with$, [_t_0, _pt_0]);
+    return true;
   }
 }
-function $Char$is_eq$(_a_0, _b_0) {
-  const _x_0 = _a_0.codePointAt(0);
-  const _y_0 = _b_0.codePointAt(0);
-  return _x_0 === _y_0;
-}
-function $String$cmp$fin$(_t1_0, _t2_0, _hc_0) {
-  const _t_0 = _hc_0["fst"];
-  const _h1b_0 = _t_0["fst"];
-  const _h2b_0 = _t_0["snd"];
-  const _t_1 = _hc_0["snd"];
-  if (_t_1.$ === "LT") {
-    return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: _h1b_0 + _t1_0, ["snd"]: _h2b_0 + _t2_0 }, ["snd"]: { $: "LT" } };
-  } else if (_t_1.$ === "EQ") {
-    return run_jump($String$cmp$rec$, [_h1b_0, _h2b_0, run_loop($String$cmp$(_t1_0, _t2_0))]);
+function $Cmp_is_le(_c_0) {
+  if (_c_0.$ === "GT") {
+    return false;
   } else {
-    return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: _h1b_0 + _t1_0, ["snd"]: _h2b_0 + _t2_0 }, ["snd"]: { $: "GT" } };
+    return true;
   }
 }
-function $Char$cmp$(_a_0, _b_0) {
-  const _x_0 = _a_0.codePointAt(0);
-  const _y_0 = _b_0.codePointAt(0);
-  return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: char_new(_x_0), ["snd"]: char_new(_y_0) }, ["snd"]: cmp_new(_x_0, _y_0) };
+function $String_reverse_go($0, $1) {
+  for (;; ) {
+    {
+      const _s_0 = $0;
+      const _acc_0 = $1;
+      if (_s_0 === "") {
+        return _acc_0;
+      } else {
+        const _h_0 = _s_0.slice(0, char_len(_s_0));
+        const _t_0 = _s_0.slice(char_len(_s_0));
+        $0 = _t_0;
+        $1 = _h_0 + _acc_0;
+        continue;
+      }
+    }
+  }
 }
-function $String$trim_start$if$(_h_0, _t_0, _space_0) {
-  if (!_space_0) {
-    return _h_0 + _t_0;
+function $String_order_go($0, $1, $2) {
+  for (;; ) {
+    {
+      const _a_0 = $0;
+      const _b_0 = $1;
+      const _c_0 = $2;
+      if (_a_0 === "") {
+        if (_b_0 !== "") {
+          if (_c_0.$ === "EQ") {
+            return { $: "LT" };
+          } else {
+            return _c_0;
+          }
+        } else {
+          return _c_0;
+        }
+      } else {
+        const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _t_2 = _a_0.slice(char_len(_a_0));
+        if (_b_0 === "") {
+          if (_c_0.$ === "EQ") {
+            return { $: "GT" };
+          } else {
+            return _c_0;
+          }
+        } else {
+          const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _t2_0 = _b_0.slice(char_len(_b_0));
+          if (_c_0.$ === "EQ") {
+            const _x_0 = char_code(_t_1);
+            const _x_1 = char_code(_t_3);
+            $0 = _t_2;
+            $1 = _t2_0;
+            $2 = cmp_new(_x_0, _x_1);
+            continue;
+          } else {
+            return _c_0;
+          }
+        }
+      }
+    }
+  }
+}
+function $Char_is_space(_c_0) {
+  const _x_0 = char_code(_c_0);
+  const _x_1 = char_code(_c_0);
+  const _x_2 = char_code(_c_0);
+  const _x_3 = _x_0 === 32;
+  const _x_4 = $Bool_and(_x_1 >= 9, _x_2 <= 13);
+  return _x_3 || _x_4;
+}
+function $Bool_to_u32(_b_0) {
+  if (!_b_0) {
+    return 0;
   } else {
-    return run_jump($String$trim_start$, [_t_0]);
+    return 1;
   }
 }
-function $Char$is_space$(_c_0) {
-  const _x_0 = _c_0.codePointAt(0);
-  const _x_1 = _x_0 === 32;
-  const _x_2 = run_loop($Bool$and$(_x_0 >= 9, _x_0 <= 13));
-  return _x_1 || _x_2;
-}
-function $Nat$show$go$(_f_0, _n_0, _acc_0) {
-  if (_f_0 === 0n) {
-    return _acc_0;
-  } else {
-    const _g_0 = _f_0 - 1n;
-    return run_jump($Nat$show$fin$, [_g_0, _acc_0, run_loop($Nat$show$put$(nat_divmod(_n_0, 10n)))]);
-  }
-}
-function $String$cmp$rec$(_h1b_0, _h2b_0, _rr_0) {
-  const _t_0 = _rr_0["fst"];
-  const _t1b_0 = _t_0["fst"];
-  const _t2b_0 = _t_0["snd"];
-  const _r_0 = _rr_0["snd"];
-  return { $: "Tuple", ["fst"]: { $: "Tuple", ["fst"]: _h1b_0 + _t1b_0, ["snd"]: _h2b_0 + _t2b_0 }, ["snd"]: _r_0 };
+function $Char_is_upper(_c_0) {
+  const _x_0 = char_code(_c_0);
+  const _x_1 = char_code(_c_0);
+  return $Bool_and(_x_0 >= 65, _x_1 <= 90);
 }
 var pdfpageview_default = {
-  "view.attr": run_lib($view$attr$, 2),
-  "view.classOn": run_lib($view$classOn$, 2),
-  "view.viewEl": run_lib($view$viewEl$, 3),
-  "view.viewText": run_lib($view$viewText$, 1),
-  "view.viewKey": run_lib($view$viewKey$, 4),
-  "view.tagOf": run_lib($view$tagOf$, 1),
-  "view.attrsOf": run_lib($view$attrsOf$, 1),
-  "view.kidsOf": run_lib($view$kidsOf$, 1),
-  "view.textOf": run_lib($view$textOf$, 1),
-  "view.isEl": run_lib($view$isEl$, 1),
-  "view.isText": run_lib($view$isText$, 1),
-  "view.attrGet.choose": run_lib($view$attrGet$choose$, 3),
-  "view.attrGet.go": run_lib($view$attrGet$go$, 2),
-  "view.attrGet": run_lib($view$attrGet$, 2),
-  "view.attrWhen": run_lib($view$attrWhen$, 2),
-  "view.attrConcat": run_lib($view$attrConcat$, 2),
-  "view.attrJoin": run_lib($view$attrJoin$, 1),
-  "view.attrId": run_lib($view$attrId$, 1),
-  "view.attrClass": run_lib($view$attrClass$, 1),
-  "view.attrType": run_lib($view$attrType$, 1),
-  "view.attrTitle": run_lib($view$attrTitle$, 1),
-  "view.attrKey": run_lib($view$attrKey$, 1),
-  "view.attrOn": run_lib($view$attrOn$, 2),
-  "view.attrData": run_lib($view$attrData$, 2),
-  "view.attrAria": run_lib($view$attrAria$, 2),
-  "view.boolStr": run_lib($view$boolStr$, 1),
-  "view.attrBool": run_lib($view$attrBool$, 2),
-  "view.classAppend.empty": run_lib($view$classAppend$empty$, 3),
-  "view.classAppend": run_lib($view$classAppend$, 2),
-  "view.classNext.emptyName": run_lib($view$classNext$emptyName$, 3),
-  "view.classNext.on": run_lib($view$classNext$on$, 3),
-  "view.classValue.go": run_lib($view$classValue$go$, 2),
-  "view.classValue": run_lib($view$classValue$, 1),
-  "view.classes": run_lib($view$classes$, 1),
-  "view.viewWhen": run_lib($view$viewWhen$, 2),
-  "view.viewWhenAll": run_lib($view$viewWhenAll$, 2),
-  "view.viewConcat": run_lib($view$viewConcat$, 2),
-  "view.viewJoin": run_lib($view$viewJoin$, 1),
-  "view.viewMapText": run_lib($view$viewMapText$, 1),
-  "view.asTextI": run_lib($view$asTextI$, 2),
-  "view.viewMapTextI.go": run_lib($view$viewMapTextI$go$, 2),
-  "view.viewMapTextI": run_lib($view$viewMapTextI$, 1),
-  "pdfnav.maxName": run_lib($pdfnav$maxName$, 0),
-  "pdfnav.maxPath": run_lib($pdfnav$maxPath$, 0),
-  "pdfnav.maxBookmarks": run_lib($pdfnav$maxBookmarks$, 0),
-  "pdfnav.maxOutline": run_lib($pdfnav$maxOutline$, 0),
-  "pdfnav.maxDepth": run_lib($pdfnav$maxDepth$, 0),
-  "pdfnav.cutName.if": run_lib($pdfnav$cutName$if$, 3),
-  "pdfnav.cutName": run_lib($pdfnav$cutName$, 2),
-  "pdfnav.fitName": run_lib($pdfnav$fitName$, 1),
-  "pdfnav.keepName.blank": run_lib($pdfnav$keepName$blank$, 1),
-  "pdfnav.keepName": run_lib($pdfnav$keepName$, 1),
-  "pdfnav.pageLabel": run_lib($pdfnav$pageLabel$, 1),
-  "pdfnav.bookmarkLabel": run_lib($pdfnav$bookmarkLabel$, 1),
-  "pdfnav.bookmarkTitle": run_lib($pdfnav$bookmarkTitle$, 2),
-  "pdfnav.bookmarkAria": run_lib($pdfnav$bookmarkAria$, 2),
-  "pdfnav.removeLabel": run_lib($pdfnav$removeLabel$, 0),
-  "pdfnav.removeTitle": run_lib($pdfnav$removeTitle$, 1),
-  "pdfnav.removeAria": run_lib($pdfnav$removeAria$, 1),
-  "pdfnav.saveLabel": run_lib($pdfnav$saveLabel$, 0),
-  "pdfnav.saveTitle": run_lib($pdfnav$saveTitle$, 0),
-  "pdfnav.favoritesTitle": run_lib($pdfnav$favoritesTitle$, 0),
-  "pdfnav.favoritesEmpty": run_lib($pdfnav$favoritesEmpty$, 0),
-  "pdfnav.outlineTitle": run_lib($pdfnav$outlineTitle$, 0),
-  "pdfnav.outlineEmpty": run_lib($pdfnav$outlineEmpty$, 0),
-  "pdfnav.navButtonLabel": run_lib($pdfnav$navButtonLabel$, 0),
-  "pdfnav.navButtonTitle": run_lib($pdfnav$navButtonTitle$, 0),
-  "pdfnav.navAria": run_lib($pdfnav$navAria$, 1),
-  "pdfnav.navBackLabel": run_lib($pdfnav$navBackLabel$, 0),
-  "pdfnav.navBackTitle": run_lib($pdfnav$navBackTitle$, 0),
-  "pdfnav.navBackAria": run_lib($pdfnav$navBackAria$, 1),
-  "pdfnav.bookmarkDialogTitle": run_lib($pdfnav$bookmarkDialogTitle$, 0),
-  "pdfnav.bookmarkNameLabel": run_lib($pdfnav$bookmarkNameLabel$, 0),
-  "pdfnav.bookmarkDialogHint": run_lib($pdfnav$bookmarkDialogHint$, 2),
-  "pdfnav.bookmarkSaveLabel": run_lib($pdfnav$bookmarkSaveLabel$, 0),
-  "pdfnav.bookmarkCancelLabel": run_lib($pdfnav$bookmarkCancelLabel$, 0),
-  "pdfnav.pageFloor.if": run_lib($pdfnav$pageFloor$if$, 2),
-  "pdfnav.pageFloor": run_lib($pdfnav$pageFloor$, 1),
-  "pdfnav.fitPath": run_lib($pdfnav$fitPath$, 1),
-  "pdfnav.newBookmark": run_lib($pdfnav$newBookmark$, 3),
-  "pdfnav.keepBookmark.path": run_lib($pdfnav$keepBookmark$path$, 1),
-  "pdfnav.keepBookmark": run_lib($pdfnav$keepBookmark$, 1),
-  "pdfnav.sameBookmark": run_lib($pdfnav$sameBookmark$, 2),
-  "pdfnav.dropSame.head": run_lib($pdfnav$dropSame$head$, 3),
-  "pdfnav.dropSame.go": run_lib($pdfnav$dropSame$go$, 2),
-  "pdfnav.takeList.go": run_lib($pdfnav$takeList$go$, 2),
-  "pdfnav.addBookmark": run_lib($pdfnav$addBookmark$, 2),
-  "pdfnav.removeBookmark": run_lib($pdfnav$removeBookmark$, 2),
-  "pdfnav.emptyBooks": run_lib($pdfnav$emptyBooks$, 1),
-  "pdfnav.emptyOutline": run_lib($pdfnav$emptyOutline$, 1),
-  "pdfnav.bookmarkRow": run_lib($pdfnav$bookmarkRow$, 3),
-  "pdfnav.bookmarkRows.go": run_lib($pdfnav$bookmarkRows$go$, 3),
-  "pdfnav.bookmarkRows": run_lib($pdfnav$bookmarkRows$, 2),
-  "pdfnav.clampDepth.if": run_lib($pdfnav$clampDepth$if$, 2),
-  "pdfnav.clampDepth": run_lib($pdfnav$clampDepth$, 1),
-  "pdfnav.outlineDepth": run_lib($pdfnav$outlineDepth$, 1),
-  "pdfnav.outlineLabel": run_lib($pdfnav$outlineLabel$, 2),
-  "pdfnav.outlineRow": run_lib($pdfnav$outlineRow$, 1),
-  "pdfnav.outlineRows": run_lib($pdfnav$outlineRows$, 1),
-  "pdfnav.navEmpty": run_lib($pdfnav$navEmpty$, 1),
-  "pdfnav.navSaveButton": run_lib($pdfnav$navSaveButton$, 0),
-  "pdfnav.navSection": run_lib($pdfnav$navSection$, 4),
-  "pdfnav.navPopover": run_lib($pdfnav$navPopover$, 4),
-  "pdfview.modeContinuous": run_lib($pdfview$modeContinuous$, 0),
-  "pdfview.placeholderText": run_lib($pdfview$placeholderText$, 0),
-  "pdfview.footLoadingText": run_lib($pdfview$footLoadingText$, 0),
-  "pdfview.footErrorText": run_lib($pdfview$footErrorText$, 0),
-  "pdfview.pageTotalDash": run_lib($pdfview$pageTotalDash$, 0),
-  "pdfview.gridFlags": run_lib($pdfview$gridFlags$, 2),
-  "pdfview.panelFlags": run_lib($pdfview$panelFlags$, 2),
-  "pdfview.navChrome": run_lib($pdfview$navChrome$, 3),
-  "pdfview.collapseTitle": run_lib($pdfview$collapseTitle$, 1),
-  "pdfview.disabledAttr": run_lib($pdfview$disabledAttr$, 1),
-  "pdfview.pageNumberValue": run_lib($pdfview$pageNumberValue$, 1),
-  "pdfview.pageNumberMax": run_lib($pdfview$pageNumberMax$, 1),
-  "pdfview.pageTotalText": run_lib($pdfview$pageTotalText$, 1),
-  "pdfview.zoomLabelText": run_lib($pdfview$zoomLabelText$, 1),
-  "pdfview.footReadyText": run_lib($pdfview$footReadyText$, 4),
-  "pdfview.findCountChrome.shown": run_lib($pdfview$findCountChrome$shown$, 3),
-  "pdfview.findCountChrome": run_lib($pdfview$findCountChrome$, 4),
-  "pdfview.gridClass": run_lib($pdfview$gridClass$, 2),
-  "pdfview.panelClass": run_lib($pdfview$panelClass$, 2),
-  "pdfview.label": run_lib($pdfview$label$, 1),
-  "pdfview.placeholder": run_lib($pdfview$placeholder$, 0),
-  "pdfview.pageTotalEmpty": run_lib($pdfview$pageTotalEmpty$, 0),
-  "pdfview.pageTotal": run_lib($pdfview$pageTotal$, 1),
-  "pdfview.zoomLabel": run_lib($pdfview$zoomLabel$, 1),
-  "pdfview.footLoading": run_lib($pdfview$footLoading$, 0),
-  "pdfview.footError": run_lib($pdfview$footError$, 0),
-  "pdfview.footReady": run_lib($pdfview$footReady$, 4),
-  "pdfview.findCountLabel": run_lib($pdfview$findCountLabel$, 1),
-  emptyOptionLabel: run_lib($emptyOptionLabel$, 0),
-  findPlaceholder: run_lib($findPlaceholder$, 0),
-  findButtonLabel: run_lib($findButtonLabel$, 0),
-  openTitle: run_lib($openTitle$, 0),
-  findTitle: run_lib($findTitle$, 0),
-  shotTitle: run_lib($shotTitle$, 0),
-  prevAria: run_lib($prevAria$, 0),
-  nextAria: run_lib($nextAria$, 0),
-  outAria: run_lib($outAria$, 0),
-  inAria: run_lib($inAria$, 0),
-  fitTitle: run_lib($fitTitle$, 0),
-  invertTitle: run_lib($invertTitle$, 0),
-  invertAria: run_lib($invertAria$, 0),
-  dividerAria: run_lib($dividerAria$, 0),
-  documentAria: run_lib($documentAria$, 1),
-  openAria: run_lib($openAria$, 1),
-  findAria: run_lib($findAria$, 1),
-  pageAria: run_lib($pageAria$, 1),
-  rotationStep: run_lib($rotationStep$, 0),
-  rotationNext: run_lib($rotationNext$, 1),
-  rotationValid: run_lib($rotationValid$, 1),
-  "rotationNormalize.if": run_lib($rotationNormalize$if$, 2),
-  rotationNormalize: run_lib($rotationNormalize$, 1),
-  rotateTitle: run_lib($rotateTitle$, 1),
-  rotateAria: run_lib($rotateAria$, 2),
-  rotateToast: run_lib($rotateToast$, 1),
-  optionKids: run_lib($optionKids$, 1),
-  optionNode: run_lib($optionNode$, 2),
-  optionEmpty: run_lib($optionEmpty$, 0),
-  "optionNodes.go": run_lib($optionNodes$go$, 2),
-  optionNodes: run_lib($optionNodes$, 2),
-  selectNode: run_lib($selectNode$, 3),
-  iconBtnAttrs: run_lib($iconBtnAttrs$, 3),
-  openBtn: run_lib($openBtn$, 1),
-  findToggleBtn: run_lib($findToggleBtn$, 2),
-  shotBtn: run_lib($shotBtn$, 1),
-  collapseIcon: run_lib($collapseIcon$, 1),
-  collapseBtn: run_lib($collapseBtn$, 1),
-  navBackTitle: run_lib($navBackTitle$, 0),
-  navBackAria: run_lib($navBackAria$, 1),
-  navBtn: run_lib($navBtn$, 1),
-  backBtn: run_lib($backBtn$, 1),
-  titleBar: run_lib($titleBar$, 1),
-  iconBtn: run_lib($iconBtn$, 4),
-  titleIconBtn: run_lib($titleIconBtn$, 5),
-  rotateBtn: run_lib($rotateBtn$, 2),
-  pageInput: run_lib($pageInput$, 1),
-  toolsBar: run_lib($toolsBar$, 2),
-  stage: run_lib($stage$, 0),
-  findForm: run_lib($findForm$, 1),
-  panelShell: run_lib($panelShell$, 1),
-  divider: run_lib($divider$, 0),
-  pageStyle: run_lib($pageStyle$, 2),
-  pageNode: run_lib($pageNode$, 1),
-  pageNodes: run_lib($pageNodes$, 1),
-  docFrame: run_lib($docFrame$, 1),
-  viewport: run_lib($viewport$, 2),
-  hlPush: run_lib($hlPush$, 2),
-  "hlFlush.if": run_lib($hlFlush$if$, 3),
-  hlFlush: run_lib($hlFlush$, 2),
-  hlScan: run_lib($hlScan$, 8),
-  "hlNode.go": run_lib($hlNode$go$, 2),
-  hlNode: run_lib($hlNode$, 1),
-  hlNodes: run_lib($hlNodes$, 2),
-  "hlSegments.if": run_lib($hlSegments$if$, 4),
-  hlSegments: run_lib($hlSegments$, 3)
+  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
+  "pdfnav.maxName": run_lib(() => run_loop($pdfnav_maxName()), 0),
+  "pdfnav.maxPath": run_lib(() => run_loop($pdfnav_maxPath()), 0),
+  "pdfnav.maxBookmarks": run_lib(() => run_loop($pdfnav_maxBookmarks()), 0),
+  "pdfnav.maxOutline": run_lib(() => run_loop($pdfnav_maxOutline()), 0),
+  "pdfnav.maxDepth": run_lib(() => run_loop($pdfnav_maxDepth()), 0),
+  "pdfnav.cutName.if": run_lib((a0, a1, a2) => str_out(run_loop($pdfnav_cutName_if(str_in(a0), nat_in(a1), a2))), 3),
+  "pdfnav.cutName": run_lib((a0, a1) => str_out(run_loop($pdfnav_cutName(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav.fitName": run_lib((a0) => str_out(run_loop($pdfnav_fitName(str_in(a0)))), 1),
+  "pdfnav.keepName.blank": run_lib((a0) => run_loop($pdfnav_keepName_blank(a0)), 1),
+  "pdfnav.keepName": run_lib((a0) => run_loop($pdfnav_keepName(str_in(a0))), 1),
+  "pdfnav.pageLabel": run_lib((a0) => str_out(run_loop($pdfnav_pageLabel(nat_in(a0)))), 1),
+  "pdfnav.bookmarkLabel": run_lib((a0) => str_out(run_loop($pdfnav_bookmarkLabel(str_in(a0)))), 1),
+  "pdfnav.bookmarkTitle": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkTitle(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav.bookmarkAria": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkAria(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav.removeLabel": run_lib(() => str_out(run_loop($pdfnav_removeLabel())), 0),
+  "pdfnav.removeTitle": run_lib((a0) => str_out(run_loop($pdfnav_removeTitle(str_in(a0)))), 1),
+  "pdfnav.removeAria": run_lib((a0) => str_out(run_loop($pdfnav_removeAria(str_in(a0)))), 1),
+  "pdfnav.saveLabel": run_lib(() => str_out(run_loop($pdfnav_saveLabel())), 0),
+  "pdfnav.saveTitle": run_lib(() => str_out(run_loop($pdfnav_saveTitle())), 0),
+  "pdfnav.favoritesTitle": run_lib(() => str_out(run_loop($pdfnav_favoritesTitle())), 0),
+  "pdfnav.favoritesEmpty": run_lib(() => str_out(run_loop($pdfnav_favoritesEmpty())), 0),
+  "pdfnav.outlineTitle": run_lib(() => str_out(run_loop($pdfnav_outlineTitle())), 0),
+  "pdfnav.outlineEmpty": run_lib(() => str_out(run_loop($pdfnav_outlineEmpty())), 0),
+  "pdfnav.navButtonLabel": run_lib(() => str_out(run_loop($pdfnav_navButtonLabel())), 0),
+  "pdfnav.navButtonTitle": run_lib(() => str_out(run_loop($pdfnav_navButtonTitle())), 0),
+  "pdfnav.navAria": run_lib((a0) => str_out(run_loop($pdfnav_navAria(str_in(a0)))), 1),
+  "pdfnav.navBackLabel": run_lib(() => str_out(run_loop($pdfnav_navBackLabel())), 0),
+  "pdfnav.navBackTitle": run_lib(() => str_out(run_loop($pdfnav_navBackTitle())), 0),
+  "pdfnav.navBackAria": run_lib((a0) => str_out(run_loop($pdfnav_navBackAria(str_in(a0)))), 1),
+  "pdfnav.bookmarkDialogTitle": run_lib(() => str_out(run_loop($pdfnav_bookmarkDialogTitle())), 0),
+  "pdfnav.bookmarkNameLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkNameLabel())), 0),
+  "pdfnav.bookmarkDialogHint": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkDialogHint(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav.bookmarkSaveLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkSaveLabel())), 0),
+  "pdfnav.bookmarkCancelLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkCancelLabel())), 0),
+  "pdfnav.pageFloor.if": run_lib((a0, a1) => run_loop($pdfnav_pageFloor_if(nat_in(a0), a1)), 2),
+  "pdfnav.pageFloor": run_lib((a0) => run_loop($pdfnav_pageFloor(nat_in(a0))), 1),
+  "pdfnav.fitPath": run_lib((a0) => str_out(run_loop($pdfnav_fitPath(str_in(a0)))), 1),
+  "pdfnav.newBookmark": run_lib((a0, a1, a2) => run_loop($pdfnav_newBookmark(str_in(a0), str_in(a1), nat_in(a2))), 3),
+  "pdfnav.keepBookmark.path": run_lib((a0) => run_loop($pdfnav_keepBookmark_path(a0)), 1),
+  "pdfnav.keepBookmark": run_lib((a0) => run_loop($pdfnav_keepBookmark(a0)), 1),
+  "pdfnav.sameBookmark": run_lib((a0, a1) => run_loop($pdfnav_sameBookmark(a0, a1)), 2),
+  "pdfnav.dropSame.head": run_lib((a0, a1, a2) => run_loop($pdfnav_dropSame_head(a0, a1, a2)), 3),
+  "pdfnav.dropSame.go": run_lib((a0, a1) => run_loop($pdfnav_dropSame_go(a0, a1)), 2),
+  "pdfnav.takeList.go": run_lib((a0, a1) => run_loop($pdfnav_takeList_go(a0, nat_in(a1))), 2),
+  "pdfnav.addBookmark": run_lib((a0, a1) => run_loop($pdfnav_addBookmark(a0, a1)), 2),
+  "pdfnav.removeBookmark": run_lib((a0, a1) => run_loop($pdfnav_removeBookmark(a0, a1)), 2),
+  "pdfnav.emptyBooks": run_lib((a0) => run_loop($pdfnav_emptyBooks(a0)), 1),
+  "pdfnav.emptyOutline": run_lib((a0) => run_loop($pdfnav_emptyOutline(a0)), 1),
+  "pdfnav.bookmarkRow": run_lib((a0, a1, a2) => run_loop($pdfnav_bookmarkRow(nat_in(a0), a1, str_in(a2))), 3),
+  "pdfnav.bookmarkRows.go": run_lib((a0, a1, a2) => run_loop($pdfnav_bookmarkRows_go(a0, str_in(a1), nat_in(a2))), 3),
+  "pdfnav.bookmarkRows": run_lib((a0, a1) => run_loop($pdfnav_bookmarkRows(a0, str_in(a1))), 2),
+  "pdfnav.clampDepth.if": run_lib((a0, a1) => run_loop($pdfnav_clampDepth_if(nat_in(a0), a1)), 2),
+  "pdfnav.clampDepth": run_lib((a0) => run_loop($pdfnav_clampDepth(nat_in(a0))), 1),
+  "pdfnav.outlineDepth": run_lib((a0) => str_out(run_loop($pdfnav_outlineDepth(nat_in(a0)))), 1),
+  "pdfnav.outlineLabel": run_lib((a0, a1) => str_out(run_loop($pdfnav_outlineLabel(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav.outlineRow": run_lib((a0) => run_loop($pdfnav_outlineRow(a0)), 1),
+  "pdfnav.outlineRows": run_lib((a0) => run_loop($pdfnav_outlineRows(a0)), 1),
+  "pdfnav.navEmpty": run_lib((a0) => run_loop($pdfnav_navEmpty(str_in(a0))), 1),
+  "pdfnav.navSaveButton": run_lib(() => run_loop($pdfnav_navSaveButton()), 0),
+  "pdfnav.navSection": run_lib((a0, a1, a2, a3) => run_loop($pdfnav_navSection(str_in(a0), a1, str_in(a2), a3)), 4),
+  "pdfnav.navPopover": run_lib((a0, a1, a2, a3) => run_loop($pdfnav_navPopover(a0, a1, a2, str_in(a3))), 4),
+  "pdfview.placeholderText": run_lib(() => str_out(run_loop($pdfview_placeholderText())), 0),
+  "pdfview.footLoadingText": run_lib(() => str_out(run_loop($pdfview_footLoadingText())), 0),
+  "pdfview.footErrorText": run_lib(() => str_out(run_loop($pdfview_footErrorText())), 0),
+  "pdfview.pageTotalDash": run_lib(() => str_out(run_loop($pdfview_pageTotalDash())), 0),
+  "pdfview.gridFlags": run_lib((a0, a1) => run_loop($pdfview_gridFlags(a0, a1)), 2),
+  "pdfview.panelFlags": run_lib((a0, a1) => run_loop($pdfview_panelFlags(a0, a1)), 2),
+  "pdfview.navChrome": run_lib((a0, a1, a2) => run_loop($pdfview_navChrome(a0, a1, a2)), 3),
+  "pdfview.collapseTitle": run_lib((a0) => str_out(run_loop($pdfview_collapseTitle(a0))), 1),
+  "pdfview.disabledAttr": run_lib((a0) => run_loop($pdfview_disabledAttr(a0)), 1),
+  "pdfview.pageNumberValue": run_lib((a0) => str_out(run_loop($pdfview_pageNumberValue(nat_in(a0)))), 1),
+  "pdfview.pageNumberMax": run_lib((a0) => str_out(run_loop($pdfview_pageNumberMax(nat_in(a0)))), 1),
+  "pdfview.pageTotalText": run_lib((a0) => str_out(run_loop($pdfview_pageTotalText(nat_in(a0)))), 1),
+  "pdfview.zoomLabelText": run_lib((a0) => str_out(run_loop($pdfview_zoomLabelText(nat_in(a0)))), 1),
+  "pdfview.footReadyText": run_lib((a0, a1, a2) => str_out(run_loop($pdfview_footReadyText(nat_in(a0), nat_in(a1), str_in(a2)))), 3),
+  "pdfview.findCountChrome.shown": run_lib((a0, a1, a2) => run_loop($pdfview_findCountChrome_shown(a0, nat_in(a1), nat_in(a2))), 3),
+  "pdfview.findCountChrome": run_lib((a0, a1, a2, a3) => run_loop($pdfview_findCountChrome(a0, a1, nat_in(a2), nat_in(a3))), 4),
+  "pdfview.gridClass": run_lib((a0, a1) => run_loop($pdfview_gridClass(a0, a1)), 2),
+  "pdfview.panelClass": run_lib((a0, a1) => run_loop($pdfview_panelClass(a0, a1)), 2),
+  "pdfview.label": run_lib((a0) => run_loop($pdfview_label(str_in(a0))), 1),
+  "pdfview.placeholder": run_lib(() => run_loop($pdfview_placeholder()), 0),
+  "pdfview.pageTotalEmpty": run_lib(() => run_loop($pdfview_pageTotalEmpty()), 0),
+  "pdfview.pageTotal": run_lib((a0) => run_loop($pdfview_pageTotal(nat_in(a0))), 1),
+  "pdfview.zoomLabel": run_lib((a0) => run_loop($pdfview_zoomLabel(nat_in(a0))), 1),
+  "pdfview.footLoading": run_lib(() => run_loop($pdfview_footLoading()), 0),
+  "pdfview.footError": run_lib(() => run_loop($pdfview_footError()), 0),
+  "pdfview.footReady": run_lib((a0, a1, a2) => run_loop($pdfview_footReady(nat_in(a0), nat_in(a1), str_in(a2))), 3),
+  "pdfview.footReadyTextLabeled.if": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($pdfview_footReadyTextLabeled_if(nat_in(a0), nat_in(a1), str_in(a2), str_in(a3), a4))), 5),
+  "pdfview.footReadyTextLabeled": run_lib((a0, a1, a2, a3) => str_out(run_loop($pdfview_footReadyTextLabeled(nat_in(a0), nat_in(a1), str_in(a2), str_in(a3)))), 4),
+  "pdfview.footReadyLabeled": run_lib((a0, a1, a2, a3) => run_loop($pdfview_footReadyLabeled(nat_in(a0), nat_in(a1), str_in(a2), str_in(a3))), 4),
+  "pdfview.findCountLabel": run_lib((a0) => run_loop($pdfview_findCountLabel(a0)), 1),
+  "readersheet.sheetTitle": run_lib(() => str_out(run_loop($readersheet_sheetTitle())), 0),
+  "readersheet.introText": run_lib(() => str_out(run_loop($readersheet_introText())), 0),
+  "readersheet.dragText": run_lib(() => str_out(run_loop($readersheet_dragText())), 0),
+  "readersheet.openText": run_lib(() => str_out(run_loop($readersheet_openText())), 0),
+  "readersheet.folderText": run_lib(() => str_out(run_loop($readersheet_folderText())), 0),
+  "readersheet.tutorText": run_lib(() => str_out(run_loop($readersheet_tutorText())), 0),
+  "readersheet.openLabel": run_lib(() => str_out(run_loop($readersheet_openLabel())), 0),
+  "readersheet.folderLabel": run_lib(() => str_out(run_loop($readersheet_folderLabel())), 0),
+  "readersheet.tutorLabel": run_lib(() => str_out(run_loop($readersheet_tutorLabel())), 0),
+  "readersheet.dropTitle": run_lib(() => str_out(run_loop($readersheet_dropTitle())), 0),
+  "readersheet.dropHelp": run_lib(() => str_out(run_loop($readersheet_dropHelp())), 0),
+  "readersheet.sheetAria": run_lib((a0) => str_out(run_loop($readersheet_sheetAria(str_in(a0)))), 1),
+  "readersheet.courseLine.pick": run_lib((a0, a1) => str_out(run_loop($readersheet_courseLine_pick(a0, str_in(a1)))), 2),
+  "readersheet.courseLine": run_lib((a0) => str_out(run_loop($readersheet_courseLine(str_in(a0)))), 1),
+  "readersheet.tutorSeed.pick": run_lib((a0, a1) => str_out(run_loop($readersheet_tutorSeed_pick(a0, str_in(a1)))), 2),
+  "readersheet.tutorSeed": run_lib((a0) => str_out(run_loop($readersheet_tutorSeed(str_in(a0)))), 1),
+  "readersheet.link": run_lib((a0, a1) => run_loop($readersheet_link(str_in(a0), str_in(a1))), 2),
+  "readersheet.plainItem": run_lib((a0) => run_loop($readersheet_plainItem(str_in(a0))), 1),
+  "readersheet.linkItem": run_lib((a0, a1, a2) => run_loop($readersheet_linkItem(str_in(a0), str_in(a1), str_in(a2))), 3),
+  "readersheet.items": run_lib(() => run_loop($readersheet_items()), 0),
+  "readersheet.dropZone": run_lib(() => run_loop($readersheet_dropZone()), 0),
+  "readersheet.sheet": run_lib((a0) => run_loop($readersheet_sheet(str_in(a0))), 1),
+  emptyOptionLabel: run_lib(() => str_out(run_loop($emptyOptionLabel())), 0),
+  findPlaceholder: run_lib(() => str_out(run_loop($findPlaceholder())), 0),
+  findButtonLabel: run_lib(() => str_out(run_loop($findButtonLabel())), 0),
+  openTitle: run_lib(() => str_out(run_loop($openTitle())), 0),
+  findTitle: run_lib(() => str_out(run_loop($findTitle())), 0),
+  shotTitle: run_lib(() => str_out(run_loop($shotTitle())), 0),
+  prevAria: run_lib(() => str_out(run_loop($prevAria())), 0),
+  nextAria: run_lib(() => str_out(run_loop($nextAria())), 0),
+  outAria: run_lib(() => str_out(run_loop($outAria())), 0),
+  inAria: run_lib(() => str_out(run_loop($inAria())), 0),
+  fitTitle: run_lib(() => str_out(run_loop($fitTitle())), 0),
+  invertTitle: run_lib(() => str_out(run_loop($invertTitle())), 0),
+  invertAria: run_lib(() => str_out(run_loop($invertAria())), 0),
+  dividerAria: run_lib(() => str_out(run_loop($dividerAria())), 0),
+  documentAria: run_lib((a0) => str_out(run_loop($documentAria(str_in(a0)))), 1),
+  openAria: run_lib((a0) => str_out(run_loop($openAria(str_in(a0)))), 1),
+  findAria: run_lib((a0) => str_out(run_loop($findAria(str_in(a0)))), 1),
+  pageAria: run_lib((a0) => str_out(run_loop($pageAria(str_in(a0)))), 1),
+  moreTitle: run_lib(() => str_out(run_loop($moreTitle())), 0),
+  moreAria: run_lib((a0) => str_out(run_loop($moreAria(str_in(a0)))), 1),
+  restoreAria: run_lib((a0) => str_out(run_loop($restoreAria(str_in(a0)))), 1),
+  zoomRowLabel: run_lib(() => str_out(run_loop($zoomRowLabel())), 0),
+  shotMenuLabel: run_lib(() => str_out(run_loop($shotMenuLabel())), 0),
+  invertMenuLabel: run_lib(() => str_out(run_loop($invertMenuLabel())), 0),
+  printedMenuLabel: run_lib(() => str_out(run_loop($printedMenuLabel())), 0),
+  rotationStep: run_lib(() => run_loop($rotationStep()), 0),
+  rotationNext: run_lib((a0) => run_loop($rotationNext(nat_in(a0))), 1),
+  rotationValid: run_lib((a0) => run_loop($rotationValid(nat_in(a0))), 1),
+  "rotationNormalize.if": run_lib((a0, a1) => run_loop($rotationNormalize_if(nat_in(a0), a1)), 2),
+  rotationNormalize: run_lib((a0) => run_loop($rotationNormalize(nat_in(a0))), 1),
+  rotateTitle: run_lib((a0) => str_out(run_loop($rotateTitle(nat_in(a0)))), 1),
+  rotateAria: run_lib((a0, a1) => str_out(run_loop($rotateAria(str_in(a0), nat_in(a1)))), 2),
+  rotateToast: run_lib((a0) => str_out(run_loop($rotateToast(nat_in(a0)))), 1),
+  "printedOffsetLabel.positive": run_lib((a0) => str_out(run_loop($printedOffsetLabel_positive(nat_in(a0)))), 1),
+  "printedOffsetLabel.signed": run_lib((a0, a1, a2) => str_out(run_loop($printedOffsetLabel_signed(a0, nat_in(a1), nat_in(a2)))), 3),
+  printedOffsetLabel: run_lib((a0, a1) => str_out(run_loop($printedOffsetLabel(a0, nat_in(a1)))), 2),
+  "printedLabel.own.if": run_lib((a0, a1, a2, a3) => str_out(run_loop($printedLabel_own_if(str_in(a0), a1, nat_in(a2), a3))), 4),
+  "printedLabel.own": run_lib((a0, a1, a2) => str_out(run_loop($printedLabel_own(str_in(a0), a1, nat_in(a2)))), 3),
+  "printedLabel.go": run_lib((a0, a1, a2, a3) => str_out(run_loop($printedLabel_go(a0, a1, nat_in(a2), nat_in(a3)))), 4),
+  printedLabel: run_lib((a0, a1, a2) => str_out(run_loop($printedLabel(a0, a1, nat_in(a2)))), 3),
+  isDigitChar: run_lib((a0) => run_loop($isDigitChar(str_in(a0))), 1),
+  "printedDigits.go": run_lib((a0, a1) => run_loop($printedDigits_go(str_in(a0), a1)), 2),
+  printedDigits: run_lib((a0) => run_loop($printedDigits(str_in(a0))), 1),
+  "printedNumber.parsed": run_lib((a0) => run_loop($printedNumber_parsed(a0)), 1),
+  "printedNumber.if": run_lib((a0, a1, a2) => run_loop($printedNumber_if(str_in(a0), a1, a2)), 3),
+  printedNumber: run_lib((a0) => run_loop($printedNumber(str_in(a0))), 1),
+  "printedMatches.cmp": run_lib((a0, a1, a2) => run_loop($printedMatches_cmp(str_in(a0), str_in(a1), a2)), 3),
+  "printedMatches.push": run_lib((a0, a1, a2) => run_loop($printedMatches_push(a0, nat_in(a1), a2)), 3),
+  "printedMatches.go": run_lib((a0, a1, a2, a3, a4) => run_loop($printedMatches_go(a0, str_in(a1), a2, nat_in(a3), a4)), 5),
+  "printedPick.first.if": run_lib((a0, a1, a2) => run_loop($printedPick_first_if(nat_in(a0), nat_in(a1), a2)), 3),
+  "printedPick.first": run_lib((a0, a1) => run_loop($printedPick_first(nat_in(a0), nat_in(a1))), 2),
+  "printedPick.best.min.if": run_lib((a0, a1, a2) => run_loop($printedPick_best_min_if(nat_in(a0), nat_in(a1), a2)), 3),
+  "printedPick.best.min": run_lib((a0, a1) => run_loop($printedPick_best_min(nat_in(a0), nat_in(a1))), 2),
+  "printedPick.best.none": run_lib((a0, a1, a2) => run_loop($printedPick_best_none(nat_in(a0), nat_in(a1), a2)), 3),
+  "printedPick.best.if": run_lib((a0, a1, a2, a3) => run_loop($printedPick_best_if(nat_in(a0), nat_in(a1), nat_in(a2), a3)), 4),
+  "printedPick.best": run_lib((a0, a1, a2) => run_loop($printedPick_best(nat_in(a0), nat_in(a1), nat_in(a2))), 3),
+  "printedPick.fin.if": run_lib((a0, a1, a2) => run_loop($printedPick_fin_if(nat_in(a0), nat_in(a1), a2)), 3),
+  "printedPick.fin": run_lib((a0, a1) => run_loop($printedPick_fin(nat_in(a0), nat_in(a1))), 2),
+  "printedPick.go": run_lib((a0, a1, a2, a3) => run_loop($printedPick_go(a0, nat_in(a1), nat_in(a2), nat_in(a3))), 4),
+  "resolvePrinted.inBounds.if": run_lib((a0, a1, a2) => run_loop($resolvePrinted_inBounds_if(nat_in(a0), nat_in(a1), a2)), 3),
+  "resolvePrinted.inBounds": run_lib((a0, a1) => run_loop($resolvePrinted_inBounds(nat_in(a0), nat_in(a1))), 2),
+  "resolvePrinted.shift": run_lib((a0, a1, a2, a3) => run_loop($resolvePrinted_shift(a0, nat_in(a1), nat_in(a2), nat_in(a3))), 4),
+  "resolvePrinted.byOffset.value": run_lib((a0, a1, a2) => run_loop($resolvePrinted_byOffset_value(a0, nat_in(a1), nat_in(a2))), 3),
+  "resolvePrinted.byOffset.parsed": run_lib((a0, a1, a2) => run_loop($resolvePrinted_byOffset_parsed(a0, nat_in(a1), a2)), 3),
+  "resolvePrinted.byOffset": run_lib((a0, a1, a2) => run_loop($resolvePrinted_byOffset(a0, str_in(a1), nat_in(a2))), 3),
+  "resolvePrinted.folded.matches": run_lib((a0, a1, a2, a3) => run_loop($resolvePrinted_folded_matches(str_in(a0), nat_in(a1), nat_in(a2), a3)), 4),
+  "resolvePrinted.folded": run_lib((a0, a1, a2, a3) => run_loop($resolvePrinted_folded(a0, str_in(a1), nat_in(a2), nat_in(a3))), 4),
+  "resolvePrinted.own.matches": run_lib((a0, a1, a2, a3, a4) => run_loop($resolvePrinted_own_matches(a0, str_in(a1), nat_in(a2), nat_in(a3), a4)), 5),
+  "resolvePrinted.own": run_lib((a0, a1, a2, a3) => run_loop($resolvePrinted_own(a0, str_in(a1), nat_in(a2), nat_in(a3))), 4),
+  "resolvePrinted.if": run_lib((a0, a1, a2, a3, a4) => run_loop($resolvePrinted_if(a0, a1, nat_in(a2), nat_in(a3), str_in(a4))), 5),
+  "resolvePrinted.empty": run_lib((a0, a1, a2, a3, a4, a5) => run_loop($resolvePrinted_empty(a0, a1, nat_in(a2), nat_in(a3), str_in(a4), a5)), 6),
+  resolvePrinted: run_lib((a0, a1, a2, a3, a4) => run_loop($resolvePrinted(a0, a1, nat_in(a2), nat_in(a3), str_in(a4))), 5),
+  printedTitle: run_lib(() => str_out(run_loop($printedTitle())), 0),
+  printedInputPlaceholder: run_lib(() => str_out(run_loop($printedInputPlaceholder())), 0),
+  printedInputAria: run_lib((a0) => str_out(run_loop($printedInputAria(str_in(a0)))), 1),
+  printedGoLabel: run_lib(() => str_out(run_loop($printedGoLabel())), 0),
+  printedToggleTitle: run_lib(() => str_out(run_loop($printedToggleTitle())), 0),
+  printedToggleAria: run_lib((a0) => str_out(run_loop($printedToggleAria(str_in(a0)))), 1),
+  printedOffsetFieldLabel: run_lib(() => str_out(run_loop($printedOffsetFieldLabel())), 0),
+  printedOffsetTitle: run_lib(() => str_out(run_loop($printedOffsetTitle())), 0),
+  printedOffsetInputAria: run_lib((a0) => str_out(run_loop($printedOffsetInputAria(str_in(a0)))), 1),
+  printedOffsetSaveLabel: run_lib(() => str_out(run_loop($printedOffsetSaveLabel())), 0),
+  printedOffsetAutoLabel: run_lib(() => str_out(run_loop($printedOffsetAutoLabel())), 0),
+  printedOwnLabel: run_lib(() => str_out(run_loop($printedOwnLabel())), 0),
+  printedAutoLabel: run_lib(() => str_out(run_loop($printedAutoLabel())), 0),
+  printedOwnHint: run_lib(() => str_out(run_loop($printedOwnHint())), 0),
+  printedNoApiHint: run_lib(() => str_out(run_loop($printedNoApiHint())), 0),
+  "printedStatusText.signed": run_lib((a0, a1) => str_out(run_loop($printedStatusText_signed(a0, nat_in(a1)))), 2),
+  printedStatusText: run_lib((a0, a1) => str_out(run_loop($printedStatusText(a0, a1))), 2),
+  "printedCurrentText.if": run_lib((a0, a1) => str_out(run_loop($printedCurrentText_if(str_in(a0), a1))), 2),
+  printedCurrentText: run_lib((a0) => str_out(run_loop($printedCurrentText(str_in(a0)))), 1),
+  printedFoundText: run_lib((a0, a1) => str_out(run_loop($printedFoundText(str_in(a0), nat_in(a1)))), 2),
+  printedNotFoundText: run_lib(() => str_out(run_loop($printedNotFoundText())), 0),
+  printedInvalidText: run_lib(() => str_out(run_loop($printedInvalidText())), 0),
+  printedBadOffsetText: run_lib(() => str_out(run_loop($printedBadOffsetText())), 0),
+  dropHintText: run_lib((a0) => str_out(run_loop($dropHintText(str_in(a0)))), 1),
+  dropOpeningText: run_lib(() => str_out(run_loop($dropOpeningText())), 0),
+  dropOpenedText: run_lib((a0, a1) => str_out(run_loop($dropOpenedText(str_in(a0), str_in(a1)))), 2),
+  dropUnavailableText: run_lib(() => str_out(run_loop($dropUnavailableText())), 0),
+  dropInvalidText: run_lib(() => str_out(run_loop($dropInvalidText())), 0),
+  printedSavedAutoText: run_lib(() => str_out(run_loop($printedSavedAutoText())), 0),
+  "printedSavedOffsetText.signed": run_lib((a0, a1) => str_out(run_loop($printedSavedOffsetText_signed(a0, nat_in(a1)))), 2),
+  printedSavedOffsetText: run_lib((a0) => str_out(run_loop($printedSavedOffsetText(a0))), 1),
+  optionKids: run_lib((a0) => run_loop($optionKids(str_in(a0))), 1),
+  optionNode: run_lib((a0, a1) => run_loop($optionNode(a0, str_in(a1))), 2),
+  optionEmpty: run_lib(() => run_loop($optionEmpty()), 0),
+  "optionNodes.go": run_lib((a0, a1) => run_loop($optionNodes_go(a0, str_in(a1))), 2),
+  optionNodes: run_lib((a0, a1) => run_loop($optionNodes(a0, str_in(a1))), 2),
+  selectNode: run_lib((a0, a1, a2) => run_loop($selectNode(str_in(a0), a1, str_in(a2))), 3),
+  iconBtnAttrs: run_lib((a0, a1, a2) => run_loop($iconBtnAttrs(str_in(a0), str_in(a1), str_in(a2))), 3),
+  itemAttrs: run_lib((a0, a1, a2) => run_loop($itemAttrs(str_in(a0), str_in(a1), str_in(a2))), 3),
+  iconBtn: run_lib((a0, a1, a2, a3) => run_loop($iconBtn(str_in(a0), str_in(a1), str_in(a2), str_in(a3))), 4),
+  openBtn: run_lib((a0) => run_loop($openBtn(str_in(a0))), 1),
+  findToggleBtn: run_lib((a0, a1) => run_loop($findToggleBtn(str_in(a0), a1)), 2),
+  shotBtn: run_lib((a0) => run_loop($shotBtn(str_in(a0))), 1),
+  collapseIcon: run_lib((a0) => str_out(run_loop($collapseIcon(a0))), 1),
+  collapseBtn: run_lib((a0) => run_loop($collapseBtn(a0)), 1),
+  navBackTitle: run_lib(() => str_out(run_loop($navBackTitle())), 0),
+  navBackAria: run_lib((a0) => str_out(run_loop($navBackAria(str_in(a0)))), 1),
+  navBtn: run_lib((a0) => run_loop($navBtn(str_in(a0))), 1),
+  backBtn: run_lib((a0) => run_loop($backBtn(str_in(a0))), 1),
+  moreBtn: run_lib((a0) => run_loop($moreBtn(str_in(a0))), 1),
+  rotateBtn: run_lib((a0, a1) => run_loop($rotateBtn(str_in(a0), nat_in(a1))), 2),
+  pageInput: run_lib((a0) => run_loop($pageInput(str_in(a0))), 1),
+  titleBar: run_lib((a0) => run_loop($titleBar(a0)), 1),
+  fitBtn: run_lib(() => run_loop($fitBtn()), 0),
+  invertBtn: run_lib(() => run_loop($invertBtn()), 0),
+  zoomRow: run_lib(() => run_loop($zoomRow()), 0),
+  moreMenu: run_lib((a0, a1, a2) => run_loop($moreMenu(str_in(a0), nat_in(a1), a2)), 3),
+  restoreBtn: run_lib((a0) => run_loop($restoreBtn(str_in(a0))), 1),
+  stage: run_lib(() => run_loop($stage()), 0),
+  findForm: run_lib((a0) => run_loop($findForm(str_in(a0))), 1),
+  panelShell: run_lib((a0) => run_loop($panelShell(a0)), 1),
+  divider: run_lib(() => run_loop($divider()), 0),
+  pageStyle: run_lib((a0, a1) => str_out(run_loop($pageStyle(str_in(a0), str_in(a1)))), 2),
+  pageNode: run_lib((a0) => run_loop($pageNode(a0)), 1),
+  pageNodes: run_lib((a0) => run_loop($pageNodes(a0)), 1),
+  docFrame: run_lib((a0) => run_loop($docFrame(a0)), 1),
+  viewport: run_lib((a0, a1) => run_loop($viewport(a0, a1)), 2),
+  hlPush: run_lib((a0, a1) => run_loop($hlPush(a0, a1)), 2),
+  "hlFlush.if": run_lib((a0, a1, a2) => run_loop($hlFlush_if(str_in(a0), a1, a2)), 3),
+  hlFlush: run_lib((a0, a1) => run_loop($hlFlush(str_in(a0), a1)), 2),
+  hlScan: run_lib((a0, a1, a2, a3, a4, a5, a6, a7) => run_loop($hlScan(str_in(a0), str_in(a1), str_in(a2), nat_in(a3), str_in(a4), a5, str_in(a6), a7)), 8),
+  "hlNode.go": run_lib((a0, a1) => run_loop($hlNode_go(str_in(a0), a1)), 2),
+  hlNode: run_lib((a0) => run_loop($hlNode(a0)), 1),
+  hlNodes: run_lib((a0, a1) => run_loop($hlNodes(a0, a1)), 2),
+  "hlSegments.if": run_lib((a0, a1, a2, a3) => run_loop($hlSegments_if(str_in(a0), str_in(a1), str_in(a2), a3)), 4),
+  hlSegments: run_lib((a0, a1, a2) => run_loop($hlSegments(str_in(a0), str_in(a1), str_in(a2))), 3),
+  printedInput: run_lib((a0) => run_loop($printedInput(str_in(a0))), 1),
+  printedGoBtn: run_lib(() => run_loop($printedGoBtn()), 0),
+  printedStatusNode: run_lib(() => run_loop($printedStatusNode()), 0),
+  printedOffsetInput: run_lib((a0) => run_loop($printedOffsetInput(str_in(a0))), 1),
+  printedOffsetSaveBtn: run_lib(() => run_loop($printedOffsetSaveBtn()), 0),
+  printedOffsetAutoBtn: run_lib(() => run_loop($printedOffsetAutoBtn()), 0),
+  printedOffsetEditor: run_lib((a0) => run_loop($printedOffsetEditor(str_in(a0))), 1),
+  printedRow: run_lib((a0, a1) => run_loop($printedRow(str_in(a0), a1)), 2),
+  printedToggleBtn: run_lib((a0, a1) => run_loop($printedToggleBtn(str_in(a0), a1)), 2),
+  dropHint: run_lib((a0) => run_loop($dropHint(str_in(a0))), 1)
 };
 export {
   pdfpageview_default as default

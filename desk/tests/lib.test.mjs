@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {displayUserText,contentParts} from '../text.mjs';
-const {placeWindow,chooseXournal,sessionStartedFromPath,formatSessionLabel,sessionPreviewFromJsonl,imageCandidates}=createRequire(import.meta.url)('../lib.cjs');
+const {placeWindow,sessionStartedFromPath,formatSessionLabel,sessionPreviewFromJsonl,imageCandidates}=createRequire(import.meta.url)('../lib.cjs');
 
 /* Geometria real do autor: interna 2560x1664 à direita (x=0), LG 1920x1080 à
    esquerda (x negativo). O interno é o primário. */
@@ -48,12 +48,6 @@ test('placeWindow falls back to the primary display alone',()=>{
  assert.equal(placed.y,20);
 });
 
-test('chooseXournal requires a single visible Xournal window',()=>{
- const x=(id)=>({id,app:'Xournal++',bounds:{Width:1200,Height:800}});
- assert.equal(chooseXournal([{id:1,app:'Ghostty',bounds:{Width:800,Height:600}},x(2)]).id,2);
- assert.throws(()=>chooseXournal([{id:1,app:'Ghostty',bounds:{Width:800,Height:600}}]));
- assert.throws(()=>chooseXournal([x(2),x(3)]));
-});
 
 test('displayUserText hides conferir commands and reference appendices',()=>{
  assert.equal(displayUserText('/conferir Confira minha resolução e indique o primeiro erro relevante.'),'Conferir Xournal++');
@@ -63,7 +57,8 @@ test('displayUserText hides conferir commands and reference appendices',()=>{
  /* Bloco atual (core/studycontext.bend): some inteiro, inclusive a linha da
     captura, e o texto do usuário fica. */
  assert.equal(displayUserText('confere minha resposta\n\n[Contexto da Mesa]\n- matéria: Cálculo I\n- exercício ativo: Lista 3\n- referências abertas na mesa (abertas, não lidas por você):\n  · /tmp/a.pdf#page=1\ncaptura desta mensagem: janela do Xournal++ às 14:32, do exercício Lista 3'),'confere minha resposta');
- assert.match(displayUserText('x\n\n[Conferência visual solicitada pelo usuário; captura de Xournal++]'),/Conferir Xournal\+\+/);
+ assert.equal(displayUserText('how much?\n\n[Desk context]\n- course: Calculus I\n- active exercise: List 3'),'how much?','o bloco em inglês também sai (#41)');
+assert.match(displayUserText('x\n\n[Conferência visual solicitada pelo usuário; captura de Xournal++]'),/Conferir Xournal\+\+/);
 });
 
 test('contentParts extracts text and image payloads',()=>{

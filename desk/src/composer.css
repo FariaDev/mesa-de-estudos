@@ -1,0 +1,244 @@
+/* Composer (caixa, contexto de estudo, menções, anexos, Conferir) e fila de mensagens.
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Composer: uma caixa só (ticket #15) ----------
+   Acima: a linha "Vai junto" (o que segue com a mensagem) e o botão que edita o
+   contexto de estudo. A caixa guarda a fila, os anexos (a captura do Conferir
+   entra aqui), o campo e a fileira de ações; o foco acende a caixa inteira. A
+   caixa é container: em coluna estreita a fileira troca rótulos por ícones em
+   vez de estourar. Enviar é a ação principal (acento); Parar fica neutro. */
+
+#composer{position:relative;anchor-name:--composer;padding:var(--space-3) var(--pad) var(--pad)}
+/* Linha acima da caixa: o que vai com a próxima mensagem ("Vai junto", na
+   coluna do tutor) ou de onde veio o contexto (escopo, no chat lateral) e a
+   ação que a acompanha. É a mesma forma nos dois lugares. */
+.goes-along{display:flex;align-items:center;gap:var(--space-2);min-height:var(--ctl);margin:0 0 var(--space-1);padding:0 var(--space-1) 0 0;font-size:var(--fs-xs);color:var(--muted)}
+.goes-along>span{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A linha em partes (core/composerbox.bend → goesTree): quando falta espaço o
+   nome da matéria cede primeiro, mas guarda um piso e corta com reticências
+   (#27 B1: "Cál…", não some); "Vai junto:" nunca corta, e a lista/questão e a
+   página só perdem o fim depois que o nome chegou ao piso. */
+.goes-along>#context-summary{display:flex;align-items:baseline;overflow:hidden}
+#context-summary>span{white-space:pre;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#context-summary>.goes-lead{flex:none;overflow:visible}
+#context-summary>.goes-course{flex:0 100000 auto;min-width:min(5ch,35%)}
+#context-summary>.goes-sep{flex:none;text-overflow:clip}
+#context-summary>.goes-rest{flex:0 1 auto}
+.goes-along>button{
+ /* 24px: o menor alvo aceitável (WCAG 2.2 · 2.5.8); a linha tem 28px. */
+ flex:none;height:24px;padding:0 var(--space-3);border-color:transparent;background:transparent;box-shadow:none;
+ font-size:var(--fs-xs);color:var(--accent-text);
+}
+.goes-along>button[aria-expanded="true"]{background:var(--selected);color:var(--fg-strong)}
+.goes-along>button[hidden]{display:none}
+/* A linha de escopo diz mais que um nome de arquivo: quebra em até duas
+   linhas em vez de cortar o "não entra na sessão principal". */
+#sidechat-scope{flex-wrap:wrap;align-items:center;padding-block:var(--space-1)}
+#sidechat-scope>span{flex:1 1 168px;white-space:normal;overflow:visible;line-height:1.4;overflow-wrap:anywhere}
+#sidechat-scope>button{margin-left:calc(var(--space-3) * -1);display:inline-flex;align-items:center;gap:var(--space-1)}
+#sidechat-scope>button .icon{width:12px;height:12px}
+/* Coluna estreita (900×650): o texto de escopo ocupa duas linhas e a ação vira
+   só o ícone, logo depois do fim dele — a linha inteira não passa de duas (#23). O
+   nome acessível (aria-label) e a dica seguem completos. */
+#sidechat-composer{container-type:inline-size;container-name:sidechat-composer}
+@container sidechat-composer (max-width:300px){
+ #sidechat-scope{display:block}
+ #sidechat-scope>span{display:inline}
+ #sidechat-scope>button{margin:-3px 0 -3px var(--space-1);width:24px;padding:0;vertical-align:middle;justify-content:center}
+ #sidechat-scope>button span{display:none}
+}
+/* Popover do contexto de estudo: flutuante, posto pelo host junto da linha
+   (src/main.mjs#placeContextPop) — acima dela se couber, senão abaixo. */
+#context-pop{
+ position:fixed;overflow:auto;z-index:8;
+ display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-3);
+ background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-pop);
+}
+#context-pop[hidden]{display:none}
+#context-pop .fine{margin:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.composer-box{
+ container-type:inline-size;
+ background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-xl);
+ transition:border-color var(--t-fast) var(--ease-out),box-shadow var(--t-fast) var(--ease-out);
+}
+.composer-box:focus-within{border-color:var(--ring);box-shadow:var(--ring-shadow)}
+#attachments{display:flex;gap:var(--space-3);flex-wrap:wrap;margin:0;padding:var(--space-3) var(--space-3) 0}
+.attachment{position:relative}
+.attachment img{width:54px;height:54px;object-fit:contain;display:block;background:white;border:1px solid var(--border);border-radius:var(--r-lg);cursor:zoom-in}
+.attachment .attachment-remove{
+ position:absolute;top:-7px;right:-7px;width:18px;height:18px;min-width:0;padding:0;border-radius:var(--r-round);
+ background:var(--surface);color:var(--muted);border:1px solid var(--border-strong);
+ font-size:var(--fs-xs);line-height:1;
+}
+.attachment .attachment-remove:hover{background:var(--active);color:var(--fg)}
+#chat.dropping{box-shadow:inset 0 0 0 2px var(--ring)}
+/* Menções @ (#53): chips acima do campo, dentro da caixa; o menu reaproveita o .slash-pop. */
+.mention-chips{display:flex;gap:var(--space-2);flex-wrap:wrap;margin:0;padding:var(--space-3) var(--space-3) 0}
+.mention-chips[hidden]{display:none}
+.mention-chip{display:inline-flex;align-items:center;gap:var(--space-2);max-width:100%;padding:2px var(--space-1) 2px var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-round);background:var(--hover);color:var(--fg);font-size:var(--fs-sm)}
+.mention-chip-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.mention-chip-remove{flex:none;width:18px;height:18px;min-width:0;padding:0;border:0;border-radius:var(--r-round);background:transparent;color:var(--muted);font-size:var(--fs-md);line-height:1;cursor:pointer}
+.mention-chip-remove:hover{background:var(--active);color:var(--fg)}
+/* #67: o desenho fica em 18px, mas o alvo de clique chega a 24px (WCAG 2.5.8)
+   por uma borda invisível de 3px; o vão entre chips e entre anexos é maior
+   que isso, então dois alvos não se sobrepõem. tests/target-size.test.mjs. */
+.mention-chip-remove{position:relative}
+:is(.mention-chip-remove,.attachment .attachment-remove)::after{content:"";position:absolute;inset:-3px;border-radius:inherit}
+.mention-icon{display:inline-flex;flex:none;align-items:center;justify-content:center;width:16px;color:var(--muted)}
+.mention-icon .icon{width:14px;height:14px}
+.mention-item .mention-icon{width:20px;color:var(--fg)}
+.mention-item .mention-icon .icon{width:16px;height:16px}
+.mention-pop{max-width:calc(100vw - 16px)}
+textarea{
+ width:100%;resize:vertical;max-height:180px;min-height:56px;border:1px solid var(--border-strong);
+ border-radius:var(--r-md);background:var(--surface);padding:var(--space-3) var(--space-4);line-height:1.5;
+ color:var(--fg);font-size:var(--reading-size);
+ transition:border-color var(--t-fast) var(--ease-out),box-shadow var(--t-fast) var(--ease-out);
+}
+textarea::placeholder{color:var(--faint)}
+/* Dentro da caixa o campo não tem moldura própria: a moldura é da caixa. */
+.composer-box .composer-field{
+ display:block;border:0;border-radius:var(--r-xl) var(--r-xl) 0 0;background:transparent;resize:none;
+ min-height:56px;padding:var(--space-4) var(--space-4) var(--space-2);box-shadow:none;
+}
+.composer-box .composer-field:focus{outline:none;border-color:transparent;box-shadow:none}
+.composer-actions{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-1) var(--space-3) var(--space-3)}
+.composer-actions button{
+ flex:none;height:var(--ctl);padding:0 var(--space-3);gap:var(--space-2);white-space:nowrap;
+ border-color:transparent;background:transparent;box-shadow:none;font-size:var(--fs-sm);color:var(--muted);
+}
+.composer-actions button:hover{background:var(--hover);color:var(--fg)}
+.composer-actions button:active{background:var(--active)}
+.composer-actions button:disabled{opacity:.45;background:transparent}
+.composer-actions .icon{width:14px;height:14px}
+/* Anexar é só o clipe (o nome acessível vem do aria-label); as outras duas
+   mantêm o rótulo enquanto cabem. */
+.composer-actions #attach{width:var(--ctl);padding:0}
+.composer-actions #attach span{display:none}
+/* Foto do celular (#36): só o ícone, como o Anexar; o popover abre para cima. */
+.composer-actions #phone-photo{width:var(--ctl);padding:0}
+.composer-actions #phone-photo[hidden]{display:none}
+.composer-actions #phone-photo[aria-expanded="true"]{background:var(--selected);color:var(--fg-strong)}
+.phone-pop{
+ position:absolute;z-index:12;display:flex;flex-direction:column;gap:var(--space-2);overflow:auto;
+ width:min(320px,calc(100% - var(--space-5)));padding:var(--space-3);
+ border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow-pop);
+ font-size:var(--fs-sm);color:var(--fg);
+}
+.phone-pop[hidden]{display:none}
+.phone-pop p{margin:0;line-height:1.45}
+.phone-pop .fine{font-size:var(--fs-xs);color:var(--muted)}
+.phone-lead{color:var(--fg)}
+.phone-qr{align-self:center;width:176px;height:176px;border-radius:var(--r-sm);overflow:hidden}
+.phone-qr[hidden],.phone-address[hidden],.phone-hint[hidden],.phone-network[hidden]{display:none}
+.phone-qr svg{display:block;width:100%;height:100%}
+.phone-address{font-size:var(--fs-xs);color:var(--muted)}
+.phone-address code{display:block;margin-top:var(--space-1);font-size:var(--fs-xs);color:var(--fg-strong);overflow-wrap:anywhere;user-select:all}
+.phone-network{display:flex;align-items:center;gap:var(--space-2);font-size:var(--fs-xs);color:var(--muted)}
+.phone-network select{flex:1;min-width:0;padding:var(--space-1) var(--space-2);border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface);font-size:var(--fs-xs);color:var(--fg)}
+.phone-state{font-weight:600;color:var(--fg-strong)}
+.phone-hint{padding:var(--space-2);border-radius:var(--r-sm);background:var(--tint)}
+.phone-actions{display:flex;justify-content:flex-end;gap:var(--space-2)}
+.phone-actions button[hidden]{display:none}
+.composer-actions .label-short{display:none}
+/* Enviar (ou Parar, no mesmo lugar) fecha a fileira à direita. */
+.composer-actions :is(#send,#sidechat-send),.composer-actions :is(#stop,#sidechat-stop):not([hidden]){margin-left:auto}
+.composer-actions :is(#send,#stop,#sidechat-send,#sidechat-stop)[hidden]{display:none}
+/* Referências: ligado = tinta de acento; desligado = contorno vazio. A forma
+   muda, não só a cor (vale também no modo só-ícone). */
+.composer-actions #include-refs[aria-pressed="false"]{border-color:var(--border-strong)}
+.composer-actions #include-refs[aria-pressed="true"]{background:var(--tint);color:var(--accent-text)}
+.composer-actions #include-refs[aria-pressed="true"]:hover{background:color-mix(in oklab,var(--primary) 18%,transparent)}
+.composer-actions :is(#send,#sidechat-send).primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg);font-weight:500}
+.composer-actions :is(#send,#sidechat-send).primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+.composer-actions :is(#send,#sidechat-send).primary:disabled{background:var(--selected);border-color:transparent;color:var(--faint);opacity:1}
+/* Parar: neutro e invertido (estado, não ação principal — sem acento). */
+.composer-actions :is(#stop,#sidechat-stop){background:var(--fg-strong);border-color:var(--fg-strong);color:var(--bg);font-weight:500}
+.composer-actions :is(#stop,#sidechat-stop):hover{background:color-mix(in oklab,var(--fg-strong) 82%,var(--bg));border-color:transparent;color:var(--bg)}
+.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+.primary:disabled{background:var(--selected);border-color:transparent;color:var(--faint);opacity:1;box-shadow:none}
+/* Conferir com outros programas (tickets #35 e #38): a caixa de mensagem só tem
+   o botão Conferir. Quando o programa faltou, `#check-note` (árvore do
+   `core/conferir.bend`) diz a frase e oferece "Escolher outro programa…"; flutua
+   como o `#context-pop` (posta por src/conferir.mjs). A escolha mora nas
+   Configurações → Pastas e programas (`#cfg-conferir`). */
+#check-note{
+ position:fixed;overflow:auto;z-index:8;
+ padding:var(--space-3);
+ background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-pop);
+}
+#check-note[hidden]{display:none}
+#check-note .check-note-body{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2)}
+#check-note .check-note-text{margin:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+/* O link começa na mesma margem da frase de cima (#42): o recuo interno do
+   alvo (para o fundo do hover) e a borda de 1px voltam pela margem negativa. */
+#check-note .check-note-pick{height:var(--ctl);padding:0 var(--space-2);margin-left:calc((var(--space-2) + 1px) * -1);border-color:transparent;background:transparent;box-shadow:none;font-size:var(--fs-xs);color:var(--accent-text)}
+#check-note .check-note-pick:hover{background:var(--hover)}
+/* Campo "Programa de escrita" e a lista de janelas, no ritmo das Configurações. */
+#settings-form .cfg-conferir-wrap{margin:0 0 var(--space-6)}
+#settings-form .cfg-conferir{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2)}
+#settings-form .cfg-conferir-label{font-size:var(--fs-sm);color:var(--fg)}
+#settings-form .cfg-conferir-row{align-items:center;margin-top:0;min-height:var(--ctl)}
+#settings-form .cfg-conferir-app{flex:1;min-width:0;display:flex;align-items:center;height:var(--ctl);padding:0 var(--space-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-sm);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#settings-form .cfg-conferir-back{height:var(--ctl);padding:0;border:0;background:transparent;box-shadow:none;color:var(--accent-text);font-size:var(--fs-sm);cursor:pointer}
+#settings-form .cfg-conferir-back:hover{text-decoration:underline}
+#settings-form .cfg-conferir-back[hidden]{display:none}
+#settings-form .cfg-conferir-hint{margin:0;font-size:var(--fs-sm);line-height:1.4;color:var(--faint)}
+#settings-form .cfg-conferir-list{margin-top:var(--space-3);padding:var(--space-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+#settings-form .cfg-conferir-list[hidden]{display:none}
+#settings-form .cfg-conferir-list-body{display:flex;flex-direction:column;gap:var(--space-2)}
+#settings-form .cfg-conferir-lead{margin:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+#settings-form .check-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-hairline);max-height:220px;overflow:auto}
+#settings-form .check-row{
+ display:flex;flex-direction:column;align-items:flex-start;gap:0;width:100%;height:auto;min-height:var(--ctl);
+ padding:var(--space-1) var(--space-2);border-color:transparent;background:transparent;box-shadow:none;text-align:left;
+}
+#settings-form .check-row:hover{background:var(--hover)}
+#settings-form .check-row:active{background:var(--active)}
+#settings-form .check-row-app{font-size:var(--fs-sm);color:var(--fg);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#settings-form .check-row-title{font-size:var(--fs-xs);color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#settings-form .check-empty{padding:var(--space-2);font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+#settings-form .cfg-conferir-foot{display:flex;align-items:center;justify-content:flex-start}
+#settings-form .cfg-conferir-foot button{height:var(--ctl);padding:0 var(--space-2);border-color:transparent;background:transparent;box-shadow:none;font-size:var(--fs-xs);color:var(--muted)}
+#settings-form .cfg-conferir-foot button:hover{background:var(--hover);color:var(--fg)}
+/* O nome do programa no botão não empurra Enviar para fora: corta com reticências. */
+.composer-actions #check .label-full{max-width:16ch;overflow:hidden;text-overflow:ellipsis}
+
+/* Caixa estreita: Conferir encurta e, mais estreita, Referências vira só o
+   ícone. O nome acessível segue completo (aria-label / título). */
+@container (max-width:419px){
+ .composer-actions .label-full{display:none}
+ .composer-actions .label-short{display:inline}
+}
+@container (max-width:310px){
+ .composer-actions #include-refs span{display:none}
+ .composer-actions #include-refs{width:var(--ctl);padding:0}
+}
+
+/* ---------- Fila de mensagens ----------
+   Faixa do núcleo `core/composerview.bend` (a mesma view da Conversa): rótulo
+   "Na fila · N", item com editar (⏎ salva / Esc cancela) e × para remover. */
+
+.queue-strip{display:flex;flex-direction:column;gap:var(--space-hairline);margin:0 0 var(--space-1);padding:0 0 5px;border-bottom:1px solid var(--border)}
+#composer-box>.queue-strip{margin:0;padding:var(--space-3) var(--pad) var(--space-2)}
+#composer-box>.queue-strip .queue-label,#composer-box>.queue-strip .queue-actions{padding-left:0;padding-right:0}
+#composer-box>.queue-strip .queue-item{padding-left:0}
+.queue-label{padding:0 var(--space-2);font-size:var(--fs-xs);font-weight:600;color:var(--faint)}
+.queue-item{display:flex;align-items:center;gap:var(--space-1);min-width:0;padding:1px var(--space-0) 1px var(--space-2);border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--muted)}
+.queue-item>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queue-item button{flex:none;width:18px;height:18px;min-width:0;padding:0;border:0;background:none;box-shadow:none;border-radius:var(--r-xs);font-size:var(--fs-md);line-height:1;color:var(--faint)}
+.queue-item button:hover{background:var(--hover);color:var(--fg)}
+.queue-item.sending{opacity:.55}
+.queue-item.sending>span{cursor:default}
+.queue-item>span[role=button]{cursor:text}
+.queue-item>span[role=button]:focus-visible{outline:2px solid var(--ring);outline-offset:1px;border-radius:var(--r-xs)}
+.queue-edit{flex:1;min-width:0;height:20px;margin:0;padding:0 var(--space-2);border:1px solid var(--ring);border-radius:var(--r-xs);background:var(--surface);font:inherit;font-size:var(--fs-sm);color:var(--fg)}
+.queue-edit:focus{outline:none}
+.queue-item button:disabled{opacity:.35;pointer-events:none}
+/* Ações da fila (Enviar agora / Limpar): linha própria no fim da faixa. A
+   visibilidade é decisão do núcleo (`hidden`); aqui só o desenho. */
+.queue-actions{display:flex;gap:var(--space-1);justify-content:flex-end;padding:1px var(--space-2) 0}
+.queue-actions button{font-size:var(--fs-xs);padding:2px 8px;box-shadow:none}
+.queue-actions button:hover{background:var(--hover);color:var(--fg)}
+.queue-actions .queue-clear{color:var(--muted)}

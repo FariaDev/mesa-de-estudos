@@ -39,7 +39,7 @@ function realRepo() {
 /* Segunda versão (0.4.1) empurrada por outro clone (o fluxo real de release).
    O lock NÃO muda aqui: um lock falso faria o `npm ci` real falhar — o caminho
    "lock mudou → npm ci" já é coberto pelos testes fakes (updateflow). */
-function pushNext(remote, from) {
+function pushNext(remote) {
   const other = path.join(tmp(), 'outro-' + Math.random().toString(36).slice(2));
   git(['clone', remote, other], path.dirname(other));
   write(path.join(other, 'desk', 'package.json'), '{"version":"0.4.1"}');
@@ -53,7 +53,7 @@ function pushNext(remote, from) {
 
 test('D1: update real com git — pull ff, versão CONFERIDA, sem npm ci sem lock novo', async () => {
   const {remote, work} = realRepo();
-  pushNext(remote, work);
+  pushNext(remote);
   const runtime = tmp();
   const reopens = [];
   const result = await updater.applyUpdate({
@@ -74,18 +74,20 @@ test('D1: update real com git — pull ff, versão CONFERIDA, sem npm ci sem loc
 
 test('D1: clone com trabalho local (manifesto sujo, como o setup antigo fazia) é recusado SEM destruir nada', async () => {
   const {remote, work} = realRepo();
-  pushNext(remote, work);
+  pushNext(remote);
   /* Trabalho local no manifesto versionado — o estado que o setup antigo
      deixava (npm install do Pi dentro do desk). */
   write(path.join(work, 'desk', 'package.json'), '{"version":"0.4.0","nota":"edição local"}');
   write(path.join(work, 'desk', 'package-lock.json'), '{"lock":"antigo","sujo":true}');
   const runtime = tmp();
+  const reopens = [];
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
-    announcedVersion: '0.4.1', reopen: () => {}, waitPid: 0,
+    announcedVersion: '0.4.1', reopen: () => reopens.push('r'), waitPid: 0,
   });
   assert.equal(result.ok, false);
   assert.match(result.reason, /trabalho local/);
+  assert.deepEqual(reopens, ['r'], 'a versão antiga reabre mesmo com a atualização recusada');
   assert.equal(read(path.join(work, 'desk', 'package.json')), '{"version":"0.4.0","nota":"edição local"}', 'a edição local sobrevive (nada foi resetado)');
   assert.equal(read(path.join(work, 'desk', 'package-lock.json')), '{"lock":"antigo","sujo":true}');
   assert.equal(read(path.join(work, 'desk', 'main.cjs')), 'main antigo');
@@ -119,6 +121,7 @@ test('D1: remoto divergiu (não é ff) → pull recusa, rollback volta a versão
   assert.equal(read(path.join(work, 'desk', 'main.cjs')), 'main local (commitado)', 'o rollback volta ao HEAD antigo (com o commit local)');
   assert.equal(read(path.join(work, 'core', 'view.bend')), 'core antigo');
   assert.equal(read(path.join(work, 'desk', 'package.json')), '{"version":"0.4.0"}');
+  assert.deepEqual(reopens, ['r'], 'a versão antiga reabre depois do rollback');
   assert.match(read(path.join(runtime, 'desk.log')), /FALHOU/);
   assert.match(read(path.join(runtime, 'desk.log')), /rollback aplicado/);
 });
@@ -128,7 +131,7 @@ test('D1: remoto divergiu (não é ff) → pull recusa, rollback volta a versão
    tag. */
 test('D1/A3: versão anunciada divergente no modo git vira aviso, não sucesso da tag', async () => {
   const {remote, work} = realRepo();
-  pushNext(remote, work);
+  pushNext(remote);
   const runtime = tmp();
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
@@ -175,7 +178,7 @@ test('D1/A2: instalar o Pi local não suja package.json/lock do desk', async () 
 /* D2 de verdade: update real em cima da instalação com .pi-local. */
 test('D2: update real da Mesa (git) deixa o Pi local intacto e resolvível', async () => {
   const {remote, work} = realRepo();
-  pushNext(remote, work);
+  pushNext(remote);
   const piHome = ensurePiLocalHome(path.join(work, 'desk'));
   fs.mkdirSync(path.join(piHome, 'node_modules', '.bin'), {recursive: true});
   fs.writeFileSync(path.join(piHome, 'node_modules', '.bin', 'pi'), '#!/usr/bin/env node\n');

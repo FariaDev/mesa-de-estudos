@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Mesa de Estudos · trio quadrado</title>
+<link rel="stylesheet" href="release.css">
+<style>
+ .peca{width:1080px;height:1080px;display:grid;grid-template-rows:1fr auto;padding:64px}
+ .palco{background:var(--accent-tint);border-radius:32px;display:flex;flex-direction:column;justify-content:center;padding:40px 56px 0}
+ .trio{display:flex;align-items:flex-end;justify-content:center}
+ .trio .mascote{--fo-size:300px}
+ .trio .mascote+.mascote{margin-left:-24px}
+ .chao{margin:-20px 24px 0}
+ .papeis{display:grid;grid-template-columns:repeat(3,1fr);margin-top:40px;text-align:center}
+ .papeis span{font-size:24px;color:var(--muted)}
+ .papeis b{display:block;font-family:var(--serif);font-weight:500;font-size:48px;line-height:1.1;color:var(--accent);margin-bottom:6px}
+ .rodape{display:flex;align-items:center;gap:24px;padding:48px 8px 0}
+ .logo{width:96px;height:96px;flex:none}
+ h1{font-size:52px;line-height:1;font-weight:650;letter-spacing:-.025em;color:var(--fg-strong)}
+ .versao{margin-left:auto;font-size:28px;color:var(--faint);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<main class="peca">
+ <section class="palco">
+  <div class="trio">
+   <div class="mascote mascote-integral" data-humor="lendo" data-trio="integral"></div>
+   <div class="mascote mascote-sigma mascote-tallying" data-humor="normal" data-trio="sigma"></div>
+   <div class="mascote mascote-nabla" data-humor="atento" data-trio="nabla"></div>
+  </div>
+  <div class="chao"></div>
+  <div class="papeis">
+   <span data-t="papel.integral"><b>∫</b>lê junto</span>
+   <span data-t="papel.sigma"><b>Σ</b>soma o que você fez</span>
+   <span data-t="papel.nabla"><b>∇</b>dá a dica</span>
+  </div>
+ </section>
+ <footer class="rodape">
+  <div class="logo" data-logo></div>
+  <h1 data-t="nome">Mesa de Estudos</h1>
+  <span class="versao">v1.0.0</span>
+ </footer>
+</main>
+</body>
+</html>

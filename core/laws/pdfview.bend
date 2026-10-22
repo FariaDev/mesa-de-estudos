@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../pdfview.bend as P
 import ../view.bend as V
 
@@ -58,10 +59,10 @@ law pdf_nav_com_doc:
   {P.navChrome(True{}, atFirst, atLast) == P.NavChrome{atFirst, atLast} : P.NavChrome}
 
 law pdf_collapse_min:
-  {P.collapseTitle(True{}) == "Restaurar este leitor" : String}
+  {P.collapseTitle(True{}) == M.msg("pdf.restore") : String}
 
 law pdf_collapse_aberto:
-  {P.collapseTitle(False{}) == "Minimizar este leitor" : String}
+  {P.collapseTitle(False{}) == M.msg("pdf.minimize") : String}
 
 law pdf_disabled_on:
   {P.disabledAttr(True{}) == Con{V.attr("disabled", "disabled"), Nil{}} : List<&2, V.ViewAttr>}
@@ -72,7 +73,7 @@ law pdf_disabled_off:
 # ---------- placeholder ----------
 
 law pdf_placeholder_texto:
-  {P.placeholderText() == "Escolha um PDF da biblioteca ou abra um arquivo local." : String}
+  {P.placeholderText() == M.msg("pdf.placeholder") : String}
 
 law pdf_placeholder_tag:
   {V.tagOf(P.placeholder()) == "div" : String}
@@ -101,18 +102,18 @@ law pdf_zoom_100:
   {P.zoomLabelText(100n) == "100%" : String}
 
 law pdf_foot_loading:
-  {P.footLoadingText() == "Carregando…" : String}
+  {P.footLoadingText() == M.msg("pdf.loading") : String}
 
 law pdf_foot_error:
-  {P.footErrorText() == "Não foi possível abrir o PDF." : String}
+  {P.footErrorText() == M.msg("pdf.openFailed") : String}
 
 law pdf_foot_ready:
-  {P.footReadyText(2n, 10n, P.modeContinuous(), "Limites.pdf")
-    == "Página 2 de 10 · rolagem contínua · Limites.pdf" : String}
+  {P.footReadyText(2n, 10n, "Limites.pdf")
+    == M.msg3("pdf.foot.ready", "page", "2", "total", "10", "file", "Limites.pdf") : String}
 
 law pdf_foot_ready_node:
-  {P.footReady(2n, 10n, P.modeContinuous(), "Limites.pdf")
-    == V.viewText(P.footReadyText(2n, 10n, P.modeContinuous(), "Limites.pdf")) : V.ViewNode}
+  {P.footReady(2n, 10n, "Limites.pdf")
+    == V.viewText(P.footReadyText(2n, 10n, "Limites.pdf")) : V.ViewNode}
 
 # ---------- find-count (fatos Hidden/Shown/All já resolvidos) ----------
 
@@ -123,10 +124,24 @@ law pdf_find_hidden:
   {P.findCountChrome(True{}, shown, index, total) == P.CountChrome{True{}, ""} : P.CountChrome}
 
 law pdf_find_all:
-  {P.findCountChrome(False{}, False{}, 0n, 4n) == P.CountChrome{False{}, "4 ocorrências"} : P.CountChrome}
+  {P.findCountChrome(False{}, False{}, 0n, 4n) == P.CountChrome{False{}, M.msg1("pdf.find.count", "count", "4")} : P.CountChrome}
 
 law pdf_find_shown:
   {P.findCountChrome(False{}, True{}, 1n, 3n) == P.CountChrome{False{}, "1/3"} : P.CountChrome}
 
 law pdf_find_label_shown:
   {P.findCountLabel(P.CountChrome{False{}, "1/3"}) == V.viewText("1/3") : V.ViewNode}
+
+# ---------- rodapé com número impresso ----------
+
+law pdf_foot_labeled_empty:
+  {P.footReadyTextLabeled(2n, 10n, "Limites.pdf", "") == M.msg3("pdf.foot.ready", "page", "2", "total", "10", "file", "Limites.pdf") : String}
+
+law pdf_foot_labeled_roman:
+  {P.footReadyTextLabeled(7n, 200n, "Livro.pdf", "iv") == M.msg4("pdf.foot.readyLabeled", "page", "7", "total", "200", "label", "iv", "file", "Livro.pdf") : String}
+
+law pdf_foot_labeled_node_text:
+  {V.kidsOf(P.footReadyLabeled(7n, 200n, "Livro.pdf", "5")) == Con{V.viewText(M.msg4("pdf.foot.readyLabeled", "page", "7", "total", "200", "label", "5", "file", "Livro.pdf")), Nil{}} : List<&2, V.ViewNode>}
+
+law pdf_foot_labeled_node_title:
+  {V.attrGet(V.attrsOf(P.footReadyLabeled(7n, 200n, "Livro.pdf", "5")), "title") == Some{M.msg4("pdf.foot.readyLabeled", "page", "7", "total", "200", "label", "5", "file", "Livro.pdf")} : Maybe<&2, String>}

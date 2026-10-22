@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,tinyPdf,statusOnline} from './helpers.mjs';
+import {pollUntil} from './waits.mjs';
 
 /* Finding R4: o rascunho novo (B) era perdido no reload quando o backend já
    tinha o rascunho antigo (A). O espelho local ganhou marcador DIRTY/revisão/
@@ -31,12 +32,8 @@ function backendDraft(runtime){
  return list.length?String(list[0].draft??''):null;
 }
 async function waitBackendDraft(runtime,value,{timeout=10000}={}){
- const start=Date.now();
- for(;;){
-  if(backendDraft(runtime)===value)return true;
-  if(Date.now()-start>timeout)throw new Error(`rascunho do backend não chegou a ${JSON.stringify(value)} (atual ${JSON.stringify(backendDraft(runtime))})`);
-  await new Promise(resolve=>setTimeout(resolve,50));
- }
+ await pollUntil(()=>backendDraft(runtime),draft=>draft===value,{timeout,what:`o rascunho do backend em ${JSON.stringify(value)}`});
+ return true;
 }
 async function openSidechatTab(page,{timeout=30000}={}){
  const ready=()=>{
@@ -44,7 +41,7 @@ async function openSidechatTab(page,{timeout=30000}={}){
   const eng=document.querySelector('#sidechat-engine');
   return !!sc&&!sc.hidden&&!!eng&&!eng.hidden&&!document.querySelector('#sidechat-prompt')?.disabled;
  };
- if(!(await page.evaluate(ready)))await page.locator('#support-tab-chat').click();
+ if(await page.locator('#sidechat').isHidden())await page.locator('#sidechat-toggle').click();
  await page.waitForFunction(ready,undefined,{timeout});
 }
 function mirrors(page){
@@ -72,7 +69,6 @@ await withArtifacts('lateral-draft-reload-ipc',async ctx=>{
  const page=await ctx.app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
  await page.waitForSelector('.pdf-panel canvas',{timeout:25000});
- await page.locator('#support-tab-chat').click();
  await openSidechatTab(page);
  const session=await page.evaluate(async()=>String((await import('./src/state.mjs')).S.currentSession||''));
 
@@ -193,7 +189,7 @@ await withArtifacts('lateral-draft-reload-corridas',async ctx=>{
   for(let i=0;i<rounds;i++){
    const pending=await page.evaluate(()=>window.__dsc.pending());
    if(pending)await page.evaluate(()=>window.__dsc.resolveNext());
-   await page.waitForTimeout(quiet);
+   await page.waitForTimeout(quiet);// espera fixa: janela de silêncio entre rodadas — sem save novo em `quiet` ms o espelho convergiu
    if(!pending&&!await page.evaluate(()=>window.__dsc.pending()))return;
   }
  };
@@ -205,14 +201,14 @@ await withArtifacts('lateral-draft-reload-corridas',async ctx=>{
  await page.locator('#sidechat-prompt').fill('A-base');
  await page.waitForFunction(()=>window.__dsc.pending()===1,undefined,{timeout:5000});
  await page.locator('#sidechat-prompt').fill('B-novo');
- await page.waitForTimeout(520); /* debounce de B dispara; save B fica atrás de A */
+ await page.waitForTimeout(520);// espera fixa: debounce de 500 ms do rascunho — o teste mede o que acontece depois que ele dispara (B fica atrás de A)
  const session=await page.evaluate(async()=>String((await import('./src/state.mjs')).S.currentSession||''));
  let all=await page.evaluate(()=>window.__dsc.mirrors());
  assert.ok(mirrorOf(all,'meta',session),'B gravou metadados');
  assert.equal(mirrorOf(all,'text',session).value,'B-novo');
  assert.equal(JSON.parse(mirrorOf(all,'meta',session).value).dirty,true,'B está sujo antes dos ACKs');
  await page.evaluate(()=>window.__dsc.resolveNext()); /* confirma o save de A */
- await page.waitForTimeout(220);
+ await page.waitForFunction(()=>window.__dsc.fake.saves.length>=2,undefined,{timeout:5000});/* o ACK de A foi tratado e o save de B saiu */
  all=await page.evaluate(()=>window.__dsc.mirrors());
  assert.equal(mirrorOf(all,'text',session).value,'B-novo','o texto local continua B');
  assert.equal(JSON.parse(mirrorOf(all,'meta',session).value).dirty,true,'o ACK de A NÃO limpa o dirty de B');
@@ -240,7 +236,7 @@ await withArtifacts('lateral-draft-reload-corridas',async ctx=>{
  await page.waitForFunction(()=>window.__dsc.pending()>=1,undefined,{timeout:5000}); /* save do reset (escopo antigo) fica pendente */
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'','a conversa nova começa sem o rascunho da antiga');
  await page.locator('#sidechat-prompt').fill('rascunho-outra');
- await page.waitForTimeout(520);
+ await page.waitForTimeout(520);// espera fixa: debounce de 500 ms do rascunho — o save do escopo novo já disparou e segue na fila atrás do antigo
  assert.equal(await page.evaluate(()=>window.__dsc.pending()),1,'o save do escopo antigo segura a fila (saves serializados)');
  all=await page.evaluate(()=>window.__dsc.mirrors());
  assert.equal(mirrorOf(all,'text','pi-outra.jsonl').value,'rascunho-outra');
@@ -267,9 +263,9 @@ await withArtifacts('lateral-draft-reload-corridas',async ctx=>{
  all=await page.evaluate(()=>window.__dsc.mirrors());
  assert.equal(mirrorOf(all,'text',originalSession),null,'fresh limpa a chave de texto do escopo');
  assert.equal(mirrorOf(all,'meta',originalSession),null,'fresh limpa os metadados do escopo');
- await page.locator('#support-tab-form').click();
- await page.locator('#support-tab-chat').click();
- await page.waitForTimeout(180);
+ await page.locator('#sidechat-close').click();
+ await page.locator('#sidechat-toggle').click();
+ await page.waitForTimeout(180);// espera fixa: "nada reaparece em 180 ms" — reabrir depois do fresh não pode trazer o rascunho antigo de volta
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'','reabrir depois do fresh segue vazio');
 
  assert.deepEqual(errors,[]);

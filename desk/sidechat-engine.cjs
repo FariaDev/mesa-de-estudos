@@ -13,12 +13,20 @@
  * processo. Fechar não apaga nada: sessão/descritor continuam recuperáveis. */
 
 const fs = require('node:fs');
+const {message} = require('./src/i18n.mjs');
+const {invalidValue} = require('./src/error-detail.mjs');
 const {PiBridge} = require('./rpc.cjs');
 const {displayUserText} = require('./sidechat.cjs');
 const conversations = require('./src/agents/conversations.cjs');
 const {ClaudeAdapter} = require('./src/agents/claude-adapter.cjs');
 const {ClaudeService} = require('./src/agents/service.cjs');
 
+/**
+ * Canal Pi de um chat lateral: uma ponte RPC com a sessão JSONL dele.
+ * @param {{id: string, sessionPath: string, cwd: string, pi: string, env: NodeJS.ProcessEnv,
+ *   extraArgs?: string[], promptFile?: string, onEvent: (event: object) => void,
+ *   log: (scope: string, line: string) => void}} options
+ */
 function createPiSideEngine({id, sessionPath, cwd, pi, env, extraArgs = [], promptFile = '', onEvent, log} = {}) {
   const bridge = new PiBridge({cwd, session: sessionPath, pi, env, promptFile, extraArgs});
   let closed = false;
@@ -70,6 +78,12 @@ function previewFromMessages(messages, fallback = '') {
   return visible ? visible.slice(0, 160) : fallback;
 }
 
+/**
+ * Canal Claude de um chat lateral. `deps` troca o adaptador e o serviço nos testes.
+ * @param {{id: string, descriptor: object, runtime: string, prepare: (record: object) => unknown,
+ *   sdkLoader?: unknown, claudePath?: string, detectClaude?: unknown, onEvent: (event: object) => void,
+ *   log: (scope: string, line: string) => void, deps?: {Adapter?: typeof ClaudeAdapter, Service?: typeof ClaudeService}}} options
+ */
 function createClaudeSideEngine({
   id,
   descriptor,
@@ -77,16 +91,17 @@ function createClaudeSideEngine({
   prepare,
   sdkLoader,
   claudePath,
+  detectClaude,
   onEvent,
   log,
   deps = {},
 } = {}) {
   const Adapter = deps.Adapter || ClaudeAdapter;
   const Service = deps.Service || ClaudeService;
-  if (typeof prepare !== 'function') throw Error('preparação do Claude ausente para o chat lateral.');
+  if (typeof prepare !== 'function') throw Error(invalidValue('prepare', prepare, 'function (preparação do Claude no chat lateral)'));
   conversations.recoverClaudeConversation(descriptor, {runtime});
   const record = conversations.readClaudeConversation(descriptor, {runtime});
-  if (!record) throw Error('O registro desta conversa Claude está indisponível. O arquivo foi preservado; abra um novo chat lateral.');
+  if (!record) throw Error(message('err.sidechat.recordMissing'));
   const {cwd, systemPrompt} = prepare(record);
   const toolPolicy = {readPaths: [], readRoots: [cwd]};
   const deliveryUncertain = record.delivery?.status === 'uncertain';
@@ -95,11 +110,15 @@ function createClaudeSideEngine({
     sessionId: record.nativeSessionId,
     resume: record.nativeEstablished,
     cwd,
-    claudePath: record.pinnedExecutable || claudePath || null,
+    // Follow the user's current launcher on reconnect; the descriptor only
+    // remembers the last observed binary. Session identity is the native ID.
+    claudePath: claudePath || record.pinnedExecutable || null,
+    detectClaude,
     systemPrompt,
     sdkLoader,
     deliveryUncertain,
     selection: {model: record.model || null, effort: record.effort || null},
+    priorMessages:record.messages||[],
     toolPolicy,
     persistDelivery(delivery) {
       conversations.updateClaudeConversation(descriptor, {
@@ -125,6 +144,7 @@ function createClaudeSideEngine({
       const patch = {};
       if (event?.executable && fs.existsSync(event.executable)) patch.pinnedExecutable = fs.realpathSync(event.executable);
       if (Object.keys(patch).length) conversations.updateClaudeConversation(descriptor, patch, {runtime});
+      if (event?.executableNote) log?.('sidechat', event.executableNote);
     },
   });
   service.toolPolicy = toolPolicy;

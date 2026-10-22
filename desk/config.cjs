@@ -24,6 +24,14 @@ function coreListToArray(node){
 
 const HOME_VAULT=path.join(os.homedir(),'Documents','Obsidian Vault');
 
+/* Raiz do clone de origem: `install-source.json` (gravado pelo install-app no
+   bundle) ou, rodando de fonte, o pai de desk/. Não presume que o repo está
+   dentro do vault. */
+function installRoot(){
+ try{const s=JSON.parse(fs.readFileSync(path.join(__dirname,'install-source.json'),'utf8'));if(s&&typeof s.path==='string'&&s.path)return s.path;}catch{}
+ return path.resolve(__dirname,'..');
+}
+
 // Fatos para o núcleo: `None` = ausente/inválido (o núcleo usa o default);
 // `Some(String(v))` = valor de verdade (o núcleo apara e decide).
 const none={$:'None'},some=value=>({$:'Some',value});
@@ -116,7 +124,7 @@ function seedConfig({runtimePath}={}){
  const vaultPath=homeVaultExists()?HOME_VAULT:'';
  return normalize({
   vaultPath,
-  runtimePath:runtimePath||(vaultPath?path.join(vaultPath,'Code','learning-canvas','desk','.runtime'):''),
+  runtimePath:runtimePath||path.join(installRoot(),'desk','.runtime'),
   piPath:'',
   xournalPath:detectXournalPath(),
   courses:vaultPath?discoverCourses(vaultPath).map(c=>({id:c.id,name:c.name,path:c.path})):[]
@@ -165,4 +173,4 @@ function pickPdfs(library,panels){
  return picked;
 }
 
-module.exports={HOME_VAULT,defaultDesk,normalizeDesk,emptyConfig,normalize,readConfig,writeConfig,homeVaultExists,seedConfig,needsSetup,nameMatches,pickPdfs};
+module.exports={HOME_VAULT,installRoot,defaultDesk,normalizeDesk,emptyConfig,normalize,readConfig,writeConfig,homeVaultExists,seedConfig,needsSetup,nameMatches,pickPdfs};

@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../pdfnav.bend as N
 import ../view.bend as V
 
@@ -108,45 +109,45 @@ law pdfnav_page_label:
 # ---------- botões ----------
 
 law pdfnav_nav_label:
-  {N.navButtonLabel() == "Sumário e favoritos" : String}
+  {N.navButtonLabel() == M.msg("pdf.nav.button") : String}
 
 law pdfnav_nav_title:
-  {N.navButtonTitle() == "Sumário e favoritos" : String}
+  {N.navButtonTitle() == M.msg("pdf.nav.button") : String}
 
 law pdfnav_nav_aria:
-  {N.navAria("Enunciado") == "Sumário e favoritos de Enunciado" : String}
+  {N.navAria("Enunciado") == M.msg1("pdf.nav.ariaOf", "label", "Enunciado") : String}
 
 law pdfnav_back_label:
-  {N.navBackLabel() == "Voltar" : String}
+  {N.navBackLabel() == M.msg("pdf.nav.back") : String}
 
 law pdfnav_back_title:
-  {N.navBackTitle() == "Voltar à página anterior" : String}
+  {N.navBackTitle() == M.msg("pdf.nav.backTitle") : String}
 
 law pdfnav_back_aria:
-  {N.navBackAria("Enunciado") == "Voltar à página anterior de Enunciado" : String}
+  {N.navBackAria("Enunciado") == M.msg1("pdf.nav.backAria", "label", "Enunciado") : String}
 
 law pdfnav_save_label:
-  {N.saveLabel() == "Guardar esta página…" : String}
+  {N.saveLabel() == M.msg("pdf.nav.save") : String}
 
 law pdfnav_save_title:
-  {N.saveTitle() == "Guardar a página aberta como favorito" : String}
+  {N.saveTitle() == M.msg("pdf.nav.saveTitle") : String}
 
 # ---------- diálogo do favorito ----------
 
 law pdfnav_dialog_title:
-  {N.bookmarkDialogTitle() == "Guardar esta página" : String}
+  {N.bookmarkDialogTitle() == M.msg("pdf.nav.dialogTitle") : String}
 
 law pdfnav_dialog_name_label:
-  {N.bookmarkNameLabel() == "Nome do favorito" : String}
+  {N.bookmarkNameLabel() == M.msg("pdf.nav.nameLabel") : String}
 
 law pdfnav_dialog_hint:
   {N.bookmarkDialogHint("Revisão", 12n) == "Revisão, p. 12" : String}
 
 law pdfnav_dialog_save:
-  {N.bookmarkSaveLabel() == "Salvar" : String}
+  {N.bookmarkSaveLabel() == M.msg("common.save") : String}
 
 law pdfnav_dialog_cancel:
-  {N.bookmarkCancelLabel() == "Cancelar" : String}
+  {N.bookmarkCancelLabel() == M.msg("common.cancel") : String}
 
 def firstOf(xs: List<&2, N.Bookmark>) -> N.Bookmark:
   match xs:
@@ -252,10 +253,10 @@ law pdfnav_row_data_path:
   {V.attrGet(V.attrsOf(rowOpen()), "data-path") == Some{"/p/Limites.pdf"} : Maybe<&2, String>}
 
 law pdfnav_row_title:
-  {V.attrGet(V.attrsOf(rowOpen()), "title") == Some{"Abrir Revisão na p. 12"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(rowOpen()), "title") == Some{M.msg2("pdf.ref.title", "name", "Revisão", "page", "12")} : Maybe<&2, String>}
 
 law pdfnav_row_aria:
-  {V.attrGet(V.attrsOf(rowOpen()), "aria-label") == Some{"Abrir o favorito Revisão, p. 12"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(rowOpen()), "aria-label") == Some{M.msg2("pdf.nav.bookmarkAria", "name", "Revisão", "page", "12")} : Maybe<&2, String>}
 
 law pdfnav_row_click:
   {V.attrGet(V.attrsOf(rowOpen()), "on:click") == Some{"OpenBookmark"} : Maybe<&2, String>}
@@ -276,7 +277,7 @@ law pdfnav_remove_id:
   {V.attrGet(V.attrsOf(rowRemoveBtn()), "data-id") == Some{"0"} : Maybe<&2, String>}
 
 law pdfnav_remove_title:
-  {V.attrGet(V.attrsOf(rowRemoveBtn()), "title") == Some{"Remover o favorito Revisão"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(rowRemoveBtn()), "title") == Some{M.msg1("pdf.nav.removeTitle", "name", "Revisão")} : Maybe<&2, String>}
 
 law pdfnav_remove_click:
   {V.attrGet(V.attrsOf(rowRemoveBtn()), "on:click") == Some{"RemoveBookmark"} : Maybe<&2, String>}
@@ -302,10 +303,10 @@ law pdfnav_not_empty_books:
 # ---------- sumário ----------
 
 law pdfnav_outline_title:
-  {N.outlineTitle() == "Sumário deste PDF" : String}
+  {N.outlineTitle() == M.msg("pdf.nav.outline") : String}
 
 law pdfnav_outline_empty_text:
-  {N.outlineEmpty() == "Este PDF não tem sumário." : String}
+  {N.outlineEmpty() == M.msg("pdf.nav.outlineEmpty") : String}
 
 law pdfnav_outline_depth_cap:
   {N.outlineDepth(9n) == "3" : String}
@@ -314,7 +315,7 @@ law pdfnav_outline_depth:
   {N.outlineDepth(2n) == "2" : String}
 
 law pdfnav_outline_label:
-  {N.outlineLabel("Limites", 5n) == "Ir para a p. 5: Limites" : String}
+  {N.outlineLabel("Limites", 5n) == M.msg2("pdf.nav.goTo", "page", "5", "title", "Limites") : String}
 
 law pdfnav_outline_tag:
   {V.tagOf(N.outlineRow(outDeep())) == "button" : String}
@@ -358,7 +359,7 @@ law pdfnav_pop_save_class:
   {V.attrGet(V.attrsOf(first(V.kidsOf(popEmpty()))), "class") == Some{"nav-save"} : Maybe<&2, String>}
 
 law pdfnav_pop_save_text:
-  {V.textOf(first(V.kidsOf(first(V.kidsOf(popEmpty()))))) == "Guardar esta página…" : String}
+  {V.textOf(first(V.kidsOf(first(V.kidsOf(popEmpty()))))) == M.msg("pdf.nav.save") : String}
 
 law pdfnav_pop_save_click:
   {V.attrGet(V.attrsOf(first(V.kidsOf(popEmpty()))), "on:click") == Some{"SaveBookmark"} : Maybe<&2, String>}
@@ -368,13 +369,13 @@ law pdfnav_pop_empty_section:
   {List.length(&2, V.ViewNode, V.kidsOf(kidAt(V.kidsOf(popEmpty()), 1n))) == 2n : Nat}
 
 law pdfnav_pop_section_title:
-  {V.textOf(first(V.kidsOf(first(V.kidsOf(kidAt(V.kidsOf(popEmpty()), 1n)))))) == "Favoritos desta matéria" : String}
+  {V.textOf(first(V.kidsOf(first(V.kidsOf(kidAt(V.kidsOf(popEmpty()), 1n)))))) == M.msg("pdf.nav.favorites") : String}
 
 law pdfnav_pop_empty_note:
-  {V.textOf(first(V.kidsOf(kidAt(V.kidsOf(kidAt(V.kidsOf(popEmpty()), 1n)), 1n)))) == "Nenhum favorito nesta matéria." : String}
+  {V.textOf(first(V.kidsOf(kidAt(V.kidsOf(kidAt(V.kidsOf(popEmpty()), 1n)), 1n)))) == M.msg("pdf.nav.favoritesEmpty") : String}
 
 law pdfnav_pop_outline_title:
-  {V.textOf(first(V.kidsOf(first(V.kidsOf(kidAt(V.kidsOf(popEmpty()), 2n)))))) == "Sumário deste PDF" : String}
+  {V.textOf(first(V.kidsOf(first(V.kidsOf(kidAt(V.kidsOf(popEmpty()), 2n)))))) == M.msg("pdf.nav.outline") : String}
 
 law pdfnav_pop_outline_note:
-  {V.textOf(first(V.kidsOf(kidAt(V.kidsOf(kidAt(V.kidsOf(popEmpty()), 2n)), 1n)))) == "Este PDF não tem sumário." : String}
+  {V.textOf(first(V.kidsOf(kidAt(V.kidsOf(kidAt(V.kidsOf(popEmpty()), 2n)), 1n)))) == M.msg("pdf.nav.outlineEmpty") : String}

@@ -101,3 +101,14 @@ def Laws.pdf_find_shown():
 
 def Laws.pdf_find_label_shown():
   {==}
+def Laws.pdf_foot_labeled_empty():
+  {==}
+
+def Laws.pdf_foot_labeled_roman():
+  {==}
+
+def Laws.pdf_foot_labeled_node_text():
+  {==}
+
+def Laws.pdf_foot_labeled_node_title():
+  {==}

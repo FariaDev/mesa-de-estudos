@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Folhinha — polimento</title>
+<!-- #61, rodada 7: polimento da Folhinha, escolhida na rodada 6. Seis itens aprovados:
+     1 versão pequena desenhada à parte; 2 folha de bordas curvas; 3 texto de exercício de
+     verdade; 5 mãos e pés; 6 animações próprias. A margem violeta (4) e a orelha que
+     levantava saíram no retorno do autor. Movimento só por deslocamento e rotação do
+     lápis (SMIL), sem escalar. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&display=swap">
+<style>
+:root{--acc:#2548c7}
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+h2.part{font-size:16px;margin:28px 0 4px}
+.lead{color:#737373;margin:0 0 16px;max-width:76ch}
+label.rm{display:inline-flex;gap:6px;align-items:center;font-size:13px;margin-bottom:12px}
+.box{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px}
+.poses{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.poses figure{margin:0;background:#fffbf0;border-radius:10px;text-align:center;padding:4px 0 8px}
+.poses figure.dark{background:#111}
+.poses svg{width:100%;max-width:190px;height:auto}
+.poses figcaption{font-size:11px;color:#8a7f6a}
+.pequenas{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+.pequenas figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.pequenas .lado{display:flex;gap:10px;align-items:flex-end;padding:10px;border-radius:10px;background:#f6f6f7}
+.pequenas .lado.dark{background:#1f1f1f}
+.pequenas figcaption{font-size:11px;color:#8a8a8a}
+.uso{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.uso{grid-template-columns:1fr}.poses{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ctx{background:#f6f6f7;border-radius:10px;padding:12px;min-width:0}
+.ctx h4{margin:0 0 8px;font-size:11px;font-weight:600;color:#8a8a8a;letter-spacing:.04em;text-transform:uppercase}
+.sheet{position:relative;background:#fff;color:#171717;border:1px solid #e4e4e7;border-radius:6px;padding:20px 22px 26px;font:13.5px/1.5 "STIX Two Text",serif;box-shadow:0 2px 10px -6px rgb(0 0 0/.25)}
+.sheet h5{margin:0;font-size:21px;font-weight:600;text-align:center}
+.sheet .course{margin:0 0 12px;text-align:center;font-style:italic}
+.sheet ol{margin:8px 0 0;padding-left:1.5em;display:flex;flex-direction:column;gap:6px}
+.sheet a{color:var(--acc)}
+.sheet .espia{position:absolute;right:-8px;bottom:-16px;width:104px;height:auto}
+.stack{display:flex;flex-direction:column;gap:10px}
+.thinking{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#ececee;color:#3f3f46;font-size:13px}
+.thinking.dark{background:#2a2a2a;color:#d4d4d8}
+.thinking svg{width:24px;height:24px;flex:none}
+.thinking .t{margin-left:auto;color:#8a8a8a;font-size:12px;font-variant-numeric:tabular-nums}
+.msg{display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.5}
+.msg svg{width:40px;height:40px;flex:none}
+.msg .bolha{background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:8px 10px}
+.msg b{color:#3f2a9e}
+.toast{display:flex;gap:10px;align-items:center;background:#1f1f1f;color:#f4f4f5;border-radius:12px;padding:8px 12px;font-size:13px}
+.toast svg{width:36px;height:36px;flex:none}
+.palpebra{opacity:0;animation:piscar 3.6s infinite}
+@keyframes piscar{0%,47%,53%,100%{opacity:0}49%,51%{opacity:1}}
+.reduz .palpebra{animation:none}
+@media (prefers-reduced-motion:reduce){.palpebra{animation:none}}
+</style>
+</head>
+<body>
+<p class="lead"><strong>Histórico.</strong> A Folhinha não é mais a mascote da Mesa: o trio ∫ Σ ∇ a substituiu na #64 (2026-10-22). Veja <a href="decisoes.md">decisoes.md</a> e <a href="../../reviews/issue-64-mascotes.html">issue-64-mascotes.html</a>.</p>
+<h1>Folhinha — polimento</h1>
+<p class="lead">Polimento, já sem a margem roxa e com o canto sempre dobrado. Para comparar, a versão anterior está em <a href="mascote-r6.html">mascote-r6.html</a>. Daqui para baixo vêm as quatro poses grandes, já animadas, depois a versão pequena desenhada à parte e, por último, as mesmas telas de uso da rodada 6.</p>
+<label class="rm"><input type="checkbox" id="reduz"> Ver como fica com "reduzir movimento" ligado</label>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs>
+  <filter id="pincel" x="-10%" y="-10%" width="120%" height="120%">
+   <feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="7" result="onda"/>
+   <feDisplacementMap in="SourceGraphic" in2="onda" scale="6" xChannelSelector="R" yChannelSelector="G" result="borda"/>
+   <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="1" seed="3" result="ruido"/>
+   <feColorMatrix in="ruido" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  .6 0 0 0 -.4" result="grao"/>
+   <feComposite in="grao" in2="borda" operator="in" result="graoDentro"/>
+   <feMerge><feMergeNode in="borda"/><feMergeNode in="graoDentro"/></feMerge>
+  </filter>
+ </defs>
+</svg>
+
+<h2 class="part">1. Poses (grande)</h2>
+<div class="box"><div class="poses" id="poses"></div></div>
+
+<h2 class="part">2. Versão pequena (24 a 40 px)</h2>
+<p class="lead">Desenhada à parte, como um ícone: sem as linhas e sem o grão, com olhos maiores e contorno mais grosso. Ao lado, a grande reduzida para o mesmo tamanho, para ver a diferença.</p>
+<div class="box"><div class="pequenas" id="pequenas"></div></div>
+
+<h2 class="part">3. Na cor de acento</h2>
+<p class="lead">Braços, pernas e os sinais "?" e "!" seguem o acento escolhido nas configurações. A folha e o lápis âmbar ficam iguais, para ela continuar sendo ela.</p>
+<div class="box"><div class="pequenas" id="acentos"></div></div>
+
+<h2 class="part">4. Em uso</h2>
+<div class="box"><div class="uso" id="uso"></div></div>
+
+<script>
+// Membros e sinais seguem a cor de acento das configurações (--membro); sem ela, o violeta.
+const MEMBRO='var(--membro,#5a3fc4)',TINTA='#1a1033',SINAL='var(--membro,#3f2a9e)',AMBAR='#e8862a',PAPEL='#f4f1ea',BORDA='#cbc2ac';
+// Item 2: a folha tem bordas levemente curvas, como papel de verdade, e o canto cortado
+// onde fica o canto dobrado.
+const FOLHA='M72 40H150L182 72Q187 136 179 198Q177 208 168 208H74Q63 207 64 196Q58 122 64 50Q65 40 72 40Z';
+// O canto fica sempre dobrado: o autor não gostou da orelha que levanta e desdobra
+// (retorno do polimento, 2026-10-21). A expressão de pensar e de dar dica fica no lápis e no braço.
+const DOBRA='M150 40V64Q150 72 158 72H182Z';
+const traco=(d,cor,w)=>`<path d="${d}" fill="none" stroke="${cor}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const smil=(attr,values,dur,extra='')=>`<animate attributeName="${attr}" values="${values}" dur="${dur}" repeatCount="indefinite" ${extra}/>`;
+const dobra=(peso=3,cor=BORDA)=>`<path d="${DOBRA}" fill="#d9d3c4" stroke="${cor}" stroke-width="${peso}" stroke-linejoin="round"/>`;
+// Sem a lista no corpo (os itens "1) 2) 3)" e o visto do acerto): decisão da #64,
+// em todo lugar; o logo F1 com a lista não muda (ver decisoes.md).
+const corpo=()=>`<path d="${FOLHA}" fill="${PAPEL}" stroke="${BORDA}" stroke-width="3"/>${dobra()}`;
+
+const OLHOS=[[100,96,23],[141,92,25]],BOCA=[120,130];
+const olhos=(ol,olhar,feliz,peso=3.5)=>{
+ if(feliz)return ol.map(([x,y,r])=>traco(`M${x-r*.6} ${y+3}q${r*.6} ${-r*.8} ${r*1.2} 0`,TINTA,peso+1.5)).join('');
+ const [dx,dy]=olhar;
+ return ol.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${TINTA}" stroke-width="${peso}"/><circle cx="${x+dx}" cy="${y+dy}" r="${(r*.47).toFixed(1)}" fill="${TINTA}"/><circle cx="${x+dx+r*.13}" cy="${y+dy-r*.17}" r="${(r*.15).toFixed(1)}" fill="#fff"/>`).join('')
+  +`<g class="palpebra" fill="${PAPEL}">${ol.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r+peso/2}"/>`).join('')}</g>`;};
+const boca=([x,y],tipo,w=4.5)=>({
+ sorri:traco(`M${x-10} ${y}q10 7 20 0`,TINTA,w),
+ hmm:traco(`M${x-7} ${y+2}q7-3 14 0`,TINTA,w),
+ aberta:`<ellipse cx="${x}" cy="${y+2}" rx="${w*1.45}" ry="${w*1.8}" fill="${TINTA}"/>`,
+ grande:`<path d="M${x-15} ${y-2}q15 18 30 0z" fill="${TINTA}"/>`,
+})[tipo];
+
+// Item 5: braço com cotovelo terminando numa mão redonda; perna com sapatinho oval.
+const braco=(o,m)=>{const lado=o[0]<120?-1:1;const c=[(o[0]+m[0])/2+12*lado,(o[1]+m[1])/2+8];
+ return traco(`M${o[0]} ${o[1]}Q${c[0]} ${c[1]} ${m[0]} ${m[1]}`,MEMBRO,10)+`<circle cx="${m[0]}" cy="${m[1]}" r="7.5" fill="${MEMBRO}"/>`;};
+const perna=([x,y])=>{const lado=x<120?-1:1;
+ return traco(`M${x} ${y}L${x+4*lado} 227`,MEMBRO,10)+`<ellipse cx="${x+10*lado}" cy="231" rx="12" ry="6.5" fill="${MEMBRO}"/>`;};
+// Lápis atravessando a mão; `ang` aponta para a ponta. `bate` faz ele tamborilar (pensando).
+const lapis=([x,y],ang,bate)=>{const r=ang*Math.PI/180,dx=Math.cos(r),dy=Math.sin(r);
+ const p=k=>`${(x+dx*k).toFixed(1)} ${(y+dy*k).toFixed(1)}`;
+ const giro=bate?`<animateTransform attributeName="transform" type="rotate" values="0 ${x} ${y};-14 ${x} ${y};0 ${x} ${y};0 ${x} ${y}" keyTimes="0;.2;.4;1" dur="1.2s" repeatCount="indefinite"/>`:'';
+ return `<g>${giro}${traco(`M${p(-18)}L${p(16)}`,AMBAR,10)}${traco(`M${p(16)}L${p(23)}`,'#3f3f46',6)}</g>`;};
+const sinal=(tipo,[x,y])=>({
+ '?':traco(`M${x} ${y}q0-16 16-16q16 0 16 16q0 10-14 14v8`,SINAL,8)+`<circle cx="${x+18}" cy="${y+35}" r="5.5" fill="${SINAL}"/>`,
+ '!':traco(`M${x+8} ${y-16}v34`,SINAL,8)+`<circle cx="${x+8}" cy="${y+33}" r="5.5" fill="${SINAL}"/>`,
+})[tipo]||'';
+
+const OMBRO=[[64,132],[181,132]],QUADRIL=[[100,206],[142,206]];
+const POSES={
+ parado:{rotulo:'parado',maoE:[-24,36],maoD:[22,28],lapis:100,olhar:[4,-5],boca:'sorri'},
+ pensando:{rotulo:'pensando',maoE:[-18,40],maoD:[BOCA[0]+32,BOCA[1]+6],abs:true,lapis:-112,bate:true,olhar:[-4,-9],boca:'hmm',sinal:'?'},
+ dica:{rotulo:'dica',maoE:[-16,-66],maoD:[22,28],lapis:100,olhar:[3,-3],boca:'aberta',sinal:'!'},
+ acerto:{rotulo:'acertou',maoE:[-30,-56],maoD:[30,-56],lapis:-78,feliz:true,boca:'grande',pula:true},
+};
+const soma=([x,y],[dx,dy])=>[x+dx,y+dy];
+// Item 6 (acertou): pulinho por deslocamento; a sombra encolhe pelo raio, nada escala.
+const PULO='<animateTransform attributeName="transform" type="translate" values="0 0;0 -18;0 0;0 0" keyTimes="0;.22;.44;1" dur="1.5s" calcMode="spline" keySplines=".2 .7 .4 1;.6 0 .8 .4;0 0 1 1" repeatCount="indefinite"/>';
+const sombra=pula=>`<ellipse cx="120" cy="238" rx="64" ry="7" fill="#000" opacity=".22">${pula?smil('rx','64;46;64;64','1.5s','keyTimes="0;.22;.44;1"'):''}</ellipse>`;
+
+const grande=(pid,w)=>{const p=POSES[pid];
+ const mE=soma(OMBRO[0],p.maoE),mD=p.abs?p.maoD:soma(OMBRO[1],p.maoD);
+ const ondeSinal=p.sinal==='!'?[mE[0]+16,Math.max(mE[1]-30,18)]:[198,26];
+ return `<svg class="smil" viewBox="0 -10 240 260" width="${w}" height="${Math.round(w*26/24)}" role="img" aria-label="Folhinha, ${p.rotulo}" style="overflow:visible">${sombra(p.pula)}
+  <g>${p.pula?PULO:''}
+   <g filter="url(#pincel)">${QUADRIL.map(perna).join('')}${corpo()}${braco(OMBRO[0],mE)}${braco(OMBRO[1],mD)}${lapis(mD,p.lapis,p.bate)}${sinal(p.sinal,ondeSinal)}</g>
+   <g filter="url(#pincel)">${olhos(OLHOS,p.olhar||[0,0],p.feliz)}${boca(BOCA,p.boca)}</g>
+  </g></svg>`;};
+
+// Item 1: versão pequena. Só a folha, o canto dobrado e um rosto grande; contorno grosso, sem grão.
+const OLHOS_P=[[100,108,31],[146,104,33]],BOCA_P=[123,160];
+const pequena=(pid,w)=>{const p=POSES[pid];
+ return `<svg class="smil" viewBox="40 20 170 200" width="${w}" height="${w}" role="img" aria-label="Folhinha pequena, ${p.rotulo}">
+  <g>${p.pula?PULO.replace('0 -18','0 -10'):''}
+   <path d="${FOLHA}" fill="${PAPEL}" stroke="#a89f86" stroke-width="9" stroke-linejoin="round"/>
+   ${dobra(8,'#a89f86')}
+   ${olhos(OLHOS_P,p.olhar||[0,0],p.feliz,6)}${boca(BOCA_P,p.boca,7)}
+  </g></svg>`;};
+
+document.getElementById('poses').innerHTML=Object.keys(POSES).map((pid,i)=>`<figure class="${i===0?'dark':''}">${grande(pid,190)}<figcaption>${POSES[pid].rotulo}</figcaption></figure>`).join('');
+document.getElementById('pequenas').innerHTML=Object.keys(POSES).map(pid=>`<figure>
+  <div class="lado">${[40,32,24].map(s=>pequena(pid,s)).join('')}</div>
+  <div class="lado dark">${[40,32,24].map(s=>pequena(pid,s)).join('')}</div>
+  <div class="lado">${grande(pid,24)}</div>
+  <figcaption>${POSES[pid].rotulo} · pequena (claro, escuro) · grande reduzida</figcaption></figure>`).join('');
+const ACENTOS=[['azul','#2548c7'],['violeta','#6d28d9'],['verde','#0f7b55'],['laranja','#c2410c'],['rosa','#c02667'],['grafite','#27272a']];
+document.getElementById('acentos').innerHTML=ACENTOS.map(([nome,cor])=>`<figure style="--membro:${cor}">
+  <div class="lado">${grande('dica',110)}${pequena('pensando',32)}${pequena('pensando',24)}</div>
+  <figcaption>${nome}</figcaption></figure>`).join('');
+document.getElementById('uso').innerHTML=`
+ <div class="ctx"><h4>Lista 0</h4>
+  <article class="sheet"><h5>Lista 0</h5><p class="course">Cálculo I · pôr algo na mesa</p>Esta folha fica no lugar do seu primeiro PDF.
+   <ol><li>Arraste um PDF para cá.</li><li><a href="#">Abrir PDF…</a></li><li><a href="#">Pedir ao tutor</a></li></ol>
+   <span class="espia">${grande('parado',104)}</span></article></div>
+ <div class="ctx stack"><h4>No chat</h4>
+  <div class="thinking">${pequena('pensando',24)}<span>O tutor está pensando…</span><span class="t">3 s</span></div>
+  <div class="thinking dark">${pequena('pensando',24)}<span>O tutor está pensando…</span><span class="t">3 s</span></div>
+  <div class="msg">${pequena('dica',40)}<div class="bolha"><b>Dica:</b> antes de derivar, veja se dá para simplificar a fração.</div></div>
+  <div class="toast">${pequena('acerto',36)}<span>Acertou o item 2! Bora para o próximo?</span></div>
+ </div>`;
+
+// SMIL não obedece ao CSS: com movimento reduzido, congela cada SVG num quadro de repouso.
+const reduz=document.getElementById('reduz'),media=matchMedia('(prefers-reduced-motion: reduce)');
+const aplica=()=>{const parado=reduz.checked||media.matches;document.body.classList.toggle('reduz',parado);
+ for(const s of document.querySelectorAll('svg.smil')){if(parado){s.pauseAnimations();s.setCurrentTime(1.4);}else s.unpauseAnimations();}};
+reduz.addEventListener('change',aplica);media.addEventListener('change',aplica);aplica();
+</script>
+</body>
+</html>

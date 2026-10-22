@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../attachview.bend as A
 import ../view.bend as V
 
@@ -161,7 +162,7 @@ law av_chip_tres_filhos:
   {List.length(&2, V.ViewNode, V.kidsOf(A.quoteChipView("curto"))) == 3n : Nat}
 
 law av_chip_rotulo:
-  {textOfAt(A.quoteChipView("curto"), 0n) == "Citar:" : String}
+  {textOfAt(A.quoteChipView("curto"), 0n) == M.msg("quote.label") : String}
 
 law av_chip_texto:
   {textOfAt(A.quoteChipView("curto"), 1n) == "“curto”" : String}
@@ -178,7 +179,8 @@ law av_chip_corta:
 
 # O caminho `given` (fato `long` já resolvido pelo host) só decide reto ×
 # reticência; a borda do caminho automático (len>160 → 159+"…") é pinada no
-# teste de app (`chat/tests/attachview.test.mjs`).
+# teste de app (na Conversa, `chat/tests/attachview.test.mjs`, que saiu na #50;
+# o corte da Mesa fica a cargo do host).
 law av_chip_given_longo_acrescenta:
   {A.quoteDisplay.given("abcdef", True{}) == "abcdef…" : String}
 
@@ -222,10 +224,10 @@ law av_chip_botao_classe:
   {attrOf(kind(A.quoteChipView("curto"), 2n), "class") == Some{"quote-chip-remove"} : Maybe<&2, String>}
 
 law av_chip_botao_rotulo:
-  {attrOf(kind(A.quoteChipView("curto"), 2n), "aria-label") == Some{"Remover citação"} : Maybe<&2, String>}
+  {attrOf(kind(A.quoteChipView("curto"), 2n), "aria-label") == Some{M.msg("quote.remove")} : Maybe<&2, String>}
 
 law av_chip_botao_title:
-  {attrOf(kind(A.quoteChipView("curto"), 2n), "title") == Some{"Remover citação"} : Maybe<&2, String>}
+  {attrOf(kind(A.quoteChipView("curto"), 2n), "title") == Some{M.msg("quote.remove")} : Maybe<&2, String>}
 
 law av_chip_botao_evento:
   {attrOf(kind(A.quoteChipView("curto"), 2n), "on:click") == Some{"RemoveQuote"} : Maybe<&2, String>}

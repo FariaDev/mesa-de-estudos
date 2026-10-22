@@ -1,14 +1,28 @@
 # Transporte Claude experimental
 
-Integração local da Mesa com o Claude Code original pelo Agent SDK oficial. A segunda rodada usa o T3 Code como referência de comportamento. O código foi testado com SDK e dados artificiais; inferência autenticada ainda não foi validada. O aplicativo instalado não foi sincronizado.
+Integração local da Mesa com o Claude Code pelo Agent SDK oficial. A segunda rodada usa o T3 Code como referência de comportamento. O código foi testado com SDK e dados artificiais; inferência autenticada ainda não foi validada. O aplicativo instalado não foi sincronizado.
 
-Referência pública: `pingdotgg/t3code`, commit `1604ccc9d79f5270fb8e14d60664184bf142c4cb`. As implementações desta rodada adaptam conceitos; não copiaram código do T3. A licença da referência é MIT, © 2026 T3 Tools Inc. O T3 observado usa um SDK mais novo; a Mesa valida suas chamadas contra o pin local `@anthropic-ai/claude-agent-sdk@0.3.246`, pareado com Claude Code `2.1.246`.
+Referência pública: `pingdotgg/t3code`, commit `1604ccc9d79f5270fb8e14d60664184bf142c4cb`. As implementações desta rodada adaptam conceitos; não copiaram código do T3. A licença da referência é MIT, © 2026 T3 Tools Inc. O T3 observado usa um SDK mais novo; a Mesa valida suas chamadas contra o pin local `@anthropic-ai/claude-agent-sdk@0.3.301`, testado com Claude Code `2.1.301`.
+
+Desde o #51 a Mesa aceita uma **faixa** de versões do Claude Code, não mais o par exato do #28: versão fora da faixa é recusada antes de consultar login ou iniciar Query (`notSent:true`). A Mesa não atualiza nem faz downgrade do CLI do usuário; mudar a faixa exige revisar o protocolo e rodar os harnesses (`docs/agents/release.md`).
+
+## Escolha do executável (#51)
+
+A Mesa usa sempre o Claude Code que a pessoa instalou e mantém. Uma função só, `detectClaude` em `claude-environment.cjs`, decide, para o tutor principal e para o chat lateral (os dois passam pelo mesmo adaptador):
+
+1. acha o launcher (caminho configurado ou `~/.local/bin/claude`, o do instalador oficial; no Windows `claude.exe`); sem ele, `CLAUDE_NOT_FOUND`;
+2. lê `--version` e pergunta ao núcleo `core/claudeversion.bend` se a versão cabe na faixa de `desk/src/tested-versions.json`: de `claudeMinimum` (2.1.296) até a série (`major.minor`) do `claude` testado (2.1.301), ou seja `>= 2.1.296` e `< 2.2.0`. Mais nova que a testada, na série, conecta e deixa uma linha no `desk.log` (o Sobre mostra "mais nova que a testada"); abaixo do mínimo, série nova ou ilegível, `CLAUDE_VERSION_UNSUPPORTED` com `notSent:true` e a frase do catálogo (`claude.version.*`) que a coluna do tutor mostra com o conserto (Atualizar Claude Code ou Abrir o Sobre);
+3. só então `auth status --json`, com a mesma allowlist de campos (`loggedIn`, `authMethod`, `apiProvider`); a Mesa não lê, copia nem guarda credencial. Uma versão fora da faixa nunca é executada além de `--version`.
+
+**Sem reserva.** O binário que o pacote do SDK instala (`@anthropic-ai/claude-agent-sdk-<plataforma>-<arch>`, a reserva do #32) não é mais procurado nem executado: o `Mesa de Estudos.app` nunca o levou (`externalClaude` em `desk/bundle-runtime.cjs`), e no app instalado qualquer Claude Code do usuário fora da versão exata derrubava o tutor. O pacote segue no `npm ci` como dependência opcional do SDK (uma exclusão seletiva exigiria um `override` para um pacote vazio de terceiros ou `--omit=optional`, que também tiraria os opcionais do PDF.js); a Mesa sempre passa `pathToClaudeCodeExecutable`, então o SDK não recorre a ele. `pinnedExecutable` continua sendo só o último binário observado e a reconexão volta a seguir o launcher; o ID nativo da sessão é que decide o `resume`.
+
+Nos testes, `LEARNING_DESK_CLAUDE_HOME` (só com `DESK_TEST=1`) troca a casa onde se procura `~/.local/bin/claude`: o `tests/electron-env.mjs` a aponta para um Claude de guarda (0.0.0, fora da faixa), para nenhum teste de janela alcançar o Claude Code real, e `LEARNING_DESK_CLAUDE_DETECT=1` força a detecção mesmo com o SDK simulado. O `tests/packaged-app-ui.mjs` (`npm run test:packaged`) prova o caminho do app instalado num bundle temporário.
 
 ## Fronteira e arquivos
 
 | Arquivo | Responsabilidade |
 | --- | --- |
-| `desk/src/agents/claude-environment.cjs` | Resolve o executável original, confere versão/login e recusa conflitos de API/endpoint sem expor valores |
+| `desk/src/agents/claude-environment.cjs` | Acha o Claude Code do usuário, confere a faixa de versões (núcleo `claudeversion`) e o login e recusa conflitos de API/endpoint sem expor valores |
 | `desk/src/agents/claude-adapter.cjs` | Query nativa, mensagens, permissões, controles, cancelamento e histórico |
 | `desk/src/agents/claude-controls.cjs` | Catálogo, capacidade de esforço e validação da escolha |
 | `desk/src/agents/claude-turn-policy.cjs` | Correlação, encerramento, classificação de falhas e avisos de retry/fallback |
@@ -18,7 +32,7 @@ Referência pública: `pingdotgg/t3code`, commit `1604ccc9d79f5270fb8e14d6066418
 | `desk/src/claude-questions.mjs` / `chat.mjs` | Perguntas estruturadas e avisos visíveis |
 | `core/agentcaps.bend` / `agentdelivery.bend` | Capacidades e portões com leis/provas |
 
-Cada conversa fixa seu motor. Conversas Claude usam descritor JSON com ID local e ID nativo separado; conversas Pi preservam JSONL. Nenhum processo Pi é iniciado para transportar uma conversa Claude. A Mesa usa o binário autenticado pelo usuário, não realiza login nem guarda tokens. Não altera configuração global do Claude.
+Cada conversa fixa seu motor. Conversas Claude usam descritor JSON com ID local e ID nativo separado; conversas Pi preservam JSONL. Nenhum processo Pi é iniciado para transportar uma conversa Claude. A Mesa usa o Claude Code autenticado pelo usuário, não realiza login nem guarda tokens. Não altera configuração global do Claude.
 
 O workspace da conversa fica no runtime da Mesa; não recebe symlink do vault inteiro ou o perfil Pi. Contexto de estudo e referências são escolhidos pelo fluxo da Mesa. O processo usa `settingSources:[]`, MCP explicitamente isolado e auto-update desligado apenas no subprocesso.
 
@@ -40,7 +54,7 @@ Resultado correlacionado encerra o turno. Resultado sem eco de UUID só liquida 
 
 Cancelamento explícito com aceite comprovado e fim nativo observado encerra como `settled`, com `cancelled:true` e `uncertain:false`. A fila permanece guardada. Crash sem cancelamento, fechamento pelo host ou falha de persistência mantêm a decisão conservadora. Uma entrega incerta bloqueia envio e controles, inclusive depois de reabrir; nunca é reenviada automaticamente.
 
-Nova Query usa `sessionId` para sessão nova ou `resume` para sessão estabelecida, nunca ambos. Uma Query que só leu catálogo não estabelece sessão de estudo. Após cancelamento com encerramento nativo, a próxima consulta retoma o ID exato.
+Nova Query usa `sessionId` para sessão nova ou `resume` para sessão estabelecida, nunca ambos. Uma Query que só leu catálogo não estabelece sessão de estudo. Na reconexão, principal e lateral voltam a aplicar a escolha acima a partir do launcher atual do usuário; `pinnedExecutable` registra apenas o último binário observado e serve de candidato sem launcher. Trocar o SDK ou a versão do CLI não troca o ID nativo nem atualiza o CLI pessoal. Após cancelamento com encerramento nativo, a próxima consulta retoma o ID exato.
 
 ## Permissões e perguntas
 
@@ -74,8 +88,8 @@ npm run verify:bend
 node tests/ui-smoke.mjs
 ```
 
-`test:claude-ui` roda em sequência os harnesses de integração geral, controles, ciclo de vida e recuperação. Todos usam runtime temporário e SDK artificial, sem login/inferência. Resultados e contagens atuais ficam no [registro da segunda rodada](STATUS-MESA-T3-CLAUDE-2026-10-05.md).
+`test:claude-ui` roda em sequência os harnesses de integração geral, controles, ciclo de vida, recuperação, fila offline, erro recuperável lateral, atividade, retomada após troca do executável e faixa de versões (`claude-version-range-ui.mjs`, #51: na faixa, mais nova que a testada, abaixo do mínimo e série nova). Todos usam runtime temporário e SDK artificial, sem login/inferência. Resultados e contagens atuais ficam no [registro da segunda rodada](STATUS-MESA-T3-CLAUDE-2026-10-05.md).
 
-Na primeira rodada foi registrado um probe estrutural com SDK/binário original, endpoint local indisponível e custo zero: spawn/init/replay e erro de API. Isso não comprova inferência autenticada.
+Na primeira rodada foi registrado um probe estrutural com SDK/binário do Claude Code, endpoint local indisponível e custo zero: spawn/init/replay e erro de API. Isso não comprova inferência autenticada.
 
-Pendente em conta real: resposta e imagem/Xournal++, catálogo e troca de modelo/esforço, permissões, cancelamento, retomada e limites da assinatura. Compactação manual, steer, forks/agentes em segundo plano, `resume_return` e remoção de parciais retratados continuam fora deste experimento.
+Pendente em conta real: o Claude Code do usuário numa versão da faixa diferente da testada (2.1.296–2.1.300) num turno autenticado, resposta e imagem/Xournal++, catálogo e troca de modelo/esforço, permissões, cancelamento, retomada e limites da assinatura. Compactação manual, steer, forks/agentes em segundo plano, `resume_return` e remoção de parciais retratados continuam fora deste experimento.

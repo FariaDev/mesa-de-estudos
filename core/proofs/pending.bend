@@ -84,3 +84,60 @@ def Laws.pending_retry_third():
 
 def Laws.pending_retry_outside():
   {==}
+
+def Laws.pending_kept_off_text():
+  {==}
+
+def Laws.pending_kept_off_image_only():
+  {==}
+
+def Laws.pending_kept_off_blank():
+  {==}
+
+def Laws.pending_kept_off_connected():
+  {==}
+
+def Laws.pending_kept_off_busy():
+  {==}
+
+def Laws.pending_kept_off_command():
+  {==}
+
+def Laws.pending_label_kept_one():
+  {==}
+
+def Laws.pending_label_kept_many():
+  {==}
+
+def Laws.pending_label_plain_when_answering():
+  {==}
+
+def Laws.pending_label_recovered_wins():
+  {==}
+
+def Laws.pending_answered_now():
+  {==}
+
+def Laws.pending_answered_already():
+  {==}
+
+def Laws.pending_answered_dropped():
+  {==}
+
+def Laws.pending_answered_still_off():
+  {==}
+
+def Laws.pending_hold_after_answer_uncertain():
+  {==}
+
+def Laws.pending_hold_after_answer_cancelled():
+  {==}
+
+def Laws.pending_hold_after_answer_free():
+  {==}
+
+def Laws.pending_hold_after_answer_busy():
+  {==}
+
+def Laws.pending_hold_after_answer_permission():
+  {==}

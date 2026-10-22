@@ -67,15 +67,6 @@ def Laws.resume_record_shape():
 def Laws.resume_record_caps():
   {==}
 
-def Laws.resume_title_both():
-  {==}
-
-def Laws.resume_title_sem_questao():
-  {==}
-
-def Laws.resume_where_label():
-  {==}
-
 def Laws.resume_next_label():
   {==}
 
@@ -85,26 +76,11 @@ def Laws.resume_end_day_draft():
 def Laws.resume_draft():
   {==}
 
-def Laws.resume_card_tag():
+def Laws.resume_go_label():
   {==}
 
-def Laws.resume_card_class():
+def Laws.resume_new_label():
   {==}
 
-def Laws.resume_card_title_class():
-  {==}
-
-def Laws.resume_card_line_class():
-  {==}
-
-def Laws.resume_go_class():
-  {==}
-
-def Laws.resume_go_click():
-  {==}
-
-def Laws.resume_dismiss_class():
-  {==}
-
-def Laws.resume_dismiss_click():
+def Laws.resume_forget_label():
   {==}

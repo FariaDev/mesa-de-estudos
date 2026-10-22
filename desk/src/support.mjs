@@ -1,17 +1,21 @@
 import {$,S,save,updateContextSummary} from './state.mjs';
-import {labelBtn} from './state.mjs';
+import {icon} from '../icons.mjs';
+import {t} from './ui-text.mjs';
 import {mountSidechat,sidechatElement,setSidechatVisible} from './sidechat.mjs';
 
 /* ---------------------------------------------------------------------------
-   Área de apoio: o controle sempre visível que alterna o segundo leitor
-   (Formulário) e o chat lateral, e recolhe/reabre a área inteira.
+   Área de apoio: o segundo leitor (Formulário) e o chat lateral dividem o
+   mesmo lugar, à direita do primeiro leitor. Não há barra de abas: o chat abre
+   e fecha pelo botão do cabeçalho do tutor e pelo cabeçalho dele próprio
+   (`toggleSidechat`); o Formulário volta pelo menu Estudar
+   (`toggleReferencePanel`) ou pela faixa `#support-restore`, que ocupa o lugar
+   do segundo leitor recolhido.
 
    - O painel 2 NÃO é recriado: ele é movido uma vez para dentro do
      `#support-slot` (o `loadCourse` recria os painéis a cada matéria) e depois
      só recebe `hidden` — documento, página, zoom e rolagem sobrevivem.
-   - Recolher esconde o conteúdo mas deixa a barra de abas visível (affordance
-     clara); o `#reference-toggle` do menu Estudar continua alternando o painel 2
-     com o mesmo significado de antes (`aria-pressed`).
+   - O `#reference-toggle` do menu Estudar alterna o painel 2 com o mesmo
+     significado de antes (`aria-pressed`).
    - Estado por matéria em `localStorage` (`mesa.support`), isolado do
      `desk.json`; o default do autor (2 leitores = Formulário aberto; 1 leitor =
      apoio recolhido) é preservado.
@@ -19,7 +23,9 @@ import {mountSidechat,sidechatElement,setSidechatVisible} from './sidechat.mjs';
 
 const KEY='mesa.support';
 export const supportState={courseId:'',two:false,formLabel:'Formulário',tab:'form',open:true,ready:false};
-let slot=null,body=null,sidechatMounted=false;
+let slot=null,body=null,restore=null,sidechatMounted=false;
+/* Onde a área de apoio estava antes de o chat abrir (para fechar devolver). */
+let chatBefore=null;
 
 function readStore(){
  try{const raw=JSON.parse(localStorage.getItem(KEY));return raw&&typeof raw==='object'?raw:{};}catch{return {};}
@@ -34,23 +40,6 @@ function persist(){
 }
 function defaults(){
  return supportState.two?{tab:'form',open:true}:{tab:'chat',open:false};
-}
-
-export function initSupport(){
- const form=$('#support-tab-form'),chat=$('#support-tab-chat'),collapse=$('#support-collapse');
- if(form)form.addEventListener('click',()=>selectTab('form'));
- if(chat)chat.addEventListener('click',()=>selectTab('chat'));
- if(collapse)collapse.addEventListener('click',()=>setOpen(!supportState.open));
- for(const tab of [form,chat].filter(Boolean))tab.addEventListener('keydown',event=>{
-  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
-  const tabs=[form,chat].filter(button=>button&&!button.hidden&&!button.disabled);
-  if(!tabs.length)return;
-  event.preventDefault();event.stopPropagation();
-  const index=tabs.indexOf(tab);
-  const next=event.key==='Home'?tabs[0]:event.key==='End'?tabs.at(-1):tabs[(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length];
-  selectTab(next===form?'form':'chat');
-  next.focus();
- });
 }
 
 /* A matéria entra: estado salvo por matéria manda; sem estado salvo vale o
@@ -94,7 +83,13 @@ function ensureSlot(grid){
  slot.hidden=true;
  body=document.createElement('div');
  body.id='support-body';
- slot.append(body);
+ restore=document.createElement('button');
+ restore.type='button';
+ restore.id='support-restore';
+ restore.hidden=true;
+ restore.innerHTML=`<span class="pdf-restore-icon">${icon('chevronLeft')}</span><span class="pdf-restore-label"></span>`;
+ restore.addEventListener('click',()=>selectTab('form'));
+ slot.append(restore,body);
  grid.append(slot);
  if(sidechatElement())body.append(sidechatElement());
 }
@@ -133,42 +128,36 @@ function setPanelVisible(panel,visible){
  else restore();
 }
 
-function paintBar(){
- const bar=$('#support-bar');
- if(!bar)return;
- bar.hidden=false;
- const form=$('#support-tab-form'),chat=$('#support-tab-chat'),collapse=$('#support-collapse');
- if(form){
-  form.hidden=!supportState.two;
-  form.textContent=supportState.formLabel;
-  form.setAttribute('aria-selected',String(supportState.tab==='form'&&supportState.open));
-  form.tabIndex=supportState.two&&supportState.tab==='form'?0:-1;
- }
- if(chat){chat.setAttribute('aria-selected',String(supportState.tab==='chat'&&supportState.open));chat.tabIndex=supportState.tab==='chat'||!supportState.two?0:-1;}
- if(collapse){
-  collapse.setAttribute('aria-expanded',String(supportState.open));
-  const label=supportState.open?'Recolher a área de apoio':`Mostrar ${supportState.tab==='chat'?'o chat lateral':'o formulário'}`;
-  collapse.title=label;
-  collapse.setAttribute('aria-label',label);
-  labelBtn(collapse,supportState.open?'chevronRight':'chevronLeft',supportState.open?'Recolher':(supportState.tab==='chat'?'Chat lateral':'Formulário'));
- }
- bar.dataset.tab=supportState.tab;
- bar.dataset.open=String(supportState.open);
+/* Com dois leitores e a área recolhida, o slot vira uma faixa estreita com o
+   rótulo na vertical (a mesma forma do leitor recolhido); um clique reabre o
+   Formulário. Com um leitor só não há o que reabrir. */
+function paintRestore(collapsed){
+ if(!restore)return;
+ restore.hidden=!collapsed;
+ const label=supportState.formLabel;
+ restore.title=t('palette.refToggle.show',{name:label});
+ restore.setAttribute('aria-label',t('palette.refToggle.show',{name:label}));
+ const text=restore.querySelector('.pdf-restore-label');
+ if(text&&text.textContent!==label)text.textContent=label;
 }
 
 export function apply(){
  if(!supportState.ready)return;
  const grid=$('#pdf-grid');
  if(!grid)return;
- paintBar();
  const showForm=supportState.two&&supportState.open&&supportState.tab==='form';
  const showChat=supportState.open&&supportState.tab==='chat';
+ const collapsed=supportState.two&&!supportState.open;
+ paintRestore(collapsed);
  $('#references')?.classList.toggle('support-chat',showChat);
  /* O painel 2 é escondido/mostrado ANTES da classe `chat` entrar no corpo: o
     `display:none` do CSS zeraria a leitura da rolagem no momento de salvar. */
  const panel1=S.panels?.[1];
  if(panel1)setPanelVisible(panel1,showForm);
- if(slot)slot.hidden=!(showForm||showChat);
+ if(slot){
+  slot.hidden=!(showForm||showChat||collapsed);
+  slot.classList.toggle('collapsed',collapsed);
+ }
  if(body)body.classList.toggle('chat',showChat);
  if(S.pdfDivider)S.pdfDivider.hidden=!(supportState.two&&supportState.open);
  grid.classList.toggle('single',!supportState.two||!supportState.open);
@@ -179,6 +168,8 @@ export function apply(){
  if(toggle)toggle.setAttribute('aria-pressed',String(showForm));
  setSidechatVisible(showChat);
  updateContextSummary();
+ /* O botão do chat lateral do cabeçalho do tutor reflete o mesmo estado. */
+ window.dispatchEvent(new Event('desk-support-changed'));
 }
 
 export function selectTab(tab){
@@ -207,6 +198,33 @@ export function toggleReferencePanel(){
  apply();
  persist();save();
 }
+
+export function sidechatOpen(){return !!supportState.open&&supportState.tab==='chat';}
+
+/* Abre e fecha o chat lateral (botão do cabeçalho do tutor e botão Fechar do
+   cabeçalho dele): sem estado próprio além de lembrar o que estava antes.
+   Fechar devolve a área ao que estava antes de abrir (o Formulário, aberto ou
+   recolhido); sem esse registro, com dois leitores volta ao Formulário e com
+   um recolhe a área. */
+export function toggleSidechat(){
+ if(!supportState.ready)return;
+ if(!sidechatOpen()){
+  chatBefore={tab:supportState.tab,open:supportState.open};
+  selectTab('chat');
+  return;
+ }
+ const before=chatBefore;chatBefore=null;
+ if(supportState.two){
+  selectTab('form');
+  if(before&&before.tab==='form'&&before.open===false)setOpen(false);
+  return;
+ }
+ setOpen(false);
+}
+
+/* O botão Fechar do cabeçalho do chat lateral avisa por evento (o módulo do
+   chat não importa este). Só fecha se ele estiver aberto. */
+window.addEventListener('desk-sidechat-close',()=>{if(sidechatOpen())toggleSidechat();});
 
 export function supportTab(){return supportState.tab;}
 export function supportOpen(){return supportState.open;}

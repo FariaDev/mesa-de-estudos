@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-10-17",
+  "source": "https://opencode.ai/docs/zen/",
+  "liveListUrl": "https://opencode.ai/inference/v1/models",
+  "note": "Política de dados dos modelos grátis do OpenCode Zen, conforme a documentação do Zen na data acima (a de cat-jam-free e step-5-preview-free vem da conferência de 2026-10-15 da issue #44: a página de hoje já não os lista). `policy`: zero (não guarda nem treina), retained (não treina, guarda 30 dias), improve (pode usar para melhorar o modelo), trial (só teste: sem dados pessoais), train (treina modelos da Meta). `recommended` é a ordem de preferência do padrão, só com policy zero. A ordem ainda é PROVISÓRIA: o roteiro docs/manual/modelos-gratuitos.md (que gasta a chave de quem rodar) decide quem é bom em ferramentas.",
+  "recommendedVerified": false,
+  "models": {
+    "deepseek-v4.1-flash-free": {"policy": "zero", "recommended": true},
+    "glm-5.3-flash-free": {"policy": "zero", "recommended": true},
+    "space-bunny-free": {"policy": "zero", "recommended": true},
+    "longcat-2.5-preview-free": {"policy": "zero", "recommended": true},
+    "step-5-preview-free": {"policy": "zero"},
+    "cat-jam-free": {"policy": "retained"},
+    "beam-free": {"policy": "retained", "note": "indisponível em alguns países (Rússia, Irã, China, Venezuela…)"},
+    "big-pickle": {"policy": "improve"},
+    "exo-free": {"policy": "improve"},
+    "mimo-v2.6-flash-free": {"policy": "improve"},
+    "mimo-v2.5-free": {"policy": "improve"},
+    "ll-alpha-free": {"policy": "improve", "note": "também guarda por 30 dias"},
+    "nemotron-3-ultra-free": {"policy": "trial"},
+    "nemotron-3.5-lightning-free": {"policy": "trial"},
+    "nemotron-3.5-super-vl-free": {"policy": "trial"},
+    "muse-spark-1.3-contributor-free": {"policy": "train"}
+  },
+  "excluded": {
+    "jev-1.13-free": "formato próprio de API (`systemone`) e sem política publicada: fora da lista até haver motivo para oferecê-lo"
+  }
+}

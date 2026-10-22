@@ -1,0 +1,87 @@
+/* Modelo Apostila: texto justificado com recuo de parágrafo, equações centradas
+   numeradas (c.n) à direita, tabelas ao estilo LaTeX, definições com enunciado
+   em itálico e exemplos; cabeçalho corrente com o capítulo em itálico. */
+
+@page apostila{
+  size:A4;
+  margin:22mm 16mm 22mm;
+  @top-left{
+    width:50%;
+    font:9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    border-bottom:.5pt solid #111;
+    vertical-align:bottom;
+    padding-bottom:1.6mm;
+  }
+  @top-right{
+    width:50%;
+    font:italic 9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    text-align:right;
+    color:#111;
+    border-bottom:.5pt solid #111;
+    vertical-align:bottom;
+    padding-bottom:1.6mm;
+  }
+  @bottom-center{
+    font:9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    vertical-align:top;
+    padding-top:1.6mm;
+  }
+}
+
+.pdf-doc .pdf-model[data-model="apostila"]{page:apostila;--page-h:253mm;text-align:justify}
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-run-head .pdf-run-r{font-style:italic}
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-run-foot{border-top:0;text-align:center;justify-content:center}
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-run-foot .pdf-run-l{display:none}
+.pdf-doc .pdf-model[data-model="apostila"] h1.pdf-title{text-align:center;margin-top:3mm}
+.pdf-doc .pdf-model[data-model="apostila"] h2{text-align:left;font-size:1.3em;font-weight:700;margin:1.3em 0 .5em}
+.pdf-doc .pdf-model[data-model="apostila"] h3{text-align:left;font-size:1.12em;font-weight:700;margin:1.15em 0 .45em}
+.pdf-doc .pdf-model[data-model="apostila"] h4{text-align:left;font-style:italic;font-weight:600}
+
+.pdf-doc .pdf-model[data-model="apostila"] p{margin:0;text-indent:1.5em}
+.pdf-doc .pdf-model[data-model="apostila"][data-recuo="0"] p{margin:.5em 0;text-indent:0}
+.pdf-doc .pdf-model[data-model="apostila"] h1+p,
+.pdf-doc .pdf-model[data-model="apostila"] h2+p,
+.pdf-doc .pdf-model[data-model="apostila"] h3+p,
+.pdf-doc .pdf-model[data-model="apostila"] .math-display+p,
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-def p,
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-exemplo p{text-indent:0}
+
+/* Equações: centradas, número (c.n) à direita. */
+.pdf-doc .pdf-model[data-model="apostila"] .math-display{position:relative;margin:.55em 0}
+.pdf-doc .pdf-model[data-model="apostila"] .math-display[data-eq]{padding:0 3.4em}
+.pdf-doc .pdf-model[data-model="apostila"] .math-display[data-eq]::after{
+  content:"(" attr(data-eq) ")";
+  position:absolute;
+  right:0;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:.95em;
+}
+
+/* Tabelas: dupla fina só em cima e embaixo, filete sob o cabeçalho e depois da
+   primeira coluna, sem bordas laterais. */
+.pdf-doc .pdf-model[data-model="apostila"] table{
+  border-collapse:collapse;
+  margin:.9em auto;
+  border-top:2.4pt double #111;
+  border-bottom:2.4pt double #111;
+  font-size:.95em;
+}
+.pdf-doc .pdf-model[data-model="apostila"] th,
+.pdf-doc .pdf-model[data-model="apostila"] td{
+  border:0;
+  background:none;
+  padding:.28em .8em;
+  text-align:center;
+}
+.pdf-doc .pdf-model[data-model="apostila"] thead th{border-bottom:.5pt solid #111;font-weight:700}
+.pdf-doc .pdf-model[data-model="apostila"] th:first-child,
+.pdf-doc .pdf-model[data-model="apostila"] td:first-child{border-right:.5pt solid #111;text-align:left}
+
+/* Definição/teorema: enunciado em itálico; exemplo recuado. */
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-def{margin:.8em 0;break-inside:avoid}
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-def p{font-style:italic}
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-def strong{font-style:normal}
+.pdf-doc .pdf-model[data-model="apostila"] .pdf-exemplo{margin:.8em 0;padding-left:1.2em}

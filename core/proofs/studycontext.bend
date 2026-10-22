@@ -32,7 +32,7 @@ def Laws.sc_captura_do_exercicio():
 def Laws.sc_captura_outro_exercicio():
   {==}
 
-def Laws.sc_fato_captura_presente(t, e, m):
+def Laws.sc_fato_captura_presente(t, e, m, a):
   {==}
 
 def Laws.sc_fato_captura_ausente():
@@ -42,4 +42,22 @@ def Laws.sc_fato_refs_vazio():
   {==}
 
 def Laws.sc_fato_refs_um():
+  {==}
+
+def Laws.sc_captura_xournal_mantem_a_redacao():
+  {==}
+
+def Laws.sc_captura_sem_app_e_xournal():
+  {==}
+
+def Laws.sc_captura_de_outro_programa_nomeia_o_app():
+  {==}
+
+def Laws.sc_captura_de_outro_programa_no_bloco():
+  {==}
+
+def Laws.sc_captura_de_outro_programa_nao_diz_xournal():
+  {==}
+
+def Laws.sc_captura_obsoleta_de_outro_programa():
   {==}

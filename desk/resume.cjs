@@ -1,10 +1,11 @@
 'use strict';
+const {message: uiMsg} = require('./src/i18n.mjs');
 
 /* Registro local do "Encerrar por hoje" (Mesa): `runtime/resume.json`.
 
    O Encerrar grava AQUI primeiro (arquivo próprio, um registro por matéria) e
    só depois tenta falar com o Pi: sem conexão, sem provedor ou com o Pi fora do
-   ar, o que o usuário escreveu continua no disco e o cartão de retomada aparece
+   ar, o que o usuário escreveu continua no disco e o "onde parei" aparece
    na próxima abertura.
 
    Fronteira com o núcleo Bend (`core/resume.bend` → `src/generated/resume.core.js`):
@@ -20,6 +21,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const resumeCore = require('./src/generated/resume.core.js').default;
+const {wholeNat} = require('./src/bend-nat.mjs');
 
 const FILENAME = 'resume.json';
 /* Teto de leitura/gravação: um registro por matéria, alguns KB. Arquivo maior
@@ -29,7 +31,7 @@ const MAX_KEY = 120;
 const NIL = {$: 'Nil'};
 
 const fileOf = (runtime) => path.join(runtime, FILENAME);
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('./plain-object.cjs');
 const coreList = (items) => items.reduceRight((tail, head) => ({$: 'Con', head, tail}), NIL);
 const coreArray = (node) => {
   const out = [];
@@ -40,9 +42,7 @@ const coreArray = (node) => {
 /* Uma página do registro: o núcleo apara o caminho e levanta a página para 1. */
 function corePage(ref) {
   const raw = isPlainObject(ref) ? ref : {};
-  const page = Number(raw?.page);
-  const whole = Number.isFinite(page) ? Math.trunc(page) : 0;
-  return resumeCore.pageRef(typeof raw.path === 'string' ? raw.path : '', BigInt(Math.max(0, whole)));
+  return resumeCore.pageRef(typeof raw.path === 'string' ? raw.path : '', wholeNat(raw.page));
 }
 
 /* Registro cru → forma do núcleo → registro do host (JSON puro). `null` quando
@@ -76,7 +76,7 @@ function normalizeRecord(raw) {
 /* Leitura tolerante: sem arquivo, JSON torto, chave estranha ou arquivo maior
    que o teto viram "nada guardado" — e o próximo save regrava. */
 function readStore(runtime) {
-  let text = '';
+  let text;
   try {
     const file = fileOf(runtime);
     if (fs.statSync(file).size > MAX_STORED_BYTES) return {};
@@ -84,7 +84,7 @@ function readStore(runtime) {
   } catch {
     return {};
   }
-  let raw = null;
+  let raw;
   try {
     raw = JSON.parse(text);
   } catch {
@@ -121,16 +121,16 @@ function readResume(runtime, courseId) {
    cartão com isto). Registro sem o miolo é recusado, não gravado pela metade. */
 function saveResume(runtime, courseId, raw) {
   const key = String(courseId || '');
-  if (!key) throw Error('Sem matéria ativa para guardar o registro.');
+  if (!key) throw Error(uiMsg('err.resume.noCourse'));
   const record = normalizeRecord(raw);
-  if (!record) throw Error('Preencha onde parei e o próximo passo.');
+  if (!record) throw Error(uiMsg('err.resume.empty'));
   const store = readStore(runtime);
   store[key] = record;
   writeStore(runtime, store);
   return {...record, pages: record.pages.map((page) => ({...page}))};
 }
 
-/* Apaga o registro da matéria (Retomar/Dispensar). */
+/* Apaga o registro da matéria (Retomar/Esquecer). */
 function clearResume(runtime, courseId) {
   const key = String(courseId || '');
   const store = readStore(runtime);

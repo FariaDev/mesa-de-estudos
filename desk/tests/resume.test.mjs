@@ -14,6 +14,7 @@ import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writ
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
+import {ptMatches} from './pt-text.mjs';
 
 const require = createRequire(import.meta.url);
 const resume = require('../resume.cjs');
@@ -72,10 +73,17 @@ test('texto grande é cortado no teto do núcleo (240) e página vem de qualquer
 test('sem onde parei e próximo passo não há registro (e nada é gravado)', () => {
   withRuntime((runtime) => {
     for (const raw of [{next: 'fazer a 4'}, {stopped: 'travei na 3'}, {stopped: '   ', next: '\t'}, {}]) {
-      assert.throws(() => resume.saveResume(runtime, 'A', raw), /Preencha onde parei/, JSON.stringify(raw));
+      assert.throws(() => resume.saveResume(runtime, 'A', raw), ptMatches(/Preencha onde parei/), JSON.stringify(raw));
     }
     assert.equal(existsSync(fileOf(runtime)), false, 'registro recusado não cria arquivo');
     assert.equal(resume.readResume(runtime, 'A'), null);
+  });
+});
+
+test('sem matéria ativa não há onde guardar', () => {
+  withRuntime((runtime) => {
+    assert.throws(() => resume.saveResume(runtime, '', {stopped: 'x', next: 'y'}), ptMatches(/Sem matéria ativa/));
+    assert.equal(existsSync(fileOf(runtime)), false);
   });
 });
 

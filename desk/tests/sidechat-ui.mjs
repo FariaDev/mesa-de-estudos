@@ -1,18 +1,19 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,writeDeskJson,seedSession,tinyPdf,statusOnline,toastWait} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,writeDeskJson,seedSession,tinyPdf,statusOnline,toastWait,menuLocator,openSessionList,tutorMore} from './helpers.mjs';
+import {pollUntil} from './waits.mjs';
 
 /* Smoke Electron da área de apoio + chat lateral (frontend).
    Exercita o fluxo REAL: IPC/backend do chat lateral, fake Pi, PDFs de teste.
-   Cobre: abas Formulário×Chat, recolher/reabrir preservando o leitor, chat
+   Cobre: Formulário×Chat sem barra de abas, recolher/reabrir preservando o leitor, chat
    lateral (histórico, rascunho persistente, stream, Markdown/LaTeX), "Levar ao
    chat principal" sem enviar, pedido/permissão respondido no canal lateral,
    stop, contexto explícito, conversas da matéria, referências com estado,
    caderno no cabeçalho, tema nas Configurações e integração do módulo Layout. */
 
 async function openSidechatTab(page){
- await page.locator('#support-tab-chat').click();
+ await page.locator('#sidechat-toggle').click();
  await page.waitForFunction(()=>{const sc=document.querySelector('#sidechat');return sc&&!sc.hidden;},{timeout:10000});
  await page.waitForFunction(()=>{
   const box=document.querySelector('#sidechat-messages');
@@ -48,24 +49,31 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  await page.waitForSelector('.pdf-panel canvas',{timeout:25000});
 
  /* ---- 1. Controle sempre visível + alternância sem perder o leitor ---- */
- await page.waitForSelector('#support-bar',{timeout:10000});
- assert.equal(await page.locator('#support-bar').isVisible(),true,'a barra da área de apoio fica visível');
- assert.equal(await page.locator('#support-tab-form').isVisible(),true,'com 2 leitores o Formulário aparece');
- assert.equal(await page.locator('#support-tab-form').getAttribute('aria-selected'),'true','o Formulário é a aba inicial');
+ assert.equal(await page.locator('#support-bar').count(),0,'não há barra de abas de apoio');
+ assert.equal(await page.locator('#reference-toggle').getAttribute('aria-pressed'),'true','com 2 leitores o Formulário é o que aparece primeiro');
+ assert.equal(await page.locator('#sidechat-toggle').getAttribute('aria-pressed'),'false','o chat lateral começa fechado');
  assert.equal(await page.locator('#support-slot .pdf-panel').count(),1,'o painel 2 é movido para o slot (não recriado)');
  assert.equal(await page.locator('#pdf-grid > .pdf-panel').count(),1,'o painel 1 fica na grade');
  const panel2=page.locator('.pdf-panel').nth(1);
- for(let i=0;i<4;i++)await panel2.locator('.in').click();
+ for(let i=0;i<4;i++)await menuLocator(panel2,'.in').click();
  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[1]?.querySelector('.zoom-label')?.textContent!=='100%',undefined,{timeout:5000});
+ await page.waitForFunction(()=>{const v=document.querySelectorAll('.pdf-panel')[1]?.querySelector('.pdf-viewport');return v&&v.scrollHeight>v.clientHeight+40;},undefined,{timeout:10000});
  await panel2.locator('.pdf-viewport').evaluate(el=>{el.scrollTop=Math.max(30,el.scrollHeight-el.clientHeight-10);el.dispatchEvent(new Event('scroll'));});
- await page.waitForTimeout(500);
+ let lastScroll=null;
+ await pollUntil(async()=>{
+  const now=await panel2.locator('.pdf-viewport').evaluate(el=>el.scrollTop+'/'+el.scrollHeight);
+  const same=now===lastScroll;
+  lastScroll=now;
+  return same?now:null;
+ },now=>now!==null,{interval:100,what:'a rolagem do painel 2 parar'});
  const savedPanel={path:await panel2.locator('.pdf-select').inputValue(),zoom:await panel2.locator('.zoom-label').textContent(),scroll:await panel2.locator('.pdf-viewport').evaluate(el=>el.scrollTop)};
  assert.ok(savedPanel.scroll>0,'o leitor de apoio rolou para o teste');
- await page.locator('#support-tab-chat').click();
+ await page.locator('#sidechat-toggle').click();
  await page.waitForFunction(()=>!document.querySelector('#sidechat').hidden,{timeout:10000});
  assert.equal(await panel2.isVisible(),false,'o Formulário sai de cena com o Chat lateral');
- await page.locator('#support-tab-form').click();
- await page.waitForTimeout(1200);
+ await page.locator('#sidechat-close').click();
+ await panel2.waitFor({state:'visible',timeout:10000}).catch(()=>{});
+ await pollUntil(()=>panel2.locator('.pdf-viewport').evaluate(el=>el.scrollTop),top=>Math.abs(top-savedPanel.scroll)<=8,{what:'a rolagem do painel 2 voltar',onTimeout:'return'});
  assert.equal(await panel2.isVisible(),true,'o Formulário volta');
  assert.equal(await panel2.locator('.pdf-select').inputValue(),savedPanel.path,'o documento do painel 2 é preservado');
  assert.equal(await panel2.locator('.zoom-label').textContent(),savedPanel.zoom,'o zoom do painel 2 é preservado');
@@ -76,7 +84,7 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  await openSidechatTab(page);
  assert.equal(await page.locator('#sidechat').getAttribute('data-state'),null,'o chat lateral abriu (sem estado de indisponível)');
  await page.locator('#sidechat-prompt').fill('pergunta inicial');
- await page.waitForTimeout(800);
+ await pollUntil(()=>sidechatFiles(runtime),found=>found.descriptors.length>=1,{what:'o descritor do chat lateral no disco',onTimeout:'return'});
  let files=await sidechatFiles(runtime);
  assert.ok(files.descriptors.length>=1,'o backend persistiu o descritor do chat lateral');
  await page.locator('#sidechat-prompt').fill('teorema do chat lateral');
@@ -94,11 +102,11 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  assert.match(draft,/^rascunho principal existente\n\n/,'o rascunho principal é preservado e a resposta é anexada');
  assert.match(draft,/Pitágoras/,'a resposta lateral entrou no rascunho');
  assert.equal(await page.locator('#messages .message.user').count(),beforeMessages,'nada foi enviado ao principal');
- await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('rascunho do chat principal'));
+ await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('rascunho da sessão principal'));
 
  /* ---- 4. Rascunho e histórico persistem no reload ---- */
  await page.locator('#sidechat-prompt').fill('rascunho lateral persistente');
- await page.waitForTimeout(900);
+ await pollUntil(()=>sidechatFiles(runtime),found=>found.descriptors.some(item=>item.draft==='rascunho lateral persistente'),{what:'o rascunho lateral no disco',onTimeout:'return'});
  files=await sidechatFiles(runtime);
  const live=files.descriptors.find(item=>item.draft==='rascunho lateral persistente');
  assert.ok(live,'o backend guardou o rascunho do lateral');
@@ -110,10 +118,11 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  assert.ok(await page.locator('#sidechat-messages .sidechat-msg.assistant .katex').count()>0,'o histórico com LaTeX volta após o reload');
 
  /* ---- 5. Contexto do principal: detalhes + atualização explícita ---- */
+ await page.locator('#sidechat-more').click();
  await page.locator('#sidechat-context').click();
  await page.waitForFunction(()=>!document.querySelector('#sidechat-context-pop').hidden);
  const ctxText=await page.locator('#sidechat-context-pop').innerText();
- assert.match(ctxText,/Conversa principal/);
+ assert.match(ctxText,/Sessão principal/);
  assert.match(ctxText,/Limites\.pdf/);
  await page.locator('#sidechat-context-pop .primary').click();
  await page.locator('#sidechat-refresh').click();
@@ -123,15 +132,15 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  assert.ok(withStudy,'o contexto atualizado guardou os 2 PDFs abertos');
 
  /* ---- 6. Conversas da matéria (título/data/trecho/motor) ---- */
- await page.locator('#conversations-toggle').click();
+ await openSessionList(page);
  await page.waitForFunction(()=>document.querySelectorAll('#conv-list .conv-row').length>=2,undefined,{timeout:10000});
  const rows=await page.locator('#conv-list .conv-row').evaluateAll(list=>list.map(row=>({title:row.querySelector('.conv-title')?.textContent||'',meta:row.querySelector('.conv-meta')?.textContent||'',preview:row.querySelector('.conv-preview')?.textContent||''})));
- assert.ok(rows.some(row=>row.preview.includes('conversa antiga')),'a prévia da conversa antiga aparece: '+JSON.stringify(rows));
- assert.ok(rows.every(row=>row.title.length>0&&row.meta.length>0),'título e data/motor aparecem em cada conversa');
+ assert.ok(rows.some(row=>row.title.includes('conversa antiga')&&row.preview!==row.title),'a conversa antiga aparece pelo título, sem repeti-lo na prévia: '+JSON.stringify(rows));
+ assert.ok(rows.every(row=>row.title.length>0),'o título (com data e trecho) aparece em cada conversa');
  await page.locator('#prompt').fill('rascunho principal existente');
- await page.waitForTimeout(700);
+ await pollUntil(()=>fs.readFileSync(path.join(runtime,'desk.json'),'utf8'),text=>text.includes('rascunho principal existente'),{what:'o rascunho principal em desk.json',onTimeout:'return'});
  await page.locator('#conv-list .conv-row').filter({hasText:'conversa antiga'}).click();
- await page.waitForFunction(()=>document.querySelector('#session-select')?.value.endsWith('pi-1700000000000.jsonl'),undefined,{timeout:15000});
+ await page.waitForFunction(()=>document.querySelector('#session-title')?.dataset.session.endsWith('pi-1700000000000.jsonl'),undefined,{timeout:15000});
  /* Mesmo caminho do seletor: o estado da conversa antiga vira o atual e o
     rascunho do principal NÃO vaza para a nova conversa. */
  const deskAfterFlip=JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));
@@ -142,29 +151,32 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'','o rascunho do chat lateral não vaza na troca de conversa');
 
  /* ---- 7. Referências: estado claro + detalhes ---- */
- await page.locator('#refs-state').click();
- await page.waitForFunction(()=>!document.querySelector('#refs-pop').hidden);
- const refsText=await page.locator('#refs-pop').innerText();
- assert.match(refsText,/câmera/i,'os detalhes explicam a câmera×referências');
- assert.match(refsText,/página 1/,'os detalhes listam caminho e página');
- await page.locator('#refs-pop .primary').click();
- assert.equal((await page.locator('#refs-state').textContent()).trim(),'PDF e página incluídos');
+ assert.match(await page.locator('#goes-along').textContent(),/\.pdf p\.1/,'a linha Vai junto lista material e página');
  await page.locator('#include-refs').click();
- assert.equal((await page.locator('#refs-state').textContent()).trim(),'Sem referências','desligar o toggle muda o estado visível');
+ assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'false','o alternador mostra o estado desligado');
+ assert.match(await page.locator('#goes-along').textContent(),/Referências desligadas/,'desligar o toggle muda a linha Vai junto');
  await page.locator('#include-refs').click();
+ assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'true');
 
  /* ---- 8. Recolher/reabrir a área de apoio + menu Formulário ---- */
- await page.locator('#support-collapse').click();
- await page.waitForFunction(()=>document.querySelector('#support-slot')?.hidden===true);
- assert.equal(await page.locator('#pdf-grid').evaluate(el=>el.classList.contains('single')),true,'recolher volta ao leitor único');
- assert.equal(await page.locator('#support-collapse').isVisible(),true,'o controle de reabrir continua visível');
- assert.match(await page.locator('#support-collapse').textContent(),/Chat lateral|Formulário/);
- await page.locator('#support-collapse').click();
- await page.waitForFunction(()=>document.querySelector('#support-slot')?.hidden===false);
- await page.locator('#support-tab-chat').click();
+ await page.locator('#sidechat-close').click();
+ await page.waitForFunction(()=>document.querySelector('#sidechat').hidden===true);
+ assert.equal(await page.locator('.pdf-panel').nth(1).isVisible(),true,'fechar o chat lateral devolve o Formulário');
  await page.locator('#study-menu .nav-trigger').click();
  await page.locator('#reference-toggle').click();
- await page.waitForFunction(()=>document.querySelector('#support-tab-form')?.getAttribute('aria-selected')==='true');
+ await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>document.querySelector('#support-restore')?.hidden===false);
+ assert.equal(await page.locator('#pdf-grid').evaluate(el=>el.classList.contains('single')),true,'recolher volta ao leitor único');
+ assert.equal(await page.locator('#support-restore').isVisible(),true,'a faixa de reabrir fica visível');
+ assert.match(await page.locator('#support-restore').getAttribute('aria-label'),/Formulário/);
+ await page.locator('#support-restore').click();
+ await page.waitForFunction(()=>document.querySelector('#support-restore')?.hidden===true);
+ assert.equal(await page.locator('.pdf-panel').nth(1).isVisible(),true,'a faixa reabre o Formulário');
+ await page.locator('#sidechat-toggle').click();
+ await page.waitForFunction(()=>!document.querySelector('#sidechat').hidden);
+ await page.locator('#study-menu .nav-trigger').click();
+ await page.locator('#reference-toggle').click();
+ await page.waitForFunction(()=>document.querySelector('#reference-toggle')?.getAttribute('aria-pressed')==='true');
  assert.equal(await page.locator('.pdf-panel').nth(1).isVisible(),true,'o menu form traz o Formulário de volta');
  await page.keyboard.press('Escape');
 
@@ -174,7 +186,7 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  assert.equal((await page.locator('#review-count').textContent()).trim(),'0','a contagem do caderno aparece no cabeçalho');
  await page.locator('#course-tabs button[data-id="Test"]').click();
  await page.waitForFunction(()=>!document.querySelector('#references')?.classList.contains('review'));
- await page.locator('#chat-collapse').click();
+ await tutorMore(page,'#chat-collapse').click();
  await page.waitForFunction(()=>document.body.classList.contains('chat-collapsed'));
  assert.equal(await page.locator('#chat-restore').isVisible(),true,'recolher o chat deixa o botão de voltar visível');
  await page.locator('#chat-restore').click();
@@ -183,19 +195,22 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  await page.keyboard.press('ControlOrMeta+,');
  await page.waitForSelector('#settings-dialog[open]');
  await page.waitForFunction(()=>document.querySelectorAll('#cfg-layout input, #cfg-layout select').length>0,undefined,{timeout:10000});
+ await page.locator('#settings-tab-avisos').click();
  assert.equal(await page.locator('#theme-mode').inputValue(),themeBefore,'o select do tema reflete o estado');
  await page.locator('#theme-mode').selectOption('dark');
+ await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark',undefined,{timeout:5000});
  await page.locator('#settings-dialog button[value="cancel"]').last().click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
- assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme||'auto'),themeBefore,'Cancelar não aplica o tema');
+ assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark','o tema vale na hora e Cancelar não o desfaz (estado de interface, como o acento)');
  await page.keyboard.press('ControlOrMeta+,');
  await page.waitForSelector('#settings-dialog[open]');
- await page.locator('#theme-mode').selectOption('dark');
+ await page.locator('#settings-tab-avisos').click();
+ assert.equal(await page.locator('#theme-mode').inputValue(),'dark','o select reabre refletindo o tema aplicado');
  await page.locator('#settings-save').click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark',undefined,{timeout:5000}).catch(()=>{});
- assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark','Salvar aplica o tema');
- await page.waitForTimeout(800);
+ assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark','Salvar mantém o tema');
+ await pollUntil(()=>JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8')).theme,theme=>theme==='dark',{what:'o tema em desk.json',onTimeout:'return'});
  assert.equal(JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8')).theme,'dark','o tema fica guardado no estado');
  const cfg=await page.evaluate(()=>window.desk.getConfig());
  assert.equal(cfg.config.desk.panels.length,2,'salvar o tema preserva os 2 painéis');
@@ -256,8 +271,8 @@ await withArtifacts('apoio-um-leitor',async ctx=>{
  await statusOnline(page);
  await page.waitForSelector('.pdf-panel canvas',{timeout:25000});
  assert.equal(await page.locator('.pdf-panel').count(),1,'a matéria tem um leitor só');
- assert.equal(await page.locator('#support-bar').isVisible(),true,'o controle da área de apoio continua visível');
- assert.equal(await page.locator('#support-tab-form').isHidden(),true,'sem 2º leitor não há aba Formulário');
+ assert.equal(await page.locator('#support-restore').isHidden(),true,'sem 2º leitor não há faixa de reabrir');
+ assert.equal(await page.locator('#sidechat-toggle').isVisible(),true,'o botão do chat lateral continua à vista com um leitor');
  assert.equal(await page.locator('#support-slot').isHidden(),true,'o layout padrão (um leitor) fica intacto');
  await openSidechatTab(page);
  assert.equal(await page.locator('#sidechat').isVisible(),true,'o chat lateral abre mesmo com um leitor só');

@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
@@ -146,7 +147,7 @@ def footAttrs(tip: String, hidden: Bool) -> List<&2, V.ViewAttr>:
     V.attrWhen(hidden, V.ViewAttr{"hidden", ""}),
     [V.attrOn("click", "toggleMeterTip")],
     tipAttrs(t),
-    [V.attrAria("label", fallbackLabel(t, "Status do modelo"))]
+    [V.attrAria("label", fallbackLabel(t, M.msg("status.model")))]
   ])
 
 def footStatus(model: String, level: String, context: String, detail: String, +override: String) -> V.ViewNode:
@@ -169,8 +170,10 @@ def meterHot(pct: Nat) -> Bool:
 def meterText(pct: Nat) -> String:
   String.append(Nat.show(pct), "%")
 
-def meterWidth(pct: Nat) -> String:
-  String.append("width:", meterText(pct))
+# A barra enche por transform (scaleX lê a porcentagem): animar `width`
+# forçava layout a cada quadro (#63).
+def meterFill(pct: Nat) -> String:
+  String.append("--meter:", meterText(pct))
 
 def ctxMeter(visible: Bool, pct: Nat) -> V.ViewNode:
   +p = pct
@@ -179,7 +182,7 @@ def ctxMeter(visible: Bool, pct: Nat) -> V.ViewNode:
     V.attrWhen(Bool.not(visible), V.ViewAttr{"hidden", ""}),
     [V.classes([V.classOn("warn", meterWarn(p)), V.classOn("hot", meterHot(p))])]
   ]), [
-    V.viewEl("span", [V.attrClass("bar")], [V.viewEl("i", [V.ViewAttr{"style", meterWidth(p)}], Nil{})]),
+    V.viewEl("span", [V.attrClass("bar")], [V.viewEl("i", [V.ViewAttr{"style", meterFill(p)}], Nil{})]),
     V.viewEl("em", Nil{}, [V.viewText(meterText(p))])
   ])
 
@@ -209,7 +212,7 @@ def statusDot(state: ConnState, label: String) -> V.ViewNode:
   V.viewEl("span", V.attrJoin([
     [V.attrId("status-dot"), V.ViewAttr{"role", "img"}, V.attrClass(connClass(state))],
     tipAttrs(l),
-    [V.attrAria("label", fallbackLabel(l, "Pi desconectado"))]
+    [V.attrAria("label", fallbackLabel(l, M.msg("status.piOff")))]
   ]), Nil{})
 
 # ---------- compactação automática ----------

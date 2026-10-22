@@ -3,15 +3,25 @@
 <head>
 <meta charset="utf-8">
 <!-- Página de impressão offline: nada de rede, nada de script inline. O
-     material chega por IPC, vira HTML pela mesma `markup` do chat (com
-     allowAssets=false) e só depois o main chama o printToPDF. -->
+     material chega por IPC, vira HTML pelo renderizador próprio do template
+     (marked + DOMPurify + KaTeX + highlight, com tokenizador de matemática
+     que respeita escapes/código) e só depois o main chama o printToPDF. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; font-src 'self' file:; img-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>Mesa de Estudos</title>
 <link rel="stylesheet" href="../../node_modules/katex/dist/katex.min.css">
+<link rel="stylesheet" href="../fonts.css">
+<link rel="stylesheet" href="pdf-template.css">
+<link rel="stylesheet" href="pdf-models.css">
+<link rel="stylesheet" href="pdf-model-lista.css">
+<link rel="stylesheet" href="pdf-model-apostila.css">
+<link rel="stylesheet" href="pdf-model-resumo.css">
+<link rel="stylesheet" href="pdf-model-simulado.css">
+<link rel="stylesheet" href="pdf-model-formulario.css">
+<style id="model-page-style"></style>
 <link rel="stylesheet" href="print.css">
 </head>
 <body>
-<main id="doc" class="doc"></main>
+<main id="doc" class="doc pdf-doc"></main>
 <script type="module" src="print.mjs"></script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
@@ -40,9 +41,9 @@ def skTextOr(+raw: String, fallback: String) -> String:
 def skKbdText(effective: String, recording: Bool) -> String:
   match recording:
     case True{}:
-      "Gravando…"
+      M.msg("keys.recording")
     case False{}:
-      skTextOr(effective, "Sem atalho")
+      skTextOr(effective, M.msg("keys.none"))
 
 def skKbdEmpty(effective: String, recording: Bool) -> Bool:
   match recording:
@@ -54,14 +55,14 @@ def skKbdEmpty(effective: String, recording: Bool) -> Bool:
 def skKbdAria.if(effective: String, empty: Bool) -> String:
   match empty:
     case True{}:
-      "Sem atalho"
+      M.msg("keys.none")
     case False{}:
-      "Atalho atual: " ++ effective
+      M.msg1("keys.currentAria", "shortcut", effective)
 
 def skKbdAria(+label: String, +effective: String, recording: Bool) -> String:
   match recording:
     case True{}:
-      "Gravando novo atalho para " ++ label
+      M.msg1("keys.recordingAria", "action", label)
     case False{}:
       skKbdAria.if(effective, String.is_empty(effective))
 
@@ -78,21 +79,21 @@ def skKbdNode(+label: String, +effective: String, +recording: Bool) -> V.ViewNod
   ], [V.viewText(skKbdText(effective, recording))])
 
 def skNoteNode(+note: String) -> V.ViewNode:
-  V.viewEl("span", [V.attrClass("keys-note")], [V.viewText(skTextOr(note, "fixo"))])
+  V.viewEl("span", [V.attrClass("keys-note")], [V.viewText(skTextOr(note, M.msg("keys.fixed")))])
 
 def skRecordLabel(recording: Bool) -> String:
   match recording:
     case True{}:
-      "Cancelar"
+      M.msg("common.cancel")
     case False{}:
-      "Gravar"
+      M.msg("keys.record")
 
 def skRecordAria(label: String, recording: Bool) -> String:
   match recording:
     case True{}:
-      "Cancelar a gravação do atalho de " ++ label
+      M.msg1("keys.cancelAria", "action", label)
     case False{}:
-      "Gravar novo atalho para " ++ label
+      M.msg1("keys.recordAria", "action", label)
 
 def skRecordNode(+id: String, label: String, +recording: Bool) -> V.ViewNode:
   V.viewEl("button", [
@@ -114,7 +115,7 @@ def skResetNode(+id: String, overridden: Bool) -> V.ViewNode:
     , V.attrOn("click", "Reset")
     ],
     V.attrWhen(Bool.not(overridden), V.attr("hidden", ""))
-  ]), [V.viewText("Resetar")])
+  ]), [V.viewText(M.msg("keys.reset"))])
 
 def skRowKids.editable(+id: String, +label: String, +effective: String, note: String, overridden: Bool, +recording: Bool, fixed: Bool) -> List<&2, V.ViewNode>:
   match fixed:
@@ -173,10 +174,24 @@ def skSectionNodes.go(xs: List<&2, ShortcutSectionFact>, +capturing: String) -> 
 def skSectionNodes(xs: List<&2, ShortcutSectionFact>, capturing: String) -> List<&2, V.ViewNode>:
   skSectionNodes.go(xs, capturing)
 
+# O × do cabeçalho (28px, sem borda, como nos outros diálogos) é a única saída
+# visível: o rodapé só guarda "Restaurar padrões". `Done` fecha o diálogo.
+def skCloseNode() -> V.ViewNode:
+  V.viewEl("button", [
+    V.attrType("button"),
+    V.attrId("keys-done"),
+    V.attrKey("keys-done"),
+    V.attrClass("icon-btn dialog-close"),
+    V.attrAria("label", M.msg("keys.closeAria")),
+    V.attrTitle(M.msg("common.close")),
+    V.attrOn("click", "Done")
+  ], [V.viewText("×")])
+
 def skHeadNode() -> V.ViewNode:
   V.viewEl("div", [V.attrClass("keys-head")], [
-    V.viewEl("h2", [V.attrId("keys-title")], [V.viewText("Atalhos de teclado")]),
-    V.viewEl("p", [V.attrClass("keys-sub")], [V.viewText("Clique em Gravar e pressione a combinação nova. Esc cancela a gravação. As escolhas ficam guardadas neste computador.")])
+    V.viewEl("h2", [V.attrId("keys-title")], [V.viewText(M.msg("keys.title"))]),
+    skCloseNode(),
+    V.viewEl("p", [V.attrClass("keys-sub")], [V.viewText(M.msg("keys.lead"))])
   ])
 
 def skGroupsNode(sections: List<&2, ShortcutSectionFact>, capturing: String) -> V.ViewNode:
@@ -207,13 +222,7 @@ def skFooterNode(hasOverrides: Bool) -> V.ViewNode:
       , V.attrOn("click", "ResetAll")
       ],
       V.attrWhen(Bool.not(hasOverrides), V.attr("disabled", ""))
-    ]), [V.viewText("Restaurar padrões")]),
-    V.viewEl("button", [
-      V.attrType("button"),
-      V.attrId("keys-done"),
-      V.attrKey("keys-done"),
-      V.attrOn("click", "Done")
-    ], [V.viewText("Fechar")])
+    ]), [V.viewText(M.msg("keys.resetAll"))])
   ])
 
 def skDialogChildren(fact: ShortcutDialogFact) -> List<&2, V.ViewNode>:

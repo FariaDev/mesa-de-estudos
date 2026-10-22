@@ -4,6 +4,8 @@ import DOMPurify from '../node_modules/dompurify/dist/purify.es.mjs';
 import {highlightCode} from '../highlight.mjs';
 import {build,htmlNode} from './view-host.mjs';
 import talkCore from './generated/talkview.core.js';
+import {plotFigure} from './figures/plot-figure.mjs';
+import {svgSafeConfig} from './figures/svg-guard.mjs';
 
 /* Renderer Markdown+LaTeX compartilhado (chat principal e chat lateral). Mesmo
    pipeline do chat.mjs de sempre: o host reescreve fórmulas/figuras como
@@ -29,13 +31,15 @@ export function markup(text,allowAssets=true){
  // realce dos blocos de código: fora do DOMPurify via placeholder (os spans não são tags seguras lá)
  const codes=[];
  html=html.replace(/<pre><code(?: class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g,(all,lang,code)=>{
+  /* Cerca `plot` (#60): vira a figura (ou o aviso) e segue pelo DOMPurify junto com o resto. */
+  if(lang==='plot')return plotFigure(unescHtml(code)).html;
   codes.push(`<pre class="hl"><code data-lang="${attrValue(lang||'')}">${highlightCode(unescHtml(code),lang)}</code></pre>`);
   return `CODEPLACEHOLDER${codes.length-1}END`;
  });
  html=html.replace(/MATHPLACEHOLDER(\d+)END/g,(_,n)=>math[n]);
  const figure=n=>{const asset=assets[Number(n)];return `<figure class="asset" data-asset="${attrValue(asset.source)}"${asset.alt?` data-caption="${attrValue(asset.alt)}"`:''}></figure>`;};
  html=html.replace(/<p>\s*ASSETPLACEHOLDER(\d+)END\s*<\/p>/g,(_,n)=>figure(n)).replace(/ASSETPLACEHOLDER(\d+)END/g,(_,n)=>figure(n));
- return DOMPurify.sanitize(html,{FORBID_TAGS:['style','iframe','form','input','button'],FORBID_ATTR:['srcset']})
+ return DOMPurify.sanitize(html,svgSafeConfig(DOMPurify,{FORBID_TAGS:['style','iframe','form','input','button'],FORBID_ATTR:['srcset']}))
   .replace(/CODEPLACEHOLDER(\d+)END/g,(_,n)=>codes[Number(n)]||'');
 }
 /* Markdown+LaTeX de um trecho curto (opção de quiz, observação): sem o <p>

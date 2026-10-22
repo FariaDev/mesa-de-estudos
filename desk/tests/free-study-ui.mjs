@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {launchDesk,seedCourse,writeConfigJson,writeDeskJson,tinyPdf,withArtifacts} from './helpers.mjs';
+import {launchDesk,seedCourse,writeConfigJson,writeDeskJson,tinyPdf,withArtifacts,freeMenuClick,resizeWindow} from './helpers.mjs';
+import {layoutStable} from './waits.mjs';
 
 /* Runtime sintético em /tmp antes do `app.whenReady` (o main deriva o userData
    dele quando LEARNING_DESK_RUNTIME aponta para cá); o PDF sintético vive na
@@ -32,7 +33,7 @@ await withArtifacts('free-study-ui',async ctx=>{
  const errors=[];
  page.on('pageerror',error=>errors.push(error.message));
  await page.waitForSelector('.pdf-panel');
- await page.waitForTimeout(300);
+ await layoutStable(page,'.pdf-panel');
 
  /* ---------- mesa normal: nada da aba Livre aparece ---------- */
  assert.equal(await page.locator('#free-bar').isHidden(),true,'barra Livre escondida na matéria');
@@ -90,7 +91,7 @@ await withArtifacts('free-study-ui',async ctx=>{
  assert.equal(await page.locator('#references').evaluate(el=>el.classList.contains('free-empty')),true,'sem PDF a sessão entra no vazio');
  assert.equal(await page.locator('#free-empty').isVisible(),true,'texto orientado visível');
  assert.equal(await page.locator('#pdf-grid').isHidden(),true,'leitores escondidos no vazio');
- assert.equal(await page.locator('#support-bar').isHidden(),true,'área de apoio escondida no vazio');
+ assert.equal(await page.locator('#support-restore').isHidden(),true,'sem faixa de reabrir no vazio');
  assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.pdf-panel .pdf-select')].filter(select=>select.value).length),0,'a sessão livre recomeça sem PDF');
  const emptySidebar=await page.locator('#sidebar').evaluate(el=>el.getBoundingClientRect().width);
  assert.ok(emptySidebar>=320,`no vazio a conversa ocupa espaço útil (${emptySidebar}px)`);
@@ -151,12 +152,12 @@ await withArtifacts('free-study-ui',async ctx=>{
  });
  await page.waitForFunction(()=>!!document.querySelector('#composer .queue-strip'),undefined,{timeout:10000});
  assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('.queue-item span')].map(span=>span.textContent)),['rascunho na fila'],'pending do initialData repõe a fila da sessão');
- await page.waitForTimeout(800);
+ await page.waitForTimeout(800);// espera fixa: "nada acontece em 0,8 s" — a fila adotada não envia sozinha
  assert.equal(await page.locator('#messages .message.user').count(),0,'fila adotada não envia sozinha');
  assert.equal(await page.evaluate(async()=>{const {S}=await import('./src/state.mjs');return S.busy;}),false,'fila adotada não abre turno');
 
  /* ---------- gerar PDF: prévia, erro inline e salvar ---------- */
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.waitForSelector('#free-pdf-dialog[open]');
  assert.equal(await page.locator('#free-pdf-source').isDisabled(),true,'sem resposta a origem fica desabilitada');
  assert.equal(await page.locator('#free-pdf-content').inputValue(),'','sessão sem resposta começa em branco para colar');
@@ -178,7 +179,7 @@ await withArtifacts('free-study-ui',async ctx=>{
   add('Segunda resposta com $y^2$');
   add('Em andamento, não entra','typing');
  });
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.waitForSelector('#free-pdf-dialog[open]');
  assert.equal(await page.locator('#free-pdf-source').isEnabled(),true,'respostas habilitam a origem');
  assert.equal(await page.locator('#free-pdf-source option').count(),2,'só respostas concluídas entram na origem');
@@ -189,7 +190,7 @@ await withArtifacts('free-study-ui',async ctx=>{
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>!document.querySelector('#free-pdf-dialog').open);
  await page.evaluate(()=>{for(const element of document.querySelectorAll('#messages article[data-fake="free-test"]'))element.remove();});
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.waitForSelector('#free-pdf-dialog[open]');
  assert.equal(await page.locator('#free-pdf-source').isDisabled(),true,'sem respostas a origem volta a ficar desabilitada');
  await page.locator('#free-pdf-title').fill('Resumo sintético');
@@ -243,23 +244,23 @@ await withArtifacts('free-study-ui',async ctx=>{
  /* ---------- cancelar, Esc e Enter: teclado sem chamar o host à toa ---------- */
  const savedCalls=()=>page.evaluate(()=>window.__freeCalls.filter(call=>call.api==='freeSaveMaterial').length);
  const before=await savedCalls();
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.waitForSelector('#free-pdf-dialog[open]');
  await page.locator('#free-pdf-dialog button[value="cancel"]').last().click();
  await page.waitForFunction(()=>!document.querySelector('#free-pdf-dialog').open);
  assert.equal(await savedCalls(),before,'cancelar não salva nada');
  /* O diálogo nativo devolve o foco ao gatilho; a sessão livre não sequestra o
     teclado depois de fechar. */
- assert.equal(await page.evaluate(()=>document.activeElement&&document.activeElement.id),'free-generate-pdf','Cancelar devolve o foco ao botão que abriu');
- await page.locator('#free-generate-pdf').click();
+ assert.equal(await page.evaluate(()=>document.activeElement&&document.activeElement.id),'free-more','Cancelar devolve o foco ao gatilho do menu que abriu');
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.waitForSelector('#free-pdf-dialog[open]');
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>!document.querySelector('#free-pdf-dialog').open);
  assert.equal(await savedCalls(),before,'Esc não salva nada');
- assert.equal(await page.evaluate(()=>document.activeElement&&document.activeElement.id),'free-generate-pdf','Esc devolve o foco ao botão que abriu');
+ assert.equal(await page.evaluate(()=>document.activeElement&&document.activeElement.id),'free-more','Esc devolve o foco ao gatilho do menu que abriu');
  /* O botão `×` é o primeiro submit do formulário: Enter no título precisa
     confirmar a ação principal, não fechar. */
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.waitForSelector('#free-pdf-dialog[open]');
  await page.locator('#free-pdf-title').fill('PDF por teclado');
  await page.locator('#free-pdf-content').fill('conteúdo por teclado');
@@ -290,7 +291,7 @@ await withArtifacts('free-study-ui',async ctx=>{
  assert.equal(await page.evaluate(()=>window.__convEvents),0,'renomear (mesmo escopo) não anuncia troca de conversa');
 
  /* ---------- criar matéria: cancelar (Enter) e confirmar ---------- */
- await page.locator('#free-promote').click();
+ await freeMenuClick(page,'#free-promote');
  await page.waitForSelector('#free-promote-dialog[open]');
  assert.equal(await page.locator('#free-promote-session').textContent(),'Sessão renomeada','prévia mostra a conversa');
  assert.match(await page.locator('#free-promote-materials').textContent(),/sessao-sintetica\.pdf/,'prévia lista os materiais');
@@ -344,7 +345,7 @@ await withArtifacts('free-study-ui',async ctx=>{
    window.__resolveSave=()=>resolve({saved:true,material:{id:'x',name:'x'},data:window.__freePayload({state:{},workspace:{kind:'free',title:'Tarde demais'}})});
   });
  });
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.locator('#free-pdf-title').fill('Tarde demais');
  await page.locator('#free-pdf-content').fill('conteúdo atrasado');
  await page.locator('#free-pdf-save').click();
@@ -352,13 +353,13 @@ await withArtifacts('free-study-ui',async ctx=>{
  await page.evaluate(()=>window.__applyWorkspace(window.__freePayload({state:{},course:'Mesa',courseId:'Mesa',workspace:{kind:'course',id:'Mesa',title:'Mesa'}})));
  await page.waitForFunction(()=>document.querySelector('#free-bar').hidden);
  await page.evaluate(()=>window.__resolveSave());
- await page.waitForTimeout(400);
+ await page.waitForTimeout(400);// espera fixa: "nada acontece em 0,4 s" — o resultado atrasado não pode reabrir a aba Livre
  assert.equal(await page.locator('#free-bar').isHidden(),true,'resultado atrasado não reabre a aba Livre');
  assert.equal(await page.locator('#free-pdf-dialog').evaluate(dialog=>dialog.open),false,'sair do Livre fecha o diálogo');
 
  /* ---------- host autoritativo: payload livre com matéria real ativa não pinta ---------- */
  await page.evaluate(()=>window.__dispatchWorkspace(window.__freePayload({state:{},workspace:{title:'Fora de hora'}})));
- await page.waitForTimeout(200);
+ await page.waitForTimeout(200);// espera fixa: "nada acontece em 0,2 s" — payload livre sem troca real não reabre a aba
  assert.equal(await page.locator('#free-bar').isHidden(),true,'payload livre sem troca real não reabre a aba');
  assert.equal(await page.locator('main').evaluate(el=>el.classList.contains('workspace-free')),false,'main continua sem a marca Livre');
  assert.equal(await page.locator('#pdf-grid').isVisible(),true,'grade normal continua visível');
@@ -391,7 +392,7 @@ await withArtifacts('free-study-ui',async ctx=>{
    window.__resolveStale=()=>resolve({saved:true,material:{id:'stale',name:'stale'},data:window.__freePayload({state:{chatWidth:511},library:[{path:'/tmp/nao-deve-aparecer.pdf',name:'stale.pdf'}],workspace:{kind:'free',title:'Sessão A'},session:'pi-livre-A.jsonl'})});
   });
  });
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.locator('#free-pdf-title').fill('A');
  await page.locator('#free-pdf-content').fill('conteúdo A');
  await page.locator('#free-pdf-save').click();
@@ -401,7 +402,7 @@ await withArtifacts('free-study-ui',async ctx=>{
  await page.waitForFunction(()=>document.querySelector('#free-title')?.value==='Sessão B');
  await page.evaluate(async()=>{const {showHistory}=await import('./src/chat.mjs');showHistory([{role:'assistant',content:[{type:'text',text:'Histórico da sessão B'}]}]);});
  await page.evaluate(()=>window.__resolveStale());
- await page.waitForTimeout(500);
+ await page.waitForTimeout(500);// espera fixa: "nada acontece em 0,5 s" — o resultado atrasado não troca título nem histórico da sessão atual
  assert.equal(await page.locator('#free-title').inputValue(),'Sessão B','resultado atrasado não troca o título da sessão atual');
  assert.match(await page.locator('#messages').textContent(),/Histórico da sessão B/,'resultado atrasado não substitui o histórico da sessão atual');
  assert.doesNotMatch(await page.locator('#messages').textContent(),/Histórico da sessão A/);
@@ -424,9 +425,8 @@ await withArtifacts('free-study-ui',async ctx=>{
  assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--chat').trim()),'505px','medida final é da carga posterior');
 
  /* ---------- 900x650: barra, diálogo e o vazio caibam na janela ---------- */
- await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(900,650));
- await page.waitForFunction(()=>innerWidth<=910&&innerHeight<=660,undefined,{timeout:10000}).catch(()=>{});
- await page.waitForTimeout(300);
+ await resizeWindow(app,page,900,650);
+ await layoutStable(page,'main');
  await page.evaluate(()=>window.__applyWorkspace(window.__freePayload({state:{},workspace:{title:'Sessão sintética'}})));
  await page.waitForFunction(()=>!document.querySelector('#free-bar').hidden);
  const barFit=await page.evaluate(()=>{
@@ -434,9 +434,43 @@ await withArtifacts('free-study-ui',async ctx=>{
   return {top:rect.top,bottom:rect.bottom,left:rect.left,right:rect.right};
  });
  assertInside('barra Livre',barFit,await page.evaluate(()=>innerWidth),await page.evaluate(()=>innerHeight));
+ /* Barra enxuta (#38): Abrir PDF e PDF pelo tutor seguem à vista, com texto, em
+    900×650; Montar PDF, Adicionar à matéria e Criar matéria moram no ···. */
+ const barView=await page.evaluate(()=>{
+  const vis=sel=>{const el=document.querySelector(sel),box=el.getBoundingClientRect(),style=getComputedStyle(el);return style.display!=='none'&&box.width>0&&box.height>0;};
+  const text=sel=>document.querySelector(sel).innerText.trim();
+  const bar=document.querySelector('#free-bar').getBoundingClientRect();
+  return {
+   open:[vis('#free-open-pdf'),text('#free-open-pdf')],tutor:[vis('#free-tutor-pdf'),text('#free-tutor-pdf')],
+   more:vis('#free-more'),menuHidden:document.querySelector('#free-more-pop').hidden,
+   items:['#free-generate-pdf','#free-add-material','#free-promote'].map(sel=>vis(sel)),
+   over:document.querySelector('#free-bar').scrollWidth-document.querySelector('#free-bar').clientWidth,barRight:bar.right,
+   moreRight:document.querySelector('#free-more').getBoundingClientRect().right,
+  };
+ });
+ assert.deepEqual(barView.open,[true,'Abrir PDF'],'900×650: Abrir PDF segue com texto');
+ assert.deepEqual(barView.tutor,[true,'PDF pelo tutor'],'900×650: PDF pelo tutor segue com texto');
+ assert.equal(barView.more,true,'900×650: o menu ··· está na barra');
+ assert.equal(barView.menuHidden,true,'o menu não abre sozinho');
+ assert.deepEqual(barView.items,[false,false,false],'Montar PDF, Adicionar à matéria e Criar matéria saem da barra');
+ assert.ok(barView.over<=1,`900×650: a barra não estoura (${barView.over}px)`);
+ await page.locator('#free-more').click();
+ await page.locator('#free-more-pop').waitFor({state:'visible'});
+ assert.equal(await page.locator('#free-more').getAttribute('aria-expanded'),'true');
+ assert.deepEqual(await page.locator('#free-more-pop button').evaluateAll(list=>list.map(el=>el.textContent.trim())),['Montar PDF','Adicionar à matéria…','Criar matéria'],'os três itens, nesta ordem');
+ const popFit=await page.evaluate(()=>{const r=document.querySelector('#free-more-pop').getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};});
+ assertInside('menu Mais opções da Livre',popFit,await page.evaluate(()=>innerWidth),await page.evaluate(()=>innerHeight));
+ await page.keyboard.press('Escape');
+ await page.locator('#free-more-pop').waitFor({state:'hidden'});
+ assert.equal(await page.locator('#free-more').getAttribute('aria-expanded'),'false');
+ assert.equal(await page.evaluate(()=>document.activeElement?.id),'free-more','Esc devolve o foco ao ···');
+ await page.locator('#free-more').click();
+ await page.locator('#free-more-pop').waitFor({state:'visible'});
+ await page.locator('#messages').click({position:{x:4,y:4},force:true}).catch(()=>{});
+ await page.waitForFunction(()=>document.querySelector('#free-more-pop').hidden);
  const smallSidebar=await page.locator('#sidebar').evaluate(el=>el.getBoundingClientRect().width);
  assert.ok(smallSidebar>=320,`900x650: vazio mantém a conversa útil (${smallSidebar}px)`);
- await page.locator('#free-generate-pdf').click();
+ await freeMenuClick(page,'#free-generate-pdf');
  await page.waitForSelector('#free-pdf-dialog[open]');
  const dialogFit=await page.evaluate(()=>{
   const dialog=document.querySelector('#free-pdf-dialog');

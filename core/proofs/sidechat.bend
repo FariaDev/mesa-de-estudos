@@ -89,3 +89,17 @@ def Laws.sidechat_contexto_novo_reenvia():
 
 def Laws.sidechat_contexto_nunca_entregue_reenvia():
   {==}
+
+# --- linha de escopo (ticket #19) ---
+
+def Laws.sidechat_escopo_um_material():
+  {==}
+
+def Laws.sidechat_escopo_dois_materiais():
+  {==}
+
+def Laws.sidechat_escopo_sem_material():
+  {==}
+
+def Laws.sidechat_escopo_acao_unica():
+  {==}

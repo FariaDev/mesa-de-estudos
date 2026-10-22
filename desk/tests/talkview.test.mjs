@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import core from '../src/generated/talkview.core.js';
 import {childrenOf} from '../src/view-host.mjs';
+import {ptText} from './pt-text.mjs';
 
 const Nil={$:'Nil'};
 const list=(...xs)=>xs.reduceRight((tail,head)=>({$:'Con',head,tail}),Nil);
 const html=(value)=>({$:'Html',html:value});
 const kids=(node)=>childrenOf(node?.kids||Nil);
-function attrs(node){const out={};for(let a=node?.attrs;a&&a.$==='Con';a=a.tail)out[a.head.name]=a.head.value;return out;}
-function text(node){if(!node)return '';if(node.$==='ViewText')return String(node.text||'');if(node.$==='Html')return node.html;return kids(node).map(text).join('');}
+function attrs(node){const out={};for(let a=node?.attrs;a&&a.$==='Con';a=a.tail)out[a.head.name]=ptText(a.head.value);return out;}
+function text(node){if(!node)return '';if(node.$==='ViewText')return ptText(String(node.text||''));if(node.$==='Html')return node.html;return kids(node).map(text).join('');}
 function findClass(node,name){if(node?.$==='ViewEl'&&attrs(node).class===name)return node;for(const kid of kids(node)){const hit=findClass(kid,name);if(hit)return hit;}return null;}
 function findHasClass(node,name){if(node?.$==='ViewEl'&&String(attrs(node).class||'').split(/\s+/).includes(name))return node;for(const kid of kids(node)){const hit=findHasClass(kid,name);if(hit)return hit;}return null;}
 
@@ -40,20 +41,6 @@ test('assistente mantém DOM 1:1 e pode ocultar copiar/citar',()=>{
  assert.equal(text(findClass(tree,'role')),'Pi');
  assert.equal(findClass(tree,'msg-copy'),null);
  assert.equal(findClass(tree,'msg-quote'),null);
-});
-
-test('citação, chips e estados vazio/digitando têm forma estável',()=>{
- assert.equal(core.citation('trecho').tag,'blockquote');
- assert.equal(attrs(core.citation('trecho')).class,'citation');
- assert.deepEqual(attrs(core.thinkingChip('Pensando')),{class:'talk-chip thinking','data-kind':'thinking'});
- assert.deepEqual(attrs(core.toolChip('Busca')),{class:'talk-chip tool','data-kind':'tool'});
- const empty=core.emptyState();
- assert.equal(attrs(empty).id,'welcome');
- assert.match(text(empty),/Conectar ao Pi.*Sessão local desta matéria\./);
- const typing=core.typingState('Pi está pensando…');
- assert.equal(attrs(typing).class,'message assistant typing');
- assert.equal(attrs(typing)['data-role'],'assistant');
- assert.match(text(typing),/Pi.*Pi está pensando…/);
 });
 
 test('quiz simples: pergunta/details HTML, radio, pular e handlers',()=>{

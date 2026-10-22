@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<title>flood</title>
+</head>
+<body>
+<script>
+  let sent = 0;
+  const pump = () => {
+    for (let i = 0; i < 2000; i += 1) { parent.postMessage({flood: sent++}, '*'); }
+    if (sent < 400000) setTimeout(pump, 0);
+    else parent.postMessage({probe: 'flood-done', detail: sent}, '*');
+  };
+  window.__floodSent = () => sent;
+  pump();
+</script>
+</body>
+</html>

@@ -35,257 +35,23 @@
  * uma sessão JSONL por chat Pi e `index.json` (conversa principal → id atual).
  * Tudo é gravado de forma atômica; nada antigo é apagado por troca de escopo. */
 
-const fs = require('node:fs');
-const path = require('node:path');
 const crypto = require('node:crypto');
 const {boundMessages} = require('./src/agents/conversations.cjs');
 const conversations = require('./src/agents/conversations.cjs');
 const {MAX_DRAFT} = require('./state-adapter.cjs');
 const core = require('./src/generated/sidechat.core.js').default;
-
-const SCHEMA_VERSION = 1;
-const ID_RE = /^sc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const MAX_REFS = 2;
-const MAX_PATH = 4096;
-const MAX_PAGE = 100000;
-const MAX_MESSAGE_ID = 200;
-const MAX_DIALOG_IDS = 32;
-const STATUS_BY_CORE = Object.freeze({
-  Idle: 'idle',
-  Transmitting: 'transmitting',
-  Accepted: 'accepted',
-  Settled: 'settled',
-  Refused: 'refused',
-  Uncertain: 'uncertain',
-});
-const CORE_BY_STATUS = Object.freeze(Object.fromEntries(Object.entries(STATUS_BY_CORE).map(([coreName, name]) => [name, coreName])));
-const STATUSES = new Set(Object.values(STATUS_BY_CORE));
-
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-const nowMs = (value) => (Number.isFinite(value) ? Math.trunc(value) : 0);
-
-/* Envelope do bloco de contexto enviado ao motor: o digest começa por
-   CONTEXT_START e o host fecha com CONTEXT_END antes da fala original. É o que
-   permite exibir o histórico sem o bloco interno sem reescrever o descritor. */
-const CONTEXT_START = '[Contexto do chat lateral]';
-const CONTEXT_END = '[Fim do contexto do chat lateral]';
-const CONTEXT_END_MARKER = `\n${CONTEXT_END}\n\n`;
-
-/* Texto de exibição de uma fala do usuário: corta o envelope de contexto quando
-   presente. Fora do envelope nada muda (o texto não é reescrito). */
-function displayUserText(text) {
-  if (typeof text !== 'string' || !text.startsWith(CONTEXT_START)) return text;
-  const at = text.indexOf(CONTEXT_END_MARKER);
-  return at === -1 ? text : text.slice(at + CONTEXT_END_MARKER.length);
-}
-
-/* Projeção de exibição do cache do motor. O Claude guarda no cache/descritor o
-   texto que FOI ao motor (com o bloco de contexto); a UI recebe só a fala. A
-   história nativa e o arquivo em disco ficam intactos — é cópia para payload. */
-function displayMessages(messages) {
-  return (Array.isArray(messages) ? messages : []).map((message) => {
-    if (!isPlainObject(message) || message.role !== 'user' || !Array.isArray(message.content)) return message;
-    return {
-      ...message,
-      content: message.content.map((part) =>
-        isPlainObject(part) && part.type === 'text' && typeof part.text === 'string' ? {...part, text: displayUserText(part.text)} : part),
-    };
-  });
-}
-
-function fail(message) {
-  throw Error(message);
-}
-
-/* ---------- store ---------- */
-
-function sidechatsDir(runtime) {
-  return path.join(runtime, 'sidechats');
-}
-function descriptorPath(runtime, id) {
-  return path.join(sidechatsDir(runtime), `${id}.json`);
-}
-function piSessionPath(runtime, id) {
-  return path.join(sidechatsDir(runtime), `${id}.jsonl`);
-}
-function indexFile(runtime) {
-  return path.join(sidechatsDir(runtime), 'index.json');
-}
-
-function writeAtomic(file, value) {
-  const tmp = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
-  fs.mkdirSync(path.dirname(file), {recursive: true});
-  fs.writeFileSync(tmp, JSON.stringify(value));
-  try {
-    fs.renameSync(tmp, file);
-  } catch (error) {
-    try {
-      fs.unlinkSync(tmp);
-    } catch {}
-    throw error;
-  }
-}
-
-function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-function readIndex(runtime) {
-  const raw = readJson(indexFile(runtime));
-  const mapping = isPlainObject(raw?.mapping) ? raw.mapping : {};
-  const clean = {};
-  for (const [session, id] of Object.entries(mapping)) {
-    if (typeof session === 'string' && typeof id === 'string' && ID_RE.test(id)) clean[session] = id;
-  }
-  return clean;
-}
-
-function writeIndex(runtime, mapping) {
-  writeAtomic(indexFile(runtime), {version: SCHEMA_VERSION, mapping});
-}
-
-function validContext(raw) {
-  if (!isPlainObject(raw)) return null;
-  if (typeof raw.mainSession !== 'string') return null;
-  const refs = safeRefs(raw.refs);
-  if (!refs) return null;
-  if (!isPlainObject(raw.study)) return null;
-  if (typeof raw.digest !== 'string' || raw.digest.length > 200000) return null;
-  if (typeof raw.key !== 'string' || raw.key.length > 4000) return null;
-  return {
-    mainSession: raw.mainSession,
-    refs,
-    study: {title: String(raw.study.title || '').slice(0, 240), xopp: String(raw.study.xopp || '').slice(0, MAX_PATH)},
-    at: nowMs(raw.at) || Date.now(),
-    digest: raw.digest,
-    key: raw.key,
-  };
-}
-
-function validDelivery(raw) {
-  if (raw === null || raw === undefined) return null;
-  if (!isPlainObject(raw)) return null;
-  if (typeof raw.id !== 'string' || !raw.id || raw.id.length > MAX_MESSAGE_ID) return null;
-  if (!STATUSES.has(raw.status)) return null;
-  return {id: raw.id, status: raw.status, at: nowMs(raw.at) || Date.now()};
-}
-
-/* Descritor válido (schema exato). Fora disso é null — nunca se adivinha. */
-function validDescriptor(raw, id) {
-  if (!isPlainObject(raw)) return false;
-  if (raw.schemaVersion !== SCHEMA_VERSION || raw.id !== id) return false;
-  if (raw.engine !== 'pi' && raw.engine !== 'claude') return false;
-  if (typeof raw.mainSession !== 'string' || !raw.mainSession) return false;
-  if (typeof raw.courseId !== 'string') return false;
-  if (!Number.isFinite(raw.createdAt) || raw.createdAt < 0) return false;
-  if (!Number.isFinite(raw.updatedAt) || raw.updatedAt < 0) return false;
-  if (typeof raw.draft !== 'string' || raw.draft.length > MAX_DRAFT) return false;
-  if (!Array.isArray(raw.messages)) return false;
-  if (!validContext(raw.context)) return false;
-  if (typeof raw.contextDeliveredKey !== 'string') return false;
-  if (raw.engine === 'pi') {
-    if (typeof raw.session !== 'string' || !raw.session) return false;
-    if (raw.claude != null) return false;
-  } else {
-    if (typeof raw.claude !== 'string' || !raw.claude) return false;
-    if (raw.session != null) return false;
-  }
-  if (raw.delivery !== null && raw.delivery !== undefined && !validDelivery(raw.delivery)) return false;
-  return true;
-}
-
-function readDescriptorRaw(runtime, id) {
-  if (typeof id !== 'string' || !ID_RE.test(id)) return null;
-  const file = descriptorPath(runtime, id);
-  let stat;
-  try {
-    stat = fs.statSync(file);
-  } catch {
-    return null;
-  }
-  if (!stat.isFile() || stat.size > 20 * 1024 * 1024) return null;
-  const raw = readJson(file);
-  if (!validDescriptor(raw, id)) return null;
-  raw.context = validContext(raw.context);
-  raw.delivery = validDelivery(raw.delivery);
-  return raw;
-}
-
-function saveDescriptor(runtime, descriptor) {
-  writeAtomic(descriptorPath(runtime, descriptor.id), descriptor);
-}
-
-/* ---------- refs ---------- */
-
-/* Leitura tolerante para o descritor lido do disco: nunca lança (arquivo
-   editado à mão vira "não é descritor", não derruba o IPC). */
-function safeRefs(raw) {
-  if (!Array.isArray(raw) || raw.length > MAX_REFS) return null;
-  const out = [];
-  for (const item of raw) {
-    if (!isPlainObject(item) || typeof item.path !== 'string' || !item.path || item.path.length > MAX_PATH) return null;
-    const page = item.page === undefined || item.page === null ? 1 : Math.trunc(Number(item.page));
-    if (!Number.isFinite(page) || page < 1 || page > MAX_PAGE) return null;
-    out.push({path: item.path, page});
-  }
-  return out;
-}
-
-/* Validação estrita da entrada do IPC (referências do renderer): erro claro. */
-function normalizeRefs(raw) {
-  if (raw == null) return [];
-  if (!Array.isArray(raw)) fail('Referências inválidas: envie uma lista de páginas.');
-  if (raw.length > MAX_REFS) fail('Referências demais: no máximo duas páginas.');
-  const out = [];
-  for (const item of raw) {
-    if (!isPlainObject(item) || typeof item.path !== 'string' || !item.path) fail('Referência inválida: selecione as páginas de novo.');
-    if (item.path.length > MAX_PATH) fail('Referência inválida: caminho grande demais.');
-    const page = item.page === undefined || item.page === null ? 1 : Math.trunc(Number(item.page));
-    if (!Number.isFinite(page) || page < 1 || page > MAX_PAGE) fail('Referência inválida: página fora do intervalo.');
-    out.push({path: item.path, page});
-  }
-  return out;
-}
-
-/* ---------- eventos ---------- */
-
-const DISPLAY_ROLES = new Set(['user', 'assistant', 'toolResult']);
-
-/* Mensagens de exibição do Pi entram na ordem em que chegam. Nada de dedupe por
-   igualdade: duas respostas idênticas seguidas são legítimas (o mesmo pedido
-   repetido) e o RPC emite um `message_end` por mensagem. O teto do descritor
-   corta do começo. */
-function appendMessage(descriptor, message) {
-  if (!isPlainObject(message) || !DISPLAY_ROLES.has(message.role)) return false;
-  const list = Array.isArray(descriptor.messages) ? descriptor.messages : [];
-  list.push(message);
-  descriptor.messages = boundMessages(list);
-  return true;
-}
-
-/* ---------- listagem read-only de conversas da matéria ---------- */
-
-/* Mapeia a lista que o main já monta (`courseSessions`) para o contrato da UI:
-   nada de I/O, nada de agente — só o que já foi lido. */
-function conversationList(sessions, {max = 100} = {}) {
-  return (Array.isArray(sessions) ? sessions : [])
-    .slice(0, Math.max(0, max))
-    .map((session) => ({
-      id: String(session?.path || ''),
-      title: String(session?.label || ''),
-      preview: String(session?.preview || '').slice(0, 200),
-      at: nowMs(session?.started),
-      engine: session?.engine === 'claude' ? 'claude' : 'pi',
-    }))
-    .filter((entry) => entry.id);
-}
+const {message: uiMsg} = require('./src/i18n.mjs');
+const {CONTEXT_END_MARKER, CORE_BY_STATUS, ID_RE, MAX_DIALOG_IDS, MAX_MESSAGE_ID, SCHEMA_VERSION, STATUS_BY_CORE, appendMessage, conversationList, descriptorPath, displayMessages, displayUserText, fail, isPlainObject, normalizeRefs, nowMs, piSessionPath, readDescriptorRaw, readIndex, saveDescriptor, sidechatsDir, validDescriptor, writeIndex} = require('./sidechat-store.cjs');
 
 /* ---------- manager ---------- */
 
+/**
+ * Chats laterais da conversa principal: escopo, limites, motor e gravação.
+ * @param {{runtime: string, current: () => {session: string, courseId: string, engine: string, courseName: string},
+ *   snapshot: (request: {refs: Array<{path: string, page: number}>}) => object, validPdf: (path: string) => string,
+ *   createEngine: (request: {engine: string, id: string, descriptor: {claude?: object, session?: string}, onEvent: (event: object) => void}) => object,
+ *   emit: (payload: object) => void, log: (scope: string, line: string) => void, now?: () => number}} options
+ */
 function createSideChatManager({runtime, current, snapshot, validPdf, createEngine, emit, log, now = Date.now} = {}) {
   if (typeof runtime !== 'string' || !runtime) fail('runtime obrigatório para o chat lateral.');
   if (typeof current !== 'function') fail('current() obrigatório para o chat lateral.');
@@ -329,12 +95,12 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     const id = typeof input === 'string' ? input : input?.id;
     if (typeof id !== 'string' || !ID_RE.test(id)) fail('Chat lateral inválido.');
     const descriptor = readDescriptorRaw(runtime, id);
-    if (!descriptor) fail('Chat lateral não encontrado.');
+    if (!descriptor) fail(uiMsg('err.sidechat.notFound'));
     const ctx = current();
     if (!core.scoped(descriptor.mainSession, ctx.session, descriptor.courseId, ctx.courseId)) {
-      fail('Este chat lateral não pertence à conversa atual.');
+      fail(uiMsg('err.sidechat.wrongSession'));
     }
-    if (descriptor.engine !== ctx.engine) fail('O motor desta conversa mudou; abra um novo chat lateral.');
+    if (descriptor.engine !== ctx.engine) fail(uiMsg('err.sidechat.engineChanged'));
     const existing = active.get(id);
     if (existing && existing.descriptor.mainSession === descriptor.mainSession) {
       /* O descritor em memória é a fonte viva; relê o arquivo só para o
@@ -399,7 +165,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
          continua recuperável. */
       if (other.descriptor.mainSession === entry.descriptor.mainSession || !core.scoped(other.descriptor.mainSession, ctx.session, other.descriptor.courseId, ctx.courseId)) {
         markInterrupted(other);
-        closeEntry(id, other, other.descriptor.mainSession === entry.descriptor.mainSession ? 'canal substituído' : 'outra conversa');
+        closeEntry(id, other, other.descriptor.mainSession === entry.descriptor.mainSession ? 'canal substituído' : 'outra sessão');
         active.delete(id);
       }
     }
@@ -452,7 +218,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     if (descriptor.engine === 'claude') {
       conversations.recoverClaudeConversation(descriptor.claude, {runtime});
       const record = conversations.readClaudeConversation(descriptor.claude, {runtime});
-      if (!record) fail('O registro desta conversa Claude está indisponível. O arquivo foi preservado; abra um novo chat lateral.');
+      if (!record) fail(uiMsg('err.sidechat.recordMissing'));
     }
     let channel;
     channel = createEngine({engine: descriptor.engine, id: descriptor.id, descriptor, onEvent: (event) => routeEvent(descriptor.id, channel, event)});
@@ -550,7 +316,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     const ctx = current();
     const snap = snapshot({refs: clean});
     if (!isPlainObject(snap) || snap.mainSession !== ctx.session || typeof snap.digest !== 'string' || typeof snap.key !== 'string') {
-      fail('Não foi possível copiar o contexto do chat principal.');
+      fail(uiMsg('err.sidechat.copyFail'));
     }
     return {
       mainSession: snap.mainSession,
@@ -586,7 +352,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       session: ctx.engine === 'pi' ? piSessionPath(runtime, id) : null,
       claude: ctx.engine === 'claude' ? conversations.createClaudeConversation({runtime, courseId: ctx.courseId}) : null,
     };
-    if (!validDescriptor(descriptor, id)) fail('Não foi possível criar o chat lateral.');
+    if (!validDescriptor(descriptor, id)) fail(uiMsg('err.sidechat.createFail'));
     saveDescriptor(runtime, descriptor);
     return descriptor;
   }
@@ -605,7 +371,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
          (o snapshot congelado manda) — só um chat novo copia. */
       normalizeRefs(input.refs);
       const ctx = current();
-      let entry = null;
+      let entry;
       if (input.fresh !== true) {
         const mapping = readIndex(runtime);
         const existing = readDescriptorRaw(runtime, mapping[ctx.session]);
@@ -621,7 +387,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
         }
       }
       const snap = snapshotOrFail(input.refs);
-      if (snap.mainSession !== ctx.session) fail('A conversa principal mudou durante a abertura; tente de novo.');
+      if (snap.mainSession !== ctx.session) fail(uiMsg('err.sidechat.mainChanged'));
       const descriptor = newDescriptor(ctx, snap);
       const mapping = readIndex(runtime);
       mapping[ctx.session] = descriptor.id;
@@ -643,12 +409,12 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       const entry = resolve(input);
       const descriptor = entry.descriptor;
       if (typeof input.text !== 'string' || !input.text.trim()) fail('Mensagem inválida.');
-      if (input.text.length > MAX_DRAFT) fail('Mensagem grande demais para o chat lateral.');
+      if (input.text.length > MAX_DRAFT) fail(uiMsg('err.sidechat.tooLong'));
       if (descriptor.delivery?.status === 'transmitting') {
-        return {sent: false, retryable: true, error: 'O envio anterior ainda não foi confirmado; aguarde um instante.'};
+        return {sent: false, retryable: true, error: uiMsg('err.sidechat.pending')};
       }
       if (descriptor.engine === 'claude' && uncertainOf(entry)) {
-        return {sent: false, retryable: false, uncertain: true, error: 'A entrega anterior está incerta; abra um novo chat lateral para continuar sem repetir a mensagem.'};
+        return {sent: false, retryable: false, uncertain: true, error: uiMsg('err.sidechat.uncertain')};
       }
       /* As refs persistidas no snapshot podem ter saído da biblioteca desde a
          abertura (configuração/matéria mudou). O snapshot NÃO é trocado em
@@ -663,7 +429,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
           return {
             sent: false,
             retryable: true,
-            error: 'Uma referência do contexto saiu da biblioteca desta matéria; atualize o contexto do chat lateral e tente de novo.',
+            error: uiMsg('err.sidechat.refLeft'),
           };
         }
       }
@@ -674,7 +440,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
         return {sent: false, retryable: false, error: String(error?.message || error)};
       }
       if (descriptor.engine === 'claude' && uncertainOf(entry)) {
-        return {sent: false, retryable: false, uncertain: true, error: 'A entrega anterior está incerta; abra um novo chat lateral para continuar sem repetir a mensagem.'};
+        return {sent: false, retryable: false, uncertain: true, error: uiMsg('err.sidechat.uncertain')};
       }
       /* O lateral NÃO tem fila nem follow-up: com o canal ocupado o envio é
          recusado nos DOIS motores (mesma regra `canPrompt`). Sem um turno
@@ -682,7 +448,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
          é o que dispensa identidade de turno nos eventos do Pi. */
       const mustWait = channel.isBusy?.() === true;
       if (!core.canPrompt(mustWait, descriptor.delivery?.status === 'transmitting')) {
-        return {sent: false, retryable: true, error: 'Aguarde o turno atual antes de enviar outra mensagem.'};
+        return {sent: false, retryable: true, error: uiMsg('err.sidechat.waitTurn')};
       }
       const includeContext = !!context.digest && core.contextChanged(descriptor.contextDeliveredKey || '', context.key || '');
       const text = input.text.trim();
@@ -720,7 +486,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
         if (!stillCurrent()) {
           /* Interrompido: o `uncertain` do markInterrupted já está no disco. O
              desfecho tardio não rebaixa nem mexe em histórico/contexto. */
-          return {sent: false, retryable: false, uncertain: true, error: 'O envio foi interrompido antes da confirmação; a mensagem não é repetida automaticamente.'};
+          return {sent: false, retryable: false, uncertain: true, error: uiMsg('err.sidechat.interrupted')};
         }
         const refused = error?.notSent === true;
         if (refused && entry.pendingUser === userMessage) {
@@ -734,7 +500,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
         return {sent: false, retryable: refused, uncertain: !refused, error: String(error?.message || error)};
       }
       if (!stillCurrent()) {
-        return {sent: false, retryable: false, uncertain: true, error: 'O envio foi interrompido antes da confirmação; a mensagem não é repetida automaticamente.'};
+        return {sent: false, retryable: false, uncertain: true, error: uiMsg('err.sidechat.interrupted')};
       }
       entry.pendingUser = null;
       const settled = entry.settledTurn?.id === promptId ? entry.settledTurn : null;
@@ -789,10 +555,10 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       if (!isPlainObject(response) || typeof response.id !== 'string' || !response.id || response.id.length > MAX_MESSAGE_ID) {
         fail('Resposta inválida.');
       }
-      if (!entry.channel) fail('Nenhum pedido pendente neste chat lateral.');
-      if (!entry.pending.has(response.id)) fail('Não há diálogo pendente para esta resposta neste chat lateral.');
+      if (!entry.channel) fail(uiMsg('err.sidechat.noPending'));
+      if (!entry.pending.has(response.id)) fail(uiMsg('err.sidechat.noDialog'));
       const result = entry.channel.respond(response);
-      if (result && result.ok === false) fail('A resposta não foi aceita pelo pedido atual. Confira as opções e tente novamente.');
+      if (result && result.ok === false) fail(uiMsg('err.dialog.notAccepted'));
       entry.pending.delete(response.id);
       return {ok: true};
     },
@@ -817,6 +583,9 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     },
     activeIds() {
       return [...active.keys()];
+    },
+    isBusy() {
+      return [...active.values()].some(entry=>entry.channel?.isBusy?.()===true||entry.descriptor.delivery?.status==='transmitting');
     },
   };
 }

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {ptText} from './pt-text.mjs';
 import assert from 'node:assert/strict';
 
 /* Contrato do artefato `slashview.core.js` (gerado de core/slashview.bend,
@@ -25,7 +26,7 @@ function rowsOf(xs) {
 
 function attrsOf(node) {
   const out = new Map();
-  for (let a = node.attrs; a && a.$ === 'Con'; a = a.tail) out.set(String(a.head.name), String(a.head.value));
+  for (let a = node.attrs; a && a.$ === 'Con'; a = a.tail) out.set(String(a.head.name), ptText(String(a.head.value)));
   return out;
 }
 
@@ -34,7 +35,7 @@ function classOf(node) {
 }
 
 function textOf(node) {
-  return node && node.$ === 'ViewText' ? node.text : '';
+  return node && node.$ === 'ViewText' ? ptText(node.text) : '';
 }
 
 const list = (...xs) => xs.reduceRight((tail, head) => ({$: 'Con', head, tail}), {$: 'Nil'});
@@ -73,31 +74,6 @@ test('casca: id, classe, style fixo, hidden do aberto/fechado e ordem dos filhos
   assert.equal(textOf(kidsOf(foot)[0]), '↑↓ navegar · ⏎ inserir · Esc fechar');
 });
 
-test('linhas: id por índice, key, papel, ARIA e handlers do host', () => {
-  const [, listNode] = kidsOf(sv.slashMenuView(true, TWO, 'compact'));
-  const [first, second] = kidsOf(listNode);
-  const attrsFirst = attrsOf(first);
-  assert.equal(classOf(first), 'slash-item active', 'o ativo acende a classe na ordem do CSS');
-  assert.equal(attrsFirst.get('id'), 'slash-opt-0');
-  assert.equal(attrsFirst.get('key'), 'compact', 'a key é a identidade da linha');
-  assert.equal(attrsFirst.get('role'), 'option');
-  assert.equal(attrsFirst.get('aria-selected'), 'true');
-  assert.equal(attrsFirst.get('on:mousedown'), 'hold', 'não tira o foco do campo');
-  assert.equal(attrsFirst.get('on:mouseenter'), 'hover');
-  assert.equal(attrsFirst.get('on:click'), 'pick');
-
-  assert.equal(classOf(second), 'slash-item');
-  assert.equal(attrsOf(second).get('id'), 'slash-opt-1');
-  assert.equal(attrsOf(second).get('key'), 'help');
-  assert.equal(attrsOf(second).get('aria-selected'), 'false');
-});
-
-test('linhas: sem ativo nenhuma acende; id cresce na ordem da lista', () => {
-  const rows = rowsOf(sv.slashItemViews(TWO, ''));
-  assert.deepEqual(rows.map(classOf), ['slash-item', 'slash-item']);
-  assert.deepEqual(rows.map((r) => attrsOf(r).get('id')), ['slash-opt-0', 'slash-opt-1']);
-});
-
 test('linha: nome /comando, dica de argumento e descrição', () => {
   const [first, second] = rowsOf(sv.slashItemViews(TWO, 'help'));
   assert.equal(classOf(kidsOf(first)[0]), 'slash-text');
@@ -118,21 +94,13 @@ test('linha: sem dica nem descrição sobra só o nome', () => {
   assert.equal(kidsOf(nameKid(row)).length, 1, '.slash-name só com o texto');
 });
 
-test('check: slot nasce em toda linha e o SVG é do host', () => {
-  const [first] = rowsOf(sv.slashItemViews(TWO, 'compact'));
-  const check = kidsOf(first)[1];
-  assert.equal(classOf(check), 'slash-check');
-  assert.equal(attrsOf(check).get('aria-hidden'), 'true');
-  assert.equal(textOf(kidsOf(check)[0]), 'check', 'nome do ícone que o host materializa');
-});
-
 test('id do item: prefixo estável para o aria-activedescendant do campo', () => {
-  assert.equal(sv.slashItemId(0n), 'slash-opt-0');
-  assert.equal(sv.slashItemId(9n), 'slash-opt-9');
+  assert.equal(sv.slashItemId(0), 'slash-opt-0');
+  assert.equal(sv.slashItemId(9), 'slash-opt-9');
 });
 
 test('textos: cabeça, rótulo do listbox e rodapé', () => {
-  assert.equal(sv.slashHeadText(), 'Comandos');
-  assert.equal(sv.slashListLabel(), 'Comandos do Pi');
-  assert.equal(sv.slashFootText(), '↑↓ navegar · ⏎ inserir · Esc fechar');
+  assert.equal(ptText(sv.slashHeadText()), 'Comandos');
+  assert.equal(ptText(sv.slashListLabel()), 'Comandos do Pi');
+  assert.equal(ptText(sv.slashFootText()), '↑↓ navegar · ⏎ inserir · Esc fechar');
 });

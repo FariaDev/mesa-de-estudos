@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'">
+<title>quiet</title>
+</head>
+<body>
+<script>
+  window.__beat = 0;
+  setInterval(() => { window.__beat += 1; }, 20);
+  parent.postMessage({probe: 'quiet-ready'}, '*');
+</script>
+</body>
+</html>

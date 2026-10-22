@@ -1,0 +1,174 @@
+/* Template de material compartilhado: a MESMA casca A4 usada pela prévia do
+   diálogo (escala de tela) e pela página de impressão. Todas as regras são
+   escopadas em `.pdf-doc`/`.pdf-page` para não encostar no chat nem no resto do
+   app. Tokens de cor com contraste documentado no relatório do template. */
+
+.pdf-doc,.pdf-page{
+  --page-w:178mm;
+  --page-h:259mm;
+  --ink:#1f2328;
+  --ink-soft:#3d444d;
+  --muted:#5c6670;
+  --rule:#dfe3e8;
+  --panel:#f6f8fa;
+  --accent:#8a5a44;
+  --error:#b3261e;
+}
+
+.pdf-doc{
+  width:var(--page-w);
+  margin:0 auto;
+  color:var(--ink);
+  font:11pt/1.55 var(--serif);
+  font-variant-numeric:lining-nums;
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+}
+.pdf-doc>*:first-child{margin-top:0}
+.pdf-doc p{margin:.55em 0;orphans:3;widows:3}
+
+.pdf-doc h1,.pdf-doc h2,.pdf-doc h3,.pdf-doc h4,.pdf-doc h5,.pdf-doc h6{
+  color:var(--ink-soft);
+  font-weight:650;
+  line-height:1.2;
+  margin:1.15em 0 .45em;
+  break-after:avoid;
+  page-break-after:avoid;
+}
+.pdf-doc h1{font-size:20pt}
+.pdf-doc h1.pdf-title{margin-top:0}
+.pdf-doc h2{font-size:14.5pt}
+.pdf-doc h3{font-size:12.5pt}
+.pdf-doc h4,.pdf-doc h5,.pdf-doc h6{font-size:11pt}
+
+.pdf-doc ul,.pdf-doc ol{margin:.55em 0;padding-left:1.4em}
+.pdf-doc li{margin:.2em 0}
+.pdf-doc ol>li::marker{font-weight:600}
+.pdf-doc li:has(.math-display){break-inside:avoid;page-break-inside:avoid}
+
+.pdf-doc blockquote{
+  margin:.7em 0;
+  padding:.1em 0 .1em .9em;
+  border-left:3px solid var(--rule);
+  color:var(--muted);
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.pdf-doc hr{border:0;border-top:1px solid var(--rule);margin:1.1em 0}
+.pdf-doc a{color:var(--accent-paper,inherit);text-decoration:underline;text-underline-offset:2px}
+
+/* Tabelas multipágina: o cabeçalho repete e a linha nunca parte no meio. */
+.pdf-doc table{
+  border-collapse:collapse;
+  margin:.75em 0;
+  max-width:100%;
+  font-size:.95em;
+  break-inside:auto;
+  page-break-inside:auto;
+}
+.pdf-doc thead{display:table-header-group}
+.pdf-doc tr{break-inside:avoid;page-break-inside:avoid}
+.pdf-doc th,.pdf-doc td{
+  border:1px solid var(--rule);
+  padding:.28em .55em;
+  text-align:left;
+  vertical-align:top;
+  word-break:break-word;
+}
+.pdf-doc th{background:var(--panel)}
+
+.pdf-doc pre,.pdf-doc code,.pdf-doc kbd,.pdf-doc samp{
+  font-family:var(--font-mono);
+}
+.pdf-doc code{font-size:.9em;background:var(--panel);border-radius:3px;padding:0 .18em}
+.pdf-doc pre{
+  margin:.7em 0;
+  padding:.6em .75em;
+  border:1px solid var(--rule);
+  border-radius:5px;
+  background:var(--panel);
+  font-size:.86em;
+  line-height:1.45;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  break-inside:avoid;
+  page-break-inside:avoid;
+}
+.pdf-doc pre code{background:none;padding:0;border-radius:0;font-size:1em}
+.pdf-doc [data-hl="kw"]{color:#6d28d9;font-weight:600}
+.pdf-doc [data-hl="str"]{color:#15803d}
+.pdf-doc [data-hl="comment"]{color:#57606a;font-style:italic}
+.pdf-doc [data-hl="num"]{color:#b45309}
+.pdf-doc [data-hl="fn"]{color:#1d4ed8}
+.pdf-doc [data-hl="type"]{color:#0f766e}
+
+/* Matemática: legível, sem recorte, e o ajuste de largura vira diagnóstico. */
+.pdf-doc .katex{font-size:1.03em}
+.pdf-doc .katex-display{margin:.8em 0;overflow:visible;break-inside:avoid;page-break-inside:avoid}
+.pdf-doc .math-display{break-inside:avoid;page-break-inside:avoid}
+.pdf-doc .math-display[data-overflow="1"]{outline:1px dashed var(--error);outline-offset:2px}
+.pdf-doc .math-error{
+  border:1px solid var(--error);
+  border-radius:4px;
+  padding:.2em .4em;
+  color:var(--error);
+  background:#fdf1f0;
+  font-family:var(--font-mono);
+  font-size:.85em;
+}
+.pdf-doc .math-error .katex-error{background:none;color:inherit}
+
+.pdf-doc .task-list-item{list-style:none}
+.pdf-doc .task-list-item input{display:none}
+
+/* Casca de prévia: papel A4 com as mesmas margens do @page. O zoom é ajustado
+   em JS ao largura disponível do diálogo. */
+.pdf-page{
+  width:210mm;
+  padding:18mm 16mm 20mm;
+  box-sizing:border-box;
+  background:#fff;
+  color:var(--ink);
+  margin:0 auto;
+}
+.pdf-page .pdf-doc{width:var(--page-w)}
+.free-pdf-preview .pdf-page{
+  box-shadow:0 0 0 1px var(--border-strong,#c7c7c7);
+}
+
+/* Páginas reais ("Ver PDF") desenhadas com pdf.js no diálogo. */
+.material-pages{display:flex;flex-direction:column;gap:.75rem;margin-top:.75rem}
+.material-page-canvas{
+  width:100%;
+  height:auto;
+  border:1px solid var(--border-strong,#c7c7c7);
+  border-radius:6px;
+  background:#fff;
+}
+.material-status{margin:.5em 0 0}
+.material-status ul{margin:.35em 0 0;padding-left:1.2em}
+.material-status button{font:inherit;cursor:pointer}
+
+@media print{
+  .pdf-doc{width:auto;max-width:100%}
+}
+
+/* Figuras (#60): a cerca `plot` e o SVG do tutor. Papel branco, tinta do
+   documento; as séries usam as cores de reserva do desenho, escurecidas para
+   a impressão. A figura não parte entre páginas. */
+.pdf-doc{--plot-1:#1d4ed8;--plot-2:#c2410c;--plot-3:#0b7a55;--plot-4:#a21caf;--plot-5:#6d28d9;--plot-6:#a16207;--plot-bg:#fff}
+.pdf-doc .plot-figure{
+  margin:.8em 0;text-align:center;color:var(--ink);
+  break-inside:avoid;page-break-inside:avoid;
+}
+.pdf-doc :is(p,div,li,td,th,blockquote)>svg[viewBox]:not([class]){
+  display:block;margin:.8em auto;width:100%;max-width:min(100%,420px);height:auto;color:var(--ink);
+  break-inside:avoid;page-break-inside:avoid;
+}
+.pdf-doc .plot-warning{
+  margin:.8em 0;padding:.45em .7em;border-left:3px solid var(--error);background:var(--panel);
+  font:9.5pt/1.45 -apple-system,"Helvetica Neue",Arial,sans-serif;color:var(--ink-soft);
+  break-inside:avoid;page-break-inside:avoid;
+}
+.pdf-doc .plot-warning>span{display:block}
+.pdf-doc .plot-warning-got,.pdf-doc .plot-warning-want{font-family:var(--font-mono);font-size:9pt;white-space:pre-wrap;overflow-wrap:anywhere}

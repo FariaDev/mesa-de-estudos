@@ -1,0 +1,221 @@
+/* Quadro de visualizações e atividades no chat (#42).
+ *
+ * O quadro fica SOLTO na conversa, como no T3 Code (pingdotgg/t3code, MIT):
+ * sem cartão, borda nem cabeçalho, no fundo da coluna do tutor e alinhado à
+ * esquerda com o texto da resposta. As ferramentas (tela cheia; recarregar e
+ * parar numa atividade aberta) aparecem só ao passar o mouse ou focar. A
+ * atividade ganha uma linha discreta embaixo com "Levar ao tutor"; a
+ * visualização não tem nada embaixo. A descrição textual continua no DOM para
+ * leitor de tela, fora da vista.
+ *
+ * O iframe é a única área executável e vive sob `sandbox` + origem
+ * `mesa-activity:`. A altura nasce da medição feita antes de publicar
+ * (`core/activityview.bend#initialHeight`) e segue a medição viva do quadro
+ * (48–1200px). A tela cheia só muda o CSS do MESMO iframe (sem reparenting:
+ * o contexto não recarrega). */
+
+.activity-slot {
+  display: block;
+  margin: var(--space-4, 10px) 0;
+}
+
+.activity-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+}
+
+/* Fora da vista, presente para o leitor de tela (descrição textual e título). */
+.activity-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.activity-stage {
+  position: relative;
+}
+
+.activity-poster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 8px);
+  min-height: 48px;
+  padding: var(--space-3, 8px) 0;
+  font-size: var(--fs-md, 13px);
+  color: var(--muted);
+}
+
+.activity-poster[hidden] {
+  display: none;
+}
+
+.activity-frame {
+  overflow: hidden;
+  contain: layout paint style;
+}
+
+.activity-frame:empty {
+  display: none;
+}
+
+.activity-iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color-scheme: light dark;
+}
+
+/* Ferramentas sobre o quadro: canto de cima à direita, só no hover/foco. */
+.activity-tools {
+  position: absolute;
+  top: var(--space-2, 6px);
+  right: var(--space-2, 6px);
+  z-index: 2;
+  display: flex;
+  gap: var(--space-1, 4px);
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-out);
+}
+
+/* Invisíveis até o hover/foco, mas sempre clicáveis: com o quadro travado
+   (laço) o hover não chega ao palco, e Parar precisa continuar à mão. */
+.activity-stage:hover .activity-tools,
+.activity-card.activity-hover .activity-tools,
+.activity-stage:focus-within .activity-tools,
+.activity-tools:hover,
+.activity-card.activity-fullscreen .activity-tools {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .activity-tools {
+    opacity: 1;
+  }
+}
+
+.activity-tools .activity-action {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  box-shadow: var(--shadow-pop);
+  backdrop-filter: blur(6px);
+}
+
+/* Linha discreta da atividade: "Levar ao tutor" e o aviso do que aconteceu. */
+.activity-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 6px);
+  min-height: 28px;
+}
+
+.activity-foot[hidden] {
+  display: none;
+}
+
+.activity-status {
+  min-width: 0;
+  font-size: var(--fs-sm, 12px);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-status:empty {
+  display: none;
+}
+
+.activity-action {
+  height: 28px;
+  padding: 0 var(--space-3, 8px);
+  gap: var(--space-2, 6px);
+  border: 0;
+  border-radius: var(--r-md, 8px);
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: var(--fs-sm, 12px);
+  white-space: nowrap;
+}
+
+.activity-foot .activity-action {
+  margin-left: calc(var(--space-3, 8px) * -1);
+}
+
+.activity-action:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.activity-action:active {
+  background: var(--active);
+}
+
+.activity-action-icon {
+  display: inline-flex;
+}
+
+.activity-action[hidden] {
+  display: none;
+}
+
+.activity-note,
+.activity-error {
+  margin: 0;
+  padding: var(--space-2, 6px) 0;
+  font-size: var(--fs-md, 13px);
+}
+
+.activity-note {
+  color: var(--muted);
+}
+
+.activity-error {
+  color: var(--danger, #e2483d);
+}
+
+.activity-error[hidden] {
+  display: none;
+}
+
+.activity-card.activity-pending .activity-poster-text {
+  color: var(--muted);
+}
+
+/* Tela cheia: o MESMO iframe cobre a janela, sobre o fundo da coluna. */
+.activity-card.activity-fullscreen .activity-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  padding: calc(var(--space-7, 24px) + var(--ctl, 28px)) var(--space-7, 24px) var(--space-7, 24px);
+  background: var(--side);
+  overflow: auto;
+}
+
+.activity-card.activity-fullscreen .activity-frame {
+  height: 100% !important;
+}
+
+.activity-card.activity-fullscreen .activity-tools {
+  top: var(--space-5, 12px);
+  right: var(--space-7, 24px);
+}
+

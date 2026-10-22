@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
-for(const app of ['desk','chat']){
- const file=path.resolve(import.meta.dirname,'../../',app,'rpc.cjs');
- test(`${app}: end is not idle; settled closes retries, queue and compaction`,{skip:!fs.existsSync(file)},async()=>{
+{
+ const file=path.resolve(import.meta.dirname,'../rpc.cjs');
+ test(`desk: end is not idle; settled closes retries, queue and compaction`,async()=>{
   const {PiBridge}=require(file),root=fs.mkdtempSync(path.join(os.tmpdir(),'rpc-settled-')),pi=path.join(root,'pi');
   fs.writeFileSync(pi,`#!/usr/bin/env node
 const emit=e=>process.stdout.write(JSON.stringify(e)+'\\n');let buffer='';process.stdin.setEncoding('utf8');process.stdin.on('data',data=>{buffer+=data;let i;while((i=buffer.indexOf('\\n'))>=0){const e=JSON.parse(buffer.slice(0,i));buffer=buffer.slice(i+1);if(e.events)for(const event of e.events)emit(event);emit({type:'response',id:e.id,success:true,data:['prompt','follow_up'].includes(e.type)?{disposition:['handled','queued'].includes(e.message)?e.message:'started'}:{isStreaming:false,isCompacting:!!e.compact,pendingMessageCount:0}});}});

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {ptText} from './pt-text.mjs';
 import assert from 'node:assert/strict';
 import pdfPage from '../src/generated/pdfpageview.core.js';
 import {build, renderChildren, renderInto} from '../src/view-host.mjs';
@@ -45,16 +46,16 @@ const attr = (node, name) => node.attrs.get(name);
 // Attr do nó Bend cru (o `build` transforma `on:*` em listener, não em atributo).
 const rawAttr = (node, name) => {
   for (let cur = node.attrs; cur && cur.$ === 'Con'; cur = cur.tail) {
-    if (cur.head.name === name) return cur.head.value;
+    if (cur.head.name === name) return ptText(cur.head.value);
   }
   return undefined;
 };
 const shell = (patch = {}) => ({
-  $: 'PdfShell', label: 'Enunciado', options: {$: 'Nil'}, path: '', minimized: false, findOpen: false, rotation: 0n, ...patch,
+  $: 'PdfShell', label: 'Enunciado', options: {$: 'Nil'}, path: '', minimized: false, findOpen: false, rotation: 0, ...patch,
 });
 const optionList = (items) => items.reduceRight((tail, head) => ({$: 'Con', head, tail}), {$: 'Nil'});
 
-test('panelShell monta a section e as quatro regiões do leitor', () => {
+test('panelShell monta a section: barra única, palco, busca, menu e faixa recolhida', () => {
   const node = pdfPage.panelShell(shell());
   assert.equal(node.$, 'ViewEl');
   assert.equal(node.tag, 'section');
@@ -63,89 +64,107 @@ test('panelShell monta a section e as quatro regiões do leitor', () => {
   assert.equal(attr(built, 'aria-label'), 'Enunciado');
   assert.equal(attr(built, 'tabindex'), '0');
   const classes = built.children.map((kid) => attr(kid, 'class'));
-  assert.deepEqual(classes, ['pdf-title', 'pdf-tools', 'pdf-stage', 'pdf-find']);
+  assert.deepEqual(classes, ['pdf-title', 'pdf-stage', 'pdf-find', 'pdf-more-pop', 'pdf-restore']);
 });
 
-test('titleBar: rótulo, select, botões de ícone (Voltar incluso) e estado de minimizar/busca', () => {
+test('titleBar: uma linha com rótulo, material, voltar, página, busca, favoritos e mais opções', () => {
   const built = build(pdfPage.titleBar(shell()), {});
   assert.equal(attr(built, 'class'), 'pdf-title');
+  assert.equal(built.children.length, 10);
+  assert.deepEqual(built.children.map((kid) => attr(kid, 'class')), [
+    undefined, 'pdf-select', 'back icon-btn', 'prev icon-btn', 'page-number', 'page-total',
+    'next icon-btn', 'find-toggle icon-btn', 'nav icon-btn', 'more icon-btn',
+  ]);
   assert.equal(built.children[0].tag, 'strong');
   assert.equal(built.children[0].children[0].text, 'Enunciado');
-  const select = built.children[1];
-  assert.equal(attr(select, 'class'), 'pdf-select');
+  const [, select, back, prev, page, total, next, toggle, nav, more] = built.children;
   assert.equal(attr(select, 'aria-label'), 'Documento de Enunciado');
-  const open = built.children[2], toggle = built.children[3], shot = built.children[4], back = built.children[5], nav = built.children[6], collapse = built.children[7];
-  assert.equal(attr(open, 'class'), 'open icon-btn');
-  assert.equal(attr(open, 'data-icon'), 'plus');
-  assert.equal(attr(open, 'title'), 'Abrir outro PDF');
-  assert.equal(attr(open, 'aria-label'), 'Abrir PDF em Enunciado');
-  assert.equal(attr(toggle, 'class'), 'find-toggle icon-btn');
-  assert.equal(attr(toggle, 'data-icon'), 'search');
-  assert.equal(attr(toggle, 'aria-pressed'), 'false');
-  assert.equal(attr(shot, 'class'), 'page-shot icon-btn');
-  assert.equal(attr(shot, 'title'), 'Mandar esta página como imagem no chat');
-  assert.equal(attr(back, 'class'), 'back icon-btn');
   assert.equal(attr(back, 'data-icon'), 'chevronLeft');
   assert.equal(attr(back, 'title'), 'Voltar à página anterior');
   assert.equal(attr(back, 'aria-label'), 'Voltar à página anterior de Enunciado');
   assert.equal(attr(back, 'hidden'), '');
-  assert.equal(attr(nav, 'class'), 'nav icon-btn');
-  assert.equal(attr(nav, 'data-icon'), 'book');
-  assert.equal(attr(nav, 'title'), 'Sumário e favoritos');
-  assert.equal(attr(nav, 'aria-label'), 'Sumário e favoritos de Enunciado');
-  assert.equal(attr(nav, 'aria-expanded'), 'false');
-  assert.equal(attr(collapse, 'class'), 'collapse icon-btn');
-  assert.equal(attr(collapse, 'title'), 'Minimizar este leitor');
-  assert.equal(attr(collapse, 'data-icon'), 'chevronDown');
-  const minimized = build(pdfPage.titleBar(shell({minimized: true, findOpen: true})), {});
-  const collapsed = minimized.children[7], pressed = minimized.children[3];
-  assert.equal(attr(collapsed, 'aria-pressed'), 'true');
-  assert.equal(attr(collapsed, 'title'), 'Restaurar este leitor');
-  assert.equal(attr(collapsed, 'data-icon'), 'chevronUp');
-  assert.equal(attr(pressed, 'aria-pressed'), 'true');
-});
-
-test('toolsBar mantém a ordem, o page-number e os espaços que o host preenche', () => {
-  const built = build(pdfPage.toolsBar('Enunciado', 0n), {});
-  assert.equal(attr(built, 'class'), 'pdf-tools');
-  assert.equal(built.children.length, 10);
-  assert.deepEqual(built.children.map((kid) => attr(kid, 'class')), [
-    'prev icon-btn', 'page-number', 'page-total', 'next icon-btn', 'out icon-btn',
-    'zoom-label', 'in icon-btn', 'fit icon-btn', 'invert icon-btn', 'rotate icon-btn',
-  ]);
-  const page = built.children[1];
+  assert.equal(attr(prev, 'aria-label'), 'Página anterior');
+  assert.equal(attr(next, 'aria-label'), 'Próxima página');
   assert.equal(attr(page, 'type'), 'number');
   assert.equal(attr(page, 'min'), '1');
   assert.equal(attr(page, 'value'), '1');
   assert.equal(attr(page, 'aria-label'), 'Página de Enunciado');
-  assert.equal(attr(built.children[0], 'aria-label'), 'Página anterior');
-  assert.equal(attr(built.children[3], 'aria-label'), 'Próxima página');
-  assert.equal(attr(built.children[7], 'title'), 'Ajustar à largura');
-  assert.equal(attr(built.children[8], 'aria-label'), 'Inverter cores da página');
-  assert.equal(built.children[2].children.length, 0);
-  assert.equal(built.children[5].children.length, 0);
+  assert.equal(total.children.length, 0);
+  assert.equal(attr(toggle, 'data-icon'), 'search');
+  assert.equal(attr(toggle, 'aria-pressed'), 'false');
+  assert.equal(attr(nav, 'data-icon'), 'bookmark');
+  assert.equal(attr(nav, 'title'), 'Sumário e favoritos');
+  assert.equal(attr(nav, 'aria-label'), 'Sumário e favoritos de Enunciado');
+  assert.equal(attr(nav, 'aria-expanded'), 'false');
+  assert.equal(attr(more, 'data-icon'), 'more');
+  assert.equal(attr(more, 'title'), 'Mais opções');
+  assert.equal(attr(more, 'aria-label'), 'Mais opções de Enunciado');
+  assert.equal(attr(more, 'aria-expanded'), 'false');
+  assert.equal(rawAttr(pdfPage.moreBtn('Enunciado'), 'on:click'), 'ToggleMore');
+  const searching = build(pdfPage.titleBar(shell({findOpen: true})), {});
+  assert.equal(attr(searching.children[7], 'aria-pressed'), 'true');
+});
+
+test('moreMenu: o que saiu da barra mora no menu, com texto, e nasce fechado', () => {
+  const built = build(pdfPage.moreMenu('Enunciado', 0, false), {});
+  assert.equal(attr(built, 'class'), 'pdf-more-pop');
+  assert.equal(attr(built, 'hidden'), '');
+  assert.equal(attr(built, 'aria-label'), 'Mais opções de Enunciado');
+  assert.deepEqual(built.children.map((kid) => attr(kid, 'class')), [
+    'open more-item', 'page-shot more-item', 'more-zoom', 'fit more-item',
+    'invert more-item', 'rotate more-item', 'collapse more-item',
+  ]);
+  const text = (node) => node.children.map((kid) => ptText(kid.text ?? '')).join('');
+  assert.equal(text(built.children[0]), 'Abrir outro PDF');
+  assert.equal(attr(built.children[0], 'data-icon'), 'plus');
+  assert.equal(text(built.children[1]), 'Capturar página');
+  assert.equal(attr(built.children[1], 'data-icon'), 'camera');
+  assert.equal(text(built.children[3]), 'Ajustar à largura');
+  assert.equal(attr(built.children[3], 'data-icon'), 'unfold');
+  assert.equal(text(built.children[4]), 'Página escura');
+  assert.equal(attr(built.children[4], 'aria-label'), 'Página escura');
+  assert.equal(text(built.children[5]), 'Girar');
+  assert.equal(text(built.children[6]), 'Minimizar este leitor');
+  const zoom = built.children[2].children[1];
+  assert.deepEqual(zoom.children.map((kid) => attr(kid, 'class')), ['out icon-btn', 'zoom-label', 'in icon-btn']);
+  assert.equal(attr(zoom.children[0], 'aria-label'), 'Diminuir zoom');
+  assert.equal(attr(zoom.children[2], 'aria-label'), 'Aumentar zoom');
+  assert.equal(zoom.children[1].children.length, 0);
+  const minimized = build(pdfPage.moreMenu('Enunciado', 0, true), {});
+  assert.equal(attr(minimized.children[6], 'aria-pressed'), 'true');
+  assert.equal(attr(minimized.children[6], 'data-icon'), 'chevronUp');
+  assert.equal(text(minimized.children[6]), 'Restaurar este leitor');
+});
+
+test('restoreBtn: a faixa do leitor recolhido mostra o rótulo e reabre', () => {
+  const built = build(pdfPage.restoreBtn('Formulário & apoio'), {});
+  assert.equal(attr(built, 'class'), 'pdf-restore');
+  assert.equal(attr(built, 'aria-label'), 'Abrir o leitor Formulário & apoio');
+  assert.equal(attr(built.children[0], 'data-icon'), 'chevronLeft');
+  assert.equal(built.children[1].children[0].text, 'Formulário & apoio');
+  assert.equal(rawAttr(pdfPage.restoreBtn('Enunciado'), 'on:click'), 'ToggleCollapse');
 });
 
 test('rotateBtn: um botão por leitor, com a orientação corrente no title/aria', () => {
-  const built = build(pdfPage.rotateBtn('Enunciado', 90n), {});
-  assert.equal(attr(built, 'class'), 'rotate icon-btn');
+  const built = build(pdfPage.rotateBtn('Enunciado', 90), {});
+  assert.equal(attr(built, 'class'), 'rotate more-item');
   assert.equal(attr(built, 'data-icon'), 'rotateCw');
   assert.equal(attr(built, 'title'), 'Girar 90° — orientação atual: 90°');
   assert.equal(attr(built, 'aria-label'), 'Girar página de Enunciado (atual: 90°)');
-  assert.equal(rawAttr(pdfPage.rotateBtn('Enunciado', 0n), 'on:click'), 'Rotate');
+  assert.equal(rawAttr(pdfPage.rotateBtn('Enunciado', 0), 'on:click'), 'Rotate');
 });
 
 test('rotação: ciclo 0→90→180→270→0, validação e normalização do núcleo', () => {
-  assert.equal(pdfPage.rotationStep(), 90n);
-  assert.equal(pdfPage.rotationNext(0n), 90n);
-  assert.equal(pdfPage.rotationNext(90n), 180n);
-  assert.equal(pdfPage.rotationNext(180n), 270n);
-  assert.equal(pdfPage.rotationNext(270n), 0n);
-  for (const ok of [0n, 90n, 180n, 270n]) assert.equal(pdfPage.rotationValid(ok), true);
-  for (const bad of [45n, 360n]) assert.equal(pdfPage.rotationValid(bad), false);
-  assert.equal(pdfPage.rotationNormalize(270n), 270n);
-  assert.equal(pdfPage.rotationNormalize(45n), 0n);
-  assert.equal(pdfPage.rotateToast(180n), 'Orientação: 180°');
+  assert.equal(pdfPage.rotationStep(), 90);
+  assert.equal(pdfPage.rotationNext(0), 90);
+  assert.equal(pdfPage.rotationNext(90), 180);
+  assert.equal(pdfPage.rotationNext(180), 270);
+  assert.equal(pdfPage.rotationNext(270), 0);
+  for (const ok of [0, 90, 180, 270]) assert.equal(pdfPage.rotationValid(ok), true);
+  for (const bad of [45, 360]) assert.equal(pdfPage.rotationValid(bad), false);
+  assert.equal(pdfPage.rotationNormalize(270), 270);
+  assert.equal(pdfPage.rotationNormalize(45), 0);
+  assert.equal(ptText(pdfPage.rotateToast(180)), 'Orientação: 180°');
 });
 
 test('select da biblioteca: opção vazia, nome/path e selected', () => {
@@ -153,7 +172,7 @@ test('select da biblioteca: opção vazia, nome/path e selected', () => {
   const built = build(pdfPage.selectNode('Enunciado', options, '/x/Limites.pdf'), {});
   assert.equal(built.children.length, 2);
   assert.equal(attr(built.children[0], 'value'), '');
-  assert.equal(built.children[0].children[0].text, 'Escolha um PDF…');
+  assert.equal(built.children[0].children[0].text, 'Nenhum material');
   assert.equal(attr(built.children[1], 'value'), '/x/Limites.pdf');
   assert.equal(attr(built.children[1], 'selected'), '');
   assert.equal(built.children[1].children[0].text, 'Limites.pdf');
@@ -186,7 +205,7 @@ test('stage e divider preservam o contrato do smoke', () => {
 });
 
 test('viewport: vazio mostra o placeholder, pronto monta o documento', () => {
-  const page = {$: 'PdfPageBox', n: 2n, width: '612px', height: '792px'};
+  const page = {$: 'PdfPageBox', n: 2, width: '612px', height: '792px'};
   const ready = pdfPage.viewport({$: 'PdfReady'}, optionList([page]));
   assert.equal(ready.$, 'Some');
   const doc = build(ready.value, {});
@@ -226,8 +245,8 @@ test('hlSegments: sem casamento, o span continua um nó de texto único', () => 
 test('renderInto aplica a moldura no viewport como o host faz', () => {
   const viewport = new FakeNode('div');
   const frame = pdfPage.viewport({$: 'PdfReady'}, optionList([
-    {$: 'PdfPageBox', n: 1n, width: '10px', height: '20px'},
-    {$: 'PdfPageBox', n: 2n, width: '10px', height: '20px'},
+    {$: 'PdfPageBox', n: 1, width: '10px', height: '20px'},
+    {$: 'PdfPageBox', n: 2, width: '10px', height: '20px'},
   ]));
   renderInto(viewport, frame.value);
   assert.equal(viewport.children.length, 1);
@@ -239,26 +258,29 @@ test('renderInto aplica a moldura no viewport como o host faz', () => {
 test('os handlers do painel vêm ligados na árvore (tabela do host)', () => {
   const handlers = {
     OpenFile() {}, ToggleFind() {}, PageShot() {}, ToggleCollapse() {}, ToggleInvert() {}, Rotate() {},
-    NavBack() {}, ToggleNav() {},
+    NavBack() {}, ToggleNav() {}, ToggleMore() {},
     OpenDoc() {}, GotoPage() {}, Prev() {}, Next() {}, ZoomOut() {}, ZoomIn() {},
     Fit() {}, Find() {},
   };
   const panel = build(pdfPage.panelShell(shell()), handlers);
-  const title = panel.children[0], tools = panel.children[1], form = panel.children[3];
+  const [title, , form, menu, strip] = panel.children;
   assert.equal(title.children[1].listeners.get('change'), handlers.OpenDoc);
-  assert.equal(title.children[2].listeners.get('click'), handlers.OpenFile);
-  assert.equal(title.children[3].listeners.get('click'), handlers.ToggleFind);
-  assert.equal(title.children[4].listeners.get('click'), handlers.PageShot);
-  assert.equal(title.children[5].listeners.get('click'), handlers.NavBack);
-  assert.equal(title.children[6].listeners.get('click'), handlers.ToggleNav);
-  assert.equal(title.children[7].listeners.get('click'), handlers.ToggleCollapse);
-  assert.equal(tools.children[0].listeners.get('click'), handlers.Prev);
-  assert.equal(tools.children[1].listeners.get('change'), handlers.GotoPage);
-  assert.equal(tools.children[3].listeners.get('click'), handlers.Next);
-  assert.equal(tools.children[4].listeners.get('click'), handlers.ZoomOut);
-  assert.equal(tools.children[6].listeners.get('click'), handlers.ZoomIn);
-  assert.equal(tools.children[7].listeners.get('click'), handlers.Fit);
-  assert.equal(tools.children[8].listeners.get('click'), handlers.ToggleInvert);
-  assert.equal(tools.children[9].listeners.get('click'), handlers.Rotate);
+  assert.equal(title.children[2].listeners.get('click'), handlers.NavBack);
+  assert.equal(title.children[3].listeners.get('click'), handlers.Prev);
+  assert.equal(title.children[4].listeners.get('change'), handlers.GotoPage);
+  assert.equal(title.children[6].listeners.get('click'), handlers.Next);
+  assert.equal(title.children[7].listeners.get('click'), handlers.ToggleFind);
+  assert.equal(title.children[8].listeners.get('click'), handlers.ToggleNav);
+  assert.equal(title.children[9].listeners.get('click'), handlers.ToggleMore);
+  const zoom = menu.children[2].children[1];
+  assert.equal(menu.children[0].listeners.get('click'), handlers.OpenFile);
+  assert.equal(menu.children[1].listeners.get('click'), handlers.PageShot);
+  assert.equal(zoom.children[0].listeners.get('click'), handlers.ZoomOut);
+  assert.equal(zoom.children[2].listeners.get('click'), handlers.ZoomIn);
+  assert.equal(menu.children[3].listeners.get('click'), handlers.Fit);
+  assert.equal(menu.children[4].listeners.get('click'), handlers.ToggleInvert);
+  assert.equal(menu.children[5].listeners.get('click'), handlers.Rotate);
+  assert.equal(menu.children[6].listeners.get('click'), handlers.ToggleCollapse);
+  assert.equal(strip.listeners.get('click'), handlers.ToggleCollapse);
   assert.equal(form.listeners.get('submit'), handlers.Find);
 });

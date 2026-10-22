@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
@@ -13,7 +14,7 @@ import view.bend as V
 # `.queue-item(.sending)` (ou `input.queue-edit`), as ações `.queue-send-now` e
 # `.queue-clear` (cada uma `hidden` quando o fato é falso) e o `#edit-banner`.
 # Nada aqui mede, foca, anima nem fala com o DOM; quem cria
-# os elementos é o aplicador (`chat/src/view-host.mjs`, `desk/src/view-host.mjs`).
+# os elementos é o aplicador (`desk/src/view-host.mjs`).
 # A saída animada (`.closing` + `transitionend` + timeout) é máquina do host.
 #
 # Convenções (as mesmas de `core/view.bend` e do DOM atual):
@@ -37,16 +38,16 @@ type QueueRow is Data:
 def queueQueuedLabel(many: Bool, count: String) -> String:
   match many:
     case False{}:
-      "Na fila"
+      M.msg("queue.queued")
     case True{}:
-      String.append("Na fila · ", count)
+      M.msg1("queue.queuedCount", "count", count)
 
 def queueRecoveredLabel(many: Bool, count: String) -> String:
   match many:
     case False{}:
-      "Recuperadas"
+      M.msg("queue.recovered")
     case True{}:
-      String.append("Recuperadas · ", count)
+      M.msg1("queue.recoveredCount", "count", count)
 
 # A faixa diz de onde a fila veio: recuperada do disco depois de fechar o app
 # (nada sai sozinho) ou a fila viva desta sessão.
@@ -58,29 +59,26 @@ def queueLabel(recovered: Bool, many: Bool, count: String) -> String:
       queueRecoveredLabel(many, count)
 
 def queueSendNowLabel() -> String:
-  "Enviar agora"
+  M.msg("queue.sendNow")
 
 def queueSendNowTitle() -> String:
-  "Enviar a fila agora, sem esperar o fim do turno"
+  M.msg("queue.sendNowTitle")
 
 def queueClearLabel() -> String:
-  "Limpar"
+  M.msg("queue.clear")
 
 def queueClearTitle() -> String:
-  "Limpar a fila (as mensagens pendentes são descartadas)"
-
-def queueEditHint() -> String:
-  " — clique para editar"
+  M.msg("queue.clearTitle")
 
 def queueItemTitle(text: String, sending: Bool) -> String:
   match sending:
     case True{}:
       text
     case False{}:
-      String.append(text, queueEditHint())
+      M.msg1("queue.editTitle", "text", text)
 
 def editBannerText() -> String:
-  "Editando a última pergunta — envia como mensagem nova. O histórico anterior permanece."
+  M.msg("queue.editBanner")
 
 # ---------- classes / data-* / aria (fatos Bool) ----------
 
@@ -123,7 +121,7 @@ def queueTextEnabled(title: String) -> List<&2, V.ViewAttr>:
     V.attrTitle(title),
     V.attr("tabindex", "0"),
     V.attr("role", "button"),
-    V.attrAria("label", "Editar item da fila"),
+    V.attrAria("label", M.msg("queue.editItem")),
     V.attrOn("click", "edit"),
     V.attrOn("keydown", "editKey")
   ]
@@ -145,8 +143,8 @@ def queueRemoveAttrs(enabled: Bool) -> List<&2, V.ViewAttr>:
   V.attrConcat(
     [
       V.attrType("button"),
-      V.attrTitle("Remover da fila"),
-      V.attrAria("label", "Remover da fila"),
+      V.attrTitle(M.msg("queue.remove")),
+      V.attrAria("label", M.msg("queue.remove")),
       V.attrOn("click", "remove")
     ],
     queueDisabledAttr(enabled)
@@ -162,7 +160,7 @@ def queueEditInput(text: String) -> V.ViewNode:
       V.attrType("text"),
       V.attrClass("queue-edit"),
       V.attr("value", text),
-      V.attrAria("label", "Editar item da fila"),
+      V.attrAria("label", M.msg("queue.editItem")),
       V.attrKey("queue-edit"),
       V.attrOn("keydown", "editInput"),
       V.attrOn("blur", "editBlur")
@@ -280,68 +278,7 @@ def editBannerView(visible: Bool, closing: Bool) -> V.ViewNode:
       V.viewEl(
         "button",
         [V.attrType("button"), V.attrId("edit-cancel"), V.attrOn("click", "editCancel")],
-        [V.viewText("Cancelar")]
+        [V.viewText(M.msg("common.cancel"))]
       )
     ]
-  )
-
-# ---------------------------------------------------------------------------
-# Painel de ajustes do chat (Mesa): Modelo, Esforço e o resumo automático do
-# contexto atrás de um toggle, para a coluna do chat sobrar para o estudo. O
-# host monta este andaime no boot e MOVE para dentro do corpo os nós que já
-# existem (`.pi-settings` e `#auto-compact`) — aqui ficam o rótulo, o
-# `aria-expanded`, o `aria-controls` e o `hidden` do corpo; o host guarda o
-# estado aberto (localStorage `mesa.piPanel`) e mantém os dois atributos
-# sincronizados. O resumo manual ("Resumir contexto") e a explicação de
-# capacidade são do host, no mesmo corpo.
-# ---------------------------------------------------------------------------
-
-def settingsPanelLabel() -> String:
-  "Ajustes"
-
-def settingsPanelTitle() -> String:
-  "Modelo, esforço e resumo automático"
-
-def settingsPanelBodyId() -> String:
-  "pi-settings-body"
-
-def settingsToggleClass(open: Bool) -> V.ViewAttr:
-  V.classes([V.classOn("settings-toggle", True{}), V.classOn("open", open)])
-
-def settingsPanelHidden(open: Bool) -> List<&2, V.ViewAttr>:
-  match open:
-    case True{}:
-      Nil{}
-    case False{}:
-      [V.attr("hidden", "")]
-
-def settingsToggleAttrs(+open: Bool) -> List<&2, V.ViewAttr>:
-  V.attrJoin([
-    [V.attrType("button"), V.attrId("settings-toggle")],
-    [
-      settingsToggleClass(open),
-      V.attrAria("expanded", V.boolStr(open)),
-      V.attrAria("controls", settingsPanelBodyId())
-    ],
-    [V.attrOn("click", "ToggleSettings"), V.attrTitle(settingsPanelTitle()), V.attrData("icon", "unfold")]
-  ])
-
-def settingsToggleBtn(open: Bool) -> V.ViewNode:
-  V.viewEl("button", settingsToggleAttrs(open), [V.viewText(settingsPanelLabel())])
-
-def settingsPanelBody(open: Bool) -> V.ViewNode:
-  V.viewEl(
-    "div",
-    V.attrJoin([
-      [V.attrId(settingsPanelBodyId()), V.attrClass("settings-body")],
-      settingsPanelHidden(open)
-    ]),
-    Nil{}
-  )
-
-def settingsPanel(+open: Bool) -> V.ViewNode:
-  V.viewEl(
-    "div",
-    [V.attrId("pi-settings-panel"), V.attrClass("settings-panel")],
-    [settingsToggleBtn(open), settingsPanelBody(open)]
   )

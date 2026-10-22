@@ -3,8 +3,15 @@
 import {spawnSync} from "node:child_process";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
+import {describeUnsafe, findUnsafe} from "./unsafe-scan.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
+// Antes do bend, e mesmo sem ele: a varredura não depende da toolchain (#47).
+const unsafe = findUnsafe(here);
+if (unsafe.length) {
+  console.error(describeUnsafe(unsafe));
+  process.exit(1);
+}
 const r = spawnSync(process.env.BEND_BIN || "bend", [join(here, "PROOF.bend")], {
   // BEND_NO_TELEMETRY=1 desliga a checagem diária do CLI do bend (o único
   // request que ele faz) — o portão não fala com a rede.

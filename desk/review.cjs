@@ -28,6 +28,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const reviewCore = require('./src/generated/review.core.js').default;
+const {wholeNat} = require('./src/bend-nat.mjs');
+const {message} = require('./src/i18n.mjs');
+const deletionUndo = require('./deletion-undo.cjs');
 
 const FILENAME = 'review.json';
 /* Teto de leitura/gravação: um caderno por matéria, algumas dezenas de KB. */
@@ -36,7 +39,7 @@ const MAX_KEY = 120;
 const NIL = {$: 'Nil'};
 
 const fileOf = (runtime) => path.join(runtime, FILENAME);
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('./plain-object.cjs');
 const coreList = (items) => items.reduceRight((tail, head) => ({$: 'Con', head, tail}), NIL);
 const coreArray = (node) => {
   const out = [];
@@ -45,22 +48,19 @@ const coreArray = (node) => {
 };
 const coreLimit = () => Number(reviewCore.maxItems());
 /* Item do host (JSON puro, página em Number) → registro do núcleo. O núcleo
-   compara a página como `Nat`: sem esta conversão o BigInt nunca casa com o
-   número do arquivo e guardar o mesmo item de novo duplicaria. */
+   compara a página como `Nat`: sem esta conversão (BigInt até o bend 2.0.27,
+   `wholeNat` desde a #49) a página do arquivo não casaria e guardar o mesmo
+   item de novo duplicaria. */
 const coreItemOf = (one) => ({
   question: one.question,
   attempt: one.attempt,
   difficulty: one.difficulty,
-  ref: {name: one.ref.name, page: BigInt(Math.max(0, whole(one.ref.page))), path: one.ref.path},
+  ref: {name: one.ref.name, page: wholeNat(one.ref.page), path: one.ref.path},
 });
 const coreItemsOf = (items) => coreList(items.map(coreItemOf));
 /* Duas listas do host iguais? A operação que não achou a chave (a tela
    envelheceu) devolve o que está guardado sem regravar o arquivo. */
 const sameList = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const whole = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.trunc(number) : 0;
-};
 
 /* Um item do JSON → forma do núcleo → item do host (JSON puro). `null` quando
    não vale guardar (sem questão). */
@@ -72,7 +72,7 @@ function normalizeOne(raw) {
     typeof source.attempt === 'string' ? source.attempt : '',
     typeof source.difficulty === 'string' ? source.difficulty : '',
     typeof ref.name === 'string' ? ref.name : '',
-    BigInt(Math.max(0, whole(ref.page))),
+    wholeNat(ref.page),
     typeof ref.path === 'string' ? ref.path : ''
   );
   if (!reviewCore.keepItem(item)) return null;
@@ -138,7 +138,7 @@ function reviewSave(runtime, {courseId, mode, item, key} = {}) {
   const current = readItems(runtime, courseId);
   const source = normalizeOne(item);
   const target = normalizeOne(key) || source;
-  if (mode !== 'remove' && !source) throw new Error('Escreva a questão do item para guardar.');
+  if (mode !== 'remove' && !source) throw new Error(message('review.error.questionRequired'));
   let next = current;
   if (mode === 'remove') {
     if (target) next = coreArray(reviewCore.removeSame(coreItemsOf(current), coreItemOf(target)));
@@ -152,4 +152,113 @@ function reviewSave(runtime, {courseId, mode, item, key} = {}) {
   return writeItems(runtime, courseId, shaped);
 }
 
-module.exports = {FILENAME, readItems, writeItems, reviewSave, normalizeOne};
+/* Itens do caderno SEM esconder: o item que aponta para PDF fora da biblioteca
+   (ou cujo arquivo sumiu) continua na lista, marcado com `refState`. O
+   `main.cjs` deve usar isto no lugar do filtro por `allowed` — filtrar aqui é o
+   que fazia o item sumir sem explicação. `review-schedule.cjs` tem a mesma
+   leitura de estado (`refStateOf`), com a nota em português. */
+function annotateVisibility(items, allowed, exists = fs.existsSync) {
+  return (Array.isArray(items) ? items : []).map((item) => {
+    const file = String(item?.ref?.path || '');
+    const outside = !!file && !!allowed && !allowed.has(file);
+    const missing = !!file && !exists(file);
+    return {...item, refState: missing ? 'missing' : outside ? 'outside' : 'ok'};
+  });
+}
+
+/* ---------- desfazer remoção (Desfazer) ---------- */
+
+const undoStore = deletionUndo.createUndoStore();
+
+/* Mesma identidade do núcleo (mesma questão no mesmo material): é por ela que
+   o item removido volta ao caderno e nunca duplica. */
+function sameIdentity(a, b) {
+  return reviewCore.sameItem(coreItemOf(a), coreItemOf(b));
+}
+
+function scheduleModule() {
+  return require('./src/study-data/review-schedule.cjs');
+}
+
+/* Instantâneo da agenda do item no momento da remoção. Fica junto do token e
+   volta pelo ID no undo — o histórico de avaliação não depende de um `sync`
+   posterior para sobreviver. Sem o módulo/artefato da agenda, o caderno ainda
+   desfaz; só o instantâneo fica nulo. */
+function scheduleSnapshot(runtime, courseId, item) {
+  try {
+    const schedule = scheduleModule();
+    const bucket = schedule.readStore(runtime).courses[keyOf(courseId)];
+    const found = bucket?.items.find((one) => one.id === schedule.stableId(item));
+    return found ? JSON.parse(JSON.stringify(found)) : null;
+  } catch {
+    return null;
+  }
+}
+
+/* Restaura SÓ o item do instantâneo, pelo ID. Se a agenda ainda tem o registro
+   (o caso normal), só o marca `active` de novo: datas, histórico e intervalo de
+   quem já está lá nunca são sobrescritos. Se a agenda foi apagada por fora, o
+   instantâneo volta inteiro (era exatamente o registro daquele item). */
+function restoreSchedule(runtime, courseId, snapshot, item) {
+  if (!snapshot) return false;
+  const schedule = scheduleModule();
+  const store = schedule.readStore(runtime);
+  const key = keyOf(courseId);
+  const bucket = store.courses[key] || {items: []};
+  const id = snapshot.id || schedule.stableId(item);
+  const found = bucket.items.find((one) => one.id === id);
+  if (found) found.active = true;
+  else bucket.items.push({...snapshot, id, active: true});
+  store.courses[key] = bucket;
+  schedule.writeStore(runtime, store);
+  return true;
+}
+
+/* Remoção COM token de Desfazer: o caderno fica igual ao `reviewSave` (array
+   antigo intacto) e o token é emitido AQUI, com o item ORIGINAL e a posição
+   dele no arquivo. Alvo que não está mais no caderno não muda nada e não emite
+   token (a tela envelheceu). */
+/**
+ * @param {string} runtime
+ * @param {{courseId?: string, conversation?: string, mode?: string, item?: unknown, key?: unknown, at?: number}} [request]
+ */
+function reviewRemoveWithUndo(runtime, {courseId, conversation='', mode, item, key, at} = {}) {
+  const current = readItems(runtime, courseId);
+  if (mode && mode !== 'remove') return {items: current, undoToken: '', undoExpiresAt: 0};
+  const source = normalizeOne(item);
+  const target = normalizeOne(key) || source;
+  const index = target ? current.findIndex((one) => sameIdentity(one, target)) : -1;
+  if (index < 0) return {items: current, undoToken: '', undoExpiresAt: 0};
+  const stored = current[index];
+  const items = reviewSave(runtime, {courseId, mode: 'remove', key: stored});
+  const issued = undoStore.issue({
+    kind: 'review',
+    scopeKey: JSON.stringify([runtime, keyOf(courseId), conversation]),
+    item: stored,
+    index,
+    schedule: scheduleSnapshot(runtime, courseId, stored),
+    at,
+  });
+  return {items, undoToken: issued.token, undoExpiresAt: issued.expiresAt};
+}
+
+/* O Desfazer confere o escopo atual (mesmo caderno), relê a lista AGORA e
+   insere só a entrada removida — edições feitas no meio do caminho ficam como
+   estão. Identidade já presente não duplica; token de outro caderno é recusado
+   sem ser consumido. */
+/**
+ * @param {string} runtime
+ * @param {{courseId?: string, conversation?: string, token?: string, authorized?: (path: string) => boolean, at?: number}} [request]
+ */
+function reviewUndo(runtime, {courseId, conversation='', token, authorized=()=>true, at} = {}) {
+  const current = readItems(runtime, courseId);
+  const taken = undoStore.check({token, scopeKey: JSON.stringify([runtime, keyOf(courseId), conversation]), authorized:entry=>authorized(entry.item), at});
+  if (!taken.ok) return {ok: false, reason: taken.reason, items: current};
+  const merged = deletionUndo.mergeRemoved(current, taken.entry.item, sameIdentity, taken.entry.index);
+  const items = merged.restored ? writeItems(runtime, courseId, merged.items) : current;
+  restoreSchedule(runtime, courseId, taken.entry.schedule, taken.entry.item);
+  undoStore.commit(token);
+  return {ok: true, restored: merged.restored, items};
+}
+
+module.exports = {FILENAME, readItems, writeItems, reviewSave, normalizeOne, annotateVisibility, reviewRemoveWithUndo, reviewUndo};

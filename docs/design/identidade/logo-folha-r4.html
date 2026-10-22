@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Logo da folha — rodada 4</title>
+<!-- #61, rodada 4: os tratamentos da rodada 3 (F1–F4) com a folha da variante A da rodada 1
+     (inclinada, três itens, o primeiro com o visto âmbar), a pedido do autor. Gerado a partir
+     de logo-folha-r3.html. Rodada 3: folha chapada. Misturar A e B (rodada 2) não funcionou; o autor escolheu
+     uma marca geométrica, só a silhueta da folha com o canto dobrado, sem desenho dentro.
+     A Folhinha fica dentro do app. Logo do app a partir da Folhinha (mascote aprovado), e reativa à cor de acento
+     das configurações. As cores são os valores claros de --acc-* em desk/style.css. O "M"
+     da variante C vira contorno no SVG final, sem depender de fonte. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:wght@600&display=swap">
+<style>
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.lead{color:#737373;margin:0 0 20px;max-width:76ch}
+.card{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0}
+.card p{margin:2px 0 12px;color:#737373;font-size:13px}
+.linha{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
+.grande svg{width:180px;height:180px;display:block}
+.cores{display:grid;grid-template-columns:repeat(6,auto);gap:10px 14px;align-items:end;justify-content:start}
+.cores figure{margin:0;text-align:center}
+.cores figcaption{font-size:10px;color:#8a8a8a}
+.dock{display:flex;gap:10px;align-items:flex-end;padding:8px 12px;border-radius:14px;margin-top:10px;width:max-content}
+.dock.claro{background:#e4e4e7}.dock.escuro{background:#1c1c1e}
+</style>
+</head>
+<body>
+<h1>Logo da folha — rodada 4: rodada 3 com a folha da A</h1>
+<p class="lead">As quatro versões da rodada 3, agora com a folha da A da rodada 1: levemente inclinada, com três itens e o primeiro marcado com o visto âmbar. Mesmas cores de acento e mesmo Dock.</p>
+<div id="out"></div>
+<script>
+const ACENTOS=[['azul','#2548c7'],['violeta','#6d28d9'],['verde','#0f7b55'],['laranja','#c2410c'],['rosa','#c02667'],['grafite','#27272a']];
+const CREME='#fffbf0',AMBAR='#e8862a';
+const mistura=(cor,pct,com)=>`color-mix(in oklab,${cor} ${pct}%,${com})`;
+// Folha de cantos arredondados com o canto superior direito cortado (tamanho f) e a dobra.
+const folha=({x,y,w,h,r=44,f})=>`M${x+r} ${y}H${x+w-f}L${x+w} ${y+f}V${y+h-r}Q${x+w} ${y+h} ${x+w-r} ${y+h}H${x+r}Q${x} ${y+h} ${x} ${y+h-r}V${y+r}Q${x} ${y} ${x+r} ${y}Z`;
+const dobra=({x,y,w,f})=>`M${x+w-f} ${y}V${y+f-22}Q${x+w-f} ${y+f} ${x+w-f+22} ${y+f}H${x+w}Z`;
+const traco=(d,cor,w)=>`<path d="${d}" fill="none" stroke="${cor}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const RISCO='#c9c1ad';
+// A lista da A, posicionada pela caixa da folha (x, y, w).
+const lista=({x,y,w},risco=RISCO)=>{const e=x+38,d=x+w-52;
+ return traco(`M${e} ${y+288}l28 28 58-66`,AMBAR,32)+traco(`M${e+130} ${y+288}H${d}`,risco,34)+traco(`M${e+4} ${y+408}H${d-60}M${e+4} ${y+528}H${d-10}`,risco,34);};
+const GIRO='rotate(-4 512 512)';
+const NORMAL={x:292,y:182,w:440,h:660,f:150};
+let n=0;
+const sombra=id=>`<filter id="s${id}" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity=".26"/></filter>`;
+const fundoCor=(cor,id)=>`<defs><linearGradient id="g${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${mistura(cor,78,'white')}"/><stop offset="1" style="stop-color:${mistura(cor,88,'black')}"/></linearGradient>${sombra(id)}</defs><rect width="1024" height="1024" rx="230" fill="url(#g${id})"/>`;
+const fundoCreme=id=>`<defs>${sombra(id)}</defs><rect width="1024" height="1024" rx="230" fill="${CREME}"/>`;
+const variantes=[
+ {nome:'F1 · Folha creme',nota:'A folha creme sobre o acento, com a dobra num tom mais escuro do próprio acento. A mais direta: o acento pinta o fundo e a dobra.',
+  desenha:(cor,id)=>fundoCor(cor,id)+`<g transform="${GIRO}"><path d="${folha(NORMAL)}" fill="${CREME}" filter="url(#s${id})"/><path d="${dobra(NORMAL)}" style="fill:${mistura(cor,55,CREME)}"/>${lista(NORMAL)}</g>`},
+ {nome:'F2 · Folha no acento',nota:'O contrário da F1: a folha é que tem a cor de acento, sobre um fundo creme. Destaca-se no Dock escuro e lembra papel colorido.',
+  desenha:(cor,id)=>fundoCreme(id)+`<g transform="${GIRO}"><path d="${folha(NORMAL)}" fill="${cor}" filter="url(#s${id})"/><path d="${dobra(NORMAL)}" style="fill:${mistura(cor,55,'white')}"/>${lista(NORMAL,mistura(cor,40,'white'))}</g>`},
+ {nome:'F3 · Dobra grande',nota:'A dobra cresce até virar o gesto da marca, e ganha o âmbar do lápis da Folhinha. É a mais "logo" das quatro: dá para reconhecer só pela silhueta.',
+  desenha:(cor,id)=>{const g={x:282,y:192,w:460,h:640,f:250};return fundoCor(cor,id)+`<g transform="${GIRO}"><path d="${folha(g)}" fill="${CREME}" filter="url(#s${id})"/><path d="${dobra(g)}" fill="${AMBAR}"/>${lista(g)}</g>`;}},
+ {nome:'F4 · Duas folhas',nota:'Uma folha no tom do acento atrás da creme, um pouco deslocada: a pilha de material de estudo. Ainda geométrica, com um pouco de profundidade.',
+  desenha:(cor,id)=>{const tras={x:352,y:142,w:420,h:640,f:140},frente={x:252,y:242,w:420,h:640,f:140};
+   return fundoCor(cor,id)+`<g transform="${GIRO}"><path d="${folha(tras)}" style="fill:${mistura(cor,45,CREME)}"/><path d="${dobra(tras)}" style="fill:${mistura(cor,25,CREME)}"/><path d="${folha(frente)}" fill="${CREME}" filter="url(#s${id})"/><path d="${dobra(frente)}" style="fill:${mistura(cor,55,CREME)}"/>${lista(frente)}</g>`;}},
+];
+const icone=(v,cor,w)=>{const id=n++;return `<svg viewBox="0 0 1024 1024" width="${w}" height="${w}" role="img" aria-label="${v.nome}">${v.desenha(cor,id)}</svg>`;};
+document.getElementById('out').innerHTML=variantes.map(v=>`
+ <section class="card"><h2>${v.nome}</h2><p>${v.nota}</p>
+  <div class="linha">
+   <div class="grande">${icone(v,ACENTOS[0][1],180)}</div>
+   <div>
+    <div class="cores">${ACENTOS.map(([nome,cor])=>`<figure>${icone(v,cor,72)}<figcaption>${nome}</figcaption></figure>`).join('')}</div>
+    <div class="dock claro">${ACENTOS.slice(0,3).map(([,cor])=>[64,32,16].map(s=>icone(v,cor,s)).join('')).join('')}</div>
+    <div class="dock escuro">${ACENTOS.slice(3).map(([,cor])=>[64,32,16].map(s=>icone(v,cor,s)).join('')).join('')}</div>
+   </div>
+  </div>
+ </section>`).join('');
+</script>
+</body>
+</html>

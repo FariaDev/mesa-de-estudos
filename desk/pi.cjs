@@ -1,5 +1,6 @@
 const fs=require('node:fs');const os=require('node:os');const path=require('node:path');
 const {pathToFileURL}=require('node:url');
+const {message}=require('./src/i18n.mjs');
 
 const FALLBACK_LEVELS=['off','minimal','low','medium','high'];
 const BIN_NAMES=process.platform==='win32'?['pi.cmd','pi.exe','pi']:['pi'];
@@ -60,7 +61,7 @@ function spawnEnv(piPath){
 function missingPiMessage(err){
  const msg=err?.message||String(err||'');
  if(!err||err.code==='ENOENT'||/ENOENT|not found|não encontrado/i.test(msg)){
-  return 'Pi não encontrado. Rode npm run setup ou indique o caminho em Configurações.';
+  return message('tutor.error.piMissing');
  }
  return msg;
 }

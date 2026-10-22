@@ -40,7 +40,7 @@ const MAX_ARGS_CHARS = 262144;
 const MAX_IMAGE_DATA_CHARS = Math.ceil((8 * 1024 * 1024) / 3) * 4;
 const MAX_SOURCE_CHARS = 2000;
 const MAX_CONTENT_PARTS = 200;
-
+const MAX_DETAILS_CHARS = 20000;
 const ROLES = {
   user: 'user',
   assistant: 'assistant',
@@ -50,9 +50,25 @@ const ROLES = {
   tool: 'toolResult'
 };
 
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('../../plain-object.cjs');
 const str = (value) => typeof value === 'string' ? value : (typeof value === 'number' && Number.isFinite(value) ? String(value) : '');
 const clip = (value, max) => value.length > max ? value.slice(0, max) : value;
+
+/* Detalhe estruturado (`tool_use_result`/`details`): só JSON serializável dentro
+   do teto; acima disso vira marcador — o cache de exibição nunca carrega objeto
+   gigante nem prova de segurança. Idempotente (re-capar um marcador não muda). */
+function detailsOf(value) {
+  if (value === undefined) return undefined;
+  try {
+    const json = JSON.stringify(value);
+    if (typeof json !== 'string') return undefined;
+    if (json.length > MAX_DETAILS_CHARS) return {truncated: true, length: json.length};
+    const parsed = JSON.parse(json);
+    return parsed === null ? undefined : parsed;
+  } catch {
+    return undefined;
+  }
+}
 
 /* ---------- entradas ---------- */
 
@@ -194,7 +210,7 @@ function messageOf(role, parts, timestamp) {
   return message;
 }
 
-function toolResultMessage(result, timestamp) {
+function toolResultMessage(result, timestamp, details) {
   const message = {
     role: 'toolResult',
     content: [{type: 'text', text: clip(str(result.text), MAX_TEXT_CHARS)}]
@@ -202,6 +218,8 @@ function toolResultMessage(result, timestamp) {
   if (timestamp) message.timestamp = timestamp;
   if (str(result.toolCallId)) message.toolCallId = clip(str(result.toolCallId), MAX_TOOL_CHARS);
   if (result.isError === true) message.isError = true;
+  const cap = details !== undefined ? detailsOf(details) : detailsOf(result.details);
+  if (cap !== undefined) message.details = cap;
   return message;
 }
 
@@ -209,26 +227,54 @@ function normalizeOne(entry) {
   const source = isPlainObject(entry.message) ? entry.message : entry;
   const role = ROLES[str(source.role || entry.role)];
   if (!role) return [];
-  const parts = [];
-  const results = [];
-  for (const block of blocksOf(source.content)) {
-    const part = partOf(block);
-    if (!part) continue;
-    if (part.type === 'toolResult') results.push(part);
-    else parts.push(part);
-  }
   const timestamp = timestampOf(entry, source);
-  const out = [];
+  const messageDetails = detailsOf(source.details !== undefined ? source.details : entry.details);
+  const entryDetails = messageDetails !== undefined ? messageDetails : detailsOf(entry.tool_use_result);
+  /* Forma direta de mensagem de resultado (`role:'toolResult'`): tudo é um
+     resultado só. */
   if (role === 'toolResult') {
+    const parts = [];
+    const results = [];
+    for (const block of blocksOf(source.content)) {
+      const part = partOf(block);
+      if (!part) continue;
+      if (part.type === 'toolResult') results.push(part);
+      else parts.push(part);
+    }
     const id = clip(str(source.toolCallId || entry.toolCallId), MAX_TOOL_CHARS);
     const text = clip(parts.filter((part) => part.type === 'text').map((part) => part.text).join('\n'), MAX_TEXT_CHARS);
     const isError = source.isError === true || entry.isError === true || results.some((part) => part.isError === true);
-    if (text || id || isError) out.push(toolResultMessage({toolCallId: id, text, isError}, timestamp));
-    for (const result of results) out.push(toolResultMessage(result, timestamp));
+    const out = [];
+    if (text || id || isError || entryDetails !== undefined) {
+      out.push(toolResultMessage({toolCallId: id, text, isError}, timestamp, entryDetails));
+    }
+    const singleResult = results.length === 1;
+    for (const result of results) out.push(toolResultMessage(result, timestamp, singleResult ? entryDetails : undefined));
     return out;
   }
-  if (parts.length) out.push(messageOf(role, parts, timestamp));
-  for (const result of results) out.push(toolResultMessage(result, timestamp));
+  /* Blocos na ORDEM de origem: texto/imagem/toolCall viram uma mensagem do
+     papel; cada `tool_result` vira mensagem própria no ponto em que apareceu —
+     nunca empurrado para o fim (é o que preserva a âncora do artefato). */
+  const out = [];
+  let pending = [];
+  const blockCount = blocksOf(source.content).filter((block) => isPlainObject(block) && partOf(block)?.type === 'toolResult').length;
+  const singleResult = blockCount === 1;
+  const flush = () => {
+    if (!pending.length) return;
+    out.push(messageOf(role, pending, timestamp));
+    pending = [];
+  };
+  for (const block of blocksOf(source.content)) {
+    const part = partOf(block);
+    if (!part) continue;
+    if (part.type === 'toolResult') {
+      flush();
+      out.push(toolResultMessage(part, timestamp, singleResult ? entryDetails : undefined));
+    } else {
+      pending.push(part);
+    }
+  }
+  flush();
   return out;
 }
 
@@ -247,7 +293,22 @@ function normalizeClaudeMessages(raw) {
 /* Mesmo markdown do export atual da Mesa: cabeçalho + `## Você`/`## Pi`
    (`## Claude` no motor claude), texto trimado, imagem como `[imagem anexada]`.
    Mensagens sem texto/imagem não geram seção. */
-function exportConversationMarkdown({courseName, engine, messages, now} = {}) {
+/* Rótulos do arquivo exportado: a Mesa passa os do idioma da interface (#41);
+   sem eles valem os de sempre, em português. */
+const PT_EXPORT_LABELS = Object.freeze({
+  you: 'Você',
+  imageAttached: '[imagem anexada]',
+  exportedOn: (iso) => `Exportado em ${iso}`,
+});
+
+/* Nome do motor no título de cada resposta exportada (#57: OpenCode). */
+const EXPORT_ENGINE_NAMES = Object.freeze({claude: 'Claude', opencode: 'OpenCode'});
+
+/**
+ * @param {{courseName?: string, engine?: string, messages?: object[], now?: Date | number,
+ *   labels?: {you: string, imageAttached: string, exportedOn: (iso: string) => string}}} [options]
+ */
+function exportConversationMarkdown({courseName, engine, messages, now, labels = PT_EXPORT_LABELS} = {}) {
   const date = now === undefined ? new Date() : new Date(now);
   const iso = Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
   const parts = [];
@@ -256,12 +317,12 @@ function exportConversationMarkdown({courseName, engine, messages, now} = {}) {
     let text = '';
     for (const part of message.content) {
       if (part.type === 'text') text += (text ? '\n' : '') + part.text;
-      else if (part.type === 'image') text += (text ? '\n' : '') + '[imagem anexada]';
+      else if (part.type === 'image') text += (text ? '\n' : '') + labels.imageAttached;
     }
     if (!text.trim()) continue;
-    parts.push(`## ${message.role === 'user' ? 'Você' : (engine === 'claude' ? 'Claude' : 'Pi')}\n\n${text.trim()}`);
+    parts.push(`## ${message.role === 'user' ? labels.you : (EXPORT_ENGINE_NAMES[engine] || 'Pi')}\n\n${text.trim()}`);
   }
-  return `# Mesa de Estudos — ${String(courseName == null ? '' : courseName)}\n\nExportado em ${iso}\n\n` + (parts.length ? parts.join('\n\n') + '\n' : '');
+  return `# Mesa de Estudos — ${String(courseName == null ? '' : courseName)}\n\n${labels.exportedOn(iso)}\n\n` + (parts.length ? parts.join('\n\n') + '\n' : '');
 }
 
 module.exports = {

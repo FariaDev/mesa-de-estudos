@@ -1,0 +1,37 @@
+/* Peças da v1.0.0 (#68). Tokens copiados do tema claro de desk/style.css e do
+   acento violeta (o do ícone do pacote, #61); a STIX vem do fonts.css do app.
+   O trio usa o trio.css do app; aqui só se para o movimento, como no
+   "reduzir movimento" de src/motion.css. */
+@import url("../../../../desk/src/fonts.css");
+@import url("../../../../desk/src/trio.css");
+
+:root{
+ --paper:#fafafa;
+ --surface:#ffffff;
+ --tile:#f1f1f1;
+ --fg-strong:#181818;
+ --fg:#272727;
+ --muted:#525252;
+ --faint:#6b6b6b;
+ --border:#dadada;
+ --accent:#6d28d9;
+ --accent-tint:color-mix(in oklab,#6d28d9 11%,#ffffff);
+ --creme:#fffbf0;
+ --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue","Segoe UI",sans-serif;
+ --t-fast:0s;--t-base:0s;--t-slow:0s;--t-loop:0s;
+ --ease-out:linear;--ease-move:linear;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--fg);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+body{overflow:hidden}
+.peca{position:relative;overflow:hidden;background:var(--paper)}
+
+/* Logo G1: o render.cjs põe o SVG de desk/scripts/app-icon-art.mjs aqui. */
+[data-logo] svg{display:block;width:100%;height:100%}
+
+/* Trio: o render.cjs põe o trioSvg em cada [data-trio]. */
+.mascote{flex:none}
+
+.marca{font-family:var(--sans);font-weight:650;letter-spacing:-.02em;color:var(--fg-strong)}
+.serifa{font-family:var(--serif);font-weight:500}
+.chao{height:2px;background:var(--fg-strong);opacity:.12;border-radius:1px}

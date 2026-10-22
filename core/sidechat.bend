@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 
 # ---------------------------------------------------------------------------
 # Regras do chat lateral (segundo chat da Mesa).
@@ -92,3 +93,24 @@ def canPrompt(busy: Bool, deliveryInFlight: Bool) -> Bool:
 # O bloco de contexto vai quando a chave entregue difere da chave atual.
 def contextChanged(deliveredKey: String, currentKey: String) -> Bool:
   Bool.not(String.eq(deliveredKey, currentKey))
+
+# ---------------------------------------------------------------------------
+# Linha de escopo (ticket #19): irmã da linha "Vai junto" da caixa do tutor,
+# acima da caixa do chat lateral. Diz de qual material e página o contexto
+# copiado veio e que ele não entra na sessão principal; a ação ao lado é a
+# ÚNICA que renova esse contexto. O host entrega os materiais já em texto
+# ("Limites.pdf p. 3", na ordem dos leitores); a redação é daqui.
+# ---------------------------------------------------------------------------
+
+def scopeSeparator() -> String:
+  ", "
+
+def scopeLine(refs: +List<String>) -> String:
+  match refs:
+    case Nil{}:
+      M.msg("scope.none")
+    case Con{h, t}:
+      M.msg1("scope.about", "refs", String.join(Con{h, t}, scopeSeparator()))
+
+def scopeRefresh() -> String:
+  M.msg("scope.refresh")

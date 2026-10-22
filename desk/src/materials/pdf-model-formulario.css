@@ -1,0 +1,70 @@
+/* Modelo Formulário: título centrado em maiúsculas, convenção da folha em
+   itálico, seções por assunto com filete e fórmulas numeradas (numeração
+   contínua, feita no `structure.mjs`) em colunas. "Caber numa folha" reduz a
+   escala (`--fit`) em passos do núcleo. */
+
+@page formulario{
+  size:A4;
+  margin:14mm 16mm 16mm;
+  @bottom-left{
+    width:75%;
+    font:8.5pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    border-top:.5pt solid #111;
+    vertical-align:top;
+    padding-top:1.4mm;
+  }
+  @bottom-right{
+    width:25%;
+    font:8.5pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    text-align:right;
+    border-top:.5pt solid #111;
+    vertical-align:top;
+    padding-top:1.4mm;
+  }
+}
+
+.pdf-doc .pdf-model[data-model="formulario"]{
+  page:formulario;
+  --page-h:267mm;
+  --col-gap:7mm;
+  font-size:calc(10.5pt * var(--fit,1));
+  line-height:1.38;
+}
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-run-head{display:none}
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-run-foot{margin-top:6mm}
+.pdf-doc .pdf-model[data-model="formulario"] h1.pdf-title{
+  text-align:center;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  font-size:1.5em;
+  margin:0 0 2mm;
+}
+.pdf-doc .pdf-model[data-model="formulario"]>p{
+  text-align:center;
+  font-style:italic;
+  margin:0 0 4mm;
+}
+
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-cols{columns:2;column-gap:var(--col-gap);column-fill:balance}
+.pdf-doc .pdf-model[data-model="formulario"][data-cols="2"] .pdf-cols{columns:2}
+.pdf-doc .pdf-model[data-model="formulario"][data-cols="3"] .pdf-cols{columns:3}
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-cols :is(h2,h3){
+  font-size:.95em;
+  font-variant:small-caps;
+  letter-spacing:.05em;
+  border-bottom:.5pt solid #111;
+  padding-bottom:.6mm;
+  margin:1em 0 .35em;
+  break-after:avoid;
+}
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-cols>:is(h2,h3):first-child{margin-top:0}
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-cols ol{margin:.2em 0;padding-left:2.1em}
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-cols ol>li{margin:.18em 0;break-inside:avoid}
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-cols ol>li::marker{
+  content:counter(list-item) ".\00a0";
+  font-weight:700;
+}
+.pdf-doc .pdf-model[data-model="formulario"] .pdf-cols p{margin:.25em 0}
+.pdf-doc .pdf-model[data-model="formulario"] .katex-display{margin:.35em 0}

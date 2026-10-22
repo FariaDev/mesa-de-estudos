@@ -45,3 +45,21 @@ def Laws.sk_dialogo_aberto():
 
 def Laws.sk_dialogo_ordem():
   {==}
+
+def Laws.sk_cabecalho_tem_o_x_de_fechar():
+  {==}
+
+def Laws.sk_x_aciona_done():
+  {==}
+
+def Laws.sk_x_tem_nome_acessivel():
+  {==}
+
+def Laws.sk_x_usa_a_classe_do_padrao():
+  {==}
+
+def Laws.sk_cabecalho_leva_o_x_depois_do_titulo():
+  {==}
+
+def Laws.sk_rodape_so_tem_restaurar():
+  {==}

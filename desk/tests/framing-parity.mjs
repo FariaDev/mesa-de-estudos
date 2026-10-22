@@ -93,11 +93,11 @@ test('regressão: buffers de MB não estouram a pilha e conservam as linhas', ()
 
 test('feed no núcleo: limite estrito também em MB (strLength em loop)', () => {
   const grande = 'x'.repeat(12_000_000);
-  const dentro = core.feed('x'.repeat(6_000_000), 'x'.repeat(6_000_000), 33554432n);
+  const dentro = core.feed('x'.repeat(6_000_000), 'x'.repeat(6_000_000), 33554432);
   assert.equal(dentro.overflow, false);
   assert.equal(dentro.rest, grande);
 
-  const fora = core.feed('x'.repeat(6_000_000), 'x'.repeat(6_000_000), 10485760n);
+  const fora = core.feed('x'.repeat(6_000_000), 'x'.repeat(6_000_000), 10485760);
   assert.equal(fora.overflow, true);
   assert.equal(fora.rest, '');
   assert.equal(coreLines(fora.lines).length, 0);

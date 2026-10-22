@@ -94,7 +94,7 @@ await withArtifacts('sidechat-claude-ipc',async ctx=>{
  watch(page);
  await page.waitForFunction(()=>window.desk&&typeof window.desk.newSession==='function',undefined,{timeout:20000});
  await page.waitForSelector('.pdf-panel',{timeout:30000});
- await page.waitForSelector('#status-dot.online',{timeout:30000});
+ await page.waitForSelector('#status-dot.online',{timeout:30000,state:'attached'});
  await page.evaluate(()=>{
   window.__scEvents=[];
   window.desk.onSidechatEvent(payload=>window.__scEvents.push(payload));
@@ -252,7 +252,9 @@ await withArtifacts('sidechat-claude-ipc',async ctx=>{
 
  /* ---------- 10. sem fallback: nenhum Pi e nenhum binário Claude real ---------- */
  must('nenhum processo Pi nasce entre criar Claude e retomar o lateral',sentinelLines(piSentinel),v=>v.length===0);
- must('o SDK fake não executa o binário real do Claude',sentinelLines(claudeSentinel),v=>v.length===0);
+ /* #45: o Sobre lê a versão do Claude Code com `claude --version` (e só isso); nenhum outro
+    uso do binário é permitido neste fluxo. */
+ must('o SDK fake não executa o binário real do Claude',sentinelLines(claudeSentinel).filter(line=>!/\s--version$/.test(line)),v=>v.length===0);
  must('sem erros de página no renderer',errors,v=>v.length===0);
 
  console.log(`SIDECHAT CLAUDE IPC PASSED (${checks} checks): conversa principal Claude por window.desk.newSession; lateral no mesmo motor com sessão nativa própria; streaming e settled; ref PDF#page=3, questão e matéria no prompt do fakeClaude; permissão de leitura do PDF por readPaths; cancelamento; rascunho e retomada após reinício; aceite em voo vira incerto no reinício com novo prompt recusado, fresh disponível e histórico/rascunho preservados; zero processo Pi e zero binário Claude real.`);

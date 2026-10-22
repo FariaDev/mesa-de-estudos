@@ -1,0 +1,85 @@
+/* Modelo Simulado: quadro Nome · Data · Nota, instruções, "Questão N" com o
+   valor à direita, quadro de resposta (altura vem do núcleo, `--ans`),
+   alternativas "( )" e gabarito comentado em página separada. */
+
+@page simulado{
+  size:A4;
+  margin:20mm 16mm 20mm;
+  @top-left{
+    width:60%;
+    font:9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    border-bottom:.5pt solid #111;
+    vertical-align:bottom;
+    padding-bottom:1.6mm;
+  }
+  @top-right{
+    width:40%;
+    font:700 9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    font-variant:small-caps;
+    letter-spacing:.05em;
+    text-align:right;
+    color:#111;
+    border-bottom:.5pt solid #111;
+    vertical-align:bottom;
+    padding-bottom:1.6mm;
+  }
+  @bottom-right{
+    font:9pt "STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Times New Roman",serif;
+    color:#111;
+    text-align:right;
+    vertical-align:top;
+    padding-top:1.6mm;
+  }
+}
+
+.pdf-doc .pdf-model[data-model="simulado"]{page:simulado;--page-h:257mm}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-run-foot{border-top:0;justify-content:flex-end}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-run-foot .pdf-run-l{display:none}
+.pdf-doc .pdf-model[data-model="simulado"] h1.pdf-title{
+  text-align:center;
+  font-variant:small-caps;
+  letter-spacing:.04em;
+  margin:0 0 4mm;
+}
+
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-ficha{
+  display:flex;
+  border:.75pt solid #111;
+  margin:0 0 4mm;
+}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-ficha span{
+  flex:1;
+  padding:2mm 3mm 5mm;
+  font-size:.9em;
+  border-left:.75pt solid #111;
+}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-ficha span:first-child{flex:3;border-left:0}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-ficha span::after{content:":"}
+
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-q{margin:0 0 4mm;break-inside:avoid}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-q-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:4mm;
+  margin:0 0 1.2mm;
+}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-q-n{font-weight:700}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-q-v{font-size:.92em;white-space:nowrap}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-q p{margin:.35em 0}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-resposta{
+  height:var(--ans,36mm);
+  border:.75pt solid #111;
+  margin-top:2.5mm;
+}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-alts ul{list-style:none;padding-left:1.1em;margin:.4em 0}
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-alts li{margin:.25em 0}
+
+.pdf-doc .pdf-model[data-model="simulado"] .pdf-gabarito>:is(h2,h3){
+  font-variant:small-caps;
+  letter-spacing:.04em;
+  border-bottom:.5pt solid #111;
+  padding-bottom:1mm;
+  margin-top:0;
+}

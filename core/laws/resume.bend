@@ -1,6 +1,6 @@
 import Base
+import ../msg.bend as M
 import ../resume.bend as R
-import ../view.bend as V
 
 # ---------------------------------------------------------------------------
 # Contrato do registro de retomada (Mesa). Prefixo `resume_`.
@@ -8,7 +8,7 @@ import ../view.bend as V
 # As leis fecham em valores concretos: `String.trim`/`String.take` de uma
 # variável livre não reduzem, então o que se prova é o caso que importa — texto
 # vazio ou só espaço, texto acima do teto, página 0, lista de páginas acima do
-# limite e a árvore do cartão montada.
+# limite e os textos da retomada. A árvore do bloco na coluna é do `tutorstate`.
 # ---------------------------------------------------------------------------
 
 # ---------- tetos ----------
@@ -89,53 +89,24 @@ law resume_record_caps:
   {R.record("onde", "próximo", "Lista 2", "/tmp/l.xopp", [R.ResumePage{"/a.pdf", 1n}, R.ResumePage{"/b.pdf", 2n}, R.ResumePage{"/c.pdf", 3n}])
     == R.ResumeRecord{"onde", "próximo", "Lista 2", "/tmp/l.xopp", [R.ResumePage{"/a.pdf", 1n}, R.ResumePage{"/b.pdf", 2n}]} : R.ResumeRecord}
 
-# ---------- textos do cartão e da retomada ----------
-
-law resume_title_both:
-  {R.resumeTitle("Cálculo I", "Lista 2 · 7b") == "Continuar Cálculo I — Lista 2 · 7b" : String}
-
-law resume_title_sem_questao:
-  {R.resumeTitle("Cálculo I", "   ") == "Continuar Cálculo I" : String}
-
-law resume_where_label:
-  {R.resumeWhereLabel("travei na 3") == "Onde parei: travei na 3" : String}
+# ---------- textos da retomada ----------
 
 law resume_next_label:
-  {R.resumeNextLabel("fazer a 4") == "Próximo passo: fazer a 4" : String}
+  {R.resumeNextLabel("fazer a 4") == M.msg1("resume.next", "next", "fazer a 4") : String}
+
+law resume_go_label:
+  {R.resumeGoLabel() == M.msg("resume.go") : String}
+
+law resume_new_label:
+  {R.resumeNewLabel() == M.msg("resume.new") : String}
+
+law resume_forget_label:
+  {R.resumeForgetLabel() == M.msg("resume.forget") : String}
 
 law resume_end_day_draft:
   {R.endDayDraft("travei na 3", "fazer a 4")
-    == "Encerrar por hoje.\n\nOnde parei: travei na 3\n\nPróximo passo: fazer a 4" : String}
+    == M.msg2("resume.endDayDraft", "stopped", "travei na 3", "next", "fazer a 4") : String}
 
 law resume_draft:
   {R.resumeDraft("travei na 3", "fazer a 4")
-    == "Continuar de onde parei.\n\nOnde parei: travei na 3\n\nPróximo passo: fazer a 4" : String}
-
-# ---------- cartão ----------
-
-law resume_card_tag:
-  {V.tagOf(R.resumeCardView("Continuar Cálculo I", "travei na 3", "fazer a 4")) == "div" : String}
-
-law resume_card_class:
-  {V.attrGet(V.attrsOf(R.resumeCardView("Continuar Cálculo I", "travei na 3", "fazer a 4")), "class")
-    == Some{"resume-card"} : Maybe<&2, String>}
-
-law resume_card_title_class:
-  {V.attrGet(V.attrsOf(R.resumeCardTitleView("Continuar Cálculo I")), "class")
-    == Some{"resume-card-title"} : Maybe<&2, String>}
-
-law resume_card_line_class:
-  {V.attrGet(V.attrsOf(R.resumeCardLineView("Onde parei: x")), "class")
-    == Some{"resume-card-line"} : Maybe<&2, String>}
-
-law resume_go_class:
-  {V.attrGet(V.attrsOf(R.resumeGoBtn()), "class") == Some{"resume-go"} : Maybe<&2, String>}
-
-law resume_go_click:
-  {V.attrGet(V.attrsOf(R.resumeGoBtn()), "on:click") == Some{"resume"} : Maybe<&2, String>}
-
-law resume_dismiss_class:
-  {V.attrGet(V.attrsOf(R.resumeDismissBtn()), "class") == Some{"resume-dismiss"} : Maybe<&2, String>}
-
-law resume_dismiss_click:
-  {V.attrGet(V.attrsOf(R.resumeDismissBtn()), "on:click") == Some{"dismiss"} : Maybe<&2, String>}
+    == M.msg2("resume.resumeDraft", "stopped", "travei na 3", "next", "fazer a 4") : String}

@@ -74,6 +74,21 @@ law deskflags_estudo_visivel:
 law deskflags_estudo_oculto:
   {V.attrGet(V.attrsOf(D.studyContextRow(semEstudo())), "hidden") == Some{""} : Maybe<&2, String>}
 
+# ---------- botão que edita o contexto de estudo (linha "Vai junto") ----------
+
+law deskflags_editar_contexto_tag:
+  {V.tagOf(D.contextEditButton(ligado())) == "button" : String}
+
+law deskflags_editar_contexto_id:
+  {V.attrGet(V.attrsOf(D.contextEditButton(ligado())), "id") == Some{"context-edit"} : Maybe<&2, String>}
+
+law deskflags_editar_contexto_visivel:
+  {V.attrGet(V.attrsOf(D.contextEditButton(ligado())), "hidden") == None{} : Maybe<&2, String>}
+
+# Sem contexto de estudo não há o que editar: o botão some com a flag.
+law deskflags_editar_contexto_oculto:
+  {V.attrGet(V.attrsOf(D.contextEditButton(semEstudo())), "hidden") == Some{""} : Maybe<&2, String>}
+
 # ---------- conferir Xournal++ ----------
 
 law deskflags_conferir_tag:

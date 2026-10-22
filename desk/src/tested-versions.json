@@ -1,0 +1,6 @@
+{
+  "_nota": "Versões testadas com esta Mesa. Subir só depois de rodar os portões (npm test, ui, test:claude-ui). O claude é a testada e a referência da faixa aceita (#51): aceita de claudeMinimum até a série dela (major.minor); mais nova na série só avisa, série nova recusa. claudeMinimum é a mais antiga que os testes de contrato cobrem (docs/reviews/issue-51-resultado.md). O pi é o que passou nos testes nativos (docs/reviews/issue-46-resultado.md).",
+  "pi": "1.3.0",
+  "claude": "2.1.301",
+  "claudeMinimum": "2.1.296"
+}

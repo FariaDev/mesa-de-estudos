@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {ptText} from './pt-text.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -38,8 +39,8 @@ test('resolvePi finds a configured binary and a PATH entry',()=>{
 
 test('missing Pi gets a setup message',()=>{
  const err=Object.assign(Error('spawn pi ENOENT'),{code:'ENOENT'});
- assert.match(missingPiMessage(err),/npm run setup/);
- assert.match(missingPiMessage(),/npm run setup/);
+ assert.match(ptText(missingPiMessage(err)),/npm run setup/);
+ assert.match(ptText(missingPiMessage()),/npm run setup/);
  assert.equal(missingPiMessage(Error('Pi encerrou (1).')),'Pi encerrou (1).');
 });
 

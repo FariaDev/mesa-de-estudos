@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Mesa de Estudos · novidades da 1.0</title>
+<link rel="stylesheet" href="release.css">
+<style>
+ /* Grade suíça como a da 0.5 (docs/release-assets/v0.5.0/prompt-v2.md):
+    três colunas, vãos iguais, só tipografia e retângulos planos. */
+ .peca{width:1600px;height:1000px;padding:52px 64px 36px;display:grid;grid-template-rows:auto 352px 224px auto 1fr;row-gap:20px}
+ header{display:flex;align-items:center;gap:24px;padding-bottom:20px}
+ .logo{width:84px;height:84px;flex:none}
+ header h1{font-size:50px;line-height:1;font-weight:650;letter-spacing:-.025em;color:var(--fg-strong)}
+ header p{margin-top:8px;font-size:24px;color:var(--muted)}
+ .versao{margin-left:auto;align-self:flex-start;margin-top:6px;font-size:46px;font-weight:400;color:var(--fg);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+ .linha{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+ .bloco{border-radius:14px;background:var(--tile);padding:34px 36px;display:flex;flex-direction:column;min-width:0}
+ .bloco h2{font-size:34px;line-height:1.1;font-weight:650;letter-spacing:-.015em;color:var(--fg-strong)}
+ .bloco p{margin-top:14px;font-size:22px;line-height:1.4;color:var(--muted)}
+ .bloco kbd{font-family:var(--sans);font-size:20px;padding:1px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--fg)}
+ .identidade{grid-column:span 2;background:var(--accent-tint);flex-direction:row;align-items:stretch;padding:40px 40px 0 44px;overflow:hidden}
+ .identidade .texto{flex:none;width:430px;padding-bottom:36px;display:flex;flex-direction:column}
+ .identidade p{white-space:nowrap}
+ .identidade h2{font-size:46px}
+ .identidade p{color:var(--fg)}
+ .papeis{margin-top:auto;display:flex;flex-direction:column;gap:6px;font-size:20px;color:var(--muted);white-space:nowrap}
+ .papeis b{display:inline-block;width:30px;font-family:var(--serif);font-weight:500;font-size:26px;line-height:1;color:var(--accent)}
+ .trio{flex:1;display:flex;justify-content:flex-end;align-items:flex-end;align-self:flex-end;margin-bottom:6px}
+ .trio .mascote{--fo-size:178px}
+ .trio .mascote+.mascote{margin-left:-10px}
+ .setup{background:var(--accent);color:#fff}
+ .setup h2{color:#fff;font-size:40px}
+ .setup p{color:rgb(255 255 255/.86)}
+ .passos{margin-top:auto;display:grid;grid-template-columns:repeat(3,auto);justify-content:start;column-gap:28px;row-gap:8px;font-size:20px;color:#fff;white-space:nowrap}
+ .passos li{list-style:none}
+ .passos i{font-style:normal;font-variant-numeric:tabular-nums;opacity:.6;margin-right:8px}
+ .faixa{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border);padding-top:28px;margin-top:8px}
+ .faixa div{padding:0 36px}
+ .faixa div+div{border-left:1px solid var(--border)}
+ .faixa h3{font-size:24px;font-weight:650;color:var(--fg-strong)}
+ .faixa p{margin-top:6px;font-size:20px;color:var(--muted)}
+ footer{align-self:end;font-size:15px;color:var(--faint)}
+</style>
+</head>
+<body>
+<main class="peca">
+ <header>
+  <div class="logo" data-logo></div>
+  <div>
+   <h1 data-t="nome">Mesa de Estudos</h1>
+   <p data-t="novidades">Novidades da versão</p>
+  </div>
+  <span class="versao">1.0.0</span>
+ </header>
+
+ <section class="linha">
+  <article class="bloco identidade">
+   <div class="texto">
+    <h2 data-t="identidade.titulo">Identidade nova</h2>
+    <p data-t="identidade.texto">Logo da folha com a ∫, ícone no acento<br>escolhido e títulos em STIX.</p>
+    <div class="papeis"><span data-t="papel.integral"><b>∫</b>lê junto</span><span data-t="papel.sigma"><b>Σ</b>soma o que você fez</span><span data-t="papel.nabla"><b>∇</b>dá a dica</span></div>
+   </div>
+   <div class="trio">
+    <div class="mascote mascote-integral" data-humor="lendo" data-trio="integral"></div>
+    <div class="mascote mascote-sigma mascote-tallying" data-humor="normal" data-trio="sigma"></div>
+    <div class="mascote mascote-nabla" data-humor="atento" data-trio="nabla"></div>
+   </div>
+  </article>
+  <article class="bloco setup">
+   <h2 data-t="setup.titulo">Primeira abertura</h2>
+   <p data-t="setup.texto">Um passo por vez, em tela cheia.<br>A matéria só nasce no fim.</p>
+   <ol class="passos" data-t="setup.passos"><li><i>1</i>Idioma</li><li><i>2</i>Como funciona</li><li><i>3</i>Nome</li><li><i>4</i>PDFs</li><li><i>5</i>Tutor</li><li><i>6</i>Pronto</li></ol>
+  </article>
+ </section>
+
+ <section class="linha">
+  <article class="bloco">
+   <h2 data-t="guia.titulo">Guia da Mesa</h2>
+   <p data-t="guia.texto">Lateral, busca e Próximo/Anterior.<br>Abre com <kbd>⌘</kbd> <kbd>/</kbd></p>
+  </article>
+  <article class="bloco">
+   <h2 data-t="celular.titulo">Foto do celular</h2>
+   <p data-t="celular.texto">QR code na mesma rede.<br>A foto entra na bandeja da Mesa.</p>
+  </article>
+  <article class="bloco">
+   <h2 data-t="gratis.titulo">Modelos grátis</h2>
+   <p data-t="gratis.texto">O tutor funciona sem assinatura de IA.<br>O seletor separa os grátis.</p>
+  </article>
+ </section>
+
+ <section class="faixa">
+  <div><h3 data-t="idiomas.titulo">Inglês e português</h3><p data-t="idiomas.texto">Interface e tutor no idioma escolhido.</p></div>
+  <div><h3 data-t="pdf.titulo">Modelos de PDF</h3><p data-t="pdf.texto">Lista, Apostila, Resumo, Simulado e Formulário.</p></div>
+ </section>
+
+ <footer data-t="rodape">Mesa de Estudos · v1.0.0</footer>
+</main>
+</body>
+</html>

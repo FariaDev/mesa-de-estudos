@@ -21,7 +21,6 @@ const LANG={
  md:{},markdown:{}};
 const WORD=/[A-Za-z_$][\w$]*/y;
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function scanStr(text,i){const quote=text[i];const triple=text.startsWith(quote.repeat(3),i);const q=triple?quote.repeat(3):quote;let j=i+q.length;while(j<text.length){const ch=text[j];if(ch==='\\'){j+=2;continue;}if(q===quote&&ch==='\n')break;if(text.startsWith(q,j)){j+=q.length;break;}j++;}return Math.min(j,text.length);}
 function wrap(type,raw){return `<span data-hl="${type}">${raw}</span>`;}
 const cache=new Map();
 export function highlightCode(code,lang){

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mascote — rodada 6</title>
+<!-- #61, rodada 6 do mascote: lapidação. Os favoritos do autor foram a Folhinha (r1), o ∇ e
+     a ∫ (r2). Em comum: corpo em pé com braços e pernas finos, olhos grandes contornados,
+     algo de estudo na mão e o pincel da r2. Aqui os três (e uma mistura Folhinha-∫) usam
+     o mesmo esqueleto de poses e aparecem nas telas onde vão morar. Desenhos originais. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&display=swap">
+<style>
+:root{--acc:#2548c7}
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.lead{color:#737373;margin:0 0 20px;max-width:76ch}
+.char{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;margin-bottom:18px}
+.char>h2{font-size:16px;margin:0}
+.char>p{margin:2px 0 12px;color:#737373;font-size:13px}
+.poses{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.poses figure{margin:0;background:#fffbf0;border-radius:10px;text-align:center;padding:4px 0 8px}
+.poses figure.dark{background:#111}
+.poses svg{width:100%;max-width:170px;height:auto}
+.poses figcaption{font-size:11px;color:#8a7f6a}
+.uso{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;margin-top:12px}
+@media (max-width:760px){.uso{grid-template-columns:1fr}.poses{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ctx{background:#f6f6f7;border-radius:10px;padding:12px;min-width:0}
+.ctx h4{margin:0 0 8px;font-size:11px;font-weight:600;color:#8a8a8a;letter-spacing:.04em;text-transform:uppercase}
+/* Lista 0 com o mascote espiando do canto */
+.sheet{position:relative;background:#fff;color:#171717;border:1px solid #e4e4e7;border-radius:6px;padding:20px 22px 26px;font:13.5px/1.5 "STIX Two Text",serif;box-shadow:0 2px 10px -6px rgb(0 0 0/.25)}
+.sheet h5{margin:0;font-size:21px;font-weight:600;text-align:center}
+.sheet .course{margin:0 0 12px;text-align:center;font-style:italic}
+.sheet ol{margin:8px 0 0;padding-left:1.5em;display:flex;flex-direction:column;gap:6px}
+.sheet a{color:var(--acc)}
+.sheet .espia{position:absolute;right:-6px;bottom:-14px;width:96px;height:auto}
+.stack{display:flex;flex-direction:column;gap:10px}
+.thinking{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#ececee;color:#3f3f46;font-size:13px}
+.thinking.dark{background:#2a2a2a;color:#d4d4d8}
+.thinking svg{width:24px;height:24px;flex:none}
+.thinking .t{margin-left:auto;color:#8a8a8a;font-size:12px;font-variant-numeric:tabular-nums}
+.msg{display:flex;gap:8px;align-items:flex-start;font-size:14px;line-height:1.5}
+.msg svg{width:42px;height:42px;flex:none}
+.msg .bolha{background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:8px 10px}
+.msg b{color:#3f2a9e}
+.toast{display:flex;gap:10px;align-items:center;background:#1f1f1f;color:#f4f4f5;border-radius:12px;padding:8px 12px;font-size:13px}
+.toast svg{width:40px;height:40px;flex:none}
+.palpebra{opacity:0;animation:piscar 3.6s infinite}
+@keyframes piscar{0%,47%,53%,100%{opacity:0}49%,51%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.palpebra{animation:none}}
+</style>
+</head>
+<body>
+<h1>Mascote — rodada 6: lapidar os favoritos</h1>
+<p class="lead">Folhinha, ∇, ∫ e uma mistura (a Folhinha com uma ∫ escrita nela). Os quatro usam o mesmo esqueleto: braços e pernas violeta, o mesmo lápis, olhos contornados e as mesmas quatro poses. Embaixo das poses, cada um aparece nas telas onde vai morar: espiando a Lista 0, na barra de "pensando" (piscando), dando uma dica no chat e comemorando um acerto.</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs>
+  <filter id="pincel" x="-10%" y="-10%" width="120%" height="120%">
+   <feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="7" result="onda"/>
+   <feDisplacementMap in="SourceGraphic" in2="onda" scale="6" xChannelSelector="R" yChannelSelector="G" result="borda"/>
+   <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="1" seed="3" result="ruido"/>
+   <feColorMatrix in="ruido" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  .6 0 0 0 -.38" result="grao"/>
+   <feComposite in="grao" in2="borda" operator="in" result="graoDentro"/>
+   <feMerge><feMergeNode in="borda"/><feMergeNode in="graoDentro"/></feMerge>
+  </filter>
+ </defs>
+</svg>
+
+<div id="out"></div>
+
+<script>
+const MEMBRO='#5a3fc4',TINTA='#1a1033',SINAL='#3f2a9e',AMBAR='#e8862a';
+const FOLHA='M70 40H150L180 70V200Q180 208 172 208H70Q62 208 62 200V48Q62 40 70 40Z';
+const DOBRA='<path d="M150 40V62Q150 70 158 70H180Z" fill="#d9d3c4"/>';
+// Cada personagem: corpo, pontos de ombro/quadril, olhos [x,y,r], boca e a cor da pálpebra.
+const personagens={
+ folhinha:{nome:'Folhinha',nota:'A folha de exercício da rodada 1, com olhos maiores e braços e pernas no violeta da Mesa.',
+  corpo:`<path d="${FOLHA}" fill="#f4f1ea" stroke="#cbc2ac" stroke-width="3"/>${DOBRA}<path d="M82 156h68M82 174h54M82 192h62" stroke="#b9b2a3" stroke-width="4" stroke-linecap="round"/>`,
+  ombro:[[64,132],[178,132]],quadril:[[98,206],[142,206]],olhos:[[100,96,23],[141,92,25]],boca:[120,130],palpebra:'#f4f1ea'},
+ nabla:{nome:'∇ Nabla',nota:'O triângulo da rodada 2, um pouco mais baixo, com a ponta mais arredondada e braços que agora seguram o lápis.',
+  corpo:'<path d="M42 50H198L120 192Z" fill="#8b74ec" stroke="#6d4fd8" stroke-width="28" stroke-linejoin="round"/>',
+  ombro:[[52,94],[188,94]],quadril:[[110,192],[132,192]],olhos:[[97,94,25],[145,92,27]],boca:[121,140],palpebra:'#8b74ec'},
+ integral:{nome:'∫ Integral',nota:'A ∫ da rodada 2, agora com os dois braços. Fica de pé sobre a curva de baixo, sem pernas.',
+  corpo:'<path d="M176 64Q166 26 136 36Q112 46 112 88V184Q112 226 86 230Q66 232 60 212" fill="none" stroke="#6d4fd8" stroke-width="34" stroke-linecap="round"/>',
+  ombro:[[98,132],[126,140]],quadril:[],olhos:[[118,50,24],[162,46,26]],boca:[112,106],palpebra:'#6d4fd8'},
+ misto:{nome:'Folhinha ∫ (mistura)',nota:'A Folhinha com uma ∫ escrita à mão no lugar das linhas: continua sendo a folha de exercício, mas com cara de matemática.',
+  corpo:`<path d="${FOLHA}" fill="#f4f1ea" stroke="#cbc2ac" stroke-width="3"/>${DOBRA}<path d="M138 152Q134 138 122 142Q112 146 112 162V184Q112 198 102 198Q92 198 90 188" fill="none" stroke="#6d4fd8" stroke-width="9" stroke-linecap="round"/><path d="M132 186h26" stroke="#b9b2a3" stroke-width="4" stroke-linecap="round"/>`,
+  ombro:[[64,132],[178,132]],quadril:[[98,206],[142,206]],olhos:[[100,96,23],[141,92,25]],boca:[120,130],palpebra:'#f4f1ea'},
+};
+// Poses: onde ficam as mãos (a partir dos ombros), o lápis, o olhar, a boca e o sinal.
+const poses={
+ parado:{rotulo:'parado',maoE:[-24,36],maoD:[22,28],lapis:100,olhar:[4,-5],boca:'sorri'},
+ pensando:{rotulo:'pensando',maoE:[-18,40],maoD:'queixo',lapis:-112,olhar:[-4,-9],boca:'hmm',sinal:'?'},
+ dica:{rotulo:'dica',maoE:[-16,-66],dedo:true,maoD:[22,28],lapis:100,olhar:[3,-3],boca:'aberta',sinal:'!'},
+ acerto:{rotulo:'acertou',maoE:[-30,-56],maoD:[30,-56],lapis:-78,feliz:true,boca:'grande',sinal:'✓'},
+};
+const soma=([x,y],[dx,dy])=>[x+dx,y+dy];
+const traco=(d,cor,w)=>`<path d="${d}" fill="none" stroke="${cor}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+// Braço com cotovelo: o ponto de controle sai para fora do corpo.
+const braco=(o,m)=>{const lado=o[0]<120?-1:1;const c=[(o[0]+m[0])/2+12*lado,(o[1]+m[1])/2+8];return traco(`M${o[0]} ${o[1]}Q${c[0]} ${c[1]} ${m[0]} ${m[1]}`,MEMBRO,11);};
+const perna=([x,y])=>{const lado=x<120?-1:1;return traco(`M${x} ${y}L${x+6*lado} 232h${12*lado}`,MEMBRO,11);};
+// Lápis atravessando a mão; `ang` aponta para a ponta (grafite escuro).
+const lapis=([x,y],ang)=>{const r=ang*Math.PI/180,dx=Math.cos(r),dy=Math.sin(r);
+ const p=k=>`${(x+dx*k).toFixed(1)} ${(y+dy*k).toFixed(1)}`;
+ return traco(`M${p(-18)}L${p(16)}`,AMBAR,10)+traco(`M${p(16)}L${p(23)}`,'#3f3f46',6);};
+const olhos=(c,pose)=>{
+ if(pose.feliz)return c.olhos.map(([x,y,r])=>traco(`M${x-r*.6} ${y+3}q${r*.6} ${-r*.8} ${r*1.2} 0`,TINTA,5)).join('');
+ const [dx,dy]=pose.olhar;
+ const desenho=c.olhos.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${TINTA}" stroke-width="3.5"/><circle cx="${x+dx}" cy="${y+dy}" r="${(r*.46).toFixed(1)}" fill="${TINTA}"/><circle cx="${x+dx+3}" cy="${y+dy-4}" r="3.5" fill="#fff"/>`).join('');
+ const palpebra=`<g class="palpebra" fill="${c.palpebra}">${c.olhos.map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r+1}"/>`).join('')}</g>`;
+ return desenho+palpebra;};
+const boca=([x,y],tipo)=>({
+ sorri:traco(`M${x-10} ${y}q10 7 20 0`,TINTA,4.5),
+ hmm:traco(`M${x-7} ${y+2}q7-3 14 0`,TINTA,4.5),
+ aberta:`<ellipse cx="${x}" cy="${y+2}" rx="6.5" ry="8" fill="${TINTA}"/>`,
+ grande:`<path d="M${x-15} ${y-2}q15 18 30 0z" fill="${TINTA}"/>`,
+})[tipo];
+const sinal=(tipo,[x,y])=>({
+ '?':traco(`M${x} ${y}q0-16 16-16q16 0 16 16q0 10-14 14v8`,SINAL,8)+`<circle cx="${x+18}" cy="${y+35}" r="5.5" fill="${SINAL}"/>`,
+ '!':traco(`M${x+8} ${y-16}v34`,SINAL,8)+`<circle cx="${x+8}" cy="${y+33}" r="5.5" fill="${SINAL}"/>`,
+ '✓':traco(`M${x-4} ${y+8}l10 10 24-28`,AMBAR,10),
+})[tipo];
+const desenha=(id,poseId,w)=>{const c=personagens[id],p=poses[poseId];
+ const [oE,oD]=c.ombro;
+ const mE=soma(oE,p.maoE), mD=p.maoD==='queixo'?[c.boca[0]+32,c.boca[1]+6]:soma(oD,p.maoD);
+ const ondeSinal=p.sinal==="!"?[mE[0]+16,Math.max(mE[1]-30,18)]:[198,26];
+ const partes=[
+  `<ellipse cx="120" cy="238" rx="64" ry="7" fill="#000" opacity=".22"/>`,
+  `<g filter="url(#pincel)">${c.quadril.map(perna).join('')}${c.corpo}${braco(oE,mE)}${braco(oD,mD)}${p.dedo?`<circle cx="${mE[0]}" cy="${mE[1]}" r="7" fill="${MEMBRO}"/>`:''}${lapis(mD,p.lapis)}${p.sinal?sinal(p.sinal,ondeSinal):''}</g>`,
+  `<g filter="url(#pincel)">${olhos(c,p)}${boca(c.boca,p.boca)}</g>`];
+ return `<svg viewBox="0 -10 240 260" width="${w}" height="${w*26/24}" role="img" aria-label="${c.nome}, ${p.rotulo}" style="overflow:visible">${partes.join('')}</svg>`;};
+
+document.getElementById('out').innerHTML=Object.entries(personagens).map(([id,c])=>`
+ <section class="char"><h2>${c.nome}</h2><p>${c.nota}</p>
+  <div class="poses">${Object.keys(poses).map((pid,i)=>`<figure class="${i===0?'dark':''}">${desenha(id,pid,170)}<figcaption>${poses[pid].rotulo}</figcaption></figure>`).join('')}</div>
+  <div class="uso">
+   <div class="ctx"><h4>Lista 0</h4>
+    <article class="sheet"><h5>Lista 0</h5><p class="course">Cálculo I · pôr algo na mesa</p>Esta folha fica no lugar do seu primeiro PDF.
+     <ol><li>Arraste um PDF para cá.</li><li><a href="#">Abrir PDF…</a></li><li><a href="#">Pedir ao tutor</a></li></ol>
+     <span class="espia">${desenha(id,'parado',96)}</span></article></div>
+   <div class="ctx stack"><h4>No chat</h4>
+    <div class="thinking">${desenha(id,'pensando',24)}<span>O tutor está pensando…</span><span class="t">3 s</span></div>
+    <div class="thinking dark">${desenha(id,'pensando',24)}<span>O tutor está pensando…</span><span class="t">3 s</span></div>
+    <div class="msg">${desenha(id,'dica',42)}<div class="bolha"><b>Dica:</b> antes de derivar, veja se dá para simplificar a fração.</div></div>
+    <div class="toast">${desenha(id,'acerto',40)}<span>Acertou o item 2! Bora para o próximo?</span></div>
+   </div>
+  </div>
+ </section>`).join('');
+</script>
+</body>
+</html>

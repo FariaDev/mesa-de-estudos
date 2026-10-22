@@ -157,3 +157,12 @@ test('exportação sem conteúdo termina no cabeçalho (mesma forma do export an
   const body = exportConversationMarkdown({courseName: 'Vazia', engine: 'pi', messages: [], now: 0});
   assert.equal(body, '# Mesa de Estudos — Vazia\n\nExportado em 1970-01-01T00:00:00.000Z\n\n');
 });
+
+test('exportação usa os rótulos recebidos (idioma da interface, #41)', () => {
+  const labels = {you: 'You', imageAttached: '[image attached]', exportedOn: (iso) => `Exported on ${iso}`};
+  const messages = [{role: 'user', content: [{type: 'text', text: 'Hi'}, {type: 'image', data: 'QUJD', mimeType: 'image/png'}]}];
+  assert.equal(
+    exportConversationMarkdown({courseName: 'Calculus', engine: 'pi', messages, now: 0, labels}),
+    '# Mesa de Estudos — Calculus\n\nExported on 1970-01-01T00:00:00.000Z\n\n## You\n\nHi\n[image attached]\n',
+  );
+});

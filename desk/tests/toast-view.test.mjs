@@ -120,3 +120,28 @@ test('atividade ao vivo: ponto pulsante + rótulo, title junto', () => {
   renderChildren(mount, childrenOf(empty.kids));
   assert.equal(mount.children.length, 0);
 });
+
+const textsOf = (ts) => {
+  const out = [];
+  for (let at = ts; at.$ === 'Con'; at = at.tail) out.push([at.head.text, at.head.closing]);
+  return out;
+};
+
+test('um aviso por vez: fila vazia entra aberto', () => {
+  assert.deepEqual(textsOf(toastCore.toastPush(list(), 'a')), [['a', false]]);
+});
+
+test('um aviso por vez: o novo substitui o que estava na tela', () => {
+  assert.deepEqual(textsOf(toastCore.toastPush(list(Toast('a', false)), 'b')), [['b', false]]);
+  assert.deepEqual(textsOf(toastCore.toastPush(list(Toast('a', false), Toast('b', false)), 'c')), [['c', false]]);
+});
+
+test('um aviso por vez: o repetido não acumula nem ganha contador', () => {
+  let ts = list();
+  for (let i = 0; i < 5; i++) ts = toastCore.toastPush(ts, 'Imagem copiada.');
+  assert.deepEqual(textsOf(ts), [['Imagem copiada.', false]]);
+});
+
+test('um aviso por vez: se o anterior já estava saindo, o novo entra aberto', () => {
+  assert.deepEqual(textsOf(toastCore.toastPush(list(Toast('a', true)), 'b')), [['b', false]]);
+});

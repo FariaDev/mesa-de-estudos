@@ -107,7 +107,7 @@ async function scenarioAbort() {
   store.ensureWorkspace(runtime, {sessionId: 'abort-sess'});
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25);
-  let code = '';
+  let code;
   try {
     await store.saveMaterial(runtime, 'abort-sess', {
       title: 'Abortado',
@@ -130,7 +130,7 @@ async function scenarioWriteFail() {
   store.ensureWorkspace(runtime, {sessionId: 'fail-sess'});
   const dir = path.join(store.workspaceDir(runtime, 'fail-sess'), 'materials');
   fs.chmodSync(dir, 0o555);
-  let code = '';
+  let code;
   try {
     await materialPdf.savePdf({dir, stem: 'Falha', markdown: '# Falha\n\nTexto.', timeoutMs: 60000});
     code = 'NO_ERROR';
@@ -183,7 +183,7 @@ async function scenarioInject() {
       return {name: path.basename(file), path: file, bytes: fs.statSync(file).size, sha256: sha256(file)};
     },
   };
-  let code = '';
+  let code;
   try {
     await store.saveMaterial(runtime, 'inject-sess', {title: 'Falha de metadata', markdown: '# x', pdf: fake});
     code = 'NO_ERROR';
@@ -193,9 +193,42 @@ async function scenarioInject() {
   return {ok: code === 'CORRUPT' && fs.readdirSync(materialsDir).length === 0, code, leftovers: fs.readdirSync(materialsDir)};
 }
 
+/* Os seis modelos de PDF do tutor com conteúdo inventado: cada PDF vai para o
+   runtime (e para `MESA_MODELS_OUT`, quando a revisão visual pede) e o JSON
+   traz o que o host devolveu (colunas do Auto, caber numa folha, hash). */
+async function scenarioModels() {
+  const samples = require('./pdf-model-samples.cjs');
+  const jobs = [
+    ['lista', 'lista', samples.lista, {}],
+    ['lista-longa', 'lista', samples.listaLonga, {}],
+    ['lista-2col', 'lista', samples.lista, {colunas: '2'}],
+    ['apostila', 'apostila', samples.apostila, {capitulo: 'Progressões'}],
+    ['resumo', 'resumo', samples.resumo, {}],
+    ['simulado', 'simulado', samples.simulado, {espaco: 'medio'}],
+    ['simulado-grande', 'simulado', samples.simulado4, {espaco: 'grande'}],
+    ['formulario', 'formulario', samples.formulario, {}],
+    ['formulario-umafolha', 'formulario', samples.formulario, {umafolha: true}],
+    ['livre', 'livre', samples.resumo, {}],
+  ];
+  const keep = String(process.env.MESA_MODELS_OUT || '');
+  if (keep) fs.mkdirSync(keep, {recursive: true});
+  const items = [];
+  for (const [name, model, markdown, options] of jobs) {
+    const title = markdown.split('\n')[0].replace(/^#\s*/, '');
+    const rendered = await materialPdf.renderPdf({title, markdown, model, options, context: 'Matemática Básica', timeoutMs: 60000});
+    const file = path.join(runtime, `${name}.pdf`);
+    fs.writeFileSync(file, rendered.buffer);
+    if (keep) fs.copyFileSync(file, path.join(keep, `${name}.pdf`));
+    const {buffer, ...rest} = rendered;
+    items.push({name, file, ...rest});
+  }
+  return {ok: true, items};
+}
+
 async function run() {
   switch (scenario) {
     case 'render': return scenarioRender();
+    case 'models': return scenarioModels();
     case 'radical': return scenarioRadical();
     case 'network': return scenarioNetwork();
     case 'abort': return scenarioAbort();
@@ -203,6 +236,12 @@ async function run() {
     case 'unique': return scenarioUnique();
     case 'payload': return scenarioPayload();
     case 'inject': return scenarioInject();
+    case 'template-long': case 'template-wide': case 'template-overflow': case 'template-invalid': {
+      const templateUi = await import('./material-template-ui.mjs');
+      return templateUi.runMaterialScenario(scenario, {app, store, materialPdf, runtime});
+    }
+    case 'figures-sanitize': case 'figures-pdf': case 'figure-preview':
+      return require('./figures-scenarios.cjs').runFiguresScenario(scenario, {electron: require('electron'), store, materialPdf, runtime});
     default: return {ok: false, error: {code: 'BAD_SCENARIO', message: `cenário desconhecido: ${scenario}`}};
   }
 }

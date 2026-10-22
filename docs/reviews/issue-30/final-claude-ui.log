@@ -1,0 +1,21 @@
+npm notice run learning-desk@0.5.0 test:claude-ui
+npm notice run node tests/run-claude-ui.mjs
+Claude Electron: claude-ui-smoke.mjs
+CLAUDE UI PASSED: descriptor JSON e zero processo Pi; texto/imagem sem bolha duplicada; permissões permitir/negar/cancelar (com a fila esperando permissão e turno); cancelamento/incerteza sem auto-retry; reabertura com fila recuperada; export pelo histórico nativo paginado; cache visível offline/sem binário sem fallback para o Pi; conversa Pi preservada.
+Claude Electron: claude-controls-ui.mjs
+CLAUDE CONTROLS UI PASSED: catalog without prompt; model/effort/default; unsupported and busy guards; restore; native identity; zero Pi.
+Claude Electron: claude-lifecycle-ui.mjs
+CLAUDE LIFECYCLE UI PASSED: no-echo; structured single/multi/free/cancel questions; visible limits; interrupt-exit and native resume.
+Claude Electron: claude-host-recovery.mjs
+CLAUDE RECOVERY PASSED: uncertain delivery held; corrupt descriptor preserved; new conversation available; 501 native rows exported; zero Pi starts.
+Claude Electron: claude-offline-queue-ui.mjs
+claude-offline-queue-ui: PASS — offline enqueue, native catalog without inference, Cancel keeps durable queue, calling again sends once in order.
+Claude Electron: sidechat-claude-recoverable-ui.mjs
+sidechat-claude-recoverable-ui: PASS — partial/error preserves busy until native result, zero authenticated inference.
+Claude Electron: mesa-claude-activity-ui.mjs
+Claude ordered blocks ["Explorar a aceleração.\n","Antes da atividade Claude.\n","","activity","Depois da atividade Claude.\n"]
+mesa-claude-activity-ui: PASS — native hook ID, official MCP transport, real Mesa main/preload/runtime and interleaved Claude frames; synthetic provider.
+Claude Electron: claude-executable-upgrade-ui.mjs
+claude-executable-upgrade-ui: PASS — main and sidechat resume exact IDs through current launcher, old binary stays untouched; synthetic SDK only.
+Claude Electron: claude-sdk-binary-ui.mjs
+claude-sdk-binary-ui: PASS — SDK binary used when the user CLI is off the pair, same native IDs in main and sidechat, no auth probe on unpaired binaries; fake binaries and synthetic SDK only.

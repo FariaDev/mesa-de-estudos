@@ -3,6 +3,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {spawnSync} from 'node:child_process';
+import {offerGeogebraOffline} from './geogebra-offline.mjs';
 
 const require=createRequire(import.meta.url);
 const {resolvePi,ensurePiLocalHome}=require('../pi.cjs');
@@ -50,6 +51,11 @@ if(!pi){
  if(r.status)fail('Não foi possível instalar o Pi. Instale-o depois ou indique o caminho em Configurações.');
  pi=resolvePi({deskDir:desk});
 }
+
+/* GeoGebra offline (#55): opcional. --geogebra aceita a licença sem perguntar,
+   --no-geogebra pula; sem terminal, pula. Falhar aqui não derruba o setup. */
+const geogebraFlag=process.argv.includes('--geogebra')?'yes':process.argv.includes('--no-geogebra')?'no':'ask';
+await offerGeogebraOffline({choice:geogebraFlag});
 
 fs.mkdirSync(starter,{recursive:true});
 for(const name of ['TUTOR.md','LEARNER.md']){
