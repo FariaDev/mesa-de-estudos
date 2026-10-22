@@ -8,7 +8,7 @@ import {agentPrompt,opencodeCommand,piCommand,issueUrl} from '../triage-outputs.
    da máquina por aqui: o endereço da issue é só impresso, para a pessoa abrir,
    revisar e enviar. O texto do terminal é o catálogo pt-BR. */
 const desk=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const catalog=JSON.parse(fs.readFileSync(path.join(desk,'locales','pt-BR.json'),'utf8'));
+const catalog=JSON.parse(fs.readFileSync(path.join(desk,'src','locales','pt-BR.json'),'utf8'));
 const say=(key,args={})=>String(catalog[key]||key).replace(/\{(\w+)\}/g,(whole,name)=>name in args?String(args[name]):whole);
 
 const {facts}=collectTriage();

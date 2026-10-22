@@ -46,8 +46,8 @@ function stageBundlePayload(desk,dest){
  const modules=fs.readdirSync(desk).filter(file=>/\.(cjs|mjs)$/.test(file)&&fs.statSync(path.join(desk,file)).isFile()).sort();
  /* `free-models.json` é lido pelo `opencode-host.cjs` ao subir (#44). */
  const files=[...modules,'index.html','ggb.html','style.css','package.json','config.example.json','free-models.json'];
- /* `locales` é lido por `language-host.cjs` ao subir (#41): sem ele o app instalado não abre. */
- const dirs=['src','assets','templates','locales'];
+ /* Os catálogos ficam em `src/locales` (#72) e `language-host.cjs` os lê ao subir (#41): `src` já entra no payload. Sem eles o app instalado não abre. */
+ const dirs=['src','assets','templates'];
  const packages=runtimePackages(path.join(desk,'node_modules'),['marked','katex','dompurify','pdfjs-dist','@anthropic-ai/claude-agent-sdk'],{externalClaude:true});
  for(const file of files)if(!fs.existsSync(path.join(desk,file)))throw Error('Arquivo ausente: '+file);
  fs.mkdirSync(dest,{recursive:true});

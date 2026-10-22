@@ -4,8 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {MESSAGE_MARK, createI18n} from '../src/i18n.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 
 const source = fs.readFileSync(new URL('../preload.cjs', import.meta.url), 'utf8');
 

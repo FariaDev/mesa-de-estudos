@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {reasonText, reasonFacts} from '../src/tutor-reason.mjs';
 import {createI18n} from '../src/i18n.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 import tutorStateCore from '../src/generated/tutorstate.core.js';
 
 const require = createRequire(import.meta.url);

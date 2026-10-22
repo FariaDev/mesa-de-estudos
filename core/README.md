@@ -173,7 +173,7 @@ Hoje o `PROOF.bend` importa 70 provas (70 arquivos de leis, 3.121 declarações
   `actOf` e o predicado `view.isEl`. O registro da busca e das decisões está em
   [`../docs/reviews/issue-31-shared-core-cleanup.md`](../docs/reviews/issue-31-shared-core-cleanup.md).
 - **`msg.bend`** — mensagem traduzível (#41): no lugar da frase pronta, o
-  núcleo devolve a chave do catálogo (`desk/locales/*.json`) e os argumentos
+  núcleo devolve a chave do catálogo (`desk/src/locales/*.json`) e os argumentos
   num `String` (`msg`, `msg1`…`msg4`, `isMsg`); quem traduz é o host, no idioma
   do momento.
 - **`language.bend`** — decisões do idioma (#41): o que vale como escolha da

@@ -2,8 +2,8 @@
    catálogo (core/msg.bend) e os testes de forma comparam o texto em português
    ou em inglês, como o aplicador do DOM mostraria. */
 import {createI18n} from '../src/i18n.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 
 const catalogs = {'pt-BR': ptBR, en};
 const portuguese = createI18n({catalogs, language: 'pt-BR'});

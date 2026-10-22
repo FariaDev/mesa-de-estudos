@@ -1,10 +1,10 @@
 // @ts-check
 /* Idioma da interface no renderer (#41): o `t()` único da janela, o texto
    estático do index.html (`data-i18n` / `data-i18n-attr`) e a troca na hora.
-   Os catálogos são `desk/locales/*.json`; o corpo de `t()` e `text()` mora em
+   Os catálogos são `desk/src/locales/*.json`; o corpo de `t()` e `text()` mora em
    `i18n.mjs`, que não depende do DOM. */
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from './locales/pt-BR.json' with {type: 'json'};
+import en from './locales/en.json' with {type: 'json'};
 import {createI18n, isLanguage, FALLBACK_LANGUAGE} from './i18n.mjs';
 
 export const LANGUAGE_EVENT = 'desk-language';
@@ -45,7 +45,7 @@ export const onStaticTextApplied = (listener) => { afterStaticText.push(listener
 /**
  * Traduz o texto estático de um trecho do DOM.
  * `data-i18n="chave"` troca o texto; `data-i18n-html="chave"` troca o conteúdo por marcação do catálogo
- * (só <strong>, <kbd>, <code>, <em>: a frase vem de `locales/`, nunca do aluno);
+ * (só <strong>, <kbd>, <code>, <em>: a frase vem de `src/locales/`, nunca do aluno);
  * `data-i18n-attr="title=chave;aria-label=outra"` troca atributos.
  * @param {ParentNode} [root]
  */

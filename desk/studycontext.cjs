@@ -8,8 +8,8 @@
    entra como argumento e o main guarda. */
 const core = require('./src/generated/studycontext.core.js').default;
 const {createI18n, MESSAGE_MARK, isLanguage, FALLBACK_LANGUAGE} = require('./src/i18n.mjs');
-const ptBR = require('./locales/pt-BR.json');
-const en = require('./locales/en.json');
+const ptBR = require('./src/locales/pt-BR.json');
+const en = require('./src/locales/en.json');
 
 const NO_CAPTURE = {$: 'NoCapture'};
 

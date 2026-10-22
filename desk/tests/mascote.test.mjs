@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {mascoteHumor,mascoteLook,mascoteTilt,lookAtPointer,sparkTargets,poke,EYE_REACH} from '../src/mascote-humor.mjs';
 import {personagemOf,mascoteNameKey,mascoteView,mascoteMarkup} from '../src/mascote.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 
 /* #64: o contrato das mascotes (o trio ∫ Σ ∇ da primeira abertura, do Guia e
    do "pensando"): humor por nome → estado e classes. O desenho tem o teste
