@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ACCENT_IDS, accentOptionsMarkup, nextAccent} from '../src/accent-picker.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
 
 test('as seis opções têm rótulo traduzido, com azul marcado', () => {
   assert.deepEqual([...ACCENT_IDS], ['blue', 'violet', 'green', 'orange', 'pink', 'graphite'], 'a ordem do ACCENTS do state.mjs');

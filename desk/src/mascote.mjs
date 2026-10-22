@@ -16,7 +16,7 @@ import {trioSvg} from './trio-art.mjs';
 
    Para pôr outra personagem: o desenho com o mesmo contrato de grupos (como
    `trio-art.mjs`), o CSS dela sob `.mascote-<id>` (como `trio.css`) e uma
-   linha em PERSONAGENS, com a chave do nome em `locales/*.json`. */
+   linha em PERSONAGENS, com a chave do nome em `src/locales/*.json`. */
 
 /**
  * @typedef {object} Personagem

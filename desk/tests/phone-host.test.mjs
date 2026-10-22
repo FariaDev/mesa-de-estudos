@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import {createRequire} from 'node:module';
 import {createI18n} from '../src/i18n.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 import {syntheticJpeg, withExif, syntheticPng, syntheticWebp, GPS_MARK, COMMENT_MARK} from './phone-photo-fixtures.mjs';
 
 /* Foto do celular (#36), no host: o servidor HTTP de verdade, escutando em

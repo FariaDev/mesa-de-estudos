@@ -72,7 +72,7 @@ O idioma **não é campo do `config.json`**: mora no estado de interface (`desk.
 
 - **Interface:** `pt-BR` ou `en`. Enquanto ninguém escolhe, segue o idioma do sistema (`pt*` → Português; qualquer outro → English) e nada é gravado.
 - **Tutor:** *Acompanhar minhas mensagens* (padrão), *Português* ou *English*. A instrução entra pela base comum de `desk/src/agents/desk-prompts.cjs`, igual para Pi e Claude, e vale assim que o tutor for ligado: com o tutor ocioso a Mesa o religa na hora; durante uma resposta a nota "vale na próxima vez" continua e a Mesa religa quando a resposta acabar.
-- **Frases:** `desk/locales/pt-BR.json` e `en.json`. Para outra língua ou outro texto, edite o catálogo — não o HTML nem o renderer. Os rótulos de leitor do `config.json` (`desk.panels`) são dado da pessoa e não passam pelo catálogo.
+- **Frases:** `desk/src/locales/pt-BR.json` e `en.json`. Para outra língua ou outro texto, edite o catálogo — não o HTML nem o renderer. Os rótulos de leitor do `config.json` (`desk.panels`) são dado da pessoa e não passam pelo catálogo.
 - Fases 1 e 2 da #41: a casca (barra superior, menus nativos, Configurações, primeira abertura), a coluna do tutor (caixa de mensagem e "Vai junto", estados, cabeçalho da sessão, chat lateral) e os leitores (barra, numeração, folha sem material) já trocam; Caderno, Estatísticas, Calculadora, Guia, Sobre, aba Livre e diálogo de material seguem em português até a fase 3 (ver `docs/reviews/issue-41-fase1-resultado.md` e `docs/reviews/issue-41-fase2-resultado.md`).
 - Nas Configurações, os botões "abrir" e "Conferir" levam o nome do programa escolhido no Conferir; sem escolha dizem "programa de escrita".
 
@@ -83,7 +83,7 @@ Quem não paga plano de IA estuda com os modelos gratuitos do OpenCode Zen pelo 
 - **Onde pedir:** botão **Usar modelos grátis** na primeira abertura (ao lado de "Chamar o tutor") ou **Configurações → Pastas e programas → Modelos gratuitos (OpenCode Zen)** (campo com a chave mascarada, Testar, Criar uma chave, Remover e "Como evitar cobrança").
 - **Política de dados por modelo** é dado da Mesa, em `desk/free-models.json` (com data de conferência e fonte); a ordem de `recommended` define o padrão e só vale para retenção zero. Para outra pessoa, o que muda é a chave dela, não esse arquivo.
 - **Sem cofre** (Linux sem chaveiro) a Mesa diz isso e não guarda a chave em texto: sem plano pago nesse computador, use o campo do Pi.
-- As frases são do catálogo (`freeModels.*` em `desk/locales/*.json`), nos dois idiomas.
+- As frases são do catálogo (`freeModels.*` em `desk/src/locales/*.json`), nos dois idiomas.
 
 ### O que não cabe no JSON
 

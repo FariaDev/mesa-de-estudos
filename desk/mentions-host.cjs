@@ -11,8 +11,8 @@
 /** @type {import('./types/bend-core').ToolMentionsCore} */
 const core = require('./src/generated/toolmentions.core.js').default;
 const {createI18n} = require('./src/i18n.mjs');
-const ptBR = require('./locales/pt-BR.json');
-const en = require('./locales/en.json');
+const ptBR = require('./src/locales/pt-BR.json');
+const en = require('./src/locales/en.json');
 
 const Nil = /** @type {const} */ ({$: 'Nil'});
 const toList = (items) => items.reduceRight((tail, head) => ({$: 'Con', head, tail}), Nil);

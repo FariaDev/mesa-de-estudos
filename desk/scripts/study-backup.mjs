@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url);
 const backup = require('../src/study-data/backup.cjs');
 const gitBackup = require('../src/study-data/git-backup.cjs');
 const {createI18n} = require('../src/i18n.mjs');
-const ptBR = require('../locales/pt-BR.json');
+const ptBR = require('../src/locales/pt-BR.json');
 
 /* O terminal fala português, como o resto dos logs (#41): as mensagens marcadas dos módulos viram texto aqui. */
 const portuguese = createI18n({catalogs: {'pt-BR': ptBR, en: ptBR}, language: 'pt-BR'}).text;

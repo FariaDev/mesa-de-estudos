@@ -36,7 +36,7 @@ test('bundle usa Claude externo sem perder peers, codecs ou versões aninhadas',
  try{
   const source=path.join(root,'source'),nm=path.join(source,'node_modules'),dest=path.join(root,'payload');
   fs.mkdirSync(path.join(source,'scripts'),{recursive:true});
-  fs.mkdirSync(path.join(source,'locales'),{recursive:true});fs.writeFileSync(path.join(source,'locales','en.json'),'{}');
+  fs.mkdirSync(path.join(source,'src','locales'),{recursive:true});fs.writeFileSync(path.join(source,'src','locales','en.json'),'{}');
   for(const name of ['index.html','ggb.html','style.css','package.json','config.example.json','free-models.json','scripts/install-app.mjs'])fs.writeFileSync(path.join(source,name),'{}');
   const pkg=(rel,json,js="module.exports=true")=>{const dir=path.join(nm,rel);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'package.json'),JSON.stringify({name:rel,main:'index.cjs',...json}));fs.writeFileSync(path.join(dir,'index.cjs'),js);};
   for(const name of ['marked','katex','dompurify'])pkg(name,{});
@@ -52,7 +52,7 @@ test('bundle usa Claude externo sem perder peers, codecs ou versões aninhadas',
   assert.ok(runtimePackages(nm,['@anthropic-ai/claude-agent-sdk']).some(p=>p.relative.endsWith(cli)),'a API geral mantém o CLI por padrão');
   const managed=stageBundlePayload(source,dest);
   assert.ok(!managed.some(p=>p.endsWith(cli)),'o manifesto do app omite o CLI');
-  assert.ok(managed.includes('locales')&&fs.existsSync(path.join(dest,'locales','en.json')),'os catálogos de idioma (#41) entram no payload: sem eles o app instalado não abre');
+  assert.ok(managed.includes('src')&&fs.existsSync(path.join(dest,'src','locales','en.json')),'os catálogos de idioma (#41, #72) entram no payload dentro de src/: sem eles o app instalado não abre');
   assert.equal(fs.existsSync(path.join(dest,'node_modules','@anthropic-ai/claude-agent-sdk/node_modules',cli)),false,'a cópia do pai não reintroduz o CLI aninhado');
   fs.rmSync(source,{recursive:true});
   const load=createRequire(path.join(dest,'entry.cjs'));

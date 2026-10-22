@@ -290,7 +290,7 @@ test('scopeRef opaco acompanha item/evento e não é persistido', async () => {
    U+E000; agora a ponte o põe no idioma do tutor. */
 test('ponte devolve ao tutor o erro marcado já traduzido e diz o que veio', async () => {
   const {createI18n, message} = await import('../src/i18n.mjs');
-  const catalogs = {'pt-BR': JSON.parse(fs.readFileSync(new URL('../locales/pt-BR.json', import.meta.url), 'utf8')), en: JSON.parse(fs.readFileSync(new URL('../locales/en.json', import.meta.url), 'utf8'))};
+  const catalogs = {'pt-BR': JSON.parse(fs.readFileSync(new URL('../src/locales/pt-BR.json', import.meta.url), 'utf8')), en: JSON.parse(fs.readFileSync(new URL('../src/locales/en.json', import.meta.url), 'utf8'))};
   const i18n = createI18n({catalogs, language: 'en'});
   const bridge = createActivityBridge({publish: async () => { throw new Error(message('err.activity.sessionChangedNotPublished')); }, tutorText: (raw) => i18n.text(raw)});
   await bridge.start();

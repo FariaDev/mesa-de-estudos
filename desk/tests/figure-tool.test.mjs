@@ -101,7 +101,7 @@ test('host: a sessão da janela só abre arquivos do app', () => {
   assert.equal(allowedFile(path.join(desk, 'src', 'figures', 'figure.html')), true);
   assert.equal(allowedFile(path.join(desk, 'style.css')), true);
   assert.equal(allowedFile(path.join(desk, 'node_modules', 'marked', 'lib', 'marked.esm.js')), true);
-  assert.equal(allowedFile(path.join(desk, 'locales', 'pt-BR.json')), true);
+  assert.equal(allowedFile(path.join(desk, 'src', 'locales', 'pt-BR.json')), true);
   assert.equal(allowedFile(path.join(desk, 'config.cjs')), false);
   assert.equal(allowedFile('/etc/passwd'), false);
 });
