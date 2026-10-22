@@ -18,8 +18,8 @@
 /** @type {import('./types/bend-core').LanguageCore} */
 const core = require('./src/generated/language.core.js').default;
 const {createI18n} = require('./src/i18n.mjs');
-const ptBR = require('./locales/pt-BR.json');
-const en = require('./locales/en.json');
+const ptBR = require('./src/locales/pt-BR.json');
+const en = require('./src/locales/en.json');
 
 /** Valor guardado da interface → "pt-BR", "en" ou "" (nunca escolhido). */
 const normalizeUi = (value) => core.storedUi(typeof value === 'string' ? value : '');

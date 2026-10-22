@@ -1,5 +1,5 @@
 // @ts-check
-/* Tradução da interface (#41). Um catálogo por idioma (`desk/locales/*.json`),
+/* Tradução da interface (#41). Um catálogo por idioma (`desk/src/locales/*.json`),
    uma função `t(chave, args)` e um `text(s)` que traduz as mensagens que os
    núcleos Bend devolvem (`core/msg.bend`: MARK chave SEP nome SEP valor …).
    Sem DOM e sem Electron: o renderer e o main injetam os catálogos, e o teste

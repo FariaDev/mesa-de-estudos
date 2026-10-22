@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {effortKeyTarget, effortLevelText} from '../src/effort-strip.mjs';
 import {readFileSync} from 'node:fs';
 
-const PT_BR = JSON.parse(readFileSync(new URL('../locales/pt-BR.json', import.meta.url), 'utf8'));
+const PT_BR = JSON.parse(readFileSync(new URL('../src/locales/pt-BR.json', import.meta.url), 'utf8'));
 /** @param {string} key */
 const t = (key) => PT_BR[key] ?? key;
 

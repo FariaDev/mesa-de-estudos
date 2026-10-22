@@ -2,7 +2,7 @@ import Base
 
 # ---------------------------------------------------------------------------
 # Mensagem traduzível (#41): onde um núcleo devolvia uma frase pronta, passa a
-# devolver a CHAVE do catálogo (`desk/locales/*.json`) e os argumentos. Quem
+# devolver a CHAVE do catálogo (`desk/src/locales/*.json`) e os argumentos. Quem
 # traduz é o host (`desk/src/i18n.mjs`), no idioma da interface naquele
 # momento. Módulo só da Mesa; a Conversa não importa daqui.
 #

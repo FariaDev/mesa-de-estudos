@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {launchDesk,newRuntime,seedCourse,tinyPdf,writeConfigJson,withArtifacts,screenshotDirectory,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
 import {layoutStable,pollUntil} from './waits.mjs';
-import ptBR from '../locales/pt-BR.json' with {type: 'json'};
-import en from '../locales/en.json' with {type: 'json'};
+import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import en from '../src/locales/en.json' with {type: 'json'};
 import {uiTexts,assertNoOtherLanguage,assertEnglishVocabulary} from './language-sweep.mjs';
 
 /* Idioma da interface (#41, fase 1), na janela real: o padrão segue o idioma do

@@ -11,7 +11,7 @@ const translators=new Map();
 /** @param {'pt-BR'|'en'} language */
 function translatorFor(language){
  if(!translators.has(language)){
-  const catalogs={'pt-BR':require('../../locales/pt-BR.json'),en:require('../../locales/en.json')};
+  const catalogs={'pt-BR':require('../locales/pt-BR.json'),en:require('../locales/en.json')};
   translators.set(language,createI18n({catalogs,language}));
  }
  return /** @type {ReturnType<typeof createI18n>} */(translators.get(language));

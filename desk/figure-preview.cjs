@@ -23,9 +23,9 @@ const MAX_SOURCE_CHARS = 8000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/* Só o que a página importa: `src`, `node_modules`, `locales` (catálogos de idioma), `style.css` e `highlight.mjs`. */
+/* Só o que a página importa: `src` (os catálogos ficam em `src/locales`, #72), `node_modules`, `style.css` e `highlight.mjs`. */
 function allowedFile(file) {
-  const roots = [path.join(__dirname, 'src'), path.join(__dirname, 'node_modules'), path.join(__dirname, 'locales')].map((root) => path.resolve(root));
+  const roots = [path.join(__dirname, 'src'), path.join(__dirname, 'node_modules')].map((root) => path.resolve(root));
   const loose = [path.join(__dirname, 'highlight.mjs'), path.join(__dirname, 'style.css')].map((entry) => path.resolve(entry));
   const target = path.resolve(file);
   return loose.includes(target) || roots.some((root) => target.startsWith(root + path.sep));

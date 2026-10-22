@@ -16,7 +16,7 @@ const DESK = path.resolve(import.meta.dirname, '..');
 const HARD_CAP = 800;
 const NEW_FILE_CAP = 500;
 const CODE_EXTENSIONS = new Set(['.cjs', '.mjs', '.js', '.css', '.html']);
-const SKIPPED_DIRS = new Set(['node_modules', 'tests', 'assets', 'locales']);
+const SKIPPED_DIRS = new Set(['node_modules', 'tests', 'assets']);
 const SPLIT_HINT = 'Divida por responsabilidade (veja docs/agents/mapa.md e o padrão dos *-host.cjs).';
 
 /** Arquivos que ainda passam de 800 linhas, com o teto de cada um. Só cai. */

@@ -33,6 +33,8 @@ function isProtected(rel){
    documentos de UI do desk (tests incluído — o manifesto apaga o órfão),
    o miolo de src/assets/templates/locales/scripts/tests e as árvores de código do
    repo (core/geogebra/visual-check/.githooks + raiz + docs/agents/*.md).
+   `locales` fica na lista (#72) para o manifesto de quem já está na 1.0.0
+   apagar `desk/locales/`; os catálogos novos moram em `src/locales`.
    Nada fora desta lista é tocado — e a lista nunca inclui o protegido. */
 function isReplaceable(rel){
  const norm=normalizeRel(rel);

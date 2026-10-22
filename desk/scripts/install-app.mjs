@@ -1,5 +1,5 @@
 /* Instala/atualiza o bundle Mesa de Estudos.app (espelhava o script da Conversa, aposentada na #50).
-   - Sincroniza o código em Contents/Resources/app: .cjs/.mjs, src/, assets/, templates/, locales/ e
+   - Sincroniza o código em Contents/Resources/app: .cjs/.mjs, src/ (catálogos em src/locales/, #72), assets/, templates/ e
      scripts/, além das dependências de runtime do renderer (marked/katex/dompurify/pdfjs-dist,
      importadas direto de node_modules pelo index.html e pelo renderer).
    - Mantém a versão do package.json no Info.plist.

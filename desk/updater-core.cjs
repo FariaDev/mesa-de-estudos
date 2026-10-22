@@ -16,6 +16,10 @@ const CLAUDE_REGISTRY_URL='https://registry.npmjs.org/@anthropic-ai/claude-code/
 const XOURNAL_RELEASES_URL='https://api.github.com/repos/xournalpp/xournalpp/releases/latest';
 const XOURNAL_SITE_URL='https://github.com/xournalpp/xournalpp/releases/latest';
 const CHECK_TTL=24*60*60*1000;
+/* `locales` continua na lista mesmo com os catálogos em `src/locales` (#72).
+   Quem já está na 1.0.0 tem `desk/locales/` no manifesto; sem esta entrada o
+   updater desta versão não apaga esse órfão. A 0.5.0 não tinha `locales`,
+   por isso a pasta nova foi para dentro de `src/`. */
 const CODE_DIRS=new Set(['src','assets','templates','locales','scripts','tests']);
 const CODE_ROOT_DIRS=new Set(['core','geogebra','visual-check','.githooks']);
 const CODE_ROOT_FILES=new Set(['README.md','AGENTS.md','LICENSE','.gitignore']);
