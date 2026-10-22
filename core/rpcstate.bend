@@ -222,11 +222,6 @@ def aliveOf(o: RpcOut) -> Bool:
     case RpcOut{alive, _, _, _, _, _}:
       alive
 
-def stoppedOf(o: RpcOut) -> Bool:
-  match o:
-    case RpcOut{_, stopped, _, _, _, _}:
-      stopped
-
 def pendingOf(o: RpcOut) -> Nat:
   match o:
     case RpcOut{_, _, pending, _, _, _}:
@@ -236,11 +231,6 @@ def seqOf(o: RpcOut) -> Nat:
   match o:
     case RpcOut{_, _, _, seq, _, _}:
       seq
-
-def actOf(o: RpcOut) -> RpcAct:
-  match o:
-    case RpcOut{_, _, _, _, act, _}:
-      act
 
 def emitOf(o: RpcOut) -> Bool:
   match o:

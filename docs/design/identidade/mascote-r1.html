@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mascote e marcas — rodada 1</title>
+<!-- Protótipo da #61 (fase A). Desenhos originais: a referência do autor foi o TRAÇO
+     (pincel com textura, olhos grandes) e a ideia de desenho escondido na marca, não os
+     personagens ou marcas de ninguém. O "pincel" é um filtro SVG (turbulência + deslocamento). -->
+<style>
+:root{--ink:#2e1065;--cream:#fffbf0;--amber:#e8862a;--violet:#6d4fd8}
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+h2.part{font-size:16px;margin:32px 0 4px}
+.lead{color:#737373;margin:0 0 16px;max-width:72ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;min-width:0}
+.card h3{font-size:15px;margin:0}
+.card p{margin:2px 0 12px;color:#737373;font-size:13px}
+.stage{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stage>div{border-radius:10px;display:grid;place-items:center;padding:8px}
+.stage .dark{background:#111}.stage .light{background:var(--cream)}
+.stage svg{width:100%;max-width:170px;height:auto}
+.marks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--cream);border-radius:10px;padding:14px 8px}
+.marks figure{margin:0;text-align:center}
+.marks svg{width:100%;max-width:96px;height:auto}
+.marks figcaption{font-size:10px;color:#8a7f6a}
+/* Vazios e detalhe das marcas: a cor vem do `<use>` por variável (o clone herda). */
+.corte{fill:none;stroke:var(--corte);stroke-linecap:round}
+.ponta{fill:var(--ponta)}
+.tiny{display:flex;gap:12px;align-items:flex-end;justify-content:center;margin-top:10px}
+</style>
+</head>
+<body>
+<h1>Mascote e marcas com desenho escondido — rodada 1</h1>
+<p class="lead">As quatro marcas da rodada 1 continuam valendo. Aqui entram dois caminhos novos. <b>Mascote</b>: um personagem no traço de pincel, para aparecer no "pensando", nas telas vazias, na Lista 0 e no vídeo. <b>Marca escondida</b>: um símbolo chapado com uma segunda leitura no meio, para o ícone do app, que precisa funcionar em 16 px.</p>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs>
+  <!-- Borda tremida de pincel + grão escuro só dentro da forma. -->
+  <filter id="pincel" x="-10%" y="-10%" width="120%" height="120%">
+   <feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="7" result="onda"/>
+   <feDisplacementMap in="SourceGraphic" in2="onda" scale="6" xChannelSelector="R" yChannelSelector="G" result="borda"/>
+   <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="1" seed="3" result="ruido"/>
+   <feColorMatrix in="ruido" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  .6 0 0 0 -.34" result="grao"/>
+   <feComposite in="grao" in2="borda" operator="in" result="graoDentro"/>
+   <feMerge><feMergeNode in="borda"/><feMergeNode in="graoDentro"/></feMerge>
+  </filter>
+
+  <!-- Mascote 1: Mesinha. A própria mesa, com olhos na frente do tampo. -->
+  <symbol id="mesinha" viewBox="0 0 240 240">
+   <ellipse cx="120" cy="214" rx="72" ry="8" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)">
+    <path d="M82 128Q66 168 72 206M158 128Q174 168 168 206" fill="none" stroke="#5a3fc4" stroke-width="16" stroke-linecap="round"/>
+    <g transform="rotate(-8 140 60)"><rect x="118" y="40" width="48" height="34" rx="3" fill="#f4f1ea"/><path d="M126 50h30M126 58h22" stroke="#b9b2a3" stroke-width="3"/></g>
+    <path d="M66 62 106 50" stroke="#e8862a" stroke-width="8" stroke-linecap="round"/>
+    <rect x="38" y="68" width="164" height="64" rx="18" fill="#6d4fd8"/>
+    <rect x="38" y="68" width="164" height="17" rx="8.5" fill="#8b74ec"/>
+    <circle cx="98" cy="106" r="15" fill="#fff"/><circle cx="137" cy="104" r="17" fill="#fff"/>
+    <circle cx="102" cy="101" r="7" fill="#1a1033"/><circle cx="142" cy="99" r="8" fill="#1a1033"/>
+    <circle cx="104" cy="98.5" r="2" fill="#fff"/><circle cx="144.5" cy="96" r="2.2" fill="#fff"/>
+    <path d="M112 123q8 6 16 0" fill="none" stroke="#1a1033" stroke-width="3" stroke-linecap="round"/>
+   </g>
+  </symbol>
+
+  <!-- Mascote 2: Folhinha. Uma folha de exercício com braços e lápis. -->
+  <symbol id="folhinha" viewBox="0 0 240 240">
+   <ellipse cx="120" cy="228" rx="56" ry="6" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)">
+    <path d="M96 206v18M140 206v18M90 225h11M135 225h11" stroke="#5a3fc4" stroke-width="6" stroke-linecap="round"/>
+    <path d="M64 128Q42 140 36 118M178 138Q198 150 204 134" fill="none" stroke="#5a3fc4" stroke-width="5" stroke-linecap="round"/>
+    <path d="M198 144 222 104" stroke="#e8862a" stroke-width="9" stroke-linecap="round"/>
+    <path d="M70 40H150L180 70V200Q180 208 172 208H70Q62 208 62 200V48Q62 40 70 40Z" fill="#f4f1ea"/>
+    <path d="M150 40V62Q150 70 158 70H180Z" fill="#d9d3c4"/>
+    <path d="M80 152h70M80 170h56M80 188h64" stroke="#b9b2a3" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="98" cy="98" r="14" fill="#fff" stroke="#2b2b2b" stroke-width="2.5"/><circle cx="134" cy="96" r="16" fill="#fff" stroke="#2b2b2b" stroke-width="2.5"/>
+    <circle cx="94" cy="102" r="6.5" fill="#1a1033"/><circle cx="129" cy="100" r="7.5" fill="#1a1033"/>
+    <circle cx="95.5" cy="99.5" r="1.8" fill="#fff"/><circle cx="131" cy="97" r="2" fill="#fff"/>
+    <ellipse cx="116" cy="127" rx="6" ry="5" fill="#1a1033"/>
+   </g>
+  </symbol>
+
+  <!-- Mascote 3: Caderninho. O tutor como um caderno de espiral, de óculos. -->
+  <symbol id="caderninho" viewBox="0 0 240 240">
+   <ellipse cx="124" cy="224" rx="60" ry="7" fill="#000" opacity=".22"/>
+   <g filter="url(#pincel)">
+    <path d="M104 198v20M150 198v20" stroke="#5a3fc4" stroke-width="12" stroke-linecap="round"/>
+    <rect x="60" y="48" width="130" height="152" rx="14" fill="#6d4fd8"/>
+    <rect x="86" y="70" width="80" height="26" rx="4" fill="#f4f1ea"/>
+    <path d="M96 83h46" stroke="#b9b2a3" stroke-width="3.5" stroke-linecap="round"/>
+    <g fill="none" stroke="#d9d3c4" stroke-width="4"><ellipse cx="60" cy="66" rx="9" ry="5"/><ellipse cx="60" cy="88" rx="9" ry="5"/><ellipse cx="60" cy="110" rx="9" ry="5"/><ellipse cx="60" cy="132" rx="9" ry="5"/><ellipse cx="60" cy="154" rx="9" ry="5"/><ellipse cx="60" cy="176" rx="9" ry="5"/></g>
+    <circle cx="110" cy="132" r="14" fill="#fff"/><circle cx="148" cy="130" r="15" fill="#fff"/>
+    <circle cx="113" cy="127" r="6.5" fill="#1a1033"/><circle cx="151" cy="125" r="7" fill="#1a1033"/>
+    <g fill="none" stroke="#e8862a" stroke-width="3.5"><circle cx="110" cy="132" r="19"/><circle cx="148" cy="130" r="20"/><path d="M129 131h0.5"/></g>
+    <path d="M114 166q15 10 30 0" fill="none" stroke="#2a1a5e" stroke-width="4" stroke-linecap="round"/>
+   </g>
+  </symbol>
+
+  <!-- Marca 1: M-mesa. O M é uma mesa: tampo, duas pernas e uma folha pendurada no meio. -->
+  <symbol id="m-mesa" viewBox="0 0 200 200">
+   <rect x="28" y="44" width="144" height="26" rx="10"/>
+   <path d="M36 66h24v100a6 6 0 0 1-6 6h-12a6 6 0 0 1-6-6zM140 66h24v100a6 6 0 0 1-6 6h-12a6 6 0 0 1-6-6zM66 66h68l-30 62a4.5 4.5 0 0 1-8 0z"/>
+  </symbol>
+  <!-- Marca 2: M-lápis. O V do meio é a ponta de um lápis. -->
+  <symbol id="m-lapis" viewBox="0 0 200 200">
+   <rect x="34" y="40" width="32" height="124" rx="7"/><rect x="134" y="40" width="32" height="124" rx="7"/>
+   <path d="M60 40H140L104 134a4.5 4.5 0 0 1-8 0Z"/>
+   <path class="corte" d="M80 98H120" stroke-width="7"/>
+   <path class="ponta" d="M88.7 101.5 111.3 101.5 104 120.5a4.5 4.5 0 0 1-8 0Z"/>
+  </symbol>
+  <!-- Marca 3: Folha que sorri. Linhas de texto que, de longe, são um rosto. -->
+  <symbol id="m-folha" viewBox="0 0 200 200">
+   <path d="M58 26H128L158 56V170Q158 178 150 178H58Q50 178 50 170V34Q50 26 58 26Z"/>
+   <path class="corte" d="M128 26V48Q128 56 136 56H158" stroke-width="7"/>
+   <path class="corte" d="M70 92h22M108 92h22M70 116h60M72 140q28 18 56 0" stroke-width="9"/>
+  </symbol>
+ </defs>
+</svg>
+
+<h2 class="part">1. Mascote</h2>
+<p class="lead">Cada um no escuro (como a referência) e no creme. Todos usam o violeta da Mesa e o âmbar do lápis.</p>
+<div class="grid">
+ <section class="card"><h3>A · Mesinha</h3><p>A própria mesa ganha olhos. O nome já vem pronto e liga com "Mesa de Estudos".</p>
+  <div class="stage"><div class="dark"><svg><use href="#mesinha"/></svg></div><div class="light"><svg><use href="#mesinha"/></svg></div></div></section>
+ <section class="card"><h3>B · Folhinha</h3><p>Uma folha de exercício com braços e lápis. Combina com a Lista 0 e com o Xournal++.</p>
+  <div class="stage"><div class="dark"><svg><use href="#folhinha"/></svg></div><div class="light"><svg><use href="#folhinha"/></svg></div></div></section>
+ <section class="card"><h3>C · Caderninho</h3><p>O tutor como caderno de espiral, de óculos. É o mais "professor" dos três.</p>
+  <div class="stage"><div class="dark"><svg><use href="#caderninho"/></svg></div><div class="light"><svg><use href="#caderninho"/></svg></div></div></section>
+</div>
+
+<h2 class="part">2. Marca com desenho escondido</h2>
+<p class="lead">Cada marca em três tratamentos, como na referência: tinta chapada, ícone do app (sobre o violeta) e selo com o âmbar. Embaixo, em 32 e 16 px.</p>
+<div class="grid" id="marcas"></div>
+
+<script>
+const marcas=[
+ ['m-mesa','D · M-mesa','Tampo e pernas formam o M; o V do meio é uma folha pendurada. Lê como letra e como mesa.'],
+ ['m-lapis','E · M-lápis','As duas hastes e a ponta de um lápis no meio. O grafite vira âmbar no selo.'],
+ ['m-folha','F · Folha que sorri','Parece uma folha com texto; de longe, as linhas viram dois olhos e um sorriso. É a Folhinha em forma de marca.'],
+];
+// Um desenho, três pinturas: `fill` pinta a forma, `.corte` e `.ponta` são os vazios e o detalhe.
+const pintura={
+ tinta:{bg:'none',fill:'#2e1065',corte:'#fffbf0',ponta:'#2e1065'},
+ app:{bg:'#5b21b6',fill:'#fff',corte:'#5b21b6',ponta:'#f59e0b'},
+ selo:{bg:'#e8862a',fill:'#2e1065',corte:'#e8862a',ponta:'#e8862a'},
+};
+// Com fundo, a marca encolhe para 80% e centraliza (a margem do ícone de app).
+const marca=(id,p,size)=>{const c=pintura[p],solta=c.bg==='none';
+ const fundo=solta?'':`<rect width="200" height="200" rx="46" fill="${c.bg}"/>`;
+ const caixa=solta?'x="0" y="0" width="200" height="200"':'x="20" y="20" width="160" height="160"';
+ return `<svg viewBox="0 0 200 200" width="${size}" height="${size}" role="img" aria-label="${id} ${p}">${fundo}<use href="#${id}" ${caixa} fill="${c.fill}" style="--corte:${c.corte};--ponta:${c.ponta}"/></svg>`;};
+document.getElementById('marcas').innerHTML=marcas.map(([id,nome,nota])=>`
+ <section class="card"><h3>${nome}</h3><p>${nota}</p>
+  <div class="marks">${['tinta','app','selo'].map(p=>`<figure>${marca(id,p,96)}<figcaption>${p}</figcaption></figure>`).join('')}</div>
+  <div class="tiny">${['app','selo','tinta'].flatMap(p=>[marca(id,p,32),marca(id,p,16)]).join('')}</div>
+ </section>`).join('');
+</script>
+</body>
+</html>

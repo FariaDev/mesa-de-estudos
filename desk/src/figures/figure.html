@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="utf-8">
+<!-- Página da ferramenta "ver o que desenhei" (#60). Offline: o main a abre numa
+     janela escondida, chama `window.mesaFigure.render(...)` e captura. O
+     markup é o do chat (marked + DOMPurify com a guarda de SVG), então o
+     print mostra o que o aluno vê. `connect-src file:` é para os catálogos de
+     idioma (JSON importado); a sessão do main só deixa passar arquivos do app. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; font-src 'self' file:; img-src 'none'; connect-src file:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<title>Mesa de Estudos</title>
+<link rel="stylesheet" href="../../node_modules/katex/dist/katex.min.css">
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../tutor-chat.css">
+<style>html,body{margin:0}body{padding:12px;background:var(--bg);color:var(--fg);box-sizing:border-box;overflow:hidden}</style>
+</head>
+<body>
+<main id="figure" class="message"></main>
+<script type="module" src="figure-page.mjs"></script>
+</body>
+</html>

@@ -3,6 +3,9 @@ import {icon} from '../icons.mjs';
 import {applyIcons,build} from './view-host.mjs';
 import {renderBookmark} from './dialogs.mjs';
 import pdfnavCore from './generated/pdfnav.core.js';
+import {t,LANGUAGE_EVENT} from './ui-text.mjs';
+import {message} from './i18n.mjs';
+import {wholeNat} from './bend-nat.mjs';
 
 /* Navegação entre a resposta e o material (pedido 5): a citação que o "Citar"
    escreve (`Limites.pdf, p. 7`) — e qualquer citação parecida que o Pi devolva
@@ -50,9 +53,9 @@ function entryFor(name,path){
 /* Segue uma citação: o painel que já mostra o arquivo (senão o primeiro). */
 export function openRef(name,page,path){
  const hit=entryFor(name,path);
- if(!hit){toast(`Não achei ${name||path} na biblioteca desta matéria.`);return false;}
+ if(!hit){toast(message('pdf.nav.missing',{name:name||path}));return false;}
  const panel=S.panels.find(p=>p.path===hit.path)||S.panels[0];
- if(!panel){toast('Nenhum leitor aberto.');return false;}
+ if(!panel){toast(message('pdf.nav.noReader'));return false;}
  const target=Math.max(1,Math.trunc(Number(page)||1));
  if(panel.path&&panel.path!==hit.path){
   const stack=stackOf(panel);
@@ -108,10 +111,8 @@ function labelNavButton(panel){
  const button=navButtonOf(panel);
  if(!button)return;
  const label=String(panel?.label||'').trim();
- const wanted=label?`Sumário e favoritos de ${label}`:'Sumário e favoritos';
- const aria=button.getAttribute('aria-label')||'';
- if(!aria.includes('Sumário'))button.setAttribute('aria-label',wanted);
- if(button.getAttribute('title')!=='Sumário e favoritos')button.title='Sumário e favoritos';
+ button.setAttribute('aria-label',label?t('pdf.nav.ariaOf',{label}):t('pdf.nav.button'));
+ button.title=t('pdf.nav.button');
 }
 
 /* As listas do host viram as listas do núcleo (`Bookmark`/`OutlineEntry`) —
@@ -120,14 +121,14 @@ function bendBooks(items){
  return (items||[]).reduceRight((tail,item)=>({$:'Con',head:{$:'Bookmark',
   name:String(item?.name||''),
   path:String(item?.path||''),
-  page:BigInt(Math.max(1,Math.trunc(Number(item?.page)||1)))},tail}),{$:'Nil'});
+  page:wholeNat(item?.page,1)},tail}),{$:'Nil'});
 }
 
 function bendOutline(items){
  return (items||[]).reduceRight((tail,item)=>({$:'Con',head:{$:'OutlineEntry',
   title:String(item?.title||''),
-  page:BigInt(Math.max(1,Math.trunc(Number(item?.page)||1))),
-  depth:BigInt(Math.max(0,Math.trunc(Number(item?.depth)||0)))},tail}),{$:'Nil'});
+  page:wholeNat(item?.page,1),
+  depth:wholeNat(item?.depth)},tail}),{$:'Nil'});
 }
 
 async function outlineOf(panel){
@@ -192,11 +193,11 @@ function suggestedName(panel){
 /* O favorito nasce do leitor que pediu (o botão Navegar do painel dele): com
    dois PDFs abertos, guarda a página do painel CERTO, não a do primeiro. */
 function openBookmarkDialog(panel){
- if(!panel?.path){toast('Abra um PDF para guardar a página.');return;}
+ if(!panel?.path){toast(message('pdf.nav.openFirst'));return;}
  const dialog=$('#bookmark-dialog');
  if(!dialog)return;
  const name=suggestedName(panel);
- renderBookmark(name,pdfnavCore.bookmarkDialogHint(name,BigInt(Math.max(1,Math.trunc(Number(panel.page)||1)))));
+ renderBookmark(name,pdfnavCore.bookmarkDialogHint(name,wholeNat(panel.page,1)));
  dialog._panel=panel;
  dialog.showModal();
 }
@@ -206,7 +207,7 @@ async function saveBookmark(payload){
   const saved=await window.desk.bookmarksSave({...payload,courseId:S.currentCourseId});
   S.bookmarks=Array.isArray(saved)?saved:[];
   for(const panel of S.panels||[])await refreshPopover(panel);
-  if(payload.mode==='add')toast('Favorito guardado.');
+  if(payload.mode==='add')toast(message('toast.favoriteSaved'));
  }catch(err){toast(err.message);}
 }
 
@@ -264,4 +265,4 @@ document.addEventListener('change',event=>{
 
 /* Os leitores nascem a cada matéria; o rótulo do livro entra junto com o chrome
    (o painel 2 pode estar no slot da área de apoio, mas continua em S.panels). */
-window.addEventListener('desk-chrome',()=>{for(const panel of S.panels||[])labelNavButton(panel);});
+for(const eventName of ['desk-chrome',LANGUAGE_EVENT])window.addEventListener(eventName,()=>{for(const panel of S.panels||[])labelNavButton(panel);});

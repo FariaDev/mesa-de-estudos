@@ -18,7 +18,9 @@ import {createRequire} from 'node:module';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {_electron as electron} from '@playwright/test';
 import {testEnv} from './electron-env.mjs';
+import {closeApp} from './proc-tree.mjs';
 import {tinyPdf} from './helpers.mjs';
+import {ptText} from './pt-text.mjs';
 
 const require = createRequire(import.meta.url);
 const store = require('../free-workspaces.cjs');
@@ -87,9 +89,7 @@ const stubDialog = (app, paths) => app.evaluate(({dialog}, value) => {
   dialog.showOpenDialog = async () => (value === null ? {canceled: true, filePaths: []} : {canceled: false, filePaths: value});
 }, paths);
 
-async function close(app) {
-  if (app) await app.close().catch(() => {});
-}
+const close = (app) => closeApp(app);
 
 async function waitFor(predicate, label, {timeout = 20000, step = 150} = {}) {
   const start = Date.now();
@@ -154,9 +154,9 @@ test('aba Livre no host: workspace por conversa, APIs, mutex, promoção e resta
   const readOk = await page.evaluate((p) => window.desk.readPDF(p).then((bytes) => bytes.byteLength, (e) => e.message), materialA.path);
   assert.ok(Number(readOk) > 100, 'material da sessão é legível');
   const readArbitrary = await page.evaluate((p) => window.desk.readPDF(p).then(() => 'ok', (e) => e.message), source);
-  assert.match(String(readArbitrary), /biblioteca|seletor/i, 'caminho arbitrário não é autorizado');
+  assert.match(ptText(String(readArbitrary)), /biblioteca|seletor/i, 'caminho arbitrário não é autorizado');
   const openNormal = await page.evaluate(() => window.desk.openPDF().then(() => 'ok', (e) => e.message));
-  assert.match(String(openNormal), /Livre/, 'o seletor da matéria normal não opera dentro do Livre');
+  assert.match(ptText(String(openNormal)), /Livre/, 'o seletor da matéria normal não opera dentro do Livre');
   await stubDialog(app, null);
   const openCancelled = await page.evaluate(() => window.desk.freeOpenPdf());
   assert.deepEqual(openCancelled, {cancelled: true}, 'cancelar o diálogo não importa nada');
@@ -252,7 +252,7 @@ test('aba Livre no host: workspace por conversa, APIs, mutex, promoção e resta
     const save = await savePromise;
     return {results, saved: save.saved, materials: save.data.workspace.materials.length, draft: save.data.state.draft};
   }, materialA.path);
-  for (const result of mutex.results.slice(0, 4)) assert.match(String(result), /Aguarde/, 'navegação bloqueada durante a mutação');
+  for (const result of mutex.results.slice(0, 4)) assert.match(ptText(String(result)), /Aguarde/, 'navegação bloqueada durante a mutação');
   assert.equal(mutex.results[4], 'ok', 'save-state não é bloqueado (é adiado)');
   assert.equal(mutex.saved, true, 'a mutação não foi invalidada pelo save-state');
   assert.equal(mutex.materials, 3);
@@ -461,7 +461,7 @@ test('aba Livre no host: workspace por conversa, APIs, mutex, promoção e resta
   app = null;
 });
 
-test('boot recupera diário applying: restaura config byte a byte e remove staging', {timeout: 300000}, async (t) => {
+test('boot recupera diário applying: restaura config byte a byte e remove staging', {timeout: 300000}, async () => {
   const fx = makeRuntime('recover-apply');
   const configBefore = fs.readFileSync(fx.configFile);
   const record = (() => {
@@ -504,7 +504,7 @@ test('boot recupera diário applying: restaura config byte a byte e remove stagi
   }
 });
 
-test('boot conclui diário committing: publica pasta, recibo e matéria no config/desk', {timeout: 300000}, async (t) => {
+test('boot conclui diário committing: publica pasta, recibo e matéria no config/desk', {timeout: 300000}, async () => {
   const fx = makeRuntime('recover-commit');
   const record = (() => {
     store.ensureWorkspace(fx.runtime, {sessionId: 'rec-commit', title: 'Rec Concluir'});
@@ -563,7 +563,7 @@ test('boot conclui diário committing: publica pasta, recibo e matéria no confi
   }
 });
 
-test('falha pós-commit não desfaz a promoção e o boot acorda no curso novo', {timeout: 300000}, async (t) => {
+test('falha pós-commit não desfaz a promoção e o boot acorda no curso novo', {timeout: 300000}, async () => {
   const fx = makeRuntime('post-commit');
   const source = path.join(fx.runtime, 'pos.pdf');
   fs.writeFileSync(source, tinyPdf('pós-commit', 2));
@@ -634,7 +634,7 @@ test('falha pós-commit não desfaz a promoção e o boot acorda no curso novo',
   }
 });
 
-test('fechar o app durante a geração do PDF cancela sem material órfão', {timeout: 300000}, async (t) => {
+test('fechar o app durante a geração do PDF cancela sem material órfão', {timeout: 300000}, async () => {
   const fx = makeRuntime('abort');
   const app = await launch(fx);
   let closed = false;
@@ -672,7 +672,7 @@ test('zero matérias configuradas: Livre já é utilizável no boot', {timeout: 
   assert.equal(init.courseId, 'mesa-free', 'sem matérias o boot abre no Livre');
   assert.deepEqual(init.courses, [{id: 'mesa-free', name: 'Livre', kind: 'free'}]);
   assert.equal(init.workspace.kind, 'free');
-  assert.equal(init.needsSetup, true, 'sem vault/matéria a boas-vindas de setup continua sinalizada');
+  assert.equal(init.needsSetup, true, 'sem vault/matéria a primeira abertura continua sinalizada (needsSetup)');
   const opened = await page.evaluate(() => window.desk.freeSaveMaterial({title: 'PDF sem matéria', markdown: 'Conteúdo avulso.'}));
   assert.equal(opened.saved, true);
   assert.equal(opened.data.workspace.materials.length, 1);

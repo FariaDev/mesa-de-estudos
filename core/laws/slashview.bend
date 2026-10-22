@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../slashview.bend as SV
 import ../view.bend as V
 
@@ -65,13 +66,13 @@ def secondRow(items: List<&2, SV.SlashItem>, activeKey: String) -> V.ViewNode:
 # ---------- textos ----------
 
 law slashview_head_text:
-  {SV.slashHeadText() == "Comandos" : String}
+  {SV.slashHeadText() == M.msg("slash.head") : String}
 
 law slashview_list_label:
-  {SV.slashListLabel() == "Comandos do Pi" : String}
+  {SV.slashListLabel() == M.msg("slash.list") : String}
 
 law slashview_foot_text:
-  {SV.slashFootText() == "↑↓ navegar · ⏎ inserir · Esc fechar" : String}
+  {SV.slashFootText() == M.msg("slash.foot") : String}
 
 # ---------- id da linha ----------
 
@@ -109,7 +110,7 @@ law slashview_head_role:
   {attrOf(kind(SV.slashMenuView(True{}, Nil{}, ""), 0n), "role") == Some{"presentation"} : Maybe<&2, String>}
 
 law slashview_head_text_kid:
-  {V.textOf(kind(kind(SV.slashMenuView(True{}, Nil{}, ""), 0n), 0n)) == "Comandos" : String}
+  {V.textOf(kind(kind(SV.slashMenuView(True{}, Nil{}, ""), 0n), 0n)) == M.msg("slash.head") : String}
 
 law slashview_foot_class:
   {attrOf(kind(SV.slashMenuView(True{}, Nil{}, ""), 2n), "class") == Some{"slash-foot"} : Maybe<&2, String>}
@@ -118,7 +119,7 @@ law slashview_foot_role:
   {attrOf(kind(SV.slashMenuView(True{}, Nil{}, ""), 2n), "role") == Some{"presentation"} : Maybe<&2, String>}
 
 law slashview_foot_text_kid:
-  {V.textOf(kind(kind(SV.slashMenuView(True{}, Nil{}, ""), 2n), 0n)) == "↑↓ navegar · ⏎ inserir · Esc fechar" : String}
+  {V.textOf(kind(kind(SV.slashMenuView(True{}, Nil{}, ""), 2n), 0n)) == M.msg("slash.foot") : String}
 
 # ---------- lista ----------
 
@@ -132,7 +133,7 @@ law slashview_list_role:
   {attrOf(kind(SV.slashMenuView(True{}, Nil{}, ""), 1n), "role") == Some{"listbox"} : Maybe<&2, String>}
 
 law slashview_list_aria:
-  {attrOf(kind(SV.slashMenuView(True{}, Nil{}, ""), 1n), "aria-label") == Some{"Comandos do Pi"} : Maybe<&2, String>}
+  {attrOf(kind(SV.slashMenuView(True{}, Nil{}, ""), 1n), "aria-label") == Some{M.msg("slash.list")} : Maybe<&2, String>}
 
 law slashview_list_kids:
   {List.length(&2, V.ViewNode, V.kidsOf(kind(SV.slashMenuView(True{}, twoItems(), "help"), 1n))) == 2n : Nat}

@@ -44,9 +44,9 @@ await withArtifacts('claude-lifecycle',async ctx=>{
  await submit('[claude:fallback]');await toastWait(page,'Troca de modelo artificial');
  await body('Fallback concluído');await sendEnabled(page);await statusOnline(page);
  await submit('[claude:multiple-rate]');
- await page.waitForFunction(()=>/7 dias/i.test(document.querySelector('#activity').textContent));
+ await page.waitForFunction(()=>/\b7d\b/.test(document.querySelector('#activity').textContent));
  await page.waitForTimeout(700);
- assert.match(await page.locator('#activity').textContent(),/7 dias/,'one released window cannot hide the other blocked window');
+ assert.match(await page.locator('#activity').textContent(),/\b7d\b/,'one released window cannot hide the other blocked window');
  await body('Janelas liberadas');await sendEnabled(page);
  for(const marker of ['context-error','blocking-limit']){
   await submit(`[claude:${marker}]`);await body(`[claude:${marker}]`);await sendEnabled(page);await statusOnline(page);

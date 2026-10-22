@@ -1,0 +1,135 @@
+/* Aba Livre (src/free-study.mjs) e Montar PDF.
+   Saiu do style.css na #43 fase 2; o index.html liga os CSS na ordem original
+   (style.css primeiro, com os tokens), então a cascata não mudou. */
+/* ---------- Aba Livre (src/free-study.mjs) ----------
+   Tudo aqui vive sob os prefixos #free-/.free- e só com o workspace da sessão
+   livre marcado (main/#references.workspace-free|free-empty): a matéria normal
+   continua com o mesmo layout e o mesmo texto dos leitores. */
+#free-bar{
+ display:none;align-items:center;column-gap:var(--space-3);flex-wrap:wrap;
+ background:var(--surface);flex-shrink:0;
+}
+#free-bar:not([hidden]){display:flex}
+#free-bar>strong{font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong);flex:0 0 auto}
+.free-field{display:flex;align-items:center;gap:var(--space-2);font-size:var(--fs-xs);color:var(--muted);min-width:0}
+/* O campo e o seletor já dizem o que são (texto de exemplo e primeira opção);
+   o rótulo fica só para leitor de tela. */
+.free-field-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#free-bar input[type="text"],#free-bar select{
+ border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface);color:var(--fg);
+ font-size:var(--fs-sm);padding:0 6px;min-width:0;
+}
+#free-bar .free-bar-spacer{flex:1}
+#free-bar button{font-size:var(--fs-xs);padding:0 9px}
+/* Uma só ação preenchida (PDF pelo tutor); as outras são texto com ícone, sem
+   borda, e ganham fundo só sob o cursor. */
+#free-bar .free-quiet{border-color:transparent;background:transparent;box-shadow:none;color:var(--muted)}
+#free-bar .free-quiet:hover:not(:disabled){background:var(--hover);color:var(--fg)}
+/* A barra é uma linha só e guarda o essencial: título, materiais, Abrir PDF,
+   PDF pelo tutor e o menu ···. Montar PDF, Adicionar à matéria e Criar matéria
+   moram nesse menu, então nenhum rótulo some "um a um": só em coluna muito
+   estreita as duas ações viram ícone de uma vez. O título e o seletor encolhem. */
+#free-bar{flex-wrap:nowrap;container-type:inline-size;container-name:free-host}
+#free-bar .free-field{flex:0 1 auto;min-width:72px}
+#free-bar .free-field>:is(input,select){min-width:0;width:100%}
+#free-bar .free-field:has(#free-title){width:190px}
+#free-bar .free-field:has(#free-materials){width:200px}
+#free-bar button{flex:none}
+#free-bar #free-more{padding:0}
+#free-bar .free-more-pop{right:var(--space-2)}
+#free-bar .free-more-pop button{padding:0 var(--space-2);font-size:var(--fs-sm)}
+#free-bar .free-more-pop button[disabled]{opacity:.5}
+@container free-host (max-width:520px){
+ #free-bar>strong{display:none}
+ #free-bar :is(#free-open-pdf,#free-tutor-pdf){width:var(--ctl);padding:0}
+ #free-bar :is(#free-open-pdf,#free-tutor-pdf)>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+#tutor-material-status{margin:0;padding:var(--space-3) var(--pad);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-sm);flex-shrink:0}
+#free-empty h2{margin:0;font-size:var(--fs-xl)}
+.free-start-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--space-3);width:100%;max-width:720px;text-align:left}
+.free-start-actions>div{flex:1 1 180px;max-width:240px;padding:var(--space-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);font-size:var(--fs-sm)}
+.free-start-actions p{margin:var(--space-2) 0 var(--space-4);color:var(--muted);line-height:1.5}
+/* Sem PDF aberto: o leitor e a área de apoio somem e o texto da sessão ocupa o
+   espaço; a conversa ganha a coluna reservada (o vazio usa o lugar da mesa). */
+#free-empty{
+ display:none;flex:1;min-height:0;flex-direction:column;align-items:center;justify-content:safe center;
+ gap:var(--space-4);text-align:center;padding:var(--space-5);overflow:auto;
+}
+#references.free-empty #free-empty{display:flex}
+#free-empty .free-empty-text{margin:0;max-width:46ch;font-size:var(--fs-md);line-height:1.55;color:var(--muted)}
+#references.free-empty #pdf-grid{display:none}
+#references.free-empty.support-chat #pdf-grid{display:flex;flex:1;min-height:0}
+#references.free-empty.support-chat #pdf-grid>.pdf-panel,#references.free-empty.support-chat .pdf-divider{display:none}
+#references.free-empty.support-chat #support-slot{flex:1}
+#references.free-empty.support-chat #free-empty{display:none}
+main.free-empty{grid-template-columns:minmax(260px,1fr) 1px minmax(360px,min(54vw,640px))}
+/* GeoGebra/Caderno tomam a área de estudo inteira? A barra some como o resto. */
+#references.review #free-bar,#references.ggb #free-bar{display:none}
+/* Diálogos da sessão livre (mesmo casco dos outros: cabeça, corpo rolável,
+   ações fixas). Altura limitada para caber em 900x650 sem empurrar as ações. */
+#free-promote-dialog,#tutor-pdf-dialog{max-width:640px;width:min(640px,94vw);max-height:min(720px,90vh);padding:0;overflow:hidden}
+#free-promote-dialog form,#tutor-pdf-dialog form{display:flex;flex-direction:column;max-height:min(718px,calc(90vh - 2px));min-height:0}
+#free-pdf-dialog,#free-promote-dialog,#tutor-pdf-dialog{padding:0;overflow:hidden}
+#free-pdf-dialog .dialog-actions,#free-promote-dialog .dialog-actions,#tutor-pdf-dialog .dialog-actions{align-items:center;min-height:52px;margin:0;padding:var(--space-4) 20px;border-top:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+#tutor-pdf-request{width:100%;resize:vertical;min-height:90px}
+.free-dialog-body{overflow:auto;min-height:0;padding:0 20px var(--space-3)}
+.free-dialog-body label{margin-bottom:var(--space-6)}
+#free-promote-dialog .free-dialog-body input,#tutor-pdf-dialog .free-dialog-body input{width:100%}
+.free-pdf-preview .fine{margin:0}
+/* Montar PDF (ticket #39): faixa de modelos, edição à esquerda, prévia A4 à
+   direita e rodapé de 52px com a frase de estado. Casco comum dos diálogos da
+   Mesa (raio 16, título 15, × de 28, controles de 30). */
+#free-pdf-dialog{width:min(1160px,calc(100vw - 32px));max-width:none;height:min(720px,calc(100vh - 32px));max-height:none}
+#free-pdf-form{display:flex;flex-direction:column;height:100%;min-height:0}
+#free-pdf-dialog .help-head{padding-bottom:var(--space-2)}
+.pdf-model-wrap{flex:none;container-type:inline-size;padding:0 20px var(--space-5)}
+.pdf-model-caption{display:block;margin:0 0 var(--space-2);font-size:var(--fs-sm-half);color:var(--muted)}
+.pdf-model-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--space-3)}
+.pdf-model-card{
+ display:flex;align-items:center;justify-content:flex-start;gap:var(--space-3);height:auto;min-height:44px;padding:var(--space-3);
+ border:1px solid var(--border);border-radius:var(--r-lg);background:transparent;color:var(--fg);text-align:left;
+}
+.pdf-model-card:hover{background:var(--hover)}
+.pdf-model-card[aria-checked="true"]{background:var(--selected);border-color:var(--border-strong);color:var(--fg-strong)}
+.pdf-model-thumb{flex:none;width:24px;height:34px;color:var(--muted)}
+.pdf-model-thumb svg{display:block;width:100%;height:100%}
+.pdf-model-sheet{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}
+.pdf-model-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pdf-model-name{font-size:var(--fs-md);font-weight:600;color:var(--fg-strong)}
+.pdf-model-blurb{font-size:var(--fs-xs);line-height:1.3;color:var(--muted);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+@container (max-width:900px){
+ .pdf-model-blurb{display:none}
+ .pdf-model-card{gap:var(--space-2);padding:var(--space-2) var(--space-3)}
+}
+.pdf-builder{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);border-top:1px solid var(--border)}
+.pdf-builder-edit{display:flex;flex-direction:column;min-height:0;overflow:auto;padding:var(--space-6) 20px var(--space-4);border-right:1px solid var(--border)}
+.pdf-builder-edit .help-lead{margin:0 0 var(--space-5)}
+.pdf-builder-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:var(--space-5)}
+.pdf-builder-pair label{margin-bottom:var(--space-5)}
+.pdf-builder-pair :is(input,select){width:100%;min-width:0}
+.pdf-builder-text{flex:1 1 auto;min-height:130px;margin-bottom:var(--space-5)}
+.pdf-builder-text-head{display:flex;justify-content:space-between;gap:var(--space-3)}
+.pdf-counts{color:var(--faint)}
+#free-pdf-content{flex:1 1 auto;width:100%;min-height:96px;resize:none;font-family:var(--font-mono);font-size:var(--fs-sm)}
+.pdf-options{border:0;margin:0 0 var(--space-3);padding:0}
+.pdf-options>legend{padding:0;margin:0 0 var(--space-3);font-size:var(--fs-sm-half);color:var(--muted)}
+.pdf-opt{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:var(--space-5);min-height:30px;margin:0 0 var(--space-3);font-size:var(--fs-md);color:var(--fg)}
+.pdf-opt-label{color:var(--fg)}
+.pdf-opt-flag{justify-content:flex-start;gap:var(--space-3);cursor:pointer}
+.pdf-opt-text{flex-direction:column;align-items:stretch;gap:var(--space-2);margin-bottom:var(--space-3)}
+.pdf-opt-text input{width:100%}
+.pdf-builder-view{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--side)}
+.pdf-view-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);height:36px;padding:0 var(--space-6);border-bottom:1px solid var(--border);font-size:var(--fs-sm-half);color:var(--muted)}
+#free-pdf-view-label{color:var(--fg)}
+.pdf-view-scroll{flex:1 1 auto;min-height:0;overflow:auto;padding:var(--space-6)}
+.free-pdf-preview{margin:0}
+#free-pdf-dialog .dialog-actions{flex-wrap:nowrap;gap:var(--space-3)}
+.pdf-status{flex:1 1 auto;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm);color:var(--muted)}
+@media (max-height:700px){
+ #free-pdf-dialog .pdf-builder-edit .help-lead{display:none}
+}
+.free-promote-preview{margin:var(--space-2) 0;padding:var(--space-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--code);font-size:var(--fs-sm)}
+.free-promote-preview p{margin:0 0 var(--space-2)}
+.free-promote-preview p:last-child{margin-bottom:0}
+.free-error{margin:var(--space-2) 0 0;color:var(--danger-text);font-size:var(--fs-sm);line-height:1.4}
+.free-error.free-note{color:var(--muted)}

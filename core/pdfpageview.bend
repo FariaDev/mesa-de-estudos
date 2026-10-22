@@ -1,7 +1,9 @@
 import Base
+import msg.bend as M
 import view.bend as V
 import pdfnav.bend as N
 import pdfview.bend as P
+import readersheet.bend as RS
 
 # ---------------------------------------------------------------------------
 # Leitor de PDF da Mesa: a moldura do painel, as páginas e os destaques da
@@ -13,11 +15,13 @@ import pdfview.bend as P
 # zoom, página atual, scroll/`offsetTop`, `ResizeObserver`, virtualização,
 # canvas/textLayer, `goto`, divisores e IPC.
 #
-# Contrato do smoke preservado (tags/classes/attrs 1:1 com o Electron):
-#   section.pdf-panel > .pdf-title (strong, select.pdf-select, .open,
-#   .find-toggle, .page-shot, .collapse) + .pdf-tools (prev, .page-number,
-#   .page-total, next, out, .zoom-label, in, fit, invert, rotate) + .pdf-stage
-#   (.pdf-viewport + .pdf-foot) + form.pdf-find
+# Contrato do smoke (tags/classes/attrs 1:1 com o Electron):
+#   section.pdf-panel > .pdf-title (UMA linha: strong, select.pdf-select, .back,
+#   .prev, .page-number, .page-total, .next, .find-toggle, .nav, .more) +
+#   .pdf-stage (.pdf-viewport + .pdf-foot) + form.pdf-find + .pdf-more-pop
+#   (.open, .page-shot, .more-zoom[.out, .zoom-label, .in], .fit, .invert,
+#   .rotate, .collapse; o host põe .printed-toggle antes do .collapse) +
+#   button.pdf-restore (a faixa do leitor recolhido)
 #   .pdf-viewport > .pdf-document > .pdf-page[data-page][style]
 #   .textLayer span > i.pdf-hl (destaque da busca)
 #
@@ -36,9 +40,12 @@ type PdfOption is Data:
 type PdfPageBox is Data:
   PdfPageBox{n: Nat, width: String, height: String}
 
-# O estado do leitor: sem PDF, abrindo, falhou ou pronto.
+# O estado do leitor: sem PDF, sem PDF numa matéria (a folha "Lista 0"),
+# abrindo, falhou ou pronto. `PdfSheet` leva o nome da matéria; `PdfEmpty` é o
+# vazio sem matéria (aba Livre, primeira abertura).
 type PdfReader is Data:
   PdfEmpty{}
+  PdfSheet{course: String}
   PdfLoading{}
   PdfFailed{}
   PdfReady{}
@@ -63,58 +70,83 @@ type PdfHlSeg is Data:
 # ---------- rótulos constantes (o host não escreve UI) ----------
 
 def emptyOptionLabel() -> String:
-  "Escolha um PDF…"
+  M.msg("pdf.view.empty")
 
 def findPlaceholder() -> String:
-  "Buscar neste PDF…"
+  M.msg("pdf.view.findPlaceholder")
 
 def findButtonLabel() -> String:
-  "Buscar"
+  M.msg("common.search")
 
 def openTitle() -> String:
-  "Abrir outro PDF"
+  M.msg("pdf.view.open")
 
 def findTitle() -> String:
-  "Buscar"
+  M.msg("common.search")
 
 def shotTitle() -> String:
-  "Mandar esta página como imagem no chat"
+  M.msg("pdf.view.shot")
 
 def prevAria() -> String:
-  "Página anterior"
+  M.msg("pdf.view.prev")
 
 def nextAria() -> String:
-  "Próxima página"
+  M.msg("pdf.view.next")
 
 def outAria() -> String:
-  "Diminuir zoom"
+  M.msg("pdf.view.zoomOut")
 
 def inAria() -> String:
-  "Aumentar zoom"
+  M.msg("pdf.view.zoomIn")
 
 def fitTitle() -> String:
-  "Ajustar à largura"
+  M.msg("pdf.view.fit")
 
+# Página escura (#42): opcional e desligada por padrão, mesmo no tema escuro —
+# figuras e fotos distorcem e o Conferir compara com o papel branco do
+# Xournal++. Inverte o papel e o texto preservando o matiz; é estado de
+# interface por leitor (o host guarda), fora do `config.json`.
 def invertTitle() -> String:
-  "Inverter cores da página (tema escuro)"
+  M.msg("pdf.view.invertTitle")
 
 def invertAria() -> String:
-  "Inverter cores da página"
+  M.msg("pdf.view.invert")
 
 def dividerAria() -> String:
-  "Redimensionar leitores de PDF"
+  M.msg("pdf.view.divider")
 
 def documentAria(label: String) -> String:
-  "Documento de " ++ label
+  M.msg1("pdf.view.docAria", "label", label)
 
 def openAria(label: String) -> String:
-  "Abrir PDF em " ++ label
+  M.msg1("pdf.view.openAria", "label", label)
 
 def findAria(label: String) -> String:
-  "Buscar em " ++ label
+  M.msg1("pdf.view.findAria", "label", label)
 
 def pageAria(label: String) -> String:
-  "Página de " ++ label
+  M.msg1("pdf.view.pageAria", "label", label)
+
+def moreTitle() -> String:
+  M.msg("pdf.view.more")
+
+def moreAria(label: String) -> String:
+  M.msg1("pdf.view.moreAria", "label", label)
+
+def restoreAria(label: String) -> String:
+  M.msg1("pdf.view.restoreAria", "label", label)
+
+def zoomRowLabel() -> String:
+  M.msg("pdf.view.zoom")
+
+def shotMenuLabel() -> String:
+  M.msg("pdf.view.shotMenu")
+
+def invertMenuLabel() -> String:
+  M.msg("pdf.view.invert")
+
+def printedMenuLabel() -> String:
+  M.msg("pdf.view.printedMenu")
 
 # ---------- rotação do leitor (ciclo de 90° por documento) ----------
 
@@ -153,13 +185,386 @@ def rotationNormalize(+rotation: Nat) -> Nat:
   rotationNormalize.if(rotation, rotationValid(rotation))
 
 def rotateTitle(+rotation: Nat) -> String:
-  "Girar 90° — orientação atual: " ++ Nat.show(rotation) ++ "°"
+  M.msg1("pdf.view.rotateTitle", "deg", Nat.show(rotation))
 
 def rotateAria(label: String, +rotation: Nat) -> String:
-  "Girar página de " ++ label ++ " (atual: " ++ Nat.show(rotation) ++ "°)"
+  M.msg2("pdf.view.rotateAria", "label", label, "deg", Nat.show(rotation))
 
 def rotateToast(+rotation: Nat) -> String:
-  "Orientação: " ++ Nat.show(rotation) ++ "°"
+  M.msg1("pdf.view.rotateToast", "deg", Nat.show(rotation))
+
+# ---------- numeração impressa (rótulos do PDF e ajuste pessoal) ----------
+#
+# A página FÍSICA (1-based, a mesma do state, das citações e do IPC) nunca
+# muda aqui: o que entra é só o que MOSTRAR e o alvo de navegação por número
+# impresso. Os rótulos próprios do PDF (`getPageLabels` do PDF.js) vencem o
+# ajuste pessoal; o ajuste (`impressa = física + offset`) é o recurso para
+# PDFs sem rótulo. Página física que não tem número impresso (capa, front
+# matter romano fora do alcance do ajuste) devolve "" e não vira alvo.
+
+# Ausência de ajuste NÃO é zero: zero é um ajuste válido (impressa = física).
+type PrintedOffset is Data:
+  OffsetAuto{}
+  OffsetValue{negative: Bool, magnitude: Nat}
+
+# Já validado pelo main (inteiro, |offset| <= 1.000.000); aqui só decide.
+def printedOffsetLabel.positive(n: Nat) -> String:
+  match n:
+    case 0n:
+      ""
+    case 1n+p:
+      Nat.show(n)
+
+# Nat.sub satura em 0: impressa <= 0 não é rótulo (front matter).
+def printedOffsetLabel.signed(negative: Bool, magnitude: Nat, physical: Nat) -> String:
+  match negative:
+    case True{}:
+      printedOffsetLabel.positive(Nat.sub(physical, magnitude))
+    case False{}:
+      Nat.show(Nat.add(physical, magnitude))
+
+def printedOffsetLabel(offset: PrintedOffset, physical: Nat) -> String:
+  match offset:
+    case OffsetAuto{}:
+      ""
+    case OffsetValue{negative, magnitude}:
+      printedOffsetLabel.signed(negative, magnitude, physical)
+
+def printedLabel.own.if(label: String, offset: PrintedOffset, physical: Nat, empty: Bool) -> String:
+  match empty:
+    case True{}:
+      printedOffsetLabel(offset, physical)
+    case False{}:
+      label
+
+def printedLabel.own(+label: String, offset: PrintedOffset, physical: Nat) -> String:
+  printedLabel.own.if(label, offset, physical, String.is_empty(label))
+
+def printedLabel.go(+own: List<&2, String>, offset: PrintedOffset, original: Nat, +i: Nat) -> String:
+  match own i:
+    case Nil{} _:
+      printedOffsetLabel(offset, original)
+    case Con{h, t} 0n:
+      printedLabel.own(h, offset, original)
+    case Con{h, t} 1n+p:
+      printedLabel.go(t, offset, original, p)
+
+# Rótulo impresso de uma página física. "" = sem número impresso visível.
+def printedLabel(+own: List<&2, String>, offset: PrintedOffset, +physical: Nat) -> String:
+  printedLabel.go(own, offset, physical, Nat.sub(physical, 1n))
+
+# ---------- resolver o que o usuário digitou no campo impresso ----------
+
+def isDigitChar(c: Char) -> Bool:
+  +u = Char.to_u32(c)
+  Bool.and(U32.is_ge(u, 48), U32.is_le(u, 57))
+
+def printedDigits.go(+s: String, ok: Bool) -> Bool:
+  match s:
+    case SNil{}:
+      ok
+    case SCon{h, t}:
+      printedDigits.go(t, Bool.and(ok, isDigitChar(h)))
+
+def printedDigits(text: String) -> Bool:
+  printedDigits.go(text, True{})
+
+# Só dígitos viram número impresso (o `U32.read` do Base aceita lixo).
+def printedNumber.parsed(parsed: Maybe<&2, U32>) -> Maybe<&2, Nat>:
+  match parsed:
+    case Some{n}:
+      Some{U32.to_nat(n)}
+    case None{}:
+      None{}
+
+def printedNumber.if(text: String, empty: Bool, digits: Bool) -> Maybe<&2, Nat>:
+  match empty:
+    case True{}:
+      None{}
+    case False{}:
+      match digits:
+        case False{}:
+          None{}
+        case True{}:
+          printedNumber.parsed(U32.read(text))
+
+def printedNumber(+text: String) -> Maybe<&2, Nat>:
+  printedNumber.if(text, String.is_empty(text), printedDigits(text))
+
+# Todas as páginas cujo rótulo próprio casa (na ordem das páginas).
+def printedMatches.cmp(candidate: String, +text: String, fold: Bool) -> Bool:
+  match fold:
+    case False{}:
+      String.eq(candidate, text)
+    case True{}:
+      String.eq(String.to_lower(candidate), String.to_lower(text))
+
+def printedMatches.push(out: List<&2, Nat>, n: Nat, same: Bool) -> List<&2, Nat>:
+  match same:
+    case True{}:
+      List.append(&2, Nat, out, Con{n, Nil{}})
+    case False{}:
+      out
+
+def printedMatches.go(+own: List<&2, String>, +text: String, +fold: Bool, +n: Nat, +out: List<&2, Nat>) -> List<&2, Nat>:
+  match own:
+    case Nil{}:
+      out
+    case Con{h, t}:
+      printedMatches.go(t, text, fold, Nat.add(n, 1n), printedMatches.push(out, n, printedMatches.cmp(h, text, fold)))
+
+# Rótulo repetido anda em ciclo a partir da página atual: o primeiro alvo
+# DEPOIS dela, senão o primeiro da lista.
+def printedPick.first.if(first: Nat, candidate: Nat, zero: Bool) -> Nat:
+  match zero:
+    case True{}:
+      candidate
+    case False{}:
+      first
+
+def printedPick.first(+first: Nat, candidate: Nat) -> Nat:
+  printedPick.first.if(first, candidate, Nat.is_eq(first, 0n))
+
+def printedPick.best.min.if(candidate: Nat, best: Nat, lt: Bool) -> Nat:
+  match lt:
+    case True{}:
+      candidate
+    case False{}:
+      best
+
+def printedPick.best.min(+candidate: Nat, +best: Nat) -> Nat:
+  printedPick.best.min.if(candidate, best, Nat.is_lt(candidate, best))
+
+def printedPick.best.none(best: Nat, candidate: Nat, zero: Bool) -> Nat:
+  match zero:
+    case True{}:
+      candidate
+    case False{}:
+      printedPick.best.min(candidate, best)
+
+def printedPick.best.if(+best: Nat, candidate: Nat, current: Nat, gt: Bool) -> Nat:
+  match gt:
+    case False{}:
+      best
+    case True{}:
+      printedPick.best.none(best, candidate, Nat.is_eq(best, 0n))
+
+def printedPick.best(+best: Nat, +candidate: Nat, +current: Nat) -> Nat:
+  printedPick.best.if(best, candidate, current, Nat.is_gt(candidate, current))
+
+def printedPick.fin.if(first: Nat, best: Nat, zero: Bool) -> Nat:
+  match zero:
+    case True{}:
+      first
+    case False{}:
+      best
+
+def printedPick.fin(first: Nat, +best: Nat) -> Nat:
+  printedPick.fin.if(first, best, Nat.is_eq(best, 0n))
+
+def printedPick.go(+matches: List<&2, Nat>, +current: Nat, first: Nat, best: Nat) -> Nat:
+  match matches:
+    case Nil{}:
+      printedPick.fin(first, best)
+    case Con{h, t}:
+      printedPick.go(t, current, printedPick.first(first, h), printedPick.best(best, h, current))
+
+# Página física dentro do documento (o alvo nunca sai de 1..total).
+def resolvePrinted.inBounds.if(page: Nat, total: Nat, ok: Bool) -> Maybe<&2, Nat>:
+  match ok:
+    case True{}:
+      Some{page}
+    case False{}:
+      None{}
+
+def resolvePrinted.inBounds(+page: Nat, +total: Nat) -> Maybe<&2, Nat>:
+  resolvePrinted.inBounds.if(page, total, Bool.and(Nat.is_ge(page, 1n), Nat.is_le(page, total)))
+
+def resolvePrinted.shift(negative: Bool, magnitude: Nat, printed: Nat, total: Nat) -> Maybe<&2, Nat>:
+  match negative:
+    case True{}:
+      resolvePrinted.inBounds(Nat.add(printed, magnitude), total)
+    case False{}:
+      resolvePrinted.inBounds(Nat.sub(printed, magnitude), total)
+
+# Sem rótulos próprios: o texto é a impressa e o ajuste desfaz o deslocamento.
+def resolvePrinted.byOffset.value(offset: PrintedOffset, printed: Nat, total: Nat) -> Maybe<&2, Nat>:
+  match offset:
+    case OffsetAuto{}:
+      resolvePrinted.inBounds(printed, total)
+    case OffsetValue{negative, magnitude}:
+      resolvePrinted.shift(negative, magnitude, printed, total)
+
+def resolvePrinted.byOffset.parsed(offset: PrintedOffset, total: Nat, parsed: Maybe<&2, Nat>) -> Maybe<&2, Nat>:
+  match parsed:
+    case None{}:
+      None{}
+    case Some{printed}:
+      resolvePrinted.byOffset.value(offset, printed, total)
+
+def resolvePrinted.byOffset(offset: PrintedOffset, text: String, total: Nat) -> Maybe<&2, Nat>:
+  resolvePrinted.byOffset.parsed(offset, total, printedNumber(text))
+
+def resolvePrinted.folded.matches(+text: String, total: Nat, current: Nat, matches: List<&2, Nat>) -> Maybe<&2, Nat>:
+  match matches:
+    case Nil{}:
+      None{}
+    case Con{h, t}:
+      resolvePrinted.inBounds(printedPick.go(Con{h, t}, current, 0n, 0n), total)
+
+def resolvePrinted.folded(+own: List<&2, String>, +text: String, total: Nat, current: Nat) -> Maybe<&2, Nat>:
+  resolvePrinted.folded.matches(text, total, current, printedMatches.go(own, text, True{}, 1n, Nil{}))
+
+def resolvePrinted.own.matches(+own: List<&2, String>, +text: String, total: Nat, current: Nat, matches: List<&2, Nat>) -> Maybe<&2, Nat>:
+  match matches:
+    case Nil{}:
+      resolvePrinted.folded(own, text, total, current)
+    case Con{h, t}:
+      resolvePrinted.inBounds(printedPick.go(Con{h, t}, current, 0n, 0n), total)
+
+def resolvePrinted.own(+own: List<&2, String>, +text: String, total: Nat, current: Nat) -> Maybe<&2, Nat>:
+  resolvePrinted.own.matches(own, text, total, current, printedMatches.go(own, text, False{}, 1n, Nil{}))
+
+def resolvePrinted.if(+own: List<&2, String>, offset: PrintedOffset, total: Nat, current: Nat, +text: String) -> Maybe<&2, Nat>:
+  match own:
+    case Nil{}:
+      resolvePrinted.byOffset(offset, text, total)
+    case Con{h, t}:
+      resolvePrinted.own(own, text, total, current)
+
+def resolvePrinted.empty(own: List<&2, String>, offset: PrintedOffset, total: Nat, current: Nat, text: String, empty: Bool) -> Maybe<&2, Nat>:
+  match empty:
+    case True{}:
+      None{}
+    case False{}:
+      resolvePrinted.if(own, offset, total, current, text)
+
+# Página FÍSICA para o que foi digitado no campo de numeração impressa.
+def resolvePrinted(own: List<&2, String>, offset: PrintedOffset, total: Nat, current: Nat, text: String) -> Maybe<&2, Nat>:
+  +trimmed = String.trim(text)
+  resolvePrinted.empty(own, offset, total, current, trimmed, String.is_empty(trimmed))
+
+# ---------- textos do controle de numeração impressa ----------
+
+def printedTitle() -> String:
+  M.msg("pdf.printed.title")
+
+def printedInputPlaceholder() -> String:
+  M.msg("pdf.printed.placeholder")
+
+def printedInputAria(label: String) -> String:
+  M.msg1("pdf.printed.inputAria", "label", label)
+
+def printedGoLabel() -> String:
+  M.msg("pdf.printed.go")
+
+def printedToggleTitle() -> String:
+  M.msg("pdf.printed.toggleTitle")
+
+def printedToggleAria(label: String) -> String:
+  M.msg1("pdf.printed.toggleAria", "label", label)
+
+def printedOffsetFieldLabel() -> String:
+  M.msg("pdf.printed.offset")
+
+def printedOffsetTitle() -> String:
+  M.msg("pdf.printed.offsetTitle")
+
+def printedOffsetInputAria(label: String) -> String:
+  M.msg1("pdf.printed.offsetAria", "label", label)
+
+def printedOffsetSaveLabel() -> String:
+  M.msg("pdf.printed.save")
+
+def printedOffsetAutoLabel() -> String:
+  M.msg("pdf.printed.auto")
+
+def printedOwnLabel() -> String:
+  M.msg("pdf.printed.own")
+
+def printedAutoLabel() -> String:
+  M.msg("pdf.printed.noAdjust")
+
+def printedOwnHint() -> String:
+  M.msg("pdf.printed.ownHint")
+
+def printedNoApiHint() -> String:
+  M.msg("pdf.printed.noApi")
+
+def printedStatusText.signed(negative: Bool, magnitude: Nat) -> String:
+  match negative:
+    case True{}:
+      M.msg1("pdf.printed.minus", "n", Nat.show(magnitude))
+    case False{}:
+      M.msg1("pdf.printed.plus", "n", Nat.show(magnitude))
+
+def printedStatusText(own: Bool, offset: PrintedOffset) -> String:
+  match own:
+    case True{}:
+      printedOwnLabel()
+    case False{}:
+      match offset:
+        case OffsetAuto{}:
+          printedAutoLabel()
+        case OffsetValue{negative, magnitude}:
+          printedStatusText.signed(negative, magnitude)
+
+def printedCurrentText.if(label: String, empty: Bool) -> String:
+  match empty:
+    case True{}:
+      M.msg("pdf.printed.noLabel")
+    case False{}:
+      M.msg1("pdf.printed.current", "label", label)
+
+def printedCurrentText(+label: String) -> String:
+  printedCurrentText.if(label, String.is_empty(label))
+
+def printedFoundText(text: String, page: Nat) -> String:
+  M.msg2("pdf.printed.found", "text", text, "page", Nat.show(page))
+
+def printedNotFoundText() -> String:
+  M.msg("pdf.printed.notFound")
+
+def printedInvalidText() -> String:
+  M.msg("pdf.printed.invalid")
+
+def printedBadOffsetText() -> String:
+  M.msg("pdf.printed.badOffset")
+
+def dropHintText(label: String) -> String:
+  M.msg1("pdf.drop.hint", "label", label)
+
+def dropOpeningText() -> String:
+  M.msg("pdf.drop.opening")
+
+def dropOpenedText(name: String, label: String) -> String:
+  M.msg2("pdf.drop.opened", "name", name, "label", label)
+
+def dropUnavailableText() -> String:
+  M.msg("pdf.drop.unavailable")
+
+def dropInvalidText() -> String:
+  M.msg("pdf.drop.invalid")
+
+# O estado completo do controle (modo do ajuste · rótulo da página atual) é
+# `printedStatusText` e `printedCurrentText` juntos: o host os traduz e junta,
+# porque um núcleo não concatena mensagens (#41).
+def printedSavedAutoText() -> String:
+  M.msg("pdf.printed.savedAuto")
+
+def printedSavedOffsetText.signed(negative: Bool, magnitude: Nat) -> String:
+  match negative:
+    case True{}:
+      M.msg1("pdf.printed.savedMinus", "n", Nat.show(magnitude))
+    case False{}:
+      M.msg1("pdf.printed.savedPlus", "n", Nat.show(magnitude))
+
+def printedSavedOffsetText(offset: PrintedOffset) -> String:
+  match offset:
+    case OffsetAuto{}:
+      printedSavedAutoText()
+    case OffsetValue{negative, magnitude}:
+      printedSavedOffsetText.signed(negative, magnitude)
 
 # ---------- select da biblioteca ----------
 
@@ -190,16 +595,29 @@ def optionNodes(+options: List<&2, PdfOption>, +path: String) -> List<&2, V.View
 def selectNode(label: String, options: +List<PdfOption>, +path: String) -> V.ViewNode:
   V.viewEl("select", [V.attrClass("pdf-select"), V.attrAria("label", documentAria(label)), V.attrOn("change", "OpenDoc")], optionNodes(options, path))
 
-# ---------- cabeça do painel (botões de ícone com andaime `data-icon`) ----------
+# ---------- barra única do leitor (botões de ícone com andaime `data-icon`) ----------
+# Uma linha de 40px por leitor: rótulo, material, voltar (escondido), página
+# anterior / número / total / próxima, busca, favoritos+sumário e "Mais opções".
+# O que não cabe na linha mora no menu `.pdf-more-pop` (zoom, ajustar, inverter,
+# girar, capturar, abrir outro PDF, numeração impressa, recolher) — mesmos
+# nomes de classe e mesmos handlers de antes, só mudaram de lugar.
 
 def iconBtnAttrs(cls: String, iconName: String, aria: String) -> List<&2, V.ViewAttr>:
   [V.attrClass(String.append(cls, " icon-btn")), V.attrAria("label", aria), V.attrData("icon", iconName)]
 
+# Item do menu "Mais opções": ícone + texto (o `applyIcons` do host põe o ícone
+# antes do texto).
+def itemAttrs(cls: String, iconName: String, aria: String) -> List<&2, V.ViewAttr>:
+  [V.attrClass(String.append(cls, " more-item")), V.attrAria("label", aria), V.attrData("icon", iconName)]
+
+def iconBtn(cls: String, iconName: String, aria: String, handler: String) -> V.ViewNode:
+  V.viewEl("button", V.attrConcat(iconBtnAttrs(cls, iconName, aria), [V.attrOn("click", handler)]), Nil{})
+
 def openBtn(label: String) -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
-    iconBtnAttrs("open", "plus", openAria(label)),
+    itemAttrs("open", "plus", openAria(label)),
     [V.attrTitle(openTitle()), V.attrOn("click", "OpenFile")]
-  ]), Nil{})
+  ]), [V.viewText(openTitle())])
 
 def findToggleBtn(label: String, open: Bool) -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
@@ -209,9 +627,9 @@ def findToggleBtn(label: String, open: Bool) -> V.ViewNode:
 
 def shotBtn(label: String) -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
-    iconBtnAttrs("page-shot", "camera", shotTitle()),
+    itemAttrs("page-shot", "camera", shotTitle()),
     [V.attrTitle(shotTitle()), V.attrOn("click", "PageShot")]
-  ]), Nil{})
+  ]), [V.viewText(shotMenuLabel())])
 
 def collapseIcon(minimized: Bool) -> String:
   match minimized:
@@ -223,9 +641,9 @@ def collapseIcon(minimized: Bool) -> String:
 def collapseBtn(+minimized: Bool) -> V.ViewNode:
   +title = P.collapseTitle(minimized)
   V.viewEl("button", V.attrJoin([
-    iconBtnAttrs("collapse", collapseIcon(minimized), title),
+    itemAttrs("collapse", collapseIcon(minimized), title),
     [V.attrTitle(title), V.attrBool("aria-pressed", minimized), V.attrOn("click", "ToggleCollapse")]
-  ]), Nil{})
+  ]), [V.viewText(title)])
 
 # ---------- voltar à página anterior (citação seguida) ----------
 
@@ -239,7 +657,7 @@ def navBackAria(label: String) -> String:
 # (`core/pdfnav.bend` desenha o esqueleto e as linhas).
 def navBtn(label: String) -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
-    iconBtnAttrs("nav", "book", N.navAria(label)),
+    iconBtnAttrs("nav", "bookmark", N.navAria(label)),
     [ V.attrTitle(N.navButtonTitle())
     , V.attrBool("aria-expanded", False{})
     , V.attrOn("click", "ToggleNav")
@@ -253,36 +671,25 @@ def backBtn(label: String) -> V.ViewNode:
     [V.attrTitle(navBackTitle()), V.attrOn("click", "NavBack"), V.attr("hidden", "")]
   ]), Nil{})
 
-def titleBar(shell: PdfShell) -> V.ViewNode:
-  match shell:
-    case PdfShell{+label, +options, +path, +minimized, findOpen, rotation}:
-      V.viewEl("div", [V.attrClass("pdf-title")], [
-        V.viewEl("strong", Nil{}, [V.viewText(label)]),
-        selectNode(label, options, path),
-        openBtn(label),
-        findToggleBtn(label, findOpen),
-        shotBtn(label),
-        backBtn(label),
-        navBtn(label),
-        collapseBtn(minimized)
-      ])
-
-# ---------- ferramentas (o host preenche page-total/zoom-label) ----------
-
-def iconBtn(cls: String, iconName: String, aria: String, handler: String) -> V.ViewNode:
-  V.viewEl("button", V.attrConcat(iconBtnAttrs(cls, iconName, aria), [V.attrOn("click", handler)]), Nil{})
-
-def titleIconBtn(cls: String, iconName: String, title: String, aria: String, handler: String) -> V.ViewNode:
-  V.viewEl("button", V.attrJoin([iconBtnAttrs(cls, iconName, aria), [V.attrTitle(title), V.attrOn("click", handler)]]), Nil{})
+# O último ícone da barra: abre/fecha o menu (o host alterna `hidden`). O menu é
+# um grupo de botões (padrão disclosure: `aria-expanded`, sem `aria-haspopup`).
+def moreBtn(label: String) -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    iconBtnAttrs("more", "more", moreAria(label)),
+    [ V.attrTitle(moreTitle())
+    , V.attrBool("aria-expanded", False{})
+    , V.attrOn("click", "ToggleMore")
+    ]
+  ]), Nil{})
 
 # Girar 90°: um botão que cicla 0→90→180→270→0 por leitor. `title`/`aria-label`
 # dizem a orientação corrente (o host troca só este botão a cada giro, como o
 # colapsar, para não perder o foco do teclado).
 def rotateBtn(label: String, +rotation: Nat) -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
-    iconBtnAttrs("rotate", "rotateCw", rotateAria(label, rotation)),
+    itemAttrs("rotate", "rotateCw", rotateAria(label, rotation)),
     [V.attrTitle(rotateTitle(rotation)), V.attrOn("click", "Rotate")]
-  ]), [V.viewText("Girar")])
+  ]), [V.viewText(M.msg("pdf.view.rotate"))])
 
 def pageInput(label: String) -> V.ViewNode:
   V.viewEl("input", [
@@ -294,18 +701,75 @@ def pageInput(label: String) -> V.ViewNode:
     V.attrOn("change", "GotoPage")
   ], Nil{})
 
-def toolsBar(+label: String, +rotation: Nat) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("pdf-tools")], [
-    iconBtn("prev", "chevronLeft", prevAria(), "Prev"),
-    pageInput(label),
-    V.viewEl("span", [V.attrClass("page-total")], Nil{}),
-    iconBtn("next", "chevronRight", nextAria(), "Next"),
-    iconBtn("out", "minus", outAria(), "ZoomOut"),
-    V.viewEl("span", [V.attrClass("zoom-label")], Nil{}),
-    iconBtn("in", "plus", inAria(), "ZoomIn"),
-    titleIconBtn("fit", "unfold", fitTitle(), fitTitle(), "Fit"),
-    titleIconBtn("invert", "contrast", invertTitle(), invertAria(), "ToggleInvert"),
-    rotateBtn(label, rotation)
+def titleBar(shell: PdfShell) -> V.ViewNode:
+  match shell:
+    case PdfShell{+label, +options, +path, _, findOpen, _}:
+      V.viewEl("div", [V.attrClass("pdf-title")], [
+        V.viewEl("strong", Nil{}, [V.viewText(label)]),
+        selectNode(label, options, path),
+        backBtn(label),
+        iconBtn("prev", "chevronLeft", prevAria(), "Prev"),
+        pageInput(label),
+        V.viewEl("span", [V.attrClass("page-total")], Nil{}),
+        iconBtn("next", "chevronRight", nextAria(), "Next"),
+        findToggleBtn(label, findOpen),
+        navBtn(label),
+        moreBtn(label)
+      ])
+
+# ---------- menu "Mais opções" (o host preenche page-total/zoom-label) ----------
+
+def fitBtn() -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    itemAttrs("fit", "unfold", fitTitle()),
+    [V.attrTitle(fitTitle()), V.attrOn("click", "Fit")]
+  ]), [V.viewText(fitTitle())])
+
+def invertBtn() -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    itemAttrs("invert", "contrast", invertAria()),
+    [V.attrTitle(invertTitle()), V.attrOn("click", "ToggleInvert")]
+  ]), [V.viewText(invertMenuLabel())])
+
+# Zoom − 100% +: a linha fica no menu; os dois botões não fecham o menu (o host
+# deixa aberto para ajustar de novo).
+def zoomRow() -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("more-zoom")], [
+    V.viewEl("span", [V.attrClass("more-zoom-title")], [V.viewText(zoomRowLabel())]),
+    V.viewEl("span", [V.attrClass("more-zoom-ctl")], [
+      iconBtn("out", "minus", outAria(), "ZoomOut"),
+      V.viewEl("span", [V.attrClass("zoom-label")], Nil{}),
+      iconBtn("in", "plus", inAria(), "ZoomIn")
+    ])
+  ])
+
+def moreMenu(+label: String, +rotation: Nat, +minimized: Bool) -> V.ViewNode:
+  V.viewEl("div", [
+    V.attrClass("pdf-more-pop"),
+    V.attr("role", "group"),
+    V.attrAria("label", moreAria(label)),
+    V.attr("hidden", "")
+  ], [
+    openBtn(label),
+    shotBtn(label),
+    zoomRow(),
+    fitBtn(),
+    invertBtn(),
+    rotateBtn(label, rotation),
+    collapseBtn(minimized)
+  ])
+
+# A faixa estreita do leitor recolhido: ícone em cima e o rótulo na vertical; o
+# CSS só a mostra com `.minimized`. Clicar reabre (o mesmo handler do colapsar).
+def restoreBtn(+label: String) -> V.ViewNode:
+  V.viewEl("button", [
+    V.attrClass("pdf-restore"),
+    V.attrAria("label", restoreAria(label)),
+    V.attrTitle(restoreAria(label)),
+    V.attrOn("click", "ToggleCollapse")
+  ], [
+    V.viewEl("span", [V.attrClass("pdf-restore-icon"), V.attrData("icon", "chevronLeft")], Nil{}),
+    V.viewEl("span", [V.attrClass("pdf-restore-label")], [V.viewText(label)])
   ])
 
 # ---------- palco, busca e divisores ----------
@@ -338,9 +802,10 @@ def panelShell(shell: PdfShell) -> V.ViewNode:
         V.ViewAttr{"tabindex", "0"}
       ], [
         titleBar(PdfShell{label, options, path, minimized, findOpen, rotation}),
-        toolsBar(label, rotation),
         stage(),
-        findForm(label)
+        findForm(label),
+        moreMenu(label, rotation, minimized),
+        restoreBtn(label)
       ])
 
 def divider() -> V.ViewNode:
@@ -377,6 +842,8 @@ def viewport(state: PdfReader, boxes: +List<&2, PdfPageBox>) -> Maybe<&2, V.View
   match state:
     case PdfEmpty{}:
       Some{P.placeholder()}
+    case PdfSheet{course}:
+      Some{RS.sheet(course)}
     case PdfReady{}:
       Some{docFrame(boxes)}
     case PdfLoading{}:
@@ -450,3 +917,77 @@ def hlSegments.if(+text: String, +folded: String, +term: String, empty: Bool) ->
 # continua um nó de texto único, como no Electron.
 def hlSegments(+text: String, +folded: String, +term: String) -> List<&2, V.ViewNode>:
   hlSegments.if(text, folded, term, String.is_empty(term))
+
+# ---------- nós do controle de numeração impressa ----------
+# O host insere a linha entre a barra do leitor (`.pdf-title`) e `.pdf-stage`
+# (o `panelShell` continua com as regiões do contrato) e liga os handlers abaixo.
+
+def printedInput(label: String) -> V.ViewNode:
+  V.viewEl("input", [
+    V.attrClass("printed-input"),
+    V.attrType("text"),
+    V.ViewAttr{"placeholder", printedInputPlaceholder()},
+    V.ViewAttr{"autocomplete", "off"},
+    V.attrAria("label", printedInputAria(label))
+  ], Nil{})
+
+def printedGoBtn() -> V.ViewNode:
+  V.viewEl("button", [V.attrClass("printed-go"), V.attrType("submit")], Con{V.viewText(printedGoLabel()), Nil{}})
+
+def printedStatusNode() -> V.ViewNode:
+  V.viewEl("span", [V.attrClass("printed-status"), V.attrAria("live", "polite")], Con{V.viewText(printedAutoLabel()), Nil{}})
+
+def printedOffsetInput(label: String) -> V.ViewNode:
+  V.viewEl("input", [
+    V.attrClass("printed-offset"),
+    V.attrType("number"),
+    V.ViewAttr{"step", "1"},
+    V.ViewAttr{"min", "-1000000"},
+    V.ViewAttr{"max", "1000000"},
+    V.ViewAttr{"inputmode", "numeric"},
+    V.attrAria("label", printedOffsetInputAria(label))
+  ], Nil{})
+
+def printedOffsetSaveBtn() -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    [V.attrClass("printed-offset-save"), V.attrType("button"), V.attrOn("click", "PrintedOffsetSave")]
+  ]), Con{V.viewText(printedOffsetSaveLabel()), Nil{}})
+
+def printedOffsetAutoBtn() -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    [V.attrClass("printed-offset-auto"), V.attrType("button"), V.attrOn("click", "PrintedOffsetAuto")]
+  ]), Con{V.viewText(printedOffsetAutoLabel()), Nil{}})
+
+def printedOffsetEditor(label: String) -> V.ViewNode:
+  V.viewEl("span", [V.attrClass("printed-offset-editor"), V.attrTitle(printedOffsetTitle())], [
+    V.viewEl("label", [V.attrClass("printed-offset-label")], [
+      V.viewText(printedOffsetFieldLabel()),
+      printedOffsetInput(label)
+    ]),
+    printedOffsetSaveBtn(),
+    printedOffsetAutoBtn()
+  ])
+
+# Linha do controle: entra escondida e o host alterna com o `toggle`.
+def printedRow(+label: String, open: Bool) -> V.ViewNode:
+  V.viewEl("form", V.attrJoin([
+    [V.attrClass("pdf-printed"), V.attrOn("submit", "GoPrinted"), V.attrAria("label", printedToggleAria(label))],
+    V.attrWhen(Bool.not(open), V.attr("hidden", ""))
+  ]), [
+    printedInput(label),
+    printedGoBtn(),
+    printedStatusNode(),
+    printedOffsetEditor(label)
+  ])
+
+def printedToggleBtn(label: String, open: Bool) -> V.ViewNode:
+  V.viewEl("button", V.attrJoin([
+    itemAttrs("printed-toggle", "scan", printedToggleAria(label)),
+    [V.attrTitle(printedToggleTitle()), V.attrBool("aria-expanded", open), V.attrOn("click", "TogglePrinted")]
+  ]), [V.viewText(printedMenuLabel())])
+
+# Área alvo do PDF solto: o host mostra por cima do palco durante o arrasto.
+def dropHint(label: String) -> V.ViewNode:
+  V.viewEl("div", V.attrJoin([
+    [V.attrClass("pdf-drop-hint"), V.attr("hidden", "")]
+  ]), Con{V.viewText(dropHintText(label)), Nil{}})

@@ -22,6 +22,25 @@ def Laws.toast_item_um_filho(t):
     case T.Toast{text, closing}:
       {==}
 
+def Laws.toast_push_um(ts):
+  match ts:
+    case Nil{}:
+      {==}
+    case Con{h, t}:
+      {==}
+
+def Laws.toast_push_vazia():
+  {==}
+
+def Laws.toast_push_substitui():
+  {==}
+
+def Laws.toast_push_repetido():
+  {==}
+
+def Laws.toast_push_reabre():
+  {==}
+
 def Laws.toast_box_id(ts):
   {==}
 

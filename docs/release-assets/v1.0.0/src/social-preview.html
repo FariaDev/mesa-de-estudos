@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Mesa de Estudos · prévia social</title>
+<link rel="stylesheet" href="release.css">
+<style>
+ .peca{width:1280px;height:640px;display:grid;grid-template-columns:560px 1fr;gap:0;padding:64px}
+ .texto{display:flex;flex-direction:column;justify-content:center;gap:28px;padding-left:16px}
+ .logo{width:120px;height:120px}
+ h1{font-size:72px;line-height:1;font-weight:650;letter-spacing:-.025em;color:var(--fg-strong)}
+ p{font-size:28px;line-height:1.35;color:var(--muted);max-width:480px}
+ .versao{font-size:20px;color:var(--faint);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+ .palco{background:var(--accent-tint);border-radius:28px;display:flex;flex-direction:column;justify-content:center;padding:24px 40px 0}
+ .trio{display:flex;align-items:flex-end;justify-content:center;gap:4px}
+ .trio{gap:0}
+ .trio .mascote{--fo-size:184px}
+ .trio .mascote+.mascote{margin-left:-14px}
+ .chao{margin:-14px 12px 0}
+</style>
+</head>
+<body>
+<main class="peca">
+ <section class="texto">
+  <div class="logo" data-logo></div>
+  <h1 data-t="nome">Mesa de Estudos</h1>
+  <p data-t="tagline">PDFs e tutor ao lado do caderno digital.</p>
+  <span class="versao">v1.0.0</span>
+ </section>
+ <section class="palco">
+  <div class="trio">
+   <div class="mascote mascote-integral" data-humor="lendo" data-trio="integral"></div>
+   <div class="mascote mascote-sigma mascote-tallying" data-humor="normal" data-trio="sigma"></div>
+   <div class="mascote mascote-nabla" data-humor="atento" data-trio="nabla"></div>
+  </div>
+  <div class="chao"></div>
+ </section>
+</main>
+</body>
+</html>

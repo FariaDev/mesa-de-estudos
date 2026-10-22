@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
+<title>probe</title>
+</head>
+<body>
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const hp = q.get('http') || '1';
+  const up = q.get('udp') || '1';
+  const send = (name, detail) => { try { parent.postMessage({probe: name, detail}, '*'); } catch (error) { /* frame removido */ } };
+  const t = async (name, fn) => {
+    try {
+      const value = await fn();
+      send(name, {ok: true, detail: String(value === undefined ? '' : value).slice(0, 160)});
+    } catch (error) {
+      send(name, {ok: false, detail: (error && (error.name || error.constructor.name) || 'Error') + ': ' + String(error && error.message || '').slice(0, 120)});
+    }
+  };
+  (async () => {
+    await t('imports', () => String(typeof fetch) + '/' + String(typeof WebSocket) + '/' + String(typeof RTCPeerConnection) + '/' + String(typeof WebTransport));
+    await t('fetch', async () => (await fetch('http://127.0.0.1:' + hp + '/fetch')).status);
+    await t('xhr', () => new Promise((res, rej) => {
+      const x = new XMLHttpRequest();
+      x.open('GET', 'http://127.0.0.1:' + hp + '/xhr');
+      x.onload = () => res(x.status);
+      x.onerror = () => rej(new Error('network error'));
+      x.send();
+    }));
+    await t('ws', () => new Promise((res, rej) => {
+      const w = new WebSocket('ws://127.0.0.1:' + hp + '/ws');
+      w.onopen = () => { res('open'); w.close(); };
+      w.onerror = () => rej(new Error('blocked'));
+    }));
+    await t('es', () => new Promise((res, rej) => {
+      const e = new EventSource('http://127.0.0.1:' + hp + '/es');
+      e.onopen = () => { res('open'); e.close(); };
+      e.onerror = () => rej(new Error('blocked'));
+    }));
+    await t('beacon', () => navigator.sendBeacon('http://127.0.0.1:' + hp + '/beacon', 'x'));
+    await t('img', () => new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res('loaded');
+      i.onerror = () => rej(new Error('blocked'));
+      i.src = 'http://127.0.0.1:' + hp + '/img';
+    }));
+    await t('fileimg', () => new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res('loaded');
+      i.onerror = () => rej(new Error('blocked'));
+      i.src = 'file://' + q.get('file') || '';
+      setTimeout(() => rej(new Error('timeout')), 1200);
+    }));
+    await t('filefetch', () => fetch('file://' + q.get('file')).then(r => r.status));
+    await t('childframe', () => new Promise((res, rej) => {
+      const f = document.createElement('iframe');
+      f.onload = () => res('loaded');
+      f.onerror = () => rej(new Error('blocked'));
+      f.src = 'http://127.0.0.1:' + hp + '/frame';
+      document.body.appendChild(f);
+      setTimeout(() => rej(new Error('timeout')), 1200);
+    }));
+    await t('ping', () => {
+      const a = document.createElement('a');
+      a.href = 'http://127.0.0.1:' + hp + '/ping';
+      a.ping = 'http://127.0.0.1:' + hp + '/ping-target';
+      a.textContent = 'x';
+      document.body.appendChild(a);
+      a.click();
+      return 'clicked';
+    });
+    await t('worker', () => new Promise((res, rej) => {
+      const w = new Worker('data:text/javascript,postMessage(1)');
+      w.onmessage = () => { res('worker'); w.terminate(); };
+      w.onerror = () => rej(new Error('blocked'));
+      setTimeout(() => rej(new Error('timeout')), 1200);
+    }));
+    await t('eval', () => eval('1+1'));
+    await t('fn', () => new Function('return 2')());
+    await t('storage', () => { localStorage.setItem('x', '1'); return localStorage.getItem('x'); });
+    await t('topdoc', () => parent.document.title);
+    await t('open', () => String(!!window.open('about:blank')));
+    await t('wt', async () => { const wt = new WebTransport('https://127.0.0.1:' + hp + '/wt'); await wt.ready; return 'ready'; });
+    await t('rtc', () => new Promise((res) => {
+      try {
+        const pc = new RTCPeerConnection({iceServers: [{urls: 'stun:127.0.0.1:' + up}]});
+        pc.createDataChannel('d');
+        pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => {});
+        setTimeout(() => { try { pc.close(); } catch { /* já foi */ } res('closed'); }, 2200);
+      } catch (error) { res('error:' + error.message); }
+    }));
+    await t('crypto', async () => { await crypto.subtle.digest('SHA-256', new Uint8Array([1, 2, 3])); return 'hashed'; });
+    await t('navegacao', () => { location.href = 'https://example.invalid/'; return 'navegou'; });
+    send('done', {ok: true});
+  })();
+})();
+</script>
+</body>
+</html>

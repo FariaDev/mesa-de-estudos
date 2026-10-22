@@ -31,6 +31,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const {causeText, invalidValue} = require('./src/error-detail.mjs');
 
 const DIR = 'free-promotions';
 const VERSION = 1;
@@ -45,7 +46,7 @@ class FreePromotionError extends Error {
   }
 }
 
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('./plain-object.cjs');
 const nowIso = () => new Date().toISOString();
 
 function journalRoot(runtime) {
@@ -60,13 +61,7 @@ function journalFile(runtime, token) {
   return path.join(journalDir(runtime, token), 'journal.json');
 }
 
-function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return null;
-  }
-}
+const {readJson} = require('./json-file.cjs');
 
 function sha256File(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -100,7 +95,7 @@ function validJournal(raw, token) {
 }
 
 function listTokens(runtime) {
-  let entries = [];
+  let entries;
   try {
     entries = fs.readdirSync(journalRoot(runtime), {withFileTypes: true});
   } catch {
@@ -135,13 +130,13 @@ function sessions(runtime) {
    (o rollback apaga o que a operação criou). */
 function begin(runtime, spec = {}) {
   const token = typeof spec.token === 'string' ? spec.token : '';
-  if (!TOKEN_RE.test(token)) throw new FreePromotionError('BAD_TOKEN', 'token de promoção inválido');
+  if (!TOKEN_RE.test(token)) throw new FreePromotionError('BAD_TOKEN', invalidValue('token de promoção', spec.token, '[A-Za-z0-9._-]{1,128}'));
   if (typeof spec.freeSessionId !== 'string' || !spec.freeSessionId) {
-    throw new FreePromotionError('BAD_SESSION', 'sessão da promoção ausente');
+    throw new FreePromotionError('BAD_SESSION', invalidValue('freeSessionId', spec.freeSessionId, 'string(1..)'));
   }
   const dir = journalDir(runtime, token);
   if (fs.lstatSync(journalFile(runtime, token), {throwIfNoEntry: false})) {
-    throw new FreePromotionError('EXISTS', 'já existe um diário para esta promoção');
+    throw new FreePromotionError('EXISTS', `já existe um diário para a promoção ${JSON.stringify(token)}`);
   }
   fs.mkdirSync(path.join(dir, 'backups'), {recursive: true, mode: 0o700});
   const files = {};
@@ -189,7 +184,7 @@ function begin(runtime, spec = {}) {
       dir,
       journal,
       mark(phase) {
-        if (!PHASES.has(phase)) throw new FreePromotionError('BAD_PHASE', 'fase de promoção inválida');
+        if (!PHASES.has(phase)) throw new FreePromotionError('BAD_PHASE', invalidValue('phase', phase, [...PHASES].join('|')));
         journal.phase = phase;
         journal.updatedAt = nowIso();
         writeJsonAtomic(journalFile(runtime, token), journal);
@@ -217,7 +212,7 @@ function restoreFile(entry) {
   if (!entry || typeof entry.file !== 'string') return;
   if (entry.existed) {
     const backup = entry.backup && fs.lstatSync(entry.backup, {throwIfNoEntry: false});
-    if (!backup || !backup.isFile()) throw new FreePromotionError('NO_BACKUP', `backup ausente: ${entry.file}`);
+    if (!backup || !backup.isFile()) throw new FreePromotionError('NO_BACKUP', `backup ausente de ${path.basename(entry.file)}: esperado arquivo em ${path.basename(String(entry.backup || '—'))}`);
     fs.mkdirSync(path.dirname(entry.file), {recursive: true});
     fs.copyFileSync(entry.backup, entry.file);
   } else if (fs.lstatSync(entry.file, {throwIfNoEntry: false})) {
@@ -302,7 +297,7 @@ function recover(runtime, {store, patchDescriptor, log = () => {}} = {}) {
     try {
       journal = readJournal(runtime, token);
     } catch (error) {
-      log(`diário ${token} ilegível: ${error.message}`);
+      log(`diário ${token} ilegível: ${causeText(error)}`);
       continue;
     }
     if (!journal) {
@@ -329,7 +324,7 @@ function recover(runtime, {store, patchDescriptor, log = () => {}} = {}) {
           });
           committed = true;
         } catch (error) {
-          log(`conclusão do diário ${token} recusada pelo store: ${error.message}`);
+          log(`conclusão do diário ${token} recusada pelo store: ${causeText(error)}`);
         }
       }
       if (!committed) {
@@ -343,8 +338,8 @@ function recover(runtime, {store, patchDescriptor, log = () => {}} = {}) {
       fs.rmSync(journalDir(runtime, journal.token), {recursive: true, force: true});
       out.push({token, sessionId: journal.freeSessionId, action: 'completed', courseId: journal.courseId});
     } catch (error) {
-      log(`recuperação do diário ${token} falhou: ${error.message}`);
-      out.push({token, sessionId: journal.freeSessionId, action: 'failed', error: error.message});
+      log(`recuperação do diário ${token} falhou: ${causeText(error)}`);
+      out.push({token, sessionId: journal.freeSessionId, action: 'failed', error: causeText(error)});
     }
   }
   return out;

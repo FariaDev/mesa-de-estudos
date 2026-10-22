@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts,newRuntime,seedCourse,writeDeskJson,writeConfigJson,launchDesk,statusOnline} from './helpers.mjs';
+import {withArtifacts,newRuntime,seedCourse,writeDeskJson,writeConfigJson,launchDesk,statusOnline,sessionIds,openSessionById} from './helpers.mjs';
 
 await withArtifacts('session-switch',async ctx=>{
  const runtime=ctx.runtime=newRuntime('sesswitch');
@@ -27,21 +27,21 @@ await withArtifacts('session-switch',async ctx=>{
  const app=ctx.app=await launchDesk({runtime,pi:false});
  const page=await app.firstWindow();
  await statusOnline(page);
- const meter=()=>page.evaluate(()=>({hidden:document.querySelector('#ctx-meter').hidden,pct:document.querySelector('#ctx-meter em').textContent,tip:document.querySelector('#ctx-meter')._tipText||'',sel:document.querySelector('#session-select').value.split('/').pop(),disabled:document.querySelector('#session-select').disabled}));
+ const meter=()=>page.evaluate(()=>({hidden:document.querySelector('#ctx-meter').hidden,pct:document.querySelector('#ctx-meter em').textContent,tip:document.querySelector('#ctx-meter')._tipText||'',sel:document.querySelector('#session-title').dataset.session.split('/').pop(),disabled:document.querySelector('#session-title').disabled}));
  const before=await meter();
  assert.equal(before.hidden,false,'medidor visível depois de conectar');
  assert.equal(before.sel,'pi-1700000000000.jsonl','conversa inicial é a curta');
- const bigValue=await page.evaluate(()=>{const s=document.querySelector('#session-select');return [...s.options].map(o=>o.value).find(v=>v.endsWith('pi-1700000001000.jsonl'));});
- assert.ok(bigValue,'a conversa longa aparece no seletor');
+ const bigValue=(await sessionIds(page)).find(v=>v.endsWith('pi-1700000001000.jsonl'));
+ assert.ok(bigValue,'a sessão longa aparece na lista');
  const tokensOf=tip=>{const m=/· ([\d.,]+(?:\s(?:mil|mi))?) de /.exec(tip);return m?m[1]:'';};
  assert.ok(tokensOf(before.tip),'o tooltip inicial mostra tokens consumidos');
- await page.locator('#session-select').selectOption(bigValue);
+ await openSessionById(page,bigValue);
  await page.waitForTimeout(5000);
  console.log('PROBE tips',JSON.stringify(before.tip),'->',JSON.stringify((await meter()).tip));
  await page.waitForFunction(prev=>{const m=document.querySelector('#ctx-meter');const tip=m._tipText||m.title;return tip&&tip!==prev&&/·/.test(tip);},before.tip,{timeout:30000});
  const after=await meter();
  assert.equal(after.sel,'pi-1700000001000.jsonl','a conversa longa ficou selecionada');
- assert.equal(after.disabled,false,'o seletor volta a funcionar depois da troca');
+ assert.equal(after.disabled,false,'o título da sessão volta a funcionar depois da troca');
  assert.match(after.tip,/Contexto do modelo: \d+% · .+ de .+ tokens usados/,'o tooltip mostra consumido/total da conversa escolhida');
  assert.notEqual(tokensOf(after.tip),tokensOf(before.tip),'o total de tokens acompanha a conversa escolhida');
  console.log(`SESSIONS PASSED: trocar de conversa atualiza o medidor e o tooltip (${tokensOf(before.tip)} → ${tokensOf(after.tip)} tokens).`);

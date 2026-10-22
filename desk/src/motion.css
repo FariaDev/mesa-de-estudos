@@ -1,0 +1,71 @@
+/* Movimento da Mesa: entradas, saídas e reduzir movimento, num lugar só (#63).
+   A linguagem (tokens e o que anima ou não) está em docs/design/movimento.md;
+   os tokens moram no :root do style.css. Só opacidade e transform: nada aqui
+   mexe no layout. Cada elemento diz de onde vem (--motion-from) e a saída
+   volta para o mesmo ponto. Saiu do motion-density.css (#43 fase 2). */
+
+@keyframes mesa-in{from{opacity:0;transform:var(--motion-from,none)}to{opacity:1;transform:none}}
+@keyframes mesa-fade{from{opacity:0}to{opacity:1}}
+
+/* ---------- de onde cada um vem ---------- */
+:is(.nav-pop,.pdf-find,.chat-pop,.palette){--motion-from:var(--from-drop)}
+:is(#toast .toast-item,.queue-strip,#ggb-bar,#undo-notice,#update-notice,
+ .chat-pop.model-pop,#context-pop,.phone-pop,.slash-pop,.message,.sidechat-msg){--motion-from:var(--from-rise)}
+dialog{--motion-from:var(--from-zoom)}
+
+/* ---------- entra e sai por [hidden] ----------
+   [hidden] é display:none (às vezes !important), mas transição vence
+   !important na cascata: com display allow-discrete o elemento só some
+   depois de voltar ao ponto de partida, e o @starting-style dá o começo da
+   entrada. A saída usa a duração do estado de destino (--t-fast). */
+:is(.chat-pop,#context-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn){
+ transition:opacity var(--t-base) var(--ease-out),transform var(--t-base) var(--ease-out),display var(--t-base) allow-discrete;
+}
+:is(.chat-pop,#context-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn)[hidden]{
+ opacity:0;transform:var(--motion-from,none);pointer-events:none;transition-duration:var(--t-fast);
+}
+@starting-style{
+ :is(.chat-pop,#context-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn):not([hidden]){opacity:0;transform:var(--motion-from,none)}
+}
+/* Balões e o botão de citar seguem o ponteiro: só fade, e curto. */
+:is(#ctx-tip,.tip,#quote-btn){transition-duration:var(--t-fast)}
+/* A caixa da paleta entra dentro do véu, que só faz fade. */
+.palette-backdrop:not([hidden]) .palette{animation:mesa-in var(--t-base) var(--ease-out)}
+
+/* ---------- entra uma vez ao aparecer ----------
+   O que nasce no DOM ou volta de display:none. O corpo da mensagem que chega
+   aos pedaços não reanima: o nó da bolha é criado uma vez. */
+:is(.nav-pop,.pdf-find:not([hidden]),#toast .toast-item,.queue-strip,.slash-pop,.message,.sidechat-msg){animation:mesa-in var(--t-base) var(--ease-out)}
+/* Recolher e trocar: o layout muda seco (animar coluna força layout) e só o
+   conteúdo que volta faz fade. */
+:is(#chat,#chat-restore:not([hidden]),#support-body>.pdf-panel,#sidechat:not([hidden]),#calc-body:not([hidden]),#review-view:not([hidden]),.attachment,.mention-chips:not([hidden])){animation:mesa-fade var(--t-fast) var(--ease-out)}
+.tutor-state:not([hidden]){animation:mesa-fade var(--t-base) var(--ease-out)}
+
+/* ---------- sai por .closing ----------
+   O que o JS tira do DOM (aviso, fila, menus da barra, busca do PDF): ele põe
+   .closing, espera o transitionend (com relógio de reserva) e remove. */
+:is(.toast-item,.queue-strip,.pdf-find).closing,.nav-menu.closing .nav-pop{
+ opacity:0;transform:var(--motion-from,none);pointer-events:none;
+ transition:opacity var(--t-fast) var(--ease-out),transform var(--t-fast) var(--ease-out);
+}
+
+/* ---------- diálogos ----------
+   Abrem do zoom e agora também fecham para ele; display/overlay discretos
+   mantêm o diálogo (e o véu) na camada de cima até a saída acabar. */
+dialog{
+ opacity:0;transform:var(--motion-from);
+ transition:display var(--t-fast) allow-discrete,overlay var(--t-fast) allow-discrete,opacity var(--t-fast) var(--ease-out),transform var(--t-fast) var(--ease-out);
+}
+dialog[open]{opacity:1;transform:none;transition-duration:var(--t-base)}
+@starting-style{dialog[open]{opacity:0;transform:var(--motion-from)}}
+dialog::backdrop{opacity:0;transition:display var(--t-fast) allow-discrete,overlay var(--t-fast) allow-discrete,opacity var(--t-fast) var(--ease-out)}
+dialog[open]::backdrop{opacity:1;transition-duration:var(--t-base)}
+@starting-style{dialog[open]::backdrop{opacity:0}}
+
+/* ---------- reduzir movimento, para o app inteiro ----------
+   Nada se desloca (os pontos de partida viram none), entrada e saída ficam
+   num fade curto, e o que é laço ou mudança de quantidade (medidor,
+   microinterações, pensando, carregando) dura 0s: mostra o estado final. */
+@media (prefers-reduced-motion:reduce){
+ :root{--t-base:var(--t-fast);--t-slow:0s;--t-loop:0s;--from-drop:none;--from-rise:none;--from-zoom:none}
+}

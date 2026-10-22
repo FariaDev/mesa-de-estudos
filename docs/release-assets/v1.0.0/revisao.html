@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Revisão v1.0.0</title>
+<style>
+:root{--bg:#efefef;--surface:#fff;--fg:#272727;--muted:#525252;--border:#dadada;--accent:#6d28d9;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{padding:28px 32px 8px}
+h1{margin:0;font-size:24px;font-weight:650;color:#181818}
+header p{margin:4px 0 0;color:var(--muted)}
+.rascunho{display:inline-block;margin-left:10px;padding:1px 8px;border-radius:6px;background:color-mix(in oklab,var(--accent) 11%,#fff);color:var(--accent);font-size:13px;font-weight:600;vertical-align:4px}
+main{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,480px);gap:24px;padding:16px 32px 48px;align-items:start}
+.pecas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+figure{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px}
+figure.largo{grid-column:span 2}
+img{display:block;width:100%;height:auto;border-radius:6px;outline:1px solid var(--border)}
+figcaption{display:flex;justify-content:space-between;gap:12px;margin-top:10px;font-size:13px}
+figcaption span{color:var(--muted)}
+.notas{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px}
+.notas h2{font-size:16px;margin:20px 0 6px}
+.notas ul{padding-left:18px;margin:0}
+.notas li{margin:3px 0}
+.notas code{font-size:13px;background:#f5f5f5;padding:0 4px;border-radius:4px}
+.notas .titulo{font-size:13px;color:var(--muted);margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:16px}.pecas{grid-template-columns:1fr}figure.largo{grid-column:auto}.notas{position:static;max-height:none}}
+</style></head><body>
+<header><h1>Mesa de Estudos v1.0.0 — peças do lançamento</h1>
+<p>Issue #68. Aprove ou peça ajuste por peça. Regenerar: veja LEIA.md.</p></header>
+<main><section class="pecas">
+<figure class="largo"><img src="mesa-1.0-novidades.png" width="1600" height="1000" alt=""><figcaption><b>mesa-1.0-novidades.png</b><span>1600×1000 · imagem de novidades (há @2x)</span></figcaption></figure>
+<figure><img src="social-preview.png" width="1280" height="640" alt=""><figcaption><b>social-preview.png</b><span>1280×640 · prévia social</span></figcaption></figure>
+<figure><img src="trio-logo-quadrado.png" width="1080" height="1080" alt=""><figcaption><b>trio-logo-quadrado.png</b><span>1080×1080 · post</span></figcaption></figure>
+<figure class="largo"><img src="banner-readme.png" width="1600" height="400" alt=""><figcaption><b>banner-readme.png</b><span>1600×400 · banner do README</span></figcaption></figure>
+</section>
+<aside class="notas"><p class="titulo">notas.md · corpo do release</p><p>A 1.0 é a primeira versão da Mesa de Estudos com a interface redesenhada de ponta a ponta. A Mesa ganhou identidade própria, uma primeira abertura em passos, interface e tutor em inglês ou português, e mais formas de usar o tutor, inclusive sem assinatura de IA. Os seus PDFs, matérias e sessões continuam onde estavam.</p>
+<h2>Começar</h2>
+<ul>
+<li>Primeira abertura em tela cheia, um passo por vez: idioma, como a Mesa funciona, nome da matéria, PDFs e tutor. A matéria só é criada no último passo, e dá para voltar em qualquer um.</li>
+<li>Modelos grátis pelo Pi (OpenCode Zen): o tutor funciona sem assinatura de IA.</li>
+<li>GeoGebra offline opcional, baixado no setup com o hash conferido.</li>
+</ul>
+<h2>Estudar</h2>
+<ul>
+<li>Interface redesenhada: barra superior com Estudar, Ajustes e busca de comandos; leitor com uma barra só; painéis colados e PDF na largura do leitor.</li>
+<li>Leitor vazio mostra a folha &quot;Lista 0&quot; e aceita PDF solto em cima.</li>
+<li>Coluna do tutor com o título da sessão, o modelo e o esforço no cabeçalho, uma caixa de mensagem com a linha &quot;Vai junto&quot; e a calculadora em uma linha no pé.</li>
+<li>Caderno, Estatísticas, Guia da Mesa, Calculadora e Sobre redesenhados. O Guia tem lateral, busca e Próximo/Anterior, e abre com ⌘/.</li>
+<li>Foto do celular: um QR code abre uma página na mesma rede, e as fotos do caderno entram na bandeja da Mesa na ordem de envio.</li>
+<li>Conferir aceita outros programas de escrita além do Xournal++. O programa é escolhido nas Configurações.</li>
+<li>Atividades interativas no chat com cartão novo e o ciclo prever, observar e concluir. As visualizações funcionam offline.</li>
+</ul>
+<h2>Tutor e modelos</h2>
+<ul>
+<li>Seletor de modelo com busca, grupos por provedor, favoritos, recentes e os grátis à parte.</li>
+<li>OpenCode como motor, ao lado do Pi e do Claude Code.</li>
+<li>Claude Code com as funções do Pi: steer, compactar, medidor de contexto, comandos, rascunho e quiz. Continua marcado como experimental.</li>
+<li>O tutor desenha figuras em SVG e gráficos, no chat e no PDF, e pode ver o que desenhou para conferir.</li>
+<li>Modelos de PDF do tutor: Lista, Apostila, Resumo, Simulado e Formulário. O diálogo Montar PDF mostra a prévia em A4.</li>
+<li>Menções @ das ferramentas no chat; o GeoGebra abre sob demanda, com quadro limpo a cada uso.</li>
+<li>Avisos de atualização do Pi e do Claude Code, com Atualizar de dentro da Mesa.</li>
+</ul>
+<h2>Aparência</h2>
+<ul>
+<li>Logo nova (a folha com a ∫), ícone do app e marca do cabeçalho no acento escolhido.</li>
+<li>O trio ∫ Σ ∇ nas telas de setup, Guia e celular: a ∫ lê junto, o Σ soma o que você fez e o ∇ dá a dica.</li>
+<li>Títulos em STIX Two Text, embutida no app.</li>
+<li>Seis cores de acento nas Configurações.</li>
+<li>Tema escuro em cinza neutro (Grafite) no lugar do quase preto.</li>
+<li>Transições e animações com um ritmo só, e &quot;reduzir movimento&quot; do sistema respeitado em todo o app.</li>
+</ul>
+<h2>Idioma</h2>
+<ul>
+<li>Interface e tutor em português ou inglês. Em inglês o app se chama Study Desk.</li>
+</ul>
+<h2>Problemas e suporte</h2>
+<ul>
+<li>Relatar um problema monta um relatório limpo, sem caminho pessoal, e um prompt pronto para passar a um agente.</li>
+<li>Mensagens de erro dizem o valor recebido e o formato esperado. O log do app (<code>desk.log</code>) pode ser lido no Sobre.</li>
+</ul>
+<h2>Por dentro</h2>
+<ul>
+<li>O app Conversa foi aposentado: o chat avulso mora na aba Livre da Mesa.</li>
+<li>Electron 44, pdf.js 6, KaTeX 0.19, marked 18 e DOMPurify 3.4. Compatível com o Pi 1.3.0.</li>
+<li>Testes de janela e hunts mais rápidos, portão de tipos e lint dentro do <code>npm test</code>.</li>
+</ul>
+<h2>Para quem já usa</h2>
+<ul>
+<li><strong>Como atualizar:</strong> Sobre → Atualizar e reiniciar (de 0.4.0 em diante). Pelo terminal, <code>npm run update</code> em <code>desk/</code>.</li>
+<li><strong><code>config.json</code>:</strong> continua valendo como está. Há um campo novo e opcional, <code>claudePath</code>, para apontar um Claude Code fora do PATH. Instalação nova grava o runtime em <code>desk/.runtime</code> do próprio clone.</li>
+<li><strong>Estado de interface:</strong> favoritos e recentes do seletor de modelo, idioma e o programa do Conferir ficam no <code>desk.json</code>, fora do <code>config.json</code>.</li>
+<li><strong>Claude Code:</strong> a Mesa usa o Claude Code que você instalou, sem binário de reserva. Ela aceita de 2.1.296 até a série 2.1; série nova é recusada até ser testada, e o Sobre avisa.</li>
+<li><strong>Conversa:</strong> a pasta <code>chat/</code> de uma instalação antiga não é apagada pelo updater. Quem quiser o código de volta usa a tag local <code>conversa-final</code>.</li>
+<li><strong>Tema e acento:</strong> quem usava o tema escuro passa a ver o Grafite. O acento padrão continua azul.</li>
+</ul>
+<h2>Revisão final (#67)</h2>
+<!-- A preencher depois da #67: o que a revisão de consistência, acessibilidade,
+     desempenho e atualização mudou e que a pessoa percebe. Se não houver nada
+     visível, apague esta seção. -->
+</aside></main>
+</body></html>

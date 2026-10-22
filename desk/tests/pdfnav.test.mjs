@@ -2,22 +2,23 @@
  *
  * O contrato do núcleo está nas leis (`core/laws/pdfnav.bend`, 88 leis) e o
  * aceitador é o `core/proof.mjs`. Aqui se testa a COSTURA com o host: os
- * registros chegam como `{ $:'Bookmark', name, path, page: BigInt }`, as listas
+ * registros chegam como `{ $:'Bookmark', name, path, page: Nat (number) }`, as listas
  * como `Con/Nil`, e o que volta é a árvore de nós que o `view-host.mjs` monta.
  * Se um dia o gerador mudar a forma de Nat/Bool, é aqui que quebra primeiro.
  */
 import test from 'node:test';
+import {ptText} from './pt-text.mjs';
 import assert from 'node:assert/strict';
 import navCore from '../src/generated/pdfnav.core.js';
 
 const NIL = {$: 'Nil'};
 const con = (xs, tail = NIL) => xs.reduceRight((rest, head) => ({$: 'Con', head, tail: rest}), tail);
-const book = (name, path, page) => ({$: 'Bookmark', name, path, page: BigInt(page)});
-const out = (title, page, depth) => ({$: 'OutlineEntry', title, page: BigInt(page), depth: BigInt(depth)});
+const book = (name, path, page) => ({$: 'Bookmark', name, path, page: page});
+const out = (title, page, depth) => ({$: 'OutlineEntry', title, page: page, depth: depth});
 
 const attrOf = (node, name) => {
   for (let attrs = node.attrs; attrs && attrs.$ === 'Con'; attrs = attrs.tail) {
-    if (attrs.head.name === name) return attrs.head.value;
+    if (attrs.head.name === name) return ptText(attrs.head.value);
   }
   return null;
 };
@@ -26,11 +27,11 @@ const kids = (node) => {
   for (let k = node.kids; k && k.$ === 'Con'; k = k.tail) list.push(k.head);
   return list;
 };
-const textOf = (node) => (node && node.$ === 'ViewText' ? node.text : null);
+const textOf = (node) => (node && node.$ === 'ViewText' ? ptText(node.text) : null);
 
 test('newBookmark apara o nome, o path e levanta a página', () => {
-  const bm = navCore.newBookmark('  Revisão  ', '  /p/Limites.pdf  ', 0n);
-  assert.deepEqual(bm, {$: 'Bookmark', name: 'Revisão', path: '/p/Limites.pdf', page: 1n});
+  const bm = navCore.newBookmark('  Revisão  ', '  /p/Limites.pdf  ', 0);
+  assert.deepEqual(bm, {$: 'Bookmark', name: 'Revisão', path: '/p/Limites.pdf', page: 1});
 });
 
 test('keepBookmark exige nome e documento', () => {
@@ -46,7 +47,7 @@ test('addBookmark põe o novo na frente e renomeia o mesmo documento+nome', () =
   assert.deepEqual(grew.tail.head.name, 'Antigo');
   const renamed = navCore.addBookmark(before, book('Antigo', '/p/Limites.pdf', 9));
   assert.equal(renamed.tail.$, 'Nil');
-  assert.equal(renamed.head.page, 9n);
+  assert.equal(renamed.head.page, 9);
 });
 
 test('removeBookmark tira pela identidade: a posição da linha não é identidade', () => {
@@ -89,7 +90,7 @@ test('outlineRow limita a profundidade e leva a página', () => {
   assert.equal(attrOf(row, 'data-depth'), '3');
   assert.equal(attrOf(row, 'data-page'), '5');
   assert.equal(attrOf(row, 'on:click'), 'OpenOutline');
-  assert.equal(navCore.outlineDepth(2n), '2');
+  assert.equal(navCore.outlineDepth(2), '2');
 });
 
 test('navPopover: fechado tem `hidden`, aberto não — e o salvar é do núcleo', () => {
@@ -116,14 +117,14 @@ test('navPopover sem favoritos e sem sumário mostra as duas notas de vazio', ()
 });
 
 test('os rótulos dos botões e do diálogo vêm do núcleo', () => {
-  assert.equal(navCore.navButtonLabel(), 'Sumário e favoritos');
-  assert.equal(navCore.navButtonTitle(), 'Sumário e favoritos');
-  assert.equal(navCore.navAria('Enunciado'), 'Sumário e favoritos de Enunciado');
-  assert.equal(navCore.navBackTitle(), 'Voltar à página anterior');
-  assert.equal(navCore.navBackAria('Enunciado'), 'Voltar à página anterior de Enunciado');
-  assert.equal(navCore.bookmarkDialogTitle(), 'Guardar esta página');
-  assert.equal(navCore.bookmarkDialogHint('Limites', 12n), 'Limites, p. 12');
-  assert.equal(navCore.bookmarkSaveLabel(), 'Salvar');
+  assert.equal(ptText(navCore.navButtonLabel()), 'Sumário e favoritos');
+  assert.equal(ptText(navCore.navButtonTitle()), 'Sumário e favoritos');
+  assert.equal(ptText(navCore.navAria('Enunciado')), 'Sumário e favoritos de Enunciado');
+  assert.equal(ptText(navCore.navBackTitle()), 'Voltar à página anterior');
+  assert.equal(ptText(navCore.navBackAria('Enunciado')), 'Voltar à página anterior de Enunciado');
+  assert.equal(ptText(navCore.bookmarkDialogTitle()), 'Guardar esta página');
+  assert.equal(ptText(navCore.bookmarkDialogHint('Limites', 12)), 'Limites, p. 12');
+  assert.equal(ptText(navCore.bookmarkSaveLabel()), 'Salvar');
   assert.equal(Number(navCore.maxBookmarks()), 200);
   assert.equal(Number(navCore.maxOutline()), 40);
 });

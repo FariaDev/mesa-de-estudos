@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ícone do app — rodada 5</title>
+<!-- Rodada 5 do ícone (2026-10-22): a Folhinha saiu e o trio ∫ Σ ∇ entrou (decisões-pendentes 270).
+     O ícone liga com o trio só pelo traço de pincel, sem rosto: rosto no ícone é o que lê como app
+     infantil. F1 de hoje fica como referência. Gerado a partir de logo-folha-r4.html. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:wght@600&display=swap">
+<style>
+body{margin:0;padding:24px 16px 64px;background:#efefef;color:#272727;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.lead{color:#737373;margin:0 0 20px;max-width:76ch}
+.card{background:#fff;border:1px solid #dcdcdc;border-radius:14px;padding:16px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0}
+.card p{margin:2px 0 12px;color:#737373;font-size:13px}
+.linha{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
+.grande svg{width:180px;height:180px;display:block}
+.cores{display:grid;grid-template-columns:repeat(6,auto);gap:10px 14px;align-items:end;justify-content:start}
+.cores figure{margin:0;text-align:center}
+.cores figcaption{font-size:10px;color:#8a8a8a}
+.dock{display:flex;gap:10px;align-items:flex-end;padding:8px 12px;border-radius:14px;margin-top:10px;width:max-content}
+.dock.claro{background:#e4e4e7}.dock.escuro{background:#1c1c1e}
+</style>
+</head>
+<body>
+<h1>Ícone do app — rodada 5: o traço do trio, sem rosto</h1>
+<p class="lead">A F1 de hoje, ao lado de três versões que puxam o ícone para a matemática com o mesmo pincel dos mascotes. Nenhuma tem rosto: o trio mora dentro do app. Mesmas seis cores de acento e o mesmo Dock em 64, 32 e 16 px, que é onde o ícone genérico ou infantil aparece.</p>
+<div id="out"></div>
+<script>
+const ACENTOS=[['azul','#2548c7'],['violeta','#6d28d9'],['verde','#0f7b55'],['laranja','#c2410c'],['rosa','#c02667'],['grafite','#27272a']];
+const CREME='#fffbf0',AMBAR='#e8862a';
+const mistura=(cor,pct,com)=>`color-mix(in oklab,${cor} ${pct}%,${com})`;
+// Folha de cantos arredondados com o canto superior direito cortado (tamanho f) e a dobra.
+const folha=({x,y,w,h,r=44,f})=>`M${x+r} ${y}H${x+w-f}L${x+w} ${y+f}V${y+h-r}Q${x+w} ${y+h} ${x+w-r} ${y+h}H${x+r}Q${x} ${y+h} ${x} ${y+h-r}V${y+r}Q${x} ${y} ${x+r} ${y}Z`;
+const dobra=({x,y,w,f})=>`M${x+w-f} ${y}V${y+f-22}Q${x+w-f} ${y+f} ${x+w-f+22} ${y+f}H${x+w}Z`;
+const traco=(d,cor,w)=>`<path d="${d}" fill="none" stroke="${cor}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const RISCO='#c9c1ad';
+// A lista da A, posicionada pela caixa da folha (x, y, w).
+const lista=({x,y,w},risco=RISCO)=>{const e=x+38,d=x+w-52;
+ return traco(`M${e} ${y+288}l28 28 58-66`,AMBAR,32)+traco(`M${e+130} ${y+288}H${d}`,risco,34)+traco(`M${e+4} ${y+408}H${d-60}M${e+4} ${y+528}H${d-10}`,risco,34);};
+const GIRO='rotate(-4 512 512)';
+const NORMAL={x:292,y:182,w:440,h:660,f:150};
+let n=0;
+const sombra=id=>`<filter id="s${id}" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity=".26"/></filter>`;
+const fundoCor=(cor,id)=>`<defs><linearGradient id="g${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${mistura(cor,78,'white')}"/><stop offset="1" style="stop-color:${mistura(cor,88,'black')}"/></linearGradient>${sombra(id)}</defs><rect width="1024" height="1024" rx="230" fill="url(#g${id})"/>`;
+const fundoCreme=id=>`<defs>${sombra(id)}</defs><rect width="1024" height="1024" rx="230" fill="${CREME}"/>`;
+const pincel=id=>`<filter id="p${id}" x="-15%" y="-15%" width="130%" height="130%"><feTurbulence type="fractalNoise" baseFrequency=".008" numOctaves="2" seed="7" result="onda"/><feDisplacementMap in="SourceGraphic" in2="onda" scale="22" xChannelSelector="R" yChannelSelector="G"/></filter>`;
+// A ∫ do mascote, redesenhada na caixa da folha (cabeça curva em cima, pé virado embaixo).
+const INTEGRAL_FOLHA='M606 336Q590 272 544 286Q508 300 508 366V632Q508 706 462 712Q428 716 418 684';
+const INTEGRAL_SOLTA='M664 250Q642 166 574 184Q518 202 518 300V722Q518 834 446 842Q394 848 378 796';
+const integral=(d,cor,w,id)=>`<g filter="url(#p${id})">${traco(d,cor,w)}</g>`;
+const tinta=cor=>mistura(cor,70,'#1a1033');
+const variantes=[
+ {nome:'F1 · Folha creme com a lista (hoje)',nota:'O ícone atual, para comparar. Bonito, mas em 16–32 px ainda lê como "arquivo" ou lista de tarefas.',
+  desenha:(cor,id)=>fundoCor(cor,id)+`<g transform="${GIRO}"><path d="${folha(NORMAL)}" fill="${CREME}" filter="url(#s${id})"/><path d="${dobra(NORMAL)}" style="fill:${mistura(cor,55,CREME)}"/>${lista(NORMAL)}</g>`},
+ {nome:'G1 · Folha com a ∫',nota:'A mesma folha, com a ∫ de pincel no lugar da lista, no tom escuro do acento. Continua sendo folha de exercício, mas diz "matemática" e liga com o trio pelo traço.',
+  desenha:(cor,id)=>fundoCor(cor,id)+`<defs>${pincel(id)}</defs><g transform="${GIRO}"><path d="${folha(NORMAL)}" fill="${CREME}" filter="url(#s${id})"/><path d="${dobra(NORMAL)}" style="fill:${mistura(cor,55,CREME)}"/>${integral(INTEGRAL_FOLHA,tinta(cor),58,id)}</g>`},
+ {nome:'G2 · Folha com a ∫ e o visto',nota:'A G1 com o visto âmbar no canto de baixo: a conta resolvida. O âmbar é o mesmo do lápis dos mascotes, então o ícone e o trio dividem as duas cores.',
+  desenha:(cor,id)=>fundoCor(cor,id)+`<defs>${pincel(id)}</defs><g transform="${GIRO}"><path d="${folha(NORMAL)}" fill="${CREME}" filter="url(#s${id})"/><path d="${dobra(NORMAL)}" style="fill:${mistura(cor,55,CREME)}"/>${integral('M570 336Q556 278 514 290Q482 302 482 362V612Q482 680 440 686Q410 690 400 660',tinta(cor),54,id)}${traco('M556 700l30 30 64-74',AMBAR,34)}</g>`},
+ {nome:'G3 · Só a ∫',nota:'A ∫ grossa, creme, direto no acento, sem folha, com o visto âmbar no pé. A silhueta mais marcante em 16 px e a menos genérica; perde o "papel", que fica só no nome Mesa.',
+  desenha:(cor,id)=>fundoCor(cor,id)+`<defs>${pincel(id)}</defs><g transform="${GIRO}">${integral(INTEGRAL_SOLTA,CREME,104,id)}${traco('M640 840l34 34 70-82',AMBAR,40)}</g>`},
+];
+const icone=(v,cor,w)=>{const id=n++;return `<svg viewBox="0 0 1024 1024" width="${w}" height="${w}" role="img" aria-label="${v.nome}">${v.desenha(cor,id)}</svg>`;};
+document.getElementById('out').innerHTML=variantes.map(v=>`
+ <section class="card"><h2>${v.nome}</h2><p>${v.nota}</p>
+  <div class="linha">
+   <div class="grande">${icone(v,ACENTOS[0][1],180)}</div>
+   <div>
+    <div class="cores">${ACENTOS.map(([nome,cor])=>`<figure>${icone(v,cor,72)}<figcaption>${nome}</figcaption></figure>`).join('')}</div>
+    <div class="dock claro">${ACENTOS.slice(0,3).map(([,cor])=>[64,32,16].map(s=>icone(v,cor,s)).join('')).join('')}</div>
+    <div class="dock escuro">${ACENTOS.slice(3).map(([,cor])=>[64,32,16].map(s=>icone(v,cor,s)).join('')).join('')}</div>
+   </div>
+  </div>
+ </section>`).join('');
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+/* Densidade. Saiu do motion-density.css na #63, quando o movimento ganhou
+   módulo próprio (src/motion.css); a ordem na cascata é a mesma.
+   "dense" aperta o fio da Mesa sem mexer no tamanho da fonte. As barras
+   (44/40px) e o recuo de 12px dos painéis são os mesmos nas duas densidades. */
+body.dense .goes-along{min-height:24px}
+body.dense #messages{padding:var(--space-3) var(--pad)}
+body.dense .work{margin-bottom:var(--space-2)}
+body.dense .work-steps{padding-left:var(--space-2)}
+body.dense .message{margin-bottom:var(--space-5)}
+body.dense .message .role{margin-bottom:var(--space-1)}
+body.dense .message p{margin:var(--space-0) 0 var(--space-2)}
+body.dense .message.user .body{padding:var(--space-2) var(--space-5)}
+body.dense #composer{padding:var(--space-2) var(--pad) var(--space-3)}
+body.dense .composer-actions{padding-bottom:var(--space-2)}
+body.dense #settings-form .set-sec label{margin-bottom:var(--space-3)}
+body.dense .settings-body label{margin-bottom:var(--space-3)}

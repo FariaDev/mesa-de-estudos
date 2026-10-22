@@ -1,0 +1,108 @@
+/* Mesa — leitor de PDF: qualidade de leitura (QoL).
+   Folha exclusiva do leitor, importada pelo `index.html` DEPOIS do `style.css`
+   (o root faz o link). Só sobrescreve o que precisa:
+     1. o rodapé deixa de ser overlay e passa a ser uma faixa em fluxo, fora do
+        viewport rolável — nunca mais por cima do texto do PDF;
+     2. a linha discreta de numeração impressa (rótulo do PDF / ajuste pessoal);
+     3. a área alvo do PDF solto no leitor.
+   Nada aqui esconde controles, páginas ou a seleção do textLayer. */
+
+/* ---------- 1. rodapé compacto, em fluxo separado do viewport ---------- */
+.pdf-panel .pdf-foot{
+ position:static;
+ inset:auto;
+ flex:0 0 auto;
+ max-height:21px;
+ padding:1px var(--pad) 2px;
+ border-top:1px solid var(--border);
+ pointer-events:auto;
+ background:none;
+ font-size:var(--fs-2xs);
+ line-height:1.5;
+}
+.pdf-panel .pdf-foot > span{
+ display:block;
+ overflow:hidden;
+ white-space:nowrap;
+ text-overflow:ellipsis;
+}
+
+/* ---------- 2. numeração impressa (rótulos do PDF e ajuste pessoal) ---------- */
+.pdf-panel .pdf-printed{
+ display:flex;
+ align-items:center;
+ gap:var(--space-2);
+ padding:var(--space-1) var(--pad);
+ border-bottom:1px solid var(--border);
+ background:var(--side);
+ color:var(--muted);
+ font-size:var(--fs-xs);
+}
+.pdf-panel .pdf-printed[hidden],
+.pdf-panel.minimized .pdf-printed{display:none}
+.pdf-panel .pdf-printed input{
+ min-width:0;
+ padding:1px var(--space-1);
+ border:1px solid var(--border);
+ border-radius:var(--r-2xs);
+ background:var(--surface);
+ color:var(--fg);
+ font-size:var(--fs-xs);
+}
+.pdf-panel .pdf-printed input[type=number]{appearance:textfield;-moz-appearance:textfield}
+.pdf-panel .pdf-printed input[type=number]::-webkit-outer-spin-button,
+.pdf-panel .pdf-printed input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.pdf-panel .pdf-printed button{
+ padding:1px var(--space-2);
+ border-radius:var(--r-2xs);
+ background:var(--surface);
+ box-shadow:none;
+ font-size:var(--fs-xs);
+}
+.pdf-panel .pdf-printed .printed-input{width:96px}
+.pdf-panel .pdf-printed .printed-status{
+ flex:1;
+ min-width:0;
+ overflow:hidden;
+ white-space:nowrap;
+ text-overflow:ellipsis;
+}
+.pdf-panel .pdf-printed .printed-offset-editor{
+ display:flex;
+ align-items:center;
+ gap:var(--space-1);
+ flex:0 0 auto;
+}
+.pdf-panel .pdf-printed .printed-offset-label{display:flex;align-items:center;gap:var(--space-1)}
+.pdf-panel .pdf-printed .printed-offset{width:74px;text-align:right}
+.pdf-panel .pdf-printed .printed-offset-editor.disabled{opacity:.55}
+.pdf-panel .pdf-more-pop .printed-toggle[aria-expanded="true"]{color:var(--accent-text)}
+
+/* ---------- 3. área alvo do PDF solto ---------- */
+.pdf-panel .pdf-drop-hint{
+ position:absolute;
+ inset:var(--space-3);
+ z-index:3;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ padding:var(--space-4);
+ border:1px solid var(--accent-paper);
+ border-radius:var(--r-xl);
+ /* A sobreposição cobre a folha branca ou a página (papel nos dois temas): o
+    tom é o do acento sobre branco, não o do tema, e o texto lê igual. */
+ background:color-mix(in oklab,var(--accent-paper) 10%,rgb(255 255 255/.88));
+ color:var(--accent-paper);
+ font-size:var(--fs-xl);
+ font-weight:600;
+ text-align:center;
+ pointer-events:none;
+}
+.pdf-panel .pdf-drop-hint[hidden]{display:none}
+.pdf-panel .pdf-drop-hint.busy{
+ border-color:var(--accent-text);
+ background:transparent;
+ color:var(--muted);
+ font-weight:500;
+}
+/* O realce do arrasto é a própria sobreposição (borda de acento): sem 2º contorno. */

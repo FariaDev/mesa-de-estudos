@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../studycontext.bend as S
 
 # ---------------------------------------------------------------------------
@@ -45,16 +46,22 @@ law sc_primeiro_manda:
   {S.render(
     S.StudyContext{"Cálculo I", "Lista 3", "", True{}, S.NoCapture{}},
     ["limites.pdf#page=3"], False{}
-  ) == "[Contexto da Mesa]\n- matéria: Cálculo I\n- exercício ativo: Lista 3\n- referências abertas na mesa (abertas, não lidas por você):\n  · limites.pdf#page=3" : String}
+  ) == String.append(
+    String.append(
+      String.append(M.msg("studyctx.header"), String.append("\n", M.msg1("studyctx.course", "course", "Cálculo I"))),
+      String.append("\n", M.msg1("studyctx.exercise", "exercise", "Lista 3"))
+    ),
+    String.append(String.append("\n", M.msg("studyctx.refsHeader")), "\n  · limites.pdf#page=3")
+  ) : String}
 
 # Captura nova vai mesmo com o contexto já mandado.
 law sc_captura_nova_reenvia:
   {String.contains(
     S.render(
-      S.StudyContext{"Cálculo I", "Lista 3", "", True{}, S.Capture{"14:32", "Lista 3", True{}}},
+      S.StudyContext{"Cálculo I", "Lista 3", "", True{}, S.Capture{"14:32", "Lista 3", True{}, "Xournal++"}},
       ["limites.pdf#page=3"], True{}
     ),
-    "captura desta mensagem"
+    M.msg2("studyctx.capture.xournal", "time", "14:32", "exercise", "Lista 3")
   ) == True{} : Bool}
 
 # ---------- proveniência da referência ----------
@@ -63,7 +70,7 @@ law sc_captura_nova_reenvia:
 law sc_referencia_nao_lida:
   {String.contains(
     S.render(S.StudyContext{"", "", "", True{}, S.NoCapture{}}, ["limites.pdf#page=3"], False{}),
-    "não lidas por você"
+    M.msg("studyctx.refsHeader")
   ) == True{} : Bool}
 
 # Sem referência aberta, a seção não aparece.
@@ -75,15 +82,15 @@ law sc_sem_referencia:
 # Captura do exercício ativo: sem aviso.
 law sc_captura_do_exercicio:
   {String.contains(
-    S.render(S.StudyContext{"", "Lista 3", "", False{}, S.Capture{"14:32", "Lista 3", True{}}}, Nil{}, True{}),
-    "atenção"
+    S.render(S.StudyContext{"", "Lista 3", "", False{}, S.Capture{"14:32", "Lista 3", True{}, "Xournal++"}}, Nil{}, True{}),
+    M.msg2("studyctx.captureStale.xournal", "time", "14:32", "exercise", "Lista 3")
   ) == False{} : Bool}
 
 # Captura de outro exercício: avisada.
 law sc_captura_outro_exercicio:
   {String.contains(
-    S.render(S.StudyContext{"", "Lista 3", "", False{}, S.Capture{"14:32", "Lista 1", False{}}}, Nil{}, True{}),
-    "não do ativo"
+    S.render(S.StudyContext{"", "Lista 3", "", False{}, S.Capture{"14:32", "Lista 1", False{}, "Xournal++"}}, Nil{}, True{}),
+    M.msg2("studyctx.captureStale.xournal", "time", "14:32", "exercise", "Lista 1")
   ) == True{} : Bool}
 
 # ---------- fatos Bool do núcleo ----------
@@ -93,7 +100,8 @@ law sc_fato_captura_presente:
   for t: String
   for e: String
   for m: Bool
-  {S.capturePresent(S.Capture{t, e, m}) == True{} : Bool}
+  for a: String
+  {S.capturePresent(S.Capture{t, e, m, a}) == True{} : Bool}
 
 # Sem captura, responde False.
 law sc_fato_captura_ausente:
@@ -106,3 +114,32 @@ law sc_fato_refs_vazio:
 # Lista com uma referência: fato True.
 law sc_fato_refs_um:
   {S.refsPresent(["limites.pdf#page=3"]) == True{} : Bool}
+
+# ---------- de que janela é a captura (ticket #35) ----------
+
+# Xournal++ (o padrão) e anexo sem nome de app mantêm a redação de sempre.
+law sc_captura_xournal_mantem_a_redacao:
+  {S.captureMatchesNote("Xournal++", "14:32", "Lista 3") == M.msg2("studyctx.capture.xournal", "time", "14:32", "exercise", "Lista 3") : String}
+
+law sc_captura_sem_app_e_xournal:
+  {S.captureMatchesNote("", "14:32", "Lista 3") == M.msg2("studyctx.capture.xournal", "time", "14:32", "exercise", "Lista 3") : String}
+
+# Outro programa é nomeado: o tutor não recebe "Xournal++" para uma captura do OneNote.
+law sc_captura_de_outro_programa_nomeia_o_app:
+  {S.captureMatchesNote("OneNote", "14:32", "Lista 3") == M.msg3("studyctx.capture.app", "app", "OneNote", "time", "14:32", "exercise", "Lista 3") : String}
+
+law sc_captura_de_outro_programa_no_bloco:
+  {String.contains(
+    S.render(S.StudyContext{"", "Lista 3", "", False{}, S.Capture{"14:32", "Lista 3", True{}, "OneNote"}}, Nil{}, True{}),
+    M.msg3("studyctx.capture.app", "app", "OneNote", "time", "14:32", "exercise", "Lista 3")
+  ) == True{} : Bool}
+
+law sc_captura_de_outro_programa_nao_diz_xournal:
+  {String.contains(
+    S.render(S.StudyContext{"", "Lista 3", "", False{}, S.Capture{"14:32", "Lista 3", True{}, "OneNote"}}, Nil{}, True{}),
+    "studyctx.capture.xournal"
+  ) == False{} : Bool}
+
+# Captura de outro exercício com outro programa: o aviso também nomeia o app.
+law sc_captura_obsoleta_de_outro_programa:
+  {S.captureStaleNote("OneNote", "14:32", "Lista 1") == M.msg3("studyctx.captureStale.app", "app", "OneNote", "time", "14:32", "exercise", "Lista 1") : String}

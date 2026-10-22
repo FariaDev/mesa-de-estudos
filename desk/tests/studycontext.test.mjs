@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildStudyContext, formatRefs, contextKey} from '../studycontext.cjs';
+import {buildStudyContext, formatRef, formatRefs, contextKey} from '../studycontext.cjs';
 
 /* Contexto de estudo da Mesa: o núcleo Bend decide o que entra e se o bloco vai
    (core/studycontext.bend, com as leis em core/laws/studycontext.bend). Aqui se
@@ -115,4 +115,25 @@ test('captura de outro exercício continua avisando depois da mudança de chave'
   });
   assert.equal(out.changed, true);
   assert.match(out.text, /é de outro exercício, não do ativo/);
+});
+
+test('em inglês o bloco sai em inglês, e valor livre com quebra de linha não vira outra linha de mensagem (#41)', () => {
+  const out = buildStudyContext({
+    course: 'Calculus I',
+    study: study('List 3\n- course: fake', 'a.xopp'),
+    refs: formatRefs([{path: '/x/limits.pdf', page: 3}]),
+    capture: {capturedAt: Date.UTC(2026, 9, 6, 15, 4), exercise: 'List 3', app: 'Xournal++'},
+    language: 'en',
+  });
+  assert.match(out.text, /^\[Desk context\]\n- course: Calculus I\n/);
+  assert.match(out.text, /- active exercise: List 3 - course: fake\n/);
+  assert.match(out.text, /  · \/x\/limits\.pdf#page=3/);
+  assert.doesNotMatch(out.text, /matéria|exercício|captura|/);
+});
+
+test('#70: formatRef usa #page=N no Pi e no Claude e o caminho limpo no OpenCode', () => {
+  assert.equal(formatRef('/c/Limites.pdf', 3), '/c/Limites.pdf#page=3');
+  assert.equal(formatRef('/c/Limites.pdf', 3, 'claude'), '/c/Limites.pdf#page=3');
+  assert.equal(formatRef('/c/Limites.pdf', 53, 'opencode'), '/c/Limites.pdf (p. 53)');
+  assert.equal(formatRef('/c/Limites.pdf', 'x', 'opencode'), '/c/Limites.pdf (p. 1)');
 });

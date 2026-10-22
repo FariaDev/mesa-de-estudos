@@ -8,12 +8,22 @@
    de verdade. Puro: sem DOM, IPC ou relógio — o main usa direto e os testes de
    paridade exercitam este módulo real. */
 const core = require('./src/generated/state.core.js').default;
+/* Cor de acento: módulo próprio (core/accent.bend), só da Mesa — `state.bend` é
+   que nunca teve acento escolhível (nasceu compartilhado com a Conversa, aposentada na #50). */
+const accentCore = require('./src/generated/accent.core.js').default;
 const MAX_DRAFT = core.maxDraftChars(); // teto do núcleo (core/laws/state.bend)
 
 const NONE = {$: 'None'};
 const some = (value) => ({$: 'Some', value});
 const THEME_NAMES = {StateThemeAuto: 'auto', StateThemeLight: 'light', StateThemeDark: 'dark'};
 const themeName = (theme) => THEME_NAMES[theme?.$] || 'auto';
+const ACCENT_NAMES = {
+  AccentBlue: 'blue', AccentViolet: 'violet', AccentGreen: 'green',
+  AccentOrange: 'orange', AccentPink: 'pink', AccentGraphite: 'graphite',
+};
+const accentName = (accent) => ACCENT_NAMES[accent?.$] || 'blue';
+/* Ausente ou de tipo errado entra como `None`: o núcleo decide o fallback. */
+const accentFact = (value) => (typeof value === 'string' ? some(value) : NONE);
 const boolFact = (value) => (typeof value === 'boolean' ? some(value) : NONE);
 
 /* Números do JSON/IPC: o antigo `Number(v) || fallback` aceitava string numérica
@@ -65,7 +75,10 @@ const layoutOf = (state) => ({
 /* Carga (topo do desk.json ou estado por matéria): defaults do núcleo para
    ausente/tipo errado; refs default true; números encostam nos limites (o save
    já fazia; valor corrompido não vaza cru para o renderer). */
-const deskLayout = (source) => layoutOf(deskState(source));
+const deskLayout = (source) => ({
+  ...layoutOf(deskState(source)),
+  accent: accentName(accentCore.normalizeAccent(accentFact(source?.accent))),
+});
 
 /* Save: fallbacks do JS antigo por campo — refs sempre coagidas (!!), rascunho
    caía em '' fora de string, chatWidth em 390 fora de número e calcHeight/
@@ -73,7 +86,13 @@ const deskLayout = (source) => layoutOf(deskState(source));
 function saveState(current, value) {
   const input = deskInput(value);
   input.referenceVisible = some(!!value.referenceVisible);
-  return layoutOf(core.mergeDesk({...deskState(current), draft: '', chatWidth: 390}, input));
+  /* Acento: o corrente é a base (como o tema); só um nome válido o troca. */
+  const currentAccent = accentCore.normalizeAccent(accentFact(current?.accent));
+  const accent = accentName(accentCore.accentOrDefault(accentFact(value?.accent), currentAccent));
+  return {
+    ...layoutOf(core.mergeDesk({...deskState(current), draft: '', chatWidth: 390}, input)),
+    accent,
+  };
 }
 
 module.exports = {deskLayout, saveState, MAX_DRAFT};

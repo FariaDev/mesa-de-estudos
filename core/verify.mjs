@@ -15,7 +15,7 @@ import {fileURLToPath} from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
-const GEN_DIRS = ["desk/src/generated", "chat/src/generated"];
+const GEN_DIRS = ["desk/src/generated"];
 const TOOLCHAIN = join(here, "toolchain.json");
 const pin = process.argv.includes("--pin");
 const fail = (message) => {

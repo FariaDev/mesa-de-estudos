@@ -18,12 +18,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson} from './helpers.mjs';
+import {artifactDir,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson} from './helpers.mjs';
 
-const DESK=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const STAMP=new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'');
-const ART=path.join(DESK,'tests','artifacts',`hunt-nav-${STAMP}`);
+const ART=artifactDir(`hunt-nav-${STAMP}`);
 fs.mkdirSync(ART,{recursive:true});
 const slice=(s,n=60)=>String(s??'').replace(/\s+/g,' ').trim().slice(0,n);
 const slug=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,50);
@@ -129,7 +127,7 @@ if(only('navegacao')){
    for(let i=0;i<12;i++){
     if(await page.locator('#messages .body').count())break;
     await page.evaluate(()=>document.querySelector('#connect')?.click());
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(500); // espera fixa: intervalo entre tentativas de conectar (o #connect é re-renderizado enquanto o app sobe)
    }
    await page.waitForSelector('#messages .body',{timeout:25000});
    assert.equal(await backBtn.getAttribute('hidden'),'','o Voltar só aparece com o que voltar');
@@ -283,13 +281,13 @@ if(only('dois leitores')){
    const btn=root?.querySelector('.pdf-title button.nav');
    return !!box&&!box.hidden&&btn?.getAttribute('aria-expanded')==='true';
   },n,{timeout:10000});
-  /* O `#connect` da boas-vindas é re-renderizado enquanto o app sobe: o clique
+  /* O `#connect` do estado do tutor é re-renderizado enquanto o app sobe: o clique
      do Playwright morre em "detached". Clica pelo DOM e tenta de novo. */
   const connectIfNeeded=async()=>{
    for(let i=0;i<12;i++){
     if(await page.locator('#messages .body').count())return;
     await page.evaluate(()=>document.querySelector('#connect')?.click());
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(500); // espera fixa: intervalo entre tentativas de conectar (o #connect é re-renderizado enquanto o app sobe)
    }
   };
 

@@ -1,12 +1,47 @@
-const {contextBridge,ipcRenderer}=require('electron');
+// @ts-check
+const {contextBridge,ipcRenderer,webUtils}=require('electron');
 const MAX_NOTIFY=200,MAX_KEYMAP=40,MAX_KEY=40,MAX_ACCEL=40;
+/* Tetos do estado da atividade (mesmos do store): values 16 KiB + attempt
+   4 KiB, envelope completo ≤ 21 KiB. O preload corta cedo; o main revalida. */
+const MAX_ACTIVITY_VALUES=16384,MAX_ACTIVITY_ATTEMPT=4096,MAX_ACTIVITY_ENVELOPE=21504;
 /* Tetos da aba Livre (mesmos do núcleo `core/freeworkspaces.bend`): o preload
    corta cedo; o main revalida e quem decide é o store. */
 const MAX_FREE_TITLE=120,MAX_FREE_NAME=240,MAX_FREE_MARKDOWN=262144;
 
+/* O preload (sandbox) não carrega `i18n.mjs`: a mensagem marcada é montada à mão (MARK + chave), no mesmo formato de `core/msg.bend`. */
+const uiMsg=key=>'\uE000'+key;
 function fail(message){throw Error(message);}
 function asPlain(value,message){if(value==null)return {};if(typeof value!=='object'||Array.isArray(value))fail(message);return value;}
+/* Modelo e opções do PDF viajam com a prévia e o salvar; o main valida de novo. */
+function modelFields(raw){
+ const out={};
+ if(raw.model!==undefined)out.model=asString(raw.model,'Modelo inválido.',40);
+ if(raw.options!==undefined){const options=asPlain(raw.options,'Opções inválidas.');if(JSON.stringify(options).length>2000)fail('Opções inválidas.');out.options=JSON.parse(JSON.stringify(options));}
+ return out;
+}
 function asString(value,message,max){if(typeof value!=='string')fail(message);if(value.length>max)fail(message);return value;}
+function activityArgs(value,{hash=false,state=false}={}){
+ const raw=asPlain(value,'Atividade inválida.');
+ const id=asString(raw.id,'Atividade inválida.',64);
+ if(!/^act-[a-z0-9][a-z0-9-]{2,63}$/.test(id)||!Number.isInteger(raw.version)||raw.version<1)fail('Atividade inválida.');
+ const out={id,version:raw.version,scopeRef:asString(raw.scopeRef,'A sessão mudou; reabra a atividade.',80)};
+ if(hash)out.hash=asString(raw.hash,'Versão inválida.',80);
+ if(state){
+  if(raw.state===null||typeof raw.state!=='object'||Array.isArray(raw.state))fail('Estado da atividade inválido.');
+  const envelope=JSON.stringify(raw.state);
+  if(!envelope||new TextEncoder().encode(envelope).length>MAX_ACTIVITY_ENVELOPE)fail('Estado da atividade acima do limite.');
+  /** @type {Array<[string,number]>} */
+  const limits=[['values',MAX_ACTIVITY_VALUES],['attempt',MAX_ACTIVITY_ATTEMPT]];
+  for(const [key,max] of limits){
+   const part=raw.state[key];
+   if(part===undefined||part===null)continue;
+   const text=JSON.stringify(part);
+   if(!text||new TextEncoder().encode(text).length>max)fail('Estado da atividade acima do limite.');
+  }
+  out.state=raw.state;
+ }
+ return out;
+}
 
 /* ---------- chat lateral: validação do preload ----------
    O preload corta cedo o que é obviamente inválido (id, refs, tamanho do texto/
@@ -58,7 +93,7 @@ function sidechatText(value,message){
 const INVOKE_PREFIX=/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/;
 function cleanIpcError(error){
  const raw=String(error&&error.message!==undefined?error.message:error||'');
- const message=raw.replace(INVOKE_PREFIX,'').trim()||'Falha na operação.';
+ const message=raw.replace(INVOKE_PREFIX,'').trim()||uiMsg('err.operation.failed');
  const clean=Error(message);
  if(error&&typeof error==='object'&&typeof error.name==='string'&&error.name!=='Error')clean.name=error.name;
  return clean;
@@ -66,9 +101,9 @@ function cleanIpcError(error){
 
 /* `desk_error` × rejeição do `invoke` são o MESMO erro quando o Pi cai no meio
    de uma conexão/ping: sem dedupe o usuário vê dois avisos iguais. Guardamos a
-   rejeição dos canais de conexão (o renderer já mostra um toast e ajusta o
-   estado no catch) e seguramos o evento por um instante; se a rejeição chegar,
-   o evento não é repassado. Evento sem rejeição (queda no meio do stream, por
+   rejeição dos canais de conexão (o renderer ajusta o estado no catch e a coluna
+   do tutor diz o motivo) e seguramos o evento por um instante; se a rejeição
+   chegar, o evento não é repassado. Evento sem rejeição (queda no meio do stream, por
    exemplo) segue normalmente. */
 const CONNECTION_CHANNELS=new Set(['pi-connect','pi-health']);
 const EVENT_HOLD_MS=150,REJECTION_WINDOW_MS=3000;
@@ -244,14 +279,104 @@ window.addEventListener('keydown',onWindowKey,true);
    mesmo com o atalho fora do padrão. */
 ipcRenderer.on('mesa-key',(_e,raw)=>{const init=normalizeInit(raw);if(init)dispatchKey(init,null);});
 
-contextBridge.exposeInMainWorld('desk',{
- init:()=>invoke('init'),switchCourse:id=>invoke('switch-course',id),settings:change=>invoke('pi-settings',change),openPDF:()=>invoke('open-pdf'),readPDF:p=>invoke('read-pdf',p),readImage:p=>invoke('read-image',p),openImage:p=>invoke('open-image',p),ggbShow:p=>invoke('ggb-view',p),ggbShot:()=>invoke('ggb-shot'),ggbSnapshot:()=>invoke('ggb-snapshot'),save:s=>invoke('save-state',s),
- connect:()=>invoke('pi-connect'),health:()=>invoke('pi-health'),prompt:p=>invoke('pi-prompt',p),abort:()=>invoke('pi-abort'),compact:i=>invoke('pi-compact',i),commands:()=>invoke('pi-commands'),autoCompaction:e=>invoke('pi-auto-compaction',e),respond:d=>invoke('pi-response',d),newSession:engine=>invoke('new-session',{engine}),openSession:p=>invoke('open-session',p),captureReady:()=>invoke('capture-ready'),openXournal:()=>invoke('open-xournal'),exportChat:()=>invoke('export-chat'),
+/* A API do renderer (`window.desk`). O tipo dela sai daqui para `types/desk-window.d.ts` (#43 fase 3). */
+const deskApi={
+ backupStatus:()=>invoke('backup-status'),backupList:()=>invoke('backup-list'),backupPickFolder:()=>invoke('backup-pick-folder'),
+ backupConfig:p=>invoke('backup-config',asPlain(p,'Configuração inválida.')),
+ backupRun:p=>invoke('backup-run',p),backupVerify:id=>invoke('backup-verify',{snapshotId:id}),
+ backupRestorePreview:id=>invoke('backup-restore-preview',{snapshotId:id}),backupRestoreApply:(id,options)=>invoke('backup-restore-apply',{planId:id,materials:options?.materials,restoreConfig:options?.restoreConfig===true}),backupRestoreCancel:id=>invoke('backup-restore-cancel',{planId:id}),
+ backupActiveCourse:()=>invoke('backup-active-course'),backupGitPush:()=>invoke('backup-git-push'),
+ sharePickFile:()=>invoke('share-pick-file'),shareExportCourse:p=>invoke('share-export-course',p),shareImportPreview:p=>invoke('share-import-preview',p),shareImportCourse:p=>invoke('share-import-course',p),backupOpenFolder:p=>invoke('backup-open-folder',p),
+ studySearch:p=>invoke('study-search',asPlain(p,'Busca inválida.')),
+ studySearchCatalog:()=>invoke('study-search-catalog'),
+ studySearchResolve:p=>invoke('study-search-resolve',{id:asString(asPlain(p,'Resultado inválido.').id,'Resultado inválido.',200)}),
+ studySearchOpen:p=>invoke('study-search-open',{id:asString(asPlain(p,'Resultado inválido.').id,'Resultado inválido.',200)}),
+ studyNotesRead:()=>invoke('study-notes-read'),
+ studyNotesSave:p=>invoke('study-notes-save',asPlain(p,'Anotação inválida.')),
+ studyReviewToday:()=>invoke('study-review-today'),
+ studyReviewGrade:p=>invoke('study-review-grade',asPlain(p,'Revisão inválida.')),
+ studyStatsSummary:p=>invoke('study-stats-summary',asPlain(p,'Período inválido.')),
+ studyStatsControl:p=>invoke('study-stats-control',asPlain(p,'Sessão inválida.')),
+ studyStatsReset:p=>invoke('study-stats-reset',asPlain(p,'Pedido inválido.')),
+ openDroppedPDF:(file,panelIndex=0)=>{
+  const droppedPath=webUtils.getPathForFile(file);
+  if(!droppedPath)fail(uiMsg('err.drop.pdfOnly'));
+  if(!Number.isInteger(panelIndex)||panelIndex<0||panelIndex>1)fail('Leitor inválido.');
+  return invoke('open-dropped-pdf',{path:droppedPath,panelIndex});
+ },
+ /* Primeira abertura (ticket #21): o `File` do arrasto só vira caminho aqui
+    (`webUtils`); o host classifica (pasta ou PDFs) e nada é lido nem copiado. */
+ firstRunDefaults:()=>invoke('first-run-defaults'),
+ firstRunPrepare:folder=>invoke('first-run-prepare',asString(folder,'Escolha uma pasta de dados válida.',4096)),
+ firstRunResolveDrop:files=>{
+  const paths=Array.from(files||[]).slice(0,200).map(file=>{try{return webUtils.getPathForFile(file);}catch{return '';}}).filter(Boolean);
+  if(!paths.length)fail(uiMsg('err.drop.local'));
+  return invoke('first-run-resolve-drop',paths);
+ },
+ /* A pasta escolhida no seletor já é um caminho, não um `File`: entra pelo
+    mesmo classificador do arrasto. Antes ela passava por `firstRunResolveDrop`,
+    que só aceita `File`, e o clique em "escolher a pasta" nunca valia (#64). */
+ firstRunResolveFolder:folder=>invoke('first-run-resolve-drop',[asString(folder,'Escolha uma pasta válida.',4096)]),
+ revealCourseFolder:()=>invoke('course-reveal-folder'),
+ courseLibrary:()=>invoke('course-library'),
+ pdfPageLabelsGet:p=>invoke('pdf-page-labels-get',asString(p,'PDF inválido.',4096)),
+ pdfPageLabelsSave:p=>invoke('pdf-page-labels-save',asPlain(p,'Numeração inválida.')),
+ layoutPresetsGet:()=>invoke('layout-presets-get'),
+ layoutPresetsSave:p=>invoke('layout-presets-save',asPlain(p,'Layout inválido.')),
+ reviewUndo:payload=>invoke('review-undo',asPlain(payload,'Não foi possível desfazer.')),
+ studyNotesUndo:payload=>invoke('study-notes-undo',asPlain(payload,'Não foi possível desfazer.')),
+ /* Idioma da interface (#41): o main passa o idioma já resolvido na abertura da janela (sem piscar em outro idioma); a troca vai por `languageSet`. */
+ initialLanguage:(process.argv.find(arg=>arg.startsWith('--mesa-language='))||'').slice('--mesa-language='.length),
+ languageGet:()=>invoke('language-get'),
+ languageRelink:()=>invoke('language-relink'),
+ languageSet:request=>{
+  const raw=asPlain(request,'Idioma inválido.');const out={};
+  if(raw.ui!==undefined)out.ui=asString(raw.ui,'Idioma inválido.',8);
+  if(raw.tutor!==undefined)out.tutor=asString(raw.tutor,'Idioma inválido.',8);
+  return invoke('language-set',out);
+ },
+ /* Modelos grátis do OpenCode Zen (#44): a chave só passa daqui para o main (campo manual); nenhum canal devolve a chave, só a máscara. */
+ opencodeStatus:()=>invoke('opencode-status'),
+ opencodeOpenConsole:()=>invoke('opencode-open-console'),
+ opencodeClipboardPeek:()=>invoke('opencode-clipboard-peek'),
+ opencodeClipboardAccept:()=>invoke('opencode-clipboard-accept'),
+ opencodeClipboardForget:()=>invoke('opencode-clipboard-forget'),
+ opencodeKeySave:key=>invoke('opencode-key-save',{key:asString(key,'Chave inválida.',400)}),
+ opencodeKeyTest:key=>invoke('opencode-key-test',key===undefined||key===''?{}:{key:asString(key,'Chave inválida.',400)}),
+ opencodeKeyRemove:()=>invoke('opencode-key-remove'),
+ opencodeAuthFileUse:()=>invoke('opencode-auth-file-use'),
+
+ opencodePaidAck:()=>invoke('opencode-paid-ack'),
+ /* Relatar um problema (#62): o renderer manda só motor e modelo em uso; o relatório volta limpo. A issue abre só pelo endereço que o próprio main montou. */
+ triageReport:choice=>{const raw=choice&&typeof choice==='object'?choice:{};return invoke('triage-report',{engine:typeof raw.engine==='string'?raw.engine.slice(0,40):'',model:typeof raw.model==='string'?raw.model.slice(0,200):''});},
+ triageOpenIssue:url=>invoke('triage-open-issue',{url:asString(url,'Endereço inválido.',8000)}),
+ init:()=>invoke('init'),switchCourse:id=>invoke('switch-course',id),settings:change=>invoke('pi-settings',change),openPDF:()=>invoke('open-pdf'),readPDF:p=>invoke('read-pdf',p),readImage:p=>invoke('read-image',p),openImage:p=>invoke('open-image',p),ggbShow:p=>invoke('ggb-view',p),ggbFreeze:()=>invoke('ggb-freeze'),ggbShot:()=>invoke('ggb-shot'),ggbSnapshot:()=>invoke('ggb-snapshot'),ggbBoard:()=>invoke('ggb-board'),ggbRestore:()=>invoke('ggb-restore'),onGgbOpen:fn=>ipcRenderer.on('ggb-open',fn),onGgbBoard:fn=>ipcRenderer.on('ggb-board',(_e,status)=>fn(status)),save:s=>invoke('save-state',s),
+ connect:()=>invoke('pi-connect'),connectCancel:()=>invoke('pi-connect-cancel'),health:()=>invoke('pi-health'),prompt:p=>invoke('pi-prompt',p),abort:()=>invoke('pi-abort'),compact:i=>invoke('pi-compact',i),commands:()=>invoke('pi-commands'),autoCompaction:e=>invoke('pi-auto-compaction',e),respond:d=>invoke('pi-response',d),newSession:engine=>invoke('new-session',{engine}),openSession:p=>invoke('open-session',p),captureReady:()=>invoke('capture-ready'),captureWindows:()=>invoke('capture-windows'),captureChoose:p=>invoke('capture-choose',p),captureDefault:()=>invoke('capture-default'),openXournal:()=>invoke('open-xournal'),exportChat:()=>invoke('export-chat'),
  /* Aba Livre: sessões avulsas do workspace virtual `mesa-free`. O renderer não
     passa escopo nem caminho — o main captura o workspace ativo, guarda o
     escopo antes/depois dos awaits nativos e revalida antes de gravar. */
  freeOpenPdf:()=>invoke('free-open-pdf'),
- freeSaveMaterial:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('free-save-material',{title:asString(raw.title||'','Título inválido.',MAX_FREE_TITLE),markdown:asString(raw.markdown||'','Conteúdo inválido.',MAX_FREE_MARKDOWN),draftId:asString(raw.draftId||'','Rascunho inválido.',64)});},
+ activityList:()=>invoke('activity-list'),
+ activityScope:()=>invoke('activity-scope'),
+ /* Largura do texto da resposta (#42): a prévia do tutor mede nela por padrão. */
+ activityColumn:width=>invoke('activity-column',{width:Number(width)||0}),
+ activityRead:p=>invoke('activity-read',activityArgs(p)),
+ activityStateGet:p=>invoke('activity-state-get',activityArgs(p,{hash:true})),
+ activityStateSave:p=>invoke('activity-state-save',activityArgs(p,{hash:true,state:true})),
+ onActivity:fn=>{
+  if(typeof fn!=='function')return ()=>{};
+  const listener=(_event,data)=>fn(data);
+  ipcRenderer.on('desk-activity',listener);
+  return ()=>ipcRenderer.removeListener('desk-activity',listener);
+ },
+ materialPreview:p=>{
+  const raw=asPlain(p,'Prévia inválida.');
+  return invoke('material-preview',{title:asString(raw.title||'','Título inválido.',MAX_FREE_TITLE),markdown:asString(raw.markdown||'','Conteúdo inválido.',MAX_FREE_MARKDOWN),revision:asString(raw.revision,'Revisão inválida.',128),requestId:asString(raw.requestId,'Prévia inválida.',64),...modelFields(raw)});
+ },
+ materialPreviewCancel:p=>invoke('material-preview-cancel',{requestId:asString(asPlain(p,'Prévia inválida.').requestId,'Prévia inválida.',64)}),
+ courseSaveMaterial:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('course-save-material',{title:asString(raw.title||'','Título inválido.',MAX_FREE_TITLE),markdown:asString(raw.markdown||'','Conteúdo inválido.',MAX_FREE_MARKDOWN),draftId:asString(raw.draftId||'','Rascunho inválido.',64),...modelFields(raw)});},
+ freeAddMaterial:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('free-add-material',{courseId:asString(raw.courseId||'','Matéria inválida.',400),materialId:asString(raw.materialId||'','Material inválido.',128)});},
+ freeSaveMaterial:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('free-save-material',{title:asString(raw.title||'','Título inválido.',MAX_FREE_TITLE),markdown:asString(raw.markdown||'','Conteúdo inválido.',MAX_FREE_MARKDOWN),draftId:asString(raw.draftId||'','Rascunho inválido.',64),...modelFields(raw)});},
  freePromote:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('free-promote',{name:asString(raw.name||'','Nome inválido.',MAX_FREE_NAME)});},
  freeRename:p=>{const raw=asPlain(p,'Pedido inválido.');return invoke('free-rename',{title:asString(raw.title||'','Título inválido.',MAX_FREE_TITLE)});},
  onTutorMaterial:fn=>ipcRenderer.on('tutor-material',(_e,data)=>{if(typeof fn==='function')fn(data);}),
@@ -291,10 +416,20 @@ contextBridge.exposeInMainWorld('desk',{
  getConfig:()=>invoke('get-config'),saveConfig:c=>invoke('save-config',c),pickFolder:()=>invoke('pick-folder'),pickFile:()=>invoke('pick-file'),pickXopp:()=>invoke('pick-xopp'),detectPi:()=>invoke('detect-pi'),logError:line=>invoke('desk-log',line),
  /* Fila e bandeja guardadas: `{items, held}` / `{images, held}`. */
  pendingSave:p=>invoke('pending-save',p),traySave:p=>invoke('tray-save',p),
+ /* Foto do celular (#36): o servidor da rede local só sobe por aqui. `address` escolhe a interface entre as que o host listou. */
+ phoneStart:p=>invoke('phone-start',{address:typeof p?.address==='string'?asString(p.address,'Endereço inválido.',64):''}),phoneStop:()=>invoke('phone-stop'),phoneStatus:()=>invoke('phone-status'),
+ onPhoneEvent:fn=>ipcRenderer.on('phone-event',(_e,data)=>{if(typeof fn==='function')fn(data);}),
  endDaySave:p=>invoke('end-day-save',p),resumeClear:()=>invoke('resume-clear'),bookmarksSave:p=>invoke('bookmarks-save',p),reviewSave:p=>invoke('review-save',p),reviewDraft:p=>invoke('review-draft',p),reviewDraftCancel:id=>invoke('review-draft-cancel',id),
- updateCheck:o=>invoke('update-check',o),updateApply:()=>invoke('update-apply'),updatePi:()=>invoke('update-pi'),updateResult:()=>invoke('update-result'),components:o=>invoke('components',o),openExternal:url=>invoke('open-external',url),openLog:()=>invoke('open-log'),
+ updateCheck:o=>invoke('update-check',o),updateApply:()=>invoke('update-apply'),updatePi:()=>invoke('update-pi'),updateResult:()=>invoke('update-result'),components:o=>invoke('components',o),toolNotices:()=>invoke('tool-notices'),toolNoticesOpened:()=>invoke('tool-notices-opened'),toolNoticePostpone:id=>invoke('tool-notice-postpone',id),toolNoticeIgnore:id=>invoke('tool-notice-ignore',id),toolUpdateRun:id=>invoke('tool-update-run',id),openExternal:url=>invoke('open-external',url),openLog:()=>invoke('open-log'),
  testMode:()=>invoke('test-mode'),
  conversations:()=>invoke('conversation-list'),
+ libraryChats:()=>invoke('library-chats'),
+ libraryChatOpen:id=>invoke('library-chat-open',asString(id,'Sessão inválida.',40)),
+ libraryChatUpdate:value=>{
+  const raw=asPlain(value,'Alteração inválida.');
+  const id=asString(raw.id,'Sessão inválida.',40),patch=asPlain(raw.patch,'Alteração inválida.');
+  return invoke('library-chat-update',{id,patch});
+ },
  notify:payload=>{const value=asPlain(payload,'Aviso inválido.');asString(value.body||'','Aviso inválido.',MAX_NOTIFY);return invoke('notify',value);},
  badge:value=>{if(value!=null&&(typeof value!=='number'||!Number.isFinite(value)))fail('Selo inválido.');return invoke('badge',value);},
  setKeymap:payload=>{
@@ -315,6 +450,7 @@ contextBridge.exposeInMainWorld('desk',{
  onCaptureKey:fn=>{keys.onCapture=typeof fn==='function'?fn:null;},
  onEvent:fn=>{if(typeof fn==='function')eventHandlers.add(fn);},
  onMenuCheck:fn=>ipcRenderer.on('menu-check',fn),
+ onMenuPalette:fn=>ipcRenderer.on('menu-palette',()=>{if(typeof fn==='function')fn();}),
  onMenuGeogebra:fn=>ipcRenderer.on('menu-geogebra',fn),
  onMenuChatToggle:fn=>ipcRenderer.on('menu-chat-toggle',fn),
  onMenuStop:fn=>ipcRenderer.on('menu-stop',fn),
@@ -322,6 +458,8 @@ contextBridge.exposeInMainWorld('desk',{
  onMenuSettings:fn=>ipcRenderer.on('menu-settings',fn),
  onMenuAbout:fn=>ipcRenderer.on('menu-about',fn),
  onUpdateAvailable:fn=>ipcRenderer.on('update-available',(_e,data)=>{if(typeof fn==='function')fn(data);}),
- onHandoff:fn=>ipcRenderer.on('handoff-received',(_e,data)=>{if(typeof fn==='function')fn(data);}),
- onHandoffProblem:fn=>ipcRenderer.on('handoff-problem',(_e,data)=>{if(typeof fn==='function')fn(data);})
-});
+ onToolNotices:fn=>ipcRenderer.on('tool-notices',(_e,data)=>{if(typeof fn==='function')fn(data);}),
+ onToolRunOutput:fn=>ipcRenderer.on('tool-run-output',(_e,data)=>{if(typeof fn==='function')fn(data);})
+};
+/** @typedef {typeof deskApi} DeskApi */
+contextBridge.exposeInMainWorld('desk',deskApi);

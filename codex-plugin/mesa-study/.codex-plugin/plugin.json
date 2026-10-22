@@ -1,0 +1,33 @@
+{
+  "name": "mesa-study",
+  "version": "0.2.2-experimental",
+  "description": "Mesa de Estudos experimental: painel MCP Apps com PDF, navegação e conferência explícita do Xournal++.",
+  "author": {
+    "name": "Lucas Faria"
+  },
+  "license": "MIT",
+  "keywords": [
+    "estudo",
+    "pdf",
+    "xournal",
+    "educacao",
+    "experimental"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Mesa de Estudos (experimental)",
+    "shortDescription": "Mesa visual: PDF + Xournal++",
+    "longDescription": "Plugin local experimental com skill de tutoria, sete ferramentas MCP e painel MCP Apps para estudar com PDF visível, navegar páginas e conferir uma janela escolhida do Xournal++ a pedido explícito. Raízes de PDF, cache e helper são fixados na inicialização; chamadas não ampliam acesso. Node 22.19+ e Poppler necessários; captura exige macOS e permissão de Gravação de Tela. Protocolo e interface testados localmente; exibição deste painel dentro do Codex e captura real ainda exigem validação no aplicativo.",
+    "developerName": "Lucas Faria",
+    "category": "Education & Research",
+    "capabilities": [
+      "Painel MCP Apps experimental com PDF visível e navegação de páginas",
+      "Renderizar uma página de PDF local autorizado (Poppler)",
+      "Listar e capturar somente a janela escolhida do Xournal++",
+      "Tutoria de estudos com a skill mesa e contexto da sessão"
+    ],
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png"
+  }
+}

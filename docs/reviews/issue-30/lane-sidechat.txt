@@ -1,0 +1,12 @@
+desk/tests/sidechat-claude-ipc-smoke.mjs
+desk/tests/sidechat-claude-recoverable-ui.mjs
+desk/tests/sidechat-claude.test.mjs
+desk/tests/sidechat-draft-reload.mjs
+desk/tests/sidechat-ipc-smoke.mjs
+desk/tests/sidechat-layout-ui.mjs
+desk/tests/sidechat-pi.test.mjs
+desk/tests/sidechat-questions-ui.mjs
+desk/tests/sidechat-scope.test.mjs
+desk/tests/sidechat-ui-races.mjs
+desk/tests/sidechat-ui.mjs
+desk/tests/sidechat.test.mjs

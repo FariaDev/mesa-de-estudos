@@ -1,13 +1,13 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
-# Menu de comandos do composer (`/`) — Mesa (`desk/`) e Conversa (`chat/`).
+# Menu de comandos do composer (`/`) — Mesa (`desk/`).
 #
-# Um só núcleo serve os dois apps: o artefato é gerado em
-# `desk/src/generated/slashview.core.js` e `chat/src/generated/slashview.core.js`
-# (mesmo módulo, como `statusview`/`worklogview`). A mecânica dos dois é a
-# mesma; mudam só o campo ancorado (`#prompt`) e o card medido — host.
+# O artefato é gerado em `desk/src/generated/slashview.core.js` (até a #50 o
+# mesmo módulo também alimentava a Conversa, como `statusview`/`worklogview`). A mecânica era a
+# mesma nos dois apps; na Mesa o campo ancorado é `#prompt` e o card medido — host.
 #
 # Tudo é construtor puro: entra fato resolvido, sai `ViewNode`; quem aplica no
 # DOM é o `view-host.mjs` (`build`/`renderChildren`). Nada aqui lê DOM, mede
@@ -44,13 +44,13 @@ type SlashItem is Data:
 # ---------- textos (cópia PT-BR do DOM atual) ----------
 
 def slashHeadText() -> String:
-  "Comandos"
+  M.msg("slash.head")
 
 def slashListLabel() -> String:
-  "Comandos do Pi"
+  M.msg("slash.list")
 
 def slashFootText() -> String:
-  "↑↓ navegar · ⏎ inserir · Esc fechar"
+  M.msg("slash.foot")
 
 # ---------- linha ----------
 

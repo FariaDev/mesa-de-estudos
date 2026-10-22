@@ -8,7 +8,9 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,PLOT_PNG,saveArtifacts} from './helpers.mjs';
+import {pollUntil} from './waits.mjs';
 import {icon} from '../icons.mjs';
 import attachCore from '../src/generated/attachments.core.js';
 
@@ -28,7 +30,7 @@ function watch(page){
  return {errors,consoleErrors};
 }
 function deskLog(runtime){try{return fs.readFileSync(path.join(runtime,'desk.log'),'utf8');}catch{return '';}}
-function png(size=64){return Buffer.from(PLOT_PNG,'base64');}
+function png(){return Buffer.from(PLOT_PNG,'base64');}
 /* Corpo interno do SVG de icons.mjs, normalizado como o browser serializa
    (<path/> vira <path></path>), para comparar com o DOM. */
 const iconBody=name=>icon(name).replace(/^<svg[^>]*>/,'').replace(/<\/svg>$/,'').replace(/<(\w+)([^>]*)\/>/g,'<$1$2></$1>');
@@ -114,8 +116,9 @@ if(want('markdown'))await withArtifacts('hunt-markdown',async ctx=>{
  seedCourse(runtime,'Hunt');
  const plot=seedPlot(runtime,'Hunt');
  const missing=path.join(runtime,'learning','Courses','Hunt','nao-existe.png');
- const outside=path.join(runtime,'..','fora-da-area.png');
+ const outside=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-fora-')),'fora-da-area.png');
  fs.writeFileSync(outside,png());
+ process.once('exit',()=>fs.rmSync(path.dirname(outside),{recursive:true,force:true}));
  const texts=[
   'inline $x^2$ e \\(y\\) e \\[z\\] e escape \\$5 e malformado $a',
   'display:\n\n$$\\int_0^1 x\\,dx$$',
@@ -301,10 +304,11 @@ if(want('worklog-live'))await withArtifacts('hunt-worklog-live',async ctx=>{
     preview:s.querySelector('.step-preview').textContent,previewHidden:s.querySelector('.step-preview').hidden,
     time:s.querySelector('.step-time').textContent,spin:!!s.querySelector('.step-spin'),
    }));
-   window.__liveSnaps.push({title:work.querySelector('.work-title').textContent,meta:work.querySelector('.work-meta').textContent,expanded:work.dataset.expanded,dotsHidden:work.querySelector('.work-dots').hidden,steps});
+   window.__liveSnaps.push({activity:document.querySelector('#activity').textContent.trim(),title:work.querySelector('.work-title').textContent,meta:work.querySelector('.work-meta').textContent,expanded:work.dataset.expanded,dotsHidden:work.querySelector('.work-dots').hidden,steps});
   };
   const obs=new MutationObserver(record);
   obs.observe(document.querySelector('#messages'),{subtree:true,childList:true,attributes:true,attributeFilter:['data-live','data-expanded','data-status']});
+  obs.observe(document.querySelector('#activity'),{subtree:true,childList:true,characterData:true});
   window.__liveObs=obs;
  });
  await page.locator('#prompt').fill('pensar profundo');
@@ -321,6 +325,9 @@ if(want('worklog-live'))await withArtifacts('hunt-worklog-live',async ctx=>{
  assert.equal(running.spin,true,'passo running mostra o spinner');
  assert.ok(live.some(s=>s.expanded==='true'),'o diário vivo abre');
  assert.ok(live.some(s=>s.dotsHidden===false),'os dots pulsam durante o turno');
+ /* Regressão (captura do autor, 2026-10-21): com o diário vivo à vista, a faixa
+    de baixo não repete o "pensando" nem o passo. */
+ for(const snap of live)assert.equal(snap.activity,'',`com o diário vivo ("${snap.title}"), a faixa de baixo fica calada (veio "${snap.activity}")`);
  // o turno termina recolhido e com ícones coerentes
  const done=await page.evaluate(()=>{
   const work=[...document.querySelectorAll('.work')].at(-1);
@@ -348,7 +355,7 @@ if(want('worklog-live-text'))await withArtifacts('hunt-worklog-text',async ctx=>
  await page.locator('#prompt').fill('responda e trave no meio');
  await page.locator('#send').click();
  await page.waitForFunction(()=>[...document.querySelectorAll('.message.assistant .body')].some(el=>el.textContent.includes('Vou travar agora…')),undefined,{timeout:20000});
- await page.waitForTimeout(2200);
+ await page.waitForTimeout(2200);// espera fixa: o relógio do diário é o que se testa — em 2,2 s a faixa continua estática, sem contador
  const live=await page.evaluate(()=>({
   work:document.querySelectorAll('#messages .work').length,
   activity:document.querySelector('#activity').textContent,activityTitle:document.querySelector('#activity').title,
@@ -360,7 +367,7 @@ if(want('worklog-live-text'))await withArtifacts('hunt-worklog-text',async ctx=>
  }));
  log('[worklog-live-text] snapshot:',JSON.stringify(live,null,1));
  assert.equal(live.work,0,'turno só de texto não abre diário (sem agent_start no fake)');
- assert.equal(live.activity,'Pi está pensando…','faixa estática sem relógio');
+ assert.equal(live.activity,'Tutor está pensando…','faixa estática sem relógio');
  assert.equal(live.activityTitle,live.activity);
  assert.equal(live.activityRole,'status');
  assert.equal(live.stopHidden,false,'Parar visível durante o stream');
@@ -383,7 +390,7 @@ if(want('abort'))await withArtifacts('hunt-abort',async ctx=>{
  await statusOnline(page);
  await page.locator('#prompt').fill('comece a responder e caia no meio');
  await page.locator('#send').click();
- await toastWait(page,'Pi encerrou',{timeout:20000});
+ await page.waitForSelector('#tutor-state[data-state="error"]',{timeout:20000});
  await sendEnabled(page,{timeout:15000});
  const snap=await page.evaluate(()=>({
   works:document.querySelectorAll('.work').length,
@@ -411,7 +418,9 @@ if(want('diary-error'))await withArtifacts('hunt-diary-error',async ctx=>{
  await statusOnline(page);
  await page.locator('#prompt').fill('comece e falhe no meio');
  await page.locator('#send').click();
- await toastWait(page,'Falha combinada do hunt.',{timeout:20000});
+ /* Queda de verdade: a coluna do tutor escreve o motivo; o aviso não o repete (#27). */
+ await page.waitForFunction(()=>/Falha combinada do hunt\./.test(document.querySelector('#tutor-state')?.textContent||''),undefined,{timeout:20000});
+ assert.equal(await page.locator('#toast > *').count(),0,'a queda não repete o aviso: a coluna do tutor escreve o motivo');
  await sendEnabled(page,{timeout:15000});
  await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
  const snap=await page.evaluate(()=>{
@@ -429,7 +438,7 @@ if(want('diary-error'))await withArtifacts('hunt-diary-error',async ctx=>{
  assert.equal(snap.mark,iconBody('alert'),'marca vira alerta');
  assert.deepEqual(snap.steps.map(s=>s.kind),['thinking','search','error'],'passo de erro entra no diário');
  assert.deepEqual(snap.steps.map(s=>s.status),['done','stopped','error'],'ferramenta pendente fecha como parada');
- assert.match(snap.steps[2].text,/Erro do Pi: Falha combinada do hunt\./);
+ assert.match(snap.steps[2].text,/Erro do tutor: Falha combinada do hunt\./);
  assert.ok(snap.steps.every(s=>s.statusIcon),'todo passo tem ícone de status');
  assert.deepEqual(w.errors,[]);
  if(EVIDENCE)await saveArtifacts(ctx);
@@ -455,7 +464,7 @@ if(want('diary-stop'))await withArtifacts('hunt-diary-stop',async ctx=>{
   const work=document.querySelector('#messages .work');
   const thinking=work.querySelector('.work-step[data-kind="thinking"]');
   return {live:work.dataset.live,title:work.querySelector('.work-title').textContent,meta:work.querySelector('.work-meta').textContent,
-   dots:!work.querySelector('.work-dots').hidden,mark:work.querySelector('.work-mark svg')?.innerHTML??'',
+   dots:!work.querySelector('.work-dots').hidden,mark:work.querySelector('.work-mark svg')?.innerHTML??'',mascot:work.querySelector('.work-mark').dataset.mascot||'',
    status:thinking.dataset.status,label:thinking.querySelector('.step-label').textContent,
    preview:thinking.querySelector('.step-preview').textContent,previewHidden:thinking.querySelector('.step-preview').hidden,
    spin:!!thinking.querySelector('.step-spin'),time:thinking.querySelector('.step-time').textContent,
@@ -465,7 +474,7 @@ if(want('diary-stop'))await withArtifacts('hunt-diary-stop',async ctx=>{
  assert.equal(liveThinking.live,'true');
  assert.equal(liveThinking.title,'Pensando…','título vivo do pensamento');
  assert.equal(liveThinking.dots,true);
- assert.equal(liveThinking.mark,iconBody('sparkles'),'marca viva é o sparkles');
+ assert.equal(liveThinking.mascot,'integral','marca viva do pensamento é a ∫ pensando (#61, trio da #64)');
  assert.equal(liveThinking.status,'running');
  assert.equal(liveThinking.label,'Pensando…');
  assert.match(liveThinking.preview,/^Vou considerar/,`preview vivo do pensamento (${liveThinking.preview})`);
@@ -473,7 +482,7 @@ if(want('diary-stop'))await withArtifacts('hunt-diary-stop',async ctx=>{
  assert.equal(liveThinking.spin,true,'spinner no pensamento vivo');
  // segundo estado vivo: a ferramenta running com o pensamento já fechado
  await page.waitForSelector('.work-step[data-status="running"][data-kind="search"]',{timeout:10000});
- await page.waitForTimeout(1000);
+ await page.waitForSelector('.work-step[data-kind="thinking"][data-status="done"]',{timeout:10000});
  const live=await page.evaluate(()=>{
   const work=document.querySelector('#messages .work');
   const thinking=work.querySelector('.work-step[data-kind="thinking"]');
@@ -495,7 +504,8 @@ if(want('diary-stop'))await withArtifacts('hunt-diary-stop',async ctx=>{
  assert.equal(live.thinking.previewHidden,true);
  assert.equal(live.running.kind,'search');
  assert.equal(live.running.spin,true,'spinner na ferramenta viva');
- assert.match(live.activity,/Procurando na web: «teste do hunt» · \d+s/,'faixa mostra o passo vivo com relógio');
+ /* O passo vivo e o relógio moram no diário; a faixa de baixo não os repete (2026-10-21). */
+ assert.equal(live.activity.trim(),'','faixa calada com o diário vivo à vista');
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
  const snap=await page.evaluate(()=>{
@@ -599,7 +609,7 @@ if(want('diary-selection'))await withArtifacts('hunt-diary-selection',async ctx=
   const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
  });
  const before=await page.evaluate(()=>{const pre=document.querySelector('.work-step[data-kind="thinking"] .step-text');return {collapsed:getSelection().isCollapsed,maxHeight:getComputedStyle(pre).maxHeight,innerScroll:pre.scrollHeight-pre.clientHeight,scrollTop:document.querySelector('#messages').scrollTop,lines:pre.textContent.length};});
- await page.waitForTimeout(2400);
+ await page.waitForTimeout(2400);// espera fixa: o tick de 1 s do relógio é o que se testa — passam dois ticks com a seleção montada
  const after=await page.evaluate(()=>{const pre=document.querySelector('.work-step[data-kind="thinking"] .step-text');return {collapsed:getSelection().isCollapsed,maxHeight:getComputedStyle(pre).maxHeight,scrollTop:document.querySelector('#messages').scrollTop,meta:document.querySelector('.work .work-meta')?.textContent??'',open:!document.querySelector('.work-step[data-kind="thinking"] .step-detail').hidden};});
  log('[diary-selection] antes:',JSON.stringify(before),'depois:',JSON.stringify(after));
  assert.equal(before.collapsed,false,'seleção montada');
@@ -651,16 +661,26 @@ if(want('thinking-open'))await withArtifacts('hunt-thinking-open',async ctx=>{
  assert.equal(opened.maxHeight,'none','aberto no turno vivo: sem teto de 240px');
  assert.equal(opened.overflow,'visible','aberto no turno vivo: o texto não rola por dentro');
  assert.ok(opened.innerScroll<=1,`o texto não tem rolagem própria (${opened.innerScroll})`);
- await page.waitForTimeout(1200);
- const follow=await snap();
+ /* #70: o "pensando" piscava a cada token, porque o diário trocava todos os nós.
+    A ∫, o passo e o texto do raciocínio são os mesmos nós do começo ao fim. */
+ await page.evaluate(()=>{
+  const step=document.querySelector('.work-step[data-kind="thinking"]');
+  window.__thinkingNodes={mascot:document.querySelector('#messages .work .work-mark .mascote'),step,text:step.querySelector('.step-text')};
+ });
+ const follow=await pollUntil(snap,now=>now.len>opened.len&&now.scrollTop>opened.scrollTop,{timeout:10000,what:'o pensamento crescer e a conversa seguir o fim'});
  log('[thinking-open] seguindo:',JSON.stringify(follow));
+ const stable=await page.evaluate(()=>{
+  const kept=window.__thinkingNodes,step=document.querySelector('.work-step[data-kind="thinking"]');
+  return {mascot:!!kept.mascot&&kept.mascot===document.querySelector('#messages .work .work-mark .mascote'),step:kept.step===step,text:kept.text===step.querySelector('.step-text')};
+ });
+ assert.deepEqual(stable,{mascot:true,step:true,text:true},'os tokens novos não recriam a ∫, o passo nem o texto do raciocínio');
  assert.ok(follow.len>opened.len,`o pensamento continua chegando (${opened.len} -> ${follow.len})`);
  assert.ok(follow.scrollTop>opened.scrollTop,`a conversa segue o fim enquanto você está no fim (${opened.scrollTop} -> ${follow.scrollTop})`);
  assert.ok(follow.bottomGap<=80,`e continua colada no fim (${follow.bottomGap}px)`);
  await page.evaluate(()=>{const m=document.querySelector('#messages');m.scrollTop=0;m.dispatchEvent(new Event('scroll'));});
  const up=await snap();
- await page.waitForTimeout(1200);
- const held=await snap();
+ // três pedaços do pensamento (150 ms cada) chegam com a conversa rolada para cima
+ const held=await pollUntil(snap,now=>now.len>=up.len+3*20,{timeout:10000,what:'três pedaços novos do pensamento'});
  log('[thinking-open] rolado para cima:',JSON.stringify(up),'->',JSON.stringify(held));
  assert.ok(held.len>up.len,`o pensamento segue chegando (${up.len} -> ${held.len})`);
  assert.equal(held.scrollTop,0,'rolado para cima, a conversa não é puxada de volta');
@@ -852,7 +872,7 @@ if(want('composer'))await withArtifacts('hunt-composer',async ctx=>{
  await statusOnline(page);
  // tipo errado é ignorado
  await page.setInputFiles('#attach-input',txt);
- await page.waitForTimeout(250);
+ await page.waitForTimeout(250);// espera fixa: "nada acontece em 0,25 s" — arquivo de tipo errado não vira anexo
  assert.equal(await page.locator('#attachments').isHidden(),true,'arquivo de texto não vira anexo');
  // teto de 4
  await page.setInputFiles('#attach-input',imgs);
@@ -877,13 +897,11 @@ if(want('composer'))await withArtifacts('hunt-composer',async ctx=>{
  await page.locator('#attachments .attachment-remove').first().click();
  await page.waitForFunction(()=>document.querySelector('#attachments').hidden);
  await page.locator('#prompt').fill('rascunho da matéria A');
- await page.waitForTimeout(900);
  await page.locator('#course-tabs button[data-id="B"]').click();
  await page.waitForFunction(()=>{const t=document.querySelector('#course-tabs button[data-id="B"]');return t?.classList.contains('active');},{timeout:20000});
  await statusOnline(page,{timeout:30000});
  assert.equal(await page.locator('#prompt').inputValue(),'','matéria B não herda o rascunho de A');
  await page.locator('#prompt').fill('rascunho da matéria B');
- await page.waitForTimeout(900);
  await page.locator('#course-tabs button[data-id="A"]').click();
  await page.waitForFunction(()=>{const t=document.querySelector('#course-tabs button[data-id="A"]');return t?.classList.contains('active');},{timeout:20000});
  await statusOnline(page,{timeout:30000});
@@ -923,12 +941,12 @@ if(want('quote'))await withArtifacts('hunt-quote',async ctx=>{
  assert.ok(quoted.startsWith('> '),'citação vira blockquote');
  assert.ok(flat.length<=8005,`citação truncada em 8000 (${flat.length})`);
  assert.ok(flat.endsWith('…'),'truncagem marca com reticências');
- assert.equal(await page.locator('#quote-btn').isHidden(),true,'botão some depois de citar');
+ await page.locator('#quote-btn').waitFor({state:'hidden',timeout:2000}); // botão some depois de citar (com fade, #63)
  // ⏎ envia; ⇧⏎ quebra linha
  await page.locator('#prompt').fill('');
  await page.locator('#prompt').fill('teorema');
  await page.locator('#prompt').press('Shift+Enter');
- await page.waitForTimeout(200);
+ await page.waitForTimeout(200);// espera fixa: "nada acontece em 0,2 s" — ⇧⏎ não envia
  assert.equal(await page.locator('#messages .message.user').count(),1,'⇧⏎ não envia');
  assert.match(await page.locator('#prompt').inputValue(),/\n/,'⇧⏎ quebra linha');
  await page.locator('#prompt').press('Enter');
@@ -952,7 +970,7 @@ if(want('toasts'))await withArtifacts('hunt-toasts',async ctx=>{
  // dispara 5 toasts reais pela calculadora (expressão inválida)
  for(let i=0;i<5;i++){
   await page.evaluate(()=>{const e=document.querySelector('#expression');e.value='sqrt(';document.querySelector('#calc-form button').click();});
-  await page.waitForTimeout(60);
+  await page.waitForTimeout(60);// espera fixa: intervalo da rajada de erros (o tempo entre eles é o que se testa)
  }
  const count=await page.locator('#toast .toast-item').count();
  log('[toasts] itens na fila:',count);
@@ -960,7 +978,7 @@ if(want('toasts'))await withArtifacts('hunt-toasts',async ctx=>{
  const role=await page.locator('#toast').getAttribute('role');
  assert.equal(role,'status');
  await page.locator('#toast .toast-item').first().dispatchEvent('click');
- await page.waitForTimeout(100);
+ await page.waitForTimeout(100);// espera fixa: "nada acontece em 0,1 s" — o clique no toast não derruba a fila
  assert.ok(await page.locator('#toast .toast-item').count()>=1,'clique no toast não derruba a fila');
  await page.waitForFunction(()=>!document.querySelector('#toast .toast-item'),undefined,{timeout:12000});
  assert.deepEqual(w.errors,[]);
@@ -990,11 +1008,11 @@ if(want('scroll'))await withArtifacts('hunt-scroll',async ctx=>{
  const before=await page.evaluate(()=>{const m=document.querySelector('#messages');m.scrollTop=0;m.dispatchEvent(new Event('scroll'));return m.scrollTop;});
  await page.locator('#messages .work-head').dispatchEvent('click');
  await page.waitForFunction(()=>document.querySelector('#messages .work').dataset.expanded==='true');
- await page.waitForTimeout(300);
+ await page.waitForTimeout(300);// espera fixa: "nada acontece em 0,3 s" — abrir o diário no topo não puxa a rolagem
  const afterOpen=await page.evaluate(()=>document.querySelector('#messages').scrollTop);
  assert.ok(afterOpen<=before+4,`abrir o diário no topo não puxa a rolagem (${before} -> ${afterOpen})`);
  await page.locator('.work-step .step-toggle').first().dispatchEvent('click');
- await page.waitForTimeout(300);
+ await page.waitForTimeout(300);// espera fixa: "nada acontece em 0,3 s" — abrir um passo no topo não puxa a rolagem
  const afterStep=await page.evaluate(()=>document.querySelector('#messages').scrollTop);
  assert.ok(afterStep<=before+4,`abrir um passo no topo não puxa a rolagem (${before} -> ${afterStep})`);
  assert.deepEqual(w.errors,[]);

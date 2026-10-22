@@ -13,11 +13,15 @@
 </head>
 <body>
   <div id="ggb"></div>
-  <div id="ggb-loading">Carregando o GeoGebra…<small>precisa de internet na primeira abertura</small></div>
+  <div id="ggb-loading">Carregando o GeoGebra…<small id="ggb-loading-hint">precisa de internet na primeira abertura</small></div>
   <div id="ggb-error"></div>
-  <script src="https://www.geogebra.org/apps/deployggb.js"></script>
   <script>
     window.__ggbReady=false;
+    // Pacote offline (#55): a Mesa serve o GeoGebra baixado pelo `setup` em `mesa-ggb://`,
+    // e a sessão do applet não tem rede. Sem o pacote, o applet é o da web.
+    const OFFLINE=location.protocol==='mesa-ggb:';
+    const OFFLINE_CODEBASE='mesa-ggb://app/pack/HTML5/5.0/web3d/';
+    if(OFFLINE)document.getElementById('ggb-loading-hint').textContent='pacote local, sem internet';
     function ggbSize(){
       const el=document.getElementById('ggb');
       return {width:Math.max(320,el.clientWidth||window.innerWidth||800),height:Math.max(240,el.clientHeight||window.innerHeight||600)};
@@ -34,8 +38,9 @@
     window.addEventListener('resize',reloadApplet);
     window.addEventListener('error',e=>{if(!window.__ggbReady)ggbFail('Recarregue a aba ('+(e.message||'erro de script')+').');},true);
     setTimeout(()=>{
-      if(!window.__ggbReady)ggbFail('Verifique a conexão com a internet e recarregue a aba.');
+      if(!window.__ggbReady)ggbFail(OFFLINE?'Recarregue a aba. Se continuar assim, rode npm run geogebra:offline para baixar o pacote de novo.':'Verifique a conexão com a internet e recarregue a aba.');
     },20000);
+    function startApplet(){
     try{
       if(typeof GGBApplet==='function'){
         const fit=ggbSize();
@@ -51,9 +56,16 @@
             const err=document.getElementById('ggb-error');err.style.display='none';err.textContent='';
           }
         };
-        new GGBApplet(params,'5.0').inject('ggb');
+        const applet=new GGBApplet(params,'5.0');
+        if(OFFLINE)applet.setHTML5Codebase(OFFLINE_CODEBASE,true);
+        applet.inject('ggb');
       }
     }catch(e){ggbFail('('+e.message+')');}
+    }
+    const loader=document.createElement('script');
+    loader.src=OFFLINE?'mesa-ggb://app/pack/deployggb.js':'https://www.geogebra.org/apps/deployggb.js';
+    loader.onload=startApplet;
+    document.head.append(loader);
   </script>
 </body>
 </html>

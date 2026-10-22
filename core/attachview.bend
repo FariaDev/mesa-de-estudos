@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
@@ -55,10 +56,10 @@ type AttachFile is Data:
 # ---------- textos ----------
 
 def quoteChipLabel() -> String:
-  "Citar:"
+  M.msg("quote.label")
 
 def quoteChipRemove() -> String:
-  "Remover citação"
+  M.msg("quote.remove")
 
 # Teto do trecho no chip (caracteres do texto plano). O `title` guarda o texto
 # inteiro; o visível corta em 159 + "…" (o mesmo 160 do host antigo).

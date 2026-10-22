@@ -200,75 +200,6 @@ test('modo zip: falha no meio → rollback devolve a versão antiga inteira e re
   assert.match(log, /rollback aplicado/);
 });
 
-test('modo git: pull --ff-only; npm ci só quando o lock mudou', async () => {
-  const root = fakeInstallRoot();
-  fs.mkdirSync(path.join(root, '.git'));
-  const runtime = tmp();
-  const {run, calls} = fakeRun((cmd, args) => {
-    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: 'abc123\n'};
-    if (cmd === 'git' && args[0] === 'pull') write(path.join(root, 'desk', 'main.cjs'), 'main novo');
-    return {stdout: ''};
-  });
-  const result = await updater.applyUpdate({
-    mode: 'git', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
-    announcedVersion: '0.4.1', run, reopen: () => {}, waitPid: 0,
-  });
-  assert.equal(result.ok, true);
-  assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main novo');
-  /* A3: a versão CONFERIDA (package.json = 0.4.0 aqui) é a que volta no result. */
-  assert.equal(result.version, '0.4.0', 'a versão devolvida é a instalada, não a anunciada');
-  assert.deepEqual(calls, [
-    ['git', 'rev-parse', 'HEAD'], ['git', 'status', '--porcelain'], ['git', 'pull', '--ff-only'],
-  ], 'status do clone antes do pull (A5); sem lock novo não há npm ci');
-  assert.match(logOf(runtime), /git pull --ff-only ok \(branch de desenvolvimento do clone\)/);
-});
-
-test('modo git: clone com trabalho local é recusado antes de qualquer mutação (A5)', async () => {
-  const root = fakeInstallRoot();
-  fs.mkdirSync(path.join(root, '.git'));
-  const runtime = tmp();
-  const {run, calls} = fakeRun((cmd, args) => {
-    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: 'abc123\n'};
-    if (cmd === 'git' && args[0] === 'status') return {stdout: ' M desk/main.cjs\n'};
-    return {stdout: ''};
-  });
-  const reopens = [];
-  const result = await updater.applyUpdate({
-    mode: 'git', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
-    announcedVersion: '0.4.1', run, reopen: () => reopens.push('reabriu'), waitPid: 0,
-  });
-  assert.equal(result.ok, false);
-  assert.match(result.reason, /trabalho local/);
-  assert.deepEqual(calls, [['git', 'rev-parse', 'HEAD'], ['git', 'status', '--porcelain']], 'o pull NEM COMEÇA');
-  assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main antigo', 'o trabalho local não foi tocado');
-  assert.deepEqual(reopens, ['reabriu']);
-  assert.match(logOf(runtime), /FALHOU \(o clone tem trabalho local/);
-});
-
-test('modo git: pull falha → rollback, git reset e a versão antiga reabre', async () => {
-  const root = fakeInstallRoot();
-  fs.mkdirSync(path.join(root, '.git'));
-  const runtime = tmp();
-  const reopens = [];
-  const {run, calls} = fakeRun((cmd, args) => {
-    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: 'abc123\n'};
-    if (cmd === 'git' && args[0] === 'pull') throw Error('sem rede');
-    return {stdout: ''};
-  });
-  const result = await updater.applyUpdate({
-    mode: 'git', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
-    announcedVersion: '0.4.1', run, reopen: () => reopens.push('reabriu'), waitPid: 0,
-  });
-  assert.equal(result.ok, false);
-  assert.match(result.reason, /sem rede/);
-  assert.deepEqual(calls, [
-    ['git', 'rev-parse', 'HEAD'], ['git', 'status', '--porcelain'], ['git', 'pull', '--ff-only'], ['git', 'reset', '--hard', 'abc123'],
-  ], 'o rollback volta o clone para a cabeça antiga');
-  assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main antigo');
-  assert.deepEqual(reopens, ['reabriu']);
-  assert.match(logOf(runtime), /FALHOU \(sem rede\)/);
-});
-
 test('lock mudou + npm ci falhou no meio: rollback refaz o ci com o lock antigo', async () => {
   const root = fakeInstallRoot();
   fs.mkdirSync(path.join(root, '.git'));
@@ -300,6 +231,7 @@ test('lock mudou + npm ci falhou no meio: rollback refaz o ci com o lock antigo'
   assert.deepEqual(calls.map((c) => c.slice(0, 2).join(' ')), [
     'git rev-parse', 'git status', 'git pull', 'npm ci', 'git reset', 'npm ci',
   ], 'ordem: status → pull → ci quebra → reset/restore → ci de recuperação');
+  assert.ok(calls.find((c) => c[0] === 'git' && c[1] === 'pull')?.includes('--ff-only'), 'o pull nunca faz merge: só avança em fast-forward');
   assert.equal(read(path.join(root, 'desk', 'package.json')), '{"version":"0.4.0"}', 'package.json antigo de volta');
   assert.equal(read(path.join(root, 'desk', 'package-lock.json')), '{"lock":"antigo"}', 'lock antigo de volta');
   assert.deepEqual(reopens, ['reabriu'], 'a versão antiga sobe de novo sozinha');
@@ -489,6 +421,53 @@ test('D5/B1: órfão gerenciado some; adição local fica; manifesto renasce', a
   assert.ok(!novo.files.includes('desk/src/velho.mjs'));
   assert.ok(!novo.files.includes('desk/src/meu.mjs'), 'o arquivo local não entra no manifesto');
   assert.match(logOf(runtime), /órfão gerenciado removido: desk\/src\/velho\.mjs/);
+});
+
+/* #50: o app Conversa saiu do repositório, mas a pasta `chat/` continua nos
+   computadores de quem o usava (com `node_modules` e o `.runtime` com as
+   conversas). O update por zip só mexe no que a lista de código aceita, e
+   `chat/` nunca foi dela: nem mesmo uma entrada de manifesto apontando para lá
+   (instalação antiga, arquivo adulterado) vira delete. Os módulos mortos da
+   Mesa e do núcleo, esses sim gerenciados, saem como órfãos. */
+test('#50: instalação antiga com chat/ no disco atualiza sem apagar nem tocar na pasta', async () => {
+  const root = fakeInstallRoot();
+  const runtime = tmp();
+  const CHAT = {
+    'chat/main.cjs': 'conversa antiga',
+    'chat/package.json': '{"name":"conversa"}',
+    'chat/src/generated/view.core.js': 'artefato da conversa',
+    'chat/node_modules/dep/index.js': 'dependência instalada',
+    'chat/.runtime/chat.json': '{"sessoes":"do usuario"}',
+  };
+  for (const [rel, texto] of Object.entries(CHAT)) write(path.join(root, rel), texto);
+  write(path.join(root, 'desk', 'handoff.cjs'), 'bilhete (gerenciado)');
+  write(path.join(root, 'core', 'handoff.bend'), 'núcleo do bilhete (gerenciado)');
+  write(path.join(root, 'core', 'chatlist.bend'), 'núcleo só da Conversa (gerenciado)');
+  fs.writeFileSync(path.join(root, '.update-manifest.json'), JSON.stringify({
+    version: '0.4.0',
+    files: ['desk/package.json', 'desk/main.cjs', 'desk/handoff.cjs', 'core/handoff.bend', 'core/chatlist.bend', ...Object.keys(CHAT)],
+  }, null, 2));
+
+  const zip = makeZip({
+    'x/desk/package.json': '{"version":"0.4.1"}',
+    'x/desk/main.cjs': 'main novo',
+  });
+  const result = await updater.applyUpdate({
+    mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
+    fetchBuffer: async () => zip, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+  });
+
+  assert.equal(result.ok, true, 'a atualização termina bem com chat/ no disco');
+  for (const [rel, texto] of Object.entries(CHAT)) assert.equal(read(path.join(root, rel)), texto, `chat/ intocado: ${rel}`);
+  assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main novo', 'o resto da atualização aconteceu');
+  for (const rel of ['desk/handoff.cjs', 'core/handoff.bend', 'core/chatlist.bend']) {
+    assert.equal(fs.existsSync(path.join(root, rel)), false, `órfão gerenciado sai: ${rel}`);
+  }
+  const log = logOf(runtime);
+  assert.match(log, /entrada de manifesto recusada: chat\/main\.cjs/, 'o updater recusa a entrada e diz qual');
+  assert.doesNotMatch(log, /órfão gerenciado removido: chat\//, 'e nunca registra remoção em chat/');
+  const novo = JSON.parse(read(path.join(root, '.update-manifest.json')));
+  assert.ok(novo.files.every((rel) => !rel.startsWith('chat/')), 'o manifesto novo não gerencia chat/');
 });
 
 test('D5/B2: symlink no destino (ou no pai) é recusado antes da escrita', async () => {

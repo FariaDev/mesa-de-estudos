@@ -1,14 +1,17 @@
 import Base
+import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
-# Registro local do "Encerrar por hoje" e o cartão de retomada (Mesa).
+# Registro local do "Encerrar por hoje" e a retomada na coluna do tutor (Mesa).
 #
 # O Encerrar grava LOCAL primeiro: o que o usuário escreveu precisa sobreviver
 # mesmo sem Pi. Este núcleo guarda a forma do registro (o que entra, o que é
 # aparado, o que é recusado) e os textos do cartão. O arquivo, a validação de
 # caminhos contra a biblioteca da matéria, a IPC e o DOM ficam no host
-# (`desk/resume.cjs`, `desk/main.cjs`, `desk/src/resume.mjs`).
+# (`desk/resume.cjs`, `desk/main.cjs`, `desk/src/resume.mjs`). A árvore do
+# bloco da retomada na coluna é do `core/tutorstate.bend`, que monta a casca
+# comum aos estados do tutor com os textos e rótulos daqui.
 #
 # Regras que valem a pena ler antes de mexer:
 #   - sem "onde parei" E "próximo passo" (depois do trim) não há registro: o
@@ -101,95 +104,53 @@ def takePages(+pages: List<&2, ResumePage>) -> List<&2, ResumePage>:
 def record(stopped: String, next: String, exercise: String, xopp: String, pages: List<&2, ResumePage>) -> ResumeRecord:
   ResumeRecord{line(stopped), line(next), line(exercise), pathLine(xopp), takePages(pages)}
 
-# ---------- textos do cartão e da retomada ----------
+# ---------- textos da retomada na coluna ----------
 
-# "Continuar Cálculo I — Lista 2 · 7b"; sem questão, só a matéria.
-def resumeTitle.if(text: String, exercise: String, hasExercise: Bool) -> String:
+# "Da última vez você parou em Lista 2 · 7b: travei na 3"; sem questão, "Da
+# última vez você parou: travei na 3". A questão vai em destaque (`strong`).
+def resumeLeadKids.if(exercise: String, stopped: String, hasExercise: Bool) -> List<&2, V.ViewNode>:
   match hasExercise:
     case True{}:
-      String.append(text, String.append(" — ", exercise))
+      [
+        V.viewText(M.msg("resume.stoppedAt")),
+        V.viewEl("strong", Nil{}, [V.viewText(exercise)]),
+        V.viewText(String.append(": ", stopped))
+      ]
     case False{}:
-      text
+      [V.viewText(M.msg("resume.stoppedPrefix")), V.viewText(stopped)]
 
-def resumeTitle(course: String, +exercise: String) -> String:
-  resumeTitle.if(
-    String.append("Continuar ", String.trim(course)),
+def resumeLeadKids(+exercise: String, stopped: String) -> List<&2, V.ViewNode>:
+  resumeLeadKids.if(
     String.trim(exercise),
+    stopped,
     Bool.not(String.is_empty(String.trim(exercise)))
   )
 
-def resumeWhereLabel(stopped: String) -> String:
-  String.append("Onde parei: ", stopped)
-
 def resumeNextLabel(next: String) -> String:
-  String.append("Próximo passo: ", next)
+  M.msg1("resume.next", "next", next)
 
 def resumeGoLabel() -> String:
-  "Retomar"
+  M.msg("resume.go")
 
 def resumeGoTitle() -> String:
-  "Volta a questão, o .xopp e as páginas do registro e escreve a mensagem no composer"
+  M.msg("resume.goTitle")
 
-def resumeDismissLabel() -> String:
-  "Dispensar"
+def resumeNewLabel() -> String:
+  M.msg("resume.new")
 
-def resumeDismissTitle() -> String:
-  "Descarta o registro de retomada (o que foi escrito fica só no histórico)"
+def resumeNewTitle() -> String:
+  M.msg("resume.newTitle")
+
+def resumeForgetLabel() -> String:
+  M.msg("resume.forget")
+
+def resumeForgetTitle() -> String:
+  M.msg("resume.forgetTitle")
 
 # O que o Encerrar manda ao Pi.
 def endDayDraft(stopped: String, next: String) -> String:
-  String.append(
-    "Encerrar por hoje.\n\nOnde parei: ",
-    String.append(stopped, String.append("\n\nPróximo passo: ", next))
-  )
+  M.msg2("resume.endDayDraft", "stopped", stopped, "next", next)
 
 # O que o Retomar pré-preenche no composer (o usuário envia quando quiser).
 def resumeDraft(stopped: String, next: String) -> String:
-  String.append(
-    "Continuar de onde parei.\n\nOnde parei: ",
-    String.append(stopped, String.append("\n\nPróximo passo: ", next))
-  )
-
-# ---------- cartão ----------
-
-def resumeCardTitleView(text: String) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("resume-card-title")], [V.viewText(text)])
-
-def resumeCardLineView(text: String) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("resume-card-line")], [V.viewText(text)])
-
-def resumeGoAttrs() -> List<&2, V.ViewAttr>:
-  [
-    V.attrType("button"),
-    V.attrClass("resume-go"),
-    V.attrTitle(resumeGoTitle()),
-    V.attrOn("click", "resume")
-  ]
-
-def resumeGoBtn() -> V.ViewNode:
-  V.viewEl("button", resumeGoAttrs(), [V.viewText(resumeGoLabel())])
-
-def resumeDismissAttrs() -> List<&2, V.ViewAttr>:
-  [
-    V.attrType("button"),
-    V.attrClass("resume-dismiss"),
-    V.attrTitle(resumeDismissTitle()),
-    V.attrOn("click", "dismiss")
-  ]
-
-def resumeDismissBtn() -> V.ViewNode:
-  V.viewEl("button", resumeDismissAttrs(), [V.viewText(resumeDismissLabel())])
-
-def resumeCardActions() -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("resume-card-actions")], [resumeGoBtn(), resumeDismissBtn()])
-
-def resumeCardKids(title: String, stopped: String, next: String) -> List<&2, V.ViewNode>:
-  [
-    resumeCardTitleView(title),
-    resumeCardLineView(resumeWhereLabel(stopped)),
-    resumeCardLineView(resumeNextLabel(next)),
-    resumeCardActions()
-  ]
-
-def resumeCardView(title: String, stopped: String, next: String) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("resume-card")], resumeCardKids(title, stopped, next))
+  M.msg2("resume.resumeDraft", "stopped", stopped, "next", next)

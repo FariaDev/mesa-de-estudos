@@ -1,0 +1,25 @@
+/* Áreas da Mesa, na ordem em que estavam no style.css (#43 fase 2). O
+   index.html liga este arquivo logo depois do style.css (tokens e base); a
+   ordem dos @import é a ordem da cascata, então não reordene. As fontes (#61)
+   vêm primeiro; a janela de PDF liga o mesmo fonts.css pelo print.html. */
+@import url('fonts.css');
+@import url('header.css');
+@import url('model-picker.css');
+@import url('readers.css');
+@import url('tutor-chat.css');
+@import url('icon-motion.css');
+@import url('composer.css');
+@import url('calculator.css');
+@import url('notices.css');
+@import url('free-study.css');
+@import url('dialogs.css');
+@import url('motion.css');
+@import url('density.css');
+@import url('settings.css');
+@import url('slash-menu.css');
+@import url('review-notebook.css');
+@import url('support-sidechat.css');
+@import url('conversations-dividers.css');
+@import url('trio.css');
+@import url('first-run.css');
+@import url('help-about.css');

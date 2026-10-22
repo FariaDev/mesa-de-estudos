@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../pdfref.bend as R
 
 # Leis da citação de PDF: o marcador de página depois do nome e a dobra do
@@ -50,6 +51,13 @@ law pdfref_cue_ponto_colado:
 
 law pdfref_cue_pagina:
   {isPage(R.cueFrom(", página 12)"), 12n, 11n) == True{} : Bool}
+
+# A citação também vem em inglês: o tutor responde na língua do aluno (#41).
+law pdfref_cue_page_ingles:
+  {isPage(R.cueFrom(", page 12)"), 12n, 9n) == True{} : Bool}
+
+law pdfref_cue_pg_ingles:
+  {isPage(R.cueFrom(", pg. 3"), 3n, 7n) == True{} : Bool}
 
 law pdfref_cue_pag_abreviado:
   {isPage(R.cueFrom(", pág. 3"), 3n, 8n) == True{} : Bool}
@@ -121,7 +129,7 @@ law pdfref_rotulo:
   {String.eq(R.refLabel("Limites.pdf", 7n), "Limites.pdf, p. 7") == True{} : Bool}
 
 law pdfref_titulo:
-  {String.eq(R.refTitle("Limites.pdf", 7n), "Abrir Limites.pdf na p. 7") == True{} : Bool}
+  {String.eq(R.refTitle("Limites.pdf", 7n), M.msg2("pdf.ref.title", "name", "Limites.pdf", "page", "7")) == True{} : Bool}
 
 law pdfref_aria:
-  {String.eq(R.refAria("Limites.pdf", 7n), "Abrir a página 7 de Limites.pdf") == True{} : Bool}
+  {String.eq(R.refAria("Limites.pdf", 7n), M.msg2("pdf.ref.aria", "page", "7", "name", "Limites.pdf")) == True{} : Bool}

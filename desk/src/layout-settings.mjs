@@ -21,6 +21,11 @@
      slot (label/prefer/toggle) e a UI diz isso em cada nota, sem prometer
      um vazio que o backend não suporta. */
 
+import {t, LANGUAGE_EVENT} from './ui-text.mjs';
+import {invalidValue} from './error-detail.mjs';
+
+/* Os padrões abaixo são os valores que o `normalizeDesk` herda (`config.cjs`):
+   aparecem como dado, no idioma do config, e não passam pelo catálogo. */
 const DEFAULTS = [
  {label:'Enunciado',prefer:['Limites'],toggle:''},
  {label:'Formulário & apoio',prefer:['Formul'],toggle:'Formulário'},
@@ -93,15 +98,15 @@ function preferRow(m, i, value){
   id:`cfg-layout-prefer-${n}-${serial}`,
   class:'cfg-layout-prefer-input',
   value:text(value),
-  placeholder:i === 0 ? 'Ex.: Limites' : 'Ex.: Formul',
-  'aria-label':`Termo ${serial + 1} do leitor ${n}`,
+  placeholder:t('settings.layout.example', {term:DEFAULTS[i].prefer[0]}),
+  'aria-label':t('settings.layout.termAria', {term:serial + 1, reader:n}),
  });
  const remove = make(doc, 'button', {
   type:'button',
   id:`cfg-layout-prefer-remove-${n}-${serial}`,
   class:'cfg-layout-prefer-remove',
-  title:'Remover termo',
-  'aria-label':`Remover o termo ${serial + 1} do leitor ${n}`,
+  title:t('settings.layout.removeTitle'),
+  'aria-label':t('settings.layout.removeAria', {term:serial + 1, reader:n}),
  }, [textNode(doc, '×')]);
  const row = make(doc, 'div', {class:'path-row cfg-layout-prefer-row'}, [input, remove]);
  remove.addEventListener('click', () => {
@@ -137,7 +142,7 @@ function countFieldset(m){
  }));
  const labels = [1, 2].map((n) => make(doc, 'label', {class:'set-check', for:`cfg-layout-count-${n}`}, [
   radios[n - 1],
-  make(doc, 'span', {}, [textNode(doc, n === 1 ? 'Um leitor' : 'Dois leitores')]),
+  make(doc, 'span', {}, [textNode(doc, t(n === 1 ? 'settings.layout.single' : 'settings.layout.double'))]),
  ]));
  m.count = radios;
  for(const radio of radios)radio.addEventListener('change', () => {
@@ -145,10 +150,10 @@ function countFieldset(m){
   updatePreview();
  });
  return make(doc, 'fieldset', {class:'set-sec cfg-layout-readers'}, [
-  legend(doc, 'Leitores de PDF'),
+  legend(doc, t('settings.layout.legend')),
   ...labels,
   make(doc, 'p', {class:'fine'}, [
-   textNode(doc, 'Cada leitor abre um PDF da matéria. Com um leitor, o segundo painel e o botão que o recolhe não aparecem.'),
+   textNode(doc, t('settings.layout.countNote')),
   ]),
  ]);
 }
@@ -168,24 +173,24 @@ function panelFieldset(m, i){
   type:'button',
   id:`cfg-layout-prefer-add-${n}`,
   class:'cfg-layout-prefer-add',
- }, [textNode(doc, 'Adicionar termo')]);
+ }, [textNode(doc, t('settings.layout.addTerm'))]);
  add.addEventListener('click', () => {
   preferRow(m, i, '');
   updatePreview();
  });
  const kids = [
-  legend(doc, `Leitor ${n}`),
-  make(doc, 'label', {for:`cfg-layout-label-${n}`}, [textNode(doc, 'Nome do leitor')]),
+  legend(doc, t('settings.layout.reader', {n})),
+  make(doc, 'label', {for:`cfg-layout-label-${n}`}, [textNode(doc, t('settings.layout.nameLabel'))]),
   labelInput,
   make(doc, 'p', {class:'fine', id:`cfg-layout-note-${n}`}, [
-   textNode(doc, `Vazio herda o padrão: ${DEFAULTS[i].label}.`),
+   textNode(doc, t('settings.layout.inheritNote', {default:DEFAULTS[i].label})),
   ]),
   make(doc, 'div', {class:'cfg-layout-prefer', role:'group', 'aria-labelledby':preferTitleId}, [
-   make(doc, 'span', {class:'cfg-layout-prefer-title', id:preferTitleId}, [textNode(doc, 'Termos do PDF inicial')]),
+   make(doc, 'span', {class:'cfg-layout-prefer-title', id:preferTitleId}, [textNode(doc, t('settings.layout.termsTitle'))]),
    preferList,
    add,
    make(doc, 'p', {class:'fine', id:`cfg-layout-prefer-hint-${n}`}, [
-    textNode(doc, `Trechos do nome do arquivo (o acento não importa). Sem termos, herda o padrão: ${DEFAULTS[i].prefer[0]}.`),
+    textNode(doc, t('settings.layout.termsHint', {default:DEFAULTS[i].prefer[0]})),
    ]),
   ]),
  ];
@@ -198,10 +203,10 @@ function panelFieldset(m, i){
   });
   m.toggle = toggleInput;
   kids.push(
-   make(doc, 'label', {for:'cfg-layout-toggle-2'}, [textNode(doc, 'Texto do botão que recolhe o 2º painel')]),
+   make(doc, 'label', {for:'cfg-layout-toggle-2'}, [textNode(doc, t('settings.layout.toggleLabel'))]),
    toggleInput,
    make(doc, 'p', {class:'fine', id:'cfg-layout-toggle-hint'}, [
-    textNode(doc, `Vazio herda o padrão: ${DEFAULTS[1].toggle}.`),
+    textNode(doc, t('settings.layout.inheritNote', {default:DEFAULTS[1].toggle})),
    ])
   );
  }
@@ -268,7 +273,7 @@ function updatePreview(){
   if(!on)continue;
   m.previewLabel[i].textContent = text(m.label[i]?.value).trim() || DEFAULTS[i].label;
   const term = m.rows[i].map((input) => text(input.value).trim()).find(Boolean);
-  m.previewPrefer[i].textContent = term || `padrão: ${DEFAULTS[i].prefer[0]}`;
+  m.previewPrefer[i].textContent = term || t('settings.layout.previewDefault', {term:DEFAULTS[i].prefer[0]});
  }
  if(m.previewToggle)m.previewToggle.textContent = text(m.toggle?.value).trim() || DEFAULTS[1].toggle;
 }
@@ -276,7 +281,7 @@ function updatePreview(){
 /* ---------- contrato do host ---------- */
 
 export function mountLayoutSettings(container){
- if(!container || typeof container.appendChild !== 'function')throw new TypeError('mountLayoutSettings(container): contêiner inválido');
+ if(!container || typeof container.appendChild !== 'function')throw new TypeError(invalidValue('mountLayoutSettings(container)', container, 'elemento com appendChild'));
  if(mounted && mounted.container === container)return container;
  const doc = container.ownerDocument || globalThis.document;
  if(!doc || typeof doc.createElement !== 'function')throw new Error('mountLayoutSettings: documento indisponível');
@@ -297,6 +302,33 @@ export function mountLayoutSettings(container){
  updatePreview();
  return container;
 }
+
+/* Trocar o idioma refaz o editor no idioma novo, levando junto o que já foi
+   digitado (a mesma ideia do 2→1→2: o não salvo não se perde). */
+function relabelLayoutSettings(){
+ if(!mounted)return;
+ const m = mounted;
+ const typed = {
+  two:!!m.count[1]?.checked,
+  labels:m.label.map((input) => input.value),
+  prefer:m.rows.map((inputs) => inputs.map((input) => input.value)),
+  toggle:m.toggle.value,
+ };
+ mounted = null;
+ m.root.remove?.();
+ mountLayoutSettings(m.container);
+ const next = mounted;
+ next.count[0].checked = !typed.two;
+ next.count[1].checked = typed.two;
+ for(let i = 0;i < MAX_PANELS;i++){
+  next.label[i].value = typed.labels[i];
+  setPrefer(next, i, typed.prefer[i]);
+ }
+ next.toggle.value = typed.toggle;
+ applyCount();
+ updatePreview();
+}
+globalThis.window?.addEventListener?.(LANGUAGE_EVENT, relabelLayoutSettings);
 
 export function fillLayoutSettings(desk){
  const m = requireMount();

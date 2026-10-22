@@ -1,4 +1,5 @@
 import Base
+import msg.bend as M
 import ./search.bend as S
 
 # ---------------------------------------------------------------------------
@@ -47,10 +48,10 @@ def refLabel(name: String, page: Nat) -> String:
   name ++ ", p. " ++ Nat.show(page)
 
 def refTitle(name: String, page: Nat) -> String:
-  "Abrir " ++ name ++ " na p. " ++ Nat.show(page)
+  M.msg2("pdf.ref.title", "name", name, "page", Nat.show(page))
 
 def refAria(name: String, page: Nat) -> String:
-  "Abrir a página " ++ Nat.show(page) ++ " de " ++ name
+  M.msg2("pdf.ref.aria", "page", Nat.show(page), "name", name)
 
 # ---------- nome: dobra contra a biblioteca ----------
 
@@ -109,7 +110,7 @@ def knownName(candidate: String, names: List<&2, String>) -> Maybe<&2, String>:
 # Marcadores aceitos, do mais longo para o mais curto. O host só dá o texto
 # depois do nome; aqui a ordem decide ("página 7" antes de "p. 7").
 def cueMarkers() -> List<&2, String>:
-  ["página ", "pág. ", "pág ", "#page=", "p. ", "p.", "p "]
+  ["página ", "page ", "pág. ", "pág ", "pg. ", "pg ", "#page=", "p. ", "p.", "p "]
 
 # Separadores que podem vir antes do marcador (", p. 7", "; p. 7", " p. 7").
 def isSeparator(+c: Char) -> Bool:

@@ -24,6 +24,10 @@ let visible=false;
 let frame=0;
 let started=false;
 let pressed=false;
+/* Alvos cujo texto veio de um `title` (guardado em dataset.tip pelo `arm`). Quem já
+   nasce com `data-tip` (o indicador do tutor, do núcleo) não ganha `title` na volta:
+   ele ficaria parado no idioma de antes da troca (#41 fase 3). */
+const tipFromTitle=new WeakSet();
 
 /* Aplica a árvore do Bend no balão vivo sem trocar a identidade: os estilos
    inline de posição (left/top/bottom/--tip-arrow) são do host e sobrevivem. */
@@ -109,7 +113,8 @@ function hide(){
 }
 
 function restoreTitle(el){
- if(!el)return;
+ if(!el||!tipFromTitle.has(el))return;
+ tipFromTitle.delete(el);
  if(el.isConnected&&!el.hasAttribute('title'))el.setAttribute('title',el.dataset.tip||'');
  delete el.dataset.tip;
 }
@@ -125,8 +130,11 @@ function reset(){
 function arm(el,instant){
  clearTimeout(timer);
  target=el;
- if(!el.dataset.tip)el.dataset.tip=el.getAttribute('title')||el.dataset.tip||'';
- el.removeAttribute('title');
+ if(el.hasAttribute('title')){
+  tipFromTitle.add(el);
+  el.dataset.tip=el.getAttribute('title')||el.dataset.tip||'';
+  el.removeAttribute('title');
+ }
  if(instant)show();
  else timer=setTimeout(show,DELAY);
 }
@@ -141,10 +149,18 @@ function switchTo(el){
  arm(el,keep);
 }
 
+/* Alvo arrancado do DOM (re-render do menu no meio do hover): nenhum
+   `pointerout`/`focusout` chega a um nó morto, então o balão ficaria preso e o
+   guarda do `pointerover` abaixo o segurava. Qualquer evento seguinte limpa. */
+function dropDetached(){
+ if(target&&!target.isConnected)reset();
+}
+
 function onEnter(e){
  if(pressed)return;
  const node=e.target;
  if(!(node instanceof Element))return;
+ dropDetached();
  const el=targetOf(node);
  if(el===target)return;
  /* `pointerover` num elemento sem tip não derruba o balão armado pelo foco: o
@@ -155,6 +171,7 @@ function onEnter(e){
 }
 
 function onLeave(e){
+ dropDetached();
  if(!target)return;
  /* Um `pointerout` de OUTRO elemento (o ponteiro saiu de um alvo antigo depois
     de o foco armar o balão atual) não pode derrubar o balão em uso: só o leave

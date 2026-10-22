@@ -20,6 +20,7 @@ import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
+import {ptMatches} from './pt-text.mjs';
 
 const require = createRequire(import.meta.url);
 const bookmarks = require('../bookmarks.cjs');
@@ -53,8 +54,8 @@ test('guardar apara o nome, corta o path e levanta a página para 1', () => {
 
 test('sem nome ou sem documento o favorito é recusado (nada é gravado)', () => {
   withRuntime((runtime) => {
-    assert.throws(() => bookmarks.addBookmark(runtime, 'A', {name: '   ', path: '/p/Limites.pdf', page: 3}), /Dê um nome/);
-    assert.throws(() => bookmarks.addBookmark(runtime, 'A', {name: 'Revisão', path: '', page: 3}), /Dê um nome/);
+    assert.throws(() => bookmarks.addBookmark(runtime, 'A', {name: '   ', path: '/p/Limites.pdf', page: 3}), ptMatches(/Dê um nome/));
+    assert.throws(() => bookmarks.addBookmark(runtime, 'A', {name: 'Revisão', path: '', page: 3}), ptMatches(/Dê um nome/));
     assert.equal(existsSync(fileOf(runtime)), false);
   });
 });
@@ -108,7 +109,7 @@ test('remover o último apaga a chave da matéria (e a lista vazia não volta)',
 
 test('sem matéria ativa não há onde guardar', () => {
   withRuntime((runtime) => {
-    assert.throws(() => bookmarks.saveBookmarks(runtime, '', []), /Sem matéria ativa/);
+    assert.throws(() => bookmarks.saveBookmarks(runtime, '', []), ptMatches(/Sem matéria ativa/));
   });
 });
 

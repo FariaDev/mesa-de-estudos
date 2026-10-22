@@ -21,9 +21,9 @@ await withArtifacts('claude-recovery',async ctx=>{
  const health=await page.evaluate(()=>window.desk.health());
  assert.equal(health.engine,'claude');assert.equal(Object.hasOwn(health,'messages'),false,'health IPC omits the image/history payload');
  const controlsRefused=await page.evaluate(async()=>{try{await window.desk.settings({model:{provider:'anthropic',id:'claude-fake'},level:'max'});return '';}catch(error){return error.message;}});
- assert.match(controlsRefused,/incerta/,'persisted uncertainty locks settings after reopening');
- assert.equal(await page.locator('#model-select').isDisabled(),true);
- assert.equal(await page.locator('#thinking-select').isDisabled(),true);
+ assert.match(controlsRefused,/err\.model\.uncertain/,'persisted uncertainty locks settings after reopening');
+ assert.equal(await page.locator('#model-list').getAttribute('aria-disabled'),'true','o seletor de modelo fica travado');
+ assert.equal(await page.locator('#effort-strip').getAttribute('aria-disabled'),'true','a faixa de esforço também');
  const declined=await page.evaluate(()=>window.desk.prompt({text:'Do not retry',refs:[]}));
  assert.equal(declined.sent,false);assert.equal(declined.retryable,false);
  assert.equal(conversations.readClaudeConversation(file,{runtime}).delivery.status,'uncertain');

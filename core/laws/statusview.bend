@@ -1,4 +1,5 @@
 import Base
+import ../msg.bend as M
 import ../view.bend as V
 import ../statusview.bend as SV
 
@@ -69,15 +70,15 @@ law statusview_foot_no_title:
   {V.attrGet(V.attrsOf(SV.footStatus("Pi", "", "", "", "")), "title") == None{} : Maybe<&2, String>}
 
 law statusview_foot_aria_fallback:
-  {V.attrGet(V.attrsOf(SV.footStatus("", "", "", "", "")), "aria-label") == Some{"Status do modelo"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(SV.footStatus("", "", "", "", "")), "aria-label") == Some{M.msg("status.model")} : Maybe<&2, String>}
 
 # ---------- medidor ----------
 
 law statusview_meter_text:
   {SV.meterText(42n) == "42%" : String}
 
-law statusview_meter_width:
-  {SV.meterWidth(42n) == "width:42%" : String}
+law statusview_meter_fill:
+  {SV.meterFill(42n) == "--meter:42%" : String}
 
 law statusview_meter_warn:
   {SV.meterWarn(60n) == True{} : Bool}
@@ -109,7 +110,7 @@ law statusview_meter_no_class:
 
 law statusview_meter_kids:
   {V.kidsOf(SV.ctxMeter(True{}, 42n)) == [
-      V.viewEl("span", [V.attrClass("bar")], [V.viewEl("i", [V.ViewAttr{"style", "width:42%"}], Nil{})]),
+      V.viewEl("span", [V.attrClass("bar")], [V.viewEl("i", [V.ViewAttr{"style", "--meter:42%"}], Nil{})]),
       V.viewEl("em", Nil{}, [V.viewText("42%")])
     ] : List<&2, V.ViewNode>}
 
@@ -146,13 +147,13 @@ law statusview_dot_error:
   {V.attrGet(V.attrsOf(SV.statusDot(SV.ConnError{}, "Falha")), "class") == Some{"error"} : Maybe<&2, String>}
 
 law statusview_dot_off:
-  {V.attrGet(V.attrsOf(SV.statusDot(SV.ConnOff{}, "Pi desconectado")), "class") == Some{""} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(SV.statusDot(SV.ConnOff{}, M.msg("status.piOff"))), "class") == Some{""} : Maybe<&2, String>}
 
 law statusview_dot_tip:
   {V.attrGet(V.attrsOf(SV.statusDot(SV.ConnOnline{}, "Pi conectado")), "data-tip") == Some{"Pi conectado"} : Maybe<&2, String>}
 
 law statusview_dot_aria:
-  {V.attrGet(V.attrsOf(SV.statusDot(SV.ConnOff{}, "")), "aria-label") == Some{"Pi desconectado"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(SV.statusDot(SV.ConnOff{}, "")), "aria-label") == Some{M.msg("status.piOff")} : Maybe<&2, String>}
 
 # ---------- compactação automática ----------
 

@@ -2,7 +2,7 @@
  *
  * Módulo PURO: não importa o SDK, não faz I/O, não cria timer, não abre rede e
  * NUNCA inicia consulta/inferência. Ele só transforma dados que o host já tem:
- * o catálogo nativo do SDK pinado (@anthropic-ai/claude-agent-sdk 0.3.246,
+ * o catálogo nativo do SDK pinado (@anthropic-ai/claude-agent-sdk 0.3.301,
  * `Query.supportedModels()` → `ModelInfo[]`, ou
  * `Query.initializationResult()` → `SDKControlInitializeResponse.models`),
  * mais a escolha do usuário persistida no descritor da conversa.
@@ -34,7 +34,7 @@
  */
 'use strict';
 
-/* União exata de `EffortLevel`/`ModelInfo.supportedEffortLevels` no SDK 0.3.246. */
+/* União exata de `EffortLevel`/`ModelInfo.supportedEffortLevels` no SDK 0.3.301. */
 const EFFORT_LEVELS = Object.freeze(['low', 'medium', 'high', 'xhigh', 'max']);
 
 const MAX_MODELS = 200;
@@ -67,7 +67,7 @@ const SWITCH_REASONS = Object.freeze({
   PERMISSION: 'permission_pending',
 });
 
-const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const {isPlainObject} = require('../../plain-object.cjs');
 
 function safeText(value, max) {
   return typeof value === 'string' && value.length > 0 && value.length <= max ? value : null;
@@ -100,6 +100,9 @@ function accountFirstParty(account) {
 const ROUTER_PREFIX_RE = /^(?:bedrock|vertex|foundry|mantle|gateway|anthropicaws|anthropicgooglecloud)(?:[.:/_-]|$)/i;
 const ROUTER_CLOUD_RE = /^(?:arn:|projects\/|(?:us|eu|apac|global)\.anthropic)/i;
 
+/* Alias nativo do SDK para "o modelo recomendado". */
+const NATIVE_DEFAULT = 'default';
+
 function looksLikeRouterModelId(value) {
   if (typeof value !== 'string') return false;
   const clean = value.trim();
@@ -108,7 +111,7 @@ function looksLikeRouterModelId(value) {
   return ROUTER_PREFIX_RE.test(clean) || ROUTER_CLOUD_RE.test(clean);
 }
 
-/* Uma linha de `ModelInfo` (SDK 0.3.246) validada e limitada. Campos fora da
+/* Uma linha de `ModelInfo` (SDK 0.3.301) validada e limitada. Campos fora da
    união nativa viram `false`/vazio — nunca "provavelmente suportado". */
 function sanitizeModel(raw) {
   if (!isPlainObject(raw)) return null;
@@ -199,7 +202,10 @@ function resolveCatalogEntry(catalog, value) {
   const models = catalog.models;
   const exact = models.find((model) => model.value === wanted);
   if (exact) return exact;
-  const canonical = models.find((model) => model.resolvedModel === wanted);
+  /* O modelo observado no stream casa primeiro com a linha do próprio modelo
+     ("Opus"), não com o alias "default" que aponta para ele. */
+  const canonical = models.find((model) => model.resolvedModel === wanted && model.value !== NATIVE_DEFAULT)
+    ?? models.find((model) => model.resolvedModel === wanted);
   if (canonical) return canonical;
   const lower = wanted.toLowerCase();
   return models.find((model) => model.value.toLowerCase() === lower)
@@ -339,9 +345,12 @@ function canSwitchSelection(facts = {}) {
    (`{provider, id, name}`); provider 'anthropic' é o rótulo exibido. */
 function modelsForSelector(catalog, {firstPartyOnly = true} = {}) {
   if (!catalog || catalog.ok !== true) return [];
-  const models = firstPartyOnly === false
+  const models = (firstPartyOnly === false
     ? catalog.models
-    : catalog.models.filter((model) => !model.routerSuspected);
+    : catalog.models.filter((model) => !model.routerSuspected))
+    /* A linha nativa "Default (recommended)" repete a entrada reservada
+       "Padrão do Claude Code" (id ''): as duas deixam o Claude Code escolher. */
+    .filter((model) => model.value !== NATIVE_DEFAULT);
   return models.map((model) => Object.freeze({
     provider: 'anthropic',
     id: model.value,

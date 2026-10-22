@@ -1,0 +1,6 @@
+npm test rc=0 67s
+verify:bend rc=0 18s
+ui rc=1 576s
+hunts rc=1 360s
+test:claude-ui rc=0 33s
+DONE

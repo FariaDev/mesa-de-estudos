@@ -4,7 +4,7 @@
    `build:bend` + `test:proof` + `test:parity`. O que entra:
 
    - `core/**`: o núcleo Bend, as leis, as provas e os scripts dos três passos;
-   - os artefatos gerados dos dois apps (`desk/src/generated`, `chat/src/generated`);
+   - os artefatos gerados (`desk/src/generated`);
    - o runner de paridade (`tests/parity.mjs`), cada verificador
      (`tests/*-parity.mjs` — a MESMA varredura que o runner faz) e tudo o que
      eles importam por caminho relativo: é aí que ficam os hosts comparados
@@ -12,7 +12,7 @@
      mexer num deles muda o veredito da paridade sem tocar em `core/**`;
    - o `package.json`, que define os três passos.
 
-   Fica de fora de propósito o resto de `desk/` e `chat/` (app, testes de
+   Fica de fora de propósito o resto de `desk/` (app, testes de
    comportamento, estilo): quem cobre isso é `npm test`, que roda sempre.
 
    O que a varredura NÃO enxerga: dependência resolvida em tempo de execução
@@ -84,7 +84,7 @@ function withImports(file, out, root) {
    regra, senão um verificador novo entra no portão sem invalidar o cache. */
 export function parityEntries(desk) {
   const tests = path.join(desk, 'tests');
-  let names = [];
+  let names;
   try {
     names = fs.readdirSync(tests);
   } catch {
@@ -99,7 +99,6 @@ export function gateFiles({root, desk}) {
   const files = new Set([
     ...walk(path.join(root, 'core')),
     ...walk(path.join(desk, 'src', 'generated')),
-    ...walk(path.join(root, 'chat', 'src', 'generated')),
   ]);
   for (const entry of parityEntries(desk)) withImports(entry, files, root);
   const pkg = path.join(desk, 'package.json');

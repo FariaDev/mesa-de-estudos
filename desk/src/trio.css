@@ -1,0 +1,90 @@
+/* O trio ∫ Σ ∇ (#64, desenho em src/trio-art.mjs, componente em
+   src/mascote.mjs). Movimento só com os tokens da #63
+   (docs/design/movimento.md): laços em --t-loop e uma vez em --t-slow. Com
+   movimento reduzido os dois viram 0s e cada um fica parado no quadro de
+   descanso do humor (olho aberto, pose do humor, sem pulo). */
+
+.mascote:is(.mascote-integral,.mascote-sigma,.mascote-nabla){
+ display:block;width:var(--fo-size,240px);height:calc(var(--fo-size,240px) * 26 / 24);
+ margin:0;padding:0;border:0;background:transparent;box-shadow:none;color:#1a1033;
+}
+.mascote.mascote-interativa{cursor:pointer}
+.mascote:is(.mascote-integral,.mascote-sigma,.mascote-nabla) svg{display:block;width:100%;height:100%;overflow:visible}
+.mascote :is(.tr-z){font-family:var(--serif,serif);font-style:italic;fill:#3f2a9e}
+.mascote .tr-z1{font-size:26px}
+.mascote .tr-z2{font-size:18px}
+
+/* Pontos de giro em unidades do desenho. */
+.mascote :is(.mascote-tilt,.mascote-jump,.tr-breathe,.mascote-look,.tr-scan,.tr-lid,.tr-pencil,.tr-arm-left,.tr-bang,.tr-check,.tr-question,.tr-z1,.tr-z2,.tr-spark,.tr-book){transform-box:view-box}
+.mascote .mascote-tilt{transform-origin:122px 238px;transition:transform var(--t-slow) var(--ease-move)}
+.mascote :is(.mascote-jump,.tr-breathe){transform-origin:122px 238px}
+.mascote .mascote-look{transition:transform var(--t-fast) var(--ease-move)}
+.mascote-integral .tr-arm-left{transform-origin:98px 132px}
+.mascote-sigma .tr-arm-left{transform-origin:80px 104px}
+.mascote-nabla .tr-arm-left{transform-origin:52px 94px}
+.mascote .tr-check{transform-origin:200px 34px}
+
+/* ---------- o que aparece por humor ---------- */
+.mascote :is(.tr-pose,.tr-eyes-happy,.tr-eyes-closed,.tr-brow-worried,.tr-brow-alert,.tr-mouth-smile,.tr-mouth-big,.tr-mouth-hmm,.tr-mouth-worried,.tr-mouth-o,.tr-question,.tr-check,.tr-z,.tr-book){display:none}
+.mascote .tr-pose-descanso,
+.mascote[data-humor="feliz"] .tr-pose-festa,
+.mascote[data-humor="pensando"] .tr-pose-pensando,
+.mascote[data-humor="atento"] .tr-pose-dica,
+.mascote[data-humor="escrevendo"] .tr-pose-escrevendo{display:inline}
+.mascote:is([data-humor="feliz"],[data-humor="pensando"],[data-humor="atento"],[data-humor="escrevendo"]) .tr-pose-descanso{display:none}
+.mascote[data-humor="feliz"] .tr-eyes-happy,
+.mascote[data-humor="sono"] .tr-eyes-closed{display:inline}
+.mascote:is([data-humor="feliz"],[data-humor="sono"]) .tr-eyes-open{display:none}
+.mascote:is([data-humor="normal"],[data-humor="lendo"],[data-humor="escrevendo"]) .tr-mouth-smile{display:inline}
+.mascote[data-humor="feliz"] :is(.tr-mouth-big,.tr-check){display:inline}
+.mascote:is([data-humor="pensando"],[data-humor="sono"]) .tr-mouth-hmm{display:inline}
+.mascote[data-humor="pensando"] .tr-question{display:inline}
+.mascote[data-humor="aflita"] :is(.tr-mouth-worried,.tr-brow-worried){display:inline}
+.mascote[data-humor="atento"] :is(.tr-mouth-o,.tr-brow-alert){display:inline}
+.mascote[data-humor="sono"] .tr-z{display:inline}
+/* A ∫ lê com um livrinho; o Σ mostra o ✓ da soma quando conta um passo. */
+.mascote-integral[data-humor="lendo"] .tr-book{display:inline}
+.mascote-sigma.mascote-tallying .tr-check{display:inline}
+
+/* ---------- laços ---------- */
+.mascote.mascote-floating .tr-breathe{animation:tr-breathe calc(var(--t-loop) * 3.5) var(--ease-move) infinite}
+.mascote .tr-lid{opacity:0;animation:tr-blink calc(var(--t-loop) * 4) var(--ease-move) infinite}
+/* Cada um pisca no seu tempo: o trio junto não parece um boneco só. */
+.mascote-sigma .tr-lid{animation-delay:calc(var(--t-loop) * 1.3)}
+.mascote-nabla .tr-lid{animation-delay:calc(var(--t-loop) * 2.6)}
+.mascote[data-humor="lendo"] .tr-scan{animation:tr-read calc(var(--t-loop) * 3) var(--ease-move) infinite}
+.mascote[data-humor="escrevendo"] .tr-pose-escrevendo .tr-pencil{animation:tr-scribble calc(var(--t-loop) / 2) var(--ease-move) infinite}
+.mascote.mascote-waving .tr-pose-descanso .tr-arm-left{animation:tr-wave calc(var(--t-loop) * 8 / 3) var(--ease-move) infinite}
+.mascote[data-humor="atento"] .tr-bang{animation:tr-bang calc(var(--t-loop) * 3 / 4) var(--ease-move) infinite}
+.mascote[data-humor="pensando"] .tr-question{animation:tr-bang calc(var(--t-loop) * 2) var(--ease-move) infinite}
+.mascote[data-humor="sono"] .tr-z1{animation:tr-z calc(var(--t-loop) * 13 / 6) var(--ease-move) infinite}
+.mascote[data-humor="sono"] .tr-z2{animation:tr-z calc(var(--t-loop) * 13 / 6) var(--ease-move) calc(var(--t-loop) * 13 / 12) infinite}
+.mascote[data-humor="aflita"] .mascote-jump{animation:tr-shake calc(var(--t-loop) / 2) var(--ease-move) infinite}
+.mascote.mascote-party .tr-pose-festa{animation:tr-cheer calc(var(--t-loop) / 2) var(--ease-move) infinite}
+
+/* ---------- uma vez: pulo, soma, faíscas e a reação ao passar o mouse ---------- */
+.mascote .mascote-jump.mascote-jumping{animation:tr-jump calc(var(--t-slow) * 2.4) var(--ease-out)}
+.mascote-sigma.mascote-tallying .tr-check{animation:tr-tally calc(var(--t-slow) * 2) var(--ease-out) both}
+.mascote .tr-spark{opacity:0;fill:#6d4fd8}
+.mascote .tr-spark-amber{fill:#e8862a}
+.mascote .mascote-sparks.mascote-bursting .tr-spark{animation:tr-spark calc(var(--t-slow) * 3) var(--ease-out) both}
+/* Cada um reage do seu jeito: a ∫ balança, o Σ dá um pulinho, o ∇ inclina curioso. */
+.mascote-interativa.mascote-integral:hover .tr-breathe{animation:tr-sway calc(var(--t-slow) * 2) var(--ease-move)}
+.mascote-interativa.mascote-sigma:hover .tr-breathe{animation:tr-hop calc(var(--t-slow) * 1.5) var(--ease-out)}
+.mascote-interativa.mascote-nabla:hover .tr-breathe{animation:tr-peek calc(var(--t-slow) * 2) var(--ease-move)}
+
+@keyframes tr-breathe{50%{transform:translateY(-3px)}}
+@keyframes tr-blink{0%,46%,54%,100%{opacity:0}48%,52%{opacity:1}}
+@keyframes tr-read{0%,100%{transform:translate(-6px,2px)}30%,38%{transform:translate(5px,2px)}50%{transform:translate(-6px,6px)}80%,88%{transform:translate(5px,6px)}}
+@keyframes tr-scribble{0%,100%{transform:none}25%{transform:rotate(-8deg)}50%{transform:rotate(3deg)}75%{transform:rotate(-6deg)}}
+@keyframes tr-wave{0%,60%,100%{transform:none}15%,45%{transform:rotate(18deg)}30%{transform:rotate(-4deg)}}
+@keyframes tr-bang{50%{transform:translateY(-5px)}}
+@keyframes tr-z{0%{opacity:0;transform:none}50%{opacity:1}100%{opacity:0;transform:translate(10px,-24px)}}
+@keyframes tr-shake{0%,100%{transform:none}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+@keyframes tr-cheer{50%{transform:translateY(-4px)}}
+@keyframes tr-jump{32%{transform:translateY(-20px)}60%{transform:none}80%{transform:translateY(-6px)}100%{transform:none}}
+@keyframes tr-tally{0%{opacity:0;transform:scale(.4)}45%{opacity:1;transform:scale(1.15)}100%{opacity:1;transform:none}}
+@keyframes tr-spark{0%{opacity:0;transform:translate(120px,70px)}10%{opacity:1}60%{opacity:1}100%{opacity:0;transform:translate(var(--fx),var(--fy))}}
+@keyframes tr-sway{30%{transform:rotate(-5deg)}70%{transform:rotate(4deg)}}
+@keyframes tr-hop{40%{transform:translateY(-10px)}}
+@keyframes tr-peek{40%{transform:rotate(-8deg)}}

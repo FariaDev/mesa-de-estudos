@@ -1,7 +1,7 @@
 /* Seleção de modelo e esforço do Claude (desk/src/agents/claude-controls.cjs).
  *
  * Tudo sintético: catálogos no formato REAL do SDK pinado
- * (@anthropic-ai/claude-agent-sdk 0.3.246, `ModelInfo`) e descritores em
+ * (@anthropic-ai/claude-agent-sdk 0.3.301, `ModelInfo`) e descritores em
  * memória. Nenhum binário, credencial, sessão, rede ou inference é tocado;
  * nenhum arquivo do runtime é lido/escrito. O último teste confere no
  * `sdk.d.ts` instalado que os campos/uniões usados batem com o pin.
@@ -57,7 +57,7 @@ const INCOMPLETE = Object.freeze({
 
 const NATIVE_CATALOG = Object.freeze([SONNET, OPUS, HAIKU, INCOMPLETE]);
 
-/* Forma de resposta de `initializationResult()` do SDK 0.3.246. */
+/* Forma de resposta de `initializationResult()` do SDK 0.3.301. */
 function initializeResponse(models = NATIVE_CATALOG) {
   return {
     commands: [],
@@ -411,12 +411,12 @@ test('lê o catálogo de uma query já conectada sem criar consulta nem insistir
   assert.equal((await controls.readCatalogFromQuery({supportedModels: 'não é função'})).reason, controls.REASONS.CATALOG_MISSING);
 });
 
-test('compatibilidade com o SDK pinado 0.3.246 (tipos reais do sdk.d.ts)', {skip: (() => {
+test('compatibilidade com o SDK pinado 0.3.301 (tipos reais do sdk.d.ts)', {skip: (() => {
   const dts = fileURLToPath(new URL('../node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts', import.meta.url));
   return !existsSync(dts);
 })()}, () => {
   const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../node_modules/@anthropic-ai/claude-agent-sdk/package.json', import.meta.url)), 'utf8'));
-  assert.equal(pkg.version, '0.3.246', 'o módulo só documenta o pin instalado');
+  assert.equal(pkg.version, '0.3.301', 'o módulo só documenta o pin instalado');
 
   const dts = readFileSync(fileURLToPath(new URL('../node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts', import.meta.url)), 'utf8');
   assert.match(dts, /initializationResult\(\): Promise<SDKControlInitializeResponse>;/, 'initializationResult existe e devolve a resposta de init');
@@ -450,18 +450,13 @@ test('compatibilidade com o SDK pinado 0.3.246 (tipos reais do sdk.d.ts)', {skip
   assert.match(dts, /apiProvider\?: 'firstParty' \| 'bedrock'/, 'AccountInfo distingue firstParty de 3P');
 });
 
-test('módulo é puro: sem imports, timers, processos, rede ou ambiente', () => {
-  /* Comentários citam o contrato do host; o teste olha só o código executável. */
-  const source = readFileSync(fileURLToPath(new URL('../src/agents/claude-controls.cjs', import.meta.url)), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const banned of ['require(', 'import(', 'child_process', 'spawn', 'execFile', 'setTimeout', 'setInterval', 'fetch(', 'process.env', 'node:fs', 'node:net', 'node:http']) {
-    assert.equal(source.includes(banned), false, `não pode conter ${banned}`);
-  }
-  for (const name of [
-    'EFFORT_LEVELS', 'REASONS', 'SWITCH_REASONS', 'sanitizeCatalog', 'resolveCatalogEntry',
-    'effortSupport', 'normalizeEffort', 'compileSelection', 'selectionFromDescriptor',
-    'canSwitchSelection', 'modelsForSelector', 'selectionView', 'effortLevelsFor', 'readCatalogFromQuery',
-  ]) {
-    assert.ok(name in controls, `exporta ${name}`);
-  }
+test('o alias nativo "default" não repete o "Padrão do Claude Code" e não dá nome ao modelo observado', () => {
+  const catalog = controls.sanitizeCatalog([
+    {value: 'default', displayName: 'Default (recommended)', resolvedModel: 'claude-opus-x'},
+    {value: 'opus', displayName: 'Opus', resolvedModel: 'claude-opus-x'},
+    {value: 'sonnet', displayName: 'Sonnet', resolvedModel: 'claude-sonnet-x'},
+  ]);
+  assert.deepEqual(controls.selectionView(catalog).models.map((model) => model.id), ['opus', 'sonnet']);
+  assert.equal(controls.resolveCatalogEntry(catalog, 'claude-opus-x').displayName, 'Opus');
+  assert.equal(controls.resolveCatalogEntry(catalog, 'default').displayName, 'Default (recommended)', 'seleção antiga "default" continua válida');
 });

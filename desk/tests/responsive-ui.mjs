@@ -1,28 +1,35 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,tinyPdf,statusOnline,toastWait,DESK} from './helpers.mjs';
+import {artifactDir,withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,tinyPdf,statusOnline,setTheme,freezeMotion,collapseSupport,showForm,resizeWindow} from './helpers.mjs';
+import {measure,assertLayout,settle} from './layout-measure.mjs';
+import {layoutStable} from './waits.mjs';
 
 /* QA responsivo real (finding R2 8): janela 900×650 (mínima do app) com 1 e 2
    leitores, Formulário/Chat lateral, recolhido e Ajustes abertos/fechados.
-   Mede bounding rect dos controles principais e o overflow do documento; as
-   capturas claro/escuro saem com animações desligadas (estáveis) em
-   desk/tests/artifacts/r2-ui-<stamp>/ (fora do runtime, não são apagadas). */
+   Mede bounding rect dos controles principais e o overflow do documento, e
+   cobra em cada estado as regras de layout do redesenho (`layout-measure.mjs`:
+   painéis colados, barras de 44/40px, recuo de 12px, PDF na largura do leitor
+   e nenhum controle cortado). As capturas claro/escuro saem com animações
+   desligadas (estáveis) em desk/tests/artifacts/r2-ui-<stamp>/ (fora do
+   runtime, não são apagadas). */
 
-const SHOT_DIR=path.join(DESK,'tests','artifacts',`r2-ui-${new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'')}`);
+const SHOT_DIR=artifactDir(`r2-ui-${new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'')}`);
 fs.mkdirSync(SHOT_DIR,{recursive:true});
 
-const CONTROLS=['send','export-chat','new-session','chat-collapse','review-tab','conversations-toggle','session-select','new-session-engine','course-tabs','prompt','composer','support-collapse','support-tab-chat','support-tab-form','sidechat-send','sidechat-prompt','divider'];
+const CONTROLS=['send','session-title','sidechat-toggle','new-session','chat-more','review-tab','course-tabs','prompt','composer','support-restore','sidechat-close','sidechat-more','sidechat-new','sidechat-send','sidechat-prompt','divider'];
 
 async function setViewport(app,page){
- await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(900,650));
- await page.waitForFunction(()=>innerWidth<=910&&innerHeight<=660,undefined,{timeout:10000}).catch(()=>{});
- await page.waitForTimeout(350);
+ await resizeWindow(app,page,900,650);
+ await layoutStable(page,'#messages');
 }
 
-async function stabilize(page){
- await page.addStyleTag({content:'*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}'});
- await page.waitForTimeout(120);
+/* Cada estado da janela mínima: as regras de layout e, por cima, os controles
+   principais dentro da janela. */
+async function assertState(page,label){
+ await settle(page);
+ assertLayout(await measure(page),label);
+ await assertNoOverflow(page,label);
 }
 
 async function assertNoOverflow(page,label){
@@ -43,7 +50,7 @@ async function assertNoOverflow(page,label){
   assert.ok(r.left>=-1&&r.right<=data.innerWidth+1,`${label}: ${id} horizontal dentro da janela (${r.left}..${r.right} de ${data.innerWidth})`);
  }
  /* Largura utilizável: nenhum controle principal vira um risco ilegível. */
- const minWidths={'session-select':64,'new-session-engine':84,'export-chat':28,'conversations-toggle':24,'new-session':24,'chat-collapse':24,'send':44,'support-collapse':24};
+ const minWidths={'session-title':64,'sidechat-toggle':24,'new-session':24,'chat-more':24,'send':44,'sidechat-close':24};
  for(const [id,min] of Object.entries(minWidths)){
   const r=data.rects[id];
   if(!r||!r.visible)continue;
@@ -75,19 +82,14 @@ async function assertNoOverflow(page,label){
 }
 
 async function shot(page,name){
- await stabilize(page);
+ await freezeMotion(page);
  await page.screenshot({path:path.join(SHOT_DIR,name)});
 }
 
-async function setTheme(page,theme){
- await page.evaluate(async value=>{const state=await import('./src/state.mjs');state.applyTheme(value);},theme);
- await page.waitForTimeout(120);
-}
-
 async function openLateral(page){
- await page.locator('#support-tab-chat').click();
+ await page.locator('#sidechat-toggle').click();
  await page.waitForFunction(()=>{const sc=document.querySelector('#sidechat');return sc&&!sc.hidden;},{timeout:15000});
- await page.waitForTimeout(200);
+ await layoutStable(page,'#sidechat');
 }
 
 await withArtifacts('responsivo-900-dois',async ctx=>{
@@ -100,10 +102,10 @@ await withArtifacts('responsivo-900-dois',async ctx=>{
  await statusOnline(page);
  await page.waitForSelector('.pdf-panel canvas',{timeout:25000});
  await setViewport(ctx.app,page);
- await stabilize(page);
+ await freezeMotion(page);
 
  /* Dois leitores, Formulário à frente. */
- await assertNoOverflow(page,'900x650 dois leitores');
+ await assertState(page,'900x650 dois leitores');
  await shot(page,'900-dois-claro.png');
 
  /* Ajustes abertos: o diálogo inteiro cabe na janela. */
@@ -112,70 +114,73 @@ await withArtifacts('responsivo-900-dois',async ctx=>{
  const dialog=await page.locator('#settings-dialog').evaluate(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,innerWidth,innerHeight};});
  assert.ok(dialog.top>=-1&&dialog.bottom<=dialog.innerHeight+1,'Ajustes: diálogo vertical dentro da janela');
  assert.ok(dialog.left>=-1&&dialog.right<=dialog.innerWidth+1,'Ajustes: diálogo horizontal dentro da janela');
- await assertNoOverflow(page,'900x650 com Ajustes abertos');
+ await assertState(page,'900x650 com Ajustes abertos');
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
 
  /* Chat lateral aberto e depois recolhido. */
  await openLateral(page);
- await assertNoOverflow(page,'900x650 com lateral aberto');
+ await assertState(page,'900x650 com lateral aberto');
  await shot(page,'900-dois-lateral.png');
- await page.locator('#support-collapse').click();
- await page.waitForFunction(()=>document.querySelector('#support-slot')?.hidden===true);
- await assertNoOverflow(page,'900x650 apoio recolhido');
+ await collapseSupport(page);
+ await page.locator('#support-restore').waitFor({state:'visible',timeout:5000});
+ await assertState(page,'900x650 apoio recolhido');
  await shot(page,'900-dois-recolhido.png');
- await page.locator('#support-collapse').click();
- await page.waitForFunction(()=>document.querySelector('#support-slot')?.hidden===false);
- await page.locator('#support-tab-form').click();
- await page.waitForTimeout(200);
+ await showForm(page);
+ await page.waitForFunction(()=>document.querySelector('#support-restore')?.hidden===true);
+ await layoutStable(page,'#messages');
 
  /* endDay off no menu e de volta. */
  await page.keyboard.press('ControlOrMeta+,');
  await page.waitForSelector('#settings-dialog[open]');
+ await page.locator('#settings-tab-mesa').click();
  await page.locator('#cfg-desk-endDay').uncheck();
  await page.locator('#settings-save').click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  await page.waitForSelector('.pdf-panel',{timeout:15000});
- await page.waitForTimeout(300);
- await page.locator('#study-menu .nav-trigger').click();
- assert.equal(await page.locator('#end-day').isHidden(),true,'endDay desligado some do menu Estudar');
+ await layoutStable(page,'.pdf-panel');
+ await page.locator('#chat-more').click();
+ assert.equal(await page.locator('#chat-more-pop #end-day').isHidden(),true,'endDay desligado some do Mais opções do tutor');
  await page.keyboard.press('Escape');
- await assertNoOverflow(page,'900x650 endDay off');
+ await assertState(page,'900x650 endDay off');
  await page.keyboard.press('ControlOrMeta+,');
  await page.waitForSelector('#settings-dialog[open]');
+ await page.locator('#settings-tab-mesa').click();
  await page.locator('#cfg-desk-endDay').check();
  await page.locator('#settings-save').click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  await page.waitForSelector('.pdf-panel',{timeout:15000});
- await page.waitForTimeout(300);
- await page.locator('#study-menu .nav-trigger').click();
- assert.equal(await page.locator('#end-day').isVisible(),true,'endDay ligado volta ao menu Estudar');
+ await layoutStable(page,'.pdf-panel');
+ await page.locator('#chat-more').click();
+ assert.equal(await page.locator('#chat-more-pop #end-day').isVisible(),true,'endDay ligado volta ao Mais opções do tutor');
  await page.keyboard.press('Escape');
- await assertNoOverflow(page,'900x650 endDay on');
+ await assertState(page,'900x650 endDay on');
 
  /* Flag `conferir` e disponibilidade da captura na dica do composer (R2 7). */
  await page.keyboard.press('ControlOrMeta+,');
  await page.waitForSelector('#settings-dialog[open]');
+ await page.locator('#settings-tab-mesa').click();
  await page.locator('#cfg-desk-conferir').uncheck();
  await page.locator('#settings-save').click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  await page.waitForSelector('.pdf-panel',{timeout:15000});
- await page.waitForTimeout(300);
- assert.equal(await page.locator('#check').isHidden(),true,'conferir off esconde o botão de captura');
- assert.doesNotMatch(await page.locator('#composer-hint').textContent(),/captura/i,'conferir off tira a captura da dica');
+ await page.waitForFunction(()=>document.querySelector('#check')?.hidden===true,undefined,{timeout:5000}).catch(()=>{});
+assert.equal(await page.locator('#check').isHidden(),true,'conferir off esconde o botão de captura');
+ assert.doesNotMatch(await page.locator('#goes-along').textContent(),/Conferir|captura/i,'conferir off não deixa rastro na linha Vai junto');
  await page.keyboard.press('ControlOrMeta+,');
  await page.waitForSelector('#settings-dialog[open]');
+ await page.locator('#settings-tab-mesa').click();
  await page.locator('#cfg-desk-conferir').check();
  await page.locator('#settings-save').click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  await page.waitForSelector('.pdf-panel',{timeout:15000});
- await page.waitForTimeout(300);
- assert.equal(await page.locator('#check').isHidden(),false,'conferir on volta com o botão de captura');
- await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.captureOk=false;state.refreshHint();});
- assert.doesNotMatch(await page.locator('#composer-hint').textContent(),/captura/i,'captura indisponível também não aparece na dica');
- await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.captureOk=true;state.refreshHint();});
- assert.match(await page.locator('#composer-hint').textContent(),/captura/i,'captura disponível aparece na dica');
- await assertNoOverflow(page,'900x650 conferir on');
+ await page.waitForFunction(()=>document.querySelector('#check')?.hidden===false,undefined,{timeout:5000}).catch(()=>{});
+assert.equal(await page.locator('#check').isHidden(),false,'conferir on volta com o botão de captura');
+ await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.captureOk=false;state.setBusy(false);});
+ assert.match(await page.locator('#check').getAttribute('title'),/indisponível/i,'captura indisponível aparece no botão Conferir');
+ await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.captureOk=true;state.setBusy(false);});
+ assert.match(await page.locator('#check').getAttribute('title'),/Anexar a captura/i,'captura disponível aparece no botão Conferir');
+ await assertState(page,'900x650 conferir on');
 
  /* Tema escuro (captura estabilizada). */
  await setTheme(page,'dark');
@@ -195,10 +200,10 @@ await withArtifacts('responsivo-900-um-leitor',async ctx=>{
  await statusOnline(page);
  await page.waitForSelector('.pdf-panel canvas',{timeout:25000});
  await setViewport(ctx.app,page);
- await stabilize(page);
- await assertNoOverflow(page,'900x650 um leitor');
+ await freezeMotion(page);
+ await assertState(page,'900x650 um leitor');
  await openLateral(page);
- await assertNoOverflow(page,'900x650 um leitor com lateral');
+ await assertState(page,'900x650 um leitor com lateral');
  await shot(page,'900-um-lateral.png');
  assert.deepEqual(errors,[]);
  console.log('PASS: 900x650 com 1 leitor e lateral aberto sem overflow');

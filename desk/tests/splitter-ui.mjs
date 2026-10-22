@@ -8,6 +8,7 @@ await withArtifacts('splitter',async ctx=>{
  fs.writeFileSync(path.join(course,'Formulario.pdf'),tinyPdf('Support'));
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Teste',path:course}],desk:{pinnedExtensions:false}});
  ctx.app=await launchDesk({runtime});const page=await ctx.app.firstWindow();await statusOnline(page);
+ await page.locator('#calc-toggle').click(); // a alça do divisor só existe com a calculadora aberta
  for(const [selector,prop] of [['#divider','--chat'],['.pdf-divider','--pdf-left'],['#calc-divider','--calc']]){
   const div=page.locator(selector);await div.waitFor();const box=await div.boundingBox();
   const value=()=>page.evaluate(p=>getComputedStyle(document.documentElement).getPropertyValue(p),prop);

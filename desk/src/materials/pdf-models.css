@@ -1,0 +1,55 @@
+/* Base comum dos modelos de PDF do tutor (Lista, Apostila, Resumo, Simulado e
+   Formulário). Cada modelo tem o próprio arquivo `pdf-model-<id>.css`; o Livre
+   segue só com `pdf-template.css`. Tudo escopado em `.pdf-doc .pdf-model` para
+   não tocar o chat nem o resto do app.
+
+   Cabeçalho e rodapé: na impressão vão para as caixas de margem da PÁGINA
+   NOMEADA do modelo (conteúdo injetado por `modelPageCss`); na tela (prévia do
+   diálogo) as linhas `.pdf-run` fazem o mesmo papel dentro do fluxo. */
+
+.pdf-doc .pdf-model{
+  --model-font:"STIX Two Text","Latin Modern Roman","CMU Serif",Palatino,"Palatino Linotype","Book Antiqua","Times New Roman",serif;
+  --col-gap:8mm;
+  --ink-model:#111;
+  --page-w:178mm;
+  --page-h:253mm;
+  font-family:var(--model-font);
+  font-size:calc(11.5pt * var(--fit,1));
+  line-height:1.42;
+  color:var(--ink-model);
+  hyphens:auto;
+}
+.pdf-doc .pdf-model>*:first-child{margin-top:0}
+.pdf-doc .pdf-model h1,.pdf-doc .pdf-model h2,.pdf-doc .pdf-model h3,.pdf-doc .pdf-model h4{
+  color:var(--ink-model);
+  font-family:var(--model-font);
+}
+.pdf-doc .pdf-model h1.pdf-title{font-size:17pt;margin:0 0 5mm}
+.pdf-doc .pdf-model h2{font-size:1.1em;margin:1.1em 0 .4em}
+.pdf-doc .pdf-model h3{font-size:1.02em}
+.pdf-doc .pdf-model p{margin:.5em 0}
+.pdf-doc .pdf-model a{color:inherit}
+
+/* Linhas correntes (tela). */
+.pdf-doc .pdf-run{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:4mm;
+  font-size:9pt;
+  color:var(--ink-model);
+}
+.pdf-doc .pdf-run-head{border-bottom:.5pt solid var(--ink-model);padding-bottom:1.6mm;margin-bottom:6mm}
+.pdf-doc .pdf-run-foot{border-top:.5pt solid var(--ink-model);padding-top:1.6mm;margin-top:8mm}
+.pdf-doc .pdf-run-r{text-align:right}
+
+@media print{
+  .pdf-doc .pdf-run{display:none}
+}
+
+/* Margens correntes das caixas de margem: o mesmo desenho em todos os modelos
+   (filete fino, corpo 9 pt). O texto entra pela folha injetada. */
+.pdf-doc .pdf-model .pdf-gabarito[data-break="1"]{break-before:page}
+.pdf-doc .pdf-model .math-display{break-inside:avoid}
+.pdf-doc .pdf-model li{break-inside:avoid}
+.pdf-doc .pdf-model .katex-display{margin:.7em 0}

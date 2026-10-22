@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>harness de atividade</title>
+<link rel="stylesheet" href="../../../src/activity.css">
+<style>
+  body { font: 14px system-ui; margin: 0; padding: 12px; }
+  #messages { display: block; }
+  #prompt { width: 100%; min-height: 64px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div id="messages"></div>
+<textarea id="prompt">Rascunho anterior preservado</textarea>
+<script>
+  window.__beat = 0;
+  setInterval(() => { window.__beat += 1; }, 4);
+  window.__msgCount = 0;
+  window.addEventListener('message', () => { window.__msgCount += 1; });
+</script>
+<script type="module">
+  import {initActivityHost} from '../../../src/activity.mjs';
+  const host = initActivityHost({composer: () => document.querySelector('#prompt')});
+  window.__activityHost = host;
+  window.__addSlot = (toolCallId, status = 'done') => {
+    const el = document.createElement('div');
+    el.className = 'activity-slot';
+    el.dataset.activityCall = toolCallId;
+    el.dataset.status = status;
+    document.getElementById('messages').append(el);
+    window.dispatchEvent(new CustomEvent('desk-activity-slot', {detail: {toolCallId, element: el}}));
+    return el;
+  };
+  window.__historyRendered = () => window.dispatchEvent(new CustomEvent('desk-history-rendered', {detail: {slots: []}}));
+  window.__cardInfo = (toolCallId) => {
+    const slot = document.querySelector(`.activity-slot[data-activity-call="${toolCallId}"]`);
+    const card = slot && slot.querySelector('.activity-card');
+    return {
+      found: !!card,
+      state: card ? card.dataset.state : '',
+      iframe: slot ? !!slot.querySelector('.activity-iframe') : false,
+      posterVisible: slot ? !!slot.querySelector('.activity-poster:not([hidden])') : false,
+      buttons: card ? [...card.querySelectorAll('button')].map((button) => ({act: button.dataset.act, hidden: button.hidden})) : [],
+    };
+  };
+</script>
+</body>
+</html>

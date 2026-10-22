@@ -38,8 +38,8 @@ same('draft keep', store.cutDraft('  linha  '), '  linha  ');
 // A sequência de nomes que o host grava é exatamente a do núcleo.
 const stem = store.sanitizeStem('Limites');
 for (const [attempt, expected] of [[0, 'Limites.pdf'], [1, 'Limites-2.pdf'], [2, 'Limites-3.pdf'], [9, 'Limites-10.pdf']]) {
-  same(`candidate ${attempt}`, freeCore.candidateName(stem, '.pdf', BigInt(attempt)), expected);
-  same(`folder ${attempt}`, freeCore.candidateFolder(stem, BigInt(attempt)), expected.replace(/\.pdf$/, ''));
+  same(`candidate ${attempt}`, freeCore.candidateName(stem, '.pdf', attempt), expected);
+  same(`folder ${attempt}`, freeCore.candidateFolder(stem, attempt), expected.replace(/\.pdf$/, ''));
 }
 
 // Sanitização nunca passa dos tetos do núcleo.

@@ -8,11 +8,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,sendEnabled,statusOnline,PLOT_PNG} from './helpers.mjs';
+import {artifactDir,pickTheme,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,sendEnabled,statusOnline,moreClick,fillStudyTitle} from './helpers.mjs';
+import {pollUntil} from './waits.mjs';
+const readDesk=runtime=>{try{return JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));}catch{return null;}};
 
 const DESK=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const STAMP=new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'');
-const ART=path.join(DESK,'tests','artifacts',`hunt-shell-${STAMP}`);
+const ART=artifactDir(`hunt-shell-${STAMP}`);
 fs.mkdirSync(ART,{recursive:true});
 const slice=(s,n=60)=>String(s??'').replace(/\s+/g,' ').trim().slice(0,n);
 const slug=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,50);
@@ -43,7 +45,7 @@ class Scenario{
   this.page.on('console',m=>{if(m.type()==='error')this.consoleErrors.push(m.text());});
   return this.page;
  }
- async step(name,fn,{shot=false}={}){
+ async step(name,fn){
   this.steps++;
   try{
    await fn();
@@ -99,13 +101,13 @@ const only=title=>!filter||title.toLowerCase().includes(filter.toLowerCase());
 /* O Encerrar por hoje saiu do composer e é item do menu Estudar (núcleo
    `core/tabsview.bend`): abre o menu quando preciso e clica no item. */
 async function openEndDay(page){
- const isOpen=await page.evaluate(()=>document.querySelector('#study-menu')?.classList.contains('open')===true);
- if(!isOpen)await page.locator('#study-menu .nav-trigger').click();
- await page.locator('#study-pop #end-day').click();
+ const pop=page.locator('#chat-more-pop');
+ if(await pop.isHidden())await page.locator('#chat-more').click();
+ await page.locator('#chat-more-pop #end-day').click();
 }
 
 /* ------------------------------------------------------------------ */
-/* H1: menus (#study-menu / #mesa-menu)                                */
+/* H1: menus (#study-menu / #settings-menu)                                */
 /* ------------------------------------------------------------------ */
 if(only('menus')){
  const s=new Scenario('menus abertura foco e itens');
@@ -119,8 +121,8 @@ if(only('menus')){
   await statusOnline(page);
 
   await s.step('abre pelo clique, marca open/aria-expanded',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
-   const st=await page.evaluate(()=>({cls:document.querySelector('#mesa-menu').className,exp:document.querySelector('#mesa-menu .nav-trigger').getAttribute('aria-expanded'),popDisplay:getComputedStyle(document.querySelector('#mesa-pop')).display}));
+   await page.locator('#settings-menu .nav-trigger').click();
+   const st=await page.evaluate(()=>({cls:document.querySelector('#settings-menu').className,exp:document.querySelector('#settings-menu .nav-trigger').getAttribute('aria-expanded'),popDisplay:getComputedStyle(document.querySelector('#settings-pop')).display}));
    assert.equal(st.exp,'true');
    assert.ok(st.cls.includes('open'));
    assert.notEqual(st.popDisplay,'none');
@@ -128,8 +130,8 @@ if(only('menus')){
 
   await s.step('Esc fecha, aria-expanded volta e foco não fica preso',async()=>{
    await page.keyboard.press('Escape');
-   await page.waitForFunction(()=>!document.querySelector('#mesa-menu').classList.contains('open'));
-   const st=await page.evaluate(()=>({exp:document.querySelector('#mesa-menu .nav-trigger').getAttribute('aria-expanded'),active:document.activeElement?.id||document.activeElement?.tagName,closing:document.querySelector('#mesa-menu').classList.contains('closing')}));
+   await page.waitForFunction(()=>!document.querySelector('#settings-menu').classList.contains('open'));
+   const st=await page.evaluate(()=>({exp:document.querySelector('#settings-menu .nav-trigger').getAttribute('aria-expanded'),active:document.activeElement?.id||document.activeElement?.tagName,closing:document.querySelector('#settings-menu').classList.contains('closing')}));
    assert.equal(st.exp,'false');
    assert.notEqual(st.active,'help');
   });
@@ -144,7 +146,7 @@ if(only('menus')){
 
   await s.step('itens do menu Mesa e do Estudar têm ids/handlers',async()=>{
    const ids=await page.locator('#study-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id));
-   assert.deepEqual(ids,['reference-toggle','xournal','review-open','end-day']);
+   assert.deepEqual(ids,['study-search-open','study-review-today','study-notes-open','study-stats-open','study-backup-open','study-share-open','study-tutor-pdf','xournal','reference-toggle']);
    await page.locator('#study-menu .nav-trigger').click();
    const pressed=await page.locator('#reference-toggle').getAttribute('aria-pressed');
    assert.equal(pressed,'true');
@@ -156,45 +158,49 @@ if(only('menus')){
   });
 
   await s.step('item do menu abre diálogo e o menu não fica preso atrás',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.locator('#help').click();
    await page.waitForSelector('#help-dialog[open]');
-   await page.locator('#help-dialog .dialog-actions .primary').click();
+   await page.locator('#help-dialog .dialog-close').click();
    await page.waitForFunction(()=>!document.querySelector('#help-dialog').open);
-   const st=await page.evaluate(()=>({open:document.querySelector('#mesa-menu').classList.contains('open'),exp:document.querySelector('#mesa-menu .nav-trigger').getAttribute('aria-expanded')}));
+   const st=await page.evaluate(()=>({open:document.querySelector('#settings-menu').classList.contains('open'),exp:document.querySelector('#settings-menu .nav-trigger').getAttribute('aria-expanded')}));
    if(st.open||st.exp==='true')s.note(`menu Mesa continua ${st.open?'open':'fechado'} com aria-expanded=${st.exp} depois de abrir/fechar um diálogo por ele`);
    assert.equal(st.exp,st.open?'true':'false');
   });
 
   await s.step('re-render dos menus (tema) mantém o aberto e os handlers',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
-   await page.locator('#theme-cycle').click();
-   assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');
-   const open=await page.evaluate(()=>document.querySelector('#mesa-menu').classList.contains('open'));
+   await page.locator('#settings-menu .nav-trigger').click();
+   await page.evaluate(()=>window.dispatchEvent(new Event('desk-chrome')));
+   const open=await page.evaluate(()=>document.querySelector('#settings-menu').classList.contains('open'));
    assert.equal(open,true,'re-render não deve fechar o menu aberto');
-   const label=(await page.locator('#theme-cycle').textContent()).trim();
-   assert.equal(label,'Tema: claro','rótulo re-renderizado');
-   await page.locator('#theme-cycle').click();
-   assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');
+   assert.deepEqual(await page.locator('#settings-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['settings','help','shortcuts','about'],'itens re-renderizados');
    await page.keyboard.press('Escape');
+   await pickTheme(page,'light');
+   assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');
+   await pickTheme(page,'dark');
+   assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');
   });
 
   await s.step('Enter no gatilho abre e fecha (sem click duplicado)',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').focus();
+   await page.locator('#settings-menu .nav-trigger').focus();
    await page.keyboard.press('Enter');
-   await page.waitForFunction(()=>document.querySelector('#mesa-menu').classList.contains('open'));
+   await page.waitForFunction(()=>document.querySelector('#settings-menu').classList.contains('open'));
+   /* #67: abrir pelo teclado leva o foco ao primeiro item; o Enter seguinte no
+      gatilho (não no item, que o ativaria) fecha. */
+   assert.equal(await page.evaluate(()=>document.querySelector('#settings-pop').contains(document.activeElement)),true,'o foco entra no menu');
+   await page.locator('#settings-menu .nav-trigger').focus();
    await page.keyboard.press('Enter');
-   await page.waitForFunction(()=>!document.querySelector('#mesa-menu').classList.contains('open'));
-   assert.equal(await page.locator('#mesa-menu .nav-trigger').getAttribute('aria-expanded'),'false');
+   await page.waitForFunction(()=>!document.querySelector('#settings-menu').classList.contains('open'));
+   assert.equal(await page.locator('#settings-menu .nav-trigger').getAttribute('aria-expanded'),'false');
   });
 
-  await s.step('foco dentro do menu: Esc fecha e tira o foco',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
+  await s.step('foco dentro do menu: Esc fecha e devolve o foco ao gatilho (#67)',async()=>{
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.locator('#help').focus();
    assert.equal(await page.evaluate(()=>document.activeElement?.id),'help');
    await page.keyboard.press('Escape');
-   await page.waitForFunction(()=>!document.querySelector('#mesa-menu').classList.contains('open'));
-   assert.equal(await page.evaluate(()=>document.activeElement?.id),'','Esc tira o foco do item do menu');
+   await page.waitForFunction(()=>!document.querySelector('#settings-menu').classList.contains('open'));
+   assert.equal(await page.evaluate(()=>document.activeElement===document.querySelector('#settings-menu .nav-trigger')),true,'Esc devolve o foco ao gatilho');
   });
 
   await s.step('Salvar não quebra o ciclo de tema nem o menu',async()=>{
@@ -202,18 +208,16 @@ if(only('menus')){
    await page.waitForSelector('#settings-dialog[open]');
    await page.locator('#settings-save').click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:15000});
-   await page.waitForFunction(()=>document.querySelector('#theme-cycle')?.textContent.includes('Tema'));
-   await page.waitForTimeout(600);
+   await page.waitForFunction(()=>document.querySelector('#settings-trigger')?.getAttribute('aria-label')==='Ajustes');
    const before=await page.evaluate(()=>document.documentElement.dataset.theme||'auto');
    const next={auto:'light',light:'dark',dark:'auto'}[before];
-   await page.locator('#mesa-menu .nav-trigger').click();
-   await page.locator('#theme-cycle').click();
+   await pickTheme(page,next);
    const after=await page.evaluate(()=>document.documentElement.dataset.theme||'auto');
-   assert.equal(after,next,'o tema cicla depois do re-render do Salvar');
-   assert.equal(await page.evaluate(()=>document.querySelector('#mesa-menu').classList.contains('open')),true,'o menu segue aberto');
-   assert.equal((await page.locator('#theme-cycle').textContent()).trim(),`Tema: ${{auto:'auto',light:'claro',dark:'escuro'}[next]}`,'o rótulo acompanha o ciclo');
+   assert.equal(after,next,'o tema troca pela busca depois do re-render do Salvar');
+   await page.locator('#settings-menu .nav-trigger').click();
+   assert.equal(await page.evaluate(()=>document.querySelector('#settings-menu').classList.contains('open')),true,'o menu abre depois do Salvar');
    await page.keyboard.press('Escape');
-   await page.waitForFunction(()=>!document.querySelector('#mesa-menu').classList.contains('open'));
+   await page.waitForFunction(()=>!document.querySelector('#settings-menu').classList.contains('open'));
   });
 
   await s.step('⌘3 troca para a segunda matéria',async()=>{
@@ -252,16 +256,16 @@ if(only('tooltip')){
   });
 
   await s.step('foco por teclado mostra o balão do mesmo alvo',async()=>{
-   await page.locator('#export-chat').focus();
+   await page.locator('#chat-more').focus();
    await page.waitForSelector('.tip:not([hidden])',{timeout:5000});
-   assert.equal((await page.locator('.tip').textContent()).trim(),'Exportar conversa em Markdown');
+   assert.equal((await page.locator('.tip').textContent()).trim(),'Mais opções');
    await page.locator('#prompt').focus();
    await page.waitForFunction(()=>document.querySelector('.tip')?.hidden===true,undefined,{timeout:5000});
-   assert.ok(await page.locator('#export-chat').getAttribute('title'),'title volta ao sair do foco');
+   assert.ok(await page.locator('#chat-more').getAttribute('title'),'title volta ao sair do foco');
   });
 
   await s.step('alvo colado na borda direita: balão clampado',async()=>{
-   await page.locator('#export-chat').hover();
+   await page.locator('#chat-more').hover();
    await page.waitForSelector('.tip:not([hidden])',{timeout:5000});
    const geo=await page.evaluate(()=>{const b=document.querySelector('.tip').getBoundingClientRect();return {left:b.left,right:b.right,w:innerWidth,h:innerHeight,top:b.top,bottom:b.bottom};});
    assert.ok(geo.left>=8-0.5,`left=${geo.left}`);
@@ -285,7 +289,7 @@ if(only('tooltip')){
   });
 
   await s.step('dentro de dialog em top-layer o balão vive no dialog',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.locator('#help').click();
    await page.waitForSelector('#help-dialog[open]');
    // o markup do diálogo não traz title; dá um ao botão para exercitar o host()
@@ -317,9 +321,9 @@ if(only('tooltip')){
    await page.locator('#xournal').hover();
    await page.waitForSelector('.tip:not([hidden])',{timeout:5000});
    // re-render dos menus no meio do hover, sem mexer o ponteiro: o item #xournal é recriado
-   await page.evaluate(()=>document.querySelector('#theme-cycle').click());
+   await page.evaluate(()=>window.dispatchEvent(new Event('desk-chrome')));
    await page.mouse.move(5,400);
-   await page.waitForTimeout(300);
+   await page.waitForTimeout(300);// espera fixa: "nada acontece em 0,3 s" — o balão não pode ficar visível com o alvo recriado
    const st=await page.evaluate(()=>({hidden:document.querySelector('.tip')?.hidden,text:document.querySelector('.tip')?.textContent,stale:document.querySelector('#xournal')?.dataset.tip}));
    if(st.hidden===false)s.note(`balão ficou visível com alvo removido (texto ${JSON.stringify(st.text)})`);
    assert.notEqual(st.hidden,false,'balão precisa sumir quando o alvo sai do DOM');
@@ -346,9 +350,10 @@ if(only('density')){
   await s.launch();
   const page=s.page;
   await page.waitForSelector('.pdf-panel',{timeout:30000});
-  await page.locator('#mesa-menu .nav-trigger').click();
+  await page.locator('#settings-menu .nav-trigger').click();
   await page.locator('#settings').click();
   await page.waitForSelector('#settings-dialog[open]');
+  await page.locator('#settings-tab-avisos').click();
 
   await s.step('opções e selected do modo padrão',async()=>{
    assert.deepEqual(await page.locator('#density-mode option').evaluateAll(es=>es.map(o=>o.value)),['padrao','compacta']);
@@ -381,7 +386,7 @@ if(only('density')){
    await page.locator('#settings-dialog button[value="cancel"]').last().click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
    assert.equal(await page.evaluate(()=>document.body.classList.contains('dense')),true);
-   await page.locator('#mesa-menu .nav-trigger').click();
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.locator('#settings').click();
    await page.waitForSelector('#settings-dialog[open]');
    assert.equal(await page.locator('#density-mode option[selected]').getAttribute('value'),'compacta');
@@ -451,7 +456,7 @@ if(only('dialogs')){
    await row.locator('.cfg-path').fill(dirB);
    await page.locator('#settings-save').click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:10000});
-   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button')].some(b=>b.textContent.includes('Matéria B2')),undefined,{timeout:10000});
+   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].some(b=>b.textContent.includes('Matéria B2')),undefined,{timeout:10000});
    // em modo de teste o config.json não é persistido (persistConfig=!LEARNING_DESK_RUNTIME);
    // a fonte da verdade é o retorno do saveConfig, refletido na UI
    await page.keyboard.press('ControlOrMeta+,');
@@ -460,7 +465,7 @@ if(only('dialogs')){
    await page.locator('#cfg-courses .cfg-course').nth(1).locator('.cfg-remove').click();
    await page.locator('#settings-save').click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:10000});
-   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button')].every(b=>!b.textContent.includes('Matéria B2')),undefined,{timeout:10000});
+   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].every(b=>!b.textContent.includes('Matéria B2')),undefined,{timeout:10000});
   });
 
   await s.step('renomear a matéria atualiza aba e título',async()=>{
@@ -469,44 +474,49 @@ if(only('dialogs')){
    await page.locator('#cfg-courses .cfg-course').first().locator('.cfg-name').fill('Cálculo I');
    await page.locator('#settings-save').click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:15000});
-   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button')].some(b=>b.textContent.includes('Cálculo I')),undefined,{timeout:15000});
+   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].some(b=>b.textContent.includes('Cálculo I')),undefined,{timeout:15000});
    await page.waitForFunction(()=>document.title.includes('Cálculo I'),undefined,{timeout:15000});
    assert.match(await page.locator('#context-summary').textContent(),/Cálculo I/,'o resumo de contexto acompanha o novo nome');
   });
 
-  await s.step('Enter num campo fecha o diálogo como cancelar (comportamento herdado)',async()=>{
+  await s.step('Enter num campo salva: matéria sem pasta vira erro ao lado do campo e Esc descarta',async()=>{
    await page.keyboard.press('ControlOrMeta+,');
    await page.waitForSelector('#settings-dialog[open]');
    const before=await page.locator('#cfg-courses .cfg-course').count();
    await page.locator('#cfg-add-course').click();
-   await page.locator('#cfg-courses .cfg-course').last().locator('.cfg-name').fill('Não salva');
-   await page.locator('#cfg-vault').focus();
-   await page.keyboard.press('Enter');
+   const row=page.locator('#cfg-courses .cfg-course').last();
+   await row.locator('.cfg-name').fill('Não salva');
+   await row.locator('.cfg-name').press('Enter');
+   await page.locator('#cfg-courses .cfg-error').waitFor({timeout:5000});
+   assert.equal(await page.evaluate(()=>document.querySelector('#settings-dialog').open),true,'sem pasta o Enter não fecha: o erro fica visível');
+   assert.equal(await row.locator('.cfg-path').getAttribute('aria-invalid'),'true');
+   await page.keyboard.press('Escape');
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
    await page.keyboard.press('ControlOrMeta+,');
    await page.waitForSelector('#settings-dialog[open]');
-   assert.equal(await page.locator('#cfg-courses .cfg-course').count(),before,'Enter descarta a linha (fecha como cancelar)');
+   assert.equal(await page.locator('#cfg-courses .cfg-course').count(),before,'Esc descarta a linha nova');
+   assert.equal(await page.locator('#cfg-courses .cfg-error').count(),0,'o aviso não sobrevive ao fechar');
    await page.locator('#settings-dialog button[value="cancel"]').last().click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
   });
 
   await s.step('Ajuda: versão, itens de flag e editor de atalhos',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.locator('#help').click();
    await page.waitForSelector('#help-dialog[open]');
    assert.match(await page.locator('#help-version').textContent(),/^Mesa de Estudos \d/);
-   for(const sel of ['#help-study-li','#help-endday-li','#help-refs-li'])assert.equal(await page.locator(sel).isHidden(),false,'com flags padrão o item fica visível');
+   for(const sel of ['#help-study-li','#help-endday-li','#help-refs-li'])assert.equal(await page.locator(sel).evaluate(el=>el.hidden),false,'com flags padrão o item fica visível (a seção do guia pode não ser a aberta)');
    assert.equal(await page.locator('#keys-customize').isVisible(),true);
-   await page.locator('#help-dialog .dialog-actions .primary').click();
+   await page.locator('#help-dialog .dialog-close').click();
    await page.waitForFunction(()=>!document.querySelector('#help-dialog').open);
   });
 
   await s.step('Sobre: lead com versão',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.locator('#about').click();
    await page.waitForSelector('#about-dialog[open]');
-   assert.match(await page.locator('#about-dialog .help-lead').first().textContent(),/^Mesa de Estudos \d.*licença MIT$/);
-   await page.locator('#about-dialog .dialog-actions .primary').click();
+   assert.match(await page.locator('#about-lead').textContent(),/^Versão \d.*licença MIT$/);
+   await page.locator('#about-dialog .dialog-close').click();
    await page.waitForFunction(()=>!document.querySelector('#about-dialog').open);
   });
 
@@ -580,43 +590,43 @@ if(only('encerrar')){
    assert.deepEqual(reg.A,{
     stopped:'travei na 3',next:'seguir para a 4',exercise:'Lista 2 · 7b',xopp,pages:[{path:pdf,page:2}]
    },'onde parei, próximo passo, questão, .xopp e a página aberta');
-   assert.equal(await page.locator('.resume-card').isVisible(),true,'o cartão aparece já nesta sessão');
-   assert.match(await page.locator('.resume-card-title').textContent(),/^Continuar Matéria A — Lista 2 · 7b$/);
+   /* O Pi quebrado é "sem resposta": o estado da coluna diz o motivo e o
+      registro fica no disco para a próxima abertura com o tutor de pé. */
+   await page.waitForFunction(()=>document.querySelector('#tutor-state')?.dataset.state==='error',undefined,{timeout:20000});
+   assert.equal(await page.locator('#tutor-state .ts-lead').textContent(),'O tutor não atendeu.');
    assert.equal(await page.locator('.message.user').count(),0,'o envio falhou: nada foi para o histórico');
   });
 
-  await s.step('reabrir: o cartão volta do disco e Retomar restaura questão, .xopp, página e composer',async()=>{
+  await s.step('reabrir com o tutor de pé: "onde parei" volta do disco e Retomar restaura questão, .xopp, página e composer',async()=>{
    await s.close();
    s.errors=[];
-   await s.launch({env});
+   await s.launch();
    const p2=s.page;
-   await p2.waitForSelector('.resume-card',{timeout:30000});
-   assert.match(await p2.locator('.resume-card-title').textContent(),/^Continuar Matéria A — Lista 2 · 7b$/);
-   assert.equal(await p2.locator('.resume-card-line').first().textContent(),'Onde parei: travei na 3');
-   assert.equal(await p2.locator('.resume-card-line').nth(1).textContent(),'Próximo passo: seguir para a 4');
+   await p2.waitForSelector('#tutor-state[data-state="resume"]',{timeout:30000});
+   assert.equal(await p2.locator('#tutor-state .ts-lead').textContent(),'Da última vez você parou em Lista 2 · 7b: travei na 3');
+   assert.equal(await p2.locator('#tutor-state .ts-fine').textContent(),'Próximo passo: seguir para a 4');
    assert.equal(await p2.locator('#prompt').inputValue(),'','o registro não escreve nada sozinho no composer');
    /* Sai da página 2 antes de retomar: é o Retomar que tem de voltar com ela. */
    await p2.locator('.pdf-panel').first().locator('.page-number').fill('1');
    await p2.locator('.pdf-panel').first().locator('.page-number').press('Enter');
    await p2.waitForFunction(()=>document.querySelector('.page-number')?.value==='1');
-   await p2.locator('#exercise-title').fill('outra questão');
-   await p2.locator('.resume-go').click();
-   await p2.waitForFunction(()=>!document.querySelector('.resume-card'),undefined,{timeout:10000});
+   await fillStudyTitle(p2,'outra questão');
+   await p2.locator('#resume-go').click();
+   await p2.waitForFunction(()=>document.querySelector('#tutor-state')?.hidden===true,undefined,{timeout:10000});
    assert.equal(await p2.locator('#exercise-title').inputValue(),'Lista 2 · 7b','a questão volta');
    assert.equal(await p2.locator('#pick-xopp').getAttribute('data-path'),xopp,'o rascunho .xopp volta');
    await p2.waitForFunction(()=>document.querySelector('.page-number')?.value==='2',undefined,{timeout:30000});
    assert.equal(await p2.locator('#prompt').inputValue(),'Continuar de onde parei.\n\nOnde parei: travei na 3\n\nPróximo passo: seguir para a 4','a mensagem fica pronta no composer');
    assert.equal(await p2.locator('.message.user').count(),0,'Retomar não envia nada');
    assert.deepEqual(Object.keys(stored()),[],'Retomar limpa o registro');
-   await p2.waitForTimeout(800);
-   const desk=JSON.parse(fs.readFileSync(path.join(s.runtime,'desk.json'),'utf8'));
+   const desk=await pollUntil(()=>readDesk(s.runtime),state=>(state?.courseStates?.A?.study||state?.study)?.title==='Lista 2 · 7b'&&state?.courseStates?.A?.pdfs?.[0]?.page===2,{what:'desk.json com o contexto retomado (Lista 2 · 7b, página 2)'});
    const study=desk.courseStates?.A?.study||desk.study;
    assert.equal(study.title,'Lista 2 · 7b','o contexto retomado fica no estado');
    assert.equal(study.xopp,xopp);
    assert.equal(desk.courseStates.A.pdfs[0].page,2);
   });
 
-  await s.step('Encerrar de novo substitui o registro; Dispensar apaga',async()=>{
+  await s.step('Encerrar de novo substitui o registro; Esquecer apaga',async()=>{
    const p2=s.page;
    await openEndDay(p2);
    await p2.waitForSelector('#end-day-dialog[open]');
@@ -624,12 +634,12 @@ if(only('encerrar')){
    await p2.locator('#end-next').fill('revisar a 6');
    await p2.locator('#end-day-save').click();
    await p2.waitForFunction(()=>!document.querySelector('#end-day-dialog').open,undefined,{timeout:10000});
-   await p2.waitForFunction(()=>document.querySelector('.resume-card-line')?.textContent==='Onde parei: agora foi a 5',undefined,{timeout:10000});
+   await p2.waitForFunction(()=>document.querySelector('#tutor-state .ts-lead')?.textContent==='Da última vez você parou em Lista 2 · 7b: agora foi a 5',undefined,{timeout:10000});
    assert.equal(stored().A.next,'revisar a 6','o registro novo é o que fica');
-   await p2.locator('.resume-dismiss').click();
-   await p2.waitForFunction(()=>!document.querySelector('.resume-card'),undefined,{timeout:10000});
-   assert.deepEqual(Object.keys(stored()),[],'Dispensar apaga o registro');
-   assert.equal(await p2.locator('#exercise-title').inputValue(),'Lista 2 · 7b','Dispensar não mexe no contexto');
+   await p2.locator('#resume-forget').click();
+   await p2.waitForFunction(()=>document.querySelector('#tutor-state')?.hidden===true,undefined,{timeout:10000});
+   assert.deepEqual(Object.keys(stored()),[],'Esquecer apaga o registro');
+   assert.equal(await p2.locator('#exercise-title').inputValue(),'Lista 2 · 7b','Esquecer não mexe no contexto');
   });
 
   await s.step('sem erros de página',async()=>{
@@ -654,12 +664,12 @@ if(only('keys')){
   await statusOnline(page);
 
   await s.step('editor abre pela Ajuda com seções e linhas do contrato',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.locator('#help').click();
    await page.waitForSelector('#help-dialog[open]');
    await page.locator('#keys-customize').click();
    await page.waitForSelector('#keys-dialog[open]');
-   assert.deepEqual(await page.locator('#keys-dialog .keys-group > h3').evaluateAll(es=>es.map(e=>e.textContent)),['Estudar','Visualização','Ajuda','Arquivo','Conversa']);
+   assert.deepEqual(await page.locator('#keys-dialog .keys-group > h3').evaluateAll(es=>es.map(e=>e.textContent)),['Estudar','Visualização','Ajuda','Arquivo','Tutor']);
    assert.equal(await page.locator('#keys-reset-all').isDisabled(),true);
    assert.equal(await page.evaluate(()=>document.activeElement?.className.includes('keys-rec')),true,'o primeiro Gravar recebe o foco');
   });
@@ -704,16 +714,16 @@ if(only('keys')){
   await s.step('o remap vale de verdade: ⌘J abre a busca e ⌘F fica engolido',async()=>{
    await page.locator('#keys-done').click();
    await page.waitForFunction(()=>!document.querySelector('#keys-dialog').open);
-   await page.locator('#help-dialog .dialog-actions .primary').click();
+   await page.locator('#help-dialog .dialog-close').click();
    await page.waitForFunction(()=>!document.querySelector('#help-dialog').open);
    await page.keyboard.press('ControlOrMeta+j');
    await page.waitForFunction(()=>{const form=document.querySelector('.pdf-panel .pdf-find');return form&&!form.hidden&&document.activeElement===form.querySelector('input');},undefined,{timeout:5000});
    await page.keyboard.press('Escape');
    await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-find')?.hidden===true,undefined,{timeout:5000});
    await page.keyboard.press('ControlOrMeta+f');
-   await page.waitForTimeout(300);
+   await page.waitForTimeout(300);// espera fixa: "nada acontece em 0,3 s" — o combo antigo continua engolido depois do remap
    assert.equal(await page.evaluate(()=>document.querySelector('.pdf-panel .pdf-find')?.hidden),true,'o combo antigo precisa ficar engolido depois do remap');
-   await page.locator('#mesa-menu .nav-trigger').click();
+   await page.locator('#settings-menu .nav-trigger').click();
    await page.locator('#help').click();
    await page.waitForSelector('#help-dialog[open]');
    await page.locator('#keys-customize').click();
@@ -738,7 +748,7 @@ if(only('keys')){
    assert.equal(await page.locator('#keys-reset-all').isDisabled(),true);
    assert.equal(await page.locator('#keys-status').textContent(),'');
    await page.locator('#keys-done').click();
-   await page.locator('#help-dialog .dialog-actions .primary').click();
+   await page.locator('#help-dialog .dialog-close').click();
    await page.waitForFunction(()=>!document.querySelector('#help-dialog').open);
   });
 
@@ -764,7 +774,7 @@ if(only('tabs')){
   await s.launch({env:{LEARNING_VAULT:s.runtime}});
   const page=s.page;
   await page.waitForSelector('.pdf-panel',{timeout:30000});
-  await page.waitForFunction(()=>{const t=[...document.querySelectorAll('#course-tabs button')];return t.length===3&&t.every(b=>!b.disabled);},{timeout:30000});
+  await page.waitForFunction(()=>{const t=[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab):not([data-id="geogebra"])')];return t.length===3&&t.every(b=>!b.disabled);},{timeout:30000});
   await statusOnline(page);
 
   await s.step('troca de matéria com conversa aberta conecta e titula',async()=>{
@@ -773,7 +783,6 @@ if(only('tabs')){
    await statusOnline(page,{timeout:30000});
    await page.waitForFunction(()=>document.title.includes('Matéria B'),undefined,{timeout:15000});
    assert.equal(await page.evaluate(()=>document.querySelector('#course-tabs button[data-id="B"]').getAttribute('aria-selected')),'true');
-   await page.waitForTimeout(1500);
   });
 
   await s.step('⌘2 volta e o título/página acompanham',async()=>{
@@ -781,7 +790,7 @@ if(only('tabs')){
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="A"]')?.classList.contains('active'),undefined,{timeout:30000});
    await statusOnline(page,{timeout:30000});
    await page.waitForFunction(()=>document.title.includes('Matéria A'),undefined,{timeout:15000});
-   await page.waitForTimeout(1500);
+   await page.waitForFunction(()=>/p\. 1/.test(document.title),undefined,{timeout:15000}).catch(()=>{});
    assert.match(await page.title(),/p\. 1/,'título leva a página do 1º leitor');
   });
 
@@ -802,7 +811,7 @@ if(only('tabs')){
    await page.keyboard.press('ControlOrMeta+3');
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="B"]')?.classList.contains('active'),undefined,{timeout:60000});
    await statusOnline(page,{timeout:30000});
-   await page.waitForTimeout(800);
+   await page.waitForFunction(()=>document.title.includes('Matéria B'),undefined,{timeout:15000}).catch(()=>{});
    assert.match(await page.title(),/Matéria B/);
    assert.equal(await page.locator('.message.quiz').count(),0,'a matéria nova nasce sem o card da anterior');
   });
@@ -814,18 +823,24 @@ if(only('tabs')){
    await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('sessão da A')||document.querySelector('#messages').textContent.includes('quiz durante a troca'),undefined,{timeout:20000});
   });
 
-  await s.step('⌘Tab percorre B, GeoGebra e volta para A',async()=>{
+  await s.step('⌘Tab percorre B, GeoGebra, Livre e volta para A',async()=>{
+   // a ordem é a da barra: Livre, A, B, GeoGebra — a mesma lista do ⌘1–9
+   const enabled=()=>page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].every(b=>!b.disabled),undefined,{timeout:30000});
    await page.keyboard.press('ControlOrMeta+Tab');
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="B"]')?.classList.contains('active'),undefined,{timeout:60000});
-   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button')].every(b=>!b.disabled),undefined,{timeout:30000});
+   await enabled();
    await page.keyboard.press('ControlOrMeta+Tab');
    await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:30000});
    assert.equal(await page.locator('#course-tabs button[data-id="geogebra"]').getAttribute('aria-selected'),'true');
+   await enabled();
+   await page.keyboard.press('ControlOrMeta+Tab');
+   await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="mesa-free"]')?.classList.contains('active'),undefined,{timeout:30000});
+   assert.equal(await page.evaluate(()=>document.querySelector('#references').classList.contains('ggb')),false,'da Livre o GeoGebra já saiu');
+   await enabled();
    await page.keyboard.press('ControlOrMeta+Tab');
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="A"]')?.classList.contains('active'),undefined,{timeout:30000});
    assert.equal(await page.evaluate(()=>document.querySelector('#references').classList.contains('ggb')),false);
    await statusOnline(page,{timeout:30000});
-   await page.waitForTimeout(600);
   });
 
   await s.step('GeoGebra liga/desliga sem sujar o título e preserva o PDF ao voltar',async()=>{
@@ -837,24 +852,21 @@ if(only('tabs')){
    await page.waitForFunction(()=>!document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:15000});
    assert.equal(await page.locator('#course-tabs button[data-id="A"]').getAttribute('aria-selected'),'true');
    await statusOnline(page,{timeout:30000});
-   await page.waitForTimeout(800);
   });
 
   await s.step('estado para o reinício: tema, painel escondido, rascunho',async()=>{
-   await page.locator('#mesa-menu .nav-trigger').click();
-   await page.locator('#theme-cycle').click();
+   await pickTheme(page,'light');
    assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');
-   await page.keyboard.press('Escape');
    await page.locator('#study-menu .nav-trigger').click();
    await page.locator('#reference-toggle').click();
    assert.equal(await page.locator('.pdf-panel').nth(1).isHidden(),true);
    await page.keyboard.press('Escape');
-   await page.locator('#study-context #exercise-title').fill('Lista 3 · questão 1');
+   await fillStudyTitle(page,'Lista 3 · questão 1');
    await page.locator('#prompt').fill('rascunho para voltar');
-   await page.waitForTimeout(900);
    // densidade e override de atalho (localStorage) para o reinício
    await page.keyboard.press('ControlOrMeta+,');
    await page.waitForSelector('#settings-dialog[open]');
+   await page.locator('#settings-tab-avisos').click();
    await page.locator('#density-mode').selectOption('compacta');
    await page.waitForFunction(()=>document.body.classList.contains('dense'));
    await page.locator('#settings-dialog button[value="cancel"]').last().click();
@@ -862,12 +874,14 @@ if(only('tabs')){
    await page.evaluate(()=>localStorage.setItem('mesa.keys',JSON.stringify({v:1,overrides:{'pdf-find':'Mod+j'}})));
    await page.evaluate(()=>localStorage.setItem('mesa.notify','both'));
    // minimiza o 1º leitor e inverte as cores: layout por documento
-   await page.locator('.pdf-panel').first().locator('.invert').click();
+   await moreClick(page.locator('.pdf-panel').first(),'.invert');
    await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-viewport')?.classList.contains('inverted'));
-   await page.locator('.pdf-panel').first().locator('.collapse').click();
+   await moreClick(page.locator('.pdf-panel').first(),'.collapse');
    await page.waitForFunction(()=>document.querySelector('.pdf-panel').classList.contains('minimized'));
-   await page.waitForTimeout(900);
-   const desk=JSON.parse(fs.readFileSync(path.join(s.runtime,'desk.json'),'utf8'));
+   const desk=await pollUntil(()=>readDesk(s.runtime),state=>{
+    const course=state?.courseStates?.A||{};
+    return state?.theme==='light'&&course.pdfs?.[0]?.minimized===true&&course.pdfs?.[0]?.invert===true&&course.study?.title==='Lista 3 · questão 1'&&(course.draft||state.draft)==='rascunho para voltar';
+   },{what:'desk.json com tema, leitor minimizado/invertido, título de estudo e rascunho'});
    assert.equal(desk.theme,'light');
    const st=desk.courseStates?.A||{};
    assert.equal(st.referenceVisible===false||desk.referenceVisible===false,true,'referenceVisible=false precisa persistir');
@@ -904,7 +918,7 @@ if(only('tabs')){
    assert.deepEqual(await p2.locator('#notify-mode input').evaluateAll(es=>es.map(e=>[e.id,e.checked])),[['notify-sound',true],['notify-desktop',true],['notify-focused',false]],'o modo legado "both" volta migrado');
    await p2.locator('#settings-dialog button[value="cancel"]').last().click();
    await p2.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
-   await p2.locator('.pdf-panel').first().locator('.collapse').click();
+   await moreClick(p2.locator('.pdf-panel').first(),'.collapse');
    await p2.waitForFunction(()=>!document.querySelector('.pdf-panel').classList.contains('minimized'));
    await p2.keyboard.press('ControlOrMeta+j');
    await p2.waitForFunction(()=>{const form=document.querySelector('.pdf-panel .pdf-find');return form&&!form.hidden&&document.activeElement===form.querySelector('input');},undefined,{timeout:5000});
@@ -940,7 +954,7 @@ if(only('flags')){
   });
 
   await s.step('todos os controles das flags ficam escondidos',async()=>{
-   for(const sel of ['#include-refs','#study-context','#calculator','#calc-divider','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia sumir`);
+   for(const sel of ['#include-refs','#context-edit','#calculator','#calc-divider','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia sumir`);
    await page.locator('#study-menu .nav-trigger').click();
    assert.equal(await page.locator('#xournal').isHidden(),true);
    assert.equal(await page.locator('#end-day').getAttribute('hidden'),'','a flag endDay esconde o item do menu');
@@ -961,8 +975,8 @@ if(only('flags')){
    await page.waitForSelector('#settings-dialog[open]');
    await page.locator('#settings-save').click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:15000});
-   await page.waitForTimeout(800);
-   for(const sel of ['#include-refs','#study-context','#calculator','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia continuar escondido depois de Salvar`);
+   await page.waitForTimeout(800);// espera fixa: "nada reaparece em 0,8 s" — depois de Salvar os controles escondidos continuam escondidos
+   for(const sel of ['#include-refs','#context-edit','#calculator','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia continuar escondido depois de Salvar`);
    await page.locator('#study-menu .nav-trigger').click();
    assert.equal(await page.locator('#xournal').isHidden(),true);
    assert.equal(await page.locator('#end-day').getAttribute('hidden'),'','a flag endDay segue escondendo o item do menu');
@@ -1004,7 +1018,8 @@ if(only('config')){
   });
 
   await s.step('nome de matéria com & e < vira texto, não markup',async()=>{
-   const html=await page.evaluate(()=>{const tab=document.querySelector('#course-tabs button');return {text:tab.textContent,childElements:tab.children.length,inner:tab.innerHTML};});
+   // a aba da matéria, por id: a primeira aba da barra é a Livre, não a matéria A
+   const html=await page.evaluate(()=>{const tab=document.querySelector('#course-tabs button[role="tab"][data-id="A"]');return {text:tab.textContent,childElements:tab.children.length,inner:tab.innerHTML};});
    assert.equal(html.text,'A & B <c>');
    assert.equal(html.childElements,0,'a aba é texto puro');
    assert.ok(html.inner.includes('&amp;'),'o markup escapa o &');
@@ -1018,28 +1033,46 @@ if(only('config')){
 
  const s2=new Scenario('config um painel e setup inicial');
  try{
-  seedCourse(s2.runtime,'U');
+  const pdfs=path.join(s2.runtime,'apostilas');
+  fs.mkdirSync(pdfs,{recursive:true});
+  fs.writeFileSync(path.join(pdfs,'Apostila.pdf'),tinyPdf('Apostila'));
   writeDeskJson(s2.runtime,{courseId:'U'});
   writeConfigJson(s2.runtime,{vaultPath:'',courses:[],desk:{panels:[{label:'Apostila',prefer:['apostila']}]}});
   await s2.launch();
   const page=s2.page;
-  await page.waitForSelector('.pdf-panel',{timeout:30000});
+  await page.waitForSelector('body[data-first-run="true"]',{timeout:30000});
 
-  await s2.step('setup inicial abre a boas-vindas e Configurar agora leva às Configurações',async()=>{
-   await page.waitForSelector('#welcome-dialog[open]',{timeout:5000});
-   assert.equal(await page.locator('#welcome-dialog h2').textContent(),'Bem-vindo à Mesa de Estudos');
-   assert.equal(await page.locator('#welcome-dialog .welcome-block').count(),4,'quatro blocos na boas-vindas');
-   await page.locator('#welcome-settings').click();
+  await s2.step('setup inicial cai direto na tela de passos, sem diálogo',async()=>{
+   assert.equal(await page.locator('dialog[open]').count(),0,'a primeira abertura não abre diálogo');
+   assert.equal(await page.locator('#setup-card').getAttribute('data-step'),'welcome');
+   assert.equal(await page.evaluate(()=>document.activeElement?.id),'setup-next');
+  });
+
+  await s2.step('as Configurações abrem com o título normal e uma linha de matéria em branco',async()=>{
+   await page.keyboard.press('ControlOrMeta+,');
    await page.waitForSelector('#settings-dialog[open]',{timeout:5000});
-   assert.equal(await page.locator('#settings-title').textContent(),'Bem-vindo à Mesa de Estudos');
-   const rows=await page.locator('#cfg-courses .cfg-course').count();
-   assert.equal(rows,1,'lista vazia vira uma linha em branco');
+   assert.equal(await page.locator('#settings-title').textContent(),'Configurações');
+   assert.equal(await page.locator('#cfg-courses .cfg-course').count(),1,'lista vazia vira uma linha em branco');
    assert.equal(await page.locator('#cfg-courses .cfg-name').inputValue(),'');
    await page.locator('#settings-dialog button[value="cancel"]').last().click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
+   assert.equal(await page.evaluate(()=>document.body.dataset.firstRun),'true','cancelar não tira da primeira abertura');
   });
 
-  await s2.step('um painel: toggle do 2º leitor some e o grid fica single',async()=>{
+  await s2.step('um painel: nome + pasta + Criar a matéria, o toggle do 2º leitor some e o grid fica single',async()=>{
+   await s2.app.evaluate(({dialog},folder)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[folder]});},pdfs);
+   await page.locator('#first-run-help').click();
+   await page.locator('#setup-skip-tour').click();
+   await page.locator('#first-run-name').fill('Apostila de teste');
+   await page.locator('#setup-next').click();
+   await page.locator('#first-run-pick').click();
+   await page.waitForFunction(()=>!document.querySelector('#setup-next').disabled);
+   await page.locator('#setup-next').click();
+   await page.locator('#setup-next').click();
+   assert.equal(await page.locator('#setup-card').getAttribute('data-step'),'ready');
+   await page.locator('#setup-next').click();
+   await page.waitForFunction(()=>!document.body.dataset.firstRun,undefined,{timeout:30000});
+   await page.waitForSelector('.pdf-panel',{timeout:30000});
    assert.equal(await page.locator('.pdf-panel').count(),1);
    await page.locator('#study-menu .nav-trigger').click();
    assert.equal(await page.locator('#reference-toggle').isHidden(),true);
@@ -1080,7 +1113,11 @@ if(only('busy')){
    await page.locator('#send').click();
    await page.waitForFunction(()=>document.querySelector('#send').disabled,undefined,{timeout:10000});
    assert.equal(await page.locator('#stop').isHidden(),false,'Parar aparece no turno');
-   assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].every(b=>b.disabled)),true,'abas desabilitadas no turno');
+   /* #42: as outras matérias travam (com a dica); a atual fica livre — voltar a ela não troca contexto. */
+   const locks=await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].map(b=>({id:b.dataset.id,active:b.classList.contains('active'),disabled:b.disabled,title:b.getAttribute('title')||b.dataset.tip||''})));
+   assert.equal(locks.filter(b=>!b.active).every(b=>b.disabled),true,`as outras abas travam no turno (${JSON.stringify(locks)})`);
+   assert.equal(locks.find(b=>b.active)?.disabled,false,'a aba da matéria atual fica livre no turno');
+   assert.equal(locks.filter(b=>!b.active&&b.id!=='geogebra').every(b=>b.title==='Espere a resposta terminar para trocar de matéria'),true,'as travadas dizem por quê');
    await openEndDay(page);
    await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Pare a resposta'),undefined,{timeout:5000});
    assert.equal(await page.evaluate(()=>document.querySelector('#end-day-dialog').open),false,'o diálogo não abre no meio do turno');
@@ -1096,18 +1133,24 @@ if(only('busy')){
    // ⌘3 espera o turno (waitIdle ~12s) e o host recusa com o Pi ainda streamando
    await page.keyboard.press('ControlOrMeta+3');
    await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Pare a resposta antes de trocar'),undefined,{timeout:25000});
-   assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].find(b=>b.classList.contains('active'))?.dataset.id),'A');
+   assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].find(b=>b.classList.contains('active'))?.dataset.id),'A');
    assert.equal(await page.locator('#send').isDisabled(),true,'o turno continua preso (o stop é do usuário)');
-   const tabStates=await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button')].map(b=>[b.dataset.id||b.id,b.disabled]));
+   const tabStates=await page.evaluate(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].map(b=>[b.dataset.id||b.id,b.disabled]));
    s.note(`depois da recusa as abas ficam ${JSON.stringify(tabStates)} com o turno preso (estado herdado)`);
   });
 
-  await s.step('Salvar Configurações durante o turno é recusado com toast',async()=>{
+  await s.step('Salvar Configurações durante o turno espera o fim da resposta',async()=>{
+   /* #42: sem mudança, Salvar só fecha; com mudança, o rodapé explica e o Salvar fica desligado. */
    await page.keyboard.press('ControlOrMeta+,');
    await page.waitForSelector('#settings-dialog[open]');
    await page.locator('#settings-save').click();
-   await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('Pare a resposta antes de mudar as configurações'),undefined,{timeout:10000});
-   assert.equal(await page.evaluate(()=>document.querySelector('#settings-dialog').open),true,'o diálogo fica aberto para o usuário tentar depois');
+   await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:5000});
+   await page.keyboard.press('ControlOrMeta+,');
+   await page.waitForSelector('#settings-dialog[open]');
+   await page.locator('#settings-tab-mesa').click();
+   await page.locator('#cfg-title').fill('Mesa durante o turno');
+   await page.waitForFunction(()=>document.querySelector('#settings-save').disabled&&document.querySelector('#settings-hint').textContent.includes('O tutor está respondendo'),undefined,{timeout:5000});
+   assert.equal(await page.evaluate(()=>document.querySelector('#settings-dialog').open),true,'o diálogo fica aberto para o usuário salvar depois');
    await page.locator('#settings-dialog button[value="cancel"]').last().click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
   });
