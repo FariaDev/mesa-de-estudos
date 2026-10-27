@@ -96,6 +96,17 @@ await withArtifacts('opencode-motor',async ctx=>{
  assert.equal(readLog(serveLog).filter(entry=>entry.start).length,1,'o mesmo servidor serve as duas conversas');
  const sessions=readLog(serveLog).map(entry=>/^\/api\/session\/([^/]+)\/prompt$/.exec(String(entry.url||''))?.[1]).filter(Boolean);
  assert.equal(new Set(sessions).size,2,'cada conversa tem o seu ses_');
+
+ /* 4b. Chat lateral com o OpenCode (#74): responde pelo mesmo servidor, num ses_ próprio. */
+ await page.locator('#sidechat-toggle').click();
+ await page.waitForFunction(()=>{const prompt=document.querySelector('#sidechat-prompt');return prompt&&!prompt.disabled;},undefined,{timeout:20000});
+ assert.equal((await page.locator('#sidechat-engine').textContent()).trim(),'OpenCode','o lateral diz o motor');
+ await page.locator('#sidechat-prompt').fill('pergunta lateral');
+ await page.locator('#sidechat-prompt').press('Enter');
+ await page.waitForFunction(()=>[...document.querySelectorAll('#sidechat-messages .sidechat-msg.assistant')].some(el=>el.textContent.includes('Resposta do OpenCode falso')),undefined,{timeout:30000});
+ const withSide=readLog(serveLog).map(entry=>/^\/api\/session\/([^/]+)\/prompt$/.exec(String(entry.url||''))?.[1]).filter(Boolean);
+ assert.equal(new Set(withSide).size,3,'o lateral tem o seu ses_');
+ assert.equal(readLog(serveLog).filter(entry=>entry.start).length,1,'o lateral usa o mesmo servidor');
  assert.deepEqual(errors,[],'sem erro de página');
 
  step(5);

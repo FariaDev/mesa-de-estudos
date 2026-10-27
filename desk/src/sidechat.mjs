@@ -585,6 +585,14 @@ function handleEvent(event){
    state.messages.push(message);
    renderMessages();
   }
+  /* Turno que falhou no provedor (modelo, chave, limite) chega só com
+     `errorMessage`; antes o lateral ficava mudo (v1.0.2). O principal faz o mesmo em chat.mjs. */
+  const failure=event.message?.role==='assistant'?event.message.errorMessage:'';
+  if(failure){
+   if(liveEl){liveEl.remove();liveEl=null;}
+   liveText='';
+   noteText(uiMessage('sidechat.err.generic',{reason:uiText(String(failure))}));
+  }
   return;
  }
  if(type==='agent_end'||type==='agent_settled'){
@@ -659,7 +667,7 @@ function schedulePaint(){
 
 function engineLabel(){
  const engine=state.engine||S.engine||'pi';
- return engine==='claude'?`Claude (experimental)`:(engine==='pi'?'Tutor':String(engine));
+ return engine==='claude'?`Claude (experimental)`:(engine==='opencode'?'OpenCode':(engine==='pi'?'Tutor':String(engine)));
 }
 function renderEngine(){
  if(!engineEl)return;

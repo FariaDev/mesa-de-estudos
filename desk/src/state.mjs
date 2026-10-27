@@ -574,7 +574,6 @@ function updateCourseFacts(data){
 }
 function applyDesk(desk){
  const title=desk?.title||'Mesa de Estudos';
- const brand=$('.brand strong');if(brand)brand.textContent=title;
  const specs=desk?.panels?.length?desk.panels:[{label:'Enunciado'},{label:'Formulário & apoio',toggle:'Formulário'}];
  const two=specs.length>1;
  /* `#reference-toggle` (hidden e rótulo) e `#xournal` (hidden) são decididos

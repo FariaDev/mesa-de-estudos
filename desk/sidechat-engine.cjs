@@ -22,14 +22,39 @@ const {ClaudeAdapter} = require('./src/agents/claude-adapter.cjs');
 const {ClaudeService} = require('./src/agents/service.cjs');
 
 /**
+ * O Pi lateral nasce com o modelo padrão do Pi, não com o escolhido na conversa
+ * principal (o seletor só fala com a ponte principal). Antes do primeiro envio
+ * ele recebe o mesmo modelo e nível (v1.0.2: o lateral ficava mudo com o Grok).
+ * Uma falha aqui só vai ao log: o envio segue no modelo padrão e um erro do
+ * turno aparece no próprio chat.
+ * @param {PiBridge} bridge
+ * @param {() => Promise<{provider: string, id: string, level?: string|null}|null>} mainModel
+ * @param {(line: string) => void} note
+ * @example await syncSideModel(bridge, async () => ({provider: 'xai', id: 'grok-4.6', level: 'high'}), console.log)
+ */
+async function syncSideModel(bridge, mainModel, note) {
+  let model = null;
+  try {
+    model = await mainModel();
+    if (!model?.provider || !model?.id) return;
+    await bridge.request('set_model', {provider: model.provider, modelId: model.id});
+    if (model.level) await bridge.request('set_thinking_level', {level: model.level});
+  } catch (error) {
+    note(`modelo da conversa principal não aplicado (${model ? `${model.provider}/${model.id}` : 'sem modelo'}): ${error?.message || error}`);
+  }
+}
+
+/**
  * Canal Pi de um chat lateral: uma ponte RPC com a sessão JSONL dele.
  * @param {{id: string, sessionPath: string, cwd: string, pi: string, env: NodeJS.ProcessEnv,
  *   extraArgs?: string[], promptFile?: string, onEvent: (event: object) => void,
- *   log: (scope: string, line: string) => void}} options
+ *   log: (scope: string, line: string) => void,
+ *   mainModel?: () => Promise<{provider: string, id: string, level?: string|null}|null>}} options
  */
-function createPiSideEngine({id, sessionPath, cwd, pi, env, extraArgs = [], promptFile = '', onEvent, log} = {}) {
+function createPiSideEngine({id, sessionPath, cwd, pi, env, extraArgs = [], promptFile = '', onEvent, log, mainModel = async () => null} = {}) {
   const bridge = new PiBridge({cwd, session: sessionPath, pi, env, promptFile, extraArgs});
   let closed = false;
+  let modelSynced = false;
   bridge.on('event', (event) => {
     if (!closed) onEvent?.(event);
   });
@@ -39,6 +64,10 @@ function createPiSideEngine({id, sessionPath, cwd, pi, env, extraArgs = [], prom
   return {
     engine: 'pi',
     async prompt({text, running}) {
+      if (!modelSynced) {
+        modelSynced = true;
+        await syncSideModel(bridge, mainModel, (line) => log?.('sidechat', `${id}: ${line}`));
+      }
       const result = await bridge.request('prompt', {message: text, ...(running ? {streamingBehavior: 'followUp'} : {})});
       return {accepted: true, result};
     },
@@ -80,7 +109,7 @@ function previewFromMessages(messages, fallback = '') {
 
 /**
  * Canal Claude de um chat lateral. `deps` troca o adaptador e o serviço nos testes.
- * @param {{id: string, descriptor: object, runtime: string, prepare: (record: object) => unknown,
+ * @param {{id: string, descriptor: string, runtime: string, prepare: (record: object) => unknown,
  *   sdkLoader?: unknown, claudePath?: string, detectClaude?: unknown, onEvent: (event: object) => void,
  *   log: (scope: string, line: string) => void, deps?: {Adapter?: typeof ClaudeAdapter, Service?: typeof ClaudeService}}} options
  */
@@ -148,18 +177,30 @@ function createClaudeSideEngine({
     },
   });
   service.toolPolicy = toolPolicy;
+  return nativeSideChannel({engine: 'claude', id, service, toolPolicy, onEvent, log});
+}
+
+/**
+ * O canal lateral sobre um serviço nativo (Claude ou OpenCode): a mesma forma
+ * do canal Pi para o manager. Só o Claude lê os PDFs do contexto pela política
+ * de ferramentas; o OpenCode recebe o texto.
+ * @param {{engine: 'claude'|'opencode', id: string, service: import('./src/agents/service.cjs').NativeService,
+ *   toolPolicy?: {readPaths: string[], readRoots: string[]}|null, onEvent: (event: object) => void,
+ *   log: (scope: string, line: string) => void}} options
+ * @example nativeSideChannel({engine: 'opencode', id: 'sc-1', service, onEvent, log})
+ */
+function nativeSideChannel({engine, id, service, toolPolicy = null, onEvent, log}) {
   let closed = false;
   service.on('event', (event) => {
     if (!closed) onEvent?.(event);
   });
   return {
-    engine: 'claude',
+    engine,
     async prompt({text, readPaths}) {
-      const policy = {
-        readPaths: (Array.isArray(readPaths) ? readPaths : []).slice(0, 2),
-        readRoots: toolPolicy.readRoots,
-      };
-      const result = await service.request('prompt', {message: text, toolPolicy: policy});
+      const policy = toolPolicy ? {
+        toolPolicy: {readPaths: (Array.isArray(readPaths) ? readPaths : []).slice(0, 2), readRoots: toolPolicy.readRoots},
+      } : {};
+      const result = await service.request('prompt', {message: text, ...policy});
       return {accepted: true, result};
     },
     async abort() {
@@ -173,7 +214,7 @@ function createClaudeSideEngine({
       try {
         service.stop();
       } catch (error) {
-        log?.('sidechat', `${id}: falha ao encerrar o Claude (${error?.message || error})`);
+        log?.('sidechat', `${id}: falha ao encerrar o ${engine} (${error?.message || error})`);
       }
     },
     isBusy() {
@@ -188,4 +229,21 @@ function createClaudeSideEngine({
   };
 }
 
-module.exports = {createPiSideEngine, createClaudeSideEngine};
+/**
+ * Canal OpenCode de um chat lateral (#74): descritor nativo próprio no mesmo
+ * `opencode serve` da principal. `connect` vem do host do tutor OpenCode, que
+ * é o dono do servidor, e devolve o serviço já ligado ao adaptador.
+ * @param {{id: string, descriptor: string, runtime: string,
+ *   connect: (request: {descriptor: string, record: object}) => import('./src/agents/service.cjs').NativeService,
+ *   onEvent: (event: object) => void, log: (scope: string, line: string) => void}} options
+ * @example createOpenCodeSideEngine({id, descriptor: descriptor.claude, runtime, connect: openCodeTutor.connectSide, onEvent, log})
+ */
+function createOpenCodeSideEngine({id, descriptor, runtime, connect, onEvent, log} = {}) {
+  if (typeof connect !== 'function') throw Error(invalidValue('connect', connect, 'function (serviço OpenCode do chat lateral)'));
+  conversations.recoverClaudeConversation(descriptor, {runtime});
+  const record = conversations.readClaudeConversation(descriptor, {runtime});
+  if (!record) throw Error(message('err.sidechat.recordMissing'));
+  return nativeSideChannel({engine: 'opencode', id, service: connect({descriptor, record}), onEvent, log});
+}
+
+module.exports = {createPiSideEngine, createClaudeSideEngine, createOpenCodeSideEngine, syncSideModel};

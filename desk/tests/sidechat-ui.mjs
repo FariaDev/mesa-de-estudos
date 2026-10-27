@@ -104,6 +104,12 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  assert.equal(await page.locator('#messages .message.user').count(),beforeMessages,'nada foi enviado ao principal');
  await page.waitForFunction(()=>document.querySelector('#toast')?.textContent.includes('rascunho da sessão principal'));
 
+ /* ---- 3b. Turno recusado pelo provedor aparece no lateral (v1.0.2) ---- */
+ await page.locator('#sidechat-prompt').fill('falha do provedor');
+ await page.locator('#sidechat-prompt').press('Enter');
+ await page.waitForFunction(()=>document.querySelector('#sidechat-messages')?.textContent.includes('Erro de teste do provedor.'),undefined,{timeout:20000});
+ await page.waitForFunction(()=>!document.querySelector('#sidechat-prompt')?.disabled,undefined,{timeout:10000});
+
  /* ---- 4. Rascunho e histórico persistem no reload ---- */
  await page.locator('#sidechat-prompt').fill('rascunho lateral persistente');
  await pollUntil(()=>sidechatFiles(runtime),found=>found.descriptors.some(item=>item.draft==='rascunho lateral persistente'),{what:'o rascunho lateral no disco',onTimeout:'return'});
@@ -235,6 +241,9 @@ await withArtifacts('lateral-parar',async ctx=>{
  await page.locator('#sidechat-prompt').fill('segundo turno segurando');
  await page.locator('#sidechat-prompt').press('Enter');
  await page.waitForFunction(()=>!document.querySelector('#sidechat-stop').hidden,undefined,{timeout:15000});
+ /* Parar e Enviar juntos à direita; antes o Parar ia para o meio da fileira (v1.0.2). */
+ const stopGap=await page.evaluate(()=>{const stop=document.querySelector('#sidechat-stop').getBoundingClientRect(),send=document.querySelector('#sidechat-send').getBoundingClientRect();return send.hidden?0:send.left-stop.right;});
+ assert.ok(stopGap>=0&&stopGap<=16,`Parar encosta no Enviar: recebido ${stopGap}px de vão, esperado até 16px`);
  await page.locator('#sidechat-stop').click();
  await page.waitForFunction(()=>document.querySelector('#sidechat-stop').hidden,undefined,{timeout:20000});
  assert.equal(await page.locator('#sidechat-send').isDisabled(),false,'depois de parar, o lateral volta a aceitar envio');

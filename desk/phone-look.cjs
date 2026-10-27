@@ -46,7 +46,7 @@ function toneVars(palette, accent, tone) {
  * Tema `auto` segue o tema do celular; `light`/`dark` fixam o da Mesa.
  * @param {{theme?: string, accent?: string, palette: Record<string, {light: string, dark: string}>}} look
  * @returns {string}
- * @example phoneLookCss({theme:'dark', accent:'green', palette}) // ':root{color-scheme:dark;...--accent:#12805a...}'
+ * @example phoneLookCss({theme:'dark', accent:'green', palette}) // ':root{color-scheme:dark;...--accent:#13865e...}'
  */
 function phoneLookCss({theme, accent = 'blue', palette}) {
   if (theme === 'light' || theme === 'dark') return `:root{color-scheme:${theme};${toneVars(palette, accent, theme)}}`;

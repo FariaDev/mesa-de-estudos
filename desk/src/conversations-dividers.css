@@ -54,9 +54,7 @@
 @media(max-width:1000px){
  #sidechat-context-pop{max-height:50%}
  #conversations-pop{width:min(340px,96%)}
- /* Cabeçalho: a marca vira só o ícone e a lista de matérias cede espaço para
-    as ações (nenhuma ação some). */
- .brand strong{display:none}
+ /* Cabeçalho: a lista de matérias cede espaço para as ações (nenhuma ação some). */
  header{gap:var(--space-3)}
  /* A busca vira só o ícone (#27 B10); o nome acessível e o ⌘K seguem. */
  .header-actions > #palette-field{width:var(--ctl);padding:0;justify-content:center}

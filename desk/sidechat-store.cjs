@@ -126,7 +126,7 @@ function validDelivery(raw) {
 function validDescriptor(raw, id) {
   if (!isPlainObject(raw)) return false;
   if (raw.schemaVersion !== SCHEMA_VERSION || raw.id !== id) return false;
-  if (raw.engine !== 'pi' && raw.engine !== 'claude') return false;
+  if (!['pi', 'claude', 'opencode'].includes(raw.engine)) return false;
   if (typeof raw.mainSession !== 'string' || !raw.mainSession) return false;
   if (typeof raw.courseId !== 'string') return false;
   if (!Number.isFinite(raw.createdAt) || raw.createdAt < 0) return false;

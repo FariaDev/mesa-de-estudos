@@ -1,7 +1,7 @@
 // @ts-check
 const fs=require('node:fs');const crypto=require('node:crypto');
 const {createSideChatManager,conversationList}=require('./sidechat.cjs');
-const {createPiSideEngine,createClaudeSideEngine}=require('./sidechat-engine.cjs');
+const {createPiSideEngine,createClaudeSideEngine,createOpenCodeSideEngine}=require('./sidechat-engine.cjs');
 const {buildStudyContext}=require('./studycontext.cjs');
 const {cleanStudy}=require('./study.cjs');
 const conversations=require('./src/agents/conversations.cjs');
@@ -15,7 +15,7 @@ const conversations=require('./src/agents/conversations.cjs');
    O main entrega o que o lateral lê do principal como acessores (`session`,
    `courseId`, `courses`, `config`, `state`, `bridge` são reatribuídos lá) e as
    preparações que dependem do motor (`piLaunch`, `prepareClaudeSide`). */
-function createMesaSidechat({runtime,freeId,session,courseId,courses,config,state,bridge,engine,validPdf,allowedXopp,descriptorCache,piLaunch,prepareClaudeSide,testClaudeSdkLoader,claudeBinary,claudeDetector,win,appendLog,languageHost}){
+function createMesaSidechat({runtime,freeId,session,courseId,courses,config,state,bridge,engine,validPdf,allowedXopp,descriptorCache,piLaunch,prepareClaudeSide,connectOpenCodeSide,testClaudeSdkLoader,claudeBinary,claudeDetector,win,appendLog,languageHost}){
  /* O digest vai ao modelo: os rótulos seguem o idioma do tutor (#41). */
  const roleLabel=(isUser)=>languageHost.tutorT(isUser?'sidechatctx.roleUser':'sidechatctx.roleAssistant');
  function mainHistoryLines(limit=12){
@@ -67,20 +67,34 @@ function createMesaSidechat({runtime,freeId,session,courseId,courses,config,stat
   const key=JSON.stringify([session(),courseId(),block.key,at,crypto.createHash('sha1').update(digest).digest('hex').slice(0,16)]);
   return {mainSession:session(),refs:formatted,study,at,digest,key};
  }
+ /* Modelo e esforço da principal nativa (Claude ou OpenCode): o lateral nasce com eles (v1.0.2). */
+ function mainNativeSelection(){
+  if(!conversations.NATIVE_ENGINES.includes(engine()))return {};
+  const record=descriptorCache.get(session())||null;
+  return {model:record?.model||null,effort:record?.effort||null};
+ }
+ /* Modelo e nível da conversa principal no Pi, para o lateral responder com o mesmo (v1.0.2). */
+ async function mainPiModel(){
+  const main=bridge();
+  if(!main||engine()!=='pi')return null;
+  const current=await main.request('get_state',{},5000);
+  return current?.model?{provider:current.model.provider,id:current.model.id,level:current.thinkingLevel||null}:null;
+ }
  return createSideChatManager({
   runtime,
-  current:()=>({session:session(),courseId:courseId(),engine:engine(),courseName:courseId()===freeId?'':(courses().find(c=>c.id===courseId())?.name||'')}),
+  current:()=>({session:session(),courseId:courseId(),engine:engine(),...mainNativeSelection(),courseName:courseId()===freeId?'':(courses().find(c=>c.id===courseId())?.name||'')}),
   /* O manager chama `snapshot({refs})` (objeto), não o array solto: sem o
      destructuring o `Array.isArray` de `sidechatSnapshot` zerava TODAS as refs
      PDF do snapshot. O contrato é objeto com `refs` já validado. */
   snapshot:({refs})=>sidechatSnapshot(refs),
   validPdf:p=>validPdf(p),
   createEngine:({engine,id,descriptor,onEvent})=>{
+   if(engine==='opencode')return createOpenCodeSideEngine({id,descriptor:descriptor.claude,runtime,connect:side=>connectOpenCodeSide(side),onEvent,log:(src,line)=>appendLog(src,line)});
    if(engine==='claude'){
     return createClaudeSideEngine({id,descriptor:descriptor.claude,runtime,prepare:record=>prepareClaudeSide(record),sdkLoader:testClaudeSdkLoader(),claudePath:claudeBinary(),detectClaude:claudeDetector(),onEvent,log:(src,line)=>appendLog(src,line)});
    }
    const launch=piLaunch();
-   return createPiSideEngine({id,sessionPath:descriptor.session,cwd:launch.cwd,pi:launch.pi,env:launch.env,extraArgs:launch.extraArgs,promptFile:launch.promptFile,onEvent,log:(src,line)=>appendLog(src,line)});
+   return createPiSideEngine({id,sessionPath:descriptor.session,cwd:launch.cwd,pi:launch.pi,env:launch.env,extraArgs:launch.extraArgs,promptFile:launch.promptFile,onEvent,log:(src,line)=>appendLog(src,line),mainModel:()=>mainPiModel()});
   },
   emit:payload=>{const target=win();if(target&&!target.isDestroyed())target.webContents.send('sidechat-event',payload);},
   log:(src,line)=>appendLog(src,line),

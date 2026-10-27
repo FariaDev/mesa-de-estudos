@@ -20,7 +20,7 @@ const LABELS={blue:'Azul',violet:'Violeta',green:'Verde',orange:'Laranja',pink:'
    texto é o próprio preenchimento. */
 const FILL={
  light:{blue:'#2548c7',violet:'#6d28d9',green:'#0f7b55',orange:'#c2410c',pink:'#c02667',graphite:'#27272a'},
- dark:{blue:'#3b5bdb',violet:'#7c3aed',green:'#12805a',orange:'#c2410c',pink:'#c2255c',graphite:'#ededed'}
+ dark:{blue:'#506cdf',violet:'#8c52ef',green:'#13865e',orange:'#d0460d',pink:'#d8306b',graphite:'#ededed'}
 };
 const TEXT={
  light:FILL.light,
