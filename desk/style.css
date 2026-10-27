@@ -28,11 +28,11 @@
     `--accent-paper` o tom de link sobre folha branca, que não depende do tema.
     A escolha entra por `data-accent` no `<html>` (src/state.mjs#applyAccent);
     azul é o padrão de quem nunca escolheu. */
- --acc-blue:light-dark(#2548c7,#3b5bdb);--acc-blue-text:light-dark(#2548c7,#8fa8ff);
- --acc-violet:light-dark(#6d28d9,#7c3aed);--acc-violet-text:light-dark(#6d28d9,#a78bfa);
- --acc-green:light-dark(#0f7b55,#12805a);--acc-green-text:light-dark(#0f7b55,#5fd3a4);
- --acc-orange:light-dark(#c2410c,#c2410c);--acc-orange-text:light-dark(#c2410c,#fb9a6b);
- --acc-pink:light-dark(#c02667,#c2255c);--acc-pink-text:light-dark(#c02667,#f783ac);
+ --acc-blue:light-dark(#2548c7,#506cdf);--acc-blue-text:light-dark(#2548c7,#8fa8ff);
+ --acc-violet:light-dark(#6d28d9,#8c52ef);--acc-violet-text:light-dark(#6d28d9,#a78bfa);
+ --acc-green:light-dark(#0f7b55,#13865e);--acc-green-text:light-dark(#0f7b55,#5fd3a4);
+ --acc-orange:light-dark(#c2410c,#d0460d);--acc-orange-text:light-dark(#c2410c,#fb9a6b);
+ --acc-pink:light-dark(#c02667,#d8306b);--acc-pink-text:light-dark(#c02667,#f783ac);
  --acc-graphite:light-dark(#27272a,#ededed);--acc-graphite-text:light-dark(#27272a,#ededed);
  --accent-fill:var(--acc-blue);--accent-text:var(--acc-blue-text);--accent-fg:#ffffff;--accent-paper:#2548c7;
  --primary:var(--accent-fill);

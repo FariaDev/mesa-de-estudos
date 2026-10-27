@@ -25,7 +25,7 @@ const isNative=kind=>conversations.NATIVE_ENGINES.includes(kind);
 /**
  * Cria o motor do tutor sobre o estado vivo do main.
  * Devolve piBinary, engine, isNative, openCodeBinary, claudeBinary, claudeDetector, descriptorCache,
- * conversationData, sessionInfo, claudeProfile, prepareClaude, prepareOpenCode, prepareClaudeSide,
+ * conversationData, sessionInfo, claudeProfile, prepareClaude, prepareOpenCode, prepareClaudeSide, prepareOpenCodeSide,
  * testClaudeSdkLoader e previewFile.
  * @param {{live: import('./main.cjs').DeskLive, runtime: string, deskDir: string, TEST_MODE: boolean, FREE_ID: string}} options
  *   `live` traz config, sessão, matéria, ponte, estado e idioma do main
@@ -124,10 +124,19 @@ function createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID}){
  /* Preparação do chat lateral Claude: workspace PRÓPRIO (record.id do descritor
     lateral), mesmo perfil de estudo e mesma recusa de matéria — nunca inicia o Pi
     como fallback. */
+ function prepareSide(kind,record){
+  if(!record||record.courseId!==live.courseId)throw Error(message(NATIVE_ERRORS[kind].course));
+  const cwd=path.join(runtime,`${kind}-workspaces`,record.id);fs.mkdirSync(cwd,{recursive:true});
+  return cwd;
+ }
  function prepareClaudeSide(record){
-  if(!record||record.courseId!==live.courseId)throw Error(message('err.claude.wrongCourse'));
-  const cwd=path.join(runtime,'claude-workspaces',record.id);fs.mkdirSync(cwd,{recursive:true});
+  const cwd=prepareSide('claude',record);
   return {cwd,systemPrompt:claudePrompt({profile:claudeProfile(),tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app})};
+ }
+ /* O lateral OpenCode (#74): o mesmo preparo, com o prompt do OpenCode. */
+ function prepareOpenCodeSide(record){
+  const cwd=prepareSide('opencode',record);
+  return {cwd,systemPrompt:openCodePrompt({profile:claudeProfile(),tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app})};
  }
  function testClaudeSdkLoader(){
   if(!TEST_MODE||!process.env.LEARNING_DESK_CLAUDE_SDK_FACTORY)return undefined;
@@ -139,7 +148,7 @@ function createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID}){
   if(isNative(engine(file)))return descriptorCache.get(file)?.preview||'';
   try{return sessionPreviewFromJsonl(fs.readFileSync(file,'utf8').slice(0,200000));}catch{return '';}
  }
- return {piBinary,engine,isNative,openCodeBinary,claudeBinary,claudeDetector,descriptorCache,conversationData,sessionInfo,claudeProfile,prepareClaude,prepareOpenCode,prepareClaudeSide,testClaudeSdkLoader,previewFile};
+ return {piBinary,engine,isNative,openCodeBinary,claudeBinary,claudeDetector,descriptorCache,conversationData,sessionInfo,claudeProfile,prepareClaude,prepareOpenCode,prepareClaudeSide,prepareOpenCodeSide,testClaudeSdkLoader,previewFile};
 }
 
 module.exports={createTutorEngineHost};

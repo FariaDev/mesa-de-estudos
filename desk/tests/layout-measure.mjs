@@ -83,7 +83,7 @@ export function measure(page){
    readers,sidechat:box(sidechat),sidechatHead:box(q('.sidechat-head')),sidechatTitle:rect(q('.sidechat-head-title')),
    sidechatLastIcon:rect(q('#sidechat-close svg')),sidechatScope:rect(q('#sidechat-scope')),sidechatBox:rect(q('#sidechat-box')),
    chatHead:box(q('.chat-head')),chatScroll:q('#chat').scrollTop,tutorLabel:rect(q('.chat-head .session-title')),indicator:rect(q('#model-indicator')),indicatorRow:rect(q('#composer-box .composer-actions')),checkBtn:rect(q('#check')),sendBtn:rect(q('#send:not([hidden]),#stop:not([hidden])')),chatActions:rect(q('.chat-head-actions')),tutorLastIcon:rect(q('#chat-more svg')),
-   prompt:rect(q('#prompt')),brand:rect(q('header .brand-icon')),offscreen
+   prompt:rect(q('#prompt')),navStart:rect(q('header .header-nav')),offscreen
   };
  });
 }
@@ -162,7 +162,7 @@ export function assertLayout(m,label,{readers}={}){
  if(m.chatHead)assert.ok(near(m.chatHead.top+m.chatScroll,m.column[0].top),`${label}: barra do tutor na mesma linha da primeira barra da coluna dos leitores (${m.chatHead.top+m.chatScroll} ≠ ${m.column[0].top})`);
 
  /* Recuo interno de 12px (o último ícone de uma barra compensa a própria folga). */
- assertPad(label,'marca',m.brand.left);
+ assertPad(label,'começo das matérias',m.navStart.left);
  if(m.tutorLabel)assertPad(label,'primeiro item do cabeçalho do tutor',m.tutorLabel.left-m.sidebar.left);
  if(m.tutorLastIcon)assertPad(label,'último ícone da barra do tutor',m.sidebar.right-m.tutorLastIcon.right);
  /* Indicador de modelo e esforço (#42): na fileira da caixa de mensagem, entre

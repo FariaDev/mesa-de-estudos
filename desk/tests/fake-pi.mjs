@@ -206,6 +206,13 @@ function deskErrorMidStream(){
  emit({type:'message_update',assistantMessageEvent:{type:'text_delta',delta:'Começou a responder…'}});
  setTimeout(()=>emit({type:'desk_error',message:'Falha de teste no meio da resposta.'}),250);
 }
+/* Turno que o provedor recusa (modelo, chave, limite): o Pi real fecha a mensagem
+   do assistente sem texto e com `errorMessage` (v1.0.2: o lateral ficava mudo). */
+function providerErrorTurn(){
+ emit({type:'message_start',message:{role:'assistant'}});
+ emit({type:'message_end',message:{role:'assistant',content:[],stopReason:'error',errorMessage:'Erro de teste do provedor.'}});
+ emit({type:'agent_end'});
+}
 function stallMidStream(){
  stallUntil=Date.now()+65000;
  emit({type:'message_start',message:{role:'assistant'}});
@@ -254,6 +261,7 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
   if(chaosArmed('stream-abort'))abortMidStream();
   else if(chaosArmed('desk-error'))deskErrorMidStream();
   else if(chaosArmed('stall'))stallMidStream();
+  else if(/falha do provedor/i.test(studentText(e.message)))providerErrorTurn();
   else if(/quiz/i.test(studentText(e.message)))emitQuiz(e.message);
   else if(/pensar profundo/i.test(studentText(e.message)))emitWorklog();
   else if(/teorema/i.test(studentText(e.message)))emitText('A identidade de Pitágoras: $a^2 + b^2 = c^2$ vale em triângulos retângulos.\n\n$$E = mc^2$$');

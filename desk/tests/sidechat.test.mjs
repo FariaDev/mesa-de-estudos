@@ -11,6 +11,7 @@ import {createRequire} from 'node:module';
 import {ptText, ptMatches} from './pt-text.mjs';
 
 const require = createRequire(import.meta.url);
+const conversations = require('../src/agents/conversations.cjs');
 const {createSideChatManager, conversationList, normalizeRefs, MAX_DRAFT, descriptorPath, sidechatsDir} = require('../sidechat.cjs');
 
 const PDF = '/biblioteca/Limites.pdf';
@@ -828,4 +829,17 @@ test('normalizeRefs valida a forma do IPC', () => {
   assert.throws(() => normalizeRefs('nope'), /Referências inválidas/);
   assert.throws(() => normalizeRefs([{page: 1}]), ptMatches(/Referência inválida/));
   assert.throws(() => normalizeRefs([{path: PDF, page: 0}]), ptMatches(/página fora/));
+});
+
+test('OpenCode (#74): descritor nativo próprio, no modelo e esforço da principal', async () => {
+  const h = harness({tag: 'opencode', engine: 'opencode'});
+  Object.assign(h.state, {model: 'deepseek-v4.1-flash-free', effort: 'high'});
+  const opened = h.manager.open({});
+  assert.equal(opened.engine, 'opencode');
+  await h.manager.prompt({id: opened.id, text: 'pergunta lateral'});
+  const channel = h.engines.get(opened.id);
+  assert.equal(channel.engineName, 'opencode');
+  const record = conversations.readClaudeConversation(channel.descriptor.claude, {runtime: h.runtime});
+  assert.equal(record.engine, 'opencode');
+  assert.deepEqual([record.model, record.effort], ['deepseek-v4.1-flash-free', 'high']);
 });

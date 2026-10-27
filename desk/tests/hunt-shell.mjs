@@ -948,8 +948,8 @@ if(only('flags')){
   const page=s.page;
   await page.waitForSelector('.pdf-panel',{timeout:30000});
 
-  await s.step('título do desk vira brand e título da janela',async()=>{
-   assert.equal((await page.locator('.brand strong').textContent()).trim(),'Mesa da Flags');
+  await s.step('título do desk vira título da janela, sem marca no cabeçalho',async()=>{
+   assert.equal(await page.locator('header .brand').count(),0,'a marca saiu do cabeçalho (v1.0.2)');
    assert.match(await page.title(),/^Mesa da Flags/);
   });
 

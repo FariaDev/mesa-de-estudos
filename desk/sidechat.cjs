@@ -45,11 +45,15 @@ const {CONTEXT_END_MARKER, CORE_BY_STATUS, ID_RE, MAX_DIALOG_IDS, MAX_MESSAGE_ID
 
 /* ---------- manager ---------- */
 
+/* Claude e OpenCode (#74) guardam o turno num descritor nativo, no campo
+   `claude` do descritor lateral (o nome é de quando só havia o Claude). */
+const isNative = (engine) => conversations.NATIVE_ENGINES.includes(engine);
+
 /**
  * Chats laterais da conversa principal: escopo, limites, motor e gravação.
- * @param {{runtime: string, current: () => {session: string, courseId: string, engine: string, courseName: string},
+ * @param {{runtime: string, current: () => {session: string, courseId: string, engine: string, courseName: string, model?: string|null, effort?: string|null},
  *   snapshot: (request: {refs: Array<{path: string, page: number}>}) => object, validPdf: (path: string) => string,
- *   createEngine: (request: {engine: string, id: string, descriptor: {claude?: object, session?: string}, onEvent: (event: object) => void}) => object,
+ *   createEngine: (request: {engine: string, id: string, descriptor: {claude?: string|null, session?: string|null}, onEvent: (event: object) => void}) => object,
  *   emit: (payload: object) => void, log: (scope: string, line: string) => void, now?: () => number}} options
  */
 function createSideChatManager({runtime, current, snapshot, validPdf, createEngine, emit, log, now = Date.now} = {}) {
@@ -215,7 +219,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
   function ensureChannel(entry) {
     if (entry.channel) return entry.channel;
     const descriptor = entry.descriptor;
-    if (descriptor.engine === 'claude') {
+    if (isNative(descriptor.engine)) {
       conversations.recoverClaudeConversation(descriptor.claude, {runtime});
       const record = conversations.readClaudeConversation(descriptor.claude, {runtime});
       if (!record) fail(uiMsg('err.sidechat.recordMissing'));
@@ -250,7 +254,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
      (o canal manda) e settled/refused não são tocados. */
   function hydrateClaudeUncertainty(entry) {
     const descriptor = entry.descriptor;
-    if (entry.channel || descriptor.engine !== 'claude') return false;
+    if (entry.channel || !isNative(descriptor.engine)) return false;
     const status = descriptor.delivery?.status;
     if (status !== 'transmitting' && status !== 'accepted') return false;
     let record;
@@ -278,7 +282,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     /* Sem canal vivo, um aceite Claude persistido pelo adaptador pode ser de
        execução que morreu antes do terminal: a mesma previsão da recuperação
        (transmitting/accepted/uncertain → incerto) é exibida sem criar canal. */
-    if (!entry.channel && entry.descriptor.engine === 'claude' && (status === 'transmitting' || status === 'accepted')) {
+    if (!entry.channel && isNative(entry.descriptor.engine) && (status === 'transmitting' || status === 'accepted')) {
       try {
         const native = conversations.readClaudeConversation(entry.descriptor.claude, {runtime})?.delivery?.status;
         return native === 'transmitting' || native === 'accepted' || native === 'uncertain';
@@ -350,7 +354,8 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       context: snap,
       contextDeliveredKey: '',
       session: ctx.engine === 'pi' ? piSessionPath(runtime, id) : null,
-      claude: ctx.engine === 'claude' ? conversations.createClaudeConversation({runtime, courseId: ctx.courseId}) : null,
+      /* O lateral nativo nasce no modelo e no esforço da principal (v1.0.2), como o Pi. */
+      claude: isNative(ctx.engine) ? conversations.createClaudeConversation({runtime, courseId: ctx.courseId, engine: ctx.engine, ...(ctx.model ? {model: ctx.model} : {}), ...(ctx.effort ? {effort: ctx.effort} : {})}) : null,
     };
     if (!validDescriptor(descriptor, id)) fail(uiMsg('err.sidechat.createFail'));
     saveDescriptor(runtime, descriptor);
@@ -413,7 +418,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       if (descriptor.delivery?.status === 'transmitting') {
         return {sent: false, retryable: true, error: uiMsg('err.sidechat.pending')};
       }
-      if (descriptor.engine === 'claude' && uncertainOf(entry)) {
+      if (isNative(descriptor.engine) && uncertainOf(entry)) {
         return {sent: false, retryable: false, uncertain: true, error: uiMsg('err.sidechat.uncertain')};
       }
       /* As refs persistidas no snapshot podem ter saído da biblioteca desde a
@@ -422,7 +427,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       const context = descriptor.context;
       const contextPaths = (context.refs || []).map((ref) => ref.path);
       let readPaths = contextPaths;
-      if (descriptor.engine === 'claude') {
+      if (isNative(descriptor.engine)) {
         try {
           readPaths = contextPaths.map((refPath) => validPdf(refPath));
         } catch {
@@ -439,7 +444,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       } catch (error) {
         return {sent: false, retryable: false, error: String(error?.message || error)};
       }
-      if (descriptor.engine === 'claude' && uncertainOf(entry)) {
+      if (isNative(descriptor.engine) && uncertainOf(entry)) {
         return {sent: false, retryable: false, uncertain: true, error: uiMsg('err.sidechat.uncertain')};
       }
       /* O lateral NÃO tem fila nem follow-up: com o canal ocupado o envio é

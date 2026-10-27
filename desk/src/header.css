@@ -7,10 +7,8 @@ header{
  height:var(--header);padding:0 var(--pad);border-bottom:1px solid var(--border-strong);gap:var(--space-4);
  display:flex;align-items:center;justify-content:space-between;background:var(--surface);flex:none;
 }
-.brand{display:flex;gap:var(--space-3);align-items:center;flex:none}
 .brand-icon{width:22px;height:22px;border-radius:var(--r-xs)}
-.brand strong{font-size:var(--fs-md);font-weight:600;letter-spacing:-.01em;color:var(--fg-strong);white-space:nowrap}
-/* Barra superior (ticket #10): marca | abas de matéria, Caderno e GeoGebra |
+/* Barra superior (ticket #10; a marca saiu na v1.0.2, o nome fica no título da janela): abas de matéria, Caderno e GeoGebra |
    Estudar, busca de comandos e Ajustes. As abas ocupam o que sobra; quando
    as matérias não cabem, o `header.tabs-compact` (src/main.mjs, `fitTabs`)
    troca as abas de matéria pelo seletor único e Caderno/GeoGebra ficam. */

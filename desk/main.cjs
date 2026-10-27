@@ -200,9 +200,9 @@ const live={
  get tutorMaterialBridge(){return tutorMaterialBridge;},
 };
 /** O estado vivo que os hosts recebem (#43 fase 3: o tipo deles sai daqui). @typedef {typeof live} DeskLive */
-const {piBinary,engine,isNative,openCodeBinary,claudeBinary,claudeDetector,descriptorCache,conversationData,sessionInfo,prepareClaude,prepareOpenCode,prepareClaudeSide,testClaudeSdkLoader,previewFile}=createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID});
+const {piBinary,engine,isNative,openCodeBinary,claudeBinary,claudeDetector,descriptorCache,conversationData,sessionInfo,prepareClaude,prepareOpenCode,prepareClaudeSide,prepareOpenCodeSide,testClaudeSdkLoader,previewFile}=createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID});
 const {readableImage,promptImages,trimMessageImages}=createPromptImages({runtime,deskDir,learningRoot,nativeImage});
-const openCodeTutor=createOpenCodeTutorHost({live,runtime,ggbBridge:()=>ggb.bridgeFile,appendLog,captureActivityScope,prepareOpenCode,openCodeBinary});
+const openCodeTutor=createOpenCodeTutorHost({live,runtime,ggbBridge:()=>ggb.bridgeFile,appendLog,captureActivityScope,prepareOpenCode,prepareOpenCodeSide,openCodeBinary});
 const {connect,assertIdle,stopBridge,piLaunch}=createTutorBridgeHost({live,runtime,deskDir,FREE_ID,ggb,pendingDialogs,appendLog,captureActivityScope,prepareTutorMaterial,engine,prepareClaude,testClaudeSdkLoader,claudeBinary,claudeDetector,piBinary,isNative,openCodeTutor});
 const {isPromotedRecord,freeRecordForToken,ensureFreeNativePath,ensureFreeRecord,createFreeSession,freeEntryOf,hydrateFreeRecord,persistFreeSession,freeSessionList,freeWorkspacePayload,focusFreeMaterial,applyFreeCourse}=createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,previewFile});
 const {courseSessions,rememberSession,persist,applyCourse,reviewPayload,bookmarksPayload,lastPdfModel,rememberPdfModel,materialContext,initialData}=createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allowed,allowedXopp,ggb,ggbCache,appendLog,previewFile,sessionInfo,conversationData,piBinary,freeSessionList,persistFreeSession,applyFreeCourse,freeWorkspacePayload,captureAvailable,deskVersionLabel});
@@ -220,7 +220,7 @@ function validPdf(p){if(typeof p!=='string'||!allowed.has(p))throw Error(message
 
 /* chat lateral: o gerenciador mora em sidechat-host.cjs; o main entrega o que
    lê do principal por acessores (as variáveis são reatribuídas aqui). */
-const sidechatManager=createMesaSidechat({runtime,freeId:FREE_ID,session:()=>session,courseId:()=>courseId,courses:()=>courses,config:()=>config,state:()=>state,bridge:()=>bridge,engine,validPdf,allowedXopp,descriptorCache,piLaunch,prepareClaudeSide,testClaudeSdkLoader,claudeBinary,claudeDetector,win:()=>win,appendLog,languageHost:{tutorT:(...args)=>languageHost.tutorT(...args),tutorLanguage:()=>languageHost.tutorLanguage()}});
+const sidechatManager=createMesaSidechat({runtime,freeId:FREE_ID,session:()=>session,courseId:()=>courseId,courses:()=>courses,config:()=>config,state:()=>state,bridge:()=>bridge,engine,validPdf,allowedXopp,descriptorCache,piLaunch,prepareClaudeSide,connectOpenCodeSide:side=>openCodeTutor.connectSide(side),testClaudeSdkLoader,claudeBinary,claudeDetector,win:()=>win,appendLog,languageHost:{tutorT:(...args)=>languageHost.tutorT(...args),tutorLanguage:()=>languageHost.tutorLanguage()}});
 
 /* ---------- aba Livre (workspace virtual `mesa-free`) ----------
    Cada conversa Livre tem workspace próprio no store (`free-workspaces.cjs`):

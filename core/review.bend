@@ -736,9 +736,9 @@ def reviewEmpty() -> V.ViewNode:
       V.viewText(emptyTail())
     ]),
     V.viewEl("div", [V.attrClass("review-empty-sample"), V.attrAria("hidden", "true")], [
-      V.viewEl("span", Nil{}, [V.viewText("Copiar")]),
+      V.viewEl("span", Nil{}, [V.viewText(M.msg("common.copy"))]),
       V.viewEl("span", [V.attrClass("review-empty-dot")], [V.viewText("·")]),
-      V.viewEl("span", Nil{}, [V.viewText("Citar")]),
+      V.viewEl("span", Nil{}, [V.viewText(M.msg("quote.button"))]),
       V.viewEl("span", [V.attrClass("review-empty-dot")], [V.viewText("·")]),
       V.viewEl("span", [V.attrClass("review-empty-save")], [V.viewText(saveActionLabel())])
     ])

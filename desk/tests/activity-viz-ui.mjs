@@ -129,7 +129,7 @@ await withArtifacts('activity-viz-ui',async ctx=>{
  /* ---- acento ao vivo: muda os tokens dentro do quadro ---- */
  await size(ctx.app,page,1440,900);
  await setTheme(page,'dark');
- for(const [accent,fill,text] of [['green','#12805a','#5fd3a4'],['pink','#c2255c','#f783ac'],['blue','#3b5bdb','#8fa8ff']]){
+ for(const [accent,fill,text] of [['green','#13865e','#5fd3a4'],['pink','#d8306b','#f783ac'],['blue','#506cdf','#8fa8ff']]){
   await page.evaluate(a=>{if(a==='blue')delete document.documentElement.dataset.accent;else document.documentElement.dataset.accent=a;},accent);
   for(const frame of frames()){
    await frame.waitForFunction(([fill])=>getComputedStyle(document.documentElement).getPropertyValue('--mesa-accent').trim()===fill,[fill],{timeout:5000});

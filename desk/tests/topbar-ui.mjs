@@ -58,7 +58,7 @@ function barra(page){
   const controls=[...header.querySelectorAll('button,select,input')].filter(shown).map(el=>({id:el.id,left:rect(el).left,right:rect(el).right,top:rect(el).top,bottom:rect(el).bottom,label:el.getAttribute('aria-label')||el.textContent.trim()}));
   return {
    header:rect(header),headerScroll:header.scrollWidth-header.clientWidth,docScroll:document.documentElement.scrollWidth-innerWidth,
-   brand:q('.brand-icon'),tabs,selector:q('#course-menu .nav-trigger'),
+   brand:q('.brand'),tabs,selector:q('#course-menu .nav-trigger'),
    review:q('#review-tab'),reviewCount:q('#review-count'),ggb:q('#course-tabs [data-id=geogebra]'),
    study:q('#study-menu .nav-trigger'),palette:q('#palette-field'),ajustes:q('#settings-menu .nav-trigger'),
    notice:q('#update-notice'),controls,
@@ -85,6 +85,7 @@ function assertBar(bar,label,{narrow}){
  assert.ok(bar.study&&/Estudar/.test(bar.study.text),`${label}: menu Estudar à vista`);
  assert.ok(bar.ajustes&&bar.ajustes.label==='Ajustes',`${label}: botão Ajustes com nome acessível (${bar.ajustes?.label})`);
  assert.ok(bar.palette,`${label}: campo da busca de comandos à vista`);
+ assert.equal(bar.brand,null,`${label}: sem marca no cabeçalho; o nome fica no título da janela (v1.0.2)`);
  assert.ok(bar.review&&/^Caderno/.test(bar.review.text),`${label}: Caderno à vista`);
  assert.ok(bar.reviewCount&&/^\d+$/.test(bar.reviewCount.text),`${label}: a contagem de revisar hoje continua no Caderno (${bar.reviewCount?.text})`);
  assert.ok(bar.ggb&&/GeoGebra/.test(bar.ggb.text),`${label}: GeoGebra à vista`);
@@ -96,7 +97,6 @@ function assertBar(bar,label,{narrow}){
   assert.equal(bar.selector,null,`${label}: sem seletor com a janela larga`);
  }
  assertInOrder([
-  ['marca',bar.brand],
   narrow?['seletor de matéria',bar.selector]:['abas de matéria',bar.tabs.at(-1)],
   ['Caderno',bar.review],['GeoGebra',bar.ggb],['Estudar',bar.study],['busca de comandos',bar.palette],['Ajustes',bar.ajustes]
  ],label);

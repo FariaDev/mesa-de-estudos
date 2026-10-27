@@ -186,12 +186,12 @@ def accentOf(+accent: String) -> String:
 
 # Preenchimento do acento (ação principal), por tema — os mesmos da Mesa.
 def accentFill(+theme: String, +accent: String) -> String:
-  strIf(String.eq(accentOf(accent), "violet"), byTheme(theme, "#6d28d9", "#7c3aed"),
-  strIf(String.eq(accentOf(accent), "green"), byTheme(theme, "#0f7b55", "#12805a"),
-  strIf(String.eq(accentOf(accent), "orange"), byTheme(theme, "#c2410c", "#c2410c"),
-  strIf(String.eq(accentOf(accent), "pink"), byTheme(theme, "#c02667", "#c2255c"),
+  strIf(String.eq(accentOf(accent), "violet"), byTheme(theme, "#6d28d9", "#8c52ef"),
+  strIf(String.eq(accentOf(accent), "green"), byTheme(theme, "#0f7b55", "#13865e"),
+  strIf(String.eq(accentOf(accent), "orange"), byTheme(theme, "#c2410c", "#d0460d"),
+  strIf(String.eq(accentOf(accent), "pink"), byTheme(theme, "#c02667", "#d8306b"),
   strIf(String.eq(accentOf(accent), "graphite"), byTheme(theme, "#27272a", "#ededed"),
-  byTheme(theme, "#2548c7", "#3b5bdb"))))))
+  byTheme(theme, "#2548c7", "#506cdf"))))))
 
 # Tom de texto, link e glifo do acento (no escuro, mais claro que o fill).
 def accentText(+theme: String, +accent: String) -> String:

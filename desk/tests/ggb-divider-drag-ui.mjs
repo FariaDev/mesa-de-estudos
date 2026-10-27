@@ -62,9 +62,12 @@ await withArtifacts('ggb-divider-drag',async ctx=>{
   const before=await chatWidth(page);
   await page.mouse.move(x0,y0);await page.mouse.down();
   await page.mouse.move(x0-60,y0,{steps:3});
-  const during=await pollUntil(()=>viewState(app,page),view=>!!view&&!view.visible,{timeout:3000,what:`${tag}: a view nativa sai de cima durante o arrasto`});
+  /* Prazo folgado: a captura congelada é um `capturePage` que, com a máquina
+     carregada, passou de 3 s (achado 20 da #67). O teste prova que ela aparece;
+     a pressa de volta da view é medida abaixo, no `settle` (#69). */
+  const during=await pollUntil(()=>viewState(app,page),view=>!!view&&!view.visible,{timeout:15000,what:`${tag}: a view nativa sai de cima durante o arrasto`});
   assert.equal(during.visible,false);
-  await page.locator('#references .ggb-freeze').waitFor({state:'attached',timeout:3000});
+  await page.locator('#references .ggb-freeze').waitFor({state:'attached',timeout:15000});
   /* O ponteiro passa por onde a view estava: o divisor continua no comando. */
   await page.mouse.move(x0-140,y0,{steps:4});
   const mid=await chatWidth(page);

@@ -74,10 +74,22 @@ test('o grupo Grátis também vai por nome', () => {
   assert.deepEqual(groups.find((g) => g.kind === 'free').items.map((item) => item.name), ['alfa', 'Zeta (free)']);
 });
 
+/* Melhor de 5 rodadas das 6 buscas, em ms por chamada. */
+function groupingMs(size) {
+  const rows = bigCatalog(size, {reasoning: true});
+  let best = Infinity;
+  for (let round = 0; round < 5; round++) {
+    const started = performance.now();
+    for (const query of ['', 'd', 'de', 'dee', 'deep', 'deepseek v4']) flattenGroups(groupModels(rows, {engine: 'pi', query}));
+    best = Math.min(best, (performance.now() - started) / 6);
+  }
+  return best;
+}
+
+/* Era uma rodada só: fria (JIT sem aquecer) e na rodada paralela do `npm test`
+   chegou a 83 ms (achado 19 da #67). O melhor de 5 tira o pico de carga e o
+   aquecimento; o normal é ~0,4 ms, bem abaixo do teto de 25 ms (#69). */
 test('agrupar e buscar ~450 modelos fica bem abaixo de um quadro', () => {
-  const rows = bigCatalog(450, {reasoning: true});
-  const started = performance.now();
-  for (const query of ['', 'd', 'de', 'dee', 'deep', 'deepseek v4']) flattenGroups(groupModels(rows, {engine: 'pi', query}));
-  const each = (performance.now() - started) / 6;
-  assert.ok(each < 25, `groupModels com 450 modelos: ${each.toFixed(1)} ms por chamada`);
+  const each = groupingMs(450);
+  assert.ok(each < 25, `groupModels com 450 modelos: ${each.toFixed(2)} ms por chamada (melhor de 5), esperado < 25 ms`);
 });

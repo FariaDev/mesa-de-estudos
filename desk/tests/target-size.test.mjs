@@ -5,14 +5,11 @@ import path from 'node:path';
 
 /* #67: alvo mínimo de clique de 24px (WCAG 2.5.8). Varre as regras de botão
    das folhas da Mesa que fixam largura ou altura em px. O que fica menor tem de
-   ganhar a borda invisível de 3px (`::after{inset:-3px}`) ou estar na lista de
-   adiados do relatório, com o motivo. */
+   ganhar a borda invisível de 3px (`::after{inset:-3px}`). A fila, adiada na
+   #67, ganhou linha de 24px na #69. */
 const desk = path.resolve(import.meta.dirname, '..');
 const MIN_TARGET = 24;
 const HIT_AREA = ['.mention-chip-remove', '.attachment .attachment-remove'];
-/* Adiado no relatório da #67: a fila é uma lista densa e os botões ficam a 4px
-   um do outro; a borda invisível sobreporia os vizinhos. Pede redesenho da linha. */
-const DEFERRED = ['.queue-item button'];
 
 function sheets() {
   const src = fs.readdirSync(path.join(desk, 'src')).filter((f) => f.endsWith('.css')).map((f) => path.join('src', f));
@@ -39,9 +36,9 @@ function smallButtonRules() {
   return found;
 }
 
-test('botão com largura ou altura abaixo de 24px ganha borda de clique ou está adiado', () => {
+test('botão com largura ou altura abaixo de 24px ganha borda de clique', () => {
   for (const {rel, selector, sizes} of smallButtonRules()) {
-    assert.ok(HIT_AREA.includes(selector) || DEFERRED.includes(selector), `${rel}: ${selector} tem ${sizes}; esperado ≥ ${MIN_TARGET}px ou a borda invisível de 3px`);
+    assert.ok(HIT_AREA.includes(selector), `${rel}: ${selector} tem ${sizes}; esperado ≥ ${MIN_TARGET}px ou a borda invisível de 3px`);
   }
 });
 

@@ -141,7 +141,7 @@ law quadro_raio:
 
 # O acento segue a escolha da Mesa; desconhecido cai no azul.
 law quadro_acento_verde_escuro:
-  {A.valueOf("--mesa-accent", A.mesaTokens("dark", "green")) == "#12805a" : String}
+  {A.valueOf("--mesa-accent", A.mesaTokens("dark", "green")) == "#13865e" : String}
 
 law quadro_acento_desconhecido:
   {A.accentOf("ciano") == "blue" : String}

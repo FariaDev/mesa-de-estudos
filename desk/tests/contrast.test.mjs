@@ -68,6 +68,16 @@ test('os seis acentos passam AA como link e como fundo da ação principal', () 
   }
 });
 
+test('o fundo da ação principal se destaca 3:1 das superfícies nos dois temas (#69)', () => {
+  /* No escuro o fill ficava em 2,46:1 sobre --surface (achado 9 da #67); o tom
+     novo fica entre 3:1 contra o fundo e 4,5:1 com o texto branco por cima. */
+  for (const theme of THEMES) {
+    for (const accent of ACCENTS) {
+      for (const bg of BACKGROUNDS) assertContrast(themeToken(`acc-${accent}`)[theme], themeToken(bg)[theme], 3, `${theme} --acc-${accent} em --${bg}`);
+    }
+  }
+});
+
 test('texto de status usa as versões -text, não o tom de ícone e fundo', () => {
   const sheets = [path.join(desk, 'style.css'), ...fs.readdirSync(path.join(desk, 'src')).filter((f) => f.endsWith('.css')).map((f) => path.join(desk, 'src', f))];
   for (const sheet of sheets) {

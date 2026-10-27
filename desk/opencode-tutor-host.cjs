@@ -56,11 +56,12 @@ function mesaMcpConfig({execPath, ggbBridge, activityGrant, tutorLanguage}) {
  *   appendLog: import('./types/host-deps').AppendLog,
  *   captureActivityScope: () => import('./activity-host.cjs').ActivityScope,
  *   prepareOpenCode: import('./types/main-hosts').TutorEngineHost['prepareOpenCode'],
+ *   prepareOpenCodeSide: import('./types/main-hosts').TutorEngineHost['prepareOpenCodeSide'],
  *   openCodeBinary: () => string, execPath?: string,
  *   createOwner?: typeof createServeOwner}} options
  * @example const openCodeTutor = createOpenCodeTutorHost({live, runtime, ggbBridge: () => ggb.bridgeFile, appendLog, captureActivityScope, prepareOpenCode, openCodeBinary});
  */
-function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureActivityScope, prepareOpenCode, openCodeBinary, execPath = process.execPath, createOwner = createServeOwner}) {
+function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureActivityScope, prepareOpenCode, prepareOpenCodeSide, openCodeBinary, execPath = process.execPath, createOwner = createServeOwner}) {
   /** @param {string} area @param {string} line */
   const log = (area, line) => { try { appendLog(area, line); } catch { /* o log não pode derrubar o tutor */ } };
   const owner = createOwner({findBinary: openCodeBinary, keyEnv: () => live.opencodeHost.keyEnv(), cwd: path.join(runtime, 'opencode-workspaces'), ledgerDir: runtime, log});
@@ -95,6 +96,26 @@ function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureAc
   }
 
   /**
+   * Serviço do chat lateral OpenCode (#74): mesmo servidor da principal,
+   * descritor e pasta próprios, sem o MCP `mesa` (o lateral não publica
+   * atividade nem figura, como o Pi lateral).
+   * @param {{descriptor: string, record: NonNullable<ReturnType<typeof conversations.readClaudeConversation>>}} side
+   * @returns {InstanceType<typeof NativeService>}
+   */
+  function connectSide({descriptor, record}) {
+    const {cwd, systemPrompt} = prepareOpenCodeSide(record);
+    const persistence = nativePersistence({descriptor, runtime, preview: record.preview});
+    const adapter = new OpenCodeAdapter({
+      conversationId: descriptor, sessionId: record.nativeSessionId || '', resume: record.nativeEstablished, directory: cwd,
+      systemPrompt, selection: {model: record.model || null, effort: record.effort || null},
+      acquire: () => owner.acquire(), persistDelivery: persistence.persistDelivery, log,
+      onSessionId: (id) => conversations.updateClaudeConversation(descriptor, {nativeSessionId: id}, {runtime}),
+    });
+    return new NativeService({adapter, engine: 'opencode', uncertain: record.delivery?.status === 'uncertain', messages: record.messages || [],
+      onMessages: persistence.onMessages, onSelection: persistence.onSelection});
+  }
+
+  /**
    * Dá à atividade publicada pelo MCP o id da chamada visto no SSE. Chamadas
    * de outro motor passam como vieram.
    * @param {ActivityCaller} caller
@@ -108,7 +129,7 @@ function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureAc
   /** A troca de conversa esquece o livro de chamadas da anterior. */
   function release() { activityCalls = null; }
 
-  return {connect, identifyCaller, release, sweepAtBoot: () => owner.sweepAtBoot(), stop: () => owner.stop()};
+  return {connect, connectSide, identifyCaller, release, sweepAtBoot: () => owner.sweepAtBoot(), stop: () => owner.stop()};
 }
 
 module.exports = {createOpenCodeTutorHost, mesaMcpConfig, MCP_SERVER};
