@@ -25,24 +25,24 @@ main[data-state=offline] .titles{padding-bottom:0}
 
 /* ---------- botões ---------- */
 .actions{display:grid;gap:10px;margin-top:6px}
-label.button{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;border-radius:16px;
+label.button{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;border-radius:var(--r-sm);
  border:1.5px solid var(--line);background:var(--card);color:var(--fg);font-weight:600;font-size:17px;cursor:pointer}
 label.button.primary{min-height:64px;border-color:var(--accent);background:var(--accent);color:var(--on-accent);font-size:18px}
 label.button input{position:absolute;width:1px;height:1px;opacity:0}
 label.button:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 main[data-state=sending] .actions{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0}
-main[data-state=sending] label.button{min-height:52px;gap:8px;border-radius:14px;font-size:16px}
+main[data-state=sending] label.button{min-height:52px;gap:8px;border-radius:var(--r-sm);font-size:16px}
 main[data-state=sending] label.button:not(.primary) svg{display:none}
 main[data-state=offline] .actions{display:none}
 main:not([data-state=start]) :is(.lead,.tips){display:none}
 
 /* ---------- dica ---------- */
-.tips{margin-top:8px;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.tips{margin-top:8px;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r-lg);padding:16px;display:flex;flex-direction:column;gap:10px}
 .tips h2{margin:0;font-size:18px}
 .tips ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:15px}
 
 /* ---------- enviando: barra e contagem ---------- */
-#progress{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+#progress{background:var(--card);border:1.5px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 main:not([data-state=sending]) #progress{display:none}
 .progress-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
 #status{font-weight:600}
@@ -59,22 +59,22 @@ main:not([data-state=sending]) #progress{display:none}
 
 /* ---------- sem conexão ---------- */
 #offline{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;background:var(--card);
- border:1.5px solid color-mix(in srgb,var(--bad) 40%,var(--line));border-radius:18px;padding:22px 20px 24px}
+ border:1.5px solid color-mix(in srgb,var(--bad) 40%,var(--line));border-radius:var(--r-lg);padding:22px 20px 24px}
 main:not([data-state=offline]) #offline{display:none}
 #offline strong{font-size:22px;line-height:1.2;color:var(--bad)}
-#retry{margin-top:4px;width:100%;min-height:52px;border:0;border-radius:14px;background:var(--accent);color:var(--on-accent);font:600 17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+#retry{margin-top:4px;width:100%;min-height:52px;border:0;border-radius:var(--r-sm);background:var(--accent);color:var(--on-accent);font:600 17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
 
 /* ---------- enviadas desta vez ---------- */
 .sent-title{margin:6px 0 0;font-size:20px}
 #sent{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 #sent:empty{display:none}
-.thumb{position:relative;margin:0;aspect-ratio:3/4;border-radius:10px;border:1.5px solid var(--line);background:var(--card);overflow:hidden}
+.thumb{position:relative;margin:0;aspect-ratio:3/4;border-radius:var(--r-lg);border:1.5px solid var(--line);background:var(--card);overflow:hidden}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .thumb.pending{opacity:.55}
-.thumb .done{position:absolute;right:6px;bottom:6px;width:24px;height:24px;border-radius:12px;background:var(--amber);display:flex;align-items:center;justify-content:center}
+.thumb .done{position:absolute;right:6px;bottom:6px;width:24px;height:24px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center}
 .thumb.pending .done{display:none}
 #log{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:14px}
-#log li{padding:10px 12px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+#log li{padding:10px 12px;border-radius:var(--r-lg);background:var(--card);border:1px solid var(--line)}
 #log li+li{color:var(--muted)}
 
 /* ---------- rodapé ---------- */

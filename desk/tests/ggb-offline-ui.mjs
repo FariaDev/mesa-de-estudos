@@ -8,7 +8,6 @@
 // applet verdadeiro (opcional: o pacote é um download de 32 MB que o teste não faz sozinho).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
@@ -17,15 +16,14 @@ import {
  reviewShot,screenshotDirectory,freezeMotion,resizeWindow,pageWindow,DESK
 } from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
+import {startLeakProbe} from './leak-probe-server.mjs';
 const require=createRequire(import.meta.url);
 const {PACK}=require('../geogebra-pack.cjs');
 
 const REAL_PACK=process.env.MESA_GGB_REAL_PACK||'';
-const hits=[];
-const server=http.createServer((req,res)=>{hits.push(`${req.method} ${req.url}`);res.writeHead(200,{'content-type':'text/plain','access-control-allow-origin':'*'});res.end('vazou');});
-server.on('upgrade',(req,socket)=>{hits.push(`UPGRADE ${req.url}`);socket.destroy();});
-await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const NET=`http://127.0.0.1:${server.address().port}/`;
+const probe=await startLeakProbe();
+const hits=probe.hits;
+const NET=probe.url;
 
 /** Copia o pacote falso para uma pasta temporária, com o `pack.json` e a URL de prova. */
 function fakePackDir(){
@@ -116,7 +114,6 @@ await withArtifacts('ggb-offline',async ctx=>{
  assert.deepEqual(errors,[],'sem erro de página');
 });
 }finally{
- server.closeAllConnections?.();
- await new Promise(resolve=>server.close(resolve));
+ await probe.close();
 }
 console.log(`ggb-offline-ui: PASS — o GeoGebra ${REAL_PACK?'oficial (pacote real)':'(pacote falso)'} abre pelo mesa-ggb:// e a ferramenta do tutor funciona com a rede fechada: nada chegou ao servidor de prova.`);

@@ -10,6 +10,11 @@
  * O handler apenas repassa o campo reservado para `createActivity`; um
  * `callRef` inventado pelo modelo não resolve e a publicação é recusada.
  *
+ * `callRef` não aparece no esquema que o modelo vê (M1), mas o `inputSchema`
+ * do SDK precisa aceitar a chave que o hook injeta: por isso o objeto do zod
+ * é `passthrough()`. O hook a substitui antes do handler; o modelo não a
+ * enxerga no `tools/list` nem precisa preenchê-la.
+ *
  * Uso no adaptador (integração do pai):
  *   const {createActivityServer}=require('./activity-tools.cjs');
  *   options.mcpServers={mesa:await createActivityServer(async args=>createActivity(args))};
@@ -28,6 +33,7 @@ const PREVIEW_TOOL_NAME = 'mcp__mesa__previsualizar_atividade';
 const guide = require('../extensions/mesa-activity/guide.mjs');
 const {zodShape} = require('../extensions/tool-fields.mjs');
 const {toolErrorText} = require('./tool-error-text.cjs');
+const {assertActivityArgsFit} = require('../../activity-bridge.cjs');
 const ACTIVITY_TOOL_DESCRIPTION = guide.CREATE_DESCRIPTION;
 const PREVIEW_TOOL_DESCRIPTION = guide.PREVIEW_DESCRIPTION;
 
@@ -36,8 +42,9 @@ async function createActivityTool(createActivity, {language} = {}) {
     import('@anthropic-ai/claude-agent-sdk'),
     import('zod'),
   ]);
-  return tool('criar_atividade', ACTIVITY_TOOL_DESCRIPTION, zodShape(z, guide.CREATE_FIELDS), async (args) => {
+  return tool('criar_atividade', ACTIVITY_TOOL_DESCRIPTION, z.object(zodShape(z, guide.CREATE_FIELDS)).passthrough(), async (args) => {
     try {
+      assertActivityArgsFit(args);
       const result = await createActivity({...args});
       return {content: [{type: 'text', text: guide.publishedText(result, args.kind)}]};
     } catch (error) {
@@ -55,6 +62,7 @@ async function createPreviewTool(previewActivity, {language} = {}) {
   ]);
   return tool('previsualizar_atividade', PREVIEW_TOOL_DESCRIPTION, zodShape(z, guide.PREVIEW_FIELDS), async (args) => {
     try {
+      assertActivityArgsFit(args);
       const result = await previewActivity({...args});
       return {content: [
         {type: 'image', data: result.screenshot.data, mimeType: result.screenshot.mimeType},

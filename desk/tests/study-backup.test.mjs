@@ -68,7 +68,7 @@ test('backup: manifesto com hash cobre as áreas da Mesa e recusa as negativas',
 
     /* Não inclui: credencial, cache, log, rascunho temporário, workspace
        efêmero, estado do backup e o próprio lock de update. */
-    for (const denied of ['auth.json', 'settings.local.json', 'desk.log', 'desk.log.1', '.review-draft-99.json', 'update.lock']) {
+    for (const denied of ['auth.json', 'opencode-key.bin', 'ggb-bridge.json', 'settings.local.json', 'desk.log', 'desk.log.1', '.review-draft-99.json', 'update.lock']) {
       assert.ok(!paths.includes(denied), `manifesto não pode conter ${denied}`);
     }
     assert.ok(!paths.some((item) => item.startsWith('electron/')), 'cache do Chromium fora');
@@ -423,6 +423,8 @@ test('backup: destino com nome de credencial não é capturado nem dentro de mat
        de credencial é recusado. */
     write(fixture.runtime, 'learning/Courses/tokens/aula.md', '# aula\n');
     write(fixture.runtime, 'learning/Courses/tokens/auth.json', '{"não":"entra"}');
+    write(fixture.runtime, 'learning/Courses/tokens/opencode-key.bin', '{"não":"entra"}');
+    write(fixture.runtime, 'learning/Courses/tokens/ggb-bridge.json', '{"não":"entra"}');
     const result = await backup.backupNow({runtime: fixture.runtime, root: dest, reason: 'manual'});
     const manifest = backup.readManifest(result.path);
     const paths = manifestPaths(manifest);
@@ -631,7 +633,7 @@ test('backup: pasta do usuário com nome comum entra; credencial e cache não', 
     for (const expected of ['backups/meu-backup.md', 'downloads/apostila.md', 'history.jsonl', 'tmp-relatorio.md', '.backup-do-usuario/anotacao.md', 'courses/Algebra Linear/downloads/lista-extra.pdf', 'pdf-drafts.json', 'chat-library.json', 'pdf-notes.json']) {
       assert.ok(paths.includes(expected), `deve entrar: ${expected}`);
     }
-    for (const denied of ['auth.json', 'settings.local.json', 'desk.log', 'update.lock', 'electron/Cache/data_0']) {
+    for (const denied of ['auth.json', 'opencode-key.bin', 'ggb-bridge.json', 'settings.local.json', 'desk.log', 'update.lock', 'electron/Cache/data_0']) {
       assert.ok(!paths.includes(denied), `não pode entrar: ${denied}`);
     }
   } finally {

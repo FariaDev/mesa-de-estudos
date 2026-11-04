@@ -97,13 +97,16 @@ try {
   check('conversa nova abre chat novo', reopened, (value) => value.id !== opened.id);
   const quiz = await page.evaluate((id) => window.desk.sidechatPrompt({id, text: 'quiz'}), reopened.id);
   check('prompt de quiz aceito', quiz, (value) => value.sent === true);
-  await page.waitForFunction(() => window.__scEvents.some((payload) => payload.event.type === 'extension_ui_request' && payload.event.method === 'select'), undefined, {timeout: 20000});
-  const questionId = await page.evaluate(() => window.__scEvents.filter((payload) => payload.event.type === 'extension_ui_request').at(-1).event.id);
-  const responded = await page.evaluate(({id, questionId: requestId}) => window.desk.sidechatRespond({id, response: {id: requestId, value: '\\(4\\)'}}), {id: reopened.id, questionId});
-  check('resposta de pergunta roteada ao canal', responded, (value) => value.ok === true);
+  await page.waitForFunction((id) => window.__scEvents.some((payload) => payload.id === id && payload.event.type === 'card' && payload.event.cardType === 'shown'), reopened.id, {timeout: 20000});
+  const card = await page.evaluate((id) => window.__scEvents.filter((payload) => payload.id === id && payload.event.type === 'card' && payload.event.cardType === 'shown').at(-1).event.card, reopened.id);
+  check('cartão do quiz chega ao lateral', card, (value) => value?.kind === 'quiz' && value.options.length === 3);
+  const answered = await page.evaluate(({id, cardId}) => window.desk.sidechatCardAnswer({id, cardId, answer: {selected: [2]}}), {id: reopened.id, cardId: card.id});
+  check('resposta do cartão roteada ao canal', answered, (value) => value?.answered === true && value.correct === true);
+  const concluded = await page.evaluate(({id, cardId}) => window.desk.sidechatCardConclude({id, cardId}), {id: reopened.id, cardId: card.id});
+  check('resultado do cartão enviado uma vez', concluded, (value) => value?.ok === true && value.card?.sendState === 'sent');
   await page.waitForFunction((id) => window.__scEvents.some((payload) => payload.id === id && payload.event.type === 'message_end'), reopened.id, {timeout: 20000});
   const quizRead = await page.evaluate((id) => window.desk.sidechatRead({id}), reopened.id);
-  check('quiz respondido entra no histórico', quizRead, (value) => value.messages.some((message) => message.role === 'assistant'));
+  check('quiz respondido entra no histórico', quizRead, (value) => value.messages.some((message) => message.role === 'assistant') && value.cards.some((item) => item.id === card.id && item.sendState === 'sent'));
   const stale = await page.evaluate(() => window.desk.sidechatRead({id: 'sc-11111111-1111-4111-8111-111111111111'}).then(() => 'sem-erro', (error) => error.message));
   check('id desconhecido é recusado', stale, (value) => /não encontrado/.test(ptText(String(value))));
 

@@ -103,11 +103,11 @@ law sidechat_contexto_nunca_entregue_reenvia:
 # --- linha de escopo (ticket #19) ---
 
 law sidechat_escopo_um_material:
-  {S.scopeLine(["Limites.pdf p. 3"]) == M.msg1("scope.about", "refs", "Limites.pdf p. 3") : String}
+  {S.scopeLine(["Limites.pdf p. 3"]) == "Limites.pdf p. 3" : String}
 
 law sidechat_escopo_dois_materiais:
   {S.scopeLine(["Limites.pdf p. 3", "Formulário.pdf p. 1"])
-    == M.msg1("scope.about", "refs", "Limites.pdf p. 3, Formulário.pdf p. 1") : String}
+    == "Limites.pdf p. 3, Formulário.pdf p. 1" : String}
 
 law sidechat_escopo_sem_material:
   {S.scopeLine([]) == M.msg("scope.none") : String}

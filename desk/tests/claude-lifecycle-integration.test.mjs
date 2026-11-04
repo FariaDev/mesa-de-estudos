@@ -257,31 +257,6 @@ test('after an interrupt exit the next send resumes the exact native id without 
 
 /* ---------------- perguntas: chaves exatas hostis ---------------- */
 
-test('malicious question exact keys survive as own enumerable answers without prototype mutation',async t=>{
- const {adapter,query}=await accepted(t);
- const questions=[
-  {header:'Proto',question:'__proto__',options:[{label:'aceito',description:''}],multiSelect:false},
-  {header:'Construtor',question:'constructor',options:[{label:'também',description:''}],multiSelect:false},
- ];
- const answers=JSON.parse('{"__proto__":"aceito","constructor":"também"}');
- const pending=query.options.canUseTool('AskUserQuestion',{questions},{requestId:'ask-proto',toolUseID:'t-proto'});
- await fx.tick();
- const responded=adapter.respond({id:'ask-proto',answers});
- assert.equal(responded.ok,true,'exact keys are valid answers');
- const resolved=await pending;
- assert.equal(resolved.behavior,'allow');
- const out=resolved.updatedInput.answers;
- const protoDesc=Object.getOwnPropertyDescriptor(out,'__proto__');
- assert.ok(protoDesc,'__proto__ becomes an OWN property');
- assert.equal(protoDesc.value,'aceito');
- assert.equal(protoDesc.enumerable,true);
- assert.equal(Object.getPrototypeOf(out),Object.prototype,'the answers object prototype is untouched');
- assert.equal(out.constructor,'também');
- assert.equal({}.aceito,undefined,'no global prototype was polluted');
- query.emit(fx.resultMessage());
- await fx.waitFor(()=>!adapter.snapshot().busy);
-});
-
 test('retry reports bounded metadata while keeping the accepted turn active',async t=>{
  const {adapter,query,events}=await accepted(t);
  const frame={type:'system',subtype:'api_retry',session_id:fx.UUID.session,uuid:fx.newUuid(),attempt:2,max_retries:4,retry_delay_ms:100,error_status:529};

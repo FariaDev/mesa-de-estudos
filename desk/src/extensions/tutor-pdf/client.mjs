@@ -1,4 +1,13 @@
-export async function createTutorPdf(bridge,{title,markdown,modelo,opcoes},signal){
+/**
+ * Prepara o PDF no diálogo da Mesa pela ponte de material da sessão.
+ * @param {{url: string, token: string}} bridge
+ * @param {Record<string, unknown>} args `title`, `markdown`, `modelo` e `opcoes` do esquema da ferramenta
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<any>}
+ * @example await createTutorPdf(grant, {title: 'Lista', markdown: '1. $x+1$'})
+ */
+export async function createTutorPdf(bridge,args,signal){
+ const {title,markdown,modelo,opcoes}=args;
  if(!bridge||typeof bridge.token!=='string'||!/^http:\/\/127\.0\.0\.1:\d+\/pdf$/.test(bridge.url||''))throw Error('Preparar PDF pelo tutor está disponível na sessão principal da Mesa.');
  const controller=new AbortController(),abort=()=>controller.abort();
  if(signal?.aborted)throw Error('Geração cancelada.');

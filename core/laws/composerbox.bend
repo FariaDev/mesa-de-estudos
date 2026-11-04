@@ -14,57 +14,65 @@ import ../view.bend as V
 
 # ---------- linha "Vai junto" ----------
 
-# Matéria, separador, o resto e o prefixo em partes: o CSS corta `goes-course`
-# (e o `goes-sep`, que some junto) antes de `goes-rest`. Cada pedaço traduzível
-# é um nó de texto à parte (#41), e o separador entre as partes do resto é um
-# nó " · ".
+# Cada item é uma pílula: a matéria primeiro, depois o resto. O prefixo
+# "Contexto: " fica no DOM escondido pelo CSS quando há pílula (#90).
+
 def lead() -> V.ViewNode:
   V.viewEl("span", [V.attrClass("goes-lead")], [V.viewText(M.msg("goes.prefix"))])
 
-def course(name: String) -> V.ViewNode:
-  V.viewEl("span", [V.attrClass("goes-course")], [V.viewText(name)])
+def nameSpan(+text: String) -> V.ViewNode:
+  V.viewEl("span", [V.attrClass("goes-pill-name")], [V.viewText(text)])
 
-def sepNode() -> V.ViewNode:
-  V.viewEl("span", [V.attrClass("goes-sep")], [V.viewText(" · ")])
+def pageSpan(+page: String) -> V.ViewNode:
+  V.viewEl("span", [V.attrClass("goes-pill-page")], [V.viewText(" " ++ page)])
 
-def rest(kids: List<&2, V.ViewNode>) -> V.ViewNode:
-  V.viewEl("span", [V.attrClass("goes-rest")], kids)
+def pill(+cls: String, +label: String, kids: List<&2, V.ViewNode>) -> V.ViewNode:
+  V.viewEl("span", [
+    V.attrClass("goes-pill " ++ cls), V.attrTitle(label), V.attrAria("label", label)
+  ], kids)
 
-def dot() -> V.ViewNode:
-  V.viewText(" · ")
+def course(+name: String) -> V.ViewNode:
+  pill("goes-course", name, [nameSpan(name)])
+
+def textPill(+text: String) -> V.ViewNode:
+  pill("goes-rest", text, [nameSpan(text)])
+
+def refPill(+name: String, +page: String) -> V.ViewNode:
+  pill("goes-rest", name ++ " " ++ page, [nameSpan(name), pageSpan(page)])
 
 law caixa_arvore_completa:
-  {C.goesTree(True{}, "Cálculo I", "Lista 3 q.2", "rascunho.xopp", True{}, ["Limites.pdf p. 4", "Formulario.pdf p. 1"]) == [
+  {C.goesTree(True{}, "Cálculo I", "Lista 3 q.2", "rascunho.xopp", True{}, [C.GoesRef{"Limites.pdf", "p.4"}, C.GoesRef{"Formulario.pdf", "p.1"}]) == [
     lead(),
     course("Cálculo I"),
-    sepNode(),
-    rest([ V.viewText("Lista 3 q.2"), dot(), V.viewText("rascunho.xopp"), dot()
-         , V.viewText("Limites.pdf p. 4, Formulario.pdf p. 1") ])
+    textPill("Lista 3 q.2"),
+    textPill("rascunho.xopp"),
+    refPill("Limites.pdf", "p.4"),
+    refPill("Formulario.pdf", "p.1")
   ] : List<&2, V.ViewNode>}
 
-# Só a matéria: sem `goes-sep` nem `goes-rest` (nem separador solto). É o que há
-# quando nada está aberto nem preenchido.
+# Só a matéria: sem pílula de resto. É o que há quando nada está aberto nem
+# preenchido.
 law caixa_arvore_so_materia:
   {C.goesTree(True{}, "Cálculo I", "", "", True{}, []) == [lead(), course("Cálculo I")] : List<&2, V.ViewNode>}
 
-# Parte vazia não deixa separador solto.
+# Parte vazia não deixa pílula solta.
 law caixa_arvore_sem_titulo:
-  {C.goesTree(True{}, "Cálculo I", "", "rascunho.xopp", True{}, ["Limites.pdf p. 4"]) == [
+  {C.goesTree(True{}, "Cálculo I", "", "rascunho.xopp", True{}, [C.GoesRef{"Limites.pdf", "p.4"}]) == [
     lead(),
     course("Cálculo I"),
-    sepNode(),
-    rest([V.viewText("rascunho.xopp"), dot(), V.viewText("Limites.pdf p. 4")])
+    textPill("rascunho.xopp"),
+    refPill("Limites.pdf", "p.4")
   ] : List<&2, V.ViewNode>}
 
 # Contexto de estudo desligado: a matéria não vai e não há `goes-course`.
 law caixa_arvore_sem_estudo:
-  {C.goesTree(False{}, "Cálculo I", "Lista 3", "r.xopp", True{}, ["Limites.pdf p. 4"])
-    == [lead(), rest([V.viewText("Limites.pdf p. 4")])] : List<&2, V.ViewNode>}
+  {C.goesTree(False{}, "Cálculo I", "Lista 3", "r.xopp", True{}, [C.GoesRef{"Limites.pdf", "p.4"}])
+    == [lead(), refPill("Limites.pdf", "p.4")] : List<&2, V.ViewNode>}
 
-# Sem matéria nomeada, a questão encabeça o resto, sem separador inicial.
+# Sem matéria nomeada, a questão encabeça o resto, sem pílula de curso.
 law caixa_arvore_sem_materia:
-  {C.goesTree(True{}, "", "Lista 3", "", True{}, ["Limites.pdf p. 4"])
-    == [lead(), rest([V.viewText("Lista 3"), dot(), V.viewText("Limites.pdf p. 4")])] : List<&2, V.ViewNode>}
+  {C.goesTree(True{}, "", "Lista 3", "", True{}, [C.GoesRef{"Limites.pdf", "p.4"}])
+    == [lead(), textPill("Lista 3"), refPill("Limites.pdf", "p.4")] : List<&2, V.ViewNode>}
 
 # Nada digitado além da mensagem: a linha diz isso, em vez de ficar vazia.
 law caixa_arvore_nada:
@@ -73,47 +81,67 @@ law caixa_arvore_nada:
 # Referências desligadas: a linha acompanha o alternador — diz que estão
 # desligadas e NÃO lista os materiais abertos.
 law caixa_arvore_refs_desligadas:
-  {C.goesTree(False{}, "Cálculo I", "", "", False{}, ["Limites.pdf p. 4"])
-    == [lead(), rest([V.viewText(M.msg("goes.refsOff"))])] : List<&2, V.ViewNode>}
+  {C.goesTree(False{}, "Cálculo I", "", "", False{}, [C.GoesRef{"Limites.pdf", "p.4"}])
+    == [lead(), textPill(M.msg("goes.refsOff"))] : List<&2, V.ViewNode>}
 
 law caixa_arvore_materia_e_refs_desligadas:
-  {C.goesTree(True{}, "Cálculo I", "Lista 3", "", False{}, ["Limites.pdf p. 4"]) == [
+  {C.goesTree(True{}, "Cálculo I", "Lista 3", "", False{}, [C.GoesRef{"Limites.pdf", "p.4"}]) == [
     lead(),
     course("Cálculo I"),
-    sepNode(),
-    rest([V.viewText("Lista 3"), dot(), V.viewText(M.msg("goes.refsOff"))])
+    textPill("Lista 3"),
+    textPill(M.msg("goes.refsOff"))
   ] : List<&2, V.ViewNode>}
 
 # Contexto de estudo desligado e referências desligadas: só a nota das referências.
 law caixa_arvore_sem_estudo_nem_refs:
-  {C.goesTree(False{}, "Cálculo I", "Lista 3", "rascunho.xopp", False{}, ["Limites.pdf p. 4"])
-    == [lead(), rest([V.viewText(M.msg("goes.refsOff"))])] : List<&2, V.ViewNode>}
+  {C.goesTree(False{}, "Cálculo I", "Lista 3", "rascunho.xopp", False{}, [C.GoesRef{"Limites.pdf", "p.4"}])
+    == [lead(), textPill(M.msg("goes.refsOff"))] : List<&2, V.ViewNode>}
 
 # Referências ligadas sem nenhum material aberto: nada a listar.
 law caixa_arvore_refs_sem_material:
   {C.goesTree(True{}, "Cálculo I", "Lista 3", "", True{}, []) == [
     lead(),
     course("Cálculo I"),
-    sepNode(),
-    rest([V.viewText("Lista 3")])
+    textPill("Lista 3")
   ] : List<&2, V.ViewNode>}
+
+# ---------- pílula ----------
+
+law caixa_pilula_nome_aria:
+  {V.attrGet(V.attrsOf(course("Cálculo I")), "aria-label") == Some{"Cálculo I"} : Maybe<&2, String>}
+
+law caixa_pilula_nome_title:
+  {V.attrGet(V.attrsOf(course("Cálculo I")), "title") == Some{"Cálculo I"} : Maybe<&2, String>}
+
+law caixa_pilula_nome_classe:
+  {V.attrGet(V.attrsOf(course("Cálculo I")), "class") == Some{"goes-pill goes-course"} : Maybe<&2, String>}
+
+# O nome da referência e a página são nós separados: só o nome corta.
+law caixa_pilula_ref_nos:
+  {V.kidsOf(refPill("Limites.pdf", "p.4")) == [
+    nameSpan("Limites.pdf"),
+    pageSpan("p.4")
+  ] : List<&2, V.ViewNode>}
+
+law caixa_pilula_ref_aria:
+  {V.attrGet(V.attrsOf(refPill("Limites.pdf", "p.4")), "aria-label") == Some{"Limites.pdf p.4"} : Maybe<&2, String>}
 
 # ---------- nota do popover de edição ----------
 
 law caixa_nota_desligadas:
-  {C.refsNote(False{}, ["Limites.pdf p.4"], True{}) == M.msg("goes.note.off") : String}
+  {C.refsNote(False{}, [C.GoesRef{"Limites.pdf", "p.4"}], True{}) == M.msg("goes.note.off") : String}
 
 law caixa_nota_nenhum_aberto:
   {C.refsNote(True{}, [], True{}) == M.msg("goes.note.none") : String}
 
 law caixa_nota_listadas_com_captura:
-  {C.refsNote(True{}, ["Limites.pdf p.4", "Formulario.pdf p.1"], True{})
-    == M.msg1("goes.note.listedCapture", "list", "Limites.pdf p.4, Formulario.pdf p.1") : String}
+  {C.refsNote(True{}, [C.GoesRef{"Limites.pdf", "p.4"}, C.GoesRef{"Formulario.pdf", "p.1"}], True{})
+    == M.msg("goes.note.listedCapture") : String}
 
 # Sem Conferir (flag desligada) a nota não fala de captura.
 law caixa_nota_listadas_sem_captura:
-  {C.refsNote(True{}, ["Limites.pdf p.4"], False{})
-    == M.msg1("goes.note.listed", "list", "Limites.pdf p.4") : String}
+  {C.refsNote(True{}, [C.GoesRef{"Limites.pdf", "p.4"}], False{})
+    == M.msg("goes.note.listed") : String}
 
 # ---------- Enviar / Parar ----------
 
@@ -157,26 +185,20 @@ law caixa_parar_visivel_ocupado:
 
 # O indicador de modelo e esforço mora na fileira, logo antes de Parar/Enviar.
 law caixa_fileira_ordem:
-  {C.actionIds() == ["attach", "include-refs", "check", "model-indicator", "stop", "send"] : List<&2, String>}
+  {C.actionIds() == ["attach", "include-refs", "model-indicator", "stop", "send"] : List<&2, String>}
 
 law caixa_fileira_indicador_antes_do_enviar:
-  {List.drop(&2, String, C.actionIds(), 3n) == ["model-indicator", "stop", "send"] : List<&2, String>}
+  {List.drop(&2, String, C.actionIds(), 2n) == ["model-indicator", "stop", "send"] : List<&2, String>}
 
 # Cabe tudo: nada cede.
 law caixa_fileira_cabe:
-  for compactFits: Bool
   for modelFits: Bool
-  {C.rowFit(True{}, compactFits, modelFits) == "" : String}
+  {C.rowFit(True{}, modelFits) == "" : String}
 
-# Falta espaço: primeiro Referências vira ícone…
-law caixa_fileira_referencias_cedem:
-  for modelFits: Bool
-  {C.rowFit(False{}, True{}, modelFits) == "compact" : String}
-
-# …depois o esforço do indicador cede…
+# Falta espaço: primeiro o esforço do indicador cede…
 law caixa_indicador_cede_esforco:
-  {C.rowFit(False{}, False{}, True{}) == "model" : String}
+  {C.rowFit(False{}, True{}) == "model" : String}
 
 # …e só por último o modelo vira ícone.
 law caixa_indicador_vira_icone:
-  {C.rowFit(False{}, False{}, False{}) == "icon" : String}
+  {C.rowFit(False{}, False{}) == "icon" : String}

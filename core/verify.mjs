@@ -9,9 +9,9 @@
 import {spawnSync} from "node:child_process";
 import {createHash} from "node:crypto";
 import {existsSync, readFileSync, readdirSync, writeFileSync} from "node:fs";
-import {homedir} from "node:os";
 import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
+import {bendHome, bendPluginPath, findBend, findBun} from "./toolchain.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -24,37 +24,20 @@ const fail = (message) => {
 };
 
 // 1. Toolchain: mesma distribuição para compilar e provar.
-const bendHome = process.env.BEND_HOME || join(homedir(), ".bend");
-const plugin = join(bendHome, "current", "bend2", "main.ts");
-if (!existsSync(plugin)) fail(`bend não encontrado em ${plugin} — instale com https://bend-lang.com/install.sh`);
+const plugin = bendPluginPath();
+if (!plugin) fail(`bend não encontrado em ${join(bendHome(), "current", "bend2", "main.ts")} — instale com https://bend-lang.com/install.sh`);
 const pluginSha = createHash("sha256").update(readFileSync(plugin)).digest("hex");
 
-const bendBin = process.env.BEND_BIN || "bend";
-// bend 2.0.8+ fala a versão pelo subcomando `version`; 2.0.7 e anteriores, pelo
-// flag `--version`. O portão aceita os dois — e desliga a checagem diária do CLI
-// (o único request de telemetria dele) em toda invocação que ele faz aqui.
-const probeBend = (argv) => spawnSync(bendBin, argv, {
-  encoding: "utf8",
-  env: {...process.env, BEND_NO_TELEMETRY: "1"},
-});
-let bendProbe = probeBend(["version"]);
-if (bendProbe.error || bendProbe.status !== 0 || !String(bendProbe.stdout || "").trim()) {
-  bendProbe = probeBend(["--version"]);
-}
-if (bendProbe.error || bendProbe.status !== 0) fail(`binário do bend não respondeu (${bendBin}) — o portão exige a toolchain completa`);
-const bendVersion = String(bendProbe.stdout || "").trim();
+// `findBend` aceita a versão pelo subcomando `version` (2.0.8+) e pelo flag
+// `--version` (2.0.7 e anteriores), e desliga a checagem diária do CLI (o único
+// request de telemetria dele) em toda invocação.
+const bend = findBend();
+if (!bend) fail(`binário do bend não respondeu (${process.env.BEND_BIN || "bend"}) — o portão exige a toolchain completa`);
+const {bin: bendBin, version: bendVersion} = bend;
 
-let bun = null;
-let bunVersion = "";
-for (const candidate of [process.env.BUN_BIN, join(homedir(), ".bun", "bin", "bun"), "bun"].filter(Boolean)) {
-  const probe = spawnSync(candidate, ["--version"], {encoding: "utf8"});
-  if (!probe.error) {
-    bun = candidate;
-    bunVersion = String(probe.stdout || "").trim();
-    break;
-  }
-}
-if (!bun) fail("bun não encontrado — o portão estrito exige a toolchain completa (o `build-safe` segue tolerante no dia a dia)");
+const bunInfo = findBun();
+if (!bunInfo) fail("bun não encontrado — o portão estrito exige a toolchain completa (o `build-safe` segue tolerante no dia a dia)");
+const {bin: bun, version: bunVersion} = bunInfo;
 
 const current = {bend: {pluginSha256: pluginSha, binary: bendBin, version: bendVersion}, bun: bunVersion};
 if (pin) {

@@ -76,8 +76,9 @@ await withArtifacts('tutor-header',async ctx=>{
    role:role?{text:role.textContent.trim(),w:rb.width,h:rb.height}:null};
  });
  assert.ok(bubble,'há uma mensagem do usuário para medir');
- assert.equal(bubble.size,'13.5px','o balão do usuário é 13.5px');
- assert.equal(bubble.radius,'14px 14px 4px','o balão tem o canto de baixo à direita menor');
+ assert.equal(bubble.size,'15px','o balão do usuário é 15px como a resposta');
+ assert.equal(Number.parseFloat(bubble.line),24,'com altura de linha 1.6 (24px)');
+ assert.equal(bubble.radius,'10px 10px 4px','o balão tem o canto de baixo à direita menor');
  assert.ok(bubble.widthShare<=0.851,`o balão ocupa no máximo 85% da coluna (${bubble.widthShare})`);
  assert.ok(bubble.rightGap<=24,`o balão fica à direita (${bubble.rightGap}px da borda)`);
  assert.ok(bubble.role&&bubble.role.text.length>0&&bubble.role.w<=1&&bubble.role.h<=1,`o rótulo de quem fala não aparece, mas segue no DOM (${JSON.stringify(bubble.role)})`);
@@ -130,7 +131,10 @@ await withArtifacts('tutor-header',async ctx=>{
 
  /* ---------- sessão nova: três itens (Pi, Claude, OpenCode da #57); Esc fecha só o menu ---------- */
  await openNewSessionMenu(page);
- assert.deepEqual(await page.locator('#new-session-pop button').allTextContents().then(list=>list.map(text=>text.trim())),['Sessão nova','Sessão nova com Claude (experimental)','Sessão nova com OpenCode (modelos grátis)']);
+ assert.deepEqual(await page.locator('#new-session-pop button').allTextContents().then(list=>list.map(text=>text.trim())),['Padrão','Claude (experimental)','OpenCode']);
+ assert.equal((await page.locator('#new-session-pop .conv-head strong').textContent()).trim(),'Nova sessão com…','o menu aberto mostra com o que a sessão nasce');
+ assert.equal(await page.locator('#new-session-pop .conv-head').getAttribute('aria-hidden'),'true','o cabeçalho repete o nome do grupo, então é decorativo');
+ assert.equal(await page.locator('#new-session-pop').getAttribute('aria-label'),'Nova sessão com…','o menu diz com qual motor a sessão nasce');
  assert.equal(await page.locator('#new-session').getAttribute('aria-expanded'),'true');
  await reviewShot(page,out,'sessao-nova-1440.png');
  await page.keyboard.press('Escape');
@@ -148,7 +152,7 @@ await withArtifacts('tutor-header',async ctx=>{
  /* ---------- Mais opções ---------- */
  await openTutorMore(page);
  const labels=await page.locator('#chat-more-pop > *').evaluateAll(list=>list.map(el=>el.id));
- assert.deepEqual(labels,['export-chat','end-day','more-context','more-auto-compact','more-compact-now','more-triage','chat-collapse'],'itens de Mais opções, na ordem');
+ assert.deepEqual(labels,['more-context','more-context-menu','end-day','export-chat','chat-collapse'],'itens de Mais opções, na ordem');
  await reviewShot(page,out,'mais-opcoes-1440.png');
  await page.keyboard.press('Escape');
  await page.locator('#chat-more-pop').waitFor({state:'hidden'});
@@ -168,13 +172,16 @@ await withArtifacts('tutor-header',async ctx=>{
  // uso de contexto e compactação automática
  await page.evaluate(async()=>{const state=await import('./src/state.mjs');await state.refreshMeter();});
  await openTutorMore(page);
- assert.equal(await page.locator('#more-context-slot #ctx-meter').count(),1,'o medidor vivo mora no encaixe do menu');
+ await page.locator('#more-context').click();
+ await page.waitForFunction(()=>!document.querySelector('#more-context-menu').hidden);
+ assert.equal(await page.locator('#more-context-slot #ctx-meter').count(),1,'o medidor vivo mora no encaixe do submenu');
  const auto=page.locator('#more-auto-compact');
  assert.equal(await auto.isDisabled(),false,'a compactação automática está disponível com o tutor ligado');
  const checked=await auto.getAttribute('aria-checked');
  await auto.click();
  await page.waitForFunction(was=>document.querySelector('#more-auto-compact').getAttribute('aria-checked')!==was,checked,{timeout:10000});
  assert.equal(await page.locator('#auto-compact').getAttribute('aria-pressed'),String(checked!=='true'),'o interruptor espelha o botão vivo da compactação');
+ await page.keyboard.press('Escape');
  await page.keyboard.press('Escape');
 
  // recolher e reabrir: item, botão de restaurar e atalho

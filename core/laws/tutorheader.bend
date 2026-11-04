@@ -10,11 +10,11 @@ import ../view.bend as V
 # O cabeçalho é uma linha de 40px: título da sessão, botão do chat lateral,
 # sessão nova e mais opções. O título e os três botões são do `index.html`; o
 # que o núcleo decide são os dois menus que abrem dali:
-#   - sessão nova: o motor padrão e o Claude (experimental), nessa ordem;
+#   - sessão nova: o motor padrão, o Claude (experimental) e o OpenCode;
 #     a sessão que já está aberta nunca troca de motor (o host só cria);
-#   - mais opções: exportar em Markdown, Encerrar por hoje, o uso de contexto,
-#     a compactação automática e recolher o tutor, nessa ordem. O Encerrar por
-#     hoje some só pela flag `desk.endDay`.
+#   - mais opções: Contexto (submenu com a medição e as compactações),
+#     Encerrar por hoje, Exportar sessão e Recolher o tutor, nessa ordem. O
+#     Encerrar por hoje some só pela flag `desk.endDay`.
 #
 # O que não cabe aqui: medir, abrir, enviar. Cada item só nomeia o handler; o
 # host decide o que acontece e revalida a ação no IPC.
@@ -52,8 +52,24 @@ law tutor_nova_sessao_tres_itens:
 law tutor_nova_sessao_ordem:
   {H.newSessionItems() == [H.newSessionDefault(), H.newSessionClaude(), H.newSessionOpenCode()] : List<&2, V.ViewNode>}
 
+law tutor_nova_sessao_cabecalho:
+  {V.kidsOf(H.newSessionHead()) == [
+    V.viewEl("strong", Nil{}, [V.viewText(M.msg("header.newSessionWith"))])
+  ] : List<&2, V.ViewNode>}
+
+law tutor_nova_sessao_cabecalho_classe:
+  {V.attrGet(V.attrsOf(H.newSessionHead()), "class") == Some{"conv-head"} : Maybe<&2, String>}
+
+law tutor_nova_sessao_cabecalho_decorativo:
+  {V.attrGet(V.attrsOf(H.newSessionHead()), "aria-hidden") == Some{"true"} : Maybe<&2, String>}
+
+law tutor_nova_sessao_menu:
+  {H.newSessionMenu() == [
+    H.newSessionHead(), H.newSessionDefault(), H.newSessionClaude(), H.newSessionOpenCode()
+  ] : List<&2, V.ViewNode>}
+
 law tutor_nova_sessao_padrao_rotulo:
-  {V.kidsOf(H.newSessionDefault()) == [V.viewText(M.msg("header.newSession"))] : List<&2, V.ViewNode>}
+  {V.kidsOf(H.newSessionDefault()) == [V.viewText(M.msg("header.newSessionPi"))] : List<&2, V.ViewNode>}
 
 law tutor_nova_sessao_padrao_clique:
   {V.attrGet(V.attrsOf(H.newSessionDefault()), "on:click") == Some{"NewSession"} : Maybe<&2, String>}
@@ -87,21 +103,51 @@ law tutor_nova_sessao_opencode_id:
 
 # ---------- mais opções ----------
 
-# Seis itens, na ordem em que o usuário os procura.
-law tutor_mais_seis_itens:
+# Quatro ações visíveis; o submenu de Contexto entra logo depois do gatilho.
+law tutor_mais_quatro_acoes:
   for endDay: Bool
-  {List.length(&2, V.ViewNode, H.moreItems(endDay)) == 6n : Nat}
+  {List.length(&2, V.ViewNode, [H.contextItem(), H.endDayItem(endDay), H.exportItem(), H.collapseItem()]) == 4n : Nat}
 
 law tutor_mais_ordem:
   for endDay: Bool
   {H.moreItems(endDay)
-    == [ H.exportItem()
+    == [ H.contextItem()
+       , H.contextMenu()
        , H.endDayItem(endDay)
-       , H.contextRow()
-       , H.autoCompactItem()
-       , H.compactNowItem()
+       , H.exportItem()
        , H.collapseItem()
        ] : List<&2, V.ViewNode>}
+
+law tutor_contexto_gatilho_id:
+  {V.attrGet(V.attrsOf(H.contextItem()), "id") == Some{"more-context"} : Maybe<&2, String>}
+
+law tutor_contexto_gatilho_rotulo:
+  {V.kidsOf(H.contextItem()) == [V.viewText(M.msg("header.context"))] : List<&2, V.ViewNode>}
+
+law tutor_contexto_gatilho_papel:
+  {V.attrGet(V.attrsOf(H.contextItem()), "role") == Some{"menuitem"} : Maybe<&2, String>}
+
+law tutor_contexto_gatilho_abre_menu:
+  {V.attrGet(V.attrsOf(H.contextItem()), "aria-haspopup") == Some{"menu"} : Maybe<&2, String>}
+
+law tutor_contexto_gatilho_controla:
+  {V.attrGet(V.attrsOf(H.contextItem()), "aria-controls") == Some{"more-context-menu"} : Maybe<&2, String>}
+
+law tutor_contexto_gatilho_fechado:
+  {V.attrGet(V.attrsOf(H.contextItem()), "aria-expanded") == Some{"false"} : Maybe<&2, String>}
+
+law tutor_contexto_submenu_id:
+  {V.attrGet(V.attrsOf(H.contextMenu()), "id") == Some{"more-context-menu"} : Maybe<&2, String>}
+
+law tutor_contexto_submenu_papel:
+  {V.attrGet(V.attrsOf(H.contextMenu()), "role") == Some{"menu"} : Maybe<&2, String>}
+
+law tutor_contexto_submenu_nasce_fechado:
+  {V.attrGet(V.attrsOf(H.contextMenu()), "hidden") == Some{""} : Maybe<&2, String>}
+
+law tutor_contexto_submenu_ordem:
+  {V.kidsOf(H.contextMenu())
+    == [H.contextRow(), H.autoCompactItem(), H.compactNowItem()] : List<&2, V.ViewNode>}
 
 law tutor_exportar_id:
   {V.attrGet(V.attrsOf(H.exportItem()), "id") == Some{"export-chat"} : Maybe<&2, String>}
@@ -161,8 +207,8 @@ law tutor_compactacao_clique:
 law tutor_contexto_encaixe:
   {V.tagOf(H.contextRow()) == "div" : String}
 
-law tutor_contexto_id:
-  {V.attrGet(V.attrsOf(H.contextRow()), "id") == Some{"more-context"} : Maybe<&2, String>}
+law tutor_contexto_linha_id:
+  {V.attrGet(V.attrsOf(H.contextRow()), "id") == Some{"more-context-row"} : Maybe<&2, String>}
 
 # Resumir agora é a ação manual que saiu do painel "Contexto da sessão".
 law tutor_resumir_id:

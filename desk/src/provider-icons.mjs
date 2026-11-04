@@ -76,6 +76,7 @@ const LOBE_ICONS = /** @type {Readonly<Record<string, BrandIcon>>} */ (Object.fr
    pedido do autor (2026-10-21): a dica e o nome acessível o separam do Zen. */
 const PROVIDER_SLUGS = Object.freeze({
   anthropic: 'anthropic',
+  'claude-agent': 'anthropic',
   openai: 'openai',
   'openai-codex': 'openai',
   google: 'google',
@@ -254,7 +255,18 @@ const monogram = (key, name) => `<span class="provider-mono" data-slot="${monogr
  * @returns {string}
  */
 export function providerIcon(provider, name = provider) {
+  if (provider === 'opencode-go') return openCodeMark('G', name);
+  if (provider === 'opencode') return openCodeMark('Z', name);
   return brandIcon(providerIconSlug(provider)) || monogram(provider, name);
+}
+
+/* O Go e o Zen usam a mesma marca do OpenCode; a letra pequena diz qual é,
+   sem trocar o logo. O texto acessível fica no trilho/linha. */
+/** @param {'G'|'Z'} letter @param {string} name @returns {string} */
+function openCodeMark(letter, name) {
+  const mark = brandIcon('opencode');
+  if (!mark) return monogram(name, name);
+  return `<span class="provider-mark" data-mark="${letter}" aria-hidden="true">${mark}<span class="provider-mark-badge">${letter}</span></span>`;
 }
 
 /**

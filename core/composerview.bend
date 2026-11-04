@@ -8,13 +8,14 @@ import view.bend as V
 # fatos e o DOM).
 #
 # O host entrega fatos já resolvidos — `many` (n > 1), `count` em texto,
-# `sending`/`enabled`/`editing` por item, `closing` da faixa, `visible` do
-# banner de edição, `recovered` da fila, `canSendNow`/`canClear` das ações — e
-# este núcleo devolve a árvore: `.queue-strip` com `.queue-label` +
-# `.queue-item(.sending)` (ou `input.queue-edit`), as ações `.queue-send-now` e
-# `.queue-clear` (cada uma `hidden` quando o fato é falso) e o `#edit-banner`.
-# Nada aqui mede, foca, anima nem fala com o DOM; quem cria
-# os elementos é o aplicador (`desk/src/view-host.mjs`).
+# `sending`/`enabled`/`editing`/`steerable` por item, `closing` da faixa,
+# `visible` do banner de edição, `recovered` da fila, `canSendNow`/`canClear`
+# das ações — e este núcleo devolve a árvore: `.queue-strip` com `.queue-label`
+# + `.queue-item(.sending)` (ou `input.queue-edit`), o botão `.queue-steer-now`
+# de cada item que pode virar steer AGORA (só com o tutor ocupado e o motor com
+# steer), as ações `.queue-send-now` e `.queue-clear` (cada uma `hidden` quando
+# o fato é falso) e o `#edit-banner`. Nada aqui mede, foca, anima nem fala com
+# o DOM; quem cria os elementos é o aplicador (`desk/src/view-host.mjs`).
 # A saída animada (`.closing` + `transitionend` + timeout) é máquina do host.
 #
 # Convenções (as mesmas de `core/view.bend` e do DOM atual):
@@ -24,14 +25,26 @@ import view.bend as V
 #   - item: `data-id`, `.sending` + `aria-busy=true` com o fato `sending`;
 #     `enabled` liga role=button / tabindex / edição e o ×;
 #   - `editing` troca o span por `input.queue-edit`;
-#   - ações: `Enviar agora` (`sendNow`) e `Limpar` (`clear`), `hidden` quando o
-#     fato correspondente é falso.
+#   - `steerable` mostra o `Enviar agora` da linha (some quando o item está
+#     saindo, em edição, o tutor está livre ou o motor não oferece steer);
+#   - cabeçalho `.queue-head` (ticket de polimento visual): o rótulo "Na fila · N"
+#     à esquerda e as ações da faixa à direita — `Enviar agora` (`sendNow`) e
+#     `Limpar` (`clear`), cada uma `hidden` quando o fato é falso. As mensagens
+#     vêm abaixo, uma linha cada, com as ações da linha alinhadas à direita.
 # ---------------------------------------------------------------------------
 
 # Fatos de um item da fila. `enabled` é o inverso de `sending` (o host compara
-# o id com o que está saindo); `editing` é o item cujo texto está no input.
+# o id com o que está saindo); `editing` é o item cujo texto está no input;
+# `steerable` é a decisão de `canSteerQueued` com os fatos do host.
 type QueueRow is Data:
-  QueueRow{id: String, text: String, sending: Bool, enabled: Bool, editing: Bool}
+  QueueRow{id: String, text: String, sending: Bool, enabled: Bool, editing: Bool, steerable: Bool}
+
+# Um item JÁ na fila pode sair como steer (interrompe a resposta e vai agora)?
+# Só com o tutor ocupado, motor que oferece steer, item fora do envio e fora
+# da edição. Livre, o flush normal cuida dele; os outros veto são os mesmos
+# que desligam a linha.
+def canSteerQueued(busy: Bool, steerCapable: Bool, sending: Bool, editing: Bool) -> Bool:
+  Bool.and(busy, Bool.and(steerCapable, Bool.and(Bool.not(sending), Bool.not(editing))))
 
 # ---------- rótulos ----------
 
@@ -76,6 +89,12 @@ def queueItemTitle(text: String, sending: Bool) -> String:
       text
     case False{}:
       M.msg1("queue.editTitle", "text", text)
+
+def queueSteerNowLabel() -> String:
+  M.msg("queue.steerNow")
+
+def queueSteerNowTitle() -> String:
+  M.msg("queue.steerNowTitle")
 
 def editBannerText() -> String:
   M.msg("queue.editBanner")
@@ -143,6 +162,7 @@ def queueRemoveAttrs(enabled: Bool) -> List<&2, V.ViewAttr>:
   V.attrConcat(
     [
       V.attrType("button"),
+      V.attrClass("queue-remove"),
       V.attrTitle(M.msg("queue.remove")),
       V.attrAria("label", M.msg("queue.remove")),
       V.attrOn("click", "remove")
@@ -152,6 +172,29 @@ def queueRemoveAttrs(enabled: Bool) -> List<&2, V.ViewAttr>:
 
 def queueRemoveBtn(enabled: Bool) -> V.ViewNode:
   V.viewEl("button", queueRemoveAttrs(enabled), [V.viewText("×")])
+
+# "Enviar agora" da linha: manda o item guardado como steer (o payload do
+# enqueue, não o composer vivo). A dica repete o atalho do composer.
+def queueSteerAttrs() -> List<&2, V.ViewAttr>:
+  [
+    V.attrType("button"),
+    V.attrClass("queue-steer-now"),
+    V.attrTitle(queueSteerNowTitle()),
+    V.attrAria("label", queueSteerNowTitle()),
+    V.attrOn("click", "steerNow")
+  ]
+
+def queueSteerBtn() -> V.ViewNode:
+  V.viewEl("button", queueSteerAttrs(), [V.viewText(queueSteerNowLabel())])
+
+# Estrutural: sem o fato, o botão não existe (o espaço da linha não muda para
+# quem está em edição, onde o input ocupa o lugar do texto).
+def queueSteerViews(steerable: Bool) -> List<&2, V.ViewNode>:
+  match steerable:
+    case True{}:
+      [queueSteerBtn()]
+    case False{}:
+      Nil{}
 
 def queueEditInput(text: String) -> V.ViewNode:
   V.viewEl(
@@ -176,20 +219,23 @@ def queueItemAttrs(id: String, +sending: Bool) -> List<&2, V.ViewAttr>:
     queueBusyAttr(sending)
   )
 
-def queueItemKids(text: String, sending: Bool, +enabled: Bool, editing: Bool) -> List<&2, V.ViewNode>:
+def queueItemKids(text: String, sending: Bool, +enabled: Bool, editing: Bool, steerable: Bool) -> List<&2, V.ViewNode>:
   match editing:
     case True{}:
       [queueEditInput(text), queueRemoveBtn(enabled)]
     case False{}:
-      [queueTextSpan(text, sending, enabled), queueRemoveBtn(enabled)]
+      V.viewConcat(
+        [queueTextSpan(text, sending, enabled)],
+        V.viewConcat(queueSteerViews(steerable), [queueRemoveBtn(enabled)])
+      )
 
-def queueItem.body(id: String, text: String, +sending: Bool, enabled: Bool, editing: Bool) -> V.ViewNode:
-  V.viewEl("div", queueItemAttrs(id, sending), queueItemKids(text, sending, enabled, editing))
+def queueItem.body(id: String, text: String, +sending: Bool, enabled: Bool, editing: Bool, steerable: Bool) -> V.ViewNode:
+  V.viewEl("div", queueItemAttrs(id, sending), queueItemKids(text, sending, enabled, editing, steerable))
 
 def queueItemView(row: QueueRow) -> V.ViewNode:
   match row:
-    case QueueRow{id, text, sending, enabled, editing}:
-      queueItem.body(id, text, sending, enabled, editing)
+    case QueueRow{id, text, sending, enabled, editing, steerable}:
+      queueItem.body(id, text, sending, enabled, editing, steerable)
 
 def queueItemViews(items: List<&2, QueueRow>) -> List<&2, V.ViewNode>:
   V.viewMap(~QueueRow, ~queueItemView, items)
@@ -246,13 +292,17 @@ def queueClearBtn(canClear: Bool) -> V.ViewNode:
 def queueActionViews(canSendNow: Bool, canClear: Bool) -> List<&2, V.ViewNode>:
   V.viewConcat([queueSendNowBtn(canSendNow)], [queueClearBtn(canClear)])
 
-# As ações ficam numa linha própria no fim da faixa (a coluna da faixa empilharia
-# os botões um por linha).
+# As ações ficam no cabeçalho, à direita do rótulo (o bloco é único e preso ao
+# topo da caixa do composer). O host esconde o `Limpar` com uma mensagem só; a
+# linha que descarta sozinha é o ×.
 def queueActionsView(canSendNow: Bool, canClear: Bool) -> V.ViewNode:
   V.viewEl("div", [V.attrClass("queue-actions")], queueActionViews(canSendNow, canClear))
 
+def queueHeadView(label: String, canSendNow: Bool, canClear: Bool) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("queue-head")], [queueLabelView(label), queueActionsView(canSendNow, canClear)])
+
 def queueStripKids(label: String, items: List<&2, QueueRow>, canSendNow: Bool, canClear: Bool) -> List<&2, V.ViewNode>:
-  V.viewConcat([queueLabelView(label)], V.viewConcat(queueItemViews(items), [queueActionsView(canSendNow, canClear)]))
+  V.viewConcat([queueHeadView(label, canSendNow, canClear)], queueItemViews(items))
 
 def queueStripView(closing: Bool, label: String, items: List<&2, QueueRow>, canSendNow: Bool, canClear: Bool) -> V.ViewNode:
   V.viewEl(

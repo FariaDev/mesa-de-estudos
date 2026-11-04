@@ -14,6 +14,18 @@ def Laws.tutor_nova_sessao_tres_itens():
 def Laws.tutor_nova_sessao_ordem():
   {==}
 
+def Laws.tutor_nova_sessao_cabecalho():
+  {==}
+
+def Laws.tutor_nova_sessao_cabecalho_classe():
+  {==}
+
+def Laws.tutor_nova_sessao_cabecalho_decorativo():
+  {==}
+
+def Laws.tutor_nova_sessao_menu():
+  {==}
+
 def Laws.tutor_nova_sessao_padrao_rotulo():
   {==}
 
@@ -41,7 +53,7 @@ def Laws.tutor_nova_sessao_opencode_clique():
 def Laws.tutor_nova_sessao_opencode_id():
   {==}
 
-def Laws.tutor_mais_seis_itens(endDay):
+def Laws.tutor_mais_quatro_acoes(endDay):
   match endDay:
     case True{}:
       {==}
@@ -54,6 +66,36 @@ def Laws.tutor_mais_ordem(endDay):
       {==}
     case False{}:
       {==}
+
+def Laws.tutor_contexto_gatilho_id():
+  {==}
+
+def Laws.tutor_contexto_gatilho_rotulo():
+  {==}
+
+def Laws.tutor_contexto_gatilho_papel():
+  {==}
+
+def Laws.tutor_contexto_gatilho_abre_menu():
+  {==}
+
+def Laws.tutor_contexto_gatilho_controla():
+  {==}
+
+def Laws.tutor_contexto_gatilho_fechado():
+  {==}
+
+def Laws.tutor_contexto_submenu_id():
+  {==}
+
+def Laws.tutor_contexto_submenu_papel():
+  {==}
+
+def Laws.tutor_contexto_submenu_nasce_fechado():
+  {==}
+
+def Laws.tutor_contexto_submenu_ordem():
+  {==}
 
 def Laws.tutor_exportar_id():
   {==}
@@ -118,7 +160,7 @@ def Laws.tutor_compactacao_clique():
 def Laws.tutor_contexto_encaixe():
   {==}
 
-def Laws.tutor_contexto_id():
+def Laws.tutor_contexto_linha_id():
   {==}
 
 def Laws.tutor_itens_nao_enviam_formulario():

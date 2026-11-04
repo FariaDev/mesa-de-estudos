@@ -2,7 +2,7 @@
 /* Primeira abertura em tela cheia (#64, docs/design/setup-guia-r1/Setup-passos.dc.html):
    a parte sem DOM. Seis passos, um por vez — boas-vindas, como a Mesa
    funciona (quatro quadros), nome, PDFs, tutor (opcional) e pronto —, o que
-   trava o botão, o texto dele, a trilha, a fala e o humor da mascote.
+   trava o botão, o texto dele, a trilha e a fala.
 
    Pela ADR 0001 isto é interface e mora em JS com teste. A invariante ("só
    cria com nome e pasta") é do núcleo `core/firstrun.bend`; quem cria é o
@@ -11,22 +11,13 @@
 export const STEPS = /** @type {const} */ (['welcome', 'tour', 'name', 'folder', 'tutor', 'ready']);
 /** @typedef {typeof STEPS[number]} SetupStep */
 
-/* Os quatro quadros do passeio: a região do desenho que acende, quem do trio
-   apresenta e com que humor. A ∫ lê junto, o Σ organiza a resolução e o ∇,
-   curioso, aponta onde perguntar e onde achar as coisas. */
+/* Os quatro quadros do passeio: a região do desenho que a luz acesa mostra. */
 export const TOUR = /** @type {const} */ ([
-  {id: 'read', region: 'readers', lead: 'integral', humor: 'reading'},
-  {id: 'write', region: 'writer', lead: 'sigma', humor: 'writing'},
-  {id: 'ask', region: 'tutor', lead: 'nabla', humor: 'normal'},
-  {id: 'where', region: 'top', lead: 'nabla', humor: 'hint'},
+  {id: 'read', region: 'readers'},
+  {id: 'write', region: 'writer'},
+  {id: 'ask', region: 'tutor'},
+  {id: 'where', region: 'top'},
 ]);
-
-/** @typedef {'integral'|'sigma'|'nabla'} SetupLead */
-
-/* Quem fica em cena fora do passeio: o Σ conta os itens (nome), o ∇ procura a
-   pasta e a ∫ apresenta o tutor. Boas-vindas e Pronto são do trio. */
-/** @type {Record<string, SetupLead>} */
-const STEP_LEAD = {welcome: 'integral', name: 'sigma', folder: 'nabla', tutor: 'integral', ready: 'sigma'};
 
 /**
  * @typedef {object} SetupState
@@ -37,8 +28,6 @@ const STEP_LEAD = {welcome: 'integral', name: 'sigma', folder: 'nabla', tutor: '
  * @property {number} pdfCount PDFs na pasta
  * @property {boolean} online o tutor está ligado
  * @property {boolean} alert algo está sendo arrastado para a tela
- * @property {boolean} writing digitando o nome agora
- * @property {boolean} sleepy parada há um tempo
  */
 
 const isBlank = (/** @type {string} */ value) => !String(value ?? '').trim();
@@ -51,7 +40,7 @@ const isBlank = (/** @type {string} */ value) => !String(value ?? '').trim();
  * @example initialSetup('empty').step // 2
  */
 export function initialSetup(kind) {
-  return {step: kind === 'empty' ? STEPS.indexOf('name') : 0, frame: 0, name: '', folder: '', pdfCount: 0, online: false, alert: false, writing: false, sleepy: false};
+  return {step: kind === 'empty' ? STEPS.indexOf('name') : 0, frame: 0, name: '', folder: '', pdfCount: 0, online: false, alert: false};
 }
 
 /**
@@ -165,13 +154,12 @@ export function setupTrail(state) {
  * @example speechOf(initialSetup('setup')).key // 'setup.say.welcome'
  */
 export function speechOf(state) {
-  if (state.sleepy) return {key: 'setup.say.sleep'};
   const id = stepId(state);
   if (id === 'welcome') return {key: 'setup.say.welcome'};
-  if (id === 'tour') return {key: `setup.tour.${TOUR[state.frame].id}.say`};
+  if (id === 'tour') return {key: ''};
   if (id === 'name') return nameSpeech(state);
   if (id === 'folder') return folderSpeech(state);
-  if (id === 'tutor') return {key: state.online ? 'setup.say.tutorOn' : 'setup.say.tutorOff'};
+  if (id === 'tutor') return {key: state.online ? 'setup.say.tutorOn' : ''};
   return {key: 'setup.say.ready'};
 }
 
@@ -187,40 +175,6 @@ function folderSpeech(state) {
   if (isBlank(state.folder)) return {key: 'setup.say.folder'};
   if (!state.pdfCount) return {key: 'setup.say.emptyFolder'};
   return {key: 'setup.say.pdfs', args: {count: state.pdfCount}};
-}
-
-/**
- * O que a mascote grande mostra (os campos de `MascoteState`, em `mascote.mjs`).
- * `milestone` sobe a cada passo ou quadro vencido: cada subida é um pulo.
- * @param {SetupState} state
- * @returns {{mood:'normal'|'feliz'|'pensando', wave:boolean, sleepy:boolean, writing:boolean, reading:boolean, alert:boolean, milestone:number}}
- */
-export function mascoteOf(state) {
-  const id = stepId(state);
-  const frame = id === 'tour' ? TOUR[state.frame] : null;
-  const waiting = id === 'folder' && isBlank(state.folder) && !state.alert;
-  return {
-    mood: id === 'ready' ? 'feliz' : waiting ? 'pensando' : 'normal',
-    wave: id === 'welcome',
-    sleepy: state.sleepy,
-    writing: state.writing || frame?.humor === 'writing',
-    reading: frame?.humor === 'reading',
-    alert: state.alert || frame?.humor === 'hint',
-    milestone: state.step * 4 + (frame ? state.frame : 0),
-  };
-}
-
-/**
- * Quem está em cena: o trio junto (Boas-vindas e Pronto) ou um só, grande.
- * `lead` é quem fala e pega o humor do passo; no trio, é o do meio do olhar.
- * @param {SetupState} state
- * @returns {{trio:boolean, lead:SetupLead}}
- * @example castOf(initialSetup('empty')) // {trio:false, lead:'sigma'}
- */
-export function castOf(state) {
-  const id = stepId(state);
-  const lead = id === 'tour' ? TOUR[state.frame].lead : STEP_LEAD[id];
-  return {trio: id === 'welcome' || id === 'ready', lead};
 }
 
 /**

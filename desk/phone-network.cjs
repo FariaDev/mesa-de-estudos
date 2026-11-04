@@ -20,20 +20,18 @@ const VIRTUAL_NAME = /^(lo|utun|tun|tap|ppp|ipsec|wg|tailscale|zt|bridge|vmnet|v
    wlp) e Windows ("Wi-Fi", "Ethernet"). */
 const LAN_NAME = /^(en\d|eth|enp|eno|ens|wlan|wlp|wl|wi-?fi|ethernet)/i;
 
-/** Faixa privada da RFC 1918 (casa, escola, hotspot do celular). */
+/* Só a faixa privada da RFC 1918 é candidata (-1 para o resto). O servidor
+   escuta na interface escolhida: um IP público ali o expõe à internet
+   (revisão de segurança). Os hotspots conhecidos estão todos nessa faixa:
+   192.168.43.x (Android), 172.20.10.x (iPhone), 192.168.137.x (Windows).
+   Fora dela ficam 100.64/10 (CGNAT e malha do Tailscale, que o celular não
+   alcança) e 169.254/16 (a rede não respondeu ao DHCP). */
 function privateRank(address) {
   const [a, b] = address.split('.').map(Number);
   if (a === 192 && b === 168) return 0;
   if (a === 10) return 1;
   if (a === 172 && b >= 16 && b <= 31) return 1;
-  return 2;
-}
-
-/* 169.254/16 é o endereço de quando a rede não respondeu; 100.64/10 é o
-   espaço das VPNs de malha (Tailscale) e do CGNAT: nenhum é a rede do celular. */
-function unusableAddress(address) {
-  const [a, b] = address.split('.').map(Number);
-  return (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127) || a === 127;
+  return -1;
 }
 
 /**
@@ -50,8 +48,10 @@ function lanCandidates(interfaces) {
     if (VIRTUAL_NAME.test(name)) continue;
     for (const entry of entries || []) {
       const ipv4 = entry && (entry.family === 'IPv4' || entry.family === 4);
-      if (!ipv4 || entry.internal || unusableAddress(entry.address)) continue;
-      found.push({name, address: entry.address, rank: (LAN_NAME.test(name) ? 0 : 10) + privateRank(entry.address)});
+      if (!ipv4 || entry.internal) continue;
+      const priv = privateRank(entry.address);
+      if (priv < 0) continue;
+      found.push({name, address: entry.address, rank: (LAN_NAME.test(name) ? 0 : 10) + priv});
     }
   }
   return found

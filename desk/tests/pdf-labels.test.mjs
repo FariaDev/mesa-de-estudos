@@ -9,7 +9,6 @@ import assert from 'node:assert/strict';
 import {offsetFacts,offsetFromRecord,labelsList,readDocLabels,normalizeOffset,MAX_PAGE_OFFSET} from '../src/pdf-labels.mjs';
 import {bindPdfDrop,draggedLooksPdf,isPdfFile} from '../src/pdf-drop.mjs';
 import pdfPage from '../src/generated/pdfpageview.core.js';
-import pdfView from '../src/generated/pdfview.core.js';
 import {build} from '../src/view-host.mjs';
 import {ptText} from './pt-text.mjs';
 
@@ -182,24 +181,11 @@ test('printedRow: form escondido por padrão, aberto sem hidden, submit GoPrinte
   assert.equal(attr(offset, 'type'), 'number');
 });
 
-test('printedToggleBtn e dropHint: rótulos, aria e handlers', () => {
-  const toggle = build(pdfPage.printedToggleBtn('Enunciado', true), {});
-  assert.equal(attr(toggle, 'class'), 'printed-toggle more-item');
-  assert.equal(attr(toggle, 'data-icon'), 'scan');
-  assert.equal(attr(toggle, 'aria-expanded'), 'true');
-  assert.equal(attr(toggle, 'title'), 'Numeração impressa e ajuste deste PDF');
+test('dropHint: rótulos, aria e handlers', () => {
   const hint = build(pdfPage.dropHint('Enunciado'), {});
   assert.equal(attr(hint, 'class'), 'pdf-drop-hint');
   assert.equal(attr(hint, 'hidden'), '');
   assert.equal(hint.children[0].text, 'Solte para abrir em Enunciado');
-});
-
-test('footReadyLabeled: texto do rodapé e nome completo no title', () => {
-  const withLabel = build(pdfView.footReadyLabeled(7, 200, 'Livro.pdf', 'iv'), {});
-  assert.equal(attr(withLabel, 'title'), 'Página 7 de 200 · rótulo iv · rolagem contínua · Livro.pdf');
-  assert.equal(withLabel.children[0].text, attr(withLabel, 'title'));
-  const without = build(pdfView.footReadyLabeled(2, 10, 'Limites.pdf', ''), {});
-  assert.equal(without.children[0].text, 'Página 2 de 10 · rolagem contínua · Limites.pdf');
 });
 
 /* ------------------------------------------------------------------ */

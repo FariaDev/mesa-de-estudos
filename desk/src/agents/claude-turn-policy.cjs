@@ -1,4 +1,4 @@
-/* Política pura de liquidação do turno Claude Code — ponte Mesa ↔ SDK 0.3.301.
+/* Política pura de liquidação do turno Claude Code — ponte Mesa ↔ SDK 0.3.314.
  *
  * Módulo PURO: não importa o SDK, não faz I/O, não cria timer, não abre rede,
  * não inicia consulta e NUNCA decide reenvio. Ele transforma fatos que o host
@@ -36,7 +36,7 @@
  * commit 1604ccc9d79f5270fb8e14d60664184bf142c4cb (`ClaudeAdapterV2.ts`,
  * `isClaudeResultForOtherTurn`, `providerFailureFromResult`,
  * `providerFailureFromApiRetry`), MIT © 2026 T3 Tools Inc. As APIs usadas são
- * SÓ as do SDK pinado (@anthropic-ai/claude-agent-sdk 0.3.301): `TerminalReason`,
+ * SÓ as do SDK pinado (@anthropic-ai/claude-agent-sdk 0.3.314): `TerminalReason`,
  * `SDKResultSuccess/Error`, `SDKAPIRetryMessage`, `SDKModelRefusalFallbackMessage`,
  * `SDKUserMessageReplay`.
  *
@@ -608,7 +608,7 @@ function classifyApiRetry(message) {
 
 /* ---------------- recusa / fallback de modelo ---------------- */
 
-/* Normaliza o aviso nativo de recusa (SDK 0.3.301). Para o fallback, devolve o
+/* Normaliza o aviso nativo de recusa (SDK 0.3.314). Para o fallback, devolve o
    texto do aviso (quando houver), a lista LIMITADA de UUIDs retratados e a
    decisão de evicção ADIADA (`eviction:'deferred'`): o host decide o DOM, este
    módulo não remove nada. Sem `content` não inventa aviso vazio; a retração

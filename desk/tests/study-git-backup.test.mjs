@@ -16,6 +16,23 @@ const require = createRequire(import.meta.url);
 const backup = require('../src/study-data/backup.cjs');
 const gitBackup = require('../src/study-data/git-backup.cjs');
 
+/* O git do teste roda com config própria: a global da máquina
+   (init.defaultBranch, commit.gpgsign, excludesFile…) não pode mudar o
+   resultado, e o /etc/gitconfig fica de fora também. Os repositórios continuam
+   sendo git de verdade; só a configuração é a do teste. */
+const gitConfigDir = tempDir('mesa-git-config');
+const gitConfigFile = path.join(gitConfigDir, 'config');
+fs.writeFileSync(gitConfigFile, '');
+const savedGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
+process.env.GIT_CONFIG_GLOBAL = gitConfigFile;
+process.env.GIT_CONFIG_NOSYSTEM = '1';
+test.after(() => {
+  if (savedGitConfigGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+  else process.env.GIT_CONFIG_GLOBAL = savedGitConfigGlobal;
+  delete process.env.GIT_CONFIG_NOSYSTEM;
+  cleanup(gitConfigDir);
+});
+
 const gitInfo = gitBackup.gitAvailable();
 const maybe = gitInfo.available ? test : test.skip;
 
@@ -32,6 +49,9 @@ function gitTree(args, dest) {
 function bareRemote(tag = 'mesa-remote') {
   const dir = tempDir(tag);
   gitCmd(['init', '-q', '--bare', dir], dir);
+  /* O remoto também nasce em main: o backup empurra para refs/heads/main, e
+     um `git init` sem init.defaultBranch (Debian) criaria HEAD -> master. */
+  gitCmd(['symbolic-ref', 'HEAD', 'refs/heads/main'], dir);
   return dir;
 }
 
@@ -209,7 +229,10 @@ maybe('git: operação interrompida e árvore suja são recuperadas para o últi
   }
 });
 
-test('git: runner tem prazo e teto de saída (não trava o main)', () => {
+/* O fake é um script POSIX (`#!/bin/sh`) colocado no PATH como `git`; no
+   Windows o runner acha o `git.exe` do sistema e o script não roda. Prazo e
+   teto continuam cobertos pelo mesmo código no POSIX. */
+test('git: runner tem prazo e teto de saída (não trava o main)', {skip: process.platform === 'win32' && 'fake git é script POSIX; no Windows o runner usa git.exe'}, () => {
   const slowDir = tempDir('mesa-git-slow');
   fs.writeFileSync(path.join(slowDir, 'git'), '#!/bin/sh\nsleep 5\n');
   fs.chmodSync(path.join(slowDir, 'git'), 0o755);
@@ -227,6 +250,19 @@ test('git: runner tem prazo e teto de saída (não trava o main)', () => {
   assert.match(loud.stderr, /limite de 4096 bytes/);
 
   cleanup(slowDir, loudDir);
+});
+
+maybe('git: o repositório do backup nasce em main mesmo com init.defaultBranch configurado', () => {
+  const dest = tempDir('mesa-git-branch');
+  const savedConfig = fs.readFileSync(gitConfigFile, 'utf8');
+  fs.writeFileSync(gitConfigFile, '[init]\n\tdefaultBranch = trunk\n');
+  try {
+    gitBackup.api({root: dest}).ensureRoot();
+    assert.equal(gitTree(['symbolic-ref', 'HEAD'], dest), 'refs/heads/main');
+  } finally {
+    fs.writeFileSync(gitConfigFile, savedConfig);
+    cleanup(dest);
+  }
 });
 
 maybe('git: pasta com arquivos do usuário não vira destino (o commit apagaria)', () => {

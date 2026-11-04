@@ -7,15 +7,14 @@ import ../view.bend as V
 # agregador de provas. Markdown/KaTeX entram como um ViewNode opaco; as leis
 # fixam apenas a estrutura que o Bend de fato decide.
 
-def optionOne() -> T.QuizOptionRow:
-  T.QuizOptionRow{"x", "1", V.viewText("<x>"), False{}, False{}, False{}, False{}, False{}, ""}
-
-def quizSimple() -> T.QuizRow:
-  T.QuizRow{
-    "tool-1", False{}, V.viewText("pergunta"), False{}, V.viewText(""),
-    [optionOne()], False{}, False{}, True{}, False{}, "", False{}, V.viewText(""),
-    False{}, V.viewText("")
-  }
+def at(xs: List<&2, V.ViewNode>, i: Nat) -> V.ViewNode:
+  match xs i:
+    case Nil{} _:
+      V.viewText("")
+    case Con{h, t} 0n:
+      h
+    case Con{h, t} 1n+p:
+      at(t, p)
 
 law talk_role_user:
   {T.roleName(True{}) == "user" : String}
@@ -38,20 +37,33 @@ law talk_message_assistant_role:
     == Some{"assistant"} : Maybe<&2, String>}
 
 law talk_message_copy_handler:
-  {V.attrGet(V.attrsOf(T.messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage")), "on:click")
+  {V.attrGet(V.attrsOf(T.messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage", "copy")), "on:click")
     == Some{"CopyMessage"} : Maybe<&2, String>}
 
+# A ação é só ícone (#90): o nome acessível, o tooltip e o glifo do host.
+law talk_message_copy_accessible:
+  {V.attrGet(V.attrsOf(T.messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage", "copy")), "aria-label")
+    == Some{M.msg("talk.copy")} : Maybe<&2, String>}
+
+law talk_message_copy_icon:
+  {V.attrGet(V.attrsOf(T.messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage", "copy")), "data-icon")
+    == Some{"copy"} : Maybe<&2, String>}
+
+law talk_message_actions_class:
+  {V.attrGet(V.attrsOf(T.messageActions(True{}, False{}, False{})), "class")
+    == Some{"message-actions"} : Maybe<&2, String>}
+
 law talk_message_actions_bools:
-  {T.messageActions(True{}, False{}, False{})
-    == [T.messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage")] : List<&2, V.ViewNode>}
+  {V.kidsOf(T.messageActions(True{}, False{}, False{}))
+    == [T.messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage", "copy")] : List<&2, V.ViewNode>}
 
 law talk_message_review_handler:
-  {V.attrGet(V.attrsOf(T.messageAction("msg-review", M.msg("talk.review"), "SaveForReview")), "on:click")
+  {V.attrGet(V.attrsOf(T.messageAction("msg-review", M.msg("talk.review"), "SaveForReview", "bookmark")), "on:click")
     == Some{"SaveForReview"} : Maybe<&2, String>}
 
 law talk_message_actions_review:
-  {T.messageActions(False{}, False{}, True{})
-    == [T.messageAction("msg-review", M.msg("talk.review"), "SaveForReview")] : List<&2, V.ViewNode>}
+  {V.kidsOf(T.messageActions(False{}, False{}, True{}))
+    == [T.messageAction("msg-review", M.msg("talk.review"), "SaveForReview", "bookmark")] : List<&2, V.ViewNode>}
 
 law talk_shots_length:
   for +xs: List<&2, String>
@@ -60,38 +72,6 @@ law talk_shots_length:
 law talk_shot_alt:
   for src: String
   {V.attrGet(V.attrsOf(T.shot(src)), "alt") == Some{M.msg("talk.imageSent")} : Maybe<&2, String>}
-
-law talk_quiz_simple_class:
-  {V.attrGet(V.attrsOf(T.quizCard(quizSimple())), "class")
-    == Some{"message assistant quiz"} : Maybe<&2, String>}
-
-law talk_quiz_simple_aria:
-  {V.attrGet(V.attrsOf(T.quizCard(quizSimple())), "aria-label")
-    == Some{M.msg("talk.quizAria")} : Maybe<&2, String>}
-
-law talk_quiz_roles:
-  {T.optionRole(True{}) == "checkbox" : String}
-
-law talk_quiz_single_role:
-  {T.optionsRole(False{}) == "radiogroup" : String}
-
-law talk_quiz_option_handler:
-  {V.attrGet(V.attrsOf(T.quizOption(optionOne(), False{})), "on:click")
-    == Some{"SelectQuizOption"} : Maybe<&2, String>}
-
-law talk_quiz_send_disabled:
-  {V.attrGet(V.attrsOf(T.sendButton(True{})), "disabled") == Some{""} : Maybe<&2, String>}
-
-law talk_quiz_send_enabled:
-  {V.attrGet(V.attrsOf(T.sendButton(False{})), "disabled") == None{} : Maybe<&2, String>}
-
-law talk_quiz_no_actions:
-  {T.quizActions(False{}, False{}, False{}) == Nil{} : List<&2, V.ViewNode>}
-
-law talk_quiz_verdict:
-  {T.quizTail(True{}, "✓ Correta!", False{}, V.viewText(""), False{}, V.viewText(""))
-    == [V.viewEl("div", [V.attrClass("quiz-verdict")], [V.viewText("✓ Correta!")])]
-    : List<&2, V.ViewNode>}
 
 # ---------- assets do corpo (figura e bloco de código) ----------
 
@@ -127,4 +107,16 @@ law talk_codeblock_sem_lang:
   {List.length(&2, V.ViewNode, V.kidsOf(T.codeBlock(V.viewText("x"), ""))) == 2n : Nat}
 
 law talk_codeblock_com_lang:
-  {List.length(&2, V.ViewNode, V.kidsOf(T.codeBlock(V.viewText("x"), "JS"))) == 3n : Nat}
+  {List.length(&2, V.ViewNode, V.kidsOf(T.codeBlock(V.viewText("x"), "JS"))) == 2n : Nat}
+
+law talk_codehead_class:
+  {V.attrGet(V.attrsOf(T.codeHead("JS")), "class") == Some{"code-head"} : Maybe<&2, String>}
+
+law talk_codehead_lang_class:
+  {V.attrGet(V.attrsOf(at(V.kidsOf(T.codeHead("JS")), 0n)), "class") == Some{"code-lang"} : Maybe<&2, String>}
+
+law talk_codehead_copy_class:
+  {V.attrGet(V.attrsOf(at(V.kidsOf(T.codeHead("JS")), 1n)), "class") == Some{"code-copy"} : Maybe<&2, String>}
+
+law talk_codehead_sem_lang_copia:
+  {V.attrGet(V.attrsOf(at(V.kidsOf(T.codeHead("")), 0n)), "class") == Some{"code-copy"} : Maybe<&2, String>}

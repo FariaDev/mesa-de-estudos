@@ -41,6 +41,7 @@ const conversations = require('./src/agents/conversations.cjs');
 const {MAX_DRAFT} = require('./state-adapter.cjs');
 const core = require('./src/generated/sidechat.core.js').default;
 const {message: uiMsg} = require('./src/i18n.mjs');
+const {createCardSession} = require('./card-session.cjs');
 const {CONTEXT_END_MARKER, CORE_BY_STATUS, ID_RE, MAX_DIALOG_IDS, MAX_MESSAGE_ID, SCHEMA_VERSION, STATUS_BY_CORE, appendMessage, conversationList, descriptorPath, displayMessages, displayUserText, fail, isPlainObject, normalizeRefs, nowMs, piSessionPath, readDescriptorRaw, readIndex, saveDescriptor, sidechatsDir, validDescriptor, writeIndex} = require('./sidechat-store.cjs');
 
 /* ---------- manager ---------- */
@@ -53,10 +54,11 @@ const isNative = (engine) => conversations.NATIVE_ENGINES.includes(engine);
  * Chats laterais da conversa principal: escopo, limites, motor e gravação.
  * @param {{runtime: string, current: () => {session: string, courseId: string, engine: string, courseName: string, model?: string|null, effort?: string|null},
  *   snapshot: (request: {refs: Array<{path: string, page: number}>}) => object, validPdf: (path: string) => string,
- *   createEngine: (request: {engine: string, id: string, descriptor: {claude?: string|null, session?: string|null}, onEvent: (event: object) => void}) => object,
- *   emit: (payload: object) => void, log: (scope: string, line: string) => void, now?: () => number}} options
+ *   createEngine: (request: {engine: string, id: string, descriptor: {claude?: string|null, session?: string|null}, onEvent: (event: object) => void}) => object | Promise<object>,
+ *   emit: (payload: object) => void, log: (scope: string, line: string) => void,
+ *   revokeCardGrant?: ((grant: {token: string}) => void) | null, now?: () => number}} options
  */
-function createSideChatManager({runtime, current, snapshot, validPdf, createEngine, emit, log, now = Date.now} = {}) {
+function createSideChatManager({runtime, current, snapshot, validPdf, createEngine, emit, log, revokeCardGrant = null, now = Date.now} = {}) {
   if (typeof runtime !== 'string' || !runtime) fail('runtime obrigatório para o chat lateral.');
   if (typeof current !== 'function') fail('current() obrigatório para o chat lateral.');
   if (typeof snapshot !== 'function') fail('snapshot() obrigatório para o chat lateral.');
@@ -70,9 +72,27 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
      `agent_settled` que chegou antes do aceite do mesmo envio; `generation`
      invalida desfechos tardios quando a entrada é fechada (suspend/troca/fresh). */
   const active = new Map();
+  const cardSessions = new Map();
+  /** @type {ReturnType<typeof createSideChatManager>|null} */
+  let manager = null;
+
+  function cardSessionOf(descriptor) {
+    const id = descriptor.id;
+    let session = cardSessions.get(id);
+    if (session) return session;
+    session = createCardSession({
+      runtime,
+      conversation: () => id,
+      sendText: (text) => manager.prompt({id, text}),
+      emit: (payload) => emit?.({id, engine: descriptor.engine, event: {...payload, cardType: payload.type, type: 'card'}}),
+      appendLog: report,
+    });
+    cardSessions.set(id, session);
+    return session;
+  }
 
   function newEntry(descriptor) {
-    return {descriptor, channel: null, pending: new Set(), pendingUser: null, settledTurn: null, generation: 0};
+    return {descriptor, channel: null, channelPromise: null, warming: null, pending: new Set(), pendingUser: null, settledTurn: null, cardGrant: null, generation: 0};
   }
 
   function report(source, error) {
@@ -138,6 +158,10 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     const channel = entry.channel;
     entry.channel = null;
     entry.pending = new Set();
+    if (entry.cardGrant && typeof revokeCardGrant === 'function') {
+      try { revokeCardGrant(entry.cardGrant); } catch (error) { report('sidechat', `concessão de cartão de ${id} não revogada: ${error?.message || error}`); }
+      entry.cardGrant = null;
+    }
     /* Qualquer desfecho que resolva depois deste ponto pertence a uma entrada
        que já foi interrompida: não pode gravar accepted/refused no descritor. */
     entry.generation += 1;
@@ -216,18 +240,23 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     emit?.({id, engine: descriptor.engine, event});
   }
 
+  /* O motor do Pi lê a chave do cofre de forma assíncrona (`piLaunch`): abrir
+     duas vezes ao mesmo tempo compartilha a mesma criação em vez de subir dois
+     processos. */
   function ensureChannel(entry) {
-    if (entry.channel) return entry.channel;
+    if (entry.channel) return Promise.resolve(entry.channel);
+    if (entry.channelPromise) return entry.channelPromise;
     const descriptor = entry.descriptor;
     if (isNative(descriptor.engine)) {
       conversations.recoverClaudeConversation(descriptor.claude, {runtime});
       const record = conversations.readClaudeConversation(descriptor.claude, {runtime});
-      if (!record) fail(uiMsg('err.sidechat.recordMissing'));
+      if (!record) return Promise.reject(Error(uiMsg('err.sidechat.recordMissing')));
     }
-    let channel;
-    channel = createEngine({engine: descriptor.engine, id: descriptor.id, descriptor, onEvent: (event) => routeEvent(descriptor.id, channel, event)});
-    entry.channel = channel;
-    return channel;
+    entry.channelPromise = Promise.resolve()
+      .then(() => createEngine({engine: descriptor.engine, id: descriptor.id, descriptor, onEvent: (event) => routeEvent(descriptor.id, entry.channel, event)}))
+      .then((channel) => { entry.channel = channel; if (channel?.cardGrant) entry.cardGrant = channel.cardGrant; return channel; })
+      .finally(() => { entry.channelPromise = null; });
+    return entry.channelPromise;
   }
 
   /* Histórico de exibição. O cache do Claude guarda o texto enviado (com o
@@ -310,6 +339,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
         at: descriptor.context.at,
       },
       delivery: descriptor.delivery ? {status: descriptor.delivery.status, at: descriptor.delivery.at} : null,
+      cards: cardSessionOf(descriptor).list(),
       createdAt: descriptor.createdAt,
       updatedAt: descriptor.updatedAt,
     };
@@ -362,7 +392,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     return descriptor;
   }
 
-  return {
+  manager = {
     /* Abre/retoma o chat lateral da conversa principal atual. `fresh:true` cria
        um novo (o anterior fica preservado em disco, fora do índice).
        Retomar NÃO recopia o principal: o snapshot da abertura original fica
@@ -409,12 +439,38 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       return payloadFor(entry);
     },
 
+    /* Sobe o motor sem mensagem (foco no campo). Aberto/lido continua sem processo.
+       Entrega incerta não aquece: o Claude recusaria e o reenvio está vedado. */
+    async warm(input = {}) {
+      if (!isPlainObject(input)) return {warmed: false};
+      let entry;
+      try { entry = resolve(input); } catch { return {warmed: false}; }
+      if (uncertainOf(entry)) return {warmed: false};
+      /* O foco no campo aquece o canal; um envio que chega nesse meio-tempo
+         espera o aquecimento em vez de ver o `_configuring` do serviço como
+         turno ocupado e recusar com "Aguarde o turno atual" (#93, medido no
+         macOS com OpenCode: o primeiro clique do lateral era perdido). */
+      if (!entry.warming) {
+        entry.warming = (async () => {
+          let channel;
+          try { channel = await ensureChannel(entry); } catch { return false; }
+          if (typeof channel.warm !== 'function') return true;
+          try { await channel.warm(); return true; } catch { return false; }
+        })().finally(() => { entry.warming = null; });
+      }
+      return {warmed: await entry.warming};
+    },
+
     async prompt(input = {}) {
       if (!isPlainObject(input)) fail('Pedido inválido.');
       const entry = resolve(input);
       const descriptor = entry.descriptor;
       if (typeof input.text !== 'string' || !input.text.trim()) fail('Mensagem inválida.');
       if (input.text.length > MAX_DRAFT) fail(uiMsg('err.sidechat.tooLong'));
+      /* Aquecimento em voo (foco no campo) não é turno: espera terminar. */
+      if (entry.warming) {
+        try { await entry.warming; } catch { /* o envio tenta o canal do mesmo jeito */ }
+      }
       if (descriptor.delivery?.status === 'transmitting') {
         return {sent: false, retryable: true, error: uiMsg('err.sidechat.pending')};
       }
@@ -425,24 +481,12 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
          abertura (configuração/matéria mudou). O snapshot NÃO é trocado em
          silêncio: recusa clara e o usuário atualiza o contexto. */
       const context = descriptor.context;
-      const contextPaths = (context.refs || []).map((ref) => ref.path);
-      let readPaths = contextPaths;
-      if (isNative(descriptor.engine)) {
-        try {
-          readPaths = contextPaths.map((refPath) => validPdf(refPath));
-        } catch {
-          return {
-            sent: false,
-            retryable: true,
-            error: uiMsg('err.sidechat.refLeft'),
-          };
-        }
-      }
       let channel;
       try {
-        channel = ensureChannel(entry);
+        channel = await ensureChannel(entry);
       } catch (error) {
-        return {sent: false, retryable: false, error: String(error?.message || error)};
+        /* O canal nem subiu, então nada foi escrito: reenviar é seguro (#92). */
+        return {sent: false, retryable: true, error: String(error?.message || error)};
       }
       if (isNative(descriptor.engine) && uncertainOf(entry)) {
         return {sent: false, retryable: false, uncertain: true, error: uiMsg('err.sidechat.uncertain')};
@@ -484,7 +528,6 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
         await channel.prompt({
           id: promptId,
           text: message,
-          readPaths,
           running: channel.isBusy?.() === true,
         });
       } catch (error) {
@@ -592,7 +635,32 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     isBusy() {
       return [...active.values()].some(entry=>entry.channel?.isBusy?.()===true||entry.descriptor.delivery?.status==='transmitting');
     },
+
+    /* Cartões (#92): o grant da ferramenta aponta para o id do lateral; o
+       cartão mora no mesmo store por conversa e o resultado volta pelo
+       `prompt` normal do lateral (sem fila, com a recusa comprovada). */
+    showCard(id, raw) {
+      const entry = resolve({id});
+      return cardSessionOf(entry.descriptor).show(raw);
+    },
+    cardAnswer(input = {}) {
+      const entry = resolve(input);
+      return cardSessionOf(entry.descriptor).answer({id: input.cardId, answer: input.answer});
+    },
+    cardDraft(input = {}) {
+      const entry = resolve(input);
+      return cardSessionOf(entry.descriptor).draft({id: input.cardId, draft: input.draft});
+    },
+    cardDismiss(input = {}) {
+      const entry = resolve(input);
+      return cardSessionOf(entry.descriptor).dismiss({id: input.cardId});
+    },
+    cardConclude(input = {}) {
+      const entry = resolve(input);
+      return cardSessionOf(entry.descriptor).conclude(String(input.cardId || ''));
+    },
   };
+  return manager;
 }
 
 module.exports = {

@@ -45,16 +45,21 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
   const attempt={cancelled:false};connectAttempt=attempt;
   const step=async value=>{const out=await value;if(attempt.cancelled)throw Error(message('tutor.error.cancelled'));return out;};
   try{
-   const b=connect();
+   const b=await connect();
    const kind=engine();
-   if(isNative(kind)&&!b.uncertain)await step(b.request('initialize_controls'));
-   const s=await step(b.request('get_state'));
-   const messages=await step(b.request('get_messages'));
-   const models=await step(b.request('get_available_models'));
-   await live.opencodeHost.liveReady();
-   const controls=isNative(kind)?await step(b.request('get_controls')):null;
+   const native=isNative(kind);
+   if(native&&!b.uncertain)await step(b.request('initialize_controls'));
+   /* Estado, histórico, catálogo, controles e medidor não dependem entre si.
+      O nível de pensamento do Pi continua esperando o modelo que o estado trouxer. */
+   const [s,messages,models,controls,contextUsage]=await Promise.all([
+    step(b.request('get_state')),
+    step(b.request('get_messages')),
+    step(b.request('get_available_models')),
+    native?step(b.request('get_controls')):null,
+    step(statsUsage()),
+    live.opencodeHost.liveReady(),
+   ]);
    const levels=controls?(controls.effort?['default',...(controls.levels||[])]:[]):await step(levelsFor(s.model));
-   const contextUsage=await step(statsUsage());
    return {state:s,models:live.opencodeHost.annotate(models?.models||[],{keepFree:kind==='opencode'}),levels,messages:trimMessageImages(messages?.messages||[]),session:live.session,sessions:courseSessions(),...conversationData({messages:false}),captureAvailable:captureAvailable(),contextUsage};
   }catch(error){
    /* A tela diz o que aconteceu em português; o código de saída e o texto do
@@ -73,7 +78,7 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
  });
  ipcMain.handle('pi-commands',async()=>{
   try{
-   const result=await connect().request('get_commands');
+   const result=await (await connect()).request('get_commands');
    const list=Array.isArray(result?.commands)?result.commands:[];
    return list.slice(0,100).map(c=>({
     name:String(c?.name||'').slice(0,60),
@@ -84,26 +89,26 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
  });
  async function statsUsage(){
   /* Nativo: o serviço só pergunta ao motor que tem medidor (caps `contextUsage`). */
-  try{const stats=await connect().request('get_session_stats',{},30000);
+  try{const stats=await (await connect()).request('get_session_stats',{},30000);
    const usage=stats?.contextUsage;
    if(usage)return usage;
    if(stats&&stats.tokens&&stats.contextWindow)return {tokens:stats.tokens,contextWindow:stats.contextWindow,percent:stats.tokens/stats.contextWindow*100};
   }catch{/* sem estatística: o medidor fica sem valor */}
   return null;
  }
- ipcMain.handle('pi-health',async()=>{const state=await connect().request('get_state',{},20000);
+ ipcMain.handle('pi-health',async()=>{const state=await (await connect()).request('get_state',{},20000);
   return {...conversationData({messages:false}),ok:true,isRunning:live.bridge.isRunning(state),isCompacting:!!state?.isCompacting,isStreaming:!!state?.isStreaming,pendingMessageCount:Number(state?.pendingMessageCount)||0,contextUsage:await statsUsage()};});
  ipcMain.handle('pi-compact',async(_e,instructions)=>{
   /* Claude (#58) e OpenCode (#57): a compactação manual é do motor; o fim chega
      pelo `compact_result` do stream ou pelo SSE. */
   await assertIdle(message('err.idle.compact'));
-  const b=connect();
+  const b=await connect();
   const result=await b.request('compact',{customInstructions:typeof instructions==='string'&&instructions.trim()?instructions.trim().slice(0,2000):undefined},240000);
   return {summary:typeof result?.summary==='string'?result.summary.slice(0,300):'',tokensBefore:Number(result?.tokensBefore)||0};
  });
  ipcMain.handle('pi-auto-compaction',async(_e,enabled)=>{if(engine()==='claude')throw Error(message('err.compaction.controlClaude'));
   if(engine()==='opencode')throw Error(message('err.compaction.controlOpenCode'));
-  const b=connect();
+  const b=await connect();
   await b.request('set_auto_compaction',{enabled:!!enabled});
   const s=await b.request('get_state');
   return {autoCompactionEnabled:!!s.autoCompactionEnabled,contextUsage:await statsUsage()};});
@@ -115,7 +120,7 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
  }
  ipcMain.handle('pi-settings',async(_e,change={})=>{
   if(!isPlainObject(change))throw Error(invalidRequest('pi-settings','change',change,'object'));
-  const b=connect();let current=await b.request('get_state');
+  const b=await connect();let current=await b.request('get_state');
   if(live.bridge.isRunning(current))throw Error(message('err.model.busy'));
   if(isNative(engine())&&(Object.hasOwn(change,'model')||Object.hasOwn(change,'level'))&&(b.uncertain||conversations.readClaudeConversation(live.session,{runtime})?.delivery?.status==='uncertain'))throw Error(message('err.model.uncertain'));
   if(engine()==='opencode')return openCodeSettings(b,change);
@@ -182,7 +187,7 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
    }
    payload.answers=answers;
   }
-  const result=await connect().respond(payload);
+  const result=await (await connect()).respond(payload);
   if(isNative(engine())&&result?.ok===false)throw Error(message('err.dialog.notAccepted'));
   pendingDialogs.delete(id);
   return result;

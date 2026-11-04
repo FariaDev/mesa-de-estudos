@@ -7,19 +7,21 @@
 :root{
  color-scheme:light dark;
  /* Cor */
- /* Papéis: --bg é o fundo do app, --surface os leitores, barras e diálogos,
-    --side a coluna do tutor e --stage o palco atrás das páginas do PDF.
+ /* Papéis: --bg é o fundo do app, --surface os leitores e barras, --side a
+    coluna do tutor, --stage o palco atrás das páginas do PDF e --raised o que
+    flutua sobre elas (caixa de mensagem, diálogos e popovers).
     Cinzas sempre neutros (r=g=b): o branco da página não pode destoar. */
- --bg:light-dark(#efefef,#1f1f1f);
- --surface:light-dark(#ffffff,#2c2c2c);
- --side:light-dark(#f4f4f4,#242424);
- --stage:light-dark(#cbcbcb,#191919);
- --fg:light-dark(#272727,#e4e4e4);
- --fg-strong:light-dark(#181818,#f2f2f2);
- --muted:light-dark(#525252,#a6a6a6);
- --faint:light-dark(#6b6b6b,#939393);
- --border:light-dark(#dadada,rgb(255 255 255/.10));
- --border-strong:light-dark(#c7c7c7,rgb(255 255 255/.16));
+ --bg:light-dark(#f7f7f7,#191919);
+ --surface:light-dark(#ffffff,#1f1f1f);
+ --side:light-dark(#ffffff,#191919);
+ --stage:light-dark(#ededed,#141414);
+ --fg:light-dark(#191919,#efefef);
+ --fg-strong:light-dark(#111111,#ffffff);
+ --muted:light-dark(#5c5c5c,#a8a8a8);
+ --faint:light-dark(#707070,#979797);
+ --border:light-dark(#e0e0e0,rgb(255 255 255/.10));
+ --border-strong:light-dark(#d0d0d0,rgb(255 255 255/.16));
+ --raised:light-dark(#ffffff,#303030);
  /* Acento (ticket #9): seis opções, cada uma com tom próprio no claro e no
     escuro. `--accent-fill` pinta a ação principal e o alternador; `--accent-text`
     é o tom de link e de glifo (no escuro é mais claro que o preenchimento, para
@@ -35,6 +37,44 @@
  --acc-pink:light-dark(#c02667,#d8306b);--acc-pink-text:light-dark(#c02667,#f783ac);
  --acc-graphite:light-dark(#27272a,#ededed);--acc-graphite-text:light-dark(#27272a,#ededed);
  --accent-fill:var(--acc-blue);--accent-text:var(--acc-blue-text);--accent-fg:#ffffff;--accent-paper:#2548c7;
+ /* Trio (#100): o corpo, o claro, o membro, o sinal e a tinta de cada mascote
+    seguem o acento. As cores são as da tabela do ticket; três valores do tema
+    escuro (e o claro do verde no claro) subiram o mínimo para 3:1 de desenho e
+    4,5:1 dos sinais, medido em tests/contrast.test.mjs. O membro do escuro usa
+    o tom claro: o da tabela sumia no fundo. */
+ --trio-blue-corpo:light-dark(#3760df,#3760df);
+ --trio-blue-claro:light-dark(#5a83f3,#5a83f3);
+ --trio-blue-membro:light-dark(#2a4eca,#5a83f3);
+ --trio-blue-sinal:light-dark(#1a36a2,#5a83f3);
+ --trio-blue-tinta:light-dark(#0a1536,#0a1536);
+ --trio-violet-corpo:light-dark(#6d4fd8,#7053d9);
+ --trio-violet-claro:light-dark(#8b74ec,#8b74ec);
+ --trio-violet-membro:light-dark(#5a3fc4,#8b74ec);
+ --trio-violet-sinal:light-dark(#3f2a9e,#8b74ec);
+ --trio-violet-tinta:light-dark(#1a1033,#1a1033);
+ --trio-green-corpo:light-dark(#078259,#078259);
+ --trio-green-claro:light-dark(#0d9e6f,#0ea472);
+ --trio-green-membro:light-dark(#046f4c,#0ea472);
+ --trio-green-sinal:light-dark(#015337,#0ea472);
+ --trio-green-tinta:light-dark(#001f11,#001f11);
+ --trio-orange-corpo:light-dark(#bb3d05,#bc410a);
+ --trio-orange-claro:light-dark(#df5c30,#e05f34);
+ --trio-orange-membro:light-dark(#a13303,#e05f34);
+ --trio-orange-sinal:light-dark(#7a2401,#e05f34);
+ --trio-orange-tinta:light-dark(#300900,#300900);
+ --trio-pink-corpo:light-dark(#c11f66,#c42a6e);
+ --trio-pink-claro:light-dark(#db5484,#dc5988);
+ --trio-pink-membro:light-dark(#aa0856,#dc5988);
+ --trio-pink-sinal:light-dark(#810340,#dc5988);
+ --trio-pink-tinta:light-dark(#2f0716,#2f0716);
+ --trio-graphite-corpo:light-dark(#55555c,#a8a8b0);
+ --trio-graphite-claro:light-dark(#7c7c84,#c8c8ce);
+ --trio-graphite-membro:light-dark(#44444a,#8e8e96);
+ --trio-graphite-sinal:light-dark(#2c2c30,#d4d4d8);
+ --trio-graphite-tinta:light-dark(#18181a,#18181a);
+ --trio-corpo:var(--trio-blue-corpo);--trio-claro:var(--trio-blue-claro);
+ --trio-membro:var(--trio-blue-membro);--trio-sinal:var(--trio-blue-sinal);
+ --trio-tinta:var(--trio-blue-tinta);
  --primary:var(--accent-fill);
  --primary-hover:light-dark(color-mix(in oklab,var(--accent-fill) 78%,black),color-mix(in oklab,var(--accent-fill) 82%,white));
  --primary-fg:var(--accent-fg);
@@ -49,8 +89,8 @@
  --danger-text:light-dark(#c81e1e,#f87171);
  --success-text:light-dark(#137a3a,#34d399);
  --warn-text:light-dark(#9a5508,#fbbf24);
- --user:light-dark(#efefef,rgb(255 255 255/.07));
- --code:light-dark(#f5f5f5,rgb(255 255 255/.06));
+ --user:light-dark(#f1f1f1,#2a2a2a);
+ --code:light-dark(#f7f7f7,#232323);
  --code-str:light-dark(#0f766e,#5eead4);
  --code-num:light-dark(#a16207,#fbbf24);
  --code-kw:light-dark(#a626a4,#c678dd);
@@ -60,9 +100,13 @@
  /* Estados: --hover < --active; --selected é a escolha atual, em cinza neutro;
     --tint é o alternador ligado (o acento fica na ação principal, em links e
     em alternadores ligados); foco é sempre --ring. */
- --hover:light-dark(#f2f2f2,rgb(255 255 255/.06));
- --active:light-dark(#e8e8e8,rgb(255 255 255/.09));
- --selected:light-dark(#e8e8e8,rgb(255 255 255/.09));
+ --hover:light-dark(#f1f1f1,rgb(255 255 255/.05));
+ --active:light-dark(#e6e6e6,rgb(255 255 255/.09));
+ --selected:light-dark(#e6e6e6,rgb(255 255 255/.09));
+ /* Linha sob o mouse fica MAIS CLARA que a selecionada nos dois temas
+    (seletor de modelos, ticket de polimento visual). No escuro, mais branco é
+    mais claro: o --hover comum (.06) ficaria abaixo da seleção (.09). */
+ --hover-row:light-dark(#f7f7f7,rgb(255 255 255/.13));
  --tint:color-mix(in oklab,var(--primary) 11%,transparent);
  --mark:color-mix(in oklab,var(--fg) 16%,transparent);
  --selection:color-mix(in oklab,var(--ring) 26%,transparent);
@@ -91,20 +135,20 @@
     o que sobra em cima e embaixo; --pad é o recuo interno dos painéis. Um
     botão de ícone (--ctl, desenho de 16px) na ponta de uma barra traz folga
     própria: --bar-end a desconta para o desenho alinhar no recuo. */
- --reading-size:var(--fs-md);
+ --reading-size:var(--fs-xl);
  --chat:390px;--calc:220px;--header:44px;--bar:40px;--ctl:28px;--pad:12px;
  --strip:34px;
  --bar-y:calc((var(--bar) - var(--ctl)) / 2);--bar-end:calc(var(--pad) - (var(--ctl) - 16px) / 2);
- font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+ font-family:var(--font-sans);
  font-size:var(--fs-md);color:var(--fg);background:var(--bg);-webkit-font-smoothing:antialiased;
 }
 :root[data-theme=light]{color-scheme:light}
 :root[data-theme=dark]{color-scheme:dark}
-:root[data-accent=violet]{--accent-fill:var(--acc-violet);--accent-text:var(--acc-violet-text);--accent-paper:#6d28d9}
-:root[data-accent=green]{--accent-fill:var(--acc-green);--accent-text:var(--acc-green-text);--accent-paper:#0f7b55}
-:root[data-accent=orange]{--accent-fill:var(--acc-orange);--accent-text:var(--acc-orange-text);--accent-paper:#c2410c}
-:root[data-accent=pink]{--accent-fill:var(--acc-pink);--accent-text:var(--acc-pink-text);--accent-paper:#c02667}
-:root[data-accent=graphite]{--accent-fill:var(--acc-graphite);--accent-text:var(--acc-graphite-text);--accent-fg:light-dark(#ffffff,#181818);--accent-paper:#27272a}
+:root[data-accent=violet]{--accent-fill:var(--acc-violet);--accent-text:var(--acc-violet-text);--accent-paper:#6d28d9;--trio-corpo:var(--trio-violet-corpo);--trio-claro:var(--trio-violet-claro);--trio-membro:var(--trio-violet-membro);--trio-sinal:var(--trio-violet-sinal);--trio-tinta:var(--trio-violet-tinta)}
+:root[data-accent=green]{--accent-fill:var(--acc-green);--accent-text:var(--acc-green-text);--accent-paper:#0f7b55;--trio-corpo:var(--trio-green-corpo);--trio-claro:var(--trio-green-claro);--trio-membro:var(--trio-green-membro);--trio-sinal:var(--trio-green-sinal);--trio-tinta:var(--trio-green-tinta)}
+:root[data-accent=orange]{--accent-fill:var(--acc-orange);--accent-text:var(--acc-orange-text);--accent-paper:#c2410c;--trio-corpo:var(--trio-orange-corpo);--trio-claro:var(--trio-orange-claro);--trio-membro:var(--trio-orange-membro);--trio-sinal:var(--trio-orange-sinal);--trio-tinta:var(--trio-orange-tinta)}
+:root[data-accent=pink]{--accent-fill:var(--acc-pink);--accent-text:var(--acc-pink-text);--accent-paper:#c02667;--trio-corpo:var(--trio-pink-corpo);--trio-claro:var(--trio-pink-claro);--trio-membro:var(--trio-pink-membro);--trio-sinal:var(--trio-pink-sinal);--trio-tinta:var(--trio-pink-tinta)}
+:root[data-accent=graphite]{--accent-fill:var(--acc-graphite);--accent-text:var(--acc-graphite-text);--accent-fg:light-dark(#ffffff,#181818);--accent-paper:#27272a;--trio-corpo:var(--trio-graphite-corpo);--trio-claro:var(--trio-graphite-claro);--trio-membro:var(--trio-graphite-membro);--trio-sinal:var(--trio-graphite-sinal);--trio-tinta:var(--trio-graphite-tinta)}
 
 *{box-sizing:border-box;corner-shape:squircle}
 /* Círculos e pílulas continuam redondos: o squircle é para os cantos comuns.
@@ -117,7 +161,7 @@ body{margin:0;height:100vh;overflow:hidden;background:var(--bg)}
 button,input,textarea,select{font:inherit;color:inherit}
 button{
  cursor:pointer;background:var(--surface);border:1px solid var(--border);
- border-radius:var(--r-md);padding:6px 10px;
+ border-radius:var(--r-sm);padding:6px 10px;
  display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);
  transition:background var(--t-fast) var(--ease-out),border-color var(--t-fast) var(--ease-out),color var(--t-fast) var(--ease-out),box-shadow var(--t-fast) var(--ease-out);
 }

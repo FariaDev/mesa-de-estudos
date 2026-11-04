@@ -20,15 +20,15 @@ import {trioSvg} from './trio-art.mjs';
 
 /**
  * @typedef {object} Personagem
- * @property {(uid:string)=>string} draw o SVG, com recortes prefixados por `uid`
+ * @property {(uid:string, options?:{pincel?:boolean})=>string} draw o SVG, com recortes prefixados por `uid`
  * @property {string} nameKey a chave do nome no catálogo (vai no aria-label)
  */
 
 /** @type {Record<string, Personagem>} */
 const PERSONAGENS = {
-  integral: {draw: (uid) => trioSvg('integral', uid), nameKey: 'mascote.integral.nome'},
-  sigma: {draw: (uid) => trioSvg('sigma', uid), nameKey: 'mascote.sigma.nome'},
-  nabla: {draw: (uid) => trioSvg('nabla', uid), nameKey: 'mascote.nabla.nome'},
+  integral: {draw: (uid, options) => trioSvg('integral', uid, options), nameKey: 'mascote.integral.nome'},
+  sigma: {draw: (uid, options) => trioSvg('sigma', uid, options), nameKey: 'mascote.sigma.nome'},
+  nabla: {draw: (uid, options) => trioSvg('nabla', uid, options), nameKey: 'mascote.nabla.nome'},
 };
 
 /**
@@ -196,6 +196,10 @@ const HUMORES = ['normal', 'feliz', 'pensando', 'aflita', 'sono', 'escrevendo', 
  * Uma mascote pequena e parada, como texto (para lugares que se repintam por
  * `innerHTML`, como a marca de "pensando" do chat). Decorativa: o texto ao lado
  * diz o estado. Pisca pelo CSS, e o piscar para com movimento reduzido.
+ *
+ * Sai sem o filtro de pincel: a marca vive a 20 px e o deslocamento do filtro,
+ * pensado para o desenho grande, vira fração de pixel e embaça a cabeça e os
+ * óculos (nitidez do "pensando", 2026-10-30). Quem é grande mantém o pincel.
  * @param {{personagem:string, humor?:import('./mascote-humor.mjs').MascoteHumor, tamanho:number}} options
  * @returns {string}
  * @example mark.innerHTML=mascoteMarkup({personagem:'integral',humor:'pensando',tamanho:20})
@@ -203,5 +207,5 @@ const HUMORES = ['normal', 'feliz', 'pensando', 'aflita', 'sono', 'escrevendo', 
 export function mascoteMarkup({personagem, humor = 'normal', tamanho}) {
   const {draw} = personagemOf(personagem);
   if (!HUMORES.includes(humor)) throw new Error(`humor da mascote desconhecido: ${JSON.stringify(humor)}; esperado um destes: ${HUMORES.join(', ')}`);
-  return `<span class="mascote mascote-${personagem}" data-humor="${humor}" style="--fo-size:${tamanho}px" aria-hidden="true">${draw(`mascote${++serial}`)}</span>`;
+  return `<span class="mascote mascote-${personagem}" data-humor="${humor}" style="--fo-size:${tamanho}px" aria-hidden="true">${draw(`mascote${++serial}`, {pincel: false})}</span>`;
 }

@@ -9,7 +9,7 @@ os modelos grátis podem guardar o que recebem (veja a política no seletor).
 ## Antes
 
 1. Instale o OpenCode (`~/.opencode/bin/opencode`) e confira `opencode
-   --version`. A Mesa foi medida no 2.0.32.
+   --version`. A Mesa foi medida no 1.19.5 e no 2.2.4 (o alvo principal).
 2. Se quiser os modelos que pedem conta, guarde a chave pela Mesa
    (Configurações → Pastas e programas → Modelos gratuitos). Para provar o
    item 1 abaixo, comece **sem** chave.
@@ -19,7 +19,7 @@ os modelos grátis podem guardar o que recebem (veja a política no seletor).
 
 | # | Passo | Passa quando |
 |---|---|---|
-| 1 | Sem chave guardada: **Sessão nova com OpenCode** e mande "Oi". | O seletor lista os grátis primeiro, com **Grátis** e a política, e o tutor responde. Se aparecer "O OpenCode Zen recusou o modelo grátis nesta sessão (403)", veja a seção do 403 abaixo. |
+| 1 | Sem chave guardada: **Sessão nova com OpenCode** e mande "Oi". | O seletor lista os modelos do provedor sem grupo nem selo de grátis (#93), com a política no detalhe, e o tutor responde. Se aparecer "O OpenCode Zen recusou o modelo grátis nesta sessão (403)", veja a seção do 403 abaixo. |
 | 2 | Escolha um modelo grátis com variantes e troque o esforço. | O esforço muda sem erro; a próxima resposta sai do modelo escolhido (o rodapé da resposta ou o log do OpenCode diz o modelo). |
 | 3 | Peça: "Construa no GeoGebra a parábola y = x² e me mostre." | A aba GeoGebra abre sozinha e a figura aparece. No `desk.log`, nenhum aviso `OPENCODE_MCP_FAILED`. |
 | 4 | Peça: "Mostre numa visualização o gráfico de y = x² de −3 a 3." | O quadro aparece **no balão da ferramenta**. Se aparecer solto com um aviso `atividade sem tool.called no prazo` no `desk.log`, anote: a ordem SSE × MCP é diferente da esperada. |
@@ -27,7 +27,7 @@ os modelos grátis podem guardar o que recebem (veja a política no seletor).
 | 6 | Digite `/` no campo. | Aparecem os comandos do servidor. Escolha um e confira que roda. |
 | 7 | Mais opções → Resumir contexto. | A compactação termina e o medidor de contexto cai. |
 | 8 | Anexe uma foto de caderno sua e peça: "Leia o que está escrito." | O modelo descreve a imagem, ou diz que o modelo não vê imagens (anote qual). |
-| 9 | Peça: "Apague o arquivo notas.txt desta pasta." | O tutor recusa ou a Mesa nega (permissão `edit`/`shell` negada). Nada é apagado. |
+| 9 | Peça: "Apague o arquivo notas.txt desta pasta." | O tutor não tem ferramenta de arquivo: ele recusa ou explica que só usa as ferramentas da Mesa. Nada é apagado. |
 | 10 | Feche a Mesa com o tutor respondendo e abra de novo. | Nenhum `opencode serve` órfão (`ps aux \| grep "opencode serve"`); a mensagem em voo aparece como incerta, sem reenvio. |
 | 11 | Abra a Mesa empacotada (`Mesa de Estudos.app`) e repita o passo 3. | O MCP `mesa` sobe pelo Node do Electron (`ELECTRON_RUN_AS_NODE`). |
 

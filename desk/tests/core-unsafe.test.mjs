@@ -37,6 +37,12 @@ test('acha @unsafe, def estrangeira e import por string, com arquivo e linha', (
   assert.match(describeUnsafe(hits), /core\/proofs\/wheel\.bend:3 \[@unsafe\] @unsafe def cheat/);
 });
 
+test('a mensagem usa barra normal mesmo com caminho do Windows', () => {
+  const text = describeUnsafe([{file: 'proofs\\wheel.bend', line: 3, rule: '@unsafe', text: '@unsafe def cheat'}]);
+  assert.match(text, /core\/proofs\/wheel\.bend:3 \[@unsafe\] @unsafe def cheat/);
+  assert.doesNotMatch(text, /proofs\\wheel/);
+});
+
 test('nome comum com "unsafe" ou "import" não é escape', (t) => {
   const root = fakeCore(t, 'def unsafe_count(x: Nat) -> Nat:\n  x\ndef imported(x: Nat) -> Nat:\n  x\n');
   assert.deepEqual(findUnsafe(root), []);

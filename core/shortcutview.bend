@@ -127,7 +127,7 @@ def skRowKids.editable(+id: String, +label: String, +effective: String, note: St
 def skRowNode.record(row: ShortcutRowFact, +recording: Bool) -> V.ViewNode:
   match row:
     case ShortcutRowFact{+id, +label, +effective, +fixed, note, overridden}:
-      V.viewKey("div", id, [
+      V.viewKey("div", id, V.attrConcat([
         V.classes([
           V.classOn("keys-row", True{}),
           V.classOn("recording", recording),
@@ -136,7 +136,7 @@ def skRowNode.record(row: ShortcutRowFact, +recording: Bool) -> V.ViewNode:
         V.attrData("action", id),
         V.attr("role", "group"),
         V.attrAria("labelledby", "keys-label-" ++ id)
-      ], skRowKids.editable(id, label, effective, note, overridden, recording, fixed))
+      ], V.attrWhen(fixed, V.attr("tabindex", "0"))), skRowKids.editable(id, label, effective, note, overridden, recording, fixed))
 
 def skRowNode(row: ShortcutRowFact, capturing: String) -> V.ViewNode:
   match row:

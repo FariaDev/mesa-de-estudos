@@ -26,7 +26,7 @@ async function toolsStartedBy(message){
 }
 
 test('"quiz" no texto do aluno dispara o quiz',async()=>{
- assert.deepEqual(await toolsStartedBy('me faz um quiz'),['quiz']);
+ assert.deepEqual(await toolsStartedBy('me faz um quiz'),['mesa_quiz']);
 });
 
 test('"quiz" só no caminho do contexto da Mesa não dispara o quiz',async()=>{
@@ -42,5 +42,5 @@ test('"quiz" no bloco de menções também não dispara',async()=>{
 test('no chat lateral o contexto vem antes da fala: "quiz" da fala dispara, o do contexto não',async()=>{
  const envelope=fala=>`[Contexto do chat lateral]\n· /Users/x/worktrees/quizzical-ride/a.pdf\n[Fim do contexto do chat lateral]\n\n${fala}`;
  assert.deepEqual(await toolsStartedBy(envelope('explica limites')),[]);
- assert.deepEqual(await toolsStartedBy(envelope('me faz um quiz')),['quiz']);
+ assert.deepEqual(await toolsStartedBy(envelope('me faz um quiz')),['mesa_quiz']);
 });

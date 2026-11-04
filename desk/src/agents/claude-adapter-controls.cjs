@@ -244,7 +244,7 @@ class ClaudeAdapterControls {
     return {
       busy: this._busy === true,
       hasTurn: Boolean(this._turn),
-      permissionPending: this._permissions.size > 0,
+      permissionPending: false,
       uncertain: this._deliveryUncertain === true,
     };
   }

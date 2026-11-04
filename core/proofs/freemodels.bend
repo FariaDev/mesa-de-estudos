@@ -135,7 +135,7 @@ def Laws.free_politica_desconhecida_sem_informacao():
 def Laws.free_so_zero_e_retencao_zero():
   {==}
 
-def Laws.free_seletor_gratis_tem_marca_e_politica():
+def Laws.free_seletor_gratis_tem_politica():
   {==}
 
 def Laws.free_seletor_gratis_sem_politica_conhecida():

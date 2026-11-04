@@ -5,15 +5,11 @@
    claude-adapter.cjs (#43 fase 2). */
 
 const {message: uiMsg} = require('../i18n.mjs');
-const {TOOL_NAME:TUTOR_PDF_TOOL}=require('./tutor-pdf.cjs');
-const {ACTIVITY_TOOL_NAME,PREVIEW_TOOL_NAME}=require('./activity-tools.cjs');
-const {GEOGEBRA_TOOL_NAME}=require('./geogebra-tool.cjs');
-const {FIGURE_TOOL_NAME}=require('./figure-tool.cjs');
 const {createStudyToolsServer}=require('./study-tools.cjs');
 /* Política pura de liquidação do turno (correlação, fim de consulta, falhas
    nativas, retry e recusa): o adaptador mede os fatos e aplica o veredito. */
 const turnPolicy = require('./claude-turn-policy.cjs');
-const {CLAUDE_CLIENT_APP, SDK_TOOLS, DISALLOWED_TOOLS, ClaudeAdapterError, MessageQueue} = require('./claude-adapter-contract.cjs');
+const {CLAUDE_CLIENT_APP, DISALLOWED_TOOLS, ClaudeAdapterError, MessageQueue} = require('./claude-adapter-contract.cjs');
 const {errorText} = require('./claude-adapter-input.cjs');
 
 class ClaudeAdapterQuery {
@@ -49,20 +45,26 @@ class ClaudeAdapterQuery {
       if (turn && !turn.finalized && item === turn.item) turn.taken = true;
     };
     const options = this._buildOptions(generation);
-    if(this._createMaterial||this._createActivity||this._geogebra||this._viewFigure){
-      const guard=fn=>args=>{
+    const studyTools=!this._noTools;
+    if(studyTools){
+      const guard=fn=>(...args)=>{
         if(generation!==this._generation||this._closed)throw Error(uiMsg('err.claude.sessionClosed'));
-        return fn(args);
+        return fn(...args);
       };
       options.mcpServers={mesa:await createStudyToolsServer({
         createMaterial:this._createMaterial?guard(args=>this._createMaterial(args)):null,
         createActivity:this._activityCallGate?guard(args=>this._activityCallGate.execute(args)):null,
         previewActivity:this._previewActivity?guard(args=>this._previewActivity(args)):null,
         viewFigure:this._viewFigure?guard(args=>this._viewFigure(args)):null,
+        readPdf:this._readPdf?guard(args=>this._readPdf(args)):null,
+        searchMaterial:this._searchMaterial?guard(args=>this._searchMaterial(args)):null,
+        proposeReview:this._proposeReview?guard((args,options)=>this._proposeReview(args,options)):null,
+        listMaterials:this._listMaterials?guard(args=>this._listMaterials(args)):null,
+        saveNote:this._saveNote?guard(args=>this._saveNote(args)):null,
+        showCard:this._showCard?guard((kind,args)=>this._showCard(kind,args)):null,
         tutorLanguage:this._tutorLanguage(),
         geogebra:this._geogebra?{run:guard(args=>this._geogebra.run(args)),state:guard(()=>this._geogebra.state()),screenshot:guard(()=>this._geogebra.screenshot())}:null,
       })};
-      options.allowedTools=[...(this._createMaterial?[TUTOR_PDF_TOOL]:[]),...(this._createActivity?[ACTIVITY_TOOL_NAME]:[]),...(this._previewActivity?[PREVIEW_TOOL_NAME]:[]),...(this._viewFigure?[FIGURE_TOOL_NAME]:[]),...(this._geogebra?[GEOGEBRA_TOOL_NAME]:[])];
     }
     if(generation!==this._generation||this._closed)throw new ClaudeAdapterError('CLAUDE_QUERY_STALE',uiMsg('err.claude.queryStale'),null,true);
     const query = await Promise.resolve(queryFn({prompt: queue, options}));
@@ -96,7 +98,7 @@ class ClaudeAdapterQuery {
       settingSources: [],
       strictMcpConfig: true,
       mcpServers: {},
-      tools: [...SDK_TOOLS],
+      tools: [],
       disallowedTools: [...DISALLOWED_TOOLS],
       permissionMode: 'default',
       includePartialMessages: true,
@@ -107,9 +109,13 @@ class ClaudeAdapterQuery {
       hooks: {PreToolUse: [{hooks: [async (input) => this._preToolUse(generation, input)]}]},
       env: this._spawnEnv(),
     };
+    /* O tutor só alcança o MCP `mesa` (#91/#92). O curinga do servidor em
+       processo pré-aprova as ferramentas da Mesa; o rascunho de revisão não
+       recebe nada. */
+    if (!this._noTools) options.allowedTools = ['mcp__mesa__*'];
     if (this._noTools) {
       options.tools = [];
-      options.disallowedTools = [...SDK_TOOLS, ...DISALLOWED_TOOLS];
+      options.disallowedTools = [...DISALLOWED_TOOLS];
     }
     if (this._claudePath) options.pathToClaudeCodeExecutable = this._claudePath;
     if (this._systemPrompt) options.systemPrompt = this._systemPrompt;
@@ -165,7 +171,6 @@ class ClaudeAdapterQuery {
     this._controlsCatalog = null;
     this._controlsError = null;
     this._nativeSelection = {model: null, effort: null};
-    this._invalidatePermissions('Consulta encerrada', this._turn, 'query_end');
     const turn = this._turn;
     /* Fim NATIVO observado (`endKind:'query'`), com ou sem erro de iterador.
        Cancelamento explícito + aceite comprovado + não degradado ⇒ settled
@@ -307,7 +312,8 @@ class ClaudeAdapterQuery {
       if (typeof message.model === 'string' && message.model) this._model = message.model;
       this._emitInitOnce(this._turn);
       const servers = Array.isArray(message.mcp_servers) ? message.mcp_servers : [];
-      const unexpected = servers.filter(server=>!((this._createMaterial||this._createActivity||this._geogebra)&&server?.name==='mesa'));
+      const mesaExpected=!!(this._createMaterial||this._createActivity||this._geogebra||this._viewFigure||this._readPdf||this._searchMaterial||this._proposeReview||this._showCard);
+      const unexpected = servers.filter(server=>!(mesaExpected&&server?.name==='mesa'));
       if (unexpected.length) {
         this._emit('warning', {message: `MCP inesperado nesta sessão: ${unexpected.map((server) => server?.name).filter(Boolean).join(', ')}`, code: 'CLAUDE_MCP_UNEXPECTED'});
       }

@@ -13,10 +13,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {dirname, join} from 'node:path';
+import {dirname, join, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {gateFiles, gateHash, parityEntries} from '../scripts/gate-hash.mjs';
+import {artifactFreshness, BEND_REQUIRED_FAILURE, BEND_SKIP_NOTICE, bendGatePlan} from '../scripts/gate-plan.mjs';
 import {npmInvocation, runStep} from '../scripts/gate-run.mjs';
+import {absentToolchain, presentToolchain} from './fake-toolchain.mjs';
 
 const deskDir = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -53,7 +55,7 @@ const hashOf = (dirs) => gateHash(dirs).hash;
 
 test('a chave cobre núcleo, artefatos, verificadores e o que eles importam', () => {
   fixture(({root, desk}) => {
-    const files = gateFiles({root, desk}).map((file) => file.slice(root.length + 1));
+    const files = gateFiles({root, desk}).map((file) => file.slice(root.length + 1).split(sep).join('/'));
     assert.deepEqual(files, [
       'core/build-safe.mjs',
       'core/dialogsview.bend',
@@ -224,4 +226,45 @@ test('o portão não chama spawnSync por conta própria', () => {
   const texto = readFileSync(join(deskDir, 'scripts', 'core-gate.mjs'), 'utf8');
   assert.match(texto, /import \{runStep\} from '\.\/gate-run\.mjs'/, 'o main do portão delega');
   assert.doesNotMatch(texto, /spawnSync\(/, 'e não voltou a chamar o spawn direto (sem diagnóstico)');
+});
+
+/* ---------- decisão sem a toolchain do Bend ---------- */
+
+test('toolchain presente: build e provas rodam como sempre', () => {
+  const plan = bendGatePlan({toolchain: presentToolchain(), requireBend: false});
+  assert.deepEqual(plan, {runBend: true, fail: '', notice: ''});
+  assert.equal(bendGatePlan({toolchain: presentToolchain(), requireBend: true}).runBend, true);
+});
+
+test('toolchain ausente: pula build/provas com aviso, nunca em silêncio', () => {
+  const plan = bendGatePlan({toolchain: absentToolchain(), requireBend: false});
+  assert.equal(plan.runBend, false);
+  assert.equal(plan.fail, '', 'sem MESA_REQUIRE_BEND o portão não reprova a rodada');
+  assert.equal(plan.notice, BEND_SKIP_NOTICE);
+  assert.match(plan.notice, /pulei build\/provas/, 'diz o que pulou');
+  assert.match(plan.notice, /verify:bend/, 'e qual portão confere depois');
+});
+
+test('MESA_REQUIRE_BEND=1 troca o pulo por falha', () => {
+  const plan = bendGatePlan({toolchain: absentToolchain(), requireBend: true});
+  assert.equal(plan.runBend, false);
+  assert.equal(plan.notice, '', 'falha não vira aviso de pulo');
+  assert.equal(plan.fail, BEND_REQUIRED_FAILURE);
+  assert.match(plan.fail, /MESA_REQUIRE_BEND=1/);
+  assert.match(plan.fail, /core\/toolchain\.json/);
+});
+
+test('o hash guardado ainda confere os artefatos quando não há toolchain', () => {
+  const fresh = artifactFreshness({cached: {hash: 'abc'}, hash: 'abc', count: 68});
+  assert.equal(fresh.known, true);
+  assert.match(fresh.line, /conferem com a última rodada aprovada/);
+  assert.match(fresh.line, /68 arquivos/);
+
+  const changed = artifactFreshness({cached: {hash: 'abc'}, hash: 'def', count: 68});
+  assert.equal(changed.known, false, 'conteúdo diferente não é aprovado por um hash velho');
+  assert.match(changed.line, /não dá para conferir/);
+  assert.match(changed.line, /verify:bend/);
+
+  const noCache = artifactFreshness({cached: null, hash: 'abc', count: 68});
+  assert.equal(noCache.known, false, 'clone novo não tem rodada aprovada para comparar');
 });

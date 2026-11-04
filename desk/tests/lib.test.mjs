@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
+import path from 'node:path';
 import {displayUserText,contentParts} from '../text.mjs';
 const {placeWindow,sessionStartedFromPath,formatSessionLabel,sessionPreviewFromJsonl,imageCandidates}=createRequire(import.meta.url)('../lib.cjs');
 
@@ -69,16 +70,16 @@ test('contentParts extracts text and image payloads',()=>{
 });
 
 test('imageCandidates only resolves image files inside the learning root',()=>{
- const root='/vault/desk/.runtime/learning';
- const options={learningRoot:root,roots:['/vault','/vault/desk']};
- const asset=`${root}/Courses/Calculus I/Sessions/Assets/1/plot.png`;
+ const root=path.resolve('/vault/desk/.runtime/learning');
+ const options={learningRoot:root,roots:[path.resolve('/vault'),path.resolve('/vault/desk')]};
+ const asset=path.join(root,'Courses','Calculus I','Sessions','Assets','1','plot.png');
  assert.deepEqual(imageCandidates('file:///vault/desk/.runtime/learning/Courses/Calculus%20I/Sessions/Assets/1/plot.png',options),[asset]);
  assert.deepEqual(imageCandidates('desk/.runtime/learning/Courses/Calculus I/Sessions/Assets/1/plot.png',options),[asset]);
  assert.deepEqual(imageCandidates(`<${asset}>`,options),[asset]);
  assert.deepEqual(imageCandidates(asset.replace('.png','.svg'),options),[asset.replace('.png','.svg')]);
  assert.deepEqual(imageCandidates('/etc/passwd.png',options),[]);
  assert.deepEqual(imageCandidates('/vault/desk/.runtime/learning-extra/plot.png',options),[]);
- assert.deepEqual(imageCandidates(`${root}/plot.pdf`,options),[]);
+ assert.deepEqual(imageCandidates(path.join(root,'plot.pdf'),options),[]);
  assert.deepEqual(imageCandidates('https://example.com/plot.png',options),[]);
 });
 

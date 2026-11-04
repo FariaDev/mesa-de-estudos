@@ -192,8 +192,9 @@ function lockSession(session) {
 async function renderPdf({title = '', markdown = '', model, options, context = '', timeoutMs, signal} = {}) {
   if (typeof markdown !== 'string') fail('BAD_PAYLOAD', uiMsg('err.pdf.notMarkdown'));
   if (markdown.trim() === '') fail('BAD_PAYLOAD', uiMsg('err.pdf.empty'));
-  if (markdown.length > MAX_MARKDOWN_CHARS) fail('TOO_BIG', uiMsg('err.pdf.tooBig'));
-  if (Buffer.byteLength(markdown, 'utf8') > MAX_MARKDOWN_BYTES) fail('TOO_BIG', uiMsg('err.pdf.tooBig'));
+  if (markdown.length > MAX_MARKDOWN_CHARS) fail('TOO_BIG', uiMsg('err.pdf.tooBig', {received: markdown.length, max: MAX_MARKDOWN_CHARS}));
+  const bytes = Buffer.byteLength(markdown, 'utf8');
+  if (bytes > MAX_MARKDOWN_BYTES) fail('TOO_BIG', uiMsg('err.pdf.tooBig', {received: bytes, max: MAX_MARKDOWN_BYTES}));
   if (signal !== undefined && (typeof signal.aborted !== 'boolean' || typeof signal.addEventListener !== 'function')) {
     fail('BAD_PAYLOAD', uiMsg('err.pdf.badSignal'));
   }
@@ -483,7 +484,6 @@ async function savePdf({dir, stem, title, markdown, model, options, context, tim
 module.exports = {
   MaterialPdfError,
   available,
-  isAvailable: available,
   checkMaterial,
   renderPdf,
   savePdf,

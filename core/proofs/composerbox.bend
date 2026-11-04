@@ -76,10 +76,7 @@ def Laws.caixa_fileira_ordem():
 def Laws.caixa_fileira_indicador_antes_do_enviar():
   {==}
 
-def Laws.caixa_fileira_cabe(compactFits, modelFits):
-  {==}
-
-def Laws.caixa_fileira_referencias_cedem(modelFits):
+def Laws.caixa_fileira_cabe(modelFits):
   {==}
 
 def Laws.caixa_indicador_cede_esforco():
@@ -98,4 +95,19 @@ def Laws.caixa_arvore_sem_estudo_nem_refs():
   {==}
 
 def Laws.caixa_arvore_refs_sem_material():
+  {==}
+
+def Laws.caixa_pilula_nome_aria():
+  {==}
+
+def Laws.caixa_pilula_nome_title():
+  {==}
+
+def Laws.caixa_pilula_nome_classe():
+  {==}
+
+def Laws.caixa_pilula_ref_nos():
+  {==}
+
+def Laws.caixa_pilula_ref_aria():
   {==}

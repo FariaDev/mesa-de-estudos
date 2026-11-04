@@ -1,7 +1,7 @@
 /* Seleção de modelo e esforço do Claude (desk/src/agents/claude-controls.cjs).
  *
  * Tudo sintético: catálogos no formato REAL do SDK pinado
- * (@anthropic-ai/claude-agent-sdk 0.3.301, `ModelInfo`) e descritores em
+ * (@anthropic-ai/claude-agent-sdk 0.3.314, `ModelInfo`) e descritores em
  * memória. Nenhum binário, credencial, sessão, rede ou inference é tocado;
  * nenhum arquivo do runtime é lido/escrito. O último teste confere no
  * `sdk.d.ts` instalado que os campos/uniões usados batem com o pin.
@@ -57,7 +57,7 @@ const INCOMPLETE = Object.freeze({
 
 const NATIVE_CATALOG = Object.freeze([SONNET, OPUS, HAIKU, INCOMPLETE]);
 
-/* Forma de resposta de `initializationResult()` do SDK 0.3.301. */
+/* Forma de resposta de `initializationResult()` do SDK 0.3.314. */
 function initializeResponse(models = NATIVE_CATALOG) {
   return {
     commands: [],
@@ -411,12 +411,12 @@ test('lê o catálogo de uma query já conectada sem criar consulta nem insistir
   assert.equal((await controls.readCatalogFromQuery({supportedModels: 'não é função'})).reason, controls.REASONS.CATALOG_MISSING);
 });
 
-test('compatibilidade com o SDK pinado 0.3.301 (tipos reais do sdk.d.ts)', {skip: (() => {
+test('compatibilidade com o SDK pinado 0.3.314 (tipos reais do sdk.d.ts)', {skip: (() => {
   const dts = fileURLToPath(new URL('../node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts', import.meta.url));
   return !existsSync(dts);
 })()}, () => {
   const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../node_modules/@anthropic-ai/claude-agent-sdk/package.json', import.meta.url)), 'utf8'));
-  assert.equal(pkg.version, '0.3.301', 'o módulo só documenta o pin instalado');
+  assert.equal(pkg.version, '0.3.314', 'o módulo só documenta o pin instalado');
 
   const dts = readFileSync(fileURLToPath(new URL('../node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts', import.meta.url)), 'utf8');
   assert.match(dts, /initializationResult\(\): Promise<SDKControlInitializeResponse>;/, 'initializationResult existe e devolve a resposta de init');

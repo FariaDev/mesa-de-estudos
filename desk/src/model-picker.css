@@ -30,10 +30,20 @@
 .model-rail[hidden]{display:none}
 .model-rail-item{
  position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
- border-radius:var(--r-md);color:var(--faint);cursor:pointer;user-select:none;
+ border-radius:var(--r-sm);color:var(--faint);cursor:pointer;user-select:none;
  transition:background var(--t-fast) var(--ease-out),color var(--t-fast) var(--ease-out);
 }
 .model-rail-item .icon{width:16px;height:16px}
+/* OpenCode Go e Zen dividem a marca; a letra pequena diz a assinatura. O fundo
+   e a borda vêm dos tokens, então a letra aparece no claro e no escuro. */
+.provider-mark{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.provider-mark-badge{
+ position:absolute;right:-2px;bottom:-2px;display:flex;align-items:center;justify-content:center;
+ min-width:9px;height:9px;padding:0 1px;border:1px solid var(--border-strong);border-radius:999px;
+ background:var(--surface);color:var(--fg-strong);font-size:7px;font-weight:700;line-height:7px;box-sizing:content-box;
+}
+.model-row-logo .provider-mark-badge,.model-section-logo .provider-mark-badge{min-width:7px;height:7px;font-size:6px;line-height:6px}
+.model-indicator .mi-logo .provider-mark-badge{min-width:7px;height:7px;font-size:6px;line-height:6px}
 /* Monograma do provedor sem logo (ajustes do seletor): as letras do nome na cor
    da paleta categórica (`--mesa-chart-N`, posta na caixa por `model-picker-ui`),
    sobre o mesmo tom bem claro. */
@@ -52,7 +62,7 @@
 .model-rail-item:hover{background:var(--hover);color:var(--fg)}
 .model-rail-item.active{background:var(--active);color:var(--fg-strong)}
 /* O traço de acento à esquerda do item ativo, colado na borda do popover. */
-.model-rail-item.active::before{content:"";position:absolute;left:-7px;top:7px;bottom:7px;width:2px;border-radius:var(--r-pill);background:var(--accent-fill)}
+.model-rail-item.active::before{content:"";position:absolute;left:-7px;top:7px;bottom:7px;width:2px;border-radius:var(--r-2xs);background:var(--accent-fill)}
 
 /* ---------- busca ---------- */
 #model-search{
@@ -87,14 +97,14 @@
 .model-section-title{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-4) var(--space-3) var(--space-1);font-size:var(--fs-xs);font-weight:500;color:var(--muted)}
 .model-row{
  display:flex;align-items:center;gap:var(--space-3);min-height:48px;padding:var(--space-2) var(--space-2) var(--space-2) var(--space-3);
- border-radius:var(--r-md);cursor:pointer;color:var(--fg);
+ border-radius:var(--r-sm);cursor:pointer;color:var(--fg);
 }
 /* Só as linhas de modelo (são centenas): o navegador pula as fora da vista. A
    medida de reserva é a do conteúdo: 18 + 2 + 16 = 36px, que com o padding de
    6+6 dá os mesmos 48px da desenhada, e alinhar o topo ao abrir não erra. */
 .model-row[data-row]{content-visibility:auto;contain-intrinsic-size:auto 36px}
-.model-row.active{background:var(--hover)}
-.model-row[aria-selected="true"]{background:var(--active)}
+.model-row.active{background:var(--hover-row)}
+.model-row[aria-selected="true"]{background:var(--selected)}
 .model-row-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-0)}
 .model-row-top{display:flex;align-items:center;gap:var(--space-2);min-width:0}
 .model-row-name{min-width:0;font-size:var(--fs-lg);line-height:18px;font-weight:500;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -121,6 +131,22 @@
 .model-row-star:hover{color:var(--fg-strong);background:var(--active)}
 .model-row-star[data-favorite="1"]{opacity:1;color:var(--warn-text)}
 .model-row-star[data-favorite="1"] .icon{fill:currentColor}
+/* O selo "Padrão" fica no nome; a ação discreta (bookmark) aparece ao lado da
+   estrela, no ponteiro ou na linha ativa, e fica acesa quando é o padrão. */
+.model-row-default-badge{
+ flex:none;padding:0 var(--space-1);border-radius:var(--r-2xs);background:var(--tint);color:var(--accent-text);
+ font-size:var(--fs-2xs);font-weight:600;line-height:16px;letter-spacing:.02em;
+}
+.model-row-default-action{
+ display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;
+ border-radius:var(--r-sm);color:var(--faint);opacity:0;cursor:pointer;
+ transition:opacity var(--t-fast) var(--ease-out),color var(--t-fast) var(--ease-out);
+}
+.model-row-default-action .icon{width:14px;height:14px}
+.model-row:is(:hover,.active) .model-row-default-action{opacity:1}
+.model-row-default-action:hover{color:var(--fg-strong);background:var(--active)}
+.model-row-default-action[data-default="1"]{opacity:1;color:var(--accent-text)}
+.model-row-default-action[data-default="1"] .icon{fill:currentColor}
 /* Anúncio da estrela pelo teclado (#58): só para o leitor de tela. */
 .model-picker-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .model-row[aria-disabled="true"]{cursor:default;color:var(--muted)}

@@ -14,6 +14,9 @@ law worklogview_kind_thinking:
 law worklogview_kind_search:
   {W.kindName(L.Search{}) == "search" : String}
 
+law worklogview_kind_material:
+  {W.kindName(L.Material{}) == "material" : String}
+
 law worklogview_kind_reference:
   {W.kindName(L.Reference{}) == "reference" : String}
 

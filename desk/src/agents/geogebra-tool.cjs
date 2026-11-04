@@ -1,10 +1,11 @@
 'use strict';
 
 /* Ferramenta GeoGebra no caminho Claude (#53): o MESMO guia da extensão do Pi
-   (`mesa-geogebra/guide.mjs`, no idioma do tutor), no servidor MCP `mesa`. Sem ponte HTTP: o
-   adaptador roda no processo principal e chama o serviço do host
-   (`createGeogebraHost(...).service`) direto. `tests/native-tool-parity.mjs`
-   confere descrição e esquema contra o Pi. */
+   (`mesa-geogebra/guide.mjs`: descrição em inglês, resultado no idioma do
+   tutor), no servidor MCP `mesa`. Sem ponte HTTP: o adaptador roda no processo
+   principal e chama o serviço do host (`createGeogebraHost(...).service`)
+   direto. `tests/native-tool-parity.mjs` confere descrição e esquema contra o
+   Pi. */
 const GEOGEBRA_TOOL_NAME = 'mcp__mesa__geogebra';
 const {toolErrorText} = require('./tool-error-text.cjs');
 
@@ -26,7 +27,9 @@ async function createGeogebraTool(service, {language} = {}) {
       if (args.action === 'state') return reply(guide.stateText(await service.state()));
       return reply(guide.runText(await service.run({command: args.command, continuar: args.continuar === true})));
     } catch (error) {
-      return reply(guide.unavailableText(toolErrorText(error, language)));
+      /* B1: ponte fechada ou applet sem resposta é falha do protocolo; o texto
+         diz o que contar ao aluno. "Comando recusado" volta como runText normal. */
+      return {...reply(guide.unavailableText(toolErrorText(error, language))), isError: true};
     }
   }, {annotations: {readOnlyHint: false, destructiveHint: false, openWorldHint: false}, alwaysLoad: true});
 }

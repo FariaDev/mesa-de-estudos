@@ -12,15 +12,23 @@ import {layoutStable} from './waits.mjs';
      Mais opções, fechar), sem a barra de abas de apoio;
    - linha de escopo (material e página de origem; não entra na sessão
      principal) com UMA ação, "Atualizar contexto";
-   - a mesma caixa de mensagem da coluna do tutor (moldura, campo e botão);
+   - o mesmo composer da coluna do tutor (fio, campo e botão);
    - abrir, fechar e alternar com o segundo leitor, com um e dois leitores;
    - nada vaza em 900×650.
    As imagens saem em `desk/tests/artifacts/lateral-…` para olho humano. */
 
 const SHOT_DIR=screenshotDirectory('lateral');
-const WIDE=[1440,900],MINIMUM=[900,650];
+const MINIMUM=[900,650];
 const THEMES=[['light','claro'],['dark','escuro']];
 
+/* A janela não pode ser maior que a área útil do Mac (barra de menu e Dock):
+   1440×900 não cabe num MacBook de 1440×900, que oferece 1440×803. Mede a
+   área real e mantém 1440 de largura quando ela cabe — as mesmas afirmações,
+   no tamanho que a pessoa realmente tem. */
+async function wideSize(app){
+ const area=await app.evaluate(({screen})=>screen.getPrimaryDisplay().workAreaSize);
+ return [Math.min(1440,area.width),Math.min(900,area.height)];
+}
 async function setSize(app,page,[width,height]){
  await resizeWindow(app,page,width,height);
  await settle(page);
@@ -57,11 +65,12 @@ async function openSidechat(page){
 }
 const style=(page,selector,prop)=>page.locator(selector).evaluate((el,name)=>getComputedStyle(el)[name],prop);
 
-/* A caixa do chat lateral é a do tutor: mesma moldura, mesmo campo, mesmo
-   botão principal. Compara os estilos calculados dos dois lados. */
+/* O composer do lateral é o do tutor: encostado na coluna, com um fio no topo,
+   o mesmo campo e o mesmo botão. Compara os estilos calculados dos dois. */
 async function assertSameBox(page,label){
  const pairs=[
-  ['#composer-box','#sidechat-box',['borderTopWidth','borderTopLeftRadius','borderTopColor','backgroundColor']],
+  ['#composer','#sidechat-composer',['borderTopWidth','borderLeftWidth','borderTopLeftRadius','boxShadow','backgroundColor','paddingLeft']],
+  ['#composer-box','#sidechat-box',['borderTopWidth','borderTopLeftRadius','boxShadow','backgroundColor','paddingLeft']],
   ['#prompt','#sidechat-prompt',['borderTopWidth','fontSize','lineHeight','paddingLeft','backgroundColor']],
   ['#send','#sidechat-send',['height','backgroundColor','borderTopLeftRadius','fontSize','color']],
   ['#goes-along','#sidechat-scope',['fontSize','color','paddingLeft']]
@@ -69,6 +78,18 @@ async function assertSameBox(page,label){
  for(const [tutor,lateral,props] of pairs)for(const prop of props){
   assert.equal(await style(page,lateral,prop),await style(page,tutor,prop),`${label}: ${lateral} ${prop} igual a ${tutor}`);
  }
+}
+
+/* Fio e início do campo coincidem com o tutor; o campo do lateral desce até
+   o pé da coluna, sem faixa vazia onde o tutor tem a calculadora. */
+async function assertComposersAligned(page,label){
+ const facts=await page.evaluate(()=>{
+  const top=selector=>document.querySelector(selector).getBoundingClientRect().top;
+  const bottom=selector=>document.querySelector(selector).getBoundingClientRect().bottom;
+  return {tutor:[top('#composer'),top('#prompt')],lateral:[top('#sidechat-composer'),top('#sidechat-prompt')],gap:bottom('#sidechat')-bottom('#sidechat-send')};
+ });
+ for(const [index,part] of ['fio','campo'].entries())assert.ok(near(facts.lateral[index],facts.tutor[index],1),`${label}: ${part} dos composers desalinhado (${facts.lateral[index]} × ${facts.tutor[index]})`);
+ assert.ok(facts.gap<=16,`${label}: Enviar no pé do lateral (${facts.gap}px)`);
 }
 
 /* Enviar leva a mesma seta do tutor e a linha de escopo cabe em até duas linhas,
@@ -92,6 +113,7 @@ async function assertSendAndScope(page,label){
 
 await withArtifacts('lateral-dois-leitores',async ctx=>{
  const {page,errors}=await openDesk(ctx,'lateral-dois',{two:true});
+ const WIDE=await wideSize(ctx.app);
 
  /* Sem a barra de abas de apoio: o chat lateral abre e fecha pelo cabeçalho. */
  assert.equal(await page.locator('#support-bar').count(),0,'não há mais a barra de abas de apoio');
@@ -112,11 +134,19 @@ await withArtifacts('lateral-dois-leitores',async ctx=>{
     uma ação só. */
  const scope=page.locator('#sidechat-scope');
  assert.equal(await scope.isVisible(),true,'a linha de escopo aparece');
- assert.match((await page.locator('#sidechat-scope-text').textContent()).trim(),/^Sobre Limites\.pdf p\. 1, Formulario\.pdf p\. 1\. Não entra na sessão principal\.$/,'a linha diz o material e a página de origem (os dois leitores) e que não entra na principal');
+ assert.equal((await page.locator('#sidechat-scope-text').textContent()).trim(),'Limites.pdf p. 1, Formulario.pdf p. 1','a linha diz o material e a página de origem (os dois leitores)');
+ assert.equal(await page.locator('#sidechat-scope-text').getAttribute('title'),null,'a garantia não pesa no texto');
+ const lock=page.locator('#sidechat-scope-lock');
+ assert.equal(await lock.getAttribute('title'),'Fora da sessão principal','a garantia virou tooltip do cadeado');
+ assert.equal(await lock.getAttribute('aria-label'),'Fora da sessão principal','o cadeado tem nome acessível');
+ assert.equal(await lock.getAttribute('tabindex'),'0','o cadeado é focável');
+ await lock.focus();
+ assert.equal(await page.evaluate(()=>document.activeElement?.id),'sidechat-scope-lock','o foco chega ao cadeado');
  assert.equal(await scope.locator('button').count(),1,'a linha tem uma ação só');
  assert.equal((await scope.locator('button').textContent()).trim(),'Atualizar contexto');
  assert.equal(await page.locator('#sidechat button:has-text("Atualizar contexto")').count(),1,'Atualizar contexto é o único caminho para renovar o contexto');
  await assertSameBox(page,'duas matérias');
+ await assertComposersAligned(page,'duas matérias');
 
  /* Mais opções: menu do cabeçalho; Esc fecha e não pára nada. */
  await page.locator('#sidechat-more').click();
@@ -190,6 +220,7 @@ await withArtifacts('lateral-dois-leitores',async ctx=>{
    await page.locator('#sidechat-prompt').press('Enter');
    await page.waitForFunction(()=>[...document.querySelectorAll('#sidechat-messages .sidechat-msg.assistant .sidechat-body')].some(el=>el.textContent.includes('Pitágoras')),undefined,{timeout:30000});
    assertLayout(await layoutNow(page),`chat lateral com mensagens ${base}`,{readers:1});
+   await assertComposersAligned(page,base);
    await shot(page,`${base}-mensagens.png`);
    await page.locator('#sidechat-close').click();
    await page.waitForFunction(()=>document.querySelector('#sidechat').hidden);
@@ -201,6 +232,7 @@ await withArtifacts('lateral-dois-leitores',async ctx=>{
 
 await withArtifacts('lateral-um-leitor',async ctx=>{
  const {page,errors}=await openDesk(ctx,'lateral-um',{two:false});
+ const WIDE=await wideSize(ctx.app);
  assert.equal(await page.locator('#support-bar').count(),0,'sem barra de abas de apoio');
  assert.equal(await page.locator('#support-restore').isHidden(),true,'com um leitor não há faixa de reabrir');
  assert.equal(await page.locator('#support-slot').isHidden(),true,'o layout padrão (um leitor) fica intacto');
@@ -211,7 +243,7 @@ await withArtifacts('lateral-um-leitor',async ctx=>{
    await openSidechat(page);
    const base=`um-${tag}-${size.join('x')}`;
    assertLayout(await layoutNow(page),`chat lateral ${base}`,{readers:1});
-   assert.equal(await page.locator('#sidechat-scope-text').textContent(),'Sobre Limites.pdf p. 1. Não entra na sessão principal.','a linha de escopo vale com um leitor');
+   assert.equal(await page.locator('#sidechat-scope-text').textContent(),'Limites.pdf p. 1','a linha de escopo vale com um leitor');
    await assertSendAndScope(page,`chat lateral ${base}`);
    await shot(page,`${base}-vazio.png`);
    await page.locator('#sidechat-close').click();

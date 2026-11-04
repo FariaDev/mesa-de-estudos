@@ -126,50 +126,12 @@ def guideGroups() -> V.ViewNode:
 def guideLead() -> V.ViewNode:
   V.viewEl("p", [V.attrClass("calc-guide-lead")], [V.viewText(guideLeadText())])
 
-def guideTip1() -> V.ViewNode:
-  V.viewEl("li", Nil{}, [
-    V.viewText(M.msg("calc.tip1.a")),
-    codeNode("2*pi"),
-    V.viewText(M.msg("calc.tip1.b")),
-    codeNode("2pi"),
-    V.viewText(M.msg("calc.tip1.c")),
-    codeNode("2,5"),
-    V.viewText(".")
-  ])
-
-def guideTip2() -> V.ViewNode:
-  V.viewEl("li", Nil{}, [
-    codeNode("log"),
-    V.viewText(M.msg("calc.tip2.a")),
-    codeNode("ln"),
-    V.viewText(M.msg("calc.tip2.b"))
-  ])
-
-def guideTip3() -> V.ViewNode:
-  V.viewEl("li", Nil{}, [
-    V.viewText(M.msg("calc.tip3.a")),
-    codeNode("sin(pi/2)"),
-    V.viewText(M.msg("calc.tip3.b")),
-    codeNode("sin(90)"),
-    V.viewText(M.msg("calc.tip3.c")),
-    codeNode("asin(0.5)"),
-    V.viewText(M.msg("calc.tip3.d"))
-  ])
-
-def guideTip4() -> V.ViewNode:
-  V.viewEl("li", Nil{}, [
-    V.viewText(M.msg("calc.tip4.a")),
-    codeNode("cos(90)"),
-    V.viewText(M.msg("calc.tip4.b")),
-    codeNode("tan(90)"),
-    V.viewText(M.msg("calc.tip4.c"))
-  ])
-
-def guideTip5() -> V.ViewNode:
-  V.viewEl("li", Nil{}, [V.viewText(M.msg("calc.tip5"))])
-
-def guideTips() -> V.ViewNode:
-  V.viewEl("ul", [V.attrClass("calc-tips")], [guideTip1(), guideTip2(), guideTip3(), guideTip4(), guideTip5()])
+def guideLink() -> V.ViewNode:
+  V.viewEl("button", [
+    V.attrType("button"),
+    V.attrClass("guide-link"),
+    V.attrData("open-guide", "calc")
+  ], [V.viewText(M.msg("guide.howItWorks"))])
 
 def calcGuide(open: Bool) -> V.ViewNode:
   V.viewEl("details", V.attrJoin([
@@ -179,7 +141,7 @@ def calcGuide(open: Bool) -> V.ViewNode:
     V.viewEl("summary", Nil{}, [V.viewText(guideSummaryText())]),
     guideLead(),
     guideGroups(),
-    guideTips()
+    guideLink()
   ])
 
 # ---------- unidade vigente (ângulo) ----------
@@ -230,16 +192,12 @@ def hintText(deg: Bool) -> String:
     case False{}:
       M.msg("calc.hint.rad")
 
-# A dica mostra, na unidade vigente, a conta que serve de teste.
-def angleHint(+angle: String) -> V.ViewNode:
-  V.viewEl("span", [V.attrClass("calc-hint")], [V.viewText(hintText(isDegrees(angle)))])
-
-# Linha do painel expandido: o rótulo visível, o grupo e a dica.
+# Linha do painel expandido: o rótulo visível e o grupo; a conta de teste vai
+# no title, sem ocupar a linha (#90).
 def angleRow(+angle: String) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("calc-angle")], [
+  V.viewEl("div", [V.attrClass("calc-angle"), V.attrTitle(hintText(isDegrees(angle)))], [
     V.viewEl("span", [V.attrClass("calc-angle-label")], [V.viewText(angleLabelText())]),
-    angleGroup(angle),
-    angleHint(angle)
+    angleGroup(angle)
   ])
 
 # ---------- ícone e controle de expandir ----------

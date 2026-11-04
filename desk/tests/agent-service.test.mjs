@@ -92,16 +92,15 @@ test('permission revocation and errors translate without losing request identity
  assert.equal(event.method,'question');assert.deepEqual(event.questions,question.questions);
 });
 test('simultaneous IPC sends cannot replace the first message before its receipt',async()=>{
- const adapter=new Fake();let release;const policies=[];
- adapter.setToolPolicy=policy=>policies.push(policy);
+ const adapter=new Fake();let release;
  adapter.send=async input=>{adapter.last=input;await new Promise(r=>release=r);adapter.emit('event',{type:'delivery',id:input.id,status:'accepted'});adapter.emit('event',{type:'message_end',message:{role:'assistant',content:[{type:'text',text:'answer'}]}});return {id:input.id,accepted:true};};
  const svc=new ClaudeService({adapter});
- const first=svc.request('prompt',{message:'first',toolPolicy:{readPaths:['first.pdf']}});
+ const first=svc.request('prompt',{message:'first'});
  assert.equal(svc.isRunning(),true,'pending connect/send is already busy for session switching');
- await assert.rejects(svc.request('prompt',{message:'second',toolPolicy:{readPaths:['second.pdf']}}),e=>e.notSent===true);
+ await assert.rejects(svc.request('prompt',{message:'second'}),e=>e.notSent===true);
  await new Promise(r=>setImmediate(r));release();await first;
  assert.deepEqual(svc.messages.map(m=>m.content[0].text),['first','answer']);
- assert.deepEqual(policies,[{readPaths:['first.pdf']}],'a rejected competing send cannot mutate paths');
+
 });
 test('in-memory uncertainty keeps sending blocked even if the disk callback failed',async()=>{
  const adapter=new Fake(),svc=new ClaudeService({adapter});
@@ -139,7 +138,7 @@ test('#28: payload dos dois motores conserva capacidades sem agentLabel morto',(
 test('caps por motor (#57): OpenCode tem os seus, o catálogo liga modelo e esforço, e motor desconhecido fica todo fechado',()=>{
  const open=metadata('opencode').caps;
  assert.deepEqual([open.steer,open.compact,open.commands,open.geogebra,open.quiz,open.contextUsage,open.images],[true,true,true,true,true,true,true]);
- assert.deepEqual([open.modelSelection,open.effort,open.autoCompaction,open.reviewDraft],[false,false,false,false]);
+ assert.deepEqual([open.modelSelection,open.effort,open.autoCompaction,open.reviewDraft],[false,false,false,true]);
  const catalog=metadata('opencode',{modelSelection:true,effort:false}).caps;
  assert.deepEqual([catalog.modelSelection,catalog.effort],[true,false]);
  assert.equal(metadata('opencode',{modelSelection:true,effort:true}).caps.effort,true);

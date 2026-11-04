@@ -1,4 +1,4 @@
-/* Perguntas estruturadas do Claude Code, aviso de limite e avisos de atividade
+/* Aviso de limite e avisos de atividade do Claude Code
  * (desk/src/claude-questions.mjs).
  *
  * Tudo sintético: nenhum SDK, binário, credencial, sessão, rede ou inferência;
@@ -15,18 +15,11 @@ import {ptText, enText} from './pt-text.mjs';
 import {message} from '../src/i18n.mjs';
 import {
   ACTIVITY_NOTICE_CODES,
-  MAX_ANSWER_CHARS,
-  MAX_OPTIONS,
-  MAX_QUESTIONS,
-  MAX_TEXT_CHARS,
   RATE_LIMIT_CODES,
   claudeActivityNotice,
   claudeLimitNotice,
-  compileQuestionAnswers,
   deskErrorIsFatal,
   limitNoticeState,
-  questionRequest,
-  questionSubmitAction,
 } from '../src/claude-questions.mjs';
 
 function deepFreeze(value) {
@@ -36,235 +29,6 @@ function deepFreeze(value) {
   }
   return value;
 }
-
-const CANONICAL = deepFreeze({
-  id: 'q-1',
-  method: 'question',
-  title: 'Pergunta do Claude Code',
-  message: 'Preciso de duas decisões',
-  questions: [
-    {
-      id: 'Qual caminho seguir?',
-      header: 'Rota',
-      question: 'Qual caminho seguir?',
-      options: [
-        {label: 'Curto', description: 'menos passos'},
-        {label: 'Longo', description: ''},
-      ],
-      multiSelect: false,
-    },
-    {
-      id: 'Quais fontes usar?',
-      header: 'Fontes',
-      question: 'Quais fontes usar?',
-      options: [
-        {label: 'PDF do curso', description: 'material da matéria'},
-        {label: 'Anotações', description: 'rascunho .xopp'},
-      ],
-      multiSelect: true,
-    },
-  ],
-});
-
-test('questionRequest preserva o pedido canônico exatamente (rótulos com espaço, ordem, multiSelect)', () => {
-  const request = questionRequest(CANONICAL);
-  assert.equal(request.ok, true);
-  assert.equal(request.reason, null);
-  assert.equal(request.questions.length, 2);
-  assert.deepEqual(request.questions, [
-    {
-      header: 'Rota',
-      question: 'Qual caminho seguir?',
-      options: [
-        {label: 'Curto', description: 'menos passos'},
-        {label: 'Longo', description: ''},
-      ],
-      multiSelect: false,
-    },
-    {
-      header: 'Fontes',
-      question: 'Quais fontes usar?',
-      options: [
-        {label: 'PDF do curso', description: 'material da matéria'},
-        {label: 'Anotações', description: 'rascunho .xopp'},
-      ],
-      multiSelect: true,
-    },
-  ]);
-
-  /* A lista crua (sem o envelope do evento) também é aceita — é o campo
-     `questions` do `extension_ui_request`. */
-  assert.deepEqual(questionRequest(CANONICAL.questions).questions, request.questions);
-  /* multiSelect só liga com o booleano exato: 1/"true" não viram verdadeiro. */
-  const loose = questionRequest([{question: 'Q?', options: [], multiSelect: 1}]);
-  assert.equal(loose.questions[0].multiSelect, false);
-  /* Header ausente ganha o mesmo rótulo neutro do adaptador, sem inventar
-     pergunta: o texto da pergunta continua o do pedido. */
-  const noHeader = questionRequest([{question: '  Q com espaços  ', options: []}]);
-  assert.deepEqual({...noHeader.questions[0], header: ptText(noHeader.questions[0].header)}, {header: 'Pergunta 1', question: '  Q com espaços  ', options: [], multiSelect: false});
-});
-
-test('questionRequest recusa pedido impossível de responder inteiro (nada de resposta parcial)', () => {
-  const cases = [
-    [undefined, 'empty'],
-    [null, 'empty'],
-    [[], 'empty'],
-    [{}, 'empty'],
-    [{questions: []}, 'empty'],
-    [{questions: 'q'}, 'empty'],
-    [[null], 'invalid'],
-    [[{}], 'invalid'],
-    [[{question: '   '}], 'invalid'],
-    [[{question: 'Q?', options: [{description: 'sem label'}]}], 'invalid'],
-    [[{question: 'Q?', options: [null]}], 'invalid'],
-    [[{question: 'Q?', options: 'x'}], 'valid-options-optional'],
-    [[{question: 'Q?', options: [{label: '   '}]}], 'invalid'],
-  ];
-  for (const [source, reason] of cases) {
-    const request = questionRequest(source);
-    if (reason === 'valid-options-optional') {
-      /* `options` ausente/estranho não derruba: a pergunta fica só com texto
-         livre (o adaptador não exige opções). */
-      assert.equal(request.ok, true, `fonte ${JSON.stringify(source)}`);
-      assert.deepEqual(request.questions[0].options, []);
-      continue;
-    }
-    assert.equal(request.ok, false, `fonte ${JSON.stringify(source)}`);
-    assert.equal(request.reason, reason, `fonte ${JSON.stringify(source)}`);
-    assert.deepEqual(request.questions, []);
-  }
-});
-
-test('questionRequest cabe no teto de conteúdo (pergunta/opção/descrição)', () => {
-  const many = Array.from({length: MAX_QUESTIONS + 1}, (_, index) => ({question: `Q${index}?`}));
-  assert.equal(questionRequest(many).reason, 'bounded');
-  assert.equal(questionRequest(many.slice(0, MAX_QUESTIONS)).ok, true);
-
-  const manyOptions = [{question: 'Q?', options: Array.from({length: MAX_OPTIONS + 1}, (_, index) => ({label: `O${index}`}))}];
-  assert.equal(questionRequest(manyOptions).reason, 'bounded');
-  assert.equal(questionRequest([{question: 'Q?', options: manyOptions[0].options.slice(0, MAX_OPTIONS)}]).ok, true);
-
-  assert.equal(questionRequest([{question: 'x'.repeat(MAX_TEXT_CHARS + 1)}]).reason, 'bounded');
-  assert.equal(questionRequest([{question: 'Q?', header: 'x'.repeat(MAX_TEXT_CHARS + 1)}]).reason, 'bounded');
-  assert.equal(questionRequest([{question: 'Q?', options: [{label: 'x'.repeat(MAX_TEXT_CHARS + 1)}]}]).reason, 'bounded');
-  assert.equal(questionRequest([{question: 'Q?', options: [{label: 'ok', description: 'x'.repeat(MAX_TEXT_CHARS + 1)}]}]).reason, 'bounded');
-});
-
-test('compileQuestionAnswers: opção única vira string; multiSelect vira lista sem repetição', () => {
-  const compiled = compileQuestionAnswers(CANONICAL.questions, [
-    {selected: ['Longo'], text: ''},
-    {selected: ['PDF do curso', 'Anotações', 'PDF do curso'], text: ''},
-  ]);
-  assert.equal(compiled.ok, true);
-  assert.deepEqual(compiled.errors, []);
-  assert.deepEqual(compiled.answers, {
-    'Qual caminho seguir?': 'Longo',
-    'Quais fontes usar?': ['PDF do curso', 'Anotações'],
-  });
-});
-
-test('compileQuestionAnswers: texto livre vence opções, é trimado e vale para única e múltipla', () => {
-  const single = compileQuestionAnswers(CANONICAL.questions, [
-    {selected: ['Curto'], text: '  pelo mapa  '},
-    {selected: [], text: ''},
-  ]);
-  /* Texto presente na 1ª; a 2ª sem resposta continua faltando. */
-  assert.equal(single.ok, false);
-  assert.equal(single.answers, null);
-  assert.deepEqual(single.errors.map((error) => error.index), [1]);
-
-  const multi = compileQuestionAnswers([CANONICAL.questions[1]], [{selected: ['PDF do curso'], text: ' outras'}]);
-  assert.equal(multi.ok, true);
-  assert.deepEqual(multi.answers, {'Quais fontes usar?': 'outras'});
-});
-
-test('compileQuestionAnswers: exige ao menos uma resposta por pergunta e ignora seleção desconhecida', () => {
-  const questions = CANONICAL.questions;
-  const empty = compileQuestionAnswers(questions, []);
-  assert.equal(empty.ok, false);
-  assert.equal(empty.answers, null);
-  assert.deepEqual(empty.errors.map((error) => [error.index, error.code]), [[0, 'missing'], [1, 'missing']]);
-
-  const unknown = compileQuestionAnswers([questions[0]], [{selected: ['Inexistente'], text: ''}]);
-  assert.equal(unknown.ok, false);
-  assert.deepEqual(unknown.errors.map((error) => ({...error, message: ptText(error.message)})), [{index: 0, code: 'missing', message: 'Escolha uma opção ou escreva uma resposta.'}]);
-  assert.equal(enText(unknown.errors[0].message), 'Choose an option or write an answer.');
-
-  const many = compileQuestionAnswers([questions[0]], [{selected: ['Curto', 'Longo'], text: ''}]);
-  assert.equal(many.ok, false);
-  assert.deepEqual(many.errors.map((error) => ({...error, message: ptText(error.message)})), [{index: 0, code: 'multiple', message: 'Escolha apenas uma opção.'}]);
-
-  const long = compileQuestionAnswers([questions[0]], [{selected: [], text: 'x'.repeat(MAX_ANSWER_CHARS + 1)}]);
-  assert.equal(long.ok, false);
-  assert.deepEqual(long.errors.map((error) => error.code), ['long']);
-
-  /* Pergunta sem opções: só texto livre responde. */
-  const open = compileQuestionAnswers([{question: 'Comente.', options: [], multiSelect: false}], [{selected: [], text: 'ok'}]);
-  assert.equal(open.ok, true);
-  assert.deepEqual(open.answers, {'Comente.': 'ok'});
-  assert.equal(compileQuestionAnswers([{question: 'Comente.', options: []}], [{selected: [], text: '  '}]).ok, false);
-
-  /* Sem perguntas não há resposta válida (não fecha diálogo vazio). */
-  assert.equal(compileQuestionAnswers([], []).ok, false);
-});
-
-test('compileQuestionAnswers: texto de pergunta vira chave PRÓPRIA mesmo sendo __proto__/constructor (sem perder resposta)', () => {
-  const questions = [
-    {question: '__proto__', options: [], multiSelect: false},
-    {question: 'constructor', options: [], multiSelect: false},
-    {question: 'toString', options: [], multiSelect: false},
-    {question: 'hasOwnProperty', options: [{label: 'sim', description: ''}], multiSelect: true},
-  ];
-  const compiled = compileQuestionAnswers(questions, [
-    {selected: [], text: 'resposta proto'},
-    {selected: [], text: 'resposta construtor'},
-    {selected: [], text: 'resposta tostring'},
-    {selected: ['sim'], text: ''},
-  ]);
-  assert.equal(compiled.ok, true);
-  /* A chave `__proto__` não pode sumir pelo setter do protótipo: precisa ser
-     propriedade própria, enumerável e de valor. */
-  assert.deepEqual(Object.keys(compiled.answers), ['__proto__', 'constructor', 'toString', 'hasOwnProperty']);
-  const proto = Object.getOwnPropertyDescriptor(compiled.answers, '__proto__');
-  assert.deepEqual({enumerable: proto.enumerable, writable: proto.writable, configurable: proto.configurable, value: proto.value}, {enumerable: true, writable: true, configurable: true, value: 'resposta proto'});
-  assert.equal(compiled.answers.__proto__, 'resposta proto');
-  assert.equal(compiled.answers.constructor, 'resposta construtor');
-  assert.equal(compiled.answers.toString, 'resposta tostring');
-  assert.deepEqual(compiled.answers.hasOwnProperty, ['sim']);
-  /* Continua sendo um objeto simples (protótipo intacto): o IPC/JSON não vê
-     nada de anômalo. */
-  assert.equal(Object.getPrototypeOf(compiled.answers), Object.prototype);
-  const roundTrip = JSON.parse(JSON.stringify(compiled.answers));
-  assert.equal(Object.getOwnPropertyDescriptor(roundTrip, '__proto__').value, 'resposta proto');
-  assert.deepEqual(Object.keys(roundTrip), Object.keys(compiled.answers));
-});
-
-test('questionSubmitAction: Cancelar fecha SEMPRE (mesmo vazio); só o Responder exige respostas; Enter cai no Responder', () => {
-  const questions = CANONICAL.questions;
-  /* Cancelar com formulário vazio: nenhuma validação, nenhum erro. */
-  assert.deepEqual(questionSubmitAction(questions, [], 'cancel'), {action: 'cancel', answers: null, errors: []});
-  /* O caminho do Responder (o keydown do Enter clica `#dialog-ok`) exige. */
-  const missing = questionSubmitAction(questions, [], 'ok');
-  assert.equal(missing.action, 'invalid');
-  assert.equal(missing.answers, null);
-  assert.deepEqual(missing.errors.map((error) => [error.index, error.code]), [[0, 'missing'], [1, 'missing']]);
-  /* Sem submitter identificado (requestSubmit() direto), mantém o exigente. */
-  assert.equal(questionSubmitAction(questions, [], null).action, 'invalid');
-  assert.equal(questionSubmitAction(questions, [], undefined).action, 'invalid');
-  /* Respondido por completo devolve o mesmo formato do compile. */
-  const answers = questionSubmitAction(questions, [
-    {selected: ['Longo'], text: ''},
-    {selected: ['Anotações'], text: ''},
-  ], 'ok');
-  assert.equal(answers.action, 'answers');
-  assert.deepEqual(answers.errors, []);
-  assert.deepEqual(answers.answers, {'Qual caminho seguir?': 'Longo', 'Quais fontes usar?': ['Anotações']});
-  /* Cancelar depois de responder também cancela (não responde pela metade). */
-  assert.equal(questionSubmitAction(questions, [{selected: ['Longo'], text: ''}, {selected: [], text: ''}], 'cancel').action, 'cancel');
-  /* Sem perguntas, o cancelar continua cancelando; o Responder não fecha. */
-  assert.equal(questionSubmitAction([], [], 'cancel').action, 'cancel');
-  assert.equal(questionSubmitAction([], [], 'ok').action, 'invalid');
-});
 
 test('claudeLimitNotice classifica código e metadados canônicos, sem mutar a entrada', () => {
   const blocked = claudeLimitNotice(deepFreeze({
@@ -432,26 +196,6 @@ test('deskErrorIsFatal: só o `fatal:false` exato deixa o turno seguir sem derru
   assert.equal(deskErrorIsFatal({fatal: false}), false);
   assert.equal(deskErrorIsFatal({fatal: 'false'}), true, 'só o booleano exato vale');
   assert.equal(deskErrorIsFatal({fatal: 0}), true);
-});
-
-test('a lista de perguntas nunca sai do formato do contrato (id = texto, answers = string|lista)', () => {
-  /* O adaptador responde `{id, answers}`; aqui prova-se que o formato gerado
-     pelo formulário casa com o validador do adaptador: pergunta conhecida,
-     nenhuma faltando, nenhuma string vazia. */
-  const request = questionRequest(CANONICAL);
-  const compiled = compileQuestionAnswers(request.questions, [
-    {selected: ['Curto'], text: ''},
-    {selected: ['Anotações'], text: ''},
-  ]);
-  assert.equal(compiled.ok, true);
-  const keys = Object.keys(compiled.answers);
-  assert.deepEqual(keys, request.questions.map((question) => question.question));
-  for (const [question, value] of Object.entries(compiled.answers)) {
-    assert.ok(request.questions.some((entry) => entry.question === question));
-    const values = Array.isArray(value) ? value : [value];
-    assert.ok(values.length > 0);
-    for (const entry of values) assert.equal(typeof entry, 'string');
-  }
 });
 
 test('contrato do aviso de limite casa com os códigos do adaptador pinado', {skip: !existsSync(fileURLToPath(new URL('../src/agents/claude-adapter.cjs', import.meta.url)))}, () => {

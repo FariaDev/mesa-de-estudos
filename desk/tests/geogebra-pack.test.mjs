@@ -1,13 +1,13 @@
 /* Pacote offline do GeoGebra (#55): download com hash conferido, troca atômica e
    extração segura. O download é um fake com nome (`fakeDownload`); a extração
-   real usa o `tar` do sistema contra um zip montado aqui. */
+   real usa o bsdtar do sistema quando existe e o leitor de zip do app (Linux)
+   contra um zip montado aqui. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const pack = require('../geogebra-pack.cjs');
@@ -22,9 +22,8 @@ const tmp = (t) => {
 const GOOD_ENTRIES = {'README.txt': 'leia-me', 'GeoGebra/deployggb.js': '// deploy', 'GeoGebra/HTML5/5.0/web3d/web3d.nocache.js': '// web3d'};
 const expectedFor = (zip) => ({version: '9.9.9', url: 'https://exemplo.test/pacote.zip', sha256: sha(zip), bytes: zip.length});
 const fakeDownload = (zip, calls = []) => async (url) => { calls.push(url); return zip; };
-const tarAvailable = !spawnSync('tar', ['--version']).error;
 
-test('instala: confere o hash, extrai e grava o pack.json com a versão', {skip: !tarAvailable && 'sem tar'}, async (t) => {
+test('instala: confere o hash, extrai e grava o pack.json com a versão', async (t) => {
   const zip = makeZip(GOOD_ENTRIES), expected = expectedFor(zip), calls = [];
   const dir = path.join(tmp(t), 'geogebra');
   const result = await pack.installPack({dir, fetchZip: fakeDownload(zip, calls), expected});
@@ -51,7 +50,7 @@ test('tamanho diferente com o mesmo hash esperado também é recusado', async (t
   await assert.rejects(pack.installPack({dir: path.join(tmp(t), 'g'), fetchZip: fakeDownload(zip), expected}), /não confere/);
 });
 
-test('pacote sem deployggb.js: recusa e mantém a instalação anterior', {skip: !tarAvailable && 'sem tar'}, async (t) => {
+test('pacote sem deployggb.js: recusa e mantém a instalação anterior', async (t) => {
   const root = tmp(t), dir = path.join(root, 'geogebra');
   const good = makeZip(GOOD_ENTRIES);
   await pack.installPack({dir, fetchZip: fakeDownload(good), expected: expectedFor(good)});
@@ -60,7 +59,27 @@ test('pacote sem deployggb.js: recusa e mantém a instalação anterior', {skip:
   assert.equal(fs.readFileSync(path.join(dir, 'GeoGebra/deployggb.js'), 'utf8'), '// deploy', 'a instalação anterior continua');
 });
 
-test('zip com ../ não escreve fora da pasta do pacote (regressão de zip-slip)', {skip: !tarAvailable && 'sem tar'}, async (t) => {
+test('extrai com o leitor de zip do app (Linux sem bsdtar)', async (t) => {
+  const root = tmp(t), dir = path.join(root, 'saida');
+  fs.mkdirSync(dir);
+  const zipFile = path.join(root, 'pacote.zip');
+  fs.writeFileSync(zipFile, makeZip(GOOD_ENTRIES));
+  pack.extractWithZipReader(zipFile, dir);
+  assert.equal(fs.readFileSync(path.join(dir, 'README.txt'), 'utf8'), 'leia-me');
+  assert.equal(fs.readFileSync(path.join(dir, 'GeoGebra/deployggb.js'), 'utf8'), '// deploy');
+});
+
+test('leitor de zip recusa ../ na extração e não escreve fora da pasta', async (t) => {
+  const root = tmp(t), dir = path.join(root, 'saida');
+  fs.mkdirSync(dir);
+  const zipFile = path.join(root, 'pacote.zip');
+  fs.writeFileSync(zipFile, makeZip({...GOOD_ENTRIES, '../fugiu.txt': 'x'}));
+  assert.throws(() => pack.extractWithZipReader(zipFile, dir), /Não foi possível extrair.*caminho suspeito/);
+  const found = fs.readdirSync(root, {recursive: true}).filter((name) => String(name).includes('fugiu'));
+  assert.deepEqual(found, [], `nada escapou de ${dir}`);
+});
+
+test('zip com ../ não escreve fora da pasta do pacote (regressão de zip-slip)', async (t) => {
   const root = tmp(t), dir = path.join(root, 'sub', 'geogebra');
   const zip = makeZip({...GOOD_ENTRIES, '../../fugiu.txt': 'x', '../fugiu-perto.txt': 'x'});
   await assert.rejects(pack.installPack({dir, fetchZip: fakeDownload(zip), expected: expectedFor(zip)}), /Não foi possível extrair/);

@@ -3,8 +3,8 @@
 function cmp_new(a, b) {
   return { $: a < b ? "LT" : a === b ? "EQ" : "GT" };
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -22,6 +22,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $outcome(_accepted_0, _mayHaveSent_0) {
   if (_accepted_0) {
     return { $: "DeliveryOutcome.Accepted" };
@@ -43,19 +44,19 @@ function $mayRetry(_state_0) {
   }
 }
 function $mayAdvanceQueue(_busy_0, _permissionPending_0, _uncertain_0, _cancelled_0) {
-  return $Bool_and($Bool_not(_busy_0), $Bool_and($Bool_not(_permissionPending_0), $Bool_and($Bool_not(_uncertain_0), $Bool_not(_cancelled_0))));
+  return $Bool_and($$Bool_not(_busy_0), $$Bool_and($$Bool_not(_permissionPending_0), $$Bool_and($$Bool_not(_uncertain_0), $$Bool_not(_cancelled_0))));
 }
 function $canBegin(_busy_0, _uncertain_0) {
-  return $Bool_and($Bool_not(_busy_0), $Bool_not(_uncertain_0));
+  return $Bool_and($$Bool_not(_busy_0), $$Bool_not(_uncertain_0));
 }
 function $sameNativeIdentity(_existing_0, _requested_0) {
   return $String_eq(_existing_0, _requested_0);
 }
 function $canChangeControls(_busy_0, _hasTurn_0, _permissionPending_0, _uncertain_0) {
-  return $Bool_and($canBegin(_busy_0, _uncertain_0), $Bool_and($Bool_not(_hasTurn_0), $Bool_not(_permissionPending_0)));
+  return $Bool_and($$canBegin(_busy_0, _uncertain_0), $$Bool_and($$Bool_not(_hasTurn_0), $$Bool_not(_permissionPending_0)));
 }
 function $canSteer(_turnInFlight_0, _sending_0, _configuring_0, _uncertain_0) {
-  return $Bool_and(_turnInFlight_0, $Bool_and($Bool_not(_sending_0), $Bool_and($Bool_not(_configuring_0), $Bool_not(_uncertain_0))));
+  return $Bool_and(_turnInFlight_0, $$Bool_and($$Bool_not(_sending_0), $$Bool_and($$Bool_not(_configuring_0), $$Bool_not(_uncertain_0))));
 }
 function $Bool_and(_a_0, _b_0) {
   if (!_a_0) {
@@ -72,7 +73,7 @@ function $Bool_not(_b_0) {
   }
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $Cmp_is_eq(_c_0) {
   if (_c_0.$ === "EQ") {
@@ -102,6 +103,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -111,13 +113,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -127,6 +128,10 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$Bool_not = $Bool_not;
+var $$Bool_and = $Bool_and;
+var $$canBegin = $canBegin;
+var $$String_order = $String_order;
 var agentdelivery_default = {
   outcome: run_lib((a0, a1) => run_loop($outcome(a0, a1)), 2),
   mayRetry: run_lib((a0) => run_loop($mayRetry(a0)), 1),

@@ -8,9 +8,9 @@ import {nextFrames} from './waits.mjs';
 /* Barra superior (ticket #10 da spec de redesenho): marca, abas de matéria
    (com Livre), Caderno, GeoGebra, menu Estudar, campo da busca de comandos e o
    botão Ajustes, nessa ordem. As ferramentas de estudo moram no menu Estudar e
-   cada uma abre como antes; Ajustes reúne Configurações, Ajuda, Atalhos e
-   Sobre; o ciclo de tema saiu da barra e tudo o que saiu da tela principal se
-   acha na busca de comandos pelo nome. Em janela estreita as abas viram um
+   cada uma abre como antes; Ajustes reúne Configurações, Ajuda, Atalhos,
+   Novidades e Sobre; o ciclo de tema saiu da barra e tudo o que saiu da tela
+   principal se acha na busca de comandos pelo nome. Em janela estreita as abas viram um
    seletor único. Mede e age na janela real, nos dois temas, em 1440×900 e
    900×650. As imagens ficam numa pasta `barra-…` de desk/tests/artifacts. */
 
@@ -20,7 +20,7 @@ const THEMES=[['light','claro'],['dark','escuro']];
 
 const STUDY_IDS=['study-search-open','study-review-today','study-notes-open','study-stats-open','study-backup-open','study-share-open','study-tutor-pdf','xournal','reference-toggle'];
 const STUDY_LABELS=['Buscar estudos','Revisar hoje','Anotações','Estatísticas','Backup','Compartilhar','PDF pelo tutor','Xournal++','Formulário'];
-const SETTINGS_LABELS=['Configurações','Ajuda','Atalhos','Sobre'];
+const SETTINGS_LABELS=['Configurações','Ajuda','Atalhos','Novidades','Sobre'];
 
 async function setSize(app,page,[width,height]){
  await resizeWindow(app,page,width,height);
@@ -260,7 +260,7 @@ await withArtifacts('barra-superior',async ctx=>{
  await page.locator('#course-tabs button[data-id=Calculo]').click();
  await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id=Calculo]')?.getAttribute('aria-selected')==='true');
 
- /* Ajustes: Configurações, Ajuda, Atalhos e Sobre — e nada além. */
+ /* Ajustes: Configurações, Ajuda, Atalhos, Novidades e Sobre — e nada além. */
  await openMenu(page,'#settings-menu');
  assert.deepEqual(await itemTexts(page,'#settings-menu'),SETTINGS_LABELS,'itens do menu Ajustes');
  await shot(page,'ajustes-claro-1440x900.png');
@@ -300,7 +300,7 @@ await withArtifacts('barra-superior',async ctx=>{
  const reachable=[
   ['Buscar estudos','Buscar estudos'],['Revisar hoje','Revisar hoje'],['Anotações','Anotações'],['Estatísticas','Estatísticas'],
   ['Backup','Backup'],['Compartilhar','Compartilhar'],['PDF pelo tutor','PDF pelo tutor'],['Xournal','Xournal++'],
-  ['Configurações','Configurações'],['Ajuda','Ajuda'],['Atalhos','Atalhos'],['Sobre','Sobre'],
+  ['Configurações','Configurações'],['Ajuda','Ajuda'],['Atalhos','Atalhos'],['Novidades','Novidades'],['Sobre','Sobre'],
   ['Caderno','Caderno de revisão'],['GeoGebra','GeoGebra'],['Tema claro','Tema claro'],['Tema escuro','Tema escuro'],['Tema autom','Tema automático']
  ];
  for(const [query,label] of reachable){

@@ -5,9 +5,11 @@
    `setUiLanguage`, então os `data-i18n` são traduzidos como o resto do HTML
    estático; a pintura do que muda é do `setup-view.mjs`. */
 
+import {LAMP_SCENE} from './setup-lamp.mjs';
+
 const SETUP_MARKUP = `
   <div class="setup-bar">
-    <span class="setup-brand"><img class="brand-icon" src="assets/app-icon/mesa-blue.svg" alt="">Mesa de Estudos</span>
+    <span class="setup-brand"><img class="brand-icon" src="assets/app-icon/lamp-blue-128.png" alt="">Mesa de Estudos</span>
     <nav class="setup-bar-actions" aria-label="Idioma e ajuda" data-i18n-attr="aria-label=setup.barAria">
       <!-- Idioma (#41): "Português · English", nos dois idiomas de propósito — quem não lê o idioma de agora ainda acha o seu. -->
       <div id="first-run-language" class="first-run-language" role="group" aria-label="Idioma / Language"><button type="button" data-language="pt-BR" aria-pressed="true">Português</button><span aria-hidden="true">·</span><button type="button" data-language="en" aria-pressed="false">English</button></div>
@@ -17,17 +19,15 @@ const SETUP_MARKUP = `
     </nav>
   </div>
   <div class="setup-stage" id="setup-stage">
-    <div class="setup-mascot">
+    <div class="setup-lamp-column">
+      <div class="setup-lamp" id="setup-lamp" data-lamp="welcome" aria-hidden="true">${LAMP_SCENE}</div>
       <p class="setup-speech" id="setup-speech" aria-live="polite"></p>
-      <div class="setup-mascote" id="setup-mascote"></div>
     </div>
     <section class="setup-card" id="setup-card">
       <ol class="setup-trail" id="setup-trail" aria-label="Passos" data-i18n-attr="aria-label=setup.trailAria"></ol>
 
       <div class="setup-step" data-step="welcome">
         <h1 data-i18n="setup.welcome.title">Boas-vindas à Mesa de Estudos.</h1>
-        <p class="setup-lead" data-i18n="guide.lead.comecar">A Mesa mostra o material e o tutor. A resolução fica com você: no Xournal++, em outro programa de escrita ou no caderno de papel.</p>
-        <p class="setup-lead" data-i18n="setup.welcome.time">São dois minutos: um passeio rápido pela Mesa e três itens para montar a sua primeira matéria.</p>
         <div class="setup-language">
           <span class="setup-label" data-i18n="setup.language.title">Idioma da Mesa</span>
           <div id="setup-language" role="radiogroup" aria-label="Idioma / Language">
@@ -36,14 +36,9 @@ const SETUP_MARKUP = `
           </div>
         </div>
         <!-- Cor de acento (#70): vale na hora, como nas Configurações. -->
-        <div id="setup-accent" class="setup-accent" role="radiogroup" aria-label="Cor de acento" data-i18n-attr="aria-label=settings.accent">
+        <div class="setup-accent" role="radiogroup" aria-label="Cor de acento" data-i18n-attr="aria-label=settings.accent" id="setup-accent">
           <span class="setup-label" data-i18n="settings.accent">Cor de acento</span>
           <div class="accent-options"></div>
-        </div>
-        <div class="setup-cards setup-cards-3">
-          <div><strong data-i18n="setup.promise.material.title">Material</strong><span data-i18n="setup.promise.material.body">Seus PDFs abertos de onde estão, sem copiar.</span></div>
-          <div><strong data-i18n="setup.promise.writing.title">Escrita</strong><span data-i18n="setup.promise.writing.body">No programa que você já usa, ou no papel.</span></div>
-          <div><strong data-i18n="setup.promise.tutor.title">Tutor</strong><span data-i18n="setup.promise.tutor.body">Roda no seu computador e lê os seus PDFs.</span></div>
         </div>
       </div>
 
@@ -79,11 +74,9 @@ const SETUP_MARKUP = `
         </div>
         <div class="setup-tour-head"><span class="setup-tour-num" id="setup-tour-num">1</span><h1 id="setup-tour-title"></h1></div>
         <p class="setup-tour-text" id="setup-tour-text"></p>
-        <ul class="setup-tour-extras" id="setup-tour-extras"></ul>
       </div>
 
       <div class="setup-step" data-step="name">
-        <span class="setup-kicker" data-i18n="setup.kicker.name">Lista 0 · item 1 de 3</span>
         <h1 data-i18n="setup.name.title">Dê um nome à matéria.</h1>
         <p class="setup-lead setup-lead-sm" data-i18n="setup.name.lead">Cada matéria é uma aba no topo da Mesa, com os PDFs, as sessões com o tutor e o caderno de revisão dela. Dá para criar outras depois, com ⌘ T.</p>
         <label for="first-run-name" class="setup-label" data-i18n="firstrun.nameLabel">Nome da matéria</label>
@@ -98,7 +91,6 @@ const SETUP_MARKUP = `
       </div>
 
       <div class="setup-step" data-step="folder">
-        <span class="setup-kicker" data-i18n="setup.kicker.folder">Lista 0 · item 2 de 3</span>
         <h1 id="setup-folder-title"></h1>
         <p class="setup-lead setup-lead-sm" data-i18n="setup.folder.lead">Diga onde estão os PDFs dela, ou arraste os arquivos para o quadro abaixo. Vale soltar em qualquer ponto desta tela. A Mesa abre os arquivos de onde eles estão, sem copiar.</p>
         <button type="button" id="first-run-pick" class="setup-drop">
@@ -115,35 +107,22 @@ const SETUP_MARKUP = `
       </div>
 
       <div class="setup-step" data-step="tutor">
-        <span class="setup-kicker" data-i18n="setup.kicker.tutor">Lista 0 · item 3 de 3 · opcional</span>
         <h1 id="setup-tutor-title"></h1>
         <p class="setup-lead setup-lead-sm" id="setup-tutor-text"></p>
+        <button type="button" class="setup-link" data-open-guide="tutor" data-i18n="guide.howItWorks">Como funciona</button>
         <div class="setup-tutor-off" id="setup-tutor-off">
           <span class="setup-pi" id="setup-pi"></span>
           <div class="setup-tutor-actions" id="setup-tutor-actions"></div>
         </div>
-        <div class="setup-cards setup-cards-2">
-          <div><strong data-i18n="setup.tutor.card1.title">Chama sozinho</strong><span data-i18n="setup.tutor.card1.body">A Mesa conecta o tutor ao abrir e ao trocar de matéria.</span></div>
-          <div><strong data-i18n="setup.tutor.card2.title">Vê o que você vê</strong><span data-i18n="setup.tutor.card2.body">A matéria, a questão ativa, o rascunho .xopp e os PDFs abertos com a página.</span></div>
-          <div><strong data-i18n="setup.tutor.card3.title">Nada sai sozinho</strong><span data-i18n="setup.tutor.card3.body">Capturas e fotos vão para a bandeja; só seguem quando você envia.</span></div>
-          <div><strong data-i18n="setup.tutor.card4.title">Modelo e esforço</strong><span data-i18n="setup.tutor.card4.body">Ficam no cabeçalho do tutor, por exemplo Sonnet · médio.</span></div>
-        </div>
+        <p class="setup-note" id="setup-codex-grok" data-i18n="firstrun.tutor.codexGrok" hidden></p>
+        <p class="setup-note setup-login" id="setup-login-hint" hidden></p>
       </div>
 
       <div class="setup-step" data-step="ready">
-        <span class="setup-kicker" data-i18n="setup.kicker.ready">Lista 0 · feita</span>
         <h1 id="setup-ready-title"></h1>
         <dl class="setup-summary" id="setup-summary"></dl>
-        <p class="setup-data" id="setup-data"></p>
-        <div class="setup-shortcuts">
-          <span class="setup-label" data-i18n="setup.shortcuts">Para ter à mão</span>
-          <div>
-            <span class="setup-shortcut"><kbd>⌘</kbd><kbd>/</kbd><span data-i18n="guide.title">Guia da Mesa</span></span>
-            <span class="setup-shortcut"><kbd>⌘</kbd><kbd>K</kbd><span data-i18n="guide.atalhos.row.command-palette">Busca de comandos</span></span>
-            <span class="setup-shortcut"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd><span data-i18n="guide.atalhos.row.check">Anexar a captura do Xournal++</span></span>
-            <span class="setup-shortcut"><kbd>⌘</kbd><kbd>T</kbd><span data-i18n="guide.atalhos.row.new-course">Nova matéria (Configurações)</span></span>
-          </div>
-        </div>
+        <p class="setup-note setup-login" id="setup-ready-login" hidden></p>
+        <button type="button" class="setup-link" data-open-guide="atalhos" data-i18n="guide.howItWorks">Como funciona</button>
       </div>
 
       <div class="setup-foot">

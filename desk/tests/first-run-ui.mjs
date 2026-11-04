@@ -99,6 +99,21 @@ async function dropOnSetup(page,files){
  return overActive;
 }
 
+/* Selo do passo: o número/check fica centrado no círculo e o respiro até o
+   rótulo é o mesmo em todas as etapas. */
+const trailMarks=page=>page.evaluate(()=>[...document.querySelectorAll('#setup-trail li')].map(li=>{
+ const mark=li.querySelector('.setup-trail-mark');
+ const range=document.createRange();range.selectNodeContents(mark);
+ const text=range.getBoundingClientRect(),box=mark.getBoundingClientRect();
+ return {
+  status:li.dataset.status,
+  dx:Math.abs((text.left+text.right)/2-(box.left+box.right)/2),
+  dy:Math.abs((text.top+text.bottom)/2-(box.top+box.bottom)/2),
+  gap:parseFloat(getComputedStyle(li).gap),
+  background:getComputedStyle(mark).backgroundColor,
+ };
+}));
+
 const setupFacts=page=>page.evaluate(()=>{
  const shown=el=>{if(!el)return false;const cs=getComputedStyle(el),r=el.getBoundingClientRect();return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none';};
  const text=sel=>{const el=document.querySelector(sel);return el&&shown(el)?el.textContent.replace(/\s+/g,' ').trim():null;};
@@ -123,15 +138,14 @@ const setupFacts=page=>page.evaluate(()=>{
   lit:document.querySelector('#setup [data-region][data-lit]')?.dataset.region??null,
   chosen:text('#setup-chosen-folder'),files:text('#setup-chosen-files'),elsewhere:text('#setup-elsewhere'),
   pi:document.querySelector('#setup-pi')?.dataset.pi??null,
-  connect:text('#setup-tutor-actions #connect'),piSettings:text('#setup-tutor-actions #state-pi'),
+  tutorStatus:text('#setup-pi'),codexGrok:text('#setup-codex-grok'),login:text('#setup-login-hint'),
+  connect:text('#setup-tutor-actions #connect'),install:text('#setup-tutor-actions #install-opencode'),piSettings:text('#setup-tutor-actions #state-pi'),
   summary:[...document.querySelectorAll('#setup-summary dd')].map(dd=>dd.textContent.trim()),
   path:text('#setup-data .setup-path'),dataLine:text('#setup-data'),
   changeShown:shown(document.querySelector('#first-run-data-change')),
   helpShown:shown(document.querySelector('#first-run-help')),helpText:text('#first-run-help'),
   freeShown:shown(document.querySelector('#setup-free')),
-  mascote:document.querySelector('#setup-mascote .mascote:not([hidden])')?.dataset.humor??null,
-  /* Quem do trio ∫ Σ ∇ está em cena, e com que nome para o leitor de tela. */
-  cast:[...document.querySelectorAll('#setup-mascote .mascote')].filter(el=>shown(el)).map(el=>el.getAttribute('aria-label')),
+  lamp:document.querySelector('#setup-lamp')?.dataset.lamp??null,
   cardInside:cardBox.left>=0&&cardBox.right<=innerWidth+1&&cardBox.bottom<=innerHeight+1,
   hScroll:document.documentElement.scrollWidth>document.documentElement.clientWidth+1,
   deskInert:!!document.querySelector('body > main')?.inert||!!document.querySelector('body > header')?.inert,
@@ -139,26 +153,6 @@ const setupFacts=page=>page.evaluate(()=>{
   tabs:[...document.querySelectorAll('#course-tabs [data-id]')].map(el=>({id:el.dataset.id,selected:el.getAttribute('aria-selected')})),
  };
 });
-
-/* O balão e quem fala (#70, teste manual A1): a distância até os personagens
-   e onde a ponta cai. */
-const balloonOf=(page,speaker)=>page.evaluate(speaker=>{
- const speech=document.querySelector('#setup-speech');
- const box=speech.getBoundingClientRect();
- const shown=[...document.querySelectorAll('#setup-mascote .mascote')].filter(el=>!el.hidden).map(el=>el.getBoundingClientRect());
- const lead=document.querySelector(`#setup-mascote .mascote-${speaker}`).getBoundingClientRect();
- const tail=getComputedStyle(speech,'::after');
- const tailCenter=box.left+parseFloat(tail.left)+6;
- const stage=document.querySelector('#setup-mascote');
- const side=getComputedStyle(stage,'::before');
- const sideCenter=stage.getBoundingClientRect().left+parseFloat(side.left)+6;
- return {
-  below:Math.round(Math.min(...shown.map(r=>r.top))-box.bottom),
-  beside:Math.round(Math.min(...shown.map(r=>r.left))-box.right),
-  tailOverLead:tailCenter>=lead.left&&tailCenter<=lead.right,
-  tailRight:side.content!=='none'&&tail.display==='none'&&Math.abs(sideCenter-box.right)<=2,
- };
-},speaker);
 
 const clickNext=page=>page.locator('#setup-next').click();
 /* Anda com "Próximo"/"Continuar" até o passo pedido (o passeio vai quadro a quadro). */
@@ -198,13 +192,15 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  assert.equal(f.dialogOpen,false,'nenhum diálogo de boas-vindas');
  assert.equal(f.step,'welcome');
  assert.deepEqual(f.trail,['current','todo','todo','todo','todo','todo']);
+ const firstMarks=await trailMarks(page);
+ assert.ok(firstMarks[0].dx<=1&&firstMarks[0].dy<=1,`o número da etapa ativa fica centrado no selo (${JSON.stringify(firstMarks[0])})`);
+ assert.equal(new Set(firstMarks.map(mark=>mark.gap)).size,1,'o respiro entre selo e rótulo é o mesmo em todas as etapas');
  assert.equal(f.next.text,'Começar');
  assert.equal(f.backShown,false,'sem Voltar no primeiro passo');
  assert.equal(f.focusId,'setup-next');
  assert.equal(f.helpShown,true);assert.equal(f.helpText,'Como a Mesa funciona');
  assert.equal(f.freeShown,true);
- assert.equal(f.mascote!==null,true,'a mascote grande está na tela');
- assert.deepEqual(f.cast,['Integral','Sigma','Nabla'],'o trio junto nas boas-vindas');
+ assert.equal(f.lamp,'welcome','a luz acende nas boas-vindas');
  assert.equal(f.speech,'Vamos montar a sua Mesa.');
  assert.equal(f.hScroll,false);
 
@@ -217,45 +213,60 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
   settings:document.querySelector('#accent-mode [aria-checked="true"]')?.dataset.accent,
   label:document.querySelector('#setup-accent [data-accent="violet"]').textContent.trim(),
  }));
- assert.deepEqual(accent,{html:'violet',brand:'assets/app-icon/mesa-violet.svg',checked:'violet',settings:'violet',label:'Violeta'});
+ assert.deepEqual(accent,{html:'violet',brand:'assets/app-icon/lamp-violet-128.png',checked:'violet',settings:'violet',label:'Violeta'});
  await shot(page,'acento-setup-1440x900.png');
  await page.keyboard.press('ArrowLeft');
  assert.equal(await page.evaluate(()=>document.documentElement.dataset.accent||'blue'),'blue','as setas trocam como nas Configurações');
 
- /* #70 (A1): o balão ficava ~330 px acima do trio. Agora encosta nos três e a
-    ponta cai sobre a ∫, que fala nas boas-vindas; na janela estreita ele fica
-    ao lado, com a ponta para a direita. */
- const wide=await balloonOf(page,'integral');
- assert.ok(wide.below>=0&&wide.below<=24,`1440×900: o balão encosta no trio (${wide.below} px)`);
- assert.equal(wide.tailOverLead,true,'1440×900: a ponta sobre quem fala');
- await shot(page,'balao-trio-1440x900.png');
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ /* #90: os cartões só com título saíram; o passo segue dizendo o que é a Mesa pelo título. */
+ assert.equal(await page.locator('#setup .setup-cards').count(),0,'boas-vindas sem cartões vazios');
+ assert.equal(await page.locator('#setup .setup-kicker').count(),0,'nenhum "Lista 0" na tela');
+
+ /* A cena não pode cortar nem empurrar o cartão para fora da janela mínima. */
+ await shot(page,'cena-boas-vindas-1440x900.png');
  await setSize(ctx.app,page,MINIMUM);
- const narrow=await balloonOf(page,'integral');
- assert.ok(narrow.beside>=0&&narrow.beside<=24,`900×650: o balão ao lado do trio (${narrow.beside} px)`);
- assert.equal(narrow.tailRight,true,'900×650: a ponta aponta para o trio');
- await shot(page,'balao-trio-900x650.png');
+ f=await setupFacts(page);
+ assert.equal(f.lamp,'welcome');
+ assert.equal(f.cardInside,true,'900×650: o cartão cabe com a cena');
+ assert.equal(f.hScroll,false,'900×650: sem rolagem horizontal');
+ await shot(page,'cena-boas-vindas-900x650.png');
  await setSize(ctx.app,page,WIDE);
  assert.equal(fs.existsSync(s.dataDefault),false,'sugerir a pasta de dados não a cria');
 
  /* O passeio: quatro quadros, cada um acende uma região do desenho. */
  await clickNext(page);
- const regions=[];
+ const regions=[];const lamps=[];
  for(let i=0;i<4;i++){
   f=await setupFacts(page);
   assert.equal(f.step,'tour');
   /* Regressão (#64): o cartão sumia a cada troca de passo (o `#setup-card` também tem `data-step`). */
   assert.equal(f.cardShown,true,`quadro ${i+1}: o cartão aparece`);
   assert.equal(f.backShown,true,'Voltar em todo passo depois do primeiro');
-  regions.push(f.lit);
-  if(i===0)await shot(page,'passeio-claro-1440x900.png');
+  regions.push(f.lit);lamps.push(f.lamp);
+  if(i===0){
+   /* A etiqueta do desenho fica em uma linha e dentro do composer do desenho. */
+   const chip=await page.evaluate(()=>{
+    const el=document.querySelector('.demo-chip'),box=el.closest('.demo-composer').getBoundingClientRect();
+    return {extra:el.scrollHeight-el.clientHeight,past:el.getBoundingClientRect().right-box.right};
+   });
+   assert.ok(chip.extra<=1&&chip.past<=0,`etiqueta do passeio em uma linha (${JSON.stringify(chip)})`);
+   assert.equal(f.speech,null,'o quadro fala pelo desenho, sem balão repetido');
+   assert.equal(await page.locator('#setup-speech').isVisible(),false,'sem fala, o balão vazio some');
+   await shot(page,'passeio-claro-1440x900.png');
+  }
   await clickNext(page);
  }
  assert.deepEqual(regions,['readers','writer','tutor','top']);
+ assert.deepEqual(lamps,['material','escrita','tutor','onde'],'a luz acompanha cada quadro');
  f=await setupFacts(page);
  assert.equal(f.step,'name');
  assert.equal(f.cardShown,true,'o cartão aparece no passo novo');
  assert.equal(f.focusId,'first-run-name','o campo do nome recebe o foco');
- assert.deepEqual(f.cast,['Sigma'],'no nome, só o Σ, grande');
+ const doneMarks=await trailMarks(page);
+ assert.ok(doneMarks.filter(mark=>mark.status==='done').every(mark=>mark.background==='rgba(0, 0, 0, 0)'),'etapa vencida sem caixa laranja');
+ assert.ok(doneMarks.find(mark=>mark.status==='current').dx<=1,'o número da etapa ativa segue centrado');
+ assert.equal(f.lamp,'nome','a luz vai à linha do nome');
  /* Voltar do nome cai no último quadro do passeio. */
  await page.locator('#setup-back').click();
  f=await setupFacts(page);
@@ -273,6 +284,7 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  assert.equal(f.step,'folder');
  assert.match(f.title,/Cálculo I/);
  assert.equal(f.next.disabled,true,'sem pasta não avança');
+ assert.equal(f.lamp,'pasta-esperando','a pasta vazia espera com luz fraca');
  assert.equal(f.hint,HINT_FOLDER);
  assert.equal(f.firstRun,'true','nada é criado no caminho');
 
@@ -310,13 +322,25 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  await page.waitForFunction(()=>!document.querySelector('#setup-next').disabled);
  assert.equal((await setupFacts(page)).chosen,'Pasta escolhida: '+pdfs,'a pasta do seletor entra');
  assert.equal(await page.locator('#setup-chosen-files').textContent(),'Derivadas.pdf · Limites.pdf','a subpasta conta');
+ assert.equal((await setupFacts(page)).lamp,'pasta-achada','os PDFs aparecem sob a luz');
  await clickNext(page);
  f=await setupFacts(page);
  assert.equal(f.step,'tutor');
+ assert.equal(f.lamp,'tutor-ligando','com motor, a luz pulsa enquanto liga');
  assert.equal(f.pi,'found');
  assert.equal(f.connect,'Chamar o tutor');
- assert.equal(f.piSettings,null);
+ assert.equal(f.piSettings,'Ajustes do tutor','com Pi, o caminho do executável continua à mão');
  assert.equal(f.next.text,'Pular por agora','o tutor é opcional');
+ /* #90: os cartões só com título saíram; a promessa de privacidade vira uma frase. */
+ assert.equal(await page.locator('#setup .setup-cards').count(),0,'passo do tutor sem cartões vazios');
+ assert.equal((await page.locator('#setup-codex-grok').textContent()).trim(),'Com o Pi, dá para usar Codex e Grok.','o aviso do Pi é próprio (#93)');
+ const tutorGutter=await page.evaluate(()=>{
+  const link=document.querySelector('.setup-step[data-step="tutor"] .setup-link').getBoundingClientRect();
+  const title=document.querySelector('#setup-tutor-title').getBoundingClientRect();
+  return {link:link.left,title:title.left,width:link.width,step:document.querySelector('.setup-step[data-step="tutor"]').getBoundingClientRect().width};
+ });
+ assert.ok(Math.abs(tutorGutter.link-tutorGutter.title)<=1,`o "Como funciona" começa no gutter do conteúdo (${tutorGutter.link} × ${tutorGutter.title})`);
+ assert.ok(tutorGutter.width<tutorGutter.step-20,'o link não estica pela largura do cartão');
  for(const [theme,tag] of THEMES){
   await setTheme(page,theme);
   for(const size of [WIDE,MINIMUM]){
@@ -330,7 +354,8 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  await setTheme(page,'light');
  await setSize(ctx.app,page,WIDE);
 
- /* Sem o Pi: "Ajustes do Pi" vira a principal e leva às Configurações. */
+ /* Sem nenhum motor: a tela oferece a instalação do OpenCode, não oferece
+    conexão morta e não fala do Pi. */
  await page.evaluate(async()=>{
   const mod=await import('./src/first-run.mjs');
   await mod.enterFirstRun({needsSetup:true,detectedPi:'',config:{}},{});
@@ -343,17 +368,62 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  await clickNext(page);
  await page.waitForSelector('#setup-pi[data-pi="missing"]');
  f=await setupFacts(page);
- assert.equal(f.piSettings,'Ajustes do Pi');
- assert.equal(f.connect,'Chamar o tutor');
- assert.equal(await page.locator('#setup-tutor-actions #state-pi').getAttribute('class'),'primary');
- assert.equal(await page.locator('#setup-tutor-actions #connect').getAttribute('class'),'');
- await shot(page,'sem-pi-claro-1440x900.png');
+ assert.equal(f.lamp,'tutor-sem-motor','sem motor, luz fraca e estável');
+ assert.equal(f.tutorStatus,'Nenhum tutor instalado. Instale o OpenCode para conversar.');
+ assert.equal(f.codexGrok,null,'sem Pi, nem o aviso de Codex e Grok aparece');
+ assert.equal(f.install,'Instalar o OpenCode');
+ assert.equal(f.piSettings,'Ajustes do tutor');
+ assert.equal(f.connect,null,'sem motor, nada de botão que só falharia');
+ await shot(page,'sem-motor-claro-1440x900.png');
  await page.locator('#setup-tutor-actions #state-pi').click();
  await page.waitForSelector('#settings-dialog[open]');
  assert.equal(await page.evaluate(()=>document.querySelector('#settings-tabs [aria-current="page"]')?.dataset.sec),'pastas');
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  assert.equal((await setupFacts(page)).firstRun,'true','cancelar não cria matéria nem sai da primeira abertura');
+
+ /* OpenCode 1.x: a tela mostra a versão incompatível, manda atualizar para a
+    2.2.4 e não conta o motor como pronto. */
+ await page.evaluate(async()=>{
+  const mod=await import('./src/first-run.mjs');
+  await mod.enterFirstRun({needsSetup:true,detectedOpenCode:'',detectedOpenCodeOldVersion:'1.19.5',config:{}},{});
+ });
+ await walkTo(page,'name');
+ await page.locator('#first-run-name').fill('Cálculo I');
+ await walkTo(page,'folder');
+ await page.locator('#first-run-pick').click();
+ await page.waitForFunction(()=>!document.querySelector('#setup-next').disabled);
+ await clickNext(page);
+ await page.waitForSelector('#setup-pi[data-pi="missing"]');
+ f=await setupFacts(page);
+ assert.equal(f.lamp,'tutor-sem-motor','OpenCode 1.x não conta como motor');
+ assert.match(f.tutorStatus,/Sua versão do OpenCode \(1\.19\.5\) é antiga para a Mesa/);
+ assert.equal(f.connect,null,'1.x não ganha botão de conectar');
+ assert.equal(f.install,'Atualizar para a 2.2.4');
+ assert.equal(await page.locator('#setup-tutor-actions #free-models').count(),0);
+
+ /* Sem Pi, com OpenCode: "Chamar o tutor" e os Ajustes; nada de convite aos
+    modelos grátis (#93). O par [connect, settings] é o certo para quem tem
+    motor, e o teste registra a decisão do dono. */
+ await page.evaluate(async()=>{
+  const mod=await import('./src/first-run.mjs');
+  await mod.enterFirstRun({needsSetup:true,detectedPi:'',detectedOpenCode:'/fake/opencode',config:{}},{});
+ });
+ await walkTo(page,'name');
+ await page.locator('#first-run-name').fill('Cálculo I');
+ await walkTo(page,'folder');
+ await page.locator('#first-run-pick').click();
+ await page.waitForFunction(()=>!document.querySelector('#setup-next').disabled);
+ await clickNext(page);
+ await page.waitForSelector('#setup-pi[data-pi="found"]');
+ f=await setupFacts(page);
+ assert.equal(f.tutorStatus,'Encontrado: OpenCode');
+ assert.equal(f.connect,'Chamar o tutor');
+ assert.equal(f.codexGrok,null,'sem Pi, o aviso de Codex e Grok não aparece');
+ assert.match(f.login,/\/fake\/opencode auth login/,'a entrada no provedor mostra o caminho completo do binário');
+ assert.equal(await page.locator('#setup-tutor-actions #free-models').count(),0,'sem botão de modelos grátis (#93)');
+ assert.equal(f.piSettings,'Ajustes do tutor','com motor achado, os Ajustes ficam ao lado de Chamar o tutor');
+ await shot(page,'open-code-claro-1440x900.png');
 
  /* Pi achado e "Chamar o tutor": o passo diz que está ligado e o botão vira Continuar. */
  await page.evaluate(async()=>{
@@ -369,19 +439,25 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  await page.locator('#setup-tutor-actions #connect').click();
  await page.waitForFunction(()=>document.querySelector('#setup-next').textContent.trim()==='Continuar',undefined,{timeout:30000});
  f=await setupFacts(page);
+ assert.equal(f.lamp,'tutor-ligado','ligado: luz estável');
  assert.match(f.title,/O tutor está ligado/);
  assert.equal(f.firstRun,'true','ligar o tutor não cria matéria');
  await clickNext(page);
  f=await setupFacts(page);
  assert.equal(f.step,'ready');
+ const readyGutter=await page.evaluate(()=>{
+  const link=document.querySelector('.setup-step[data-step="ready"] .setup-link').getBoundingClientRect();
+  const title=document.querySelector('#setup-ready-title').getBoundingClientRect();
+  return Math.abs(link.left-title.left);
+ });
+ assert.ok(readyGutter<=1,`no Pronto o "Como funciona" também alinha à esquerda (${readyGutter})`);
  assert.equal(f.next.text,'Criar a matéria');
  assert.equal(f.summary[0],'Cálculo I');
  assert.equal(f.summary[2],'Ligado');
- assert.equal(f.path,s.dataDefault,'a pasta de dados sugerida é Documentos/Mesa de Estudos do usuário');
- assert.match(f.dataLine,/só neste computador/);
- assert.equal(f.changeShown,true);
- assert.equal(f.mascote,'feliz');
- assert.deepEqual(f.cast,['Integral','Sigma','Nabla'],'o trio junto no Pronto');
+ assert.equal(f.path,null,'o caminho de dados saiu do Pronto (#90)');
+ assert.equal(f.dataLine,null);
+ assert.equal(f.changeShown,false);
+ assert.equal(f.lamp,'pronto','no Pronto a folha inteira acende');
  await shot(page,'pronto-claro-1440x900.png');
 
  /* "Estudar sem matéria" sai para a aba Livre sem criar nada. */
@@ -471,7 +547,6 @@ await withArtifacts('primeira-abertura-soltar',async ctx=>{
  const a=path.join(pdfs,'Lista 1.pdf'),b=path.join(pdfs,'Lista 2.pdf'),c=path.join(other,'Prova.pdf'),txt=path.join(pdfs,'anotacoes.txt');
  fs.writeFileSync(a,tinyPdf('Lista 1',2));fs.writeFileSync(b,tinyPdf('Lista 2',2));fs.writeFileSync(c,tinyPdf('Prova',2));fs.writeFileSync(txt,'não é PDF');
  const hashes=new Map([a,b,c,txt].map(file=>[file,sha(file)]));
- const mine=path.join(s.runtime,'meus-dados');
 
  const {page,errors}=await boot(ctx,s);
  await walkTo(page,'name');
@@ -496,21 +571,18 @@ await withArtifacts('primeira-abertura-soltar',async ctx=>{
  assert.equal(f.next.disabled,false);
  await shot(page,'soltou-pdfs-claro-1440x900.png');
 
- /* "Mudar" a pasta de dados no pronto: o que a pessoa escolhe é o que fica gravado. */
+ /* O caminho de dados mora em Configurações (#90): o Pronto não pede de novo. */
  await walkTo(page,'ready');
- await stubPicker(ctx.app,[mine]);
- await page.locator('#first-run-data-change').click();
- await page.waitForFunction(p=>document.querySelector('.setup-path')?.textContent===p,mine);
- assert.equal(fs.existsSync(mine),false,'escolher a pasta de dados não a cria antes de confirmar');
+ assert.equal(await page.locator('#setup-data').count(),0,'a linha de dados saiu do Pronto');
+ assert.equal(await page.locator('#first-run-data-change').count(),0,'sem "Mudar" no Pronto');
  await clickNext(page);
  await page.waitForFunction(()=>!document.body.dataset.firstRun,undefined,{timeout:30000});
  await page.waitForSelector('.pdf-panel canvas',{timeout:30000});
 
  const cfg=s.readConfig();
  assert.deepEqual(cfg.courses.map(x=>({id:x.id,name:x.name,path:x.path})),[{id:'Física',name:'Física',path:pdfs}]);
- assert.equal(cfg.vaultPath,mine,'a pasta de dados escolhida em "Mudar" vai para o config.json local');
- assert.equal(fs.statSync(mine).isDirectory(),true);
- assert.equal(fs.existsSync(s.dataDefault),false,'a sugestão que ficou de fora não é criada');
+ assert.equal(cfg.vaultPath,s.dataDefault,'a pasta de dados sugerida continua valendo');
+ assert.equal(fs.existsSync(s.dataDefault),true,'a pasta sugerida é criada');
  for(const [file,hash] of hashes)assert.equal(sha(file),hash,`${path.basename(file)} intacto`);
  assert.deepEqual(fs.readdirSync(pdfs).sort(),['Lista 1.pdf','Lista 2.pdf','anotacoes.txt'],'a pasta dos PDFs não ganhou arquivo nenhum');
  assert.equal((await setupFacts(page)).prompt.disabled,false);
@@ -585,8 +657,8 @@ await withArtifacts('primeira-abertura-sem-materia',async ctx=>{
  await page.waitForFunction(()=>!document.querySelector('#setup-next').disabled);
  await walkTo(page,'ready');
  f=await setupFacts(page);
- assert.equal(f.path,vault,'a linha dos dados mostra a pasta que a Mesa já tem');
- assert.equal(f.changeShown,false,'a pasta de dados não é pedida de novo: sem "Mudar"');
+ assert.equal(f.path,null,'o Pronto não repete o caminho de dados (#90)');
+ assert.equal(f.changeShown,false);
  await clickNext(page);
  await page.waitForFunction(()=>!document.body.dataset.firstRun,undefined,{timeout:30000});
  await page.waitForSelector('.pdf-panel canvas',{timeout:30000});

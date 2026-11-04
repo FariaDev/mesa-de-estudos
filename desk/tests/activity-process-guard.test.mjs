@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-const {canTerminateActivityProcess,canTerminateSharedStalledProcess,collectActivityFrames}=createRequire(import.meta.url)('../activity-runtime.cjs');
+const {canTerminateActivityProcess,canTerminateSharedStalledProcess,collectActivityFrames,trackedActivityEntry,activityFramesOtherThan,detachedActivityDecision}=createRequire(import.meta.url)('../activity-runtime.cjs');
 const detached={entry:{pid:111,creationTime:4000},mainPid:222,metric:{pid:111,creationTime:4000,type:'Tab'},livePids:[222,333]};
 test('only a detached, currently owned renderer can be terminated',()=>{
  assert.equal(canTerminateActivityProcess(detached),true);
@@ -58,4 +58,36 @@ test('collectActivityFrames: PID de frame desconhecido (throw/0/negativo/não nu
  const unknowns=[[bad,'getter lança'],[{osProcessId:0},'pid 0'],[{osProcessId:-1},'pid negativo'],[{osProcessId:'x'},'pid não numérico'],[{osProcessId:undefined},'pid ausente']];
  for(const [unknown,label] of unknowns)
   assert.equal(collectActivityFrames(111,()=>[contents([{osProcessId:111},unknown])]).complete,false,label);
+});
+
+test('entrada rastreada guarda o próprio frame; o filtro é por identidade (#88)',()=>{
+ const frame={},other={};
+ const entry=trackedActivityEntry(frame,111,4000);
+ assert.equal(entry.frame,frame,'sem entry.frame o próprio frame contaria como outro');
+ assert.equal(entry.pid,111);
+ assert.equal(entry.creationTime,4000);
+ assert.deepEqual(activityFramesOtherThan([frame,other],entry),[other]);
+ assert.deepEqual(activityFramesOtherThan([frame],entry),[],'só o próprio frame: caminho destacado, não shared-stalled');
+ assert.deepEqual(activityFramesOtherThan([frame],{}),[frame],'entrada sem frame não esconde o frame da lista');
+ assert.deepEqual(activityFramesOtherThan(null,entry),[]);
+});
+
+test('detachedActivityDecision: sem outro frame mata mesmo sem travamento (#88)',()=>{
+ const frame={},other={};
+ const base={pid:111,complete:true,frames:[frame],frame,stalled:false,waitedMs:0,framelessMs:1000};
+ assert.equal(detachedActivityDecision(base),'frameless','Parar cedo: processo sem frame não serve');
+ assert.equal(detachedActivityDecision({...base,frames:[]}),'frameless','sem nenhum frame');
+ assert.equal(detachedActivityDecision({...base,frames:[frame,other],stalled:true}),'stalled','outro frame + travamento: caminho de sempre');
+ assert.equal(detachedActivityDecision({...base,frames:[frame,other],stalled:false}),'drop','outro frame sem travamento não mata');
+ assert.equal(detachedActivityDecision({...base,pid:0}),'retry','pid ainda desconhecido: retenta');
+ assert.equal(detachedActivityDecision({...base,pid:0,waitedMs:3000}),'drop','prazo de retentativa estourado');
+ assert.equal(detachedActivityDecision({...base,complete:false}),'retry','enumeração incompleta: retenta');
+ assert.equal(detachedActivityDecision({...base,complete:false,waitedMs:2999}),'retry');
+ assert.equal(detachedActivityDecision({...base,complete:false,waitedMs:3000}),'drop');
+ assert.equal(detachedActivityDecision({...base,frames:null}),'retry','lista ilegível não vira frameless');
+ /* Chromium reusa o processo do subframe removido se a atividade remonta;
+    sem frame num tick só não basta para matar. */
+ assert.equal(detachedActivityDecision({...base,framelessMs:0}),'retry','primeiro tick sem frame: espera o commit da remontagem');
+ assert.equal(detachedActivityDecision({...base,framelessMs:999}),'retry');
+ assert.equal(detachedActivityDecision({...base,framelessMs:0,waitedMs:5000}),'retry','sem frame ainda não confirmado não vira drop');
 });

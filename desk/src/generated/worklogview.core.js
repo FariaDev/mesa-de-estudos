@@ -13,13 +13,16 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 var char_new = function char_new(c) {
   return c < 55296 || c >= 57344 && c <= 1114111 ? String.fromCodePoint(c) : String.fromCharCode(56320, c >>> 22, c >>> 11 & 2047, c & 2047);
 };
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -40,6 +43,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $view_attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
 }
@@ -109,7 +113,7 @@ function $view_attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $view_attrGet_choose(_av_0, $$view_attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $view_attrGet(_attrs_0, _name_0) {
@@ -160,7 +164,7 @@ function $view_boolStr(_on_0) {
   }
 }
 function $view_attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$view_boolStr(_on_0) };
 }
 function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -171,7 +175,7 @@ function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $view_classAppend(_acc_0, _name_0) {
-  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $view_classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -184,7 +188,7 @@ function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $view_classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $view_classValue_go($0, $1) {
@@ -200,7 +204,7 @@ function $view_classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$view_classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -210,7 +214,7 @@ function $view_classValue(_xs_0) {
   return $view_classValue_go(_xs_0, "");
 }
 function $view_classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$view_classValue(_xs_0) };
 }
 function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -261,10 +265,10 @@ function $worklog_withText(_p_0, _delta_0) {
   return { $: "Payload", text: _text_0 + _delta_0, toolName: _toolName_0, argsJson: _argsJson_0, query: _query_0, url: _url_0, domain: _domain_0, pageTitle: _pageTitle_0, hits: _hits_0, resultText: _resultText_0, error: _error_0 };
 }
 function $worklog_newThinking(_id_0, _now_0, _delta_0) {
-  return { $: "Step", id: _id_0, status: { $: "Status.Running" }, kind: { $: "Thinking" }, startedAt: _now_0, endedAt: 0, payload: $worklog_withText($worklog_emptyPayload(), _delta_0) };
+  return { $: "Step", id: _id_0, status: { $: "Status.Running" }, kind: { $: "Thinking" }, startedAt: _now_0, endedAt: 0, payload: $$worklog_withText($$worklog_emptyPayload(), _delta_0) };
 }
 function $worklog_thinkId(_n_0) {
-  const _x_0 = $Nat_show(nat_chk(_n_0 + 1));
+  const _x_0 = $$Nat_show(nat_chk(_n_0 + 1));
   return "pensar-" + _x_0;
 }
 function $worklog_headHere(_s_0, _needle_0) {
@@ -290,7 +294,7 @@ function $worklog_hasNeedle_go($0, $1, $2) {
           return true;
         } else {
           $0 = _t_0;
-          $1 = $worklog_headHere(_t_0, _needle_0);
+          $1 = $$worklog_headHere(_t_0, _needle_0);
           $2 = _needle_0;
           continue;
         }
@@ -299,7 +303,7 @@ function $worklog_hasNeedle_go($0, $1, $2) {
   }
 }
 function $worklog_hasNeedle(_s_0, _needle_0) {
-  return $worklog_hasNeedle_go(_s_0, $worklog_headHere(_s_0, _needle_0), _needle_0);
+  return $worklog_hasNeedle_go(_s_0, $$worklog_headHere(_s_0, _needle_0), _needle_0);
 }
 function $worklog_toLower_go($0, $1) {
   for (;; ) {
@@ -312,7 +316,7 @@ function $worklog_toLower_go($0, $1) {
         const _h_0 = _s_0.slice(0, char_len(_s_0));
         const _t_0 = _s_0.slice(char_len(_s_0));
         $0 = _t_0;
-        $1 = $Char_to_lower(_h_0) + _acc_0;
+        $1 = $$Char_to_lower(_h_0) + _acc_0;
         continue;
       }
     }
@@ -332,7 +336,7 @@ function $worklog_anyContains_go($0, $1, $2) {
       } else {
         const _h_0 = _needles_0["head"];
         const _t_0 = _needles_0["tail"];
-        const _x_0 = $worklog_hasNeedle(_n_0, _h_0);
+        const _x_0 = $$worklog_hasNeedle(_n_0, _h_0);
         $0 = _n_0;
         $1 = _t_0;
         $2 = _found_0 || _x_0;
@@ -352,7 +356,7 @@ function $worklog_toolKind_fetch_if(_n_0, _fetch_0) {
   }
 }
 function $worklog_toolKind_fetch(_n_0) {
-  return $worklog_toolKind_fetch_if(_n_0, $worklog_anyContains(_n_0, { $: "Con", head: "fetch", tail: { $: "Con", head: "reader", tail: { $: "Con", head: "http", tail: { $: "Con", head: "url", tail: { $: "Con", head: "page", tail: { $: "Nil" } } } } } }));
+  return $worklog_toolKind_fetch_if(_n_0, $$worklog_anyContains(_n_0, { $: "Con", head: "fetch", tail: { $: "Con", head: "reader", tail: { $: "Con", head: "http", tail: { $: "Con", head: "url", tail: { $: "Con", head: "page", tail: { $: "Nil" } } } } } }));
 }
 function $worklog_toolKind_search_if(_n_0, _search_0) {
   if (_search_0) {
@@ -362,18 +366,28 @@ function $worklog_toolKind_search_if(_n_0, _search_0) {
   }
 }
 function $worklog_toolKind_search(_n_0) {
-  return $worklog_toolKind_search_if(_n_0, $worklog_anyContains(_n_0, { $: "Con", head: "search", tail: { $: "Con", head: "busca", tail: { $: "Nil" } } }));
+  return $worklog_toolKind_search_if(_n_0, $$worklog_anyContains(_n_0, { $: "Con", head: "search", tail: { $: "Con", head: "busca", tail: { $: "Nil" } } }));
+}
+function $worklog_toolKind_material_if(_n_0, _material_0) {
+  if (_material_0) {
+    return { $: "Material" };
+  } else {
+    return $worklog_toolKind_search(_n_0);
+  }
+}
+function $worklog_toolKind_material(_n_0) {
+  return $worklog_toolKind_material_if(_n_0, $$worklog_anyContains(_n_0, { $: "Con", head: "material", tail: { $: "Nil" } }));
 }
 function $worklog_toolKind_ref(_n_0, _ref_0) {
   if (_ref_0) {
     return { $: "Reference" };
   } else {
-    return $worklog_toolKind_search(_n_0);
+    return $worklog_toolKind_material(_n_0);
   }
 }
 function $worklog_toolKind(_name_0) {
-  const _n_0 = $worklog_toLower(_name_0);
-  return $worklog_toolKind_ref(_n_0, $worklog_anyContains(_n_0, { $: "Con", head: "reference", tail: { $: "Nil" } }));
+  const _n_0 = $$worklog_toLower(_name_0);
+  return $worklog_toolKind_ref(_n_0, $$worklog_anyContains(_n_0, { $: "Con", head: "reference", tail: { $: "Nil" } }));
 }
 function $worklog_createLog(_now_0) {
   return { $: "Log", startedAt: _now_0, endedAt: 0, reason: "", text: "", steps: { $: "Nil" } };
@@ -387,24 +401,24 @@ function $worklog_burst_last(_h_0, _delta_0, _now_0, _n_0) {
       const _startedAt_0 = _h_0["startedAt"];
       const _endedAt_0 = _h_0["endedAt"];
       const _payload_0 = _h_0["payload"];
-      return { $: "Con", head: { $: "Step", id: _id_0, status: { $: "Status.Running" }, kind: { $: "Thinking" }, startedAt: _startedAt_0, endedAt: _endedAt_0, payload: $worklog_withText(_payload_0, _delta_0) }, tail: { $: "Nil" } };
+      return { $: "Con", head: { $: "Step", id: _id_0, status: { $: "Status.Running" }, kind: { $: "Thinking" }, startedAt: _startedAt_0, endedAt: _endedAt_0, payload: $$worklog_withText(_payload_0, _delta_0) }, tail: { $: "Nil" } };
     } else {
       const _startedAt_1 = _h_0["startedAt"];
       const _endedAt_1 = _h_0["endedAt"];
       const _payload_1 = _h_0["payload"];
-      return { $: "Con", head: { $: "Step", id: _id_0, status: { $: "Status.Running" }, kind: _t_1, startedAt: _startedAt_1, endedAt: _endedAt_1, payload: _payload_1 }, tail: { $: "Con", head: $worklog_newThinking($worklog_thinkId(_n_0), _now_0, _delta_0), tail: { $: "Nil" } } };
+      return { $: "Con", head: { $: "Step", id: _id_0, status: { $: "Status.Running" }, kind: _t_1, startedAt: _startedAt_1, endedAt: _endedAt_1, payload: _payload_1 }, tail: { $: "Con", head: $$worklog_newThinking($$worklog_thinkId(_n_0), _now_0, _delta_0), tail: { $: "Nil" } } };
     }
   } else {
     const _kind_0 = _h_0["kind"];
     const _startedAt_2 = _h_0["startedAt"];
     const _endedAt_2 = _h_0["endedAt"];
     const _payload_2 = _h_0["payload"];
-    return { $: "Con", head: { $: "Step", id: _id_0, status: _t_0, kind: _kind_0, startedAt: _startedAt_2, endedAt: _endedAt_2, payload: _payload_2 }, tail: { $: "Con", head: $worklog_newThinking($worklog_thinkId(_n_0), _now_0, _delta_0), tail: { $: "Nil" } } };
+    return { $: "Con", head: { $: "Step", id: _id_0, status: _t_0, kind: _kind_0, startedAt: _startedAt_2, endedAt: _endedAt_2, payload: _payload_2 }, tail: { $: "Con", head: $$worklog_newThinking($$worklog_thinkId(_n_0), _now_0, _delta_0), tail: { $: "Nil" } } };
   }
 }
 function $worklog_burst(_xs_0, _delta_0, _now_0, _n_0) {
   if (_xs_0.$ === "Nil") {
-    return { $: "Con", head: $worklog_newThinking($worklog_thinkId(_n_0), _now_0, _delta_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$worklog_newThinking($$worklog_thinkId(_n_0), _now_0, _delta_0), tail: { $: "Nil" } };
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
@@ -413,7 +427,7 @@ function $worklog_burst(_xs_0, _delta_0, _now_0, _n_0) {
     } else {
       const __0 = _t_0["head"];
       const __1 = _t_0["tail"];
-      return { $: "Con", head: _h_0, tail: $worklog_burst({ $: "Con", head: __0, tail: __1 }, _delta_0, _now_0, _n_0) };
+      return { $: "Con", head: _h_0, tail: $$worklog_burst({ $: "Con", head: __0, tail: __1 }, _delta_0, _now_0, _n_0) };
     }
   }
 }
@@ -423,8 +437,8 @@ function $worklog_thinkingDelta_go(_log_0, _delta_0, _now_0) {
   const _reason_0 = _log_0["reason"];
   const _text_0 = _log_0["text"];
   const _steps_0 = _log_0["steps"];
-  const _n_0 = $List_length(_steps_0);
-  return { $: "Log", startedAt: _startedAt_0, endedAt: _endedAt_0, reason: _reason_0, text: _text_0, steps: $worklog_burst(_steps_0, _delta_0, _now_0, _n_0) };
+  const _n_0 = $$List_length(_steps_0);
+  return { $: "Log", startedAt: _startedAt_0, endedAt: _endedAt_0, reason: _reason_0, text: _text_0, steps: $$worklog_burst(_steps_0, _delta_0, _now_0, _n_0) };
 }
 function $worklog_thinkingDelta_if(_log_0, _delta_0, _now_0, _empty_0) {
   if (_empty_0) {
@@ -435,7 +449,7 @@ function $worklog_thinkingDelta_if(_log_0, _delta_0, _now_0, _empty_0) {
 }
 function $worklog_thinkingDelta(_log_0, _delta_0, _now_0) {
   const _d_0 = _delta_0;
-  return $worklog_thinkingDelta_if(_log_0, _d_0, _now_0, $String_is_empty(_d_0));
+  return $worklog_thinkingDelta_if(_log_0, _d_0, _now_0, $$String_is_empty(_d_0));
 }
 function $worklog_closeStep_running(_id_0, _kind_0, _startedAt_0, _endedAt_0, _payload_0, _now_0) {
   if (_kind_0.$ === "Thinking") {
@@ -466,7 +480,7 @@ function $worklog_closeEach(_xs_0, _now_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $worklog_closeStep(_h_0, _now_0), tail: $worklog_closeEach(_t_0, _now_0) };
+    return { $: "Con", head: $$worklog_closeStep(_h_0, _now_0), tail: $$worklog_closeEach(_t_0, _now_0) };
   }
 }
 function $worklog_closeThinking(_log_0, _now_0) {
@@ -475,7 +489,7 @@ function $worklog_closeThinking(_log_0, _now_0) {
   const _reason_0 = _log_0["reason"];
   const _text_0 = _log_0["text"];
   const _steps_0 = _log_0["steps"];
-  return { $: "Log", startedAt: _startedAt_0, endedAt: _endedAt_0, reason: _reason_0, text: _text_0, steps: $worklog_closeEach(_steps_0, _now_0) };
+  return { $: "Log", startedAt: _startedAt_0, endedAt: _endedAt_0, reason: _reason_0, text: _text_0, steps: $$worklog_closeEach(_steps_0, _now_0) };
 }
 function $worklog_finishStep_running(_id_0, _kind_0, _startedAt_0, _endedAt_0, _payload_0, _now_0) {
   if (_kind_0.$ === "Thinking") {
@@ -506,7 +520,7 @@ function $worklog_finishEach(_xs_0, _now_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $worklog_finishStep(_h_0, _now_0), tail: $worklog_finishEach(_t_0, _now_0) };
+    return { $: "Con", head: $$worklog_finishStep(_h_0, _now_0), tail: $$worklog_finishEach(_t_0, _now_0) };
   }
 }
 function $worklog_finishLog(_log_0, _now_0, _reason_0) {
@@ -514,7 +528,7 @@ function $worklog_finishLog(_log_0, _now_0, _reason_0) {
   const _text_0 = _log_0["text"];
   const _steps_0 = _log_0["steps"];
   const _n_0 = _now_0;
-  return { $: "Log", startedAt: _startedAt_0, endedAt: _n_0, reason: _reason_0, text: _text_0, steps: $worklog_finishEach(_steps_0, _n_0) };
+  return { $: "Log", startedAt: _startedAt_0, endedAt: _n_0, reason: _reason_0, text: _text_0, steps: $$worklog_finishEach(_steps_0, _n_0) };
 }
 function $worklog_isRunningThinking_kind(_kind_0) {
   if (_kind_0.$ === "Thinking") {
@@ -559,7 +573,7 @@ function $worklog_noRunningThinking(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return $worklog_noRunningThinking_and($worklog_isRunningThinking(_h_0), $worklog_noRunningThinking(_t_0));
+    return $worklog_noRunningThinking_and($$worklog_isRunningThinking(_h_0), $$worklog_noRunningThinking(_t_0));
   }
 }
 function $kindName(_kind_0) {
@@ -567,6 +581,8 @@ function $kindName(_kind_0) {
     return "thinking";
   } else if (_kind_0.$ === "Search") {
     return "search";
+  } else if (_kind_0.$ === "Material") {
+    return "material";
   } else if (_kind_0.$ === "Reference") {
     return "reference";
   } else if (_kind_0.$ === "Fetch") {
@@ -634,35 +650,35 @@ function $hrefOf_empty(_url_0, _empty_0) {
   }
 }
 function $hrefOf(_url_0) {
-  return $hrefOf_empty(_url_0, $String_is_empty(_url_0));
+  return $hrefOf_empty(_url_0, $$String_is_empty(_url_0));
 }
 function $articleAttrs(_live_0, _expanded_0) {
-  return { $: "Con", head: $view_attrClass("work"), tail: { $: "Con", head: $view_attrData("live", $view_boolStr(_live_0)), tail: { $: "Con", head: $view_attrData("expanded", $view_boolStr(_expanded_0)), tail: { $: "Nil" } } } };
+  return { $: "Con", head: $$view_attrClass("work"), tail: { $: "Con", head: $$view_attrData("live", $$view_boolStr(_live_0)), tail: { $: "Con", head: $$view_attrData("expanded", $$view_boolStr(_expanded_0)), tail: { $: "Nil" } } } };
 }
 function $headAttrs(_expanded_0) {
-  return { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("work-head"), tail: { $: "Con", head: $view_attrKey("work-head"), tail: { $: "Con", head: $view_attrAria("expanded", $view_boolStr(_expanded_0)), tail: { $: "Con", head: $view_attrOn("click", "toggleWork"), tail: { $: "Nil" } } } } } };
+  return { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("work-head"), tail: { $: "Con", head: $$view_attrKey("work-head"), tail: { $: "Con", head: $$view_attrAria("expanded", $$view_boolStr(_expanded_0)), tail: { $: "Con", head: $$view_attrOn("click", "toggleWork"), tail: { $: "Nil" } } } } } };
 }
 function $stepAttrs(_kind_0, _status_0, _hasDetail_0) {
-  return { $: "Con", head: $view_attrClass("work-step"), tail: { $: "Con", head: $view_attrData("kind", _kind_0), tail: { $: "Con", head: $view_attrData("status", _status_0), tail: { $: "Con", head: $view_attrData("detail", $view_boolStr(_hasDetail_0)), tail: { $: "Nil" } } } } };
+  return { $: "Con", head: $$view_attrClass("work-step"), tail: { $: "Con", head: $$view_attrData("kind", _kind_0), tail: { $: "Con", head: $$view_attrData("status", _status_0), tail: { $: "Con", head: $$view_attrData("detail", $$view_boolStr(_hasDetail_0)), tail: { $: "Nil" } } } } };
 }
 function $toggleAttrs(_id_0, _open_0) {
-  return { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("step-toggle"), tail: { $: "Con", head: $view_attrKey($String_join({ $: "Con", head: "step-toggle-", tail: { $: "Con", head: _id_0, tail: { $: "Nil" } } }, "")), tail: { $: "Con", head: $view_attrAria("expanded", $view_boolStr(_open_0)), tail: { $: "Con", head: $view_attrOn("click", "toggleStep"), tail: { $: "Nil" } } } } } };
+  return { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("step-toggle"), tail: { $: "Con", head: $$view_attrKey($$String_join({ $: "Con", head: "step-toggle-", tail: { $: "Con", head: _id_0, tail: { $: "Nil" } } }, "")), tail: { $: "Con", head: $$view_attrAria("expanded", $$view_boolStr(_open_0)), tail: { $: "Con", head: $$view_attrOn("click", "toggleStep"), tail: { $: "Nil" } } } } } };
 }
 function $classHidden(_className_0, _hide_0) {
-  return $view_attrConcat({ $: "Con", head: $view_attrClass(_className_0), tail: { $: "Nil" } }, $view_attrWhen(_hide_0, $attrHidden()));
+  return $view_attrConcat({ $: "Con", head: $$view_attrClass(_className_0), tail: { $: "Nil" } }, $$view_attrWhen(_hide_0, $$attrHidden()));
 }
 function $domainKids_empty(_domain_0, _empty_0) {
   if (_empty_0) {
     return { $: "Nil" };
   } else {
-    return { $: "Con", head: $view_viewText(" "), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("step-domain"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_domain_0), tail: { $: "Nil" } }), tail: { $: "Nil" } } };
+    return { $: "Con", head: $$view_viewText(" "), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("step-domain"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_domain_0), tail: { $: "Nil" } }), tail: { $: "Nil" } } };
   }
 }
 function $domainKids(_domain_0) {
-  return $domainKids_empty(_domain_0, $String_is_empty(_domain_0));
+  return $domainKids_empty(_domain_0, $$String_is_empty(_domain_0));
 }
 function $linkNode_go(_title_0, _url_0, _domain_0) {
-  return $view_viewEl("a", { $: "Con", head: $view_attrClass("step-link"), tail: { $: "Con", head: { $: "ViewAttr", name: "href", value: $hrefOf(_url_0) }, tail: { $: "Con", head: { $: "ViewAttr", name: "rel", value: "noreferrer" }, tail: { $: "Nil" } } } }, $view_viewConcat({ $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } }, $domainKids(_domain_0)));
+  return $view_viewEl("a", { $: "Con", head: $$view_attrClass("step-link"), tail: { $: "Con", head: { $: "ViewAttr", name: "href", value: $$hrefOf(_url_0) }, tail: { $: "Con", head: { $: "ViewAttr", name: "rel", value: "noreferrer" }, tail: { $: "Nil" } } } }, $$view_viewConcat({ $: "Con", head: $$view_viewText(_title_0), tail: { $: "Nil" } }, $$domainKids(_domain_0)));
 }
 function $linkNode(_link_0) {
   const _title_0 = _link_0["title"];
@@ -676,7 +692,7 @@ function $linkKids(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $linkNode(_h_0), tail: $linkKids(_t_0) };
+    return { $: "Con", head: $$linkNode(_h_0), tail: $$linkKids(_t_0) };
   }
 }
 function $linksEmpty(_xs_0) {
@@ -688,14 +704,14 @@ function $linksEmpty(_xs_0) {
 }
 function $statusKids(_running_0) {
   if (_running_0) {
-    return { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("step-spin"), tail: { $: "Con", head: $view_attrAria("hidden", "true"), tail: { $: "Nil" } } }, { $: "Nil" }), tail: { $: "Nil" } };
+    return { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("step-spin"), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } }, { $: "Nil" }), tail: { $: "Nil" } };
   } else {
     return { $: "Nil" };
   }
 }
-function $workStep_go(_id_0, _kind_0, _status_0, _open_0, _hasDetail_0, _label_0, _time_0, _preview_0, _text_0, _links_0) {
-  const _expandedOn_0 = $both(_hasDetail_0, _open_0);
-  return $view_viewKey("div", _id_0, $stepAttrs($kindName(_kind_0), $statusName(_status_0), _hasDetail_0), { $: "Con", head: $view_viewEl("button", $toggleAttrs(_id_0, _expandedOn_0), { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("step-icon"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("step-main"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("step-line"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("step-label"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("step-time"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_time_0), tail: { $: "Nil" } }), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_viewEl("div", $classHidden("step-preview", $previewHidden(_expandedOn_0, $String_is_empty(_preview_0))), { $: "Con", head: $view_viewText(_preview_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("div", $classHidden("step-detail", $detailHidden(_open_0, _hasDetail_0)), { $: "Con", head: $view_viewEl("div", $classHidden("step-links", $linksEmpty(_links_0)), $linkKids(_links_0)), tail: { $: "Con", head: $view_viewEl("pre", $classHidden("step-text", $String_is_empty(_text_0)), { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } }), tail: { $: "Nil" } } }), tail: { $: "Nil" } } } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("step-status"), tail: { $: "Nil" } }, $statusKids($statusRunning(_status_0))), tail: { $: "Nil" } } } }), tail: { $: "Nil" } });
+function $workStep_go(_id_0, _kind_0, _status_0, _open_0, _hasDetail_0, _label_0, _preview_0, _text_0, _links_0) {
+  const _expandedOn_0 = $$both(_hasDetail_0, _open_0);
+  return $view_viewKey("div", _id_0, $$stepAttrs($$kindName(_kind_0), $$statusName(_status_0), _hasDetail_0), { $: "Con", head: $$view_viewEl("button", $$toggleAttrs(_id_0, _expandedOn_0), { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("step-icon"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("step-main"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("step-line"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("step-label"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("div", $$classHidden("step-preview", $$previewHidden(_expandedOn_0, $$String_is_empty(_preview_0))), { $: "Con", head: $$view_viewText(_preview_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("div", $$classHidden("step-detail", $$detailHidden(_open_0, _hasDetail_0)), { $: "Con", head: $$view_viewEl("div", $$classHidden("step-links", $$linksEmpty(_links_0)), $$linkKids(_links_0)), tail: { $: "Con", head: $$view_viewEl("pre", $$classHidden("step-text", $$String_is_empty(_text_0)), { $: "Con", head: $$view_viewText(_text_0), tail: { $: "Nil" } }), tail: { $: "Nil" } } }), tail: { $: "Nil" } } } }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("step-status"), tail: { $: "Nil" } }, $$statusKids($$statusRunning(_status_0))), tail: { $: "Nil" } } } }), tail: { $: "Nil" } });
 }
 function $workStep(_step_0) {
   const _id_0 = _step_0["id"];
@@ -704,11 +720,10 @@ function $workStep(_step_0) {
   const _open_0 = _step_0["open"];
   const _hasDetail_0 = _step_0["hasDetail"];
   const _label_0 = _step_0["label"];
-  const _time_0 = _step_0["time"];
   const _preview_0 = _step_0["preview"];
   const _text_0 = _step_0["text"];
   const _links_0 = _step_0["links"];
-  return $workStep_go(_id_0, _kind_0, _status_0, _open_0, _hasDetail_0, _label_0, _time_0, _preview_0, _text_0, _links_0);
+  return $workStep_go(_id_0, _kind_0, _status_0, _open_0, _hasDetail_0, _label_0, _preview_0, _text_0, _links_0);
 }
 function $stepKids(_xs_0) {
   if (_xs_0.$ === "Nil") {
@@ -716,23 +731,23 @@ function $stepKids(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $workStep(_h_0), tail: $stepKids(_t_0) };
+    return { $: "Con", head: $$workStep(_h_0), tail: $$stepKids(_t_0) };
   }
 }
 function $workSteps(_xs_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("work-steps"), tail: { $: "Nil" } }, $stepKids(_xs_0));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("work-steps"), tail: { $: "Nil" } }, $$stepKids(_xs_0));
 }
 function $workHead_kids(_live_0, _title_0, _meta_0) {
-  return { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("work-mark"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("work-title"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("work-meta"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_meta_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", $classHidden("pulse work-dots", $isOff(_live_0)), { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("work-chevron"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Nil" } } } } } };
+  return { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("work-mark"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("work-title"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_title_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("work-meta"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_meta_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("span", $$classHidden("pulse work-dots", $$isOff(_live_0)), { $: "Nil" }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("work-chevron"), tail: { $: "Nil" } }, { $: "Nil" }), tail: { $: "Nil" } } } } } };
 }
 function $workHead(_live_0, _expanded_0, _title_0, _meta_0) {
-  return $view_viewEl("button", $headAttrs(_expanded_0), $workHead_kids(_live_0, _title_0, _meta_0));
+  return $view_viewEl("button", $$headAttrs(_expanded_0), $$workHead_kids(_live_0, _title_0, _meta_0));
 }
 function $workKids(_live_0, _expanded_0, _title_0, _meta_0, _steps_0) {
-  return { $: "Con", head: $workHead(_live_0, _expanded_0, _title_0, _meta_0), tail: { $: "Con", head: $workSteps(_steps_0), tail: { $: "Nil" } } };
+  return { $: "Con", head: $$workHead(_live_0, _expanded_0, _title_0, _meta_0), tail: { $: "Con", head: $$workSteps(_steps_0), tail: { $: "Nil" } } };
 }
 function $workLog_go(_live_0, _expanded_0, _title_0, _meta_0, _steps_0) {
-  return $view_viewEl("article", $articleAttrs(_live_0, _expanded_0), $workKids(_live_0, _expanded_0, _title_0, _meta_0, _steps_0));
+  return $view_viewEl("article", $$articleAttrs(_live_0, _expanded_0), $$workKids(_live_0, _expanded_0, _title_0, _meta_0, _steps_0));
 }
 function $workLog(_row_0) {
   const _live_0 = _row_0["live"];
@@ -743,7 +758,7 @@ function $workLog(_row_0) {
   return $workLog_go(_live_0, _expanded_0, _title_0, _meta_0, _steps_0);
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -751,7 +766,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -760,7 +775,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -776,7 +791,7 @@ function $view_viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
+    return { $: "Con", head: $$view_viewText(_h_0), tail: $$view_viewMap_0(_t_0) };
   }
 }
 function $view_viewMapI_go_0(_xs_0, _i_0) {
@@ -785,72 +800,31 @@ function $view_viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$view_asTextI(_i_0, _h_0), tail: $$view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $Nat_show(_n_0) {
   const _m_0 = _n_0;
-  return $Nat_show_fin(_m_0, "", $Nat_show_put(nat_divmod(_m_0, 10)));
+  return $Nat_show_fin(_m_0, "", $$Nat_show_put(nat_divmod(_m_0, 10)));
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $String_reverse(_s_0) {
   return $String_reverse_go(_s_0, "");
 }
 function $Char_to_lower(_c_0) {
-  const _x_0 = $Bool_to_u32($Char_is_upper(_c_0));
-  const _x_1 = char_code(_c_0);
-  const _x_2 = Math.imul(_x_0, 32) >>> 0;
-  return char_new(_x_1 + _x_2 >>> 0);
+  const _x_0 = char_code(_c_0);
+  const _x_1 = $$Bool_to_u32($$Char_is_upper(_c_0));
+  const _x_2 = Math.imul(_x_1, 32) >>> 0;
+  return char_new(_x_0 + _x_2 >>> 0);
 }
 function $List_length(_xs_0) {
   if (_xs_0.$ === "Nil") {
     return 0;
   } else {
     const _t_0 = _xs_0["tail"];
-    return nat_chk($List_length(_t_0) + 1);
+    return nat_chk($$List_length(_t_0) + 1);
   }
 }
 function $String_join(_xs_0, _sep_0) {
@@ -882,12 +856,11 @@ function $Nat_show_fin($0, $1, $2) {
         const _dq_0 = $2;
         const _d_0 = _dq_0["fst"];
         const _t_0 = _dq_0["snd"];
-        if (_t_0 === 0) {
+        if (_t_0 == 0) {
           return _d_0 + _acc_0;
         } else {
-          const _p_0 = _t_0 - 1;
           $0 = _g_0;
-          $1 = nat_chk(_p_0 + 1);
+          $1 = _t_0;
           $2 = _d_0 + _acc_0;
           $pc = 1;
           continue;
@@ -897,13 +870,13 @@ function $Nat_show_fin($0, $1, $2) {
         const _f_0 = $0;
         const _n_0 = $1;
         const _acc_0 = $2;
-        if (_f_0 === 0) {
+        if (_f_0 == 0) {
           return _acc_0;
         } else {
           const _g_0 = _f_0 - 1;
           $0 = _g_0;
           $1 = _acc_0;
-          $2 = $Nat_show_put(nat_divmod(_n_0, 10));
+          $2 = $$Nat_show_put(nat_divmod(_n_0, 10));
           $pc = 0;
           continue;
         }
@@ -916,10 +889,45 @@ function $Nat_show_put(_qr_0) {
   const _x_0 = nat_chk(48 + _r_0);
   return { $: "Tuple", fst: char_new(_x_0 >>> 0), snd: _q_0 };
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $String_reverse_go($0, $1) {
   for (;; ) {
@@ -947,8 +955,7 @@ function $Bool_to_u32(_b_0) {
 }
 function $Char_is_upper(_c_0) {
   const _x_0 = char_code(_c_0);
-  const _x_1 = char_code(_c_0);
-  return $Bool_and(_x_0 >= 65, _x_1 <= 90);
+  return $Bool_and(_x_0 >= 65, _x_0 <= 90);
 }
 function $String_join_go(_xs_0, _h_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -956,7 +963,7 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
@@ -979,6 +986,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -988,13 +996,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -1004,6 +1011,11 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
+}
 function $Bool_and(_a_0, _b_0) {
   if (!_a_0) {
     return false;
@@ -1011,88 +1023,161 @@ function $Bool_and(_a_0, _b_0) {
     return _b_0;
   }
 }
+var $$view_attrGet_go = $view_attrGet_go;
+var $$String_eq = $String_eq;
+var $$view_boolStr = $view_boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$view_classNext_on = $view_classNext_on;
+var $$view_classValue = $view_classValue;
+var $$worklog_emptyPayload = $worklog_emptyPayload;
+var $$worklog_withText = $worklog_withText;
+var $$Nat_show = $Nat_show;
+var $$worklog_headHere = $worklog_headHere;
+var $$Char_to_lower = $Char_to_lower;
+var $$worklog_hasNeedle = $worklog_hasNeedle;
+var $$worklog_anyContains = $worklog_anyContains;
+var $$worklog_toLower = $worklog_toLower;
+var $$worklog_thinkId = $worklog_thinkId;
+var $$worklog_newThinking = $worklog_newThinking;
+var $$worklog_burst = $worklog_burst;
+var $$List_length = $List_length;
+var $$worklog_closeStep = $worklog_closeStep;
+var $$worklog_closeEach = $worklog_closeEach;
+var $$worklog_finishStep = $worklog_finishStep;
+var $$worklog_finishEach = $worklog_finishEach;
+var $$worklog_isRunningThinking = $worklog_isRunningThinking;
+var $$worklog_noRunningThinking = $worklog_noRunningThinking;
+var $$view_attrClass = $view_attrClass;
+var $$view_attrData = $view_attrData;
+var $$view_attrType = $view_attrType;
+var $$view_attrKey = $view_attrKey;
+var $$view_attrAria = $view_attrAria;
+var $$view_attrOn = $view_attrOn;
+var $$String_join = $String_join;
+var $$attrHidden = $attrHidden;
+var $$view_attrWhen = $view_attrWhen;
+var $$view_viewText = $view_viewText;
+var $$view_viewEl = $view_viewEl;
+var $$hrefOf = $hrefOf;
+var $$domainKids = $domainKids;
+var $$view_viewConcat = $view_viewConcat;
+var $$linkNode = $linkNode;
+var $$linkKids = $linkKids;
+var $$both = $both;
+var $$kindName = $kindName;
+var $$statusName = $statusName;
+var $$stepAttrs = $stepAttrs;
+var $$toggleAttrs = $toggleAttrs;
+var $$previewHidden = $previewHidden;
+var $$classHidden = $classHidden;
+var $$detailHidden = $detailHidden;
+var $$linksEmpty = $linksEmpty;
+var $$statusRunning = $statusRunning;
+var $$statusKids = $statusKids;
+var $$workStep = $workStep;
+var $$stepKids = $stepKids;
+var $$isOff = $isOff;
+var $$headAttrs = $headAttrs;
+var $$workHead_kids = $workHead_kids;
+var $$workHead = $workHead;
+var $$workSteps = $workSteps;
+var $$articleAttrs = $articleAttrs;
+var $$workKids = $workKids;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
+var $$List_concat = $List_concat;
+var $$view_viewMap_0 = $view_viewMap_0;
+var $$view_asTextI = $view_asTextI;
+var $$view_viewMapI_go_0 = $view_viewMapI_go_0;
+var $$Nat_show_put = $Nat_show_put;
+var $$Char_is_upper = $Char_is_upper;
+var $$Bool_to_u32 = $Bool_to_u32;
+var $$Char_is_eq = $Char_is_eq;
+var $$String_join_go = $String_join_go;
 var worklogview_default = {
-  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
-  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
-  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
-  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
-  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
-  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
-  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
-  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
-  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
-  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
-  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
-  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
-  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
-  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
-  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
-  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
-  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
-  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
-  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
-  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
-  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
-  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
-  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
-  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
-  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
-  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
-  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
-  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
-  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
-  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
-  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
-  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
-  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
-  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
-  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
-  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
-  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
-  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
-  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
-  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
-  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
-  "worklog.emptyPayload": run_lib(() => run_loop($worklog_emptyPayload()), 0),
-  "worklog.withText": run_lib((a0, a1) => run_loop($worklog_withText(a0, str_in(a1))), 2),
-  "worklog.newThinking": run_lib((a0, a1, a2) => run_loop($worklog_newThinking(str_in(a0), nat_in(a1), str_in(a2))), 3),
-  "worklog.thinkId": run_lib((a0) => str_out(run_loop($worklog_thinkId(nat_in(a0)))), 1),
-  "worklog.headHere": run_lib((a0, a1) => run_loop($worklog_headHere(str_in(a0), str_in(a1))), 2),
-  "worklog.hasNeedle.go": run_lib((a0, a1, a2) => run_loop($worklog_hasNeedle_go(str_in(a0), a1, str_in(a2))), 3),
-  "worklog.hasNeedle": run_lib((a0, a1) => run_loop($worklog_hasNeedle(str_in(a0), str_in(a1))), 2),
-  "worklog.toLower.go": run_lib((a0, a1) => str_out(run_loop($worklog_toLower_go(str_in(a0), str_in(a1)))), 2),
-  "worklog.toLower": run_lib((a0) => str_out(run_loop($worklog_toLower(str_in(a0)))), 1),
-  "worklog.anyContains.go": run_lib((a0, a1, a2) => run_loop($worklog_anyContains_go(str_in(a0), a1, a2)), 3),
-  "worklog.anyContains": run_lib((a0, a1) => run_loop($worklog_anyContains(str_in(a0), a1)), 2),
-  "worklog.toolKind.fetch.if": run_lib((a0, a1) => run_loop($worklog_toolKind_fetch_if(str_in(a0), a1)), 2),
-  "worklog.toolKind.fetch": run_lib((a0) => run_loop($worklog_toolKind_fetch(str_in(a0))), 1),
-  "worklog.toolKind.search.if": run_lib((a0, a1) => run_loop($worklog_toolKind_search_if(str_in(a0), a1)), 2),
-  "worklog.toolKind.search": run_lib((a0) => run_loop($worklog_toolKind_search(str_in(a0))), 1),
-  "worklog.toolKind.ref": run_lib((a0, a1) => run_loop($worklog_toolKind_ref(str_in(a0), a1)), 2),
-  "worklog.toolKind": run_lib((a0) => run_loop($worklog_toolKind(str_in(a0))), 1),
-  "worklog.createLog": run_lib((a0) => run_loop($worklog_createLog(nat_in(a0))), 1),
-  "worklog.burst.last": run_lib((a0, a1, a2, a3) => run_loop($worklog_burst_last(a0, str_in(a1), nat_in(a2), nat_in(a3))), 4),
-  "worklog.burst": run_lib((a0, a1, a2, a3) => run_loop($worklog_burst(a0, str_in(a1), nat_in(a2), nat_in(a3))), 4),
-  "worklog.thinkingDelta.go": run_lib((a0, a1, a2) => run_loop($worklog_thinkingDelta_go(a0, str_in(a1), nat_in(a2))), 3),
-  "worklog.thinkingDelta.if": run_lib((a0, a1, a2, a3) => run_loop($worklog_thinkingDelta_if(a0, str_in(a1), nat_in(a2), a3)), 4),
-  "worklog.thinkingDelta": run_lib((a0, a1, a2) => run_loop($worklog_thinkingDelta(a0, str_in(a1), nat_in(a2))), 3),
-  "worklog.closeStep.running": run_lib((a0, a1, a2, a3, a4, a5) => run_loop($worklog_closeStep_running(str_in(a0), a1, nat_in(a2), nat_in(a3), a4, nat_in(a5))), 6),
-  "worklog.closeStep.status": run_lib((a0, a1, a2, a3, a4, a5, a6) => run_loop($worklog_closeStep_status(str_in(a0), a1, a2, nat_in(a3), nat_in(a4), a5, nat_in(a6))), 7),
-  "worklog.closeStep": run_lib((a0, a1) => run_loop($worklog_closeStep(a0, nat_in(a1))), 2),
-  "worklog.closeEach": run_lib((a0, a1) => run_loop($worklog_closeEach(a0, nat_in(a1))), 2),
-  "worklog.closeThinking": run_lib((a0, a1) => run_loop($worklog_closeThinking(a0, nat_in(a1))), 2),
-  "worklog.finishStep.running": run_lib((a0, a1, a2, a3, a4, a5) => run_loop($worklog_finishStep_running(str_in(a0), a1, nat_in(a2), nat_in(a3), a4, nat_in(a5))), 6),
-  "worklog.finishStep.status": run_lib((a0, a1, a2, a3, a4, a5, a6) => run_loop($worklog_finishStep_status(str_in(a0), a1, a2, nat_in(a3), nat_in(a4), a5, nat_in(a6))), 7),
-  "worklog.finishStep": run_lib((a0, a1) => run_loop($worklog_finishStep(a0, nat_in(a1))), 2),
-  "worklog.finishEach": run_lib((a0, a1) => run_loop($worklog_finishEach(a0, nat_in(a1))), 2),
-  "worklog.finishLog": run_lib((a0, a1, a2) => run_loop($worklog_finishLog(a0, nat_in(a1), str_in(a2))), 3),
-  "worklog.isRunningThinking.kind": run_lib((a0) => run_loop($worklog_isRunningThinking_kind(a0)), 1),
-  "worklog.isRunningThinking.check": run_lib((a0, a1) => run_loop($worklog_isRunningThinking_check(a0, a1)), 2),
-  "worklog.isRunningThinking": run_lib((a0) => run_loop($worklog_isRunningThinking(a0)), 1),
-  "worklog.isRunning.status": run_lib((a0) => run_loop($worklog_isRunning_status(a0)), 1),
-  "worklog.isRunning": run_lib((a0) => run_loop($worklog_isRunning(a0)), 1),
-  "worklog.noRunningThinking.and": run_lib((a0, a1) => run_loop($worklog_noRunningThinking_and(a0, a1)), 2),
-  "worklog.noRunningThinking": run_lib((a0) => run_loop($worklog_noRunningThinking(a0)), 1),
+  "view:attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view:classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view:viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view:viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view:viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view:tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view:attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view:kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view:textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view:isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view:attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view:attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view:attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view:attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view:attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view:attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view:attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view:attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view:attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view:attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view:attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view:attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view:attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view:attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view:boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view:attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view:classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view:classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view:classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view:classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view:classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view:classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view:classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view:viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view:viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view:viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view:viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view:viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view:asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view:viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view:viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
+  "worklog:emptyPayload": run_lib(() => run_loop($worklog_emptyPayload()), 0),
+  "worklog:withText": run_lib((a0, a1) => run_loop($worklog_withText(a0, str_in(a1))), 2),
+  "worklog:newThinking": run_lib((a0, a1, a2) => run_loop($worklog_newThinking(str_in(a0), nat_in(a1), str_in(a2))), 3),
+  "worklog:thinkId": run_lib((a0) => str_out(run_loop($worklog_thinkId(nat_in(a0)))), 1),
+  "worklog:headHere": run_lib((a0, a1) => run_loop($worklog_headHere(str_in(a0), str_in(a1))), 2),
+  "worklog:hasNeedle.go": run_lib((a0, a1, a2) => run_loop($worklog_hasNeedle_go(str_in(a0), a1, str_in(a2))), 3),
+  "worklog:hasNeedle": run_lib((a0, a1) => run_loop($worklog_hasNeedle(str_in(a0), str_in(a1))), 2),
+  "worklog:toLower.go": run_lib((a0, a1) => str_out(run_loop($worklog_toLower_go(str_in(a0), str_in(a1)))), 2),
+  "worklog:toLower": run_lib((a0) => str_out(run_loop($worklog_toLower(str_in(a0)))), 1),
+  "worklog:anyContains.go": run_lib((a0, a1, a2) => run_loop($worklog_anyContains_go(str_in(a0), a1, a2)), 3),
+  "worklog:anyContains": run_lib((a0, a1) => run_loop($worklog_anyContains(str_in(a0), a1)), 2),
+  "worklog:toolKind.fetch.if": run_lib((a0, a1) => run_loop($worklog_toolKind_fetch_if(str_in(a0), a1)), 2),
+  "worklog:toolKind.fetch": run_lib((a0) => run_loop($worklog_toolKind_fetch(str_in(a0))), 1),
+  "worklog:toolKind.search.if": run_lib((a0, a1) => run_loop($worklog_toolKind_search_if(str_in(a0), a1)), 2),
+  "worklog:toolKind.search": run_lib((a0) => run_loop($worklog_toolKind_search(str_in(a0))), 1),
+  "worklog:toolKind.material.if": run_lib((a0, a1) => run_loop($worklog_toolKind_material_if(str_in(a0), a1)), 2),
+  "worklog:toolKind.material": run_lib((a0) => run_loop($worklog_toolKind_material(str_in(a0))), 1),
+  "worklog:toolKind.ref": run_lib((a0, a1) => run_loop($worklog_toolKind_ref(str_in(a0), a1)), 2),
+  "worklog:toolKind": run_lib((a0) => run_loop($worklog_toolKind(str_in(a0))), 1),
+  "worklog:createLog": run_lib((a0) => run_loop($worklog_createLog(nat_in(a0))), 1),
+  "worklog:burst.last": run_lib((a0, a1, a2, a3) => run_loop($worklog_burst_last(a0, str_in(a1), nat_in(a2), nat_in(a3))), 4),
+  "worklog:burst": run_lib((a0, a1, a2, a3) => run_loop($worklog_burst(a0, str_in(a1), nat_in(a2), nat_in(a3))), 4),
+  "worklog:thinkingDelta.go": run_lib((a0, a1, a2) => run_loop($worklog_thinkingDelta_go(a0, str_in(a1), nat_in(a2))), 3),
+  "worklog:thinkingDelta.if": run_lib((a0, a1, a2, a3) => run_loop($worklog_thinkingDelta_if(a0, str_in(a1), nat_in(a2), a3)), 4),
+  "worklog:thinkingDelta": run_lib((a0, a1, a2) => run_loop($worklog_thinkingDelta(a0, str_in(a1), nat_in(a2))), 3),
+  "worklog:closeStep.running": run_lib((a0, a1, a2, a3, a4, a5) => run_loop($worklog_closeStep_running(str_in(a0), a1, nat_in(a2), nat_in(a3), a4, nat_in(a5))), 6),
+  "worklog:closeStep.status": run_lib((a0, a1, a2, a3, a4, a5, a6) => run_loop($worklog_closeStep_status(str_in(a0), a1, a2, nat_in(a3), nat_in(a4), a5, nat_in(a6))), 7),
+  "worklog:closeStep": run_lib((a0, a1) => run_loop($worklog_closeStep(a0, nat_in(a1))), 2),
+  "worklog:closeEach": run_lib((a0, a1) => run_loop($worklog_closeEach(a0, nat_in(a1))), 2),
+  "worklog:closeThinking": run_lib((a0, a1) => run_loop($worklog_closeThinking(a0, nat_in(a1))), 2),
+  "worklog:finishStep.running": run_lib((a0, a1, a2, a3, a4, a5) => run_loop($worklog_finishStep_running(str_in(a0), a1, nat_in(a2), nat_in(a3), a4, nat_in(a5))), 6),
+  "worklog:finishStep.status": run_lib((a0, a1, a2, a3, a4, a5, a6) => run_loop($worklog_finishStep_status(str_in(a0), a1, a2, nat_in(a3), nat_in(a4), a5, nat_in(a6))), 7),
+  "worklog:finishStep": run_lib((a0, a1) => run_loop($worklog_finishStep(a0, nat_in(a1))), 2),
+  "worklog:finishEach": run_lib((a0, a1) => run_loop($worklog_finishEach(a0, nat_in(a1))), 2),
+  "worklog:finishLog": run_lib((a0, a1, a2) => run_loop($worklog_finishLog(a0, nat_in(a1), str_in(a2))), 3),
+  "worklog:isRunningThinking.kind": run_lib((a0) => run_loop($worklog_isRunningThinking_kind(a0)), 1),
+  "worklog:isRunningThinking.check": run_lib((a0, a1) => run_loop($worklog_isRunningThinking_check(a0, a1)), 2),
+  "worklog:isRunningThinking": run_lib((a0) => run_loop($worklog_isRunningThinking(a0)), 1),
+  "worklog:isRunning.status": run_lib((a0) => run_loop($worklog_isRunning_status(a0)), 1),
+  "worklog:isRunning": run_lib((a0) => run_loop($worklog_isRunning(a0)), 1),
+  "worklog:noRunningThinking.and": run_lib((a0, a1) => run_loop($worklog_noRunningThinking_and(a0, a1)), 2),
+  "worklog:noRunningThinking": run_lib((a0) => run_loop($worklog_noRunningThinking(a0)), 1),
   kindName: run_lib((a0) => str_out(run_loop($kindName(a0))), 1),
   statusName: run_lib((a0) => str_out(run_loop($statusName(a0))), 1),
   statusRunning: run_lib((a0) => run_loop($statusRunning(a0)), 1),
@@ -1115,7 +1200,7 @@ var worklogview_default = {
   linkKids: run_lib((a0) => run_loop($linkKids(a0)), 1),
   linksEmpty: run_lib((a0) => run_loop($linksEmpty(a0)), 1),
   statusKids: run_lib((a0) => run_loop($statusKids(a0)), 1),
-  "workStep.go": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) => run_loop($workStep_go(str_in(a0), a1, a2, a3, a4, str_in(a5), str_in(a6), str_in(a7), str_in(a8), a9)), 10),
+  "workStep.go": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => run_loop($workStep_go(str_in(a0), a1, a2, a3, a4, str_in(a5), str_in(a6), str_in(a7), a8)), 9),
   workStep: run_lib((a0) => run_loop($workStep(a0)), 1),
   stepKids: run_lib((a0) => run_loop($stepKids(a0)), 1),
   workSteps: run_lib((a0) => run_loop($workSteps(a0)), 1),

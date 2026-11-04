@@ -35,14 +35,13 @@ const MAX_SELECTION_ID = 200;
 const CONTROLS_STATES = Object.freeze(['idle', 'initializing', 'ready', 'unavailable', 'failed']);
 
 const ALLOWED_IMAGE_TYPES = Object.freeze(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
-const ALLOWED_TOOLS = Object.freeze(['Read', 'Glob', 'Grep']);
-/* AskUserQuestion é a única ferramenta interativa exposta: ela não lê nem
-   escreve nada sozinha e passa pelo crivo do `canUseTool` com respostas
-   estruturadas. Gravação/Bash/agentes/MCP seguem fora. */
-const SDK_TOOLS = Object.freeze([...ALLOWED_TOOLS, 'AskUserQuestion']);
+/* O tutor não recebe ferramenta nativa de arquivo, shell, rede nem pergunta
+   (#91/#92): `perguntar`/`quiz` chegam pelo MCP `mesa`, com o cartão da Mesa. */
+const ALLOWED_TOOLS = Object.freeze([]);
+const SDK_TOOLS = Object.freeze([]);
 const DISALLOWED_TOOLS = Object.freeze([
-  'Bash', 'Edit', 'Write', 'NotebookEdit', 'Agent', 'Task',
-  'WebFetch', 'WebSearch', 'KillShell', 'BashOutput', 'Skill',
+  'Read', 'Glob', 'Grep', 'Bash', 'Edit', 'MultiEdit', 'Write', 'NotebookEdit',
+  'Agent', 'Task', 'WebFetch', 'WebSearch', 'KillShell', 'BashOutput', 'Skill', 'AskUserQuestion',
 ]);
 
 /* Nomes curtos e iguais nos dois idiomas: a mensagem marcada que os leva

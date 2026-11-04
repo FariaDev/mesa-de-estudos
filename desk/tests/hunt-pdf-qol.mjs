@@ -81,36 +81,45 @@ const waitPanels = (page, total, pages0) => page.waitForFunction(([n, p0]) => {
 }, [total, pages0], {timeout: 30000});
 
 const field = (page, index, selector) => menuLocator(page.locator('.pdf-panel').nth(index), selector);
+const plain = (page, index, selector) => page.locator('.pdf-panel').nth(index).locator(selector);
 
-function footerFacts(page, index) {
+// O pager "1 / 8" vira campo ao clique; Enter devolve o botão.
+async function gotoPage(page, index, value) {
+  await plain(page, index, '.pager').click();
+  const input = plain(page, index, '.page-number');
+  await input.fill(String(value));
+  await input.press('Enter');
+  await waitPage(page, index, value);
+}
+
+// A numeração impressa saiu do menu do leitor para Configurações → Leitores.
+async function togglePrinted(page, index) {
+  await page.locator('#settings-trigger').click();
+  await page.waitForSelector('#settings-menu.open .nav-pop');
+  await page.locator('#settings-pop button[role="menuitem"]', {hasText: /Configurações/}).click();
+  await page.waitForSelector('#settings-dialog[open]');
+  await page.locator('#settings-tabs button', {hasText: /Leitores/}).click();
+  await page.waitForFunction(() => !document.querySelector('#settings-sec-leitores')?.hidden);
+  await page.locator(`#cfg-layout-printed-${index + 1}`).click();
+  await page.locator('#settings-dialog button[value="cancel"]').click();
+  await page.waitForFunction(() => !document.querySelector('#settings-dialog')?.open);
+}
+
+function readerFacts(page, index) {
   return page.evaluate((idx) => {
     const panel = document.querySelectorAll('.pdf-panel')[idx];
-    const foot = panel.querySelector('.pdf-foot');
+    const pager = panel.querySelector('.pager');
+    const input = panel.querySelector('.page-number');
     const box = panel.querySelector('.pdf-viewport');
-    const pages = [...panel.querySelectorAll('.pdf-document > .pdf-page')];
-    const fr = foot.getBoundingClientRect();
-    const br = box.getBoundingClientRect();
-    // A página é recortada pelo viewport (overflow:auto): o que interessa é se
-    // o pedaço VISÍVEL da página invade a faixa do rodapé.
-    const overlap = pages.some((el) => {
-      const r = el.getBoundingClientRect();
-      const top = Math.max(r.top, br.top);
-      const bottom = Math.min(r.bottom, br.bottom);
-      return bottom > fr.top + 0.5 && top < fr.bottom - 0.5 && r.right > fr.left && r.left < fr.right;
-    });
-    const visible = pages.filter((el) => {
-      const r = el.getBoundingClientRect();
-      return r.bottom > br.top + 1 && r.top < br.bottom - 1;
-    });
     return {
-      position: getComputedStyle(foot).position,
-      footTop: fr.top, footBottom: fr.bottom, footHeight: fr.height, boxBottom: br.bottom,
-      overlap, visible: visible.length,
-      text: foot.textContent,
-      title: foot.querySelector('span')?.getAttribute('title') || '',
+      pagerText: pager?.textContent.replace(/\s+/g, '') || '',
+      pagerVisible: !!pager?.getBoundingClientRect().height,
+      pageInputVisible: !!input?.getBoundingClientRect().height,
       toolsVisible: !!panel.querySelector('.pdf-title .more')?.getBoundingClientRect().height,
-      pageInputVisible: !!panel.querySelector('.page-number')?.getBoundingClientRect().height,
       selectVisible: !!panel.querySelector('.pdf-select')?.getBoundingClientRect().height,
+      hasFooter: !!panel.querySelector('.pdf-foot'),
+      boxBottom: box?.getBoundingClientRect().bottom || 0,
+      panelBottom: panel.getBoundingClientRect().bottom,
     };
   }, index);
 }
@@ -151,9 +160,14 @@ function nativeDrop(page, index, {activate = false} = {}) {
   }, [index, activate]);
 }
 
-const waitFoot = (page, index, text) => page.waitForFunction(([idx, needle]) => {
-  const foot = document.querySelectorAll('.pdf-panel')[idx]?.querySelector('.pdf-foot');
-  return !!foot && foot.textContent.includes(needle);
+const waitSelect = (page, index, text) => page.waitForFunction(([idx, needle]) => {
+  const sel = document.querySelectorAll('.pdf-panel')[idx]?.querySelector('.pdf-select');
+  return !!sel && (sel.title.includes(needle) || (sel.selectedOptions[0]?.textContent || '').includes(needle));
+}, [index, text], {timeout: 30000});
+
+const waitPrinted = (page, index, text) => page.waitForFunction(([idx, needle]) => {
+  const el = document.querySelectorAll('.pdf-panel')[idx]?.querySelector('.printed-status');
+  return !!el && el.textContent.includes(needle);
 }, [index, text], {timeout: 30000});
 
 const waitPage = (page, index, value) => page.waitForFunction(([idx, page0]) => {
@@ -199,23 +213,21 @@ await withArtifacts('pdf-qol', async (ctx) => {
     await page.waitForFunction(() => document.querySelectorAll('.pdf-panel .pdf-page[data-rendered] canvas').length >= 2, undefined, {timeout: 45000});
     const linked = await ensureQolCss(page);
 
-    // ---------- rodapé em fluxo (não cobre o texto) nos dois tamanhos ----------
+    // ---------- pager no lugar do rodapé (#90) nos dois tamanhos ----------
     for (const [tag, dim] of [['900x650', SIZE_SMALL], ['1400x900', SIZE_LARGE]]) {
       await size(dim);
       await settle();
-      const facts = await footerFacts(page, 0);
-      check(`rodapé ${tag}: em fluxo, fora do viewport`, facts.position === 'static' && facts.footTop >= facts.boxBottom - 1, JSON.stringify({position: facts.position, footTop: facts.footTop, boxBottom: facts.boxBottom}));
-      check(`rodapé ${tag}: não sobrepõe nenhuma página`, facts.overlap === false);
-      check(`rodapé ${tag}: compacto (<= 22px)`, facts.footHeight <= 22, `${facts.footHeight}px`);
-      check(`rodapé ${tag}: controles e seleção continuam visíveis`, facts.toolsVisible && facts.pageInputVisible && facts.selectVisible);
-      check(`rodapé ${tag}: página e rótulo impresso`, facts.text.includes('Página 1 de 8 · rótulo i · rolagem contínua · '+path.basename(principal)), facts.text);
-      check(`rodapé ${tag}: nome completo no tooltip`, facts.title === facts.text, facts.title);
+      const facts = await readerFacts(page, 0);
+      check(`pager ${tag}: ocupa o lugar do rodapé, sem rodapé`, facts.pagerVisible && !facts.hasFooter, JSON.stringify({pager: facts.pagerText, foot: facts.hasFooter}));
+      check(`pager ${tag}: mostra página e total`, facts.pagerText === '1/8', facts.pagerText);
+      check(`pager ${tag}: controles e seleção continuam visíveis`, facts.toolsVisible && facts.selectVisible);
+      check(`pager ${tag}: o campo só aparece no clique`, facts.pageInputVisible === false);
       const qa=screenshotDirectory('pdf-qol');
       for(const theme of ['light','dark']){
         await page.evaluate(async mode=>{const {applyTheme}=await import('./src/state.mjs');applyTheme(mode);},theme);
         await settle();
-        const themed=await footerFacts(page,0);
-        check(`rodapé ${tag} ${theme}: sem sobreposição`,!themed.overlap&&themed.footTop>=themed.boxBottom-1);
+        const themed=await readerFacts(page,0);
+        check(`pager ${tag} ${theme}: botão continua no lugar`,themed.pagerVisible&&themed.pagerText==='1/8');
         await reviewShot(page,qa,`pdf-${tag}-${theme}.png`);
       }
     }
@@ -224,10 +236,10 @@ await withArtifacts('pdf-qol', async (ctx) => {
     await size(SIZE_SMALL);
     await settle();
     await page.evaluate(() => { const box = document.querySelector('.pdf-panel .pdf-viewport'); box.scrollTop = box.scrollHeight; });
-    await waitFoot(page, 0, 'Página 8 de 8 · rótulo 6');
+    await page.waitForFunction(() => document.querySelector('.pdf-panel .pager-current')?.textContent.trim() === '8', undefined, {timeout: 30000});
     await page.waitForFunction(() => !!document.querySelector('.pdf-panel .pdf-page[data-page="8"][data-rendered] canvas'), undefined, {timeout: 30000});
-    const bottom = await footerFacts(page, 0);
-    check('rolagem até o fim: última página sem sobreposição do rodapé', bottom.overlap === false && bottom.footTop >= bottom.boxBottom - 1, JSON.stringify({footTop: bottom.footTop, boxBottom: bottom.boxBottom}));
+    const bottom = await readerFacts(page, 0);
+    check('rolagem até o fim: pager acompanha a última página', bottom.pagerText === '8/8' && !bottom.hasFooter, bottom.pagerText);
     const selection = await page.evaluate(() => {
       const panel = document.querySelector('.pdf-panel');
       const box = panel.querySelector('.pdf-viewport');
@@ -249,56 +261,52 @@ await withArtifacts('pdf-qol', async (ctx) => {
     check('seleção a 900x650: textLayer visível continua selecionável', !!selection && selection.text.length > 5 && selection.spans > 0, JSON.stringify(selection));
 
     // ---------- rótulos impressos: exibir e navegar ----------
-    await field(page, 0, '.printed-toggle').click();
+    await togglePrinted(page, 0);
     await page.waitForFunction(() => !document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-printed').hidden);
     check('rótulo: PDF com numeração própria mostra o modo', (await field(page, 0, '.printed-status').textContent()).includes('Numeração do PDF'), await field(page, 0, '.printed-status').textContent());
     await field(page, 0, '.printed-input').fill('II');
     await field(page, 0, '.printed-input').press('Enter');
     await waitPage(page, 0, 2);
-    await waitFoot(page, 0, 'rótulo ii');
+    await waitPrinted(page, 0, 'Impressa II');
     check('rótulo: navegação por rótulo (caixa ignorada)', true);
     await field(page, 0, '.printed-input').fill('1');
     await field(page, 0, '.printed-input').press('Enter');
     await waitPage(page, 0, 3);
-    await waitFoot(page, 0, 'Página 3 de 8 · rótulo 1');
+    await waitPrinted(page, 0, 'Impressa 1');
     check('rótulo: número impresso 1 vira a página FÍSICA 3', true);
     await field(page, 0, '.printed-input').fill('6');
     await field(page, 0, '.printed-input').press('Enter');
     await waitPage(page, 0, 8);
-    await waitFoot(page, 0, 'rótulo 6');
+    await waitPrinted(page, 0, 'Impressa 6');
     check('rótulo: último número impresso vira a última física', true);
     await field(page, 0, '.printed-input').fill('zz');
     await field(page, 0, '.printed-input').press('Enter');
     await toastWait(page, 'Rótulo não encontrado neste PDF.', {timeout: 8000});
     check('rótulo: rótulo inexistente é recusado sem trocar de página', (await field(page, 0, '.page-number').inputValue()) === '8');
     // A página FÍSICA continua sendo a do campo numérico (citações/refs).
-    await field(page, 0, '.page-number').fill('7');
-    await field(page, 0, '.page-number').press('Enter');
+    await gotoPage(page, 0, '7');
     await waitPage(page, 0, 7);
-    await waitFoot(page, 0, 'Página 7 de 8 · rótulo 5');
+    await waitPrinted(page, 0, 'Impressa: 5');
     check('campo numérico continua físico (rótulo só acompanha)', true);
-    await field(page, 0, '.page-number').fill('1');
-    await field(page, 0, '.page-number').press('Enter');
+    await gotoPage(page, 0, '1');
     await waitPage(page, 0, 1);
 
     // ---------- ajuste pessoal por documento (PDF sem rótulos) ----------
-    await field(page, 1, '.printed-toggle').click();
+    await togglePrinted(page, 1);
     await page.waitForFunction(() => !document.querySelectorAll('.pdf-panel')[1].querySelector('.pdf-printed').hidden);
     check('offset: PDF sem rótulos começa no automático', (await field(page, 1, '.printed-status').textContent()).includes('Sem ajuste (impressa = física)'), await field(page, 1, '.printed-status').textContent());
     check('offset: automático guardado como null', JSON.stringify(await page.evaluate((p) => window.desk.pdfPageLabelsGet(p), apoio)) === '{"offset":null}');
-    await field(page, 1, '.page-number').fill('4');
-    await field(page, 1, '.page-number').press('Enter');
+    await gotoPage(page, 1, '4');
     await waitPage(page, 1, 4);
     await field(page, 1, '.printed-offset').fill('-3');
     await field(page, 1, '.printed-offset-save').click();
     await page.waitForFunction((p) => window.desk.pdfPageLabelsGet(p).then((r) => r.offset === -3), apoio, {timeout: 8000});
-    await waitFoot(page, 1, 'Página 4 de 4 · rótulo 1');
+    await waitPrinted(page, 1, 'Impressa: 1');
     check('offset: impressa = física + offset (com sinal)', true);
-    await field(page, 1, '.page-number').fill('1');
-    await field(page, 1, '.page-number').press('Enter');
+    await gotoPage(page, 1, '1');
     await waitPage(page, 1, 1);
-    await waitFoot(page, 1, 'Página 1 de 4 ·'); // sem rótulo: front matter (impressa <= 0)
-    check('offset: página física sem número impresso não mostra rótulo', (await footerFacts(page, 1)).text.includes('rótulo') === false);
+    await waitPrinted(page, 1, 'não tem número impresso'); // front matter (impressa <= 0)
+    check('offset: página física sem número impresso não mostra rótulo', (await plain(page, 1, '.printed-status').textContent()).includes('Impressa:') === false);
     await field(page, 1, '.printed-input').fill('1');
     await field(page, 1, '.printed-input').press('Enter');
     await waitPage(page, 1, 4);
@@ -317,8 +325,8 @@ await withArtifacts('pdf-qol', async (ctx) => {
     await page.waitForFunction((p) => window.desk.pdfPageLabelsGet(p).then((r) => r.offset === 2), apoio, {timeout: 8000});
     await page.reload();
     await waitPanels(page, 2, 8);
-    await waitFoot(page, 0, path.basename(principal));
-    await field(page, 1, '.printed-toggle').click();
+    await waitSelect(page, 0, path.basename(principal));
+    await togglePrinted(page, 1);
     await page.waitForFunction(() => document.querySelectorAll('.pdf-panel')[1]?.querySelector('.printed-status')?.textContent.includes('Impressa = física + 2'), undefined, {timeout: 15000});
     check('offset: sobrevive ao reinício do renderer (guardado fora do PDF)', true);
 
@@ -332,16 +340,16 @@ await withArtifacts('pdf-qol', async (ctx) => {
     }, undefined, {timeout: 5000});
     check('drop: arrasto de PDF acende a área alvo do leitor 1', true);
     await nativeDrop(page, 0);
-    await waitFoot(page, 0, 'Dropar-um.pdf');
+    await waitSelect(page, 0, 'Dropar-um.pdf');
     await waitPage(page, 0, 1);
     await page.waitForFunction(() => document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-drop-hint').hidden, undefined, {timeout: 5000});
     check('drop: PDF nativo abre no leitor alvo (1)', true);
-    await waitFoot(page, 1, 'Apoio.pdf');
+    await waitSelect(page, 1, 'Apoio.pdf');
     check('drop: o outro leitor não mudou', (await field(page, 1, '.pdf-select').inputValue()).endsWith('Apoio.pdf'));
     await page.locator('#__qol_drop_input').setInputFiles(droparDois);
     await nativeDrop(page, 1);
-    await waitFoot(page, 1, 'Dropar-dois.pdf');
-    await waitFoot(page, 0, 'Dropar-um.pdf');
+    await waitSelect(page, 1, 'Dropar-dois.pdf');
+    await waitSelect(page, 0, 'Dropar-um.pdf');
     check('drop: PDF nativo abre no leitor alvo (2)', true);
     // File sem caminho de SO (simulação): o preload recusa e o leitor não muda.
     const refused = await page.evaluate(() => {
@@ -354,13 +362,13 @@ await withArtifacts('pdf-qol', async (ctx) => {
     });
     check('drop: File sintético (sem caminho) é entregue ao preload', refused === true);
     await toastWait(page, 'Solte um arquivo PDF local neste leitor.', {timeout: 8000});
-    await waitFoot(page, 0, 'Dropar-um.pdf');
+    await waitSelect(page, 0, 'Dropar-um.pdf');
     check('drop: File sintético é recusado e não troca o documento', true);
     // Arquivo real que não é PDF: a primeira peneira recusa sem chamar o backend.
     await page.locator('#__qol_drop_input').setInputFiles(imagem);
     await nativeDrop(page, 0);
     await toastWait(page, 'Solte um arquivo PDF neste leitor.', {timeout: 8000});
-    await waitFoot(page, 0, 'Dropar-um.pdf');
+    await waitSelect(page, 0, 'Dropar-um.pdf');
     check('drop: imagem real é recusada sem abrir no leitor', true);
 
     check('fase matéria: sem pageerror', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
@@ -403,7 +411,7 @@ await withArtifacts('pdf-qol-livre', async (ctx) => {
     await dropProbeInput(page);
     await page.locator('#__qol_drop_input').setInputFiles(droparUm);
     await nativeDrop(page, 1);
-    await waitFoot(page, 1, 'Dropar-um');
+    await waitSelect(page, 1, 'Dropar-um');
     const imported = await field(page, 1, '.pdf-select').inputValue();
     check('Livre: drop importa a cópia e abre no leitor alvo (índice 1)', imported.includes(`${path.sep}free${path.sep}`) && /Dropar-um(\.pdf)+$/.test(imported), imported);
     check('Livre: a cópia importada tem os mesmos bytes do arquivo solto', fs.readFileSync(imported).equals(fs.readFileSync(droparUm)), imported);
@@ -411,16 +419,16 @@ await withArtifacts('pdf-qol-livre', async (ctx) => {
     check('Livre: caminho importado aceita a numeração impressa', JSON.stringify(await page.evaluate((p) => window.desk.pdfPageLabelsGet(p), imported)) === '{"offset":null}');
     // Anda até a página 3 e depois dropa OUTRO PDF no leitor 0: o flush do
     // layout antes do drop é o que mantém o leitor 1 na página 3.
-    await field(page, 1, '.page-number').fill('3');
-    await field(page, 1, '.page-number').press('Enter');
+    await page.waitForFunction(() => !!document.querySelectorAll('.pdf-panel')[1]?.querySelector('.pdf-page canvas'), undefined, {timeout: 30000});
+    await gotoPage(page, 1, '3');
     await waitPage(page, 1, 3);
     await page.locator('#__qol_drop_input').setInputFiles(droparDois);
     await nativeDrop(page, 0);
-    await waitFoot(page, 0, 'Dropar-dois');
-    await waitFoot(page, 1, 'Dropar-um');
+    await waitSelect(page, 0, 'Dropar-dois');
+    await waitSelect(page, 1, 'Dropar-um');
     await waitPage(page, 1, 3);
     check('Livre: o outro leitor mantém arquivo e página no drop', true);
-    await field(page, 0, '.printed-toggle').click();
+    await togglePrinted(page, 0);
     await field(page, 0, '.printed-offset').fill('-2');
     await field(page, 0, '.printed-offset-save').click();
     await page.waitForFunction((p) => window.desk.pdfPageLabelsGet(p).then((r) => r.offset === -2), await field(page, 0, '.pdf-select').inputValue(), {timeout: 8000});

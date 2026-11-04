@@ -132,7 +132,9 @@ test('metadata corrompido não é sobrescrito e não derruba a lista', () => {
   assert.deepEqual(store.listWorkspaces(rt).map((record) => record.id), ['ok']);
 });
 
-test('gravação falha preserva o arquivo antigo (escrita atômica)', () => {
+/* `chmod` não bloqueia escrita no Windows (ACL é outro mecanismo): a falha de
+   disco não pode ser simulada por permissão de pasta aqui. */
+test('gravação falha preserva o arquivo antigo (escrita atômica)', {skip: process.platform === 'win32' && 'chmod não bloqueia escrita no Windows'}, () => {
   const rt = runtime('atomic');
   store.ensureWorkspace(rt, {sessionId: 's', title: 'Antes'});
   store.updateWorkspace(rt, 's', {draft: 'rascunho'});

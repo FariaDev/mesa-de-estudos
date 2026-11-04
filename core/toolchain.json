@@ -1,9 +1,9 @@
 {
   "bend": {
-    "pluginSha256": "3abb47af6fc7d54b6ccc7654fbd81bd7291e2632b267ca3de75649c2221f1bba",
+    "pluginSha256": "e7182ae9ef7d9d715d287ab03489a3df92b5b461ecb2e0c1655818c6e7297b32",
     "binary": "bend",
-    "version": "bend 2.0.37",
-    "source": "bendlang/bend@d2aeefc1 (bend2/ + guide/); o CLI é o próprio bend2/main.ts rodando com bun"
+    "version": "bend 2.0.39",
+    "source": "bendlang/bend@9e8d7b79 (bend2/ + guide/); o CLI é o próprio bend2/main.ts rodando com bun"
   },
   "bun": "1.4.2"
 }

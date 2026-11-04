@@ -2,11 +2,19 @@
 
 const fs=require('node:fs');
 const path=require('node:path');
-const zlib=require('node:zlib');
 const {CODE_DIRS,CODE_ROOT_DIRS,CODE_ROOT_FILES,SKIP_TREE}=require('./updater-core.cjs');
+const {createI18n}=require('./src/i18n.mjs');
+const {readZip: readZipKit}=require('./src/study-data/zipkit.cjs');
+const ptCatalog=require('./src/locales/pt-BR.json');
+/* #82: o leitor de zip é o do zipkit, a fonte única do app — CRC conferido,
+   inflate limitado ao tamanho declarado e `..`/absoluto/symlink recusados antes
+   de qualquer escrita. Só builtins: o worker não pode depender de unzip/tar.
+   O erro do zipkit vem marcado para a interface, mas o `reason` do update é
+   texto puro (vai como argumento ao Sobre): sai em pt-BR, como os do updater. */
+const ptText=createI18n({catalogs:{'pt-BR':ptCatalog,en:ptCatalog},language:'pt-BR'}).text;
 
 /* Atualização — arquivos: o que é código substituível e o que é protegido,
-   zip mínimo (inflateRaw), destino real sem symlink, manifesto da instalação,
+   leitura do zip (zipkit), destino real sem symlink, manifesto da instalação,
    aplicação do zip e instantâneo/rollback.
    Saiu de updater.cjs na #43 fase 2; o worker copia este arquivo junto
    (`WORKER_FILES`). */
@@ -42,7 +50,8 @@ function isReplaceable(rel){
  const parts=norm.split('/');
  const [first,second]=parts;
  if(first==='desk'&&parts.length===2){
-  return /\.(cjs|mjs|html|css|md|json)$/i.test(second)&&!/^(config|desk)\.json$/.test(second);
+  /* `.pub` (#80): a chave pública do update assinado precisa chegar por zip. */
+  return /\.(cjs|mjs|html|css|md|json|pub)$/i.test(second)&&!/^(config|desk)\.json$/.test(second);
  }
  if(first==='desk'&&parts.length>2)return CODE_DIRS.has(second);
  /* Só docs/agents/*.md: o AGENTS.md, o README e o SETUP apontam para eles;
@@ -51,36 +60,10 @@ function isReplaceable(rel){
  if(parts.length>1)return CODE_ROOT_DIRS.has(first);
  return CODE_ROOT_FILES.has(norm);
 }
-/* Zip mínimo (leitura): codeload entrega .zip e o worker não pode depender de
-   unzip/tar — parsing próprio com inflateRaw do zlib. */
+/* Lê o zip pelo zipkit; o erro sai como Error de texto puro em pt-BR (ver acima). */
 function readZip(buffer){
- const end=buffer.lastIndexOf(Buffer.from([0x50,0x4b,0x05,0x06]));
- if(end<0)throw Error(`zip sem diretório central: ${buffer.length} bytes sem a assinatura PK\\x05\\x06`);
- const count=buffer.readUInt16LE(end+10);
- const cdOffset=buffer.readUInt32LE(end+16);
- const entries=[];
- let pos=cdOffset;
- for(let i=0;i<count;i++){
-  if(buffer.readUInt32LE(pos)!==0x02014b50)throw Error('zip corrompido (entrada '+i+')');
-  const method=buffer.readUInt16LE(pos+10);
-  const size=buffer.readUInt32LE(pos+20);
-  const nameLen=buffer.readUInt16LE(pos+28);
-  const extraLen=buffer.readUInt16LE(pos+30);
-  const commentLen=buffer.readUInt16LE(pos+32);
-  const localAt=buffer.readUInt32LE(pos+42);
-  const name=buffer.toString('utf8',pos+46,pos+46+nameLen);
-  pos+=46+nameLen+extraLen+commentLen;
-  if(name.endsWith('/'))continue;
-  if(buffer.readUInt32LE(localAt)!==0x04034b50)throw Error('zip corrompido (cabeçalho de '+name+')');
-  const localNameLen=buffer.readUInt16LE(localAt+26);
-  const localExtraLen=buffer.readUInt16LE(localAt+28);
-  const dataAt=localAt+30+localNameLen+localExtraLen;
-  const raw=buffer.subarray(dataAt,dataAt+size);
-  const data=method===0?Buffer.from(raw):method===8?zlib.inflateRawSync(raw):null;
-  if(!data)throw Error('zip com método de compressão não suportado ('+method+')');
-  entries.push({name,data});
- }
- return entries;
+ try{return readZipKit(buffer);}
+ catch(e){throw Error(ptText(e.message));}
 }
 /* Zip-slip fica barrado antes de qualquer escrita: nada de `..`, absoluto ou
    unidade de disco nos nomes do zip. */
@@ -108,16 +91,19 @@ function assertRealTarget(rootDir,abs,rel){
   if(st.isSymbolicLink())throw Error(`alvo é link simbólico (${rel}) — recusado`);
   if(!st.isFile()&&!st.isDirectory())throw Error(`alvo não é arquivo regular (${rel}) — recusado`);
  }catch(e){
-  if(e&&e.code==='ENOENT')return; // não existe ainda: nada a seguir
-  throw e;
+  /* Alvo que ainda não existe não encerra a conferência: o mkdir -p seguinte
+     segue symlink de qualquer pai existente, mesmo que o alvo esteja fundo
+     em pasta nova (revisão de segurança: antes o return parava aqui). */
+  if(!e||e.code!=='ENOENT')throw e;
  }
  const root=path.resolve(rootDir);
  let cur=path.dirname(path.resolve(abs));
- while(cur===root||cur.startsWith(root+path.sep)){
-  if(cur===root)break;
-  let st;
-  try{st=fs.lstatSync(cur);}catch(e){if(e&&e.code==='ENOENT')break;throw e;}
-  if(st.isSymbolicLink())throw Error(`diretório pai é link simbólico (${cur}) — recusado`);
+ /* Sobe até a raiz da instalação. Pai que ainda não existe não para a subida:
+    o symlink pode estar mais acima, num ancestral que já existe. */
+ while(cur!==root&&cur.startsWith(root+path.sep)){
+  let st=null;
+  try{st=fs.lstatSync(cur);}catch(e){if(!e||e.code!=='ENOENT')throw e;}
+  if(st&&st.isSymbolicLink())throw Error(`diretório pai é link simbólico (${cur}) — recusado`);
   cur=path.dirname(cur);
  }
 }

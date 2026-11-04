@@ -10,10 +10,13 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -34,6 +37,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -41,8 +45,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -61,7 +65,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $view_attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
@@ -132,7 +136,7 @@ function $view_attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $view_attrGet_choose(_av_0, $$view_attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $view_attrGet(_attrs_0, _name_0) {
@@ -183,7 +187,7 @@ function $view_boolStr(_on_0) {
   }
 }
 function $view_attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$view_boolStr(_on_0) };
 }
 function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -194,7 +198,7 @@ function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $view_classAppend(_acc_0, _name_0) {
-  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $view_classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -207,7 +211,7 @@ function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $view_classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $view_classValue_go($0, $1) {
@@ -223,7 +227,7 @@ function $view_classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$view_classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -233,7 +237,7 @@ function $view_classValue(_xs_0) {
   return $view_classValue_go(_xs_0, "");
 }
 function $view_classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$view_classValue(_xs_0) };
 }
 function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -276,9 +280,9 @@ function $isVer(_v_0) {
 }
 function $tripleNewer(_am_0, _an_0, _ap_0, _bm_0, _bn_0, _bp_0) {
   const _x_0 = _an_0 > _bn_0;
-  const _x_1 = $Bool_and(_an_0 === _bn_0, _ap_0 > _bp_0);
+  const _x_1 = $$Bool_and(_an_0 === _bn_0, _ap_0 > _bp_0);
   const _x_2 = _am_0 > _bm_0;
-  const _x_3 = $Bool_and(_am_0 === _bm_0, _x_0 || _x_1);
+  const _x_3 = $$Bool_and(_am_0 === _bm_0, _x_0 || _x_1);
   return _x_2 || _x_3;
 }
 function $verNewer(_a_0, _b_0) {
@@ -306,43 +310,43 @@ function $verPick(_c_0, _a_0, _b_0) {
   }
 }
 function $verMax(_a_0, _b_0) {
-  const _x_0 = $Bool_not($isVer(_a_0));
-  const _x_1 = $verNewer(_b_0, _a_0);
+  const _x_0 = $$Bool_not($$isVer(_a_0));
+  const _x_1 = $$verNewer(_b_0, _a_0);
   return $verPick(_x_0 || _x_1, _b_0, _a_0);
 }
 function $emptyMemory() {
   return { $: "Memory", seen: { $: "NoVer" }, ignored: { $: "NoVer" }, remindDay: 0 };
 }
 function $ignoredCovers(_latest_0, _ignored_0) {
-  return $Bool_and($isVer(_ignored_0), $Bool_not($verNewer(_latest_0, _ignored_0)));
+  return $Bool_and($$isVer(_ignored_0), $$Bool_not($$verNewer(_latest_0, _ignored_0)));
 }
 function $newerThanSeen(_latest_0, _seen_0) {
-  const _x_0 = $Bool_not($isVer(_seen_0));
-  const _x_1 = $verNewer(_latest_0, _seen_0);
+  const _x_0 = $$Bool_not($$isVer(_seen_0));
+  const _x_1 = $$verNewer(_latest_0, _seen_0);
   return _x_0 || _x_1;
 }
 function $targetVersion(_available_0, _latest_0, _installed_0) {
   return $verPick(_available_0, _latest_0, _installed_0);
 }
 function $noticeFrom(_available_0, _unreachable_0, _quiet_0, _newer_0, _ahead_0) {
-  return { $: "Notice", available: _available_0, unreachable: _unreachable_0, showLine: $Bool_and(_available_0, $Bool_not(_quiet_0)), showDot: $Bool_and($Bool_and(_available_0, $Bool_not(_quiet_0)), _newer_0), ahead: _ahead_0 };
+  return { $: "Notice", available: _available_0, unreachable: _unreachable_0, showLine: $$Bool_and(_available_0, $$Bool_not(_quiet_0)), showDot: $$Bool_and($$Bool_and(_available_0, $$Bool_not(_quiet_0)), _newer_0), ahead: _ahead_0 };
 }
 function $noticeOf(_installed_0, _latest_0, _tested_0, _m_0, _today_0) {
   const _seen_0 = _m_0["seen"];
   const _ignored_0 = _m_0["ignored"];
   const _remindDay_0 = _m_0["remindDay"];
-  const _x_0 = $ignoredCovers(_latest_0, _ignored_0);
+  const _x_0 = $$ignoredCovers(_latest_0, _ignored_0);
   const _x_1 = _today_0 < _remindDay_0;
-  return $noticeFrom($verNewer(_latest_0, _installed_0), $Bool_not($isVer(_latest_0)), _x_0 || _x_1, $newerThanSeen(_latest_0, _seen_0), $verNewer($targetVersion($verNewer(_latest_0, _installed_0), _latest_0, _installed_0), _tested_0));
+  return $noticeFrom($$verNewer(_latest_0, _installed_0), $$Bool_not($$isVer(_latest_0)), _x_0 || _x_1, $$newerThanSeen(_latest_0, _seen_0), $$verNewer($$targetVersion($$verNewer(_latest_0, _installed_0), _latest_0, _installed_0), _tested_0));
 }
 function $seenAfterOpen(_seen_0, _latest_0, _available_0) {
-  return $verPick(_available_0, $verMax(_seen_0, _latest_0), _seen_0);
+  return $verPick(_available_0, $$verMax(_seen_0, _latest_0), _seen_0);
 }
 function $afterOpen(_m_0, _installed_0, _latest_0) {
   const _seen_0 = _m_0["seen"];
   const _ignored_0 = _m_0["ignored"];
   const _remindDay_0 = _m_0["remindDay"];
-  return { $: "Memory", seen: $seenAfterOpen(_seen_0, _latest_0, $verNewer(_latest_0, _installed_0)), ignored: _ignored_0, remindDay: _remindDay_0 };
+  return { $: "Memory", seen: $$seenAfterOpen(_seen_0, _latest_0, $$verNewer(_latest_0, _installed_0)), ignored: _ignored_0, remindDay: _remindDay_0 };
 }
 function $afterPostpone(_m_0, _today_0) {
   const _ignored_0 = _m_0["ignored"];
@@ -352,7 +356,7 @@ function $afterIgnore(_m_0, _latest_0) {
   const _seen_0 = _m_0["seen"];
   const _ignored_0 = _m_0["ignored"];
   const _remindDay_0 = _m_0["remindDay"];
-  return { $: "Memory", seen: _seen_0, ignored: $verMax(_ignored_0, _latest_0), remindDay: _remindDay_0 };
+  return { $: "Memory", seen: _seen_0, ignored: $$verMax(_ignored_0, _latest_0), remindDay: _remindDay_0 };
 }
 function $noticeText(_name_0, _version_0) {
   return $msg_msg2("update.noticeAvailable", "name", _name_0, "version", _version_0);
@@ -431,7 +435,7 @@ function $doneSentence_known(_name_0, _before_0, _after_0, _relinked_0, _known_0
   }
 }
 function $doneSentence_ok(_name_0, _beforeV_0, _afterV_0, _before_0, _after_0, _relinked_0) {
-  return $doneSentence_known(_name_0, _before_0, _after_0, _relinked_0, $isVer(_afterV_0), $verNewer(_afterV_0, _beforeV_0));
+  return $doneSentence_known(_name_0, _before_0, _after_0, _relinked_0, $$isVer(_afterV_0), $$verNewer(_afterV_0, _beforeV_0));
 }
 function $doneSentence(_name_0, _ok_0, _beforeV_0, _afterV_0, _before_0, _after_0, _relinked_0) {
   if (_ok_0) {
@@ -441,16 +445,16 @@ function $doneSentence(_name_0, _ok_0, _beforeV_0, _afterV_0, _before_0, _after_
   }
 }
 function $noticeIcon() {
-  return $view_viewEl("span", { $: "Con", head: $view_attrClass("update-icon"), tail: { $: "Con", head: $view_attrData("state", "new"), tail: { $: "Con", head: $view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText("↑"), tail: { $: "Nil" } });
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("update-icon"), tail: { $: "Con", head: $$view_attrData("state", "new"), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText("↑"), tail: { $: "Nil" } });
 }
 function $noticeButton(_id_0, _handler_0, _label_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("notice-btn"), tail: { $: "Con", head: $view_attrData("id", _id_0), tail: { $: "Con", head: $view_attrOn("click", _handler_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("notice-btn"), tail: { $: "Con", head: $$view_attrData("id", _id_0), tail: { $: "Con", head: $$view_attrOn("click", _handler_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } });
 }
 function $noticeLineText(_name_0, _version_0, _ahead_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("update-text"), tail: { $: "Nil" } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("update-main"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($noticeText(_name_0, _version_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen(_ahead_0, $view_viewEl("span", { $: "Con", head: $view_attrClass("update-muted"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(" · "), tail: { $: "Con", head: $view_viewText($aheadText()), tail: { $: "Nil" } } })), tail: { $: "Nil" } } }));
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("update-text"), tail: { $: "Nil" } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("update-main"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$noticeText(_name_0, _version_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_viewWhen(_ahead_0, $$view_viewEl("span", { $: "Con", head: $$view_attrClass("update-muted"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(" · "), tail: { $: "Con", head: $$view_viewText($$aheadText()), tail: { $: "Nil" } } })), tail: { $: "Nil" } } }));
 }
 function $noticeLineBody(_id_0, _name_0, _version_0, _ahead_0, _leading_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("about-notice"), tail: { $: "Con", head: $view_attrData("id", _id_0), tail: { $: "Nil" } } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $noticeIcon(), tail: { $: "Con", head: $noticeLineText(_name_0, _version_0, _ahead_0), tail: { $: "Nil" } } }, tail: { $: "Con", head: _leading_0, tail: { $: "Con", head: { $: "Con", head: $noticeButton(_id_0, "PostponeNotice", $remindLabel()), tail: { $: "Con", head: $noticeButton(_id_0, "IgnoreNotice", $ignoreLabel()), tail: { $: "Nil" } } }, tail: { $: "Nil" } } } }));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("about-notice"), tail: { $: "Con", head: $$view_attrData("id", _id_0), tail: { $: "Nil" } } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$noticeIcon(), tail: { $: "Con", head: $$noticeLineText(_name_0, _version_0, _ahead_0), tail: { $: "Nil" } } }, tail: { $: "Con", head: _leading_0, tail: { $: "Con", head: { $: "Con", head: $$noticeButton(_id_0, "PostponeNotice", $$remindLabel()), tail: { $: "Con", head: $$noticeButton(_id_0, "IgnoreNotice", $$ignoreLabel()), tail: { $: "Nil" } } }, tail: { $: "Nil" } } } }));
 }
 function $noticeLineNode(_l_0) {
   const _id_0 = _l_0["id"];
@@ -465,7 +469,7 @@ function $noticeLines(_ls_0) {
   } else {
     const _h_0 = _ls_0["head"];
     const _t_0 = _ls_0["tail"];
-    return { $: "Con", head: $noticeLineNode(_h_0), tail: $noticeLines(_t_0) };
+    return { $: "Con", head: $$noticeLineNode(_h_0), tail: $$noticeLines(_t_0) };
   }
 }
 function $showsNotice(_s_0) {
@@ -476,13 +480,13 @@ function $showsNotice(_s_0) {
   }
 }
 function $seesLine(_s_0, _lineVisible_0) {
-  return $Bool_and($showsNotice(_s_0), _lineVisible_0);
+  return $Bool_and($$showsNotice(_s_0), _lineVisible_0);
 }
 function $seeAboutLabel() {
   return $msg_msg("update.seeAbout");
 }
 function $seeAboutButton(_id_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("notice-btn"), tail: { $: "Con", head: $view_attrData("id", _id_0), tail: { $: "Con", head: $view_attrOn("click", "OpenAboutFromNotice"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($seeAboutLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("notice-btn"), tail: { $: "Con", head: $$view_attrData("id", _id_0), tail: { $: "Con", head: $$view_attrOn("click", "OpenAboutFromNotice"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$seeAboutLabel()), tail: { $: "Nil" } });
 }
 function $noticeLineFor(_s_0, _l_0) {
   if (_s_0.$ === "About") {
@@ -492,7 +496,7 @@ function $noticeLineFor(_s_0, _l_0) {
     const _name_0 = _l_0["name"];
     const _version_0 = _l_0["version"];
     const _ahead_0 = _l_0["ahead"];
-    return $noticeLineBody(_id_0, _name_0, _version_0, _ahead_0, { $: "Con", head: $seeAboutButton(_id_0), tail: { $: "Nil" } });
+    return $noticeLineBody(_id_0, _name_0, _version_0, _ahead_0, { $: "Con", head: $$seeAboutButton(_id_0), tail: { $: "Nil" } });
   }
 }
 function $noticeLinesFor(_s_0, _ls_0) {
@@ -501,7 +505,7 @@ function $noticeLinesFor(_s_0, _ls_0) {
   } else {
     const _h_0 = _ls_0["head"];
     const _t_0 = _ls_0["tail"];
-    return { $: "Con", head: $noticeLineFor(_s_0, _h_0), tail: $noticeLinesFor(_s_0, _t_0) };
+    return { $: "Con", head: $$noticeLineFor(_s_0, _h_0), tail: $$noticeLinesFor(_s_0, _t_0) };
   }
 }
 function $hasAction(_a_0) {
@@ -518,43 +522,43 @@ function $hasAction(_a_0) {
   }
 }
 function $localButton() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrId("update-pi"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("component-update"), tail: { $: "Con", head: $view_attrOn("click", "UpdatePi"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($msg_msg("update.pi")), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-pi"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update"), tail: { $: "Con", head: $$view_attrOn("click", "UpdatePi"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$msg_msg("update.pi")), tail: { $: "Nil" } });
 }
 function $askButton(_command_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $view_attrData("command", _command_0), tail: { $: "Con", head: $view_attrOn("click", "AskUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($updateLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $$view_attrData("command", _command_0), tail: { $: "Con", head: $$view_attrOn("click", "AskUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$updateLabel()), tail: { $: "Nil" } });
 }
 function $waitNodes() {
-  return { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $view_attr("disabled", ""), tail: { $: "Con", head: $view_attr("title", $waitHint()), tail: { $: "Con", head: $view_attrAria("describedby", "tool-wait-hint"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $view_viewText($updateLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("small", { $: "Con", head: $view_attrClass("component-wait"), tail: { $: "Con", head: $view_attrId("tool-wait-hint"), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText($waitShort()), tail: { $: "Nil" } }), tail: { $: "Nil" } } };
+  return { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $$view_attr("disabled", ""), tail: { $: "Con", head: $$view_attr("title", $$waitHint()), tail: { $: "Con", head: $$view_attrAria("describedby", "tool-wait-hint"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $$view_viewText($$updateLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("small", { $: "Con", head: $$view_attrClass("component-wait"), tail: { $: "Con", head: $$view_attrId("tool-wait-hint"), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText($$waitShort()), tail: { $: "Nil" } }), tail: { $: "Nil" } } };
 }
 function $copyButton(_command_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("component-update tool-copy"), tail: { $: "Con", head: $view_attrData("command", _command_0), tail: { $: "Con", head: $view_attrAria("label", $msg_msg1("update.copyAria", "command", _command_0)), tail: { $: "Con", head: $view_attrOn("click", "CopyCommand"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $view_viewText($copyLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-copy"), tail: { $: "Con", head: $$view_attrData("command", _command_0), tail: { $: "Con", head: $$view_attrAria("label", $$msg_msg1("update.copyAria", "command", _command_0)), tail: { $: "Con", head: $$view_attrOn("click", "CopyCommand"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $$view_viewText($$copyLabel()), tail: { $: "Nil" } });
 }
 function $actionNodes(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return { $: "Nil" };
   } else if (_a_0.$ === "ToolLocal") {
-    return { $: "Con", head: $localButton(), tail: { $: "Nil" } };
+    return { $: "Con", head: $$localButton(), tail: { $: "Nil" } };
   } else if (_a_0.$ === "ToolAsk") {
     const _command_0 = _a_0["command"];
-    return { $: "Con", head: $askButton(_command_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$askButton(_command_0), tail: { $: "Nil" } };
   } else if (_a_0.$ === "ToolWait") {
     return $waitNodes();
   } else {
     const _command_1 = _a_0["command"];
-    return { $: "Con", head: $copyButton(_command_1), tail: { $: "Nil" } };
+    return { $: "Con", head: $$copyButton(_command_1), tail: { $: "Nil" } };
   }
 }
 function $commandNode(_command_0) {
-  return $view_viewEl("code", { $: "Con", head: $view_attrClass("run-command"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_command_0), tail: { $: "Nil" } });
+  return $view_viewEl("code", { $: "Con", head: $$view_attrClass("run-command"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_command_0), tail: { $: "Nil" } });
 }
 function $runLine(_label_0, _command_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("run-line"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Con", head: $commandNode(_command_0), tail: { $: "Nil" } } });
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("run-line"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Con", head: $$commandNode(_command_0), tail: { $: "Nil" } } });
 }
 function $outputNode(_output_0) {
-  return $view_viewWhen($Bool_not($String_is_empty(_output_0)), $view_viewEl("pre", { $: "Con", head: $view_attrClass("run-output"), tail: { $: "Con", head: $view_attr("tabindex", "0"), tail: { $: "Con", head: $view_attr("role", "log"), tail: { $: "Con", head: $view_attrAria("label", $msg_msg("update.outputAria")), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText(_output_0), tail: { $: "Nil" } }));
+  return $view_viewWhen($$Bool_not($$String_is_empty(_output_0)), $$view_viewEl("pre", { $: "Con", head: $$view_attrClass("run-output"), tail: { $: "Con", head: $$view_attr("tabindex", "0"), tail: { $: "Con", head: $$view_attr("role", "log"), tail: { $: "Con", head: $$view_attrAria("label", $$msg_msg("update.outputAria")), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText(_output_0), tail: { $: "Nil" } }));
 }
 function $runButton(_label_0, _handler_0, _cls_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass(_cls_0), tail: { $: "Con", head: $view_attrOn("click", _handler_0), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass(_cls_0), tail: { $: "Con", head: $$view_attrOn("click", _handler_0), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } });
 }
 function $donePhase(_ok_0) {
   if (_ok_0) {
@@ -564,16 +568,16 @@ function $donePhase(_ok_0) {
   }
 }
 function $runPanel(_phase_0, _kids_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("component-run"), tail: { $: "Con", head: $view_attrData("phase", _phase_0), tail: { $: "Con", head: $view_attr("role", "group"), tail: { $: "Nil" } } } }, _kids_0);
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("component-run"), tail: { $: "Con", head: $$view_attrData("phase", _phase_0), tail: { $: "Con", head: $$view_attr("role", "group"), tail: { $: "Nil" } } } }, _kids_0);
 }
 function $confirmNodes(_command_0, _warning_0) {
-  return $runPanel("confirm", $view_viewJoin({ $: "Con", head: { $: "Con", head: $runLine($willRunText(), _command_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen($Bool_not($String_is_empty(_warning_0)), $view_viewEl("p", { $: "Con", head: $view_attrClass("run-warn"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_warning_0), tail: { $: "Nil" } })), tail: { $: "Con", head: { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("run-actions"), tail: { $: "Nil" } }, { $: "Con", head: $runButton($cancelLabel(), "CancelRun", "run-cancel"), tail: { $: "Con", head: $runButton($updateLabel(), "ConfirmRun", "primary run-confirm"), tail: { $: "Nil" } } }), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }));
+  return $runPanel("confirm", $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$runLine($$willRunText(), _command_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_viewWhen($$Bool_not($$String_is_empty(_warning_0)), $$view_viewEl("p", { $: "Con", head: $$view_attrClass("run-warn"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_warning_0), tail: { $: "Nil" } })), tail: { $: "Con", head: { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("run-actions"), tail: { $: "Nil" } }, { $: "Con", head: $$runButton($$cancelLabel(), "CancelRun", "run-cancel"), tail: { $: "Con", head: $$runButton($$updateLabel(), "ConfirmRun", "primary run-confirm"), tail: { $: "Nil" } } }), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }));
 }
 function $busyNodes(_command_0, _output_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("component-run"), tail: { $: "Con", head: $view_attrData("phase", "busy"), tail: { $: "Con", head: $view_attr("role", "group"), tail: { $: "Con", head: $view_attrAria("live", "polite"), tail: { $: "Nil" } } } } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $runLine($runningText(), _command_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $outputNode(_output_0), tail: { $: "Nil" } } }));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("component-run"), tail: { $: "Con", head: $$view_attrData("phase", "busy"), tail: { $: "Con", head: $$view_attr("role", "group"), tail: { $: "Con", head: $$view_attrAria("live", "polite"), tail: { $: "Nil" } } } } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$runLine($$runningText(), _command_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $$outputNode(_output_0), tail: { $: "Nil" } } }));
 }
 function $doneNodes(_ok_0, _sentence_0, _output_0) {
-  return $runPanel($donePhase(_ok_0), $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("run-line run-result"), tail: { $: "Con", head: $view_attr("role", "status"), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText(_sentence_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $outputNode(_output_0), tail: { $: "Con", head: { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("run-actions"), tail: { $: "Nil" } }, { $: "Con", head: $runButton($closeLabel(), "CloseRun", "run-close"), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }));
+  return $runPanel($$donePhase(_ok_0), $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$view_viewEl("p", { $: "Con", head: $$view_attrClass("run-line run-result"), tail: { $: "Con", head: $$view_attr("role", "status"), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText(_sentence_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $$outputNode(_output_0), tail: { $: "Con", head: { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("run-actions"), tail: { $: "Nil" } }, { $: "Con", head: $$runButton($$closeLabel(), "CloseRun", "run-close"), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }));
 }
 function $runNodes(_r_0) {
   if (_r_0.$ === "RunNone") {
@@ -581,16 +585,16 @@ function $runNodes(_r_0) {
   } else if (_r_0.$ === "RunConfirm") {
     const _command_0 = _r_0["command"];
     const _warning_0 = _r_0["warning"];
-    return { $: "Con", head: $confirmNodes(_command_0, _warning_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$confirmNodes(_command_0, _warning_0), tail: { $: "Nil" } };
   } else if (_r_0.$ === "RunBusy") {
     const _command_1 = _r_0["command"];
     const _output_0 = _r_0["output"];
-    return { $: "Con", head: $busyNodes(_command_1, _output_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$busyNodes(_command_1, _output_0), tail: { $: "Nil" } };
   } else {
     const _ok_0 = _r_0["ok"];
     const _sentence_0 = _r_0["sentence"];
     const _output_1 = _r_0["output"];
-    return { $: "Con", head: $doneNodes(_ok_0, _sentence_0, _output_1), tail: { $: "Nil" } };
+    return { $: "Con", head: $$doneNodes(_ok_0, _sentence_0, _output_1), tail: { $: "Nil" } };
   }
 }
 function $String_join(_xs_0, _sep_0) {
@@ -602,52 +606,11 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -655,7 +618,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -664,7 +627,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -680,7 +643,7 @@ function $view_viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
+    return { $: "Con", head: $$view_viewText(_h_0), tail: $$view_viewMap_0(_t_0) };
   }
 }
 function $view_viewMapI_go_0(_xs_0, _i_0) {
@@ -689,7 +652,7 @@ function $view_viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$view_asTextI(_i_0, _h_0), tail: $$view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $Bool_and(_a_0, _b_0) {
@@ -712,15 +675,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_eq(_c_0) {
   if (_c_0.$ === "EQ") {
@@ -731,6 +729,11 @@ function $Cmp_is_eq(_c_0) {
 }
 function $String_order(_a_0, _b_0) {
   return $String_order_go(_a_0, _b_0, { $: "EQ" });
+}
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
 }
 function $String_order_go($0, $1, $2) {
   for (;; ) {
@@ -750,6 +753,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -759,13 +763,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -775,57 +778,129 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$view_attrGet_go = $view_attrGet_go;
+var $$String_eq = $String_eq;
+var $$view_boolStr = $view_boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$view_classNext_on = $view_classNext_on;
+var $$view_classValue = $view_classValue;
+var $$Bool_and = $Bool_and;
+var $$isVer = $isVer;
+var $$Bool_not = $Bool_not;
+var $$verNewer = $verNewer;
+var $$ignoredCovers = $ignoredCovers;
+var $$newerThanSeen = $newerThanSeen;
+var $$targetVersion = $targetVersion;
+var $$verMax = $verMax;
+var $$seenAfterOpen = $seenAfterOpen;
+var $$view_attrClass = $view_attrClass;
+var $$view_attrData = $view_attrData;
+var $$view_attrAria = $view_attrAria;
+var $$view_viewText = $view_viewText;
+var $$view_attrType = $view_attrType;
+var $$view_attrOn = $view_attrOn;
+var $$noticeText = $noticeText;
+var $$view_viewEl = $view_viewEl;
+var $$aheadText = $aheadText;
+var $$view_viewWhen = $view_viewWhen;
+var $$view_viewJoin = $view_viewJoin;
+var $$noticeIcon = $noticeIcon;
+var $$noticeLineText = $noticeLineText;
+var $$remindLabel = $remindLabel;
+var $$noticeButton = $noticeButton;
+var $$ignoreLabel = $ignoreLabel;
+var $$noticeLineNode = $noticeLineNode;
+var $$noticeLines = $noticeLines;
+var $$showsNotice = $showsNotice;
+var $$seeAboutLabel = $seeAboutLabel;
+var $$seeAboutButton = $seeAboutButton;
+var $$noticeLineFor = $noticeLineFor;
+var $$noticeLinesFor = $noticeLinesFor;
+var $$view_attrId = $view_attrId;
+var $$msg_msg = $msg_msg;
+var $$updateLabel = $updateLabel;
+var $$view_attr = $view_attr;
+var $$waitHint = $waitHint;
+var $$waitShort = $waitShort;
+var $$msg_msg1 = $msg_msg1;
+var $$copyLabel = $copyLabel;
+var $$localButton = $localButton;
+var $$askButton = $askButton;
+var $$copyButton = $copyButton;
+var $$commandNode = $commandNode;
+var $$willRunText = $willRunText;
+var $$runLine = $runLine;
+var $$cancelLabel = $cancelLabel;
+var $$runButton = $runButton;
+var $$runningText = $runningText;
+var $$outputNode = $outputNode;
+var $$donePhase = $donePhase;
+var $$closeLabel = $closeLabel;
+var $$confirmNodes = $confirmNodes;
+var $$busyNodes = $busyNodes;
+var $$doneNodes = $doneNodes;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
+var $$List_concat = $List_concat;
+var $$view_viewMap_0 = $view_viewMap_0;
+var $$view_asTextI = $view_asTextI;
+var $$view_viewMapI_go_0 = $view_viewMapI_go_0;
+var $$String_join_go = $String_join_go;
+var $$Char_is_eq = $Char_is_eq;
 var updatenotice_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
-  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
-  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
-  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
-  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
-  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
-  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
-  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
-  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
-  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
-  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
-  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
-  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
-  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
-  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
-  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
-  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
-  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
-  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
-  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
-  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
-  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
-  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
-  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
-  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
-  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
-  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
-  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
-  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
-  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
-  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
-  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
-  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
-  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
-  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
-  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
-  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
-  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
-  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
-  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
-  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
-  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "view:attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view:classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view:viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view:viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view:viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view:tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view:attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view:kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view:textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view:isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view:attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view:attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view:attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view:attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view:attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view:attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view:attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view:attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view:attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view:attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view:attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view:attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view:attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view:attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view:boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view:attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view:classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view:classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view:classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view:classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view:classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view:classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view:classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view:viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view:viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view:viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view:viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view:viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view:asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view:viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view:viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
   isVer: run_lib((a0) => run_loop($isVer(a0)), 1),
   tripleNewer: run_lib((a0, a1, a2, a3, a4, a5) => run_loop($tripleNewer(a0, a1, a2, a3, a4, a5)), 6),
   verNewer: run_lib((a0, a1) => run_loop($verNewer(a0, a1)), 2),

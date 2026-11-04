@@ -238,7 +238,13 @@ function matchesIndex(data, conversationId, identity) {
   if (data.conversationId === undefined || data.conversationId === null) return false;
   const stored = String(data.conversationId);
   if (stored === String(conversationId)) return true;
-  if (identity.kind === 'rel') return stored.endsWith('/' + identity.value) || stored === identity.value;
+  /* Índice legado gravado no Windows guarda a barra invertida do caminho
+     absoluto; a identidade portátil usa sempre '/'. Normaliza antes de
+     comparar para a conversa relocada continuar achando o diretório. */
+  if (identity.kind === 'rel') {
+    const normalized = stored.replace(/\\/g, '/');
+    return normalized.endsWith('/' + identity.value) || normalized === identity.value;
+  }
   if (identity.kind === 'id') return stored === identity.value;
   return stored === identity.value;
 }

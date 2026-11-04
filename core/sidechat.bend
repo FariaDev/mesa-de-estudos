@@ -110,7 +110,7 @@ def scopeLine(refs: +List<String>) -> String:
     case Nil{}:
       M.msg("scope.none")
     case Con{h, t}:
-      M.msg1("scope.about", "refs", String.join(Con{h, t}, scopeSeparator()))
+      String.join(Con{h, t}, scopeSeparator())
 
 def scopeRefresh() -> String:
   M.msg("scope.refresh")

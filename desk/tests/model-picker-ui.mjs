@@ -28,6 +28,9 @@ const recentsOnDisk=runtime=>JSON.parse(fs.readFileSync(path.join(runtime,'desk.
 const favoritesOnDisk=runtime=>JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8')).modelFavorites;
 const groupNames=(page,kind)=>page.locator(`#model-list .model-group[data-kind="${kind}"] .model-row-name`).allTextContents();
 const railTitles=page=>page.locator('#model-rail .model-rail-item').evaluateAll(items=>items.map(item=>item.dataset.tip));
+const parseColor=value=>{const m=String(value).match(/[\d.]+/g)?.map(Number)||[0,0,0,0];return {r:m[0],g:m[1],b:m[2],a:m[3]??1};};
+const composite=(fg,bg)=>({r:fg.r*fg.a+bg.r*(1-fg.a),g:fg.g*fg.a+bg.g*(1-fg.a),b:fg.b*fg.a+bg.b*(1-fg.a),a:1});
+const luminance=color=>{const lin=v=>{v/=255;return v<=0.03928?v/12.92:((v+0.055)/1.055)**2.4;};return 0.2126*lin(color.r)+0.7152*lin(color.g)+0.0722*lin(color.b);};
 
 await withArtifacts('model-picker',async ctx=>{
  const runtime=ctx.runtime=newRuntime('modelpicker');
@@ -144,7 +147,8 @@ await withArtifacts('model-picker',async ctx=>{
  assert.equal(await page.locator('#model-list .model-group[data-kind="recent"] .model-row-provider').first().textContent(),'OpenAI','no grupo Recentes a linha diz o provedor');
  await pickModel(page,'xai','grok-4');
  await pollUntil(()=>indicatorText(page),text=>text.startsWith('Grok 4'),{what:'o segundo modelo'});
- await pollUntil(()=>page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),list=>list.join()==='Grok 4,GPT 5.5',{what:'recentes, do mais novo ao mais velho'});
+ await pollUntil(()=>page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),list=>list.join()==='GPT 5.5',{what:'Recentes sem repetir o favorito'});
+ assert.equal(await groupNames(page,'recent').then(list=>list.includes('Grok 4')),false,'Grok 4 já está em Favoritos, não se repete em Recentes');
  await pollUntil(()=>recentsOnDisk(runtime),recents=>recents?.pi?.[0]?.[1]==='grok-4',{what:'os recentes no desk.json'});
  assert.deepEqual(recentsOnDisk(runtime).pi,[['xai','grok-4'],['openai','gpt-5.5']]);
  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(path.join(runtime,'config.json'),'utf8')),'modelRecents'),false,'os recentes não vão para o config.json');
@@ -184,6 +188,26 @@ await withArtifacts('model-picker',async ctx=>{
  await page.locator(`#effort-strip [data-level="${effort.value}"]`).click();
  await pollUntil(()=>effortState(page),state=>state.value===effort.value&&!state.locked,{what:'o clique devolve o nível de antes'});
  assert.equal(await page.locator('#model-pop').isVisible(),true,'mexer no esforço não fecha o popover');
+
+ /* ---- linha sob o mouse mais clara que a selecionada, nos dois temas ---- */
+ for(const theme of ['light','dark']){
+  await setTheme(page,theme);
+  await page.locator('#model-list .model-row:not([aria-selected="true"])').first().hover();
+  await nextFrames(page);
+  const colors=await page.evaluate(()=>{
+   const rows=[...document.querySelectorAll('#model-list .model-row')];
+   const selected=rows.find(row=>row.getAttribute('aria-selected')==='true');
+   const hovered=rows.find(row=>row.classList.contains('active')&&row!==selected);
+   const pop=document.querySelector('#model-pop');
+   return {selected:getComputedStyle(selected).backgroundColor,hovered:hovered?getComputedStyle(hovered).backgroundColor:'',pop:getComputedStyle(pop).backgroundColor};
+  });
+  const base=parseColor(colors.pop);
+  const selectedLum=luminance(composite(parseColor(colors.selected),base));
+  const hoverLum=luminance(composite(parseColor(colors.hovered),base));
+  assert.ok(hoverLum>selectedLum+0.001,`${theme}: a linha sob o mouse é mais clara que a selecionada (${hoverLum.toFixed(3)} > ${selectedLum.toFixed(3)})`);
+  await page.mouse.move(1,1);
+ }
+ await setTheme(page,'light');
 
  /* ---- teclado: ↑↓ com volta, ⏎ escolhe, Esc fecha e devolve o foco ---- */
  await closeModelPop(page);
@@ -227,7 +251,7 @@ await withArtifacts('model-picker',async ctx=>{
  await resizeWindow(app,page,1440,900);
  await statusOnline(page);
  await openModelPop(page);
- await pollUntil(()=>page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),list=>list.join()==='Grok 4 Fast,Grok 4,GPT 5.5',{what:'recentes de volta depois de reabrir'});
+ await pollUntil(()=>page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),list=>list.join()==='Grok 4 Fast,GPT 5.5',{what:'recentes de volta depois de reabrir'});
  assert.deepEqual(await groupNames(page,'favorite'),['Grok 4'],'favoritos de volta depois de reabrir');
 
  /* ---- medidas: os dois temas, 1440×900 e 900×650 ---- */

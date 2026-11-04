@@ -24,6 +24,8 @@ export type DeskState = {
  free?: {activeId: string, sessions: Record<string, {nativePath?: string, engine?: string, draft?: string, study?: StudyRef, [field: string]: unknown}>},
  theme?: string,
  accent?: string,
+ mascot?: string,
+ appIcon?: string | null,
  draft?: string,
  [field: string]: unknown,
 };

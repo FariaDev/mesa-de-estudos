@@ -71,7 +71,7 @@ test('o detector pega o caso real: shim que importa o repositório fora do paylo
   const payload=path.join(root,'payload');fs.mkdirSync(path.join(payload,'src'),{recursive:true});
   const shim=path.join(payload,'src','geogebra.ts');
   fs.writeFileSync(shim,"import tool from '../../geogebra/index.ts';\nimport ok from './local.ts';\n");
-  assert.deepEqual(escapes(shim,payload,[]),['src/geogebra.ts: ../../geogebra/index.ts']);
+  assert.deepEqual(escapes(shim,payload,[]),[`${path.join('src','geogebra.ts')}: ../../geogebra/index.ts`]);
   const absolute=path.join(payload,'a.cjs');fs.writeFileSync(absolute,`require('${REPO_ROOT}/geogebra/index.ts')`);
   assert.equal(escapes(absolute,payload,[REPO_ROOT]).length,1);
  }finally{fs.rmSync(root,{recursive:true,force:true});}

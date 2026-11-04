@@ -185,7 +185,13 @@ function extractPdf(candidate, provider) {
       if (!body.trim()) continue;
       docs.push({i: docs.length, role: '', page: number, text: body, when: 0, materialName: candidate.materialName || path.basename(candidate.file)});
     }
-    return {title: candidate.title || path.basename(candidate.file), docs, partial};
+    /* O nome do arquivo e o título de dentro do PDF também localizam a aula:
+     * o material pode ter sido importado com outro nome (sessão Livre) e o
+     * título do PDF nem sempre repete o nome do arquivo. */
+    const baseName = path.basename(candidate.file);
+    const pdfTitle = typeof result?.title === 'string' ? text(result.title, MAX_TITLE_CHARS) : '';
+    const aliases = [...new Set([baseName, pdfTitle].filter((value) => value && value !== candidate.title))];
+    return {title: candidate.title || pdfTitle || baseName, aliases, docs, partial};
   });
 }
 /* Extração padrão de PDF pelo próprio PDF.js (host). O texto é o mesmo que o
@@ -204,7 +210,10 @@ async function defaultPdfText(file) {
   const task = pdf.getDocument({data: new Uint8Array(bytes), isEvalSupported: false, useSystemFonts: true, disableFontFace: true});
   const doc = await task.promise;
   const pages = [];
+  let title;
   try {
+    const meta = await doc.getMetadata().catch(() => null);
+    title = text(meta?.info?.Title, MAX_TITLE_CHARS).trim();
     const total = Math.min(doc.numPages, MAX_PDF_PAGES);
     for (let number = 1; number <= total; number++) {
       const page = await doc.getPage(number);
@@ -220,7 +229,7 @@ async function defaultPdfText(file) {
       await task.destroy();
     } catch { /* já destruído */ }
   }
-  return pages;
+  return {pages, title: title || ''};
 }
 async function extractCandidate(candidate, provider) {
   switch (candidate.kind) {

@@ -27,7 +27,7 @@ body:not(.chat-collapsed) #toast{
  max-width:100%;overflow-wrap:anywhere;box-shadow:var(--shadow-pop);text-align:center;
 }
 #quote-btn{
- position:fixed;z-index:9;padding:var(--space-1) 9px;border-radius:var(--r-pill);font-size:var(--fs-xs);
+ position:fixed;z-index:9;padding:var(--space-1) 9px;border-radius:var(--r-sm);font-size:var(--fs-xs);
  background:var(--surface);color:var(--fg);border:1px solid var(--border-strong);
  white-space:nowrap;
 }

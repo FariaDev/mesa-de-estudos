@@ -101,8 +101,8 @@ test('controle de expandir: nome acessível, aria-expanded e clique', () => {
 
 test('ângulo: grupo segmentado com rótulo e dica, dentro do painel expandido', () => {
   const row = core.angleRow('deg');
-  assert.deepEqual(attrs(row), {class: 'calc-angle'});
-  const [label, group, hint] = nodes(row.kids);
+  assert.deepEqual(attrs(row), {class: 'calc-angle', title: 'sin(90) dá 1'});
+  const [label, group] = nodes(row.kids);
   assert.deepEqual(texts(label), ['Ângulo']);
   assert.equal(group.tag, 'div');
   assert.deepEqual(attrs(group), {id: 'angle', role: 'group', class: 'calc-seg', 'aria-label': 'Unidade angular'});
@@ -112,7 +112,6 @@ test('ângulo: grupo segmentado com rótulo e dica, dentro do painel expandido',
   assert.deepEqual(texts(buttons[0]), ['RAD']);
   assert.deepEqual(attrs(buttons[1]), {type: 'button', key: 'angle-deg', 'data-angle': 'deg', 'aria-pressed': 'true', 'on:click': 'SetAngle'});
   assert.deepEqual(texts(buttons[1]), ['GRAUS']);
-  assert.deepEqual(texts(hint), ['sin(90) dá 1']);
 });
 
 test('ângulo: só o vigente fica pressionado e a dica acompanha a unidade', () => {
@@ -120,8 +119,8 @@ test('ângulo: só o vigente fica pressionado e a dica acompanha a unidade', () 
   assert.deepEqual(pressed('deg'), ['false', 'true']);
   assert.deepEqual(pressed('rad'), ['true', 'false']);
   assert.deepEqual(pressed('grad'), ['false', 'false'], 'valor desconhecido não marca nenhum');
-  assert.deepEqual(texts(core.angleHint('rad')), ['sin(pi/2) dá 1']);
-  assert.deepEqual(texts(core.angleHint('deg')), ['sin(90) dá 1']);
+  assert.equal(attrs(core.angleRow('rad')).title, 'sin(pi/2) dá 1');
+  assert.equal(attrs(core.angleRow('deg')).title, 'sin(90) dá 1');
 });
 
 test('formulário: #calc-form[on:submit=Eval], #expression e o botão "="', () => {
@@ -203,20 +202,19 @@ test('corpo: ângulo, histórico e guia, e o hidden do colapso', () => {
 // (catálogo `calc.*`), então não há cópia em português para sair do passo (#41).
 const html = () => fs.readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8');
 
-test('guia: resumo, frase, grupos e dicas', () => {
+test('guia: resumo, frase, grupos e o link para o guia', () => {
   const guide = core.calcGuide(false);
   assert.deepEqual(attrs(guide), {id: 'calc-guide'});
   const kids = nodes(guide.kids);
-  assert.deepEqual(kids.map((n) => n.tag), ['summary', 'p', 'dl', 'ul']);
+  assert.deepEqual(kids.map((n) => n.tag), ['summary', 'p', 'dl', 'button']);
   assert.deepEqual(texts(kids[0]), ['Como usar']);
   assert.deepEqual(attrs(kids[1]), {class: 'calc-guide-lead'});
   assert.deepEqual(attrs(kids[2]), {class: 'calc-groups'});
-  assert.deepEqual(attrs(kids[3]), {class: 'calc-tips'});
+  assert.deepEqual(attrs(kids[3]), {type: 'button', class: 'guide-link', 'data-open-guide': 'calc'});
 
   const groups = nodes(kids[2].kids);
   assert.deepEqual(groups.map((n) => n.tag), ['dt', 'dd', 'dt', 'dd', 'dt', 'dd', 'dt', 'dd']);
   assert.deepEqual(groups.filter((n) => n.tag === 'dt').map(textContent), ['Operações', 'Funções', 'Trigonometria', 'Constantes']);
-  assert.ok(nodes(kids[3].kids).every((n) => n.tag === 'li') && nodes(kids[3].kids).length === 5, 'cinco dicas em lista');
 
   assert.ok(!html().includes('id="calc-guide"'), 'o index.html não guarda uma cópia do guia');
   assert.deepEqual(attrs(core.calcGuide(true)), {id: 'calc-guide', open: ''}, 'guia aberta mantém o open');

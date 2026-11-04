@@ -29,6 +29,8 @@ export function testEnv(extra={}){
  /* O idioma do sistema decide o da interface quando ninguém escolheu (#41): o teste fixa pt-BR, que é o que as asserções esperam. */
  if(!Object.hasOwn(extra,'LEARNING_DESK_LOCALE'))env.LEARNING_DESK_LOCALE='pt-BR';
  if(!Object.hasOwn(extra,'LEARNING_DESK_CLAUDE_HOME'))env.LEARNING_DESK_CLAUDE_HOME=guardClaudeHome();
+ /* A suíte usa os fakes de Pi/Claude como motores visíveis (chave só de teste). */
+ if(!Object.hasOwn(extra,'LEARNING_DESK_VISIBLE_ENGINES'))env.LEARNING_DESK_VISIBLE_ENGINES='pi,claude,opencode';
  delete env.LEARNING_DESK_CLAUDE_SDK_BINARY;
  delete env.ELECTRON_RUN_AS_NODE;
  return env;

@@ -56,7 +56,9 @@ class OpenCodeEventReader {
     if (type === 'session.step.failed') { this.stepFailure = data.error ?? null; return; }
     if (type === 'session.execution.failed') return this.execution('failed', data);
     if (type === 'session.execution.interrupted') return this.execution('interrupted', data);
-    if (type === 'permission.asked' || type === 'permission.updated') return this.permission(data);
+    /* O pedido inesperado ainda é reconhecido para o adaptador RECUSAR: nenhuma
+       ferramenta nativa existe no tutor (#91), então não há diálogo. */
+    if (type === 'permission.asked' || type === 'permission.updated' || type === 'permission.v2.asked') return this.permission(data);
     if (type === 'message.part.updated' || type === 'message.part.delta') return this.part(data.part || data);
     if (type === 'message.updated') return this.message(data.info || data);
     if (type === 'session.idle') {
@@ -126,7 +128,7 @@ class OpenCodeEventReader {
     this.flush();
     const failure = data.error ?? this.stepFailure;
     this.stepFailure = null;
-    if (status === 'failed') this.emit('error', {code: 'OPENCODE_TURN_FAILED', message: providerFailureMessage(failure), fatal: false});
+    if (status === 'failed') this.emit('error', {code: 'OPENCODE_TURN_FAILED', message: providerFailureMessage(failure), fatal: false, ...(isProviderAuthError(failure) ? {detail: errorText(failure).slice(0, 400)} : {})});
     this.emit('execution', {status, error: failure, reason: data.reason});
   }
 
@@ -189,23 +191,22 @@ class OpenCodeEventReader {
     const error = isPlainObject(data.error) ? data.error : {};
     this.emit('error', {
       code: 'OPENCODE_SESSION_ERROR',
-      message: String(error.message || error.data?.message || message('opencode.event.turnFailed')),
+      message: providerFailureMessage(error),
+      ...(isProviderAuthError(error) ? {detail: errorText(error).slice(0, 400)} : {}),
     });
+    /* `session.error` é terminal para o turno: sem este fim a coluna ficava
+       em "pensando" com Parar depois da recusa do provedor. */
+    this.emit('turn_end', {isError: true});
   }
 
   permission(data) {
     const id = String(data.id || data.requestID || '');
-    if (!id.startsWith('per')) return;
-    const resources = Array.isArray(data.resources) ? data.resources.filter((item) => typeof item === 'string') : [];
-    const metadata = isPlainObject(data.metadata) ? data.metadata : {};
-    /* Sem título: a janela usa o "Permissão" do catálogo; a linha diz a ação e o alvo. */
-    const action = typeof data.action === 'string' ? data.action : '';
+    if (!id) return;
+    const raw = Array.isArray(data.resources) ? data.resources : data.patterns;
     this.emit('permission_request', {
       id,
-      method: 'confirm',
-      title: '',
-      message: [action, resources.join(', ')].filter(Boolean).join(': '),
-      details: resources.length ? {...metadata, resources} : (Object.keys(metadata).length ? metadata : undefined),
+      action: typeof data.action === 'string' ? data.action : (typeof data.permission === 'string' ? data.permission : ''),
+      resources: Array.isArray(raw) ? raw.filter((item) => typeof item === 'string') : [],
     });
   }
 
@@ -237,9 +238,17 @@ class OpenCodeEventReader {
  * @example providerFailureMessage({type: 'provider.auth', status: 403, response: {body: '{"error":{"type":"FreeTierError"}}'}}) // marca 'opencode.event.freeTier'
  */
 function providerFailureMessage(raw) {
+  if (isProviderAuthError(raw)) return message('opencode.event.providerAuth');
   if (isFreeTierError(raw)) return message('opencode.event.freeTier');
   const reason = errorText(raw).split(MESSAGE_MARK).join('').split(MESSAGE_SEP).join(' ').trim();
   return reason ? message('opencode.event.providerFailed', {reason}) : message('opencode.event.turnFailed');
+}
+
+/* Recusa de credencial do provedor (401/Invalid credential) não é texto para
+   a tela: a pessoa precisa da frase curta e do conserto, e o JSON fica no log. */
+function isProviderAuthError(raw) {
+  if (isPlainObject(raw) && Number(raw.status) === 401) return true;
+  return /\b401\b|invalid credential|invalid api key|unauthorized|authentication/i.test(errorText(raw));
 }
 
 /* O Zen responde 403 com corpo `FreeTierError` quando recusa o grátis. */
@@ -264,13 +273,24 @@ function compactionMessage(raw) {
   return text || message('opencode.compact.failed');
 }
 
-function toolResult(data) {
-  if (typeof data.content === 'string') return data.content;
-  if (Array.isArray(data.content)) {
-    return data.content.map((part) => (isPlainObject(part) && typeof part.text === 'string' ? part.text : '')).filter(Boolean).join('\n');
+/* O 2.0.32 põe a falha em `error` string, em `error.data.message` ou em
+   `output`. Sem isso o diário via `result` vazio e a UI dizia só
+   "A ferramenta falhou.", enquanto o modelo tinha visto a frase. */
+function contentText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => (isPlainObject(part) && typeof part.text === 'string' ? part.text : '')).filter(Boolean).join('\n');
   }
-  if (isPlainObject(data.error) && typeof data.error.message === 'string') return data.error.message;
-  return '';
+  if (!isPlainObject(content)) return '';
+  if (typeof content.text === 'string' && content.text) return content.text;
+  if (typeof content.message === 'string' && content.message) return content.message;
+  const nested = typeof content.content === 'string' || Array.isArray(content.content) ? contentText(content.content) : '';
+  return nested || errorText(content.error);
+}
+
+function toolResult(data) {
+  if (!isPlainObject(data)) return '';
+  return contentText(data.content) || contentText(data.output) || errorText(data.error) || errorText(data);
 }
 
 module.exports = {OpenCodeEventReader, providerFailureMessage};

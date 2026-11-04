@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {figureMarkdown, blankLineWarning, removedNames} from '../src/figures/figure-markup.mjs';
-import {CHAT_FIGURE_OFFER, FIGURE_CHOICE, FIGURE_DESCRIPTION, FIGURE_FIELDS, MAX_SVG_CHARS, PDF_FIGURE_GUIDE, PLOT_EXAMPLE, PLOT_FORMAT, figureText} from '../src/extensions/mesa-figure/guide.mjs';
-import {parsePlot, KEY_NAMES} from '../src/figures/plot-spec.mjs';
+import {figureMarkdown, blankLineWarning, removedNames, stackedTextWarning} from '../src/figures/figure-markup.mjs';
+import {CHAT_FIGURE_OFFER, FIGURE_CHOICE, FIGURE_DESCRIPTION, FIGURE_FIELDS, FIGURE_RULES, FIGURE_RULES_EN, MAX_SVG_CHARS, PDF_FIGURE_GUIDE, PLOT_EXAMPLE, PLOT_FORMAT, figureLimitError, figureText} from '../src/extensions/mesa-figure/guide.mjs';
+import {parsePlot, KEY_NAMES, LIMITS} from '../src/figures/plot-spec.mjs';
 import {viewFigure} from '../src/extensions/mesa-figure/client.mjs';
 import {figureTool, mesaTools} from '../src/extensions/mesa-mcp/tools.mjs';
 import {canonical, canonicalFields} from '../src/extensions/tool-fields.mjs';
@@ -27,7 +27,7 @@ function createFakeFigureWindow({report = {plots: 1, svgs: 0, warnings: [], remo
     destroy: () => { win.destroyed = true; },
     setContentSize: (width, height) => win.sizes.push([width, height]),
     webContents: {
-      executeJavaScript: async (code) => { win.scripts.push(code); return report; },
+      executeJavaScript: async (code) => { win.scripts.push(code); return code.startsWith('new Promise') ? true : report; },
       capturePage: async ({width, height}) => ({getSize: () => ({width, height}), resize: () => { throw Error('não escala'); }, toPNG: () => Buffer.from('png')}),
     },
   };
@@ -45,6 +45,12 @@ test('blankLineWarning: linha em branco dentro do SVG corta o bloco; SVG inteiro
   assert.match(blankLineWarning('<svg viewBox="0 0 1 1">\n\n</svg>'), /linha 2.*cortam o bloco/);
 });
 
+test('stackedTextWarning: quebra solta dentro de text pede tspan; com tspan, não avisa', () => {
+  assert.equal(stackedTextWarning(TRIANGLE_BODY), '');
+  assert.match(stackedTextWarning('<svg><text>F paralela\nnão entra em N</text></svg>'), /"F paralela não entra em N".*sem tspan/);
+  assert.equal(stackedTextWarning('<svg><text>F paralela<tspan x="10" dy="14">não entra em N</tspan></text></svg>'), '');
+});
+
 test('removedNames: diz o que sumiu, sem repetir, e atributos em linguagem de leitura', () => {
   assert.deepEqual(removedNames(['<svg>', '<script>', '<script>', '@onclick', '<g>'], ['<svg>', '<g>']), ['<script>', 'atributo onclick']);
   assert.deepEqual(removedNames(['<a>', '<a>'], ['<a>']), ['<a>']);
@@ -52,20 +58,31 @@ test('removedNames: diz o que sumiu, sem repetir, e atributos em linguagem de le
 });
 
 test('guia: a escolha diz quando usar plot, SVG e GeoGebra, o tamanho e as cores do tema', () => {
-  assert.match(FIGURE_CHOICE, /cerca `plot`/);
-  assert.match(FIGURE_CHOICE, new RegExp(`até ${MAX_SVG_CHARS} caracteres`));
+  assert.match(FIGURE_CHOICE, /`plot` fence/);
+  assert.match(FIGURE_CHOICE, new RegExp(`up to ${MAX_SVG_CHARS} characters`));
   assert.match(FIGURE_CHOICE, /GeoGebra/);
   assert.match(FIGURE_CHOICE, /var\(--plot-1\)/);
-  assert.match(FIGURE_CHOICE, /sem linha em branco/);
+  assert.match(FIGURE_CHOICE, /no blank line/);
+  assert.ok(FIGURE_CHOICE.includes(FIGURE_RULES_EN), 'as regras da descrição saem de uma fonte em inglês');
+  assert.equal(FIGURE_CHOICE.includes(FIGURE_RULES), false, 'as regras do sistema seguem em português, fora da descrição');
+  assert.match(FIGURE_RULES, /text-anchor/);
+  assert.match(FIGURE_RULES, /tspan/);
+  assert.match(FIGURE_RULES, /folga de umas 24/);
+  assert.match(FIGURE_RULES, /12px/);
   assert.ok(FIGURE_DESCRIPTION.includes(FIGURE_CHOICE), 'a descrição da ferramenta leva a mesma escolha');
+  assert.match(FIGURE_DESCRIPTION, /labels touching text or strokes/);
   assert.equal(FIGURE_FIELDS.source.max, MAX_SVG_CHARS);
 });
 
 test('guia do chat e do PDF: dizem quando usar plot, SVG ou GeoGebra, o tamanho e as cores do tema', async () => {
   assert.match(CHAT_FIGURE_OFFER, /cerca `plot`.*SVG simples.*GeoGebra.*ver_figura/);
-  for (const pattern of [/cerca `plot`/, new RegExp(`até ${MAX_SVG_CHARS} caracteres`), /viewBox/, /sem linha em branco/, /420 px/, /currentColor/, /var\(--plot-1\)/, /GeoGebra e quadros não saem no PDF/, /relatório do PDF/]) {
+  for (const pattern of [/`plot` fence/, new RegExp(`up to ${MAX_SVG_CHARS} characters`), /viewBox/, /no blank line/, /420 px/, /GeoGebra and boards do not appear in the PDF/, /ver_figura/]) {
     assert.match(PDF_FIGURE_GUIDE, pattern);
   }
+  /* M1: margem, rótulo e cor já vão na base do sistema (`deskBasePrompt`) em
+     toda sessão que tem criar_pdf; repetir FIGURE_RULES aqui custava ~300
+     tokens por turno nos três motores. */
+  assert.equal(PDF_FIGURE_GUIDE.includes(FIGURE_RULES), false, 'regras de figura não se repetem no guia do PDF');
   const {TOOL_DESCRIPTION} = await import('../src/extensions/tutor-pdf/guide.mjs');
   assert.ok(TOOL_DESCRIPTION.endsWith(PDF_FIGURE_GUIDE), 'o guia do PDF é parte da descrição de criar_pdf');
 });
@@ -100,6 +117,7 @@ test('host: a sessão da janela só abre arquivos do app', () => {
   const desk = path.resolve(import.meta.dirname, '..');
   assert.equal(allowedFile(path.join(desk, 'src', 'figures', 'figure.html')), true);
   assert.equal(allowedFile(path.join(desk, 'style.css')), true);
+  assert.equal(allowedFile(path.join(desk, 'icons.mjs')), true);
   assert.equal(allowedFile(path.join(desk, 'node_modules', 'marked', 'lib', 'marked.esm.js')), true);
   assert.equal(allowedFile(path.join(desk, 'src', 'locales', 'pt-BR.json')), true);
   assert.equal(allowedFile(path.join(desk, 'config.cjs')), false);
@@ -111,7 +129,8 @@ test('host: abre a página da figura, manda o pedido, captura e fecha a janela',
   const {preview} = createFigurePreview({createWindow: () => { const win = createFakeFigureWindow(); windows.push(win); return win; }});
   const result = await preview({kind: 'plot', source: PARABOLA_BODY, theme: 'escuro', width: 400});
   assert.match(windows[0].loaded[0], /src[\\/]figures[\\/]figure\.html$/);
-  assert.match(windows[0].scripts[0], /^window\.mesaFigure\.render\(.*"kind":"plot".*"theme":"escuro".*"width":400/);
+  const render = windows[0].scripts.find((code) => code.startsWith('window.mesaFigure.render'));
+  assert.match(render, /^window\.mesaFigure\.render\(.*"kind":"plot".*"theme":"escuro".*"width":400/);
   assert.deepEqual(windows[0].sizes, [[400, 300]]);
   assert.equal(windows[0].destroyed, true);
   assert.deepEqual({width: result.width, theme: result.theme, plots: result.plots, contentHeight: result.contentHeight}, {width: 400, theme: 'escuro', plots: 1, contentHeight: 300});
@@ -151,9 +170,10 @@ test('o servidor mesa leva ver_figura com o esquema e a descrição do guia', as
   await client.connect(a);
   try {
     const {tools} = await client.listTools();
-    assert.deepEqual(tools.map((tool) => tool.name), ['ver_figura']);
-    assert.deepEqual(canonical(tools[0].inputSchema), canonicalFields(FIGURE_FIELDS));
-    assert.equal(tools[0].description, FIGURE_DESCRIPTION);
+    assert.deepEqual(tools.map((tool) => tool.name), ['calcular', 'ver_figura']);
+    const figure = tools.find((tool) => tool.name === 'ver_figura');
+    assert.deepEqual(canonical(figure.inputSchema), canonicalFields(FIGURE_FIELDS));
+    assert.equal(figure.description, FIGURE_DESCRIPTION);
   } finally {
     await client.close();
     await server.instance.close();
@@ -201,6 +221,19 @@ test('ponte: /figure leva o pedido ao host e devolve o print; sem o host a rota 
   } finally {
     await plain.close();
   }
+});
+
+test('M8: plot acima do limite falha antes da ponte, com a frase do parser', async () => {
+  const big = 'x'.repeat(LIMITS.source + 1);
+  assert.equal(figureLimitError('plot', big), `plot too-long: recebeu ${JSON.stringify(`${big.length} caracteres`)}, esperava até ${LIMITS.source} caracteres`);
+  assert.equal(figureLimitError('svg', 'x'.repeat(LIMITS.source + 1)), '', 'o limite maior continua valendo para SVG');
+  const seen = [];
+  const tool = await createFigureTool(async (args) => { seen.push(args); return REPORT; });
+  const failed = await tool.handler({kind: 'plot', source: big}, {});
+  assert.equal(failed.isError, true);
+  assert.match(failed.content[0].text, /plot too-long: recebeu "4001 caracteres", esperava até 4000 caracteres/);
+  assert.equal(seen.length, 0, 'a ponte nem foi chamada');
+  await assert.rejects(viewFigure({url: 'http://127.0.0.1:1/activity', token: 't'}, {kind: 'plot', source: big}), /plot too-long: recebeu "4001 caracteres"/);
 });
 
 test('cliente: sem a concessão da ponte a mensagem diz onde a ferramenta existe', async () => {

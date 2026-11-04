@@ -32,7 +32,7 @@ export function query(args){
     /* #42: antes de mostrar, a prévia — liberada pelo hook e pelo allowedTools, real na Mesa. */
     if(process.env.FAKE_CLAUDE_PREVIEW_OUT){
      const previewHook=await options.hooks.PreToolUse[0].hooks[0]({tool_name:'mcp__mesa__previsualizar_atividade',tool_use_id:'toolu_preview_local',tool_input:{html:spec.html,css:spec.css,js:spec.js+'console.error("erro de propósito");',theme:'escuro',width:400}});
-     const allowed=previewHook.continue===true&&previewHook.hookSpecificOutput?.permissionDecision!=='deny'&&(options.allowedTools||[]).includes('mcp__mesa__previsualizar_atividade');
+     const allowed=previewHook.continue===true&&previewHook.hookSpecificOutput?.permissionDecision!=='deny'&&(options.allowedTools||[]).some(name=>name==='mcp__mesa__*'||name==='mcp__mesa__previsualizar_atividade');
      const preview=allowed?await client.callTool({name:'previsualizar_atividade',arguments:{html:spec.html,css:spec.css,js:spec.js+'console.error("erro de propósito");',theme:'escuro',width:400}}):{denied:true};
      (await import('node:fs')).writeFileSync(process.env.FAKE_CLAUDE_PREVIEW_OUT,JSON.stringify(preview));
     }

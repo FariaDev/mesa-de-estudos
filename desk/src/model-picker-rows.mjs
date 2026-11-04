@@ -1,7 +1,7 @@
 // @ts-check
 import {icon} from '../icons.mjs';
 import {t, text, currentLanguage} from './ui-text.mjs';
-import {contextSize} from './model-picker.mjs';
+import {contextSize, providerAccessibleName} from './model-picker.mjs';
 import {providerIcon, vendorIcon} from './provider-icons.mjs';
 import {themeTokens} from './activity-view.mjs';
 import {format as formatCombo} from './keys.mjs';
@@ -12,23 +12,22 @@ import {format as formatCombo} from './keys.mjs';
 
    A segunda linha depende do grupo: no grupo de um provedor o nome dele já está
    no título, então ali vão os fatos do catálogo (contexto, visão, raciocínio,
-   preço); nos grupos mistos (Favoritos, Recentes, Grátis, busca) vai o provedor.
+   preço); nos grupos mistos (Favoritos, Recentes, busca) vai o provedor.
    O grátis leva a política de dados nos dois. */
 
 /** @typedef {import('./model-picker.mjs').PickerItem} PickerItem */
 /** @typedef {import('./model-picker.mjs').PickerGroup} PickerGroup */
-/** @typedef {{selectedKey: string, short: boolean, kind: PickerGroup['kind']}} RowContext */
+/** @typedef {{selectedKey: string, short: boolean, kind: PickerGroup['kind'], engine?: string, defaultKey?: string}} RowContext */
 
 const FAVORITE_COMBO = 'Mod+D';
 
-/* Favoritos, Recentes e Grátis têm ícone da Mesa; provedor, o logo ou o monograma. */
-const GROUP_ICONS = Object.freeze({favorite: 'star', recent: 'clock', free: 'sparkles'});
+/* Favoritos e Recentes têm ícone da Mesa; provedor, o logo ou o monograma. */
+const GROUP_ICONS = Object.freeze({favorite: 'star', recent: 'clock'});
 
 /** @param {PickerGroup['kind']} kind @param {string} title */
 export function groupTitle(kind, title) {
   if (kind === 'favorite') return t('modelPicker.group.favorite');
   if (kind === 'recent') return t('modelPicker.group.recent');
-  if (kind === 'free') return t('modelPicker.group.free');
   return title;
 }
 
@@ -51,17 +50,18 @@ export function chartTokens(doc) {
 export function railButton(entry) {
   const item = document.createElement('div');
   const name = groupTitle(entry.kind, entry.title);
+  const accessible = entry.kind === 'provider' ? providerAccessibleName(entry.provider) : name;
   item.className = 'model-rail-item';
   item.dataset.group = String(entry.group);
   item.dataset.kind = entry.kind;
-  item.dataset.tip = name;
-  item.setAttribute('aria-label', name);
+  item.dataset.tip = accessible;
+  item.setAttribute('aria-label', accessible);
   item.innerHTML = entry.kind === 'provider' ? providerIcon(entry.provider, entry.title) : icon(GROUP_ICONS[/** @type {keyof typeof GROUP_ICONS} */ (entry.kind)] || 'cpu');
   return item;
 }
 
 /** @param {PickerGroup} group @param {number} groupAt @param {(item: PickerItem, context: RowContext) => Node} rowOf @param {string} selectedKey */
-export function groupNode(group, groupAt, rowOf, selectedKey) {
+export function groupNode(group, groupAt, rowOf, selectedKey, extra = {}) {
   const box = document.createElement('div');
   box.setAttribute('role', 'group');
   box.className = 'model-group';
@@ -73,7 +73,7 @@ export function groupNode(group, groupAt, rowOf, selectedKey) {
   title.textContent = groupTitle(group.kind, group.title);
   box.setAttribute('aria-labelledby', title.id);
   box.append(title);
-  const context = {selectedKey, kind: group.kind};
+  const context = {selectedKey, kind: group.kind, ...extra};
   if (!group.sections) {
     for (const item of group.items) box.append(rowOf(item, {...context, short: false}));
     return box;
@@ -124,7 +124,7 @@ export function waitingRow() {
   return row;
 }
 
-/* Duas camadas: o nome (com o selo "Grátis") em cima; embaixo, os fatos do
+/* Duas camadas: o nome em cima; embaixo, os fatos do
    modelo ou o provedor, conforme o grupo, e a política de dados do grátis. A
    estrela fica fora da lista plana do Claude, que não tem favoritos. */
 /** @param {PickerItem} item @param {RowContext} context @param {number} at */
@@ -135,7 +135,7 @@ export function itemRow(item, context, at) {
   row.dataset.key = item.key;
   row.setAttribute('aria-selected', String(item.key === context.selectedKey));
   if (context.short && item.vendor) row.setAttribute('aria-label', item.name);
-  if (item.free) { row.dataset.free = '1'; row.querySelector('.model-row-top')?.append(freeBadge()); }
+  if (item.free) row.dataset.free = '1';
   if (item.zenPaid) row.dataset.zenPaid = '1';
   const facts = context.kind === 'provider';
   const meta = facts ? factsLine(item, notes) : providerLine(item, notes);
@@ -144,17 +144,36 @@ export function itemRow(item, context, at) {
   if (tip) row.title = tip;
   row.querySelector('.model-row-text')?.append(meta);
   if (context.kind === 'flat') return row;
+  const defaultKey = context.defaultKey || '';
+  const isDefault = !!defaultKey && item.key === defaultKey;
+  if (isDefault) {
+    const badge = document.createElement('span');
+    badge.className = 'model-row-default-badge';
+    badge.textContent = t('modelPicker.default.badge');
+    row.querySelector('.model-row-top')?.append(badge);
+  }
   const star = starOf(item.favorite, row.id);
   row.setAttribute('aria-describedby', star.id);
   row.append(star);
+  if (context.engine === 'opencode') row.append(defaultAction(isDefault, row.id));
   return row;
 }
 
-function freeBadge() {
-  const badge = document.createElement('span');
-  badge.className = 'model-row-badge';
-  badge.textContent = t('modelPicker.group.free');
-  return badge;
+/* A ação discreta ao lado da estrela: liga/desliga o modelo padrão da sessão
+   nova. O id interno do modelo não muda; o esforço atual vai junto no estado. */
+/** @param {boolean} on @param {string} rowId */
+function defaultAction(on, rowId) {
+  const action = document.createElement('span');
+  action.className = 'model-row-default-action';
+  action.id = `${rowId}-default`;
+  action.setAttribute('role', 'button');
+  action.setAttribute('aria-pressed', String(on));
+  const label = t(on ? 'modelPicker.default.remove' : 'modelPicker.default.add', {shortcut: formatCombo('Mod+Shift+D')});
+  action.setAttribute('aria-label', label);
+  action.title = label;
+  action.dataset.default = on ? '1' : '';
+  action.innerHTML = icon('bookmark');
+  return action;
 }
 
 /** @param {string[]} parts */

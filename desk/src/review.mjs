@@ -8,6 +8,7 @@ import {t,text as uiText,formatDate} from './ui-text.mjs';
 import {message} from './i18n.mjs';
 import {flashMark,savedMark} from './icon-motion.mjs';
 import {reviewPrompt} from './review-prompts.mjs';
+import {showProposal,silenceProposal,finishProposal} from './review-proposal.mjs';
 import {toNat, wholeNat} from './bend-nat.mjs';
 
 /* ---------------------------------------------------------------------------
@@ -300,9 +301,9 @@ function refStateSuffix(state){
  return '';
 }
 
-export function openReviewDialog({mode='add',item,ref}={}){
+function fillReviewDialog({mode='add',item,ref}={}){
  const dialog=dialogOf();
- if(!dialog)return;
+ if(!dialog)return null;
  window.desk.reviewDraftCancel?.(dialog._draftId).catch(()=>{});
  dialog._draftId='';dialog._dirty=new Set();
  const source=item||{};
@@ -319,7 +320,23 @@ export function openReviewDialog({mode='add',item,ref}={}){
   String(source.difficulty||''),
   uiText(reviewCore.refHint(coreRef(reference)))+refStateSuffix(source.refState)
  );
+ return dialog;
+}
+
+export function openReviewDialog(options={}){
+ const dialog=dialogOf();
+ if(!dialog)return;
+ /* Uma proposta aberta não é substituída: o tutor recebe `busy`. */
+ if(dialog.open&&dialog._proposalId)return;
+ dialog._proposalId='';
+ dialog._proposalSilent=false;
+ fillReviewDialog(options);
  if(!dialog.open)dialog.showModal();
+}
+
+/* O tutor propôs um card: o mesmo diálogo, preenchido (`review-proposal.mjs`). */
+export function openReviewProposal(payload){
+ showProposal(dialogOf(),payload,{fill:fillReviewDialog,openRef:openRefOf,respond:window.desk?.reviewProposalRespond,t});
 }
 
 /* A tentativa vem da mensagem DO USUÁRIO que aquela resposta do Pi estava
@@ -356,8 +373,8 @@ export function openReviewFromMessage(node=null){
  if(dialog)dialog._fromMessage=node;
  const answer=String(node?._raw||node?.querySelector('.body')?.innerText||'');
  if(!dialog||!answer.trim())return;
- /* Motor sem geração auxiliar (Claude nesta versão): o caderno manual continua,
-    mas a sugestão automática não é pedida — nada de fallback silencioso no Pi. */
+ /* Motor sem geração auxiliar (desconhecido): o caderno manual continua, mas a
+    sugestão automática não é pedida — nada de fallback silencioso no Pi. */
  if(!supportsCapability('reviewDraft')){
   if(window.desk.reviewDraft)draftStatus(message('review.draft.unavailable'));
   return;
@@ -381,17 +398,27 @@ $('#review-dialog')?.addEventListener('input',event=>{
  if(['question','attempt','difficulty'].includes(key))dialogOf()._dirty?.add(key);
 });
 
-$('#review-dialog')?.addEventListener('close',event=>{
- const dialog=event.currentTarget;
- const fromMessage=dialog._fromMessage;dialog._fromMessage=null;
- window.desk.reviewDraftCancel?.(dialog._draftId).catch(()=>{});dialog._draftId='';
- if(dialog.returnValue!=='ok')return;
- const item={
+function formItem(dialog){
+ return {
   question:String(dialog.querySelector('#review-question')?.value||''),
   attempt:String(dialog.querySelector('#review-attempt')?.value||''),
   difficulty:String(dialog.querySelector('#review-difficulty')?.value||''),
   ref:dialog._ref||openRefOf()
  };
+}
+
+$('#review-dialog')?.addEventListener('close',event=>{
+ const dialog=event.currentTarget;
+ const fromMessage=dialog._fromMessage;dialog._fromMessage=null;
+ window.desk.reviewDraftCancel?.(dialog._draftId).catch(()=>{});dialog._draftId='';
+ const item=formItem(dialog);
+ /* A proposta não cai no `reviewSave` do botão: o host é quem grava, e só
+    se o aluno aprovou. */
+ if(dialog._proposalId){
+  finishProposal(dialog,item,{respond:window.desk.reviewProposalRespond,toast,message,onItems:items=>{S.reviewItems=items;board.data=null;drawReview();}});
+  return;
+ }
+ if(dialog.returnValue!=='ok')return;
  const mode=dialog._mode==='edit'?'edit':'add';
  const payload=mode==='edit'?{mode,key:dialog._key,item}:{mode:'add',item};
  saveReview(payload).then(saved=>{
@@ -456,4 +483,8 @@ delegate($('#review-bar'));
    recuperação continuam lá até o prazo. */
 if(typeof window!=='undefined'&&typeof window.addEventListener==='function'){
  window.addEventListener('desk-conversation-changed',()=>cancelUndoNotice());
+}
+if(typeof window!=='undefined'){
+ window.desk?.onReviewProposal?.(payload=>openReviewProposal(payload));
+ window.desk?.onReviewProposalCancel?.(payload=>silenceProposal(dialogOf(),payload));
 }

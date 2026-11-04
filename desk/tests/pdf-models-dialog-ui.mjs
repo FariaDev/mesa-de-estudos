@@ -34,7 +34,7 @@ const markdown=`# Lista de exemplo — razões trigonométricas
 await withArtifacts('pdf-models-dialog-ui',async ctx=>{
  const runtime=ctx.runtime=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-pdf-models-ui-')));
  const demo=path.join(runtime,'pi-models-demo.mjs');
- const source=fakePiSource(),marker="else if(/quiz/i.test(studentText(e.message)))emitQuiz(e.message);";assert.ok(source.includes(marker));
+ const source=fakePiSource(),marker="else if(/quiz/i.test(studentText(e.message)))void emitQuiz(e.message);";assert.ok(source.includes(marker));
  const branch=`else if(String(e.message).includes('Prepare um PDF na Mesa')){
  streaming=true;emit({type:'agent_start'});
  (async()=>{
@@ -90,7 +90,7 @@ await withArtifacts('pdf-models-dialog-ui',async ctx=>{
  assert.deepEqual(now.cards,['lista','apostila','resumo','simulado','formulario','livre']);
  assert.equal(now.checked,'lista','o diálogo abre no modelo que o tutor pediu');
  assert.equal(now.preview,'lista','a prévia usa o modelo escolhido');
- assert.match(now.status,/O tutor escolheu Lista pelo pedido\. Trocar o modelo não muda o texto\./);
+ assert.match(now.status,/O tutor escolheu Lista/);
  assert.match(now.pages,/^página 1 de \d+$/);
  await page.waitForFunction(()=>/Auto · \d/.test(document.querySelector('#pdf-model-options')?.textContent||''),undefined,{timeout:8000});
  now=await state();
@@ -170,7 +170,7 @@ await withArtifacts('pdf-models-dialog-ui',async ctx=>{
   });
   const tag=`${theme} ${size.join('x')}`;
   assert.ok(m.box.top>=0&&m.box.left>=0&&m.box.bottom<=m.win[1]&&m.box.right<=m.win[0],`${tag}: o diálogo cabe na janela (${JSON.stringify(m.box)} em ${m.win})`);
-  assert.equal(m.radius,'16px',`${tag}: raio 16px`);
+  assert.equal(m.radius,'12px',`${tag}: raio 12px`);
   assert.equal(m.title,'15px',`${tag}: título de 15px`);
   assert.deepEqual(m.close,[28,28],`${tag}: × de 28px`);
   assert.equal(m.footer.height,52,`${tag}: rodapé de 52px`);
@@ -200,7 +200,7 @@ await withArtifacts('pdf-models-dialog-ui',async ctx=>{
  await page.waitForSelector('#free-pdf-dialog[open]');
  now=await state();
  assert.equal(now.checked,'apostila','o último modelo salvo vale na próxima abertura');
- assert.match(now.status,/Modelo Apostila, o último que você usou aqui\./);
+ assert.match(now.status,/Modelo Apostila, o último usado aqui\./);
  assert.deepEqual(errors,[]);
  console.log('pdf-models-dialog-ui: PASS — modelo do tutor, troca sem tutor, Cancelar descarta, Salvar lembra e medidas nos dois temas e tamanhos.');
 });

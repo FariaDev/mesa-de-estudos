@@ -1,41 +1,43 @@
 /* Instrução da ferramenta de PDF do tutor — UM texto para as duas ferramentas
    (extensão do Pi `mesa_criar_pdf` e `criar_pdf` do Claude): mudam juntas.
-   Os ids dos modelos e as chaves de opção são os de `core/materialmodel.bend`
-   (o teste `tutor-materials.test.mjs` confere que não divergem). */
+   Descrição e campos são SEMPRE em inglês; o resultado (`resultText`) segue
+   como estava, em português. Os ids dos modelos e as chaves de opção são os de
+   `core/materialmodel.bend` (o teste `tutor-materials.test.mjs` confere que não
+   divergem). */
 
 import {PDF_FIGURE_GUIDE} from '../mesa-figure/guide.mjs';
 
 export const MODEL_IDS = ['lista', 'apostila', 'resumo', 'simulado', 'formulario', 'livre'];
 export const SPACE_CHOICES = ['pequeno', 'medio', 'grande'];
 
-const BASE = 'Prepare o conteúdo do PDF quando o usuário pedir um material em PDF. Envie o título e o conteúdo completo em Markdown/LaTeX (sem cercas externas). A Mesa preenche o diálogo editável com prévia. O usuário revisa, pode trocar o modelo e clica em Salvar PDF e abrir para gerar o arquivo. Não peça ao usuário para copiar o texto ou montar o PDF manualmente. O resultado confirma apenas que o conteúdo está preparado para revisão; o PDF ainda não está salvo: depois, diga que o material está pronto para revisar no diálogo, nunca que o PDF já foi salvo.';
+const BASE = 'Prepare the PDF content when the user asks for a PDF material. Send the title and the complete content in Markdown/LaTeX (without outer fences). The desk fills the editable dialog with a preview. The user reviews it, can change the model and clicks Save PDF and open to generate the file. Do not ask the user to copy the text or build the PDF by hand. The result only confirms the content is ready for review; the PDF is not saved yet: afterwards, say the material is ready to review in the dialog, never that the PDF has already been saved.';
 
 const MODELS = [
-  'Escolha o aspecto do PDF com `modelo` (opcional):',
-  '- lista — lista de exercícios (use para "faz uma lista de exercícios"). Cada enunciado é um item da lista numerada de primeiro nível ("1. Enunciado"); os itens de um enunciado são uma lista numerada aninhada, recuada, ("   1. $x+1$"), que sai em colunas. Termine com um título "## Gabarito" seguido das respostas numeradas.',
-  '- apostila — texto corrido de livro, justificado. Seções em "## 2. Título"; definições e teoremas como parágrafo começando em negrito ("**Definição 2.1.** *enunciado em itálico*"; também Teorema, Proposição, Lema, Corolário); exemplos como "**Exemplo 03:** …"; equações de display em $$…$$ (a Mesa numera por seção); tabelas em Markdown.',
-  '- resumo — revisão de uma página. "**A ideia.** …" abre; "**Regra.** …" vai num quadro; "## Exemplo resolvido" com passos numerados; "## Erros comuns" e "## Para revisar" com marcadores (saem lado a lado).',
-  '- simulado — prova. Cada questão é um título "## Questão N (valor)" seguido do enunciado; a Mesa desenha o quadro Nome/Data/Nota (não escreva) e a caixa de resposta. Múltipla escolha: itens "- ( ) alternativa" (sem caixa de resposta). Questão de resposta longa: "## Questão N (valor) {longa}" (caixa maior). Termine com "## Gabarito" e as respostas comentadas.',
-  '- formulario — folha de fórmulas. Primeira linha: a convenção ("Em toda a folha, $u=f(x)$ e $u\'=f\'(x)$."); seções em "## Título"; fórmulas em listas numeradas (a numeração continua entre as seções, para citar "a 13").',
-  '- livre — sem modelo: o Markdown sai como foi escrito.',
-  'Escolha o modelo pelo pedido; sem um pedido claro, deixe `modelo` de fora: a Mesa usa o último modelo que o usuário escolheu nesta matéria (ou livre, se não houver).',
+  'Choose the PDF look with `modelo` (optional):',
+  '- lista — exercise list (use for "make an exercise list"). Each statement is a top-level numbered item ("1. Statement"); its sub-items are a nested indented numbered list ("   1. $x+1$"), rendered in columns. End with "## Gabarito" and the numbered answers.',
+  '- apostila — running book text, justified. Sections in "## 2. Title"; definitions and theorems as a paragraph starting bold ("**Definição 2.1.** *statement*"; also Teorema, Proposição, Lema, Corolário); examples as "**Exemplo 03:** …"; display equations in $$…$$ (the desk numbers them by section); Markdown tables.',
+  '- resumo — one-page review. "**A ideia.** …" opens; "**Regra.** …" goes in a box; "## Exemplo resolvido" with numbered steps; "## Erros comuns" and "## Para revisar" with bullets, side by side.',
+  '- simulado — exam. Each question is a "## Questão N (valor)" heading followed by the statement; the desk draws the Nome/Data/Nota box (do not write it) and the answer box. Multiple choice: "- ( ) alternative" items (no answer box). Long answer: "## Questão N (valor) {longa}" (larger box). End with "## Gabarito" and the commented answers.',
+  '- formulario — formula sheet. First line: the convention ("Em toda a folha, $u=f(x)$ e $u\'=f\'(x)$."); sections in "## Title"; formulas in numbered lists (numbering continues across sections, so you can cite "a 13").',
+  '- livre — no model: the Markdown comes out as written.',
+  'Choose the model from the request; without a clear request, leave `modelo` out: the desk uses the last model the user chose in this course (or livre, if none).',
 ];
 
 const OPTIONS = [
-  'Ajustes do modelo em `opcoes` (envie só o que importa; o resto fica no padrão):',
-  '- colunas: "auto", 1, 2 ou 3 — itens da lista (lista) ou fórmulas (formulario; auto/2/3). Auto mede o item mais largo.',
-  '- gabarito (lista, simulado): true põe o gabarito em página separada; rodape (lista): texto do rodapé.',
-  '- equacoes (apostila): numerar equações; recuo (apostila): recuo de parágrafo; capitulo (apostila): texto do cabeçalho corrente.',
-  '- regra, revisao (resumo): quadro da regra e blocos Erros comuns/Para revisar.',
-  '- valor (simulado): mostrar o valor das questões; espaco: "pequeno", "medio" ou "grande" (espaço para responder).',
-  '- umafolha (formulario): caber numa folha.',
+  'Model adjustments in `opcoes` (send only what matters; the rest stays at the default):',
+  '- colunas: "auto", 1, 2 or 3 — list items (lista) or formulas (formulario; auto/2/3). Auto measures the widest item.',
+  '- gabarito (lista, simulado): true puts the answer key on its own page; rodape (lista): footer text.',
+  '- equacoes (apostila): number equations; recuo (apostila): paragraph indent; capitulo (apostila): running header.',
+  '- regra, revisao (resumo): rule box and Erros comuns/Para revisar blocks.',
+  '- valor (simulado): show the question value; espaco: "pequeno", "medio" or "grande" (answer space).',
+  '- umafolha (formulario): fit on one page.',
 ];
 
 export const TOOL_DESCRIPTION = `${BASE}\n\n${MODELS.join('\n')}\n\n${OPTIONS.join('\n')}\n\n${PDF_FIGURE_GUIDE}`;
 
 /* Os nomes dos modelos e das opções já estão no esquema e na descrição. */
-export const MODEL_PARAM = 'Modelo do PDF (veja a lista na descrição). Opcional.';
-export const OPTIONS_PARAM = 'Ajustes do modelo; envie só o que importa. Opcional.';
+export const MODEL_PARAM = 'PDF model (see the list in the description). Optional.';
+export const OPTIONS_PARAM = 'Model adjustments; send only what matters. Optional.';
 
 /* Campos da ferramenta (`tool-fields.mjs` monta o zod do Claude e o TypeBox do Pi). */
 const flag = {type: 'boolean', optional: true};

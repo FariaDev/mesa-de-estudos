@@ -1,5 +1,5 @@
 // node tests/study-stats-screen-ui.mjs — Estatísticas (ticket #34), medidas na janela.
-// Cobre os critérios da tela: casco do diálogo (raio 16px, título de 15px, × de
+// Cobre os critérios da tela: casco do diálogo (raio 12px, título de 15px, × de
 // 28px, rodapé de 52px rente ao fundo), manchete em serifa, UMA ação no
 // cronômetro, barras de 150px com dia vazio em fio de 2px, tabela por matéria,
 // uso do tutor em texto corrido dentro de uma seção recolhida e nada que estoure.
@@ -73,7 +73,7 @@ await withArtifacts('study-stats-screen',async ctx=>{
    const tag=`${theme} ${width}×${height}`;
    const m=await measure(page);
    /* Casco do diálogo padrão. */
-   assert.equal(m.dialog.radius,'16px',`${tag}: raio 16px`);
+   assert.equal(m.dialog.radius,'12px',`${tag}: raio 12px`);
    assert.ok(near(m.dialog.width,680,1)||m.dialog.width<=width*0.92+1,`${tag}: largura de ~680px (${m.dialog.width})`);
    assert.equal(m.title.font,'15px',`${tag}: título de 15px`);
    assert.equal((await page.locator('#study-stats-title').textContent()).trim(),'Estatísticas de estudo');

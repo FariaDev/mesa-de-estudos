@@ -105,6 +105,7 @@ await withArtifacts('pdf-rotation',async ctx=>{
   // mas nunca `change` (confirmado na sonda). O teste pagina como o usuário:
   // foca, seleciona o número, digita e confirma com Enter.
   const typePage=async(idx,n)=>{
+   await field(idx,'.pager').click();
    const input=field(idx,'.page-number');
    await input.click();
    await page.keyboard.press('ControlOrMeta+a');
@@ -154,7 +155,8 @@ await withArtifacts('pdf-rotation',async ctx=>{
    check(`${label}: span dentro da página girada`,g.spanInside,`${g.spanInside}`);
    return g;
   };
-  return {field,title,waitTitle,waitRotation,waitCanvas,waitPage,typePage,scrollTo,geom,marker,expectGeom};
+  const gotoPage=async(idx,n)=>{await field(idx,'.pager').click();const input=field(idx,'.page-number');await input.fill(String(n));await input.press('Enter');await waitPage(idx,n);};
+  return {field,title,waitTitle,waitRotation,waitCanvas,waitPage,typePage,gotoPage,scrollTo,geom,marker,expectGeom};
  }
 
  /* ---------- execução A: legado/inválido, ciclo e estado no disco ---------- */
@@ -238,7 +240,7 @@ await withArtifacts('pdf-rotation',async ctx=>{
 
   // troca A→B→A: B não herda; voltar restaura pelo docMemo
   await H.field(0,'.pdf-select').selectOption(dois);
-  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-foot')?.textContent.includes('Dois.pdf'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-select')?.title.includes('Dois.pdf'),undefined,{timeout:30000});
   await H.waitRotation(0,1,0);
   check('trocar PDF não herda a orientação do outro',(await H.title(0)).includes('atual: 0°'),await H.title(0));
   const gb=await H.geom(0,1);
@@ -248,7 +250,7 @@ await withArtifacts('pdf-rotation',async ctx=>{
   const gb90=await H.geom(0,1);
   check('trocar PDF: Dois girou para paisagem',gb90.boxW>gb90.boxH,JSON.stringify({w:gb90.boxW,h:gb90.boxH}));
   await H.field(0,'.pdf-select').selectOption(um);
-  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-foot')?.textContent.includes('Um.pdf'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-select')?.title.includes('Um.pdf'),undefined,{timeout:30000});
   await H.waitRotation(0,1,270);
   check('voltar ao PDF restaura a orientação (docMemo)',(await H.title(0)).includes('atual: 180°'),await H.title(0));
   const gu=await H.geom(0,1);
@@ -259,14 +261,15 @@ await withArtifacts('pdf-rotation',async ctx=>{
   // sendo digitada: foca, digita 1, força um render com o redimensionamento e
   // só então confirma com Enter — o valor tem de sobreviver até lá.
   const pageInput=H.field(0,'.page-number');
+  await H.field(0,'.pager').click();
   await pageInput.click();await page.keyboard.press('ControlOrMeta+a');await page.keyboard.type('1');
   await resizeWindow(app,page,1462,852);
   await page.waitForTimeout(600);// espera fixa: janela do render atrasado (ResizeObserver) — o valor digitado tem de sobreviver a ele
   check('página digitada sobrevive a um render atrasado',(await pageInput.inputValue())==='1',await pageInput.inputValue());
   await page.keyboard.press('Enter');
   await H.waitPage(0,1);
-  await H.field(0,'.next').click();await H.waitPage(0,2);
-  await H.field(0,'.prev').click();await H.waitPage(0,1);
+  await H.gotoPage(0,2);
+  await H.gotoPage(0,1);
   check('paginação contínua segue funcionando girada',true);
   await H.field(0,'.fit').click();
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.zoom-label').textContent.trim()==='100%',undefined,{timeout:5000});
@@ -303,13 +306,13 @@ await withArtifacts('pdf-rotation',async ctx=>{
 
   // trocar para outro PDF preserva o mapa; a barra em 900x650 continua usável
   await H.field(0,'.pdf-select').selectOption(tres);
-  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-foot')?.textContent.includes('Tres.pdf'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-select')?.title.includes('Tres.pdf'),undefined,{timeout:30000});
   await H.waitRotation(0,1,0);
   check('PDF novo não herda orientação',(await H.title(0)).includes('atual: 0°'),await H.title(0));
   const away=await waitState(s=>s.pdfRotations?.[um]===180&&s.pdfRotations?.[dois]===90&&!s.pdfRotations?.[tres],'mapa preservado com Um/Dois fora de cena');
   check('mapa preserva PDFs fora de cena',away.pdfRotations[um]===180&&away.pdfRotations[dois]===90,JSON.stringify(away.pdfRotations));
   await H.field(0,'.pdf-select').selectOption(um);
-  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-foot')?.textContent.includes('Um.pdf'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-select')?.title.includes('Um.pdf'),undefined,{timeout:30000});
   await H.waitRotation(0,1,270);
   check('voltar de novo restaura a orientação',(await H.title(0)).includes('atual: 180°'),await H.title(0));
 
@@ -336,7 +339,13 @@ await withArtifacts('pdf-rotation',async ctx=>{
   // usuário consegue) com renders disparando em cima; a orientação final
   // (270 = ciclo completo) e o canvas/textLayer visíveis têm de ser os últimos,
   // sem canvas velho sobrando e com a página 2 preservada.
+  // Em 900x650 a página 2 girada é baixa: com zoom 200% ela ainda cabe no
+  // centro do palco, que é como o host decide a página atual depois do render.
+  for(let i=0;i<4;i++)await H.field(0,'.in').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.zoom-label').textContent.trim()==='200%',undefined,{timeout:5000});
+  await pdfRenderIdle(page);
   await H.typePage(0,2);await H.waitPage(0,2);await H.waitCanvas(0,2);
+  await pdfRenderIdle(page);
   await page.evaluate(()=>{const panel=document.querySelectorAll('.pdf-panel')[0];for(let i=0;i<4;i++)panel.querySelector('.rotate').click();});
   await H.waitTitle(0,270);
   await H.expectGeom('giro rápido (4 cliques no mesmo tick): p2 volta a 270',0,2,270,'LB',false);
@@ -406,13 +415,13 @@ await withArtifacts('pdf-rotation',async ctx=>{
   check('mesmo PDF: canvas do painel 1 intacto em 90° efetivo',(await H.geom(1,1)).mainRotation==='90');
   // A→B→A no painel 1: o docMemo é do painel e vence o mapa (que agora tem 180).
   await H.field(1,'.pdf-select').selectOption(dois);
-  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[1].querySelector('.pdf-foot')?.textContent.includes('Dois.pdf'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[1].querySelector('.pdf-select')?.title.includes('Dois.pdf'),undefined,{timeout:30000});
   await H.waitRotation(1,1,0);
   check('mesmo PDF: o painel 1 troca para Dois em 0°',(await H.title(1)).includes('atual: 0°'),await H.title(1));
   await H.field(1,'.rotate').click();await H.waitTitle(1,90);
   await H.waitRotation(1,1,90);
   await H.field(1,'.pdf-select').selectOption(um);
-  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[1].querySelector('.pdf-foot')?.textContent.includes('Um.pdf'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[1].querySelector('.pdf-select')?.title.includes('Um.pdf'),undefined,{timeout:30000});
   await H.waitRotation(1,1,90);
   check('mesmo PDF: voltar usa a volta própria do painel (docMemo), não o mapa',(await H.title(1)).includes('atual: 0°'),await H.title(1));
   check('mesmo PDF: painel 0 segue na volta dele',(await H.title(0)).includes('atual: 180°'),await H.title(0));
@@ -456,13 +465,13 @@ await withArtifacts('pdf-rotation',async ctx=>{
   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].every(t=>!t.disabled),undefined,{timeout:30000});
   await page.locator('#course-tabs button[data-id="Outra"]').click();
   await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="Outra"]')?.classList.contains('active'),undefined,{timeout:30000});
-  await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-foot')?.textContent.includes('Um.pdf')&&!!document.querySelector('.pdf-panel .pdf-page canvas'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-select')?.title.includes('Um.pdf')&&!!document.querySelector('.pdf-panel .pdf-page canvas'),undefined,{timeout:30000});
   await H.waitRotation(0,1,90);
   check('matéria B nasce em 0° (sem herdar A)',(await H.title(0)).includes('atual: 0°'),await H.title(0));
   await page.waitForFunction(()=>[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab)')].every(t=>!t.disabled),undefined,{timeout:30000});
   await page.locator('#course-tabs button[data-id="Girar"]').click();
   await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="Girar"]')?.classList.contains('active'),undefined,{timeout:30000});
-  await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-foot')?.textContent.includes('Um.pdf')&&!!document.querySelector('.pdf-panel .pdf-page canvas'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-select')?.title.includes('Um.pdf')&&!!document.querySelector('.pdf-panel .pdf-page canvas'),undefined,{timeout:30000});
   await H.waitRotation(0,1,180);
   check('voltar à matéria A restaura a orientação',(await H.title(0)).includes('atual: 90°'),await H.title(0));
   check('voltar à matéria A restaura o zoom (sem perdas de layout)',(await page.locator('.pdf-panel .zoom-label').textContent()).trim()==='120%');

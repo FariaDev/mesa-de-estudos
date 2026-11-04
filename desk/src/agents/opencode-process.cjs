@@ -16,6 +16,7 @@
      passa pelo `redact` com a senha e qualquer segredo do ambiente. */
 
 const {spawn} = require('node:child_process');
+const {spawnPlan} = require('../win-cmd-spawn.cjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -47,9 +48,12 @@ function expandHome(candidate, home) {
  * @example candidatePaths({home: '/Users/ana'}) // ['/Users/ana/.opencode/bin/opencode', …]
  */
 function candidatePaths({envPath = '', home = os.homedir(), platform = process.platform} = {}) {
+  /* Mesmo resolvedor para todos (CI windows-latest): `expandHome` usa `path.resolve`; um
+     `path.join` puro devolvia `\casa\...` no Windows e o mesmo caminho saía
+     com e sem drive conforme a origem. */
   const out = [expandHome(envPath, home)];
-  if (platform === 'win32') out.push(path.join(home, 'AppData', 'Local', 'Programs', 'opencode', 'opencode.exe'), path.join(home, '.opencode', 'bin', 'opencode.exe'));
-  out.push(path.join(home, '.opencode', 'bin', 'opencode'), path.join(home, '.local', 'bin', 'opencode'));
+  if (platform === 'win32') out.push(path.resolve(home, 'AppData', 'Local', 'Programs', 'opencode', 'opencode.exe'), path.resolve(home, '.opencode', 'bin', 'opencode.exe'));
+  out.push(path.resolve(home, '.opencode', 'bin', 'opencode'), path.resolve(home, '.local', 'bin', 'opencode'));
   if (platform !== 'win32') out.push('/opt/homebrew/bin/opencode', '/usr/local/bin/opencode');
   return [...new Set(out.filter((item) => typeof item === 'string'))];
 }
@@ -99,12 +103,18 @@ function redact(text, secrets) {
  * @example const server = await startOpenCodeServer({binary, cwd: workspaces, env, ledgerDir: runtime});
  */
 function startOpenCodeServer({binary = '', cwd = '', env = process.env, timeoutMs = DEFAULT_TIMEOUT_MS, log = () => {}, spawnProcess = spawn, ledgerDir = ''} = {}) {
-  if (!binary) return Promise.reject(Error(message('err.opencode.notFound')));
+  if (!binary) {
+    /* A tela diz só que falta instalar; o caminho procurado fica no log. */
+    log('opencode', 'binário não encontrado; procurei LEARNING_DESK_OPENCODE, ~/.opencode/bin/opencode e o PATH');
+    return Promise.reject(Error(message('err.opencode.notFound')));
+  }
   const password = crypto.randomBytes(32).toString('base64url');
   const secrets = [password, String(env.OPENCODE_API_KEY || '')];
-  const child = spawnProcess(binary, [...MESA_SERVE_ARGS], {
+  /* `opencode.cmd` do npm no Windows passa pelo cmd.exe (`win-cmd-spawn.cjs`). */
+  const plan = spawnPlan(binary, [...MESA_SERVE_ARGS], {env});
+  const child = spawnProcess(plan.file, plan.args, {
     cwd: cwd || undefined, env: childEnv(env, password), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
-    detached: process.platform !== 'win32',
+    detached: process.platform !== 'win32', ...plan.options,
   });
   const pid = child.pid || 0;
   if (ledgerDir && pid) {

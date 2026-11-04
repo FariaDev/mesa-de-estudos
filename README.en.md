@@ -9,7 +9,7 @@ A local Electron app for studying with PDFs and an AI tutor in the same window. 
 ```
 Study Desk                              Xournal++ (or another app)
   problem set + formula sheet (PDF)       handwriting
-  tutor (Pi, OpenCode or Claude Code)     your attempt
+  tutor (OpenCode or Claude Code)        your attempt
   calculator, GeoGebra, notebook          → Check sends the page to the tutor
 ```
 
@@ -20,7 +20,7 @@ In Portuguese the app is called **Mesa de Estudos**; the repository and the fold
 ## What it does
 
 - **Two independent PDF readers** with search, bookmarks, an outline, and clickable "File.pdf, p. N" citations in the tutor's answers.
-- **Tutor** with three engines: [Pi](https://github.com/earendil-works/pi), OpenCode and Claude Code (experimental). Free models through OpenCode Zen let you start without an AI subscription.
+- **Tutor** with OpenCode (the default path) and Claude Code (experimental); Pi remains available to those who already use it. OpenCode uses the account or provider you already configured in it.
 - **Check** captures the window of your writing app and attaches it to the message. **Phone photo** shows a QR code that opens a page on the same network, and photos arrive on the desk in the order you sent them.
 - **Figures, charts and interactive activities** in the chat, all working offline. GeoGebra on demand, with an optional offline pack.
 - **PDF from the tutor:** problem list, handout, summary, mock exam and formula sheet, with an A4 preview and a review step before saving.
@@ -32,8 +32,8 @@ In Portuguese the app is called **Mesa de Estudos**; the repository and the fold
 
 ## Requirements
 
-- Node 22.19+.
-- A tutor engine. `npm run setup` installs Pi (tested with 1.3.0). OpenCode and Claude Code are optional and use whatever you already have installed; the accepted Claude Code range is 2.1.296 up to the 2.1 series.
+- Node **20+**, only to install from source (`npm ci`, `npm run setup`, `npm start`). The app and the tutor MCP server run on Electron's embedded Node, so studying does not depend on the system Node.
+- **OpenCode 2.2.4** (the desk installs it on first launch, with a pinned package) or **Claude Code** (accepted range 2.1.296 through the 2.1 series), which the desk detects and uses for new conversations. Pi, if already present, keeps working.
 - Your course PDFs in any folder.
 - macOS or Windows. Check works on both; day-to-day use has been tested by hand on macOS.
 
@@ -47,9 +47,9 @@ npm run doctor
 npm start
 ```
 
-On first launch the desk walks you through one step at a time: language and color, how the desk works, course name, PDF folder (subfolders count), tutor, and done. The course is only created at the last step. Pi asks for your provider credentials on first connection; they stay in Pi, not in the desk.
+On first launch the desk walks you through one step at a time: language and color, how the desk works, course name, PDF folder (subfolders count), tutor, and done. The course is only created at the last step. The chosen engine (OpenCode or Claude Code) asks for your provider credentials on first connection; they stay in that engine, not in the desk.
 
-`npm run doctor` checks Pi, policies, fonts, the visual extension and persistence without opening the app. On a Mac, `npm run install-app` builds **Mesa de Estudos.app**.
+`npm run doctor` checks the installed engine, policies, fonts, the visual extension (when applicable) and persistence without opening the app. On a Mac, `npm run install-app` builds **Mesa de Estudos.app**.
 
 For an agent setting up the computer: [`desk/SETUP.md`](desk/SETUP.md) (in Portuguese).
 

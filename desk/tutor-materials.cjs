@@ -2,15 +2,22 @@
 const http=require('node:http');
 const crypto=require('node:crypto');
 const materialModel=require('./material-model.cjs');
+const notesCore=require('./src/generated/tutornotes.core.js').default;
 const {message}=require('./src/i18n.mjs');
 const {describeReceived,invalidValue}=require('./src/error-detail.mjs');
 const MAX_BYTES=1100000;
 const MAX_OPTIONS_BYTES=2000;
+const MAX_NOTE_TITLE=Number(notesCore.maxTitle());
+const MAX_NOTE_CONTENT=Number(notesCore.maxContent());
 
 const isText=(value,max)=>typeof value==='string'&&value.trim()!==''&&value.length<=max;
 const isOptions=value=>!!value&&typeof value==='object'&&!Array.isArray(value)&&JSON.stringify(value).length<=MAX_OPTIONS_BYTES;
 /* Cada campo com o formato esperado (#43 fase 3): o tutor lê qual campo errou e o que mandou. */
 /** @type {Array<[string, (value: unknown) => boolean, string]>} */
+const NOTE_FIELDS=[
+ ['titulo',value=>isText(value,MAX_NOTE_TITLE),`string(1..${MAX_NOTE_TITLE})`],
+ ['conteudo',value=>isText(value,MAX_NOTE_CONTENT),`string(1..${MAX_NOTE_CONTENT})`],
+];
 const PDF_FIELDS=[
  ['title',value=>isText(value,120),'string(1..120)'],
  ['markdown',value=>isText(value,262144),'string(1..262144)'],
@@ -26,6 +33,12 @@ const PDF_FIELDS=[
  * @returns {string}
  * @example pdfRequestProblem({title: 'Limites', markdown: '# a'}) // ''
  */
+function noteRequestProblem(payload){
+ if(!payload||typeof payload!=='object'||Array.isArray(payload))return message('err.note.invalid',{field:'payload',received:describeReceived(payload),expected:'object'});
+ const wrong=NOTE_FIELDS.find(([field,valid])=>!valid(payload[field]));
+ return wrong?message('err.note.invalid',{field:wrong[0],received:describeReceived(payload[wrong[0]]),expected:wrong[2]}):'';
+}
+
 function pdfRequestProblem(payload){
  if(!payload||typeof payload!=='object'||Array.isArray(payload))return message('err.pdfbridge.invalid',{field:'payload',received:describeReceived(payload),expected:'object'});
  const wrong=PDF_FIELDS.find(([field,valid])=>!valid(payload[field]));
@@ -35,15 +48,20 @@ function pdfRequestProblem(payload){
 /* Ponte exclusiva do tutor principal: credencial efêmera por conversa,
    escopo capturado no grant, sem caminhos fornecidos pelo modelo. A resposta
    vai ao modelo: `tutorText` põe a mensagem marcada na língua dele (#43 fase 3). */
-/** @param {{createMaterial?: (scope: object, request: object) => Promise<unknown>, tutorText?: (raw: string) => string}} [options] */
-function createTutorMaterialBridge({createMaterial,tutorText=raw=>raw}={}){
+/**
+ * @param {{createMaterial?: (scope: object, request: object) => Promise<unknown>,
+ *   createNote?: (scope: object, request: {titulo: string, conteudo: string}) => Promise<unknown>,
+ *   tutorText?: (raw: string) => string}} [options]
+ */
+function createTutorMaterialBridge({createMaterial,createNote=null,tutorText=raw=>raw}={}){
  if(typeof createMaterial!=='function')throw Error(invalidValue('createMaterial',createMaterial,'function'));
  const grants=new Map(),jobs=new Set();let port=0,startPromise=null,closed=false;
  const reply=(res,status,data)=>{if(!res.destroyed){res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(data));}};
  const refuse=(res,status,raw)=>reply(res,status,{error:tutorText(raw)});
  const server=http.createServer(async(req,res)=>{
   const token=String(req.headers['x-mesa-token']||''),grant=grants.get(token);
-  if(req.method!=='POST'||req.url!=='/pdf'){refuse(res,404,message('err.pdfbridge.unavailable',{method:describeReceived(req.method),route:describeReceived(req.url)}));return;}
+  const route=req.url==='/pdf'?'pdf':req.url==='/notes'&&typeof createNote==='function'?'notes':'';
+  if(req.method!=='POST'||!route){refuse(res,404,message('err.pdfbridge.unavailable',{method:describeReceived(req.method),route:describeReceived(req.url)}));return;}
   if(!grant){refuse(res,403,message('err.pdfbridge.notAuthorized'));return;}
   if(!/^application\/json(?:;|$)/i.test(String(req.headers['content-type']||''))){refuse(res,415,message('err.bridge.badContentType',{received:describeReceived(req.headers['content-type'])}));return;}
   let bytes=0,chunks=[];
@@ -51,6 +69,13 @@ function createTutorMaterialBridge({createMaterial,tutorText=raw=>raw}={}){
    for await(const chunk of req){bytes+=chunk.length;if(bytes>MAX_BYTES){refuse(res,413,message('err.pdfbridge.tooBig',{max:MAX_BYTES}));return;}chunks.push(chunk);}
    let payload;
    try{payload=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{refuse(res,400,message('err.bridge.badJson',{bytes}));return;}
+   if(route==='notes'){
+    const noteProblem=noteRequestProblem(payload);
+    if(noteProblem)throw Error(noteProblem);
+    if(grants.get(token)!==grant)throw Error(message('err.note.sessionChanged'));
+    reply(res,200,{saved:true,...(await createNote(grant.scope,{titulo:payload.titulo,conteudo:payload.conteudo}))});
+    return;
+   }
    const problem=pdfRequestProblem(payload);
    if(problem)throw Error(problem);
    if(grants.get(token)!==grant)throw Error(message('err.pdf.sessionChanged'));
@@ -70,4 +95,4 @@ function createTutorMaterialBridge({createMaterial,tutorText=raw=>raw}={}){
   async close(){closed=true;for(const job of jobs)job.abort();grants.clear();await startPromise?.catch(()=>{});if(server.listening)await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});port=0;},
  };
 }
-module.exports={createTutorMaterialBridge,pdfRequestProblem};
+module.exports={createTutorMaterialBridge,pdfRequestProblem,noteRequestProblem};

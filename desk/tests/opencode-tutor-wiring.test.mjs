@@ -93,7 +93,8 @@ test('selectionFromChange troca para provider/id, zera esforço, aceita default 
 
 test('mesaMcpConfig monta o MCP local com o Node do app, as pontes e o idioma, nunca uma chave', () => {
   const grant = {scope: 'atividade', expires: 123};
-  const config = mesaMcpConfig({execPath: '/electron', ggbBridge: '/tmp/ggb.json', activityGrant: grant, tutorLanguage: 'pt-BR'});
+  const materialGrant = {scope: 'material', expires: 456};
+  const config = mesaMcpConfig({execPath: '/electron', ggbBridge: '/tmp/ggb.json', activityGrant: grant, materialGrant, tutorLanguage: 'pt-BR'});
   assert.equal(config.type, 'local');
   assert.deepEqual(config.command, ['/electron', MCP_SERVER]);
   assert.equal(config.enabled, true);
@@ -101,8 +102,15 @@ test('mesaMcpConfig monta o MCP local com o Node do app, as pontes e o idioma, n
   assert.equal(config.environment.ELECTRON_RUN_AS_NODE, '1');
   assert.equal(config.environment.LEARNING_DESK_GGB_BRIDGE, '/tmp/ggb.json');
   assert.equal(config.environment.LEARNING_DESK_ACTIVITY_BRIDGE, JSON.stringify(grant));
+  assert.equal(config.environment.LEARNING_DESK_MATERIAL_BRIDGE, JSON.stringify(materialGrant));
   assert.equal(config.environment.LEARNING_DESK_TUTOR_LANGUAGE, 'pt-BR');
+  assert.equal(config.environment.LEARNING_DESK_PDF_ONLY, undefined, 'a sessão principal não fica só com o PDF');
   assert.ok(!Object.keys(config.environment).some((name) => name.includes('KEY')));
+  const side = mesaMcpConfig({execPath: '/electron', ggbBridge: '/tmp/ggb.json', activityGrant: grant, tutorLanguage: 'pt-BR', pdfOnly: true});
+  assert.equal(side.environment.LEARNING_DESK_PDF_ONLY, '1');
+  assert.equal(side.environment.LEARNING_DESK_GGB_BRIDGE, '');
+  assert.equal(side.environment.LEARNING_DESK_ACTIVITY_BRIDGE, JSON.stringify(grant));
+  assert.equal(side.environment.LEARNING_DESK_MATERIAL_BRIDGE, '');
 
   const withoutGrant = mesaMcpConfig({execPath: '/electron', ggbBridge: '/tmp/ggb.json', activityGrant: null, tutorLanguage: 'en'});
   assert.equal(withoutGrant.environment.LEARNING_DESK_ACTIVITY_BRIDGE, '');
@@ -138,10 +146,21 @@ test('o host do tutor delega sweep e stop ao dono falso e identifica só chamada
     prepareOpenCode: () => { throw new Error('connect não deveria rodar neste teste'); },
     openCodeBinary: () => '/fake/opencode',
     createOwner: fakeServeOwner,
+    readPersonal: () => ({}),
   });
 
   assert.equal(seen.options.cwd, path.join(runtime, 'opencode-workspaces'));
   assert.equal(seen.options.ledgerDir, runtime);
+  /* #91: o servidor da Mesa nasce com as ferramentas nativas desligadas. */
+  const env = seen.options.baseEnv?.();
+  assert.equal(env?.OPENCODE_CONFIG_DIR, path.join(runtime, 'opencode-config'));
+  assert.equal(env?.OPENCODE_CONFIG_CONTENT, undefined, 'o diretório gravado vence o JSON inline');
+  assert.equal(env?.OPENCODE_PERMISSION, undefined, 'nunca volta ao ask herdado');
+  const serveConfig = JSON.parse(fs.readFileSync(path.join(env.OPENCODE_CONFIG_DIR, 'opencode.json'), 'utf8'));
+  assert.equal(serveConfig.plugin, undefined, 'sem plugin da jaula');
+  assert.equal(serveConfig.tools.shell, false);
+  assert.equal(serveConfig.permission.bash, 'deny');
+  assert.equal(serveConfig.permission.read, 'deny');
 
   const otherEngine = {engine: 'claude', paramsHash: 'h1'};
   assert.strictEqual(await host.identifyCaller(otherEngine), otherEngine);
@@ -160,14 +179,16 @@ test('connect liga o serviço OpenCode e o livro casa a atividade do MCP com o i
   const session = conversations.createClaudeConversation({runtime, courseId: 'c', engine: 'opencode'});
   const record = conversations.readClaudeConversation(session, {runtime});
   const grants = [];
-  const live = {session, opencodeHost: {keyEnv: () => ({})}, languageHost: {tutorLanguage: () => 'pt-BR'},
-    activityBridge: {grant: (scope, options) => { grants.push(options); return {url: 'http://127.0.0.1:1/a', token: 't'}; }}};
+  const live = {session, opencodeHost: {keyEnv: () => ({})}, languageHost: {tutorLanguage: () => 'pt-BR', t: (key) => key === 'opencode.session.title' ? 'Mesa de Estudos' : key},
+    activityBridge: {grant: (scope, options) => { grants.push(options); return {url: 'http://127.0.0.1:1/a', token: 't'}; }},
+    tutorMaterialBridge: {grant: () => ({url: 'http://127.0.0.1:1/p', token: 'm'})}};
   const host = createOpenCodeTutorHost({live, runtime, ggbBridge: () => '/tmp/ggb.json', appendLog: () => {},
     captureActivityScope: () => ({conversationId: session}), openCodeBinary: () => '',
     prepareOpenCode: () => ({cwd: runtime, systemPrompt: 'mesa', record}),
     createOwner: () => ({acquire: () => Promise.reject(Error('sem servidor no teste')), stop: () => {}, sweepAtBoot: () => ({})})});
   const service = host.connect();
   assert.equal(service.engine, 'opencode');
+  assert.equal(service.adapter.options.sessionTitle, 'Mesa de Estudos', 'o título da sessão sai traduzido (#93)');
   assert.deepEqual(grants, [{engine: 'opencode'}]);
   const {pickPayload} = require('../activity-bridge.cjs');
   const args = {title: 'Derivada', objective: 'ver', alternativeMarkdown: 'texto', html: '<p>x</p>'};
@@ -177,4 +198,23 @@ test('connect liga o serviço OpenCode e o livro casa a atividade do MCP com o i
   host.release();
   const after = {engine: 'opencode', paramsHash: 'x'};
   assert.strictEqual(await host.identifyCaller(after), after);
+});
+
+test('o chat lateral OpenCode herda matéria/Livre no grant para listar_materiais', () => {
+  const runtime = tempDir();
+  const descriptor = conversations.createClaudeConversation({runtime, courseId: 'c', engine: 'opencode'});
+  const record = conversations.readClaudeConversation(descriptor, {runtime});
+  const grants = [];
+  const live = {courseId: 'c', session: 'principal', freeSessionId: '', opencodeHost: {keyEnv: () => ({})},
+    languageHost: {tutorLanguage: () => 'pt-BR'},
+    activityBridge: {grant: (scope) => { grants.push(scope); return {url: 'http://127.0.0.1:1/a', token: 't'}; }, revoke: () => {}}};
+  const host = createOpenCodeTutorHost({live, runtime, ggbBridge: () => '/tmp/ggb.json', appendLog: () => {},
+    captureActivityScope: () => ({courseId: 'c', conversationId: 'principal', freeSessionId: '', generation: 7}),
+    prepareOpenCode: () => ({cwd: runtime, systemPrompt: 'mesa', record}),
+    prepareOpenCodeSide: () => ({cwd: runtime, systemPrompt: 'lateral'}),
+    openCodeBinary: () => '',
+    createOwner: () => ({acquire: () => Promise.reject(Error('sem servidor no teste')), stop: () => {}, sweepAtBoot: () => ({})})});
+  host.connectSide({descriptor, record});
+  assert.deepEqual(grants[0], {courseId: 'c', conversationId: descriptor, freeSessionId: '', generation: 7});
+  host.release();
 });

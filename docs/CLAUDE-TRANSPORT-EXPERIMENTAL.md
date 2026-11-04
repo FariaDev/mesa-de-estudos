@@ -29,7 +29,7 @@ Nos testes, `LEARNING_DESK_CLAUDE_HOME` (só com `DESK_TEST=1`) troca a casa ond
 | `desk/src/agents/service.cjs` | Tradução para o contrato da Mesa, locks, cache e guarda de incerteza |
 | `desk/src/agents/conversations.cjs` | Descritor atômico, identidade, seleção e entrega persistidas |
 | `desk/main.cjs` | IPC, preparação do contexto selecionado e integração com o host |
-| `desk/src/claude-questions.mjs` / `chat.mjs` | Perguntas estruturadas e avisos visíveis |
+| `desk/src/claude-questions.mjs` / `chat.mjs` | Avisos de limite e atividade visíveis |
 | `core/agentcaps.bend` / `agentdelivery.bend` | Capacidades e portões com leis/provas |
 
 Cada conversa fixa seu motor. Conversas Claude usam descritor JSON com ID local e ID nativo separado; conversas Pi preservam JSONL. Nenhum processo Pi é iniciado para transportar uma conversa Claude. A Mesa usa o Claude Code autenticado pelo usuário, não realiza login nem guarda tokens. Não altera configuração global do Claude.
@@ -58,9 +58,9 @@ Nova Query usa `sessionId` para sessão nova ou `resume` para sessão estabeleci
 
 ## Permissões e perguntas
 
-Read/Glob/Grep seguem política por caminhos reais autorizados; escrita e ferramentas fora da lista são recusadas. Referências só mudam dentro do lock do envio. O confinamento adicional do CLI não foi exercitado com conta real.
+O tutor não tem ferramenta nativa de arquivo, shell ou rede (`tools: []`, `allowedTools: ['mcp__mesa__*']` e as nativas em `disallowedTools`). `AskUserQuestion` é negado no `canUseTool` desde a #92: pergunta agora é o cartão `mcp__mesa__perguntar`. `Read`, `Bash`, `Edit` e `Write` não existem no contexto; não há política de caminhos, sandbox de SO nem confirmação de ferramenta. `mcpServers` só tem o `mesa`, com `strictMcpConfig: true` e `settingSources: []`.
 
-`AskUserQuestion` produz pedido canônico `method:'question'`. A Mesa mostra seleção única/múltipla e texto livre. Resposta usa o texto exato da pergunta como chave; arrays são juntados para o formato nativo. Chaves como `__proto__` são preservadas como propriedades próprias. Limites do IPC/UI: 16 perguntas, 32 opções e 4000 caracteres por campo/resposta. Todas as perguntas devem ser respondidas para Responder; Cancelar e Escape não exigem respostas.
+`AskUserQuestion` não abre mais UI: o pedido nativo é negado no `canUseTool` e o modelo usa o cartão `mcp__mesa__perguntar`. O caminho antigo de perguntas estruturadas (`chat-dialogs`, `sidechat-requests`, validação no adaptador) saiu na #92; sessões antigas continuam abrindo, sem oferecer o diálogo nativo.
 
 Pedidos têm identidade, TTL e abort. Resultado, cancelamento e consulta encerrada revogam permissões pendentes. Resposta atrasada/desconhecida nunca concede permissão. Resposta inválida não consome o pedido nativo.
 

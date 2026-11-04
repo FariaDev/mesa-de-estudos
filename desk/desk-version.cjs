@@ -29,4 +29,18 @@ function createDeskVersionLabel({app,deskDir}){
  };
 }
 
-module.exports={createDeskVersionLabel};
+/**
+ * A versão que decide a janela de novidades. Em teste, só a da chave
+ * `LEARNING_DESK_RELEASE_VERSION`: sem ela, os testes de janela não dependem do
+ * número do `package.json` nem ganham um modal a cada release.
+ * @param {string} label rótulo do Sobre
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string}
+ * @example releaseNotesVersion('1.1.0 ca681f7-dirty', {}) // '1.1.0'
+ */
+function releaseNotesVersion(label,env=process.env){
+ if(env.DESK_TEST==='1')return String(env.LEARNING_DESK_RELEASE_VERSION||'');
+ return String(label||'').split(' ')[0];
+}
+
+module.exports={createDeskVersionLabel,releaseNotesVersion};

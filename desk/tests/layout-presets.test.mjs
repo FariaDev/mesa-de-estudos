@@ -205,7 +205,7 @@ test('main e renderer normalizam os MESMOS vetores byte a byte', () => {
 
 test('renderer lista os embutidos e resume o layout a partir do núcleo', () => {
   assert.deepEqual(builtinPresets().map((preset) => preset.id), policy.builtins().map((preset) => preset.id));
-  assert.equal(summaryOf(builtinPresets().find((preset) => preset.id === 'mesa-exercicios').layout), 'Tutor 360 px · Calculadora 420 px · PDF 50% · leitores normais');
+  assert.equal(summaryOf(builtinPresets().find((preset) => preset.id === 'mesa-exercicios').layout), 'Tutor 360 · Calc 420 · PDF 50%');
   assert.equal(summaryOf({}), '');
 });
 

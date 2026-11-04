@@ -27,6 +27,7 @@ await withArtifacts('improvements',async ctx=>{
  // and is saved only after explicit confirmation.
  await page.locator('#prompt').fill('primeiro');await page.locator('#send').click();
  await page.waitForSelector('.message.assistant button.msg-review');
+ await page.locator('.message.assistant').first().hover();
  fs.writeFileSync(stateFailureFile,'fail once');
  await page.locator('.message.assistant button.msg-review').first().click();
  await page.waitForSelector('#review-dialog[open]');
@@ -42,6 +43,7 @@ await withArtifacts('improvements',async ctx=>{
  const stored=JSON.parse(fs.readFileSync(path.join(runtime,'review.json'),'utf8')).Test[0];
  assert.equal(stored.question,'Minha questão editada');assert.equal(stored.difficulty,'Minha dificuldade');
  // Cancel an in-flight draft. It must not reopen or overwrite a later dialog.
+ await page.locator('.message.assistant').first().hover();
  await page.locator('.message.assistant button.msg-review').first().click();await page.locator('#review-dialog button[value=cancel]').click();
  await page.waitForFunction(()=>!document.querySelector('#review-dialog').open);
  // Safe refusal from Pi: exactly initial + 3 repeats, spaced by 2/4/8 seconds.

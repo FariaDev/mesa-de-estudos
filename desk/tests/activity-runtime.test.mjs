@@ -16,22 +16,73 @@ const {normalizeSpec, specHash} = require('../activity-store.cjs');
 
 const SPEC = {title: 'MRUV', objective: 'Explorar a', alternativeMarkdown: 's = v t', html: '<p>x</p>', css: '', js: 'window.mesa.state({a:1});'};
 
-test('parseActivityUrl aceita o artefato com tema e recusa o resto', () => {
-  assert.deepEqual(parseActivityUrl('mesa-activity://artifact/act-abc12345/3/index.html?theme=dark'), {kind: 'artifact', id: 'act-abc12345', version: 3, theme: 'dark', accent: 'blue'});
-  assert.deepEqual(parseActivityUrl('mesa-activity://artifact/act-abc12345/3/index.html'), {kind: 'artifact', id: 'act-abc12345', version: 3, theme: 'system', accent: 'blue'});
+test('parseActivityUrl aceita o host com id+versão e recusa formatos antigos (#89)', () => {
+  /* #89: o host carrega id E versão — cada revisão da mesma atividade tem
+     site (e processo) próprios; o caminho é só `/index.html`. */
+  assert.deepEqual(parseActivityUrl('mesa-activity://act-abc12345--v3/index.html?theme=dark'), {kind: 'artifact', id: 'act-abc12345', version: 3, theme: 'dark', accent: 'blue'});
+  assert.deepEqual(parseActivityUrl('mesa-activity://act-abc12345--v3/index.html'), {kind: 'artifact', id: 'act-abc12345', version: 3, theme: 'system', accent: 'blue'});
+  /* A prévia do tutor usa um id temporário `pv-`; o mesmo formato de host. */
+  assert.deepEqual(parseActivityUrl('mesa-activity://pv-abc12345--v1/index.html'), {kind: 'artifact', id: 'pv-abc12345', version: 1, theme: 'system', accent: 'blue'});
   /* #42: o acento entra no query (um dos seis da Mesa) para o quadro nascer pintado. */
-  assert.deepEqual(parseActivityUrl('mesa-activity://artifact/act-abc12345/3/index.html?theme=light&accent=green'), {kind: 'artifact', id: 'act-abc12345', version: 3, theme: 'light', accent: 'green'});
-  assert.equal(parseActivityUrl('mesa-activity://artifact/act-abc12345/3/index.html?theme=light&accent=ciano'), null);
+  assert.deepEqual(parseActivityUrl('mesa-activity://act-abc12345--v3/index.html?theme=light&accent=green'), {kind: 'artifact', id: 'act-abc12345', version: 3, theme: 'light', accent: 'green'});
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v3/index.html?theme=light&accent=ciano'), null);
   assert.deepEqual(parseActivityUrl('mesa-activity://lib/chart.umd.min.js'), {kind: 'lib', relative: 'chart.umd.min.js'});
   assert.equal(parseActivityUrl('mesa-activity://lib/chart.umd.min.js?x=1'), null);
-  assert.equal(activityArtifactUrl('act-abc12345', 2, 'dark', 'pink'), 'mesa-activity://artifact/act-abc12345/2/index.html?theme=dark&accent=pink');
-  assert.equal(parseActivityUrl('mesa-activity://artifact/act-abc12345/3/index.html?theme=blue'), null);
-  assert.equal(parseActivityUrl('mesa-activity://artifact/act-abc12345/3/index.html?theme=dark&x=1'), null);
-  assert.equal(parseActivityUrl('mesa-activity://artifact/act-abc12345/index.html'), null);
+  assert.equal(activityArtifactUrl('act-abc12345', 2, 'dark', 'pink'), 'mesa-activity://act-abc12345--v2/index.html?theme=dark&accent=pink');
+  /* Ids que contêm `-` (e até um sufixo `--v<n>` no próprio id): a versão é
+     o ÚLTIMO `--v<dígitos>` do host, sem ambiguidade. */
+  assert.deepEqual(parseActivityUrl('mesa-activity://act-abc-def--v3/index.html'), {kind: 'artifact', id: 'act-abc-def', version: 3, theme: 'system', accent: 'blue'});
+  assert.deepEqual(parseActivityUrl('mesa-activity://act-abc--v2--v3/index.html'), {kind: 'artifact', id: 'act-abc--v2', version: 3, theme: 'system', accent: 'blue'});
+  assert.equal(activityArtifactUrl('act-abc--v2', 3), 'mesa-activity://act-abc--v2--v3/index.html?theme=system');
+  /* Teto do host: id máximo do store (68) + `--v` + 7 dígitos = 78. O
+     Chromium aceita esse host no esquema (hunt do watchdog, #89). */
+  const longId = `act-${'a'.repeat(64)}`;
+  assert.equal(`${longId}--v1000000`.length, 78);
+  assert.deepEqual(parseActivityUrl(`mesa-activity://${longId}--v1000000/index.html`), {kind: 'artifact', id: longId, version: 1000000, theme: 'system', accent: 'blue'});
+  assert.equal(parseActivityUrl(`mesa-activity://act-${'a'.repeat(65)}--v1/index.html`), null, 'id acima do store');
+  assert.equal(parseActivityUrl(`mesa-activity://${longId}--v1x/index.html`), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v3/index.html?theme=blue'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v3/index.html?theme=dark&x=1'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v3/index.html#x'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v3/index.html').version, 3);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345/3/index.html'), null, 'formato da #88 (versão no caminho) é recusado');
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v3/3/index.html'), null, 'versão no caminho além do host');
+  assert.equal(parseActivityUrl('mesa-activity://artifact/act-abc12345/3/index.html'), null, 'formato antigo (host fixo) é recusado');
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345/index.html'), null, 'sem versão no host');
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v/index.html'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--vx/index.html'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v0/index.html'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v01/index.html'), null, 'zero à esquerda');
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v1000001/index.html'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v12345678/index.html'), null);
   assert.equal(parseActivityUrl('mesa-activity://outro/act-abc12345/3/index.html'), null);
-  assert.equal(parseActivityUrl('https://artifact/act-abc12345/3/index.html'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v3/outro.html'), null);
+  assert.equal(parseActivityUrl('mesa-activity://act-a--v3/index.html'), null, 'id curto demais');
+  assert.equal(parseActivityUrl('mesa-activity://act-abc_123--v3/index.html'), null, 'id com underscore');
+  assert.equal(parseActivityUrl('mesa-activity://act-abc12345--v3:80/index.html'), null, 'porta');
+  assert.equal(parseActivityUrl('mesa-activity://user:pass@act-abc12345--v3/index.html'), null, 'credenciais');
+  assert.equal(parseActivityUrl('https://act-abc12345--v3/index.html'), null);
   assert.deepEqual(parseActivityUrl('mesa-activity://katex/katex.min.css'), {kind: 'katex', relative: 'katex.min.css'});
-  assert.equal(activityArtifactUrl('act-abc12345', 2, 'dark'), 'mesa-activity://artifact/act-abc12345/2/index.html?theme=dark');
+  assert.equal(activityArtifactUrl('act-abc12345', 2, 'dark'), 'mesa-activity://act-abc12345--v2/index.html?theme=dark');
+});
+
+test('buildActivityUrl usa o host com id+versão e a origem exata (#89)', async () => {
+  const {buildActivityUrl, activityOrigin} = await import('../src/activity-messages.mjs');
+  assert.equal(buildActivityUrl({id: 'act-abc12345', version: 2}, 'dark', 'pink'), 'mesa-activity://act-abc12345--v2/index.html?theme=dark&accent=pink');
+  assert.equal(buildActivityUrl({id: 'act-abc12345', version: 1}), 'mesa-activity://act-abc12345--v1/index.html?theme=system');
+  assert.equal(activityOrigin({id: 'act-abc12345', version: 2}), 'mesa-activity://act-abc12345--v2');
+});
+
+test('activityOriginAllowed aceita só origem opaca/vazia ou a exata da revisão (#89)', async () => {
+  const {activityOriginAllowed} = await import('../src/activity-messages.mjs');
+  const item = {id: 'act-abc12345', version: 2};
+  assert.equal(activityOriginAllowed('null', item), true, 'origem opaca do sandbox');
+  assert.equal(activityOriginAllowed('', item), true, 'origem não preenchida');
+  assert.equal(activityOriginAllowed('mesa-activity://act-abc12345--v2', item), true, 'origem exata desta revisão');
+  assert.equal(activityOriginAllowed('mesa-activity://act-abc12345--v1', item), false, 'outra revisão da mesma atividade');
+  assert.equal(activityOriginAllowed('mesa-activity://act-outra--v2', item), false, 'outra atividade');
+  assert.equal(activityOriginAllowed('mesa-activity://katex', item), false, 'outro host do esquema');
+  assert.equal(activityOriginAllowed('https://x', item), false, 'fora do esquema');
 });
 
 test('documento montado pelo host: CSP/Trusted Types, prelude ANTES do html e html do modelo entra inerte', () => {
@@ -74,13 +125,13 @@ test('documento montado pelo host: CSP/Trusted Types, prelude ANTES do html e ht
   const systemDoc = buildActivityDocument(SPEC, {id: 'act-abc12345', version: 1, hash: 'sha256:x', theme: 'system'});
   assert.match(systemDoc, /data-theme="system"/);
   assert.match(systemDoc, /@media \(prefers-color-scheme:dark\)/);
-  assert.match(systemDoc, /<style id="mesa-theme">:root\{color-scheme:light;--mesa-bg:#f4f4f4;/);
+  assert.match(systemDoc, /<style id="mesa-theme">:root\{color-scheme:light;--mesa-bg:#ffffff;/);
   assert.match(systemDoc, /color-scheme:dark/);
   /* #42: os tokens vêm do núcleo, com o espelho MCP Apps e a paleta. */
   const dark = buildActivityDocument(SPEC, {id: 'act-abc12345', version: 1, hash: 'sha256:x', theme: 'dark', accent: 'violet'});
-  assert.match(dark, /--mesa-bg:#242424;/);
+  assert.match(dark, /--mesa-bg:#191919;/);
   assert.match(dark, /--mesa-chart-1:#a78bfa;/);
-  assert.match(dark, /--color-background-primary:#242424;/);
+  assert.match(dark, /--color-background-primary:#191919;/);
   assert.doesNotMatch(dark, /chart\.umd/, 'sem gráficos pedidos, a biblioteca não entra');
   const charts = buildActivityDocument({...SPEC, charts: true}, {id: 'act-abc12345', version: 1, hash: 'sha256:x'});
   assert.match(charts, /<script src="mesa-activity:\/\/lib\/chart\.umd\.min\.js"><\/script>/);
@@ -145,7 +196,7 @@ test('runtime registra por hash, serve o artefato e nega o resto', async () => {
   assert.match(response.headers.get('content-type'), /text\/html/);
   const body = await response.text();
   assert.match(body, /data-theme="dark"/);
-  const missing = await runtime.protocolHandler({url: 'mesa-activity://artifact/act-inexistente/1/index.html'});
+  const missing = await runtime.protocolHandler({url: 'mesa-activity://act-inexistente--v1/index.html'});
   assert.equal(missing.status, 404);
   assert.equal(runtime.remember({...item, hash: 'sha256:outro'}, spec), null);
   assert.equal(runtime.has('act-abc12345', 1), true);
@@ -175,7 +226,7 @@ test('installProtocol e installSessionGuards ligam nas APIs do host', () => {
   assert.equal(typeof handled.listener, 'function');
   assert.equal(runtime.installSessionGuards(session), true);
   const decisions = [];
-  session.captured.listener({frame: {url: 'mesa-activity://artifact/act-1/1/index.html'}}, (result) => decisions.push(result.cancel));
+  session.captured.listener({frame: {url: 'mesa-activity://act-abc1--v1/index.html'}}, (result) => decisions.push(result.cancel));
   session.captured.listener({frame: {url: 'file:///app/index.html'}}, (result) => decisions.push(result.cancel));
   session.captured.listener({frame: null}, (result) => decisions.push(result.cancel));
   assert.deepEqual(decisions, [true, false, false]);
@@ -195,13 +246,13 @@ test('attachWindow autoriza a primeira carga do artefato e nega navegação post
     wc.emit('will-frame-navigate', details);
     return details.prevented;
   };
-  assert.equal(navigate('mesa-activity://artifact/act-abc12345/1/index.html?theme=dark', loaded), false);
-  loaded.url = 'mesa-activity://artifact/act-abc12345/1/index.html?theme=dark';
-  assert.equal(navigate('mesa-activity://artifact/act-abc12345/1/index.html?theme=dark'), true, 'frame carregado não navega de novo');
+  assert.equal(navigate('mesa-activity://act-abc12345--v1/index.html?theme=dark', loaded), false);
+  loaded.url = 'mesa-activity://act-abc12345--v1/index.html?theme=dark';
+  assert.equal(navigate('mesa-activity://act-abc12345--v1/index.html?theme=dark'), true, 'frame carregado não navega de novo');
   assert.equal(navigate('https://example.com/', next), true);
-  assert.equal(navigate('mesa-activity://artifact/act-inexistente/1/index.html', next), true);
+  assert.equal(navigate('mesa-activity://act-inexistente--v1/index.html', next), true);
   assert.equal(navigate('about:blank', next), false);
-  assert.equal(navigate('mesa-activity://artifact/act-abc12345/1/index.html', null), true, 'sem frame, nega');
+  assert.equal(navigate('mesa-activity://act-abc12345--v1/index.html', null), true, 'sem frame, nega');
   const top = {url: 'https://example.com', isMainFrame: true, frame: null, prevented: false, preventDefault() { this.prevented = true; }};
   wc.emit('will-frame-navigate', top);
   assert.equal(top.prevented, false, 'o topo continua com o host');

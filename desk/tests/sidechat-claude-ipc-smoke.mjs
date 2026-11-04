@@ -3,7 +3,7 @@
  * `window.desk.newSession('claude')`, abre o chat lateral no MESMO motor com
  * sessão/descritor próprios, promove turnos com streaming e settled, confere o
  * que o fakeClaude recebeu (ref PDF#page=N, questão ativa e matéria), a
- * autorização de `readPaths` (permissão de Read no PDF fora do cwd), permissão,
+ * Read nativo de PDF recusado sem diálogo, pergunta nativa recusada sem diálogo,
  * cancelamento, rascunho e retomada após reinício — e que NENHUM processo Pi e
  * nenhum binário Claude real nascem nesse caminho.
  *
@@ -163,14 +163,18 @@ await withArtifacts('sidechat-claude-ipc',async ctx=>{
  must('a conversa principal não recebeu o prompt lateral',
   path.join(store,`session-${mainDescriptor.nativeSessionId}.json`),p=>!fs.existsSync(p));
 
- /* ---------- 5. permissão: o Read do PDF fora do cwd só passa por readPaths ---------- */
+ /* ---------- 5. Read de PDF e pergunta nativa não abrem diálogo ---------- */
+ const dialogsBefore=await page.evaluate(id=>window.__scEvents.filter(p=>p.id===id&&p.event.type==='extension_ui_request').length,opened.id);
  const permPrompt=await page.evaluate(({id,text})=>window.desk.sidechatPrompt({id,text}),{id:opened.id,text:PERM_TEXT});
- must('prompt de permissão aceito no canal lateral',permPrompt,v=>v?.sent===true);
- await page.waitForFunction(id=>window.__scEvents.some(p=>p.id===id&&p.event.type==='extension_ui_request'&&p.event.permission===true),opened.id,{timeout:30000});
- const requestId=await page.evaluate(id=>window.__scEvents.filter(p=>p.id===id&&p.event.type==='extension_ui_request').at(-1).event.id,opened.id);
- const responded=await page.evaluate(({id,requestId:rid})=>window.desk.sidechatRespond({id,response:{id:rid,confirmed:true}}),{id:opened.id,requestId});
- must('permissão de leitura do PDF roteada e concedida pelo canal lateral',responded,v=>v?.ok===true);
- await page.waitForFunction(id=>window.__scEvents.some(p=>p.id===id&&p.event.type==='message_end'&&JSON.stringify(p.event.message||{}).includes('Permissão concedida')),opened.id,{timeout:30000});
+ must('prompt de leitura de PDF aceito no canal lateral',permPrompt,v=>v?.sent===true);
+ await page.waitForFunction(id=>window.__scEvents.some(p=>p.id===id&&p.event.type==='message_end'&&JSON.stringify(p.event.message||{}).includes('Permissão negada')),opened.id,{timeout:30000});
+ const dialogsAfterPdf=await page.evaluate(id=>window.__scEvents.filter(p=>p.id===id&&p.event.type==='extension_ui_request').length,opened.id);
+ must('Read nativo do PDF não abre diálogo',dialogsAfterPdf,v=>v===dialogsBefore);
+ const questionPrompt=await page.evaluate(({id,text})=>window.desk.sidechatPrompt({id,text}),{id:opened.id,text:'[claude:question]'});
+ must('prompt de pergunta nativa aceito no canal lateral',questionPrompt,v=>v?.sent===true);
+ await page.waitForFunction(id=>window.__scEvents.some(p=>p.id===id&&p.event.type==='message_end'&&JSON.stringify(p.event.message||{}).includes('Perguntas canceladas')),opened.id,{timeout:30000});
+ const dialogsAfterQuestion=await page.evaluate(id=>window.__scEvents.filter(p=>p.id===id&&p.event.type==='extension_ui_request').length,opened.id);
+ must('AskUserQuestion nativo é recusado sem diálogo',dialogsAfterQuestion,v=>v===dialogsBefore);
 
  /* ---------- 6. cancelamento do turno lateral ---------- */
  const startsBefore=await page.evaluate(id=>window.__scEvents.filter(p=>p.id===id&&p.event.type==='agent_start').length,opened.id);

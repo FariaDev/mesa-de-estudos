@@ -20,7 +20,6 @@ class FakeAdapter extends EventEmitter {
     this.options = options;
     this.sent = [];
     this.responses = [];
-    this.policies = [];
     this.cancelled = 0;
     this.stopped = false;
     this.initialized = 0;
@@ -30,10 +29,6 @@ class FakeAdapter extends EventEmitter {
   async initializeControls() {
     this.initialized += 1;
     return {};
-  }
-  setToolPolicy(policy) {
-    this.policies.push(policy);
-    return policy;
   }
   controlsSnapshot() {
     return {models: [], levels: [], selection: {model: null, effort: null}, modelSelection: false, effort: false};
@@ -68,7 +63,7 @@ function newRuntime() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-sidechat-claude-'));
 }
 
-function build(runtime, descriptor, claudePath = '/fake/claude') {
+function build(runtime, descriptor, claudePath = '/fake/claude', tools = {}) {
   const events = [];
   const engine = createClaudeSideEngine({
     id: 'sc-lateral',
@@ -78,24 +73,23 @@ function build(runtime, descriptor, claudePath = '/fake/claude') {
     sdkLoader: null,
     claudePath,
     onEvent: (event) => events.push(event),
+    ...tools,
     deps: {Adapter: FakeAdapter, Service: ClaudeService},
   });
   return {engine, events, adapter: FakeAdapter.instances.at(-1)};
 }
 
-test('canal Claude: descritor próprio, política de leitura por prompt e cache persistido', async () => {
+test('canal Claude: descritor próprio e cache persistido', async () => {
   const runtime = newRuntime();
   const descriptor = conversations.createClaudeConversation({runtime, courseId: 'Calculo I'});
   const {engine, events, adapter} = build(runtime, descriptor);
   assert.equal(adapter.options.conversationId, descriptor);
   assert.equal(adapter.options.claudePath, '/fake/claude', 'sem executável fixado, usa o binário do host');
   assert.equal(adapter.options.deliveryUncertain, false);
-  assert.deepEqual(adapter.options.toolPolicy.readRoots, [runtime]);
-  const result = await engine.prompt({text: 'olá claude', readPaths: ['/a.pdf', '/b.pdf', '/c.pdf']});
+  const result = await engine.prompt({text: 'olá claude'});
   assert.equal(result.accepted, true);
   assert.equal(adapter.sent.length, 1);
   assert.equal(adapter.sent[0].text, 'olá claude');
-  assert.deepEqual(adapter.policies.at(-1), {readPaths: ['/a.pdf', '/b.pdf'], readRoots: [runtime]});
   const record = conversations.readClaudeConversation(descriptor, {runtime});
   assert.equal(record.delivery.status, 'accepted');
   assert.equal(record.nativeEstablished, true, 'aceite marca a sessão nativa do lateral');
@@ -107,6 +101,18 @@ test('canal Claude: descritor próprio, política de leitura por prompt e cache 
   assert.equal(events[0].conversationId, descriptor);
   assert.equal(engine.isBusy(), false);
   assert.equal(engine.isUncertain(), false);
+  fs.rmSync(runtime, {recursive: true, force: true});
+});
+
+test('canal Claude: ler_pdf e buscar_material chegam ao adaptador do chat lateral', async () => {
+  const runtime = newRuntime();
+  const descriptor = conversations.createClaudeConversation({runtime, courseId: 'Calculo I'});
+  const readPdf = async () => ({file: 'A.pdf', total: 1, pages: [{page: 1, text: 'x'}]});
+  const searchMaterial = async () => ({query: 'x', limit: 5, hits: []});
+  const {engine, adapter} = build(runtime, descriptor, '/fake/claude', {readPdf, searchMaterial});
+  assert.equal(adapter.options.readPdf, readPdf);
+  assert.equal(adapter.options.searchMaterial, searchMaterial);
+  engine.close();
   fs.rmSync(runtime, {recursive: true, force: true});
 });
 
@@ -137,7 +143,7 @@ test('incerteza hidratada do descritor bloqueia novo envio no canal Claude', asy
   assert.equal(adapter.options.deliveryUncertain, true);
   assert.equal(engine.isUncertain(), true);
   await assert.rejects(
-    () => engine.prompt({text: 'não repete', readPaths: []}),
+    () => engine.prompt({text: 'não repete'}),
     (error) => error.notSent === true && ptMatches(/incerta/i)(error),
   );
   assert.equal(adapter.sent.length, 0);

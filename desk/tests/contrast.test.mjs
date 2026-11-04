@@ -95,3 +95,19 @@ test('o ponto da atualização no ⚙ e no item Ajustes usa o tom que passa 3:1 
     for (const bg of BACKGROUNDS) assertContrast(themeToken(`acc-${accent}-text`).dark, themeToken(bg).dark, 3, `ponto --acc-${accent}-text em --${bg}`);
   }
 });
+
+test('o trio ∫ Σ ∇ segue os seis acentos e passa nos dois temas (#100)', () => {
+  /* Corpo e membro são desenho (3:1); o sinal é glifo (4,5:1); o claro é o
+     preenchimento do ∇. A tinta do rosto fica sobre o corpo e é detalhe. */
+  for (const theme of THEMES) {
+    for (const accent of ACCENTS) {
+      const token = (part) => themeToken(`trio-${accent}-${part}`)[theme];
+      assertContrast(token('corpo'), themeToken('bg')[theme], 3, `${theme} ${accent}: corpo no fundo`);
+      assertContrast(token('corpo'), themeToken('surface')[theme], 3, `${theme} ${accent}: corpo na superfície`);
+      assertContrast(token('claro'), themeToken('bg')[theme], 3, `${theme} ${accent}: claro no fundo`);
+      assertContrast(token('membro'), themeToken('surface')[theme], 3, `${theme} ${accent}: membro na superfície`);
+      assertContrast(token('sinal'), themeToken('bg')[theme], 4.5, `${theme} ${accent}: sinal no fundo`);
+      assertContrast(token('sinal'), themeToken('surface')[theme], 4.5, `${theme} ${accent}: sinal na superfície`);
+    }
+  }
+});

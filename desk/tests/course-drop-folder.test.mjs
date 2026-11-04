@@ -8,8 +8,8 @@ import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {courseDropFolder, courseLibrary} = require('../courses.cjs');
 
-/* "Mostrar a pasta" da folha Lista 0 tem de abrir a pasta que a biblioteca
-   realmente varre — senão o PDF jogado ali nunca aparece. */
+/* "Pasta" da folha do leitor tem de abrir a pasta que a biblioteca realmente
+   varre — senão o PDF jogado ali nunca aparece. */
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-drop-folder-'));
 
 test('sem Sources nem source_roots: a própria pasta da matéria', () => {

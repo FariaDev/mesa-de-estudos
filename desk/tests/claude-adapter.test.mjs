@@ -7,17 +7,15 @@
  * PERSISTÊNCIA do ciclo transmitting→accepted→settled/refused/uncertain
  * (callback sync ou async aguardado), recusa × incerteza × conservador quando
  * o registro falha, um turno por vez, result com UUID errado não encerra o
- * turno, sessão divergente/subagente não muda identidade, permissão/respond,
- * pergunta estruturada (AskUserQuestion) com answers validadas, limite de uso
- * nativo (rate_limit_event) que pausa sem encerrar o turno, política de
- * caminhos trocável e confinada, cancelamento e close.
+ * turno, sessão divergente/subagente não muda identidade, permissão de MCP e
+ * a remoção da pergunta nativa (#92), limite de uso nativo (rate_limit_event)
+ * que pausa sem encerrar o turno, política de caminhos trocável e confinada,
+ * cancelamento e close.
  */
 import test from 'node:test';
+import './keep-loop-alive.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
 import * as fx from './claude-fixtures.mjs';
 import {ptText} from './pt-text.mjs';
 
@@ -25,11 +23,18 @@ const require = createRequire(import.meta.url);
 const {
   ClaudeAdapter,
   normalizeHistory,
-  normalizeUserQuestions,
-  validateQuestionAnswers,
 } = require('../src/agents/claude-adapter.cjs');
 
 const CONV = 'conv-claude-teste';
+
+/* `process.env` no Windows guarda `Path` (não `PATH`): um objeto comum copiado
+   dele mantém a caixa original. O env chega ao filho com a chave que o SO
+   escreveu; comparar `PATH` literal num objeto simples reprovaria o merge
+   correto. */
+function envValue(env, name) {
+  const key = Object.keys(env || {}).find((entry) => entry.toUpperCase() === name.toUpperCase());
+  return key ? env[key] : undefined;
+}
 
 function makeAdapter(overrides = {}) {
   const sdk = overrides.sdk || fx.fakeSdk();
@@ -706,483 +711,33 @@ test('cancel com interrupt que falha vira aviso, sem fingir sucesso', async () =
 
 /* ---------------- permissões e política ---------------- */
 
-test('queda da consulta com permissão pendente nega o pedido em vez de pendurar o diálogo', async () => {
+test('o portão libera só o MCP mesa e nega a antiga pergunta nativa (#92)', async () => {
   const {adapter, sdk} = makeAdapter();
   await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'permissão e queda'});
-  await fx.takeInput(query);
-
-  const permission = query.options.canUseTool(
-    'Read',
-    {file_path: join(process.cwd(), 'arquivo.txt')},
-    {requestId: 'req-queda', toolUseID: 'tool-queda'},
-  );
-  await fx.tick();
-  assert.equal(events.of('permission_request').at(-1).id, 'req-queda');
-
-  query.fail(new Error('processo morreu'));
-  assert.deepEqual(await permission, {behavior: 'deny', message: 'Consulta encerrada'});
-  assert.equal(events.of('permission_cancelled').at(-1).id, 'req-queda');
-  await assert.rejects(
-    () => promise,
-    (error) => error.code === 'CLAUDE_DELIVERY_UNCERTAIN' && error.notSent === false,
-  );
-  assert.equal(events.of('turn_end').at(-1).uncertain, true);
-});
-
-test('respond: allow só com confirmed, deny explícito, sem updatedPermissions e stale não permite', async () => {
-  const {adapter, sdk} = makeAdapter();
-  await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'permissões'});
+  const {promise, query} = await startSend(adapter, sdk, {text: 'permissão'});
   const item = await fx.takeInput(query);
-  const file = join(process.cwd(), 'package.json');
-  const suggestions = [{type: 'addRules', rules: [{toolName: 'Read'}], behavior: 'allow', destination: 'session'}];
-
-  const p1 = query.options.canUseTool('Read', {file_path: file}, {requestId: 'r1', toolUseID: 't1', suggestions});
-  await fx.tick();
-  const request = events.of('permission_request').at(-1);
-  assert.equal(request.method, 'confirm');
-  assert.equal(request.toolName, 'Read');
-  assert.equal(request.target, realpathSync(file), 'o pedido é concreto: caminho real + ferramenta');
-  assert.deepEqual(adapter.respond({id: 'r1', confirmed: false}), {ok: true, id: 'r1', allowed: false});
-  assert.deepEqual(await p1, {behavior: 'deny', message: 'Recusado pelo usuário'});
-
-  const p2 = query.options.canUseTool('Read', {file_path: file}, {requestId: 'r2', toolUseID: 't2', suggestions});
-  await fx.tick();
-  assert.deepEqual(adapter.respond({id: 'r2', confirmed: true}), {ok: true, id: 'r2', allowed: true});
-  assert.deepEqual(await p2, {behavior: 'allow'}, 'sugestões de permissão global NUNCA são aplicadas');
-
-  assert.deepEqual(
-    adapter.respond({id: 'r9', confirmed: true}),
-    {ok: false, id: 'r9', code: 'CLAUDE_PERMISSION_UNKNOWN'},
-  );
-
-  await accept(query, item);
-  await promise;
-});
-
-test('result invalida permissão pendente; diálogo vencido não aceita allow novo', async () => {
-  const recorder = fx.persistRecorder();
-  const {adapter, sdk} = makeAdapter({persistDelivery: recorder.persist});
-  await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'permissão vencida'});
-  const item = await fx.takeInput(query);
-  await accept(query, item);
-  await promise;
-
-  const pending = query.options.canUseTool('Read', {file_path: join(process.cwd(), 'rascunho.txt')}, {requestId: 'rv', toolUseID: 'tv'});
-  await fx.tick();
-  assert.equal(events.of('permission_request').at(-1).id, 'rv');
-
-  query.emit(fx.resultMessage({userMessageUuid: fx.UUID.a}));
-  await fx.waitFor(() => adapter.snapshot().busy === false, 2000, 'result encerra');
-  assert.deepEqual(await pending, {behavior: 'deny', message: 'Rodada terminou'});
-  assert.ok(events.of('permission_cancelled').some((event) => event.id === 'rv'));
-  assert.deepEqual(
-    adapter.respond({id: 'rv', confirmed: true}),
-    {ok: false, id: 'rv', code: 'CLAUDE_PERMISSION_UNKNOWN'},
-    'stale não pode conceder allow',
-  );
-});
-
-/* ---------------- perguntas (AskUserQuestion) ---------------- */
-
-const QUESTION_FIXTURE = Object.freeze({
-  questions: [
-    {
-      header: 'Abordagem',
-      question: 'Qual abordagem?',
-      options: [
-        {label: 'Simples', description: 'Menos partes móveis', preview: '# Simples'},
-        {label: 'Robusta', description: 'Mais testes'},
-      ],
-      multiSelect: true,
-    },
-    {
-      question: 'Publicar agora?',
-      options: [
-        {label: 'Não', description: 'Espera a revisão'},
-        {label: 'Sim', description: 'Vai agora'},
-      ],
-      multiSelect: false,
-    },
-  ],
-});
-
-test('normalizeUserQuestions/validateQuestionAnswers: forma canônica e recusas explícitas', () => {
-  const questions = normalizeUserQuestions(QUESTION_FIXTURE.questions);
-  assert.deepEqual(questions, [
-    {
-      id: 'Qual abordagem?',
-      header: 'Abordagem',
-      question: 'Qual abordagem?',
-      options: [
-        {label: 'Simples', description: 'Menos partes móveis', preview: '# Simples'},
-        {label: 'Robusta', description: 'Mais testes'},
-      ],
-      multiSelect: true,
-    },
-    {
-      id: 'Publicar agora?',
-      header: 'Pergunta 2',
-      question: 'Publicar agora?',
-      options: [
-        {label: 'Não', description: 'Espera a revisão'},
-        {label: 'Sim', description: 'Vai agora'},
-      ],
-      multiSelect: false,
-    },
-  ]);
-  assert.deepEqual(normalizeUserQuestions([{question: ''}, null, 'x', {question: '  '}]), []);
-
-  const answers = {'Qual abordagem?': ['Simples', 'Robusta'], 'Publicar agora?': 'Não'};
-  assert.deepEqual(validateQuestionAnswers(questions, answers), {
-    ok: true,
-    answers: {'Qual abordagem?': 'Simples, Robusta', 'Publicar agora?': 'Não'},
-  });
-  assert.equal(validateQuestionAnswers(questions, null).code, 'CLAUDE_QUESTION_ANSWERS_INVALID');
-  assert.equal(validateQuestionAnswers(questions, {'Outra?': 'x'}).code, 'CLAUDE_QUESTION_ANSWERS_UNKNOWN');
-  assert.equal(validateQuestionAnswers(questions, {'Qual abordagem?': 'Simples'}).code, 'CLAUDE_QUESTION_ANSWERS_MISSING');
-  assert.equal(validateQuestionAnswers(questions, {...answers, 'Publicar agora?': ['Sim', 'Não']}).code, 'CLAUDE_QUESTION_ANSWER_INVALID');
-  assert.equal(validateQuestionAnswers(questions, {...answers, 'Publicar agora?': ''}).code, 'CLAUDE_QUESTION_ANSWER_INVALID');
-  assert.equal(validateQuestionAnswers(questions, {...answers, 'Publicar agora?': []}).code, 'CLAUDE_QUESTION_ANSWER_INVALID');
-});
-
-test('AskUserQuestion: permission_request estruturado e allow só com answers validadas', async () => {
-  const {adapter, sdk} = makeAdapter();
-  await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'pergunta'});
-  const item = await fx.takeInput(query);
-
-  const pending = query.options.canUseTool(
-    'AskUserQuestion',
-    QUESTION_FIXTURE,
-    {requestId: 'ask-1', toolUseID: 'tool-ask-1', signal: new AbortController().signal, title: 'Escolha do tutor', description: 'Decida com calma'},
-  );
-  await fx.tick();
-  const request = events.of('permission_request').at(-1);
-  assert.equal(request.method, 'question');
-  assert.equal(request.toolName, 'AskUserQuestion');
-  assert.equal(request.title, 'Escolha do tutor');
-  assert.equal(request.message, 'Decida com calma');
-  assert.equal(request.runId, item.uuid, 'a pergunta carrega a identidade do turno');
-  assert.equal(request.questions.length, 2);
-  assert.equal(request.questions[0].multiSelect, true);
-  assert.ok(typeof request.expiresAt === 'string' && !Number.isNaN(Date.parse(request.expiresAt)));
-
-  assert.deepEqual(
-    adapter.respond({id: 'ask-1', confirmed: true}),
-    {ok: false, id: 'ask-1', code: 'CLAUDE_QUESTION_ANSWERS_REQUIRED'},
-    'confirmar sem respostas não pode conceder a pergunta',
-  );
-  assert.deepEqual(
-    adapter.respond({id: 'ask-1', answers: {'Qual abordagem?': 'Simples'}}),
-    {ok: false, id: 'ask-1', code: 'CLAUDE_QUESTION_ANSWERS_MISSING', detail: {question: 'Publicar agora?'}},
-  );
-  assert.equal(
-    adapter.respond({id: 'ask-1', answers: {'Qual abordagem?': 'Simples', 'Publicar agora?': 'Não', 'Outra?': 'x'}}).code,
-    'CLAUDE_QUESTION_ANSWERS_UNKNOWN',
-  );
-  assert.equal(
-    adapter.respond({id: 'ask-1', answers: {'Qual abordagem?': ['Simples', 'Robusta'], 'Publicar agora?': ['Sim', 'Não']}}).code,
-    'CLAUDE_QUESTION_ANSWER_INVALID',
-  );
-
-  const answered = adapter.respond({
-    id: 'ask-1',
-    answers: {'Qual abordagem?': ['Simples', 'Robusta'], 'Publicar agora?': 'Não'},
-  });
-  assert.deepEqual(answered, {
-    ok: true,
-    id: 'ask-1',
-    allowed: true,
-    answers: {'Qual abordagem?': 'Simples, Robusta', 'Publicar agora?': 'Não'},
-  });
-  assert.deepEqual(await pending, {
-    behavior: 'allow',
-    updatedInput: {
-      questions: QUESTION_FIXTURE.questions,
-      answers: {'Qual abordagem?': 'Simples, Robusta', 'Publicar agora?': 'Não'},
-    },
-    toolUseID: 'tool-ask-1',
-  });
-  assert.equal(events.of('permission_cancelled').length, 0);
-  assert.deepEqual(
-    adapter.respond({id: 'ask-1', answers: {'Qual abordagem?': 'Simples', 'Publicar agora?': 'Não'}}),
-    {ok: false, id: 'ask-1', code: 'CLAUDE_PERMISSION_UNKNOWN'},
-    'a pergunta já respondida não aceita segunda resposta',
-  );
-
-  await accept(query, item);
-  await promise;
-});
-
-test('AskUserQuestion: negar, cancelar e abort do SDK negam com permission_cancelled identificado', async () => {
-  const {adapter, sdk} = makeAdapter();
-  await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'cancela pergunta'});
-  const item = await fx.takeInput(query);
-  const signal = () => new AbortController().signal;
-
-  const denied = query.options.canUseTool('AskUserQuestion', QUESTION_FIXTURE, {requestId: 'ask-deny', toolUseID: 't-deny', signal: signal()});
-  await fx.tick();
-  assert.deepEqual(adapter.respond({id: 'ask-deny', confirmed: false}), {ok: true, id: 'ask-deny', allowed: false});
-  assert.deepEqual(await denied, {behavior: 'deny', message: 'Recusado pelo usuário'});
-
-  const cancelled = query.options.canUseTool('AskUserQuestion', QUESTION_FIXTURE, {requestId: 'ask-cancel', toolUseID: 't-cancel', signal: signal()});
-  await fx.tick();
-  assert.deepEqual(adapter.respond({id: 'ask-cancel', cancelled: true}), {ok: true, id: 'ask-cancel', cancelled: true});
-  assert.deepEqual(await cancelled, {behavior: 'deny', message: 'Cancelado pelo usuário'});
-  assert.ok(events.of('permission_cancelled').some((event) => event.id === 'ask-cancel' && event.reason === 'user'));
-
-  const controller = new AbortController();
-  const aborted = query.options.canUseTool('AskUserQuestion', QUESTION_FIXTURE, {requestId: 'ask-abort', toolUseID: 't-abort', signal: controller.signal});
-  await fx.tick();
-  controller.abort();
-  assert.deepEqual(await aborted, {behavior: 'deny', message: 'A execução foi encerrada antes da resposta'});
-  assert.ok(events.of('permission_cancelled').some((event) => event.id === 'ask-abort' && event.reason === 'abort'));
-  assert.deepEqual(
-    adapter.respond({id: 'ask-abort', answers: {'Qual abordagem?': 'Simples', 'Publicar agora?': 'Não'}}),
-    {ok: false, id: 'ask-abort', code: 'CLAUDE_PERMISSION_UNKNOWN'},
-  );
-
-  const deadController = new AbortController();
-  deadController.abort();
-  const dead = await query.options.canUseTool('AskUserQuestion', QUESTION_FIXTURE, {requestId: 'ask-dead', toolUseID: 't-dead', signal: deadController.signal});
-  assert.deepEqual(dead, {behavior: 'deny', message: 'A execução foi encerrada antes da resposta'});
-  assert.equal(events.of('permission_request').some((event) => event.id === 'ask-dead'), false, 'sinal já abortado nem abre diálogo');
-
-  await accept(query, item);
-  await promise;
-});
-
-test('ID de pergunta vence: deny, permission_cancelled reason expired e respond desconhecido', async () => {
-  const {adapter, sdk} = makeAdapter({permissionTtlMs: 25});
-  await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'vence'});
-  const item = await fx.takeInput(query);
-
-  const pending = query.options.canUseTool('AskUserQuestion', QUESTION_FIXTURE, {requestId: 'ask-exp', toolUseID: 't-exp', signal: new AbortController().signal});
-  await fx.tick();
-  assert.equal(events.of('permission_request').at(-1).id, 'ask-exp');
-  assert.deepEqual(await pending, {behavior: 'deny', message: 'O pedido expirou sem resposta'});
-  assert.ok(events.of('permission_cancelled').some((event) => event.id === 'ask-exp' && event.reason === 'expired'));
-  assert.deepEqual(
-    adapter.respond({id: 'ask-exp', answers: {'Qual abordagem?': 'Simples', 'Publicar agora?': 'Não'}}),
-    {ok: false, id: 'ask-exp', code: 'CLAUDE_PERMISSION_UNKNOWN'},
-  );
-
-  await accept(query, item);
-  await promise;
-});
-
-test('result invalida pergunta pendente; resposta vencida nunca concede', async () => {
-  const {adapter, sdk} = makeAdapter();
-  await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'pergunta vencida'});
-  const item = await fx.takeInput(query);
-  await accept(query, item);
-  await promise;
-
-  const pending = query.options.canUseTool('AskUserQuestion', QUESTION_FIXTURE, {requestId: 'ask-result', toolUseID: 't-result', signal: new AbortController().signal});
-  await fx.tick();
-  query.emit(fx.resultMessage({userMessageUuid: fx.UUID.a}));
-  await fx.waitFor(() => adapter.snapshot().busy === false, 2000, 'result encerra');
-  assert.deepEqual(await pending, {behavior: 'deny', message: 'Rodada terminou'});
-  assert.ok(events.of('permission_cancelled').some((event) => event.id === 'ask-result' && event.reason === 'turn_end'));
-  assert.equal(
-    adapter.respond({id: 'ask-result', answers: {'Qual abordagem?': 'Simples', 'Publicar agora?': 'Não'}}).code,
-    'CLAUDE_PERMISSION_UNKNOWN',
-  );
-});
-
-test('pergunta sem questões válidas é negada sem diálogo; hook deixa o canUseTool decidir', async () => {
-  const {adapter, sdk} = makeAdapter();
-  await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'pergunta vazia'});
-  const item = await fx.takeInput(query);
-
-  const denied = await query.options.canUseTool('AskUserQuestion', {questions: [{header: 'x', question: '  '}]}, {requestId: 'ask-empty', toolUseID: 't-empty'});
-  assert.equal(denied.behavior, 'deny');
-  assert.match(denied.message, /sem questões válidas/);
-  assert.equal(events.of('permission_request').some((event) => event.id === 'ask-empty'), false);
-
-  const hook = query.options.hooks.PreToolUse[0].hooks[0];
-  const hookAllowed = await hook({hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: {questions: []}});
-  assert.deepEqual(hookAllowed, {continue: true}, 'a decisão da pergunta é do canUseTool, não do hook');
-
-  await accept(query, item);
-  await promise;
-});
-
-test('pergunta no segundo turno da MESMA consulta nativa usa canUseTool e updatedInput', async () => {
-  const {adapter, sdk} = makeAdapter();
-  await adapter.connect();
-  const first = await startSend(adapter, sdk, {text: 'primeiro'});
-  const input = await fx.takeInput(first.query);
-  await accept(first.query, input);
-  await first.promise;
-  first.query.emit(fx.resultMessage({userMessageUuid: input.uuid}));
-  await fx.waitFor(() => !adapter.snapshot().busy);
-
-  const second = await startSend(adapter, sdk, {id: fx.UUID.b, text: 'segundo'});
-  assert.equal(second.query, first.query, 'a consulta persistente é a mesma');
-  const item2 = await fx.takeInput(second.query);
-  const pending = second.query.options.canUseTool('AskUserQuestion', QUESTION_FIXTURE, {requestId: 'ask-2nd', toolUseID: 't-2nd', signal: new AbortController().signal});
-  await fx.tick();
-  adapter.respond({id: 'ask-2nd', answers: {'Qual abordagem?': 'Robusta', 'Publicar agora?': 'Sim'}});
-  assert.equal((await pending).updatedInput.answers['Qual abordagem?'], 'Robusta');
-  await accept(second.query, item2);
-  await second.promise;
-  second.query.emit(fx.resultMessage({userMessageUuid: fx.UUID.b}));
-  await fx.waitFor(() => !adapter.snapshot().busy);
-  assert.equal(sdk.state.queries.length, 1, 'pergunta não abriu consulta nova');
-  adapter.close();
-});
-
-test('canUseTool nega caminho fora da política sem nem virar pedido na tela', async () => {
-  const {adapter, sdk} = makeAdapter();
-  await adapter.connect();
-  const events = fx.collectEvents(adapter);
-  const {promise, query} = await startSend(adapter, sdk, {text: 'fora'});
-  const item = await fx.takeInput(query);
-
-  const denied = await query.options.canUseTool('Read', {file_path: '/etc/hosts'}, {requestId: 'r5', toolUseID: 't5'});
-  assert.deepEqual(denied, {behavior: 'deny', message: 'fora das pastas autorizadas desta sessão'});
-  assert.equal(events.of('permission_request').some((event) => event.id === 'r5'), false);
-
-  await accept(query, item);
-  await promise;
-});
-
-test('hook PreToolUse aplica realpath/política inclusive em auto-aprovadas, e barra symlink', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'mesa-claude-hook-'));
-  try {
-    mkdirSync(join(dir, 'pdfs'));
-    mkdirSync(join(dir, 'work'));
-    mkdirSync(join(dir, 'fora'));
-    const pdf = join(dir, 'pdfs', 'enunciado.pdf');
-    writeFileSync(pdf, '%PDF-1.4');
-    writeFileSync(join(dir, 'fora.txt'), 'segredo');
-    writeFileSync(join(dir, 'fora', 'alheio.txt'), 'segredo');
-    symlinkSync(join(dir, 'fora.txt'), join(dir, 'work', 'escape.txt'));
-    symlinkSync(join(dir, 'fora'), join(dir, 'work', 'link'));
-
-    const {adapter, sdk} = makeAdapter({
-      cwd: join(dir, 'work'),
-      toolPolicy: {readPaths: [pdf], readRoots: [join(dir, 'work')]},
-    });
-    await adapter.connect();
-    const {promise, query} = await startSend(adapter, sdk, {text: 'hook'});
-    const item = await fx.takeInput(query);
-    const hook = query.options.hooks.PreToolUse[0].hooks[0];
-
-    const bash = await hook({hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: {command: 'ls'}});
-    assert.equal(bash.hookSpecificOutput.permissionDecision, 'deny');
-
-    const fora = await hook({hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {file_path: join(dir, 'fora.txt')}});
-    assert.equal(fora.hookSpecificOutput.permissionDecision, 'deny');
-
-    const proprio = await hook({hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {file_path: join(dir, 'work', 'rascunho.txt')}});
-    assert.equal(proprio.continue, true);
-    assert.equal('permissionDecision' in (proprio.hookSpecificOutput || {}), false, 'dentro da raiz controlada segue o fluxo normal');
-
-    const autorizado = await hook({hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {file_path: pdf}});
-    assert.equal(autorizado.continue, true);
-
-    const symlink = await hook({hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {file_path: join(dir, 'work', 'escape.txt')}});
-    assert.equal(symlink.hookSpecificOutput.permissionDecision, 'deny', 'symlink que escapa da raiz é negado pelo realpath');
-
-    const glob = await hook({hook_event_name: 'PreToolUse', tool_name: 'Glob', tool_input: {pattern: '../**'}});
-    assert.equal(glob.hookSpecificOutput.permissionDecision, 'deny');
-
-    const globLink = await hook({hook_event_name: 'PreToolUse', tool_name: 'Glob', tool_input: {path: join(dir, 'work'), pattern: 'link/**'}});
-    assert.equal(globLink.hookSpecificOutput.permissionDecision, 'deny', 'segmento literal symlink fora da raiz é negado');
-    const globBase = await hook({hook_event_name: 'PreToolUse', tool_name: 'Glob', tool_input: {path: join(dir, 'work', 'link'), pattern: '*'}});
-    assert.equal(globBase.hookSpecificOutput.permissionDecision, 'deny', 'base symlink fora da raiz é negada');
-    const grepLink = await hook({hook_event_name: 'PreToolUse', tool_name: 'Grep', tool_input: {path: join(dir, 'work', 'link'), pattern: 'segredo'}});
-    assert.equal(grepLink.hookSpecificOutput.permissionDecision, 'deny');
-
-    for (const pattern of ['/api/.*', '~usuario']) {
-      for (const path of [undefined, join(dir, 'work')]) {
-        const grep = await hook({hook_event_name: 'PreToolUse', tool_name: 'Grep', tool_input: {path, pattern}});
-        assert.deepEqual(grep, {continue: true}, `regex ${pattern} é permitida na pasta autorizada`);
-      }
-      for (const path of [join(dir, 'fora'), join(dir, 'work', 'link')]) {
-        const grep = await hook({hook_event_name: 'PreToolUse', tool_name: 'Grep', tool_input: {path, pattern}});
-        assert.equal(grep.hookSpecificOutput.permissionDecision, 'deny', `regex ${pattern} não permite escapar pela pasta base`);
-      }
-      const glob = await hook({hook_event_name: 'PreToolUse', tool_name: 'Glob', tool_input: {path: join(dir, 'work'), pattern}});
-      assert.equal(glob.hookSpecificOutput.permissionDecision, 'deny', `Glob ${pattern} continua bloqueado`);
-    }
-
-    const globOk = await hook({hook_event_name: 'PreToolUse', tool_name: 'Glob', tool_input: {path: join(dir, 'work'), pattern: '**/*.txt'}});
-    assert.equal(globOk.continue, true);
-
-    await accept(query, item);
-    await promise;
-  } finally {
-    rmSync(dir, {recursive: true, force: true});
+  const mesa = await query.options.canUseTool('mcp__mesa__quiz', {question: '2+2?'}, {requestId: 'mcp-1'});
+  assert.deepEqual(mesa, {behavior: 'allow', updatedInput: {question: '2+2?'}});
+  for (const native of ['AskUserQuestion', 'Read', 'Bash', 'Write']) {
+    const denied = await query.options.canUseTool(native, {}, {requestId: `native-${native}`});
+    assert.equal(denied.behavior, 'deny', `${native} não pode ser liberada`);
+    assert.match(denied.message, new RegExp(native));
   }
+  assert.deepEqual(adapter.respond({id: 'qualquer', answers: {}}), {ok: false, id: 'qualquer', code: 'CLAUDE_QUESTION_REMOVED'});
+  await accept(query, item);
+  await promise;
 });
 
-test('setToolPolicy troca o PDF ativo por prompt, canonicaliza e recusa em turno/permissão pendente', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'mesa-claude-pol-'));
-  try {
-    const work = join(dir, 'work');
-    mkdirSync(work);
-    const pdfA = join(dir, 'prova-a.pdf');
-    const pdfB = join(dir, 'prova-b.pdf');
-    writeFileSync(pdfA, '%PDF-1.4 A');
-    writeFileSync(pdfB, '%PDF-1.4 B');
-
-    const {adapter, sdk} = makeAdapter({
-      cwd: work,
-      toolPolicy: {readPaths: [pdfA], readRoots: [work]},
-    });
-    await adapter.connect();
-    const {promise, query} = await startSend(adapter, sdk, {text: 'troca política'});
-    const item = await fx.takeInput(query);
-    const hook = query.options.hooks.PreToolUse[0].hooks[0];
-
-    assert.equal((await hook({hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {file_path: pdfA}})).continue, true);
-    assert.equal((await hook({hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {file_path: pdfB}})).hookSpecificOutput.permissionDecision, 'deny');
-    assert.throws(
-      () => adapter.setToolPolicy({readPaths: [pdfB], readRoots: [work]}),
-      (error) => error.code === 'CLAUDE_BUSY' && error.notSent === true,
-      'recusa troca com turno em andamento',
-    );
-
-    const pending = query.options.canUseTool('Read', {file_path: join(work, 'rascunho.txt')}, {requestId: 'rp', toolUseID: 'tp'});
-    await fx.tick();
-    assert.throws(
-      () => adapter.setToolPolicy({readPaths: [pdfB], readRoots: [work]}),
-      (error) => error.code === 'CLAUDE_BUSY',
-      'recusa troca com permissão pendente',
-    );
-    adapter.respond({id: 'rp', confirmed: true});
-    await pending;
-
-    await accept(query, item);
-    await promise;
-    query.emit(fx.resultMessage({userMessageUuid: fx.UUID.a}));
-    await fx.waitFor(() => adapter.snapshot().busy === false, 2000, 'turno encerra');
-
-    const applied = adapter.setToolPolicy({readPaths: [pdfB], readRoots: [work]});
-    assert.deepEqual(applied.readPaths, [realpathSync(pdfB)]);
-    assert.equal((await hook({hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {file_path: pdfA}})).hookSpecificOutput.permissionDecision, 'deny');
-    assert.equal((await hook({hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {file_path: pdfB}})).continue, true);
-  } finally {
-    rmSync(dir, {recursive: true, force: true});
-  }
+test('a consulta nativa não expõe AskUserQuestion nem abre diálogo de pergunta', async () => {
+  const {adapter, sdk} = makeAdapter();
+  await adapter.connect();
+  const events = fx.collectEvents(adapter);
+  const {promise, query} = await startSend(adapter, sdk, {text: 'sem pergunta'});
+  assert.deepEqual(query.options.tools, []);
+  assert.ok(query.options.disallowedTools.includes('AskUserQuestion'));
+  assert.equal(events.of('permission_request').length, 0);
+  await accept(query, await fx.takeInput(query));
+  await promise;
 });
 
 /* ---------------- limite de uso (rate_limit_event) ---------------- */
@@ -1768,7 +1323,7 @@ test('#51: detector injetado passa o binário real do usuário à Query, a recon
   assert.match(ptText(init.executableNote), /2\.1\.400 é mais nova que a testada com esta Mesa \(2\.1\.301\)/);
 });
 
-test('opções do SDK: replay público, isolamento, só leitura, binário, prompt e env sem auto-update', async () => {
+test('opções do SDK: replay público, isolamento, sandbox, binário, prompt e env sem auto-update', async () => {
   const sdk = fx.fakeSdk();
   const {adapter} = makeAdapter({
     sdk,
@@ -1786,12 +1341,15 @@ test('opções do SDK: replay público, isolamento, só leitura, binário, promp
   assert.equal(options.cwd, process.cwd());
   assert.deepEqual(options.settingSources, []);
   assert.equal(options.strictMcpConfig, true);
-  assert.deepEqual(options.mcpServers, {});
-  assert.deepEqual(options.tools, ['Read', 'Glob', 'Grep', 'AskUserQuestion']);
-  for (const proibida of ['Bash', 'Edit', 'Write', 'Agent', 'Task', 'WebFetch', 'Skill']) {
+  assert.deepEqual(Object.keys(options.mcpServers), ['mesa']);
+  assert.deepEqual(options.tools, [], 'nenhuma ferramenta nativa exposta (#92)');
+  assert.deepEqual(options.allowedTools, ['mcp__mesa__*']);
+  for (const proibida of ['Read', 'Glob', 'Grep', 'Bash', 'Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Agent', 'Task', 'WebFetch', 'WebSearch', 'KillShell', 'BashOutput', 'Skill']) {
     assert.ok(options.disallowedTools.includes(proibida), `${proibida} desabilitada`);
   }
-  assert.equal(options.disallowedTools.includes('AskUserQuestion'), false, 'AskUserQuestion é a única ferramenta interativa exposta');
+  assert.ok(options.disallowedTools.includes('AskUserQuestion'), 'a pergunta nativa saiu (#92)');
+  assert.equal(options.sandbox, undefined, 'sem sandbox de SO (#91)');
+  assert.equal(options.settings, undefined, 'sem permissões herdadas (#91)');
   assert.equal(options.permissionMode, 'default');
   assert.equal(options.includePartialMessages, true);
   assert.deepEqual(options.extraArgs, {'replay-user-messages': null}, 'flag pública da CLI para o eco de aceite');
@@ -1802,7 +1360,7 @@ test('opções do SDK: replay público, isolamento, só leitura, binário, promp
   assert.equal(typeof options.canUseTool, 'function');
   assert.equal(typeof options.hooks.PreToolUse[0].hooks[0], 'function');
   assert.equal(options.env.MESA_EXTRA, '1');
-  assert.equal(options.env.PATH, process.env.PATH, 'env do processo é mesclado, não descartado');
+  assert.equal(envValue(options.env, 'PATH'), envValue(process.env, 'PATH'), 'env do processo é mesclado, não descartado');
   assert.equal(options.env.DISABLE_AUTOUPDATER, '1', 'auto-update desligado só no subprocesso');
   assert.match(options.env.CLAUDE_AGENT_SDK_CLIENT_APP, /mesa-de-estudos/);
 
@@ -1810,25 +1368,4 @@ test('opções do SDK: replay público, isolamento, só leitura, binário, promp
   await promise;
   query.emit(fx.resultMessage({userMessageUuid: fx.UUID.a}));
   await fx.waitFor(() => adapter.snapshot().busy === false, 2000, 'turno encerra');
-});
-
-test('#28: AskUserQuestion preserva a chave exata que o lookup nativo usa', async () => {
- const {adapter,sdk}=makeAdapter();
- const events=fx.collectEvents(adapter);
- await adapter.connect();
- const {promise,query}=await startSend(adapter,sdk);
- const item=await fx.takeInput(query);await accept(query,item);await promise;
- const question='  Qual valor?\n';
- const raw={questions:[{question,options:[{label:'Sim'}]},{question:'Qual valor?',options:[]}]};
- try{
-  const pending=query.options.canUseTool('AskUserQuestion',raw,{requestId:'ask-exact'});
-  const request=events.of('permission_request').at(-1);
-  assert.deepEqual(request.questions.map(q=>q.id),[question,'Qual valor?'],'identidades distintas não colapsam por trim');
-  assert.equal(adapter.respond({id:'ask-exact',answers:{[question]:'Sim','Qual valor?':'Outra'}}).ok,true);
-  const result=await pending;
-  for(const nativeQuestion of result.updatedInput.questions){
-   assert.ok(Object.hasOwn(result.updatedInput.answers,nativeQuestion.question),'lookup nativo encontra a resposta pela chave original');
-  }
-  assert.equal(result.updatedInput.answers[question],'Sim');
- }finally{adapter.close();}
 });

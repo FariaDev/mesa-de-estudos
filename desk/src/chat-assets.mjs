@@ -4,7 +4,6 @@ import {build,renderChildren} from './view-host.mjs';
 import {assetLocalPath} from './markdown.mjs';
 import {renderImageChrome} from './dialogs.mjs';
 import {message} from './i18n.mjs';
-import {t} from './ui-text.mjs';
 import {copiedMark,flashMark} from './icon-motion.mjs';
 
 /* Imagens geradas, cópia e pré-visualização (extraído de chat.mjs, #29). */
@@ -95,10 +94,10 @@ export function installAssetListeners(){
  $('#messages').addEventListener('click',async e=>{const button=e.target.closest?.('.code-copy');
   if(!button)return;
   e.stopPropagation();
-  const pre=button.parentElement?.querySelector('pre');
+  const pre=button.closest('.codeblock')?.querySelector('pre');
   if(!pre)return;
   try{await navigator.clipboard.writeText(pre.textContent);
-   flashMark(button,copiedMark(),t('talk.copied'));}catch(err){toast(err.message);}});
+   flashMark(button,copiedMark(),'',{ms:1500});}catch(err){toast(err.message);}});
  $('#messages').addEventListener('click',e=>{const img=e.target.closest?.('img.plot,img.shot');if(img)openImageDialog(img.dataset.path||'',img.src,img.alt);});
  /* A caixa da imagem toma a proporção dela ao carregar (#52); quem põe o `src`
     (o chat, o diálogo do tutor) não precisa saber. */

@@ -3,8 +3,8 @@
 function cmp_new(a, b) {
   return { $: a < b ? "LT" : a === b ? "EQ" : "GT" };
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -25,6 +25,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $maxImages() {
   return 4;
 }
@@ -74,7 +75,7 @@ function $scrubChar_go(_c_0, _code_0) {
   }
 }
 function $scrubChar(_c_0) {
-  return $scrubChar_go(_c_0, $Char_to_u32(_c_0));
+  return $scrubChar_go(_c_0, $$Char_to_u32(_c_0));
 }
 function $scrubName_go($0, $1) {
   for (;; ) {
@@ -87,7 +88,7 @@ function $scrubName_go($0, $1) {
         const _h_0 = _s_0.slice(0, char_len(_s_0));
         const _t_0 = _s_0.slice(char_len(_s_0));
         $0 = _t_0;
-        $1 = $scrubChar(_h_0) + _acc_0;
+        $1 = $$scrubChar(_h_0) + _acc_0;
         continue;
       }
     }
@@ -104,22 +105,22 @@ function $nameOr(_default_0, _name_0, _empty_0) {
   }
 }
 function $nameOr_if(_default_0, _name_0) {
-  return $nameOr(_default_0, _name_0, $String_is_empty(_name_0));
+  return $nameOr(_default_0, _name_0, $$String_is_empty(_name_0));
 }
 function $cleanName(_default_0, _name_0) {
-  return $String_take($scrubName($nameOr_if(_default_0, _name_0)), $maxNameChars());
+  return $String_take($$scrubName($$nameOr_if(_default_0, _name_0)), $$maxNameChars());
 }
 function $cleanTextFile(_name_0, _text_0) {
-  return { $: "TextFile", name: $cleanName($defaultFileName(), _name_0), text: _text_0 };
+  return { $: "TextFile", name: $$cleanName($$defaultFileName(), _name_0), text: _text_0 };
 }
 function $allowedMime(_mime_0) {
-  const _x_0 = $String_eq(_mime_0, "image/webp");
-  const _x_1 = $String_eq(_mime_0, "image/gif");
-  const _x_2 = $String_eq(_mime_0, "image/jpg");
+  const _x_0 = $$String_eq(_mime_0, "image/webp");
+  const _x_1 = $$String_eq(_mime_0, "image/gif");
+  const _x_2 = $$String_eq(_mime_0, "image/jpg");
   const _x_3 = _x_0 || _x_1;
-  const _x_4 = $String_eq(_mime_0, "image/jpeg");
+  const _x_4 = $$String_eq(_mime_0, "image/jpeg");
   const _x_5 = _x_2 || _x_3;
-  const _x_6 = $String_eq(_mime_0, "image/png");
+  const _x_6 = $$String_eq(_mime_0, "image/png");
   const _x_7 = _x_4 || _x_5;
   return _x_6 || _x_7;
 }
@@ -131,11 +132,11 @@ function $canonMime_if(_mime_0, _jpg_0) {
   }
 }
 function $canonMime(_mime_0) {
-  return $canonMime_if(_mime_0, $String_eq(_mime_0, "image/jpg"));
+  return $canonMime_if(_mime_0, $$String_eq(_mime_0, "image/jpg"));
 }
 function $partImage_dataUrl(_mime_0, _mimeEmpty_0, _data_0) {
   if (_mimeEmpty_0) {
-    const _x_0 = $defaultImageMime();
+    const _x_0 = $$defaultImageMime();
     const _x_1 = ";base64," + _data_0;
     const _x_2 = _x_0 + _x_1;
     return "data:" + _x_2;
@@ -146,13 +147,13 @@ function $partImage_dataUrl(_mime_0, _mimeEmpty_0, _data_0) {
   }
 }
 function $partImage_mime(_mime_0, _data_0) {
-  return $partImage_dataUrl(_mime_0, $String_is_empty(_mime_0), _data_0);
+  return $partImage_dataUrl(_mime_0, $$String_is_empty(_mime_0), _data_0);
 }
 function $partImage_data(_mime_0, _data_0, _dataEmpty_0) {
   if (_dataEmpty_0) {
     return { $: "None" };
   } else {
-    return { $: "Some", value: $partImage_mime(_mime_0, _data_0) };
+    return { $: "Some", value: $$partImage_mime(_mime_0, _data_0) };
   }
 }
 function $partImage_src(_url_0, _mime_0, _data_0, _urlEmpty_0, _dataEmpty_0) {
@@ -190,7 +191,7 @@ function $partVerdict(_p_0) {
   const _data_0 = _p_0["data"];
   const _url_0 = _p_0["url"];
   const _mimeType_0 = _p_0["mimeType"];
-  return $partVerdict_go($partImage(_kind_0, _url_0, _mimeType_0, _data_0, $String_eq(_kind_0, "image"), $String_is_empty(_url_0), $String_is_empty(_data_0)), $String_eq(_kind_0, "text"), _text_0);
+  return $partVerdict_go($$partImage(_kind_0, _url_0, _mimeType_0, _data_0, $$String_eq(_kind_0, "image"), $$String_is_empty(_url_0), $$String_is_empty(_data_0)), $$String_eq(_kind_0, "text"), _text_0);
 }
 function $partVerdicts(_parts_0) {
   if (_parts_0.$ === "Nil") {
@@ -198,7 +199,7 @@ function $partVerdicts(_parts_0) {
   } else {
     const _h_0 = _parts_0["head"];
     const _t_0 = _parts_0["tail"];
-    return { $: "Con", head: $partVerdict(_h_0), tail: $partVerdicts(_t_0) };
+    return { $: "Con", head: $$partVerdict(_h_0), tail: $$partVerdicts(_t_0) };
   }
 }
 function $scanParts($0, $1, $2) {
@@ -208,7 +209,7 @@ function $scanParts($0, $1, $2) {
       const _texts_0 = $1;
       const _images_0 = $2;
       if (_parts_0.$ === "Nil") {
-        return { $: "Content", text: $String_join(_texts_0, `
+        return { $: "Content", text: $$String_join(_texts_0, `
 `), images: _images_0 };
       } else {
         const _t_0 = _parts_0["head"];
@@ -216,7 +217,7 @@ function $scanParts($0, $1, $2) {
           const _text_0 = _t_0["text"];
           const _t_1 = _parts_0["tail"];
           $0 = _t_1;
-          $1 = $List_append(_texts_0, { $: "Con", head: _text_0, tail: { $: "Nil" } });
+          $1 = $$List_append(_texts_0, { $: "Con", head: _text_0, tail: { $: "Nil" } });
           $2 = _images_0;
           continue;
         } else if (_t_0.$ === "PartVerdict.Picture") {
@@ -224,7 +225,7 @@ function $scanParts($0, $1, $2) {
           const _t_2 = _parts_0["tail"];
           $0 = _t_2;
           $1 = _texts_0;
-          $2 = $List_append(_images_0, { $: "Con", head: _src_0, tail: { $: "Nil" } });
+          $2 = $$List_append(_images_0, { $: "Con", head: _src_0, tail: { $: "Nil" } });
           continue;
         } else {
           const _t_3 = _parts_0["tail"];
@@ -241,7 +242,7 @@ function $contentParts(_isString_0, _text_0, _parts_0) {
   if (_isString_0) {
     return { $: "Content", text: _text_0, images: { $: "Nil" } };
   } else {
-    return $scanParts($partVerdicts(_parts_0), { $: "Nil" }, { $: "Nil" });
+    return $scanParts($$partVerdicts(_parts_0), { $: "Nil" }, { $: "Nil" });
   }
 }
 function $contentText(_c_0) {
@@ -256,7 +257,7 @@ function $imageVerdict_mime(_mimeOk_0, _dataUrl_0, _name_0) {
   if (!_mimeOk_0) {
     return { $: "ImageVerdict.Reject", reason: { $: "AttachError.BadType" } };
   } else {
-    return { $: "ImageVerdict.Keep", attachment: { $: "Attachment", dataUrl: _dataUrl_0, name: $cleanName($defaultImageName(), _name_0) } };
+    return { $: "ImageVerdict.Keep", attachment: { $: "Attachment", dataUrl: _dataUrl_0, name: $$cleanName($$defaultImageName(), _name_0) } };
   }
 }
 function $imageVerdict_valid(_valid_0, _mimeOk_0, _dataUrl_0, _name_0) {
@@ -279,7 +280,7 @@ function $imageVerdict(_item_0) {
   const _name_0 = _item_0["name"];
   const _valid_0 = _item_0["valid"];
   const _overRaw_0 = _item_0["overRaw"];
-  return $imageVerdict_over(_overRaw_0, _valid_0, $allowedMime(_mime_0), _dataUrl_0, _name_0);
+  return $imageVerdict_over(_overRaw_0, _valid_0, $$allowedMime(_mime_0), _dataUrl_0, _name_0);
 }
 function $fileVerdict_empty(_empty_0, _file_0) {
   if (_empty_0) {
@@ -292,14 +293,14 @@ function $fileVerdict_over(_over_0, _empty_0, _name_0, _text_0) {
   if (_over_0) {
     return { $: "FileVerdict.Reject", reason: { $: "AttachError.FileTooLarge" } };
   } else {
-    return $fileVerdict_empty(_empty_0, $cleanTextFile(_name_0, _text_0));
+    return $fileVerdict_empty(_empty_0, $$cleanTextFile(_name_0, _text_0));
   }
 }
 function $fileVerdict(_item_0) {
   const _name_0 = _item_0["name"];
   const _text_0 = _item_0["text"];
   const _over_0 = _item_0["over"];
-  return $fileVerdict_over(_over_0, $String_is_empty(_text_0), _name_0, _text_0);
+  return $fileVerdict_over(_over_0, $$String_is_empty(_text_0), _name_0, _text_0);
 }
 function $imageVerdicts(_items_0) {
   if (_items_0.$ === "Nil") {
@@ -307,7 +308,7 @@ function $imageVerdicts(_items_0) {
   } else {
     const _h_0 = _items_0["head"];
     const _t_0 = _items_0["tail"];
-    return { $: "Con", head: $imageVerdict(_h_0), tail: $imageVerdicts(_t_0) };
+    return { $: "Con", head: $$imageVerdict(_h_0), tail: $$imageVerdicts(_t_0) };
   }
 }
 function $fileVerdicts(_files_0) {
@@ -316,7 +317,7 @@ function $fileVerdicts(_files_0) {
   } else {
     const _h_0 = _files_0["head"];
     const _t_0 = _files_0["tail"];
-    return { $: "Con", head: $fileVerdict(_h_0), tail: $fileVerdicts(_t_0) };
+    return { $: "Con", head: $$fileVerdict(_h_0), tail: $$fileVerdicts(_t_0) };
   }
 }
 function $collectImages($0, $1) {
@@ -332,7 +333,7 @@ function $collectImages($0, $1) {
           const _attachment_0 = _t_0["attachment"];
           const _t_1 = _items_0["tail"];
           $0 = _t_1;
-          $1 = $List_append(_acc_0, { $: "Con", head: _attachment_0, tail: { $: "Nil" } });
+          $1 = $$List_append(_acc_0, { $: "Con", head: _attachment_0, tail: { $: "Nil" } });
           continue;
         } else {
           const _reason_0 = _t_0["reason"];
@@ -355,7 +356,7 @@ function $collectFiles($0, $1) {
           const _file_0 = _t_0["file"];
           const _t_1 = _files_0["tail"];
           $0 = _t_1;
-          $1 = $List_append(_acc_0, { $: "Con", head: _file_0, tail: { $: "Nil" } });
+          $1 = $$List_append(_acc_0, { $: "Con", head: _file_0, tail: { $: "Nil" } });
           continue;
         } else if (_t_0.$ === "FileVerdict.Drop") {
           const _t_2 = _files_0["tail"];
@@ -387,11 +388,11 @@ function $finishDraft(_imgs_0, _files_0) {
     const _r_0 = _t_0["value"];
     return { $: "AttachResult.Bad", reason: _r_0 };
   } else {
-    return $finishDraftFiles(_images_0, $collectFiles($fileVerdicts($List_take(_files_0, $maxFiles())), { $: "Nil" }));
+    return $finishDraftFiles(_images_0, $$collectFiles($$fileVerdicts($$List_take(_files_0, $$maxFiles())), { $: "Nil" }));
   }
 }
 function $normalizeAttachments(_images_0, _files_0) {
-  return $finishDraft($collectImages($imageVerdicts($List_take(_images_0, $maxImages())), { $: "Nil" }), _files_0);
+  return $finishDraft($$collectImages($$imageVerdicts($$List_take(_images_0, $$maxImages())), { $: "Nil" }), _files_0);
 }
 function $attachImages(_r_0) {
   if (_r_0.$ === "AttachResult.Ok") {
@@ -421,7 +422,7 @@ function $sendVerdict_total(_overTotal_0, _mime_0) {
   if (_overTotal_0) {
     return { $: "SendVerdict.Reject", reason: { $: "AttachError.TotalTooLarge" } };
   } else {
-    return { $: "SendVerdict.Keep", mime: $canonMime(_mime_0) };
+    return { $: "SendVerdict.Keep", mime: $$canonMime(_mime_0) };
   }
 }
 function $sendVerdict_send(_overSend_0, _overTotal_0, _mime_0) {
@@ -458,7 +459,7 @@ function $sendVerdict(_item_0) {
   const _overRaw_0 = _item_0["overRaw"];
   const _overSend_0 = _item_0["overSend"];
   const _overTotal_0 = _item_0["overTotal"];
-  return $sendVerdict_valid(_valid_0, $allowedMime(_mime_0), _overRaw_0, _overSend_0, _overTotal_0, _mime_0);
+  return $sendVerdict_valid(_valid_0, $$allowedMime(_mime_0), _overRaw_0, _overSend_0, _overTotal_0, _mime_0);
 }
 function $sendVerdicts(_items_0) {
   if (_items_0.$ === "Nil") {
@@ -466,7 +467,7 @@ function $sendVerdicts(_items_0) {
   } else {
     const _h_0 = _items_0["head"];
     const _t_0 = _items_0["tail"];
-    return { $: "Con", head: $sendVerdict(_h_0), tail: $sendVerdicts(_t_0) };
+    return { $: "Con", head: $$sendVerdict(_h_0), tail: $$sendVerdicts(_t_0) };
   }
 }
 function $collectMimes($0, $1) {
@@ -482,7 +483,7 @@ function $collectMimes($0, $1) {
           const _mime_0 = _t_0["mime"];
           const _t_1 = _items_0["tail"];
           $0 = _t_1;
-          $1 = $List_append(_acc_0, { $: "Con", head: _mime_0, tail: { $: "Nil" } });
+          $1 = $$List_append(_acc_0, { $: "Con", head: _mime_0, tail: { $: "Nil" } });
           continue;
         } else {
           const _reason_0 = _t_0["reason"];
@@ -493,7 +494,7 @@ function $collectMimes($0, $1) {
   }
 }
 function $promptImages(_items_0) {
-  return $collectMimes($sendVerdicts($List_take(_items_0, $maxImages())), { $: "Nil" });
+  return $collectMimes($$sendVerdicts($$List_take(_items_0, $$maxImages())), { $: "Nil" });
 }
 function $sentMimes(_r_0) {
   if (_r_0.$ === "SendResult.Ok") {
@@ -504,7 +505,8 @@ function $sentMimes(_r_0) {
   }
 }
 function $Char_to_u32(_c_0) {
-  return char_code(_c_0);
+  const _x_0 = char_code(_c_0);
+  return _x_0;
 }
 function $String_reverse(_s_0) {
   return $String_reverse_go(_s_0, "");
@@ -522,16 +524,16 @@ function $String_take(_s_0, _n_0) {
   } else {
     const _h_0 = _s_0.slice(0, char_len(_s_0));
     const _t_0 = _s_0.slice(char_len(_s_0));
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return "";
     } else {
       const _p_0 = _n_0 - 1;
-      return _h_0 + $String_take(_t_0, _p_0);
+      return _h_0 + $$String_take(_t_0, _p_0);
     }
   }
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $String_join(_xs_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -548,7 +550,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_take(_xs_0, _n_0) {
@@ -557,11 +559,11 @@ function $List_take(_xs_0, _n_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return { $: "Nil" };
     } else {
       const _p_0 = _n_0 - 1;
-      return { $: "Con", head: _h_0, tail: $List_take(_t_0, _p_0) };
+      return { $: "Con", head: _h_0, tail: $$List_take(_t_0, _p_0) };
     }
   }
 }
@@ -598,7 +600,7 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
@@ -621,6 +623,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -630,13 +633,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -646,6 +648,40 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$Char_to_u32 = $Char_to_u32;
+var $$scrubChar = $scrubChar;
+var $$String_is_empty = $String_is_empty;
+var $$nameOr_if = $nameOr_if;
+var $$scrubName = $scrubName;
+var $$maxNameChars = $maxNameChars;
+var $$defaultFileName = $defaultFileName;
+var $$cleanName = $cleanName;
+var $$String_eq = $String_eq;
+var $$defaultImageMime = $defaultImageMime;
+var $$partImage_mime = $partImage_mime;
+var $$partImage = $partImage;
+var $$partVerdict = $partVerdict;
+var $$partVerdicts = $partVerdicts;
+var $$String_join = $String_join;
+var $$List_append = $List_append;
+var $$defaultImageName = $defaultImageName;
+var $$allowedMime = $allowedMime;
+var $$cleanTextFile = $cleanTextFile;
+var $$imageVerdict = $imageVerdict;
+var $$imageVerdicts = $imageVerdicts;
+var $$fileVerdict = $fileVerdict;
+var $$fileVerdicts = $fileVerdicts;
+var $$maxFiles = $maxFiles;
+var $$List_take = $List_take;
+var $$collectFiles = $collectFiles;
+var $$maxImages = $maxImages;
+var $$collectImages = $collectImages;
+var $$canonMime = $canonMime;
+var $$sendVerdict = $sendVerdict;
+var $$sendVerdicts = $sendVerdicts;
+var $$String_take = $String_take;
+var $$String_order = $String_order;
+var $$String_join_go = $String_join_go;
 var attachments_default = {
   maxImages: run_lib(() => run_loop($maxImages()), 0),
   maxFiles: run_lib(() => run_loop($maxFiles()), 0),

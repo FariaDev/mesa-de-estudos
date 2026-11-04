@@ -7,13 +7,15 @@
 
 const BASE_TOKENS = {bg: 'bg', card: 'surface', fg: 'fg', muted: 'muted', line: 'border'};
 const ACCENTS = ['blue', 'violet', 'green', 'orange', 'pink', 'graphite'];
+/* O trio (#100) também segue o acento na página do celular. */
+const TRIO_PARTS = ['corpo', 'claro', 'membro', 'sinal', 'tinta'];
 const BAD = {light: '#a3341f', dark: '#f08a72'};
 
 /**
  * Lê do `style.css` os tons claro e escuro de cada token `light-dark(...)`.
  * @param {string} cssText
  * @returns {Record<string, {light: string, dark: string}>}
- * @example readPalette('--bg:light-dark(#efefef,#1f1f1f);').bg // {light:'#efefef', dark:'#1f1f1f'}
+ * @example readPalette('--bg:light-dark(#f7f7f7,#191919);').bg // {light:'#f7f7f7', dark:'#191919'}
  */
 function readPalette(cssText) {
   /** @type {Record<string, {light: string, dark: string}>} */
@@ -38,6 +40,11 @@ function toneVars(palette, accent, tone) {
   /* Grafite no escuro é um preenchimento claro: o texto por cima fica escuro, como no app. */
   const onAccent = id === 'graphite' && tone === 'dark' ? '#181818' : '#ffffff';
   vars.push(`--accent:${fill[tone]}`, `--on-accent:${onAccent}`, `--bad:${BAD[tone]}`);
+  for (const part of TRIO_PARTS) {
+    const token = palette[`trio-${id}-${part}`];
+    if (!token) throw Error(`style.css sem --trio-${id}-${part}: recebido ${Object.keys(palette).length} tokens, esperado --trio-<acento>-<parte>:light-dark(...)`);
+    vars.push(`--trio-${part}:${token[tone]}`);
+  }
   return vars.join(';');
 }
 

@@ -10,6 +10,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $viewStateClear(_clear_0) {
   if (_clear_0) {
     return { $: "ViewShown" };

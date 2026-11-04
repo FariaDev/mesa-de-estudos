@@ -39,9 +39,14 @@
  position:absolute;top:calc(var(--bar) - var(--space-1));right:var(--space-2);z-index:12;
  display:flex;flex-direction:column;gap:var(--space-hairline);overflow:auto;
  width:max-content;min-width:min(240px,calc(100% - var(--space-5)));max-width:calc(100% - var(--space-5));padding:var(--space-1);
- border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow-pop);
+ border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--raised);box-shadow:var(--shadow-pop);
 }
 .chat-pop[hidden]{display:none}
+/* "Nova sessão com…" respira abaixo do + e o título alinha com o texto dos
+   itens (ícone + respiro), com peso mais leve que o dos menus antigos. */
+#new-session-pop{top:calc(var(--bar) + var(--space-2))}
+#new-session-pop .conv-head{margin:0;padding:var(--space-2) var(--space-2) var(--space-1) calc(var(--space-1) + var(--space-2) + 12px + var(--space-3))}
+#new-session-pop .conv-head strong{font-size:var(--fs-sm);font-weight:500;color:var(--muted)}
 .chat-pop button{
  justify-content:flex-start;width:100%;height:var(--ctl);padding:0 var(--space-2);gap:var(--space-3);
  border:0;background:transparent;box-shadow:none;color:var(--fg);font-size:var(--fs-sm);text-align:left;
@@ -57,6 +62,12 @@
  content:'Desativada';margin-left:auto;padding-left:var(--space-3);font-size:var(--fs-xs);color:var(--faint);
 }
 .chat-pop button[role="menuitemcheckbox"][aria-checked="true"]::after{content:'Ativada';color:var(--accent-text)}
+/* Contexto abre no próprio menu: o submenu entra recuado logo abaixo do
+   gatilho, sem flyout (o menu do tutor não tem outro padrão de submenu). */
+.chat-pop #more-context::after{content:'›';margin-left:auto;padding-left:var(--space-3);color:var(--faint)}
+.chat-pop #more-context[aria-expanded="true"]::after{content:'⌄'}
+.chat-pop .more-submenu{display:flex;flex-direction:column;gap:var(--space-hairline);margin:0 var(--space-1) var(--space-1);padding-left:var(--space-3);border-left:1px solid var(--border)}
+.chat-pop .more-submenu[hidden]{display:none}
 .more-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:var(--ctl);padding:0 var(--space-2);font-size:var(--fs-sm);color:var(--fg)}
 .more-row [hidden]{display:none}
 .more-row-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -94,11 +105,19 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
    (`--fs-md`) em cor discreta; o recuo lateral é o da coluna. */
 .tutor-state{display:flex;flex-direction:column;gap:var(--space-4);flex:none;padding:var(--space-4) var(--pad) var(--space-5)}
 .tutor-state[hidden]{display:none}
+/* Desligado sem retomada: a coluna vazia é do convite. O bloco cresce, o texto
+   fica centrado nos dois eixos e o vão entre título, frase e botão é claro. */
+#chat:has(> #tutor-state[data-state=off]:not([hidden])) > #messages:empty{flex:0;min-height:0}
+#chat:has(> #messages:empty) > .tutor-state[data-state=off]:not([hidden]){flex:1;justify-content:center;align-items:center;text-align:center;gap:var(--space-6);padding:var(--space-6)}
+#chat:has(> #messages:empty) > .tutor-state[data-state=off] .ts-text{align-items:center;gap:var(--space-3)}
+#chat:has(> #messages:empty) > .tutor-state[data-state=off] .ts-actions{justify-content:center}
+/* A mensagem do estado não pode ser cortada: sem clamp, quebra dentro da
+   coluna, inclusive em largura estreita (ticket de polimento visual). */
 .ts-text{display:flex;flex-direction:column;gap:var(--space-0);min-width:0}
 .ts-lead{margin:0;font-size:var(--fs-xl);line-height:1.4;color:var(--fg-strong);overflow-wrap:anywhere}
 .ts-lead strong{font-weight:600}
 .tutor-state[data-state=error] .ts-lead{font-weight:600}
-.ts-fine{margin:0;font-size:var(--fs-md);line-height:1.45;color:var(--muted);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ts-fine{margin:0;font-size:var(--fs-md);line-height:1.45;color:var(--muted);overflow-wrap:anywhere;white-space:normal}
 .ts-actions{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .ts-actions button{height:30px;padding:0 var(--space-5);font-size:var(--fs-md);box-shadow:none}
 .ts-actions .ts-primary,.ts-actions .ts-secondary{font-weight:600}
@@ -129,26 +148,31 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 #messages .message>.role{
  position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;
 }
-/* "Guardar para revisar" é ação discreta da resposta: texto pequeno, sem
-   caixa, com fundo só sob o cursor. */
-.msg-review{height:24px;margin-top:var(--space-2);padding:0 var(--space-3);border-color:transparent;background:transparent;box-shadow:none;font-size:var(--fs-sm);color:var(--muted)}
-.msg-review:hover{background:var(--hover);color:var(--fg)}
-.msg-copy{
- position:absolute;top:-2px;right:0;opacity:0;pointer-events:none;z-index:1;
- transition:opacity var(--t-fast) var(--ease-out);
- font-size:var(--fs-xs);padding:3px 9px;border-radius:var(--r-pill);
- background:var(--fg-strong);color:var(--bg);border-color:transparent;
+/* Ações da mensagem (#90): só ícones, no canto de baixo, e só à vista quando
+   a mensagem está sob o cursor ou com foco dentro. O nome acessível e o
+   tooltip continuam no botão; nada de chip de texto ocupando a bolha. */
+.message-actions{
+ display:flex;justify-content:flex-end;gap:var(--space-1);margin-top:var(--space-1);
 }
-.message:hover .msg-copy,.message:focus-within .msg-copy{opacity:1;pointer-events:auto}
-.msg-copy:hover{opacity:.85}
+.message-actions button{
+ display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;
+ border:0;background:transparent;box-shadow:none;color:var(--muted);
+ opacity:0;pointer-events:none;transition:opacity var(--t-fast) var(--ease-out);
+}
+.message:hover .message-actions button,.message:focus-within .message-actions button{opacity:1;pointer-events:auto}
+/* A última resposta mantém só o salvar à vista; copiar/citar seguem no hover. */
+.message[data-latest-answer] .message-actions .msg-review{opacity:1;pointer-events:auto}
+.message-actions button:hover{background:var(--hover);color:var(--fg)}
+.message-actions .icon{width:14px;height:14px}
 .message.user{display:flex;flex-direction:column;align-items:flex-end}
-/* o chip "Copiar" entra no canto da mensagem: o rótulo sai de baixo dele */
-.message.user:hover .role,.message.user:focus-within .role{visibility:hidden}
+.message.user .message-actions{align-self:flex-end}
 .message.user .body{
- background:var(--user);border:1px solid var(--border);border-radius:14px 14px 4px 14px;
+ background:var(--user);border:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) var(--r-2xs) var(--r-lg);
  padding:var(--space-3) var(--space-5);display:inline-block;max-width:85%;min-width:0;
- font-size:var(--fs-md-half);line-height:1.5;
+ font-size:var(--reading-size);line-height:1.6;
 }
+.message-files{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-top:var(--space-2)}
+.message-file.attachment{display:inline-block;max-width:100%}
 .message p{margin:var(--space-1) 0 var(--space-3)}
 /* Títulos na escala do corpo de 15px (#61): sem regra, o h1 do navegador dava
    30px na coluna de 390px. Todos em negrito; o h4 se separa do h3 pela cor. */
@@ -159,22 +183,41 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .message :is(h3,h4){font-size:var(--fs-xl)}
 .message h4{color:var(--muted)}
 .message ul,.message ol{padding-left:22px}
+/* Citação ("> ", o botão Citar): sem regra, o navegador dava 40px de recuo e
+   nada que dissesse "trecho citado". Barra à esquerda e o tom de apoio. */
+.message blockquote{margin:var(--space-2) 0 var(--space-3);padding:var(--space-0) 0 var(--space-0) var(--space-4);border-left:3px solid var(--border-strong);color:var(--muted)}
+.message blockquote>:first-child{margin-top:0}
+.message blockquote>:last-child{margin-bottom:0}
 .message pre{
  overflow:auto;background:var(--code);border:1px solid var(--border);border-radius:var(--r-lg);
- padding:var(--space-5) 14px;font-size:var(--fs-md);line-height:1.55;
+ padding:var(--space-5);font-size:var(--fs-md);line-height:1.55;
 }
 .message code{font-family:var(--font-mono);font-size:var(--fs-md)}
-.codeblock{position:relative;margin:var(--space-3) 0}
-.message .codeblock pre{margin:0}
-.code-copy{
- position:absolute;top:var(--space-2);right:var(--space-2);opacity:0;pointer-events:none;z-index:1;
- transition:opacity var(--t-fast) var(--ease-out);
- font-size:var(--fs-2xs);padding:var(--space-0) var(--space-3);border-radius:var(--r-pill);
- background:var(--fg-strong);color:var(--bg);border-color:transparent;
+/* Bloco de código (ticket de polimento visual): a moldura é do bloco, a faixa
+   de cabeçalho leva a linguagem à esquerda e o copiar à direita, e o código
+   começa abaixo dela com o mesmo respiro nos quatro lados. Vale no tutor, na
+   aba Livre e no chat lateral (o mesmo `.codeblock`). */
+.codeblock{position:relative;margin:var(--space-3) 0;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--code);overflow:hidden}
+.codeblock pre,
+.message .codeblock pre{
+ margin:0;border:0;border-radius:0;background:transparent;
+ padding:var(--space-5);font-size:var(--fs-md);line-height:1.55;
 }
-.codeblock:hover .code-copy,.codeblock:focus-within .code-copy,.code-copy.ok{opacity:1;pointer-events:auto}
-.code-copy:hover{opacity:.85}
-.code-lang{position:absolute;top:var(--space-2);left:var(--space-3);font-size:var(--fs-2xs);letter-spacing:.08em;color:var(--faint);pointer-events:none;opacity:.75}
+.code-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:var(--ctl);padding:0 var(--space-2) 0 var(--space-5);border-bottom:1px solid var(--border)}
+.code-lang{min-width:0;font-size:var(--fs-2xs);letter-spacing:.08em;color:var(--faint);pointer-events:none;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Copiar do bloco (#release OpenCode): botão-ícone discreto no canto direito do
+   cabeçalho, sem inverter para branco e sem mexer no tamanho ao confirmar. */
+.code-copy{
+ display:inline-flex;align-items:center;justify-content:center;flex:none;margin-left:auto;
+ width:var(--ctl);height:var(--ctl);padding:0;border-radius:var(--r-sm);
+ background:transparent;border:0;color:var(--muted);box-shadow:none;
+ transition:background var(--t-fast) var(--ease-out),color var(--t-fast) var(--ease-out);
+}
+.code-copy .icon{width:14px;height:14px}
+.code-copy span{display:none}
+.code-copy:hover{background:var(--hover);color:var(--fg-strong)}
+.code-copy:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.code-copy.ok{color:var(--success-text)}
 [data-hl="kw"]{color:var(--code-kw);font-weight:600}
 [data-hl="str"]{color:var(--code-str)}
 [data-hl="comment"]{color:var(--faint);font-style:italic}
@@ -196,7 +239,7 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .img-wrap .img-copy{
  position:absolute;top:var(--space-2);right:var(--space-2);opacity:0;pointer-events:none;
  transition:opacity var(--t-fast) var(--ease-out);
- font-size:var(--fs-xs);padding:3px 9px;border-radius:var(--r-pill);
+ font-size:var(--fs-xs);padding:3px 9px;border-radius:var(--r-sm);
  background:var(--fg-strong);color:var(--bg);border-color:transparent;
 }
 .img-wrap:hover .img-copy,.img-wrap:focus-within .img-copy{opacity:1;pointer-events:auto}
@@ -233,6 +276,27 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .quiz-option.wrong:disabled:hover{background:color-mix(in oklab,var(--danger) 14%,transparent)}
 .quiz-option .quiz-mark{margin-left:auto;font-weight:700}
 .quiz-actions{display:flex;gap:var(--space-2);margin-top:var(--space-4)}
+.quiz-question-block{margin-top:var(--space-4)}
+.quiz-question-block:first-child{margin-top:0}
+.quiz-question-block .quiz-question{font-weight:600;margin-bottom:var(--space-2);color:var(--fg-strong)}
+.quiz-question-block .cq-header{margin:0 0 var(--space-2);font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.quiz-option .cq-option-label{display:block}
+.quiz-option .cq-option-desc{display:block;color:var(--muted);font-size:var(--fs-sm);line-height:1.4}
+.quiz-free{
+ /* #release OpenCode: "Outra resposta" é o mesmo componente visual das opções
+    (mesmo raio, recuo, altura, borda e tipografia), não um campo à parte. */
+ box-sizing:border-box;width:100%;height:auto;min-height:0;margin-top:var(--space-2);
+ padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);
+ background:var(--surface);color:var(--fg);font-family:inherit;font-size:inherit;line-height:1.45;
+}
+.quiz-free::placeholder{color:var(--faint)}
+.quiz-free:hover:not(:disabled){background:var(--hover)}
+.quiz-free:focus{outline:none;border-color:var(--ring)}
+.quiz-free:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.quiz-free:disabled{opacity:1;cursor:default;background:var(--surface);color:var(--faint)}
+.quiz-error{margin:var(--space-3) 0 0;color:var(--danger-text);font-size:var(--fs-sm);line-height:1.4}
+.quiz-pending,.quiz-sent,.quiz-dismissed{font-size:var(--fs-sm);color:var(--muted);padding:var(--space-1) 0}
+.quiz-sent{color:var(--success-text)}
 .quiz-verdict{margin-top:var(--space-4);font-weight:600;color:var(--fg-strong)}
 .quiz-note{font-size:var(--fs-sm);color:var(--muted);margin-top:var(--space-1)}
 .quiz-explain{font-size:var(--fs-sm);color:var(--muted);margin-top:var(--space-1)}
@@ -240,14 +304,32 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .quiz-question p:last-child,.quiz-details p:last-child,.quiz-note p:last-child,.quiz-explain p:last-child{margin-bottom:0}
 /* Diário de trabalho do turno (.work): a cabeça é o fold ("Trabalhou por…") e
    cada passo vira uma linha expansível — a visão mora em worklog-view.mjs. */
-.work{margin:0 0 var(--space-4)}
+/* #release OpenCode (item 12): o diário inteiro usa a superfície do cartão,
+   a mesma do cabeçalho "Pensando…"; o cabeçalho e os passos formam um bloco só,
+   sem mudar texto, ícones nem comportamento. */
+.work{margin:0 0 var(--space-4);background:var(--surface);border-radius:var(--r-sm)}
 .work-head{display:flex;align-items:center;gap:var(--space-2);width:100%;padding:var(--space-1) var(--space-2);border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--muted);text-align:left}
+/* O cabeçalho herda a superfície do bloco; o hover continua sendo o único realce. */
+.work .work-head{background:var(--surface)}
 .work-head:hover{background:var(--hover);color:var(--fg)}
 .work-mark{display:inline-flex;color:var(--faint)}
 .work-mark .icon{width:14px;height:14px}
-/* A ∫ no "pensando" (#61; trio da #64): 20 px com margem negativa, para a
-   linha não crescer. O piscar e o "?" vêm do trio.css e param com reduzir. */
-.work-mark .mascote{margin:-4px 0 -2px}
+/* A luminária no "pensando" (#101): presa ao canto da cabeça, com o braço vindo
+   do canto de cima e o facho cortado pela linha, como na arte do autor. A cabeça
+   ao vivo tem 28px e o título fica na coluna dos passos: trocar a luminária pelo
+   ícone do passo não faz nada pular. */
+.work[data-live=true] .work-head{position:relative;overflow:hidden;min-height:28px}
+.work-head:has(.work-mark[data-lamp="dome"]){padding-left:36px}
+.work-mark[data-lamp="dome"]{position:absolute;left:0;top:0;width:76px;height:28px;pointer-events:none}
+.work-head:has(.work-mark[data-lamp="dome"]) :is(.work-title,.work-elapsed,.work-dots,.work-chevron){position:relative}
+.work-mark .lamp-mark,.work-mark .lamp-mark svg{display:block;width:76px;height:28px}
+.work-mark .lamp-mark-arm{stroke:var(--lamp-mark-paper)}
+.work-mark .lamp-mark-dome{fill:var(--lamp-mark-paper);stroke:var(--lamp-mark-paper)}
+.work-mark .lamp-mark-clip{fill:light-dark(color-mix(in srgb,var(--accent-paper) 60%,#000),#d9d1bf)}
+.work-mark[data-lamp="dome"]{--lamp-mark-paper:light-dark(var(--accent-paper),#fbf8f1)}
+.work-mark .lamp-mark-glow{animation:lamp-think calc(var(--t-loop) * 2) var(--ease-move) infinite}
+@keyframes lamp-think{0%,100%{opacity:.22}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.work-mark .lamp-mark-glow{animation:none}}
 .work[data-live=true] .work-mark{color:var(--fg)}
 .work-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .work[data-live=true] .work-title{color:var(--fg)}
@@ -255,9 +337,9 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .work-chevron{display:inline-flex;color:var(--faint)}
 .work-chevron .icon{width:12px;height:12px;transition:transform var(--t-base) var(--ease-move)}
 .work-head[aria-expanded=true] .work-chevron .icon{transform:rotate(180deg)}
-.work-steps{display:flex;flex-direction:column;margin:var(--space-1) 0 0;padding-left:var(--space-3)}
+.work-steps{display:flex;flex-direction:column;margin:var(--space-1) 0 0;padding-left:var(--space-3);border-left:1px solid var(--border)}
 .work[data-expanded=false] .work-steps{display:none}
-.step-toggle{display:flex;align-items:flex-start;gap:var(--space-3);width:100%;padding:var(--space-2);border-radius:var(--r-sm);text-align:left;color:inherit}
+.step-toggle{display:flex;align-items:flex-start;gap:var(--space-3);width:100%;padding:var(--space-2);border-color:transparent;border-radius:var(--r-sm);background:transparent;box-shadow:none;text-align:left;color:inherit}
 .work-step[data-detail=true] .step-toggle:hover{background:var(--hover)}
 .step-icon{display:inline-flex;color:var(--faint);padding-top:1px}
 .step-icon .icon{width:13px;height:13px}
@@ -267,15 +349,9 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .step-label{min-width:0;font-size:var(--fs-sm-half);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .work-step[data-status=done] .step-label,.work-step[data-status=error] .step-label{color:var(--fg)}
 .work-step[data-kind=error] .step-label{color:var(--danger-text)}
-.step-time{flex:none;font-size:var(--fs-xs);color:var(--faint);font-variant-numeric:tabular-nums}
 .step-preview{font-size:var(--fs-sm);color:var(--faint);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .step-detail{display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-1)}
-.step-text{margin:0;font-family:inherit;font-size:var(--fs-sm-half);line-height:1.5;color:var(--muted);background:var(--code);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--space-3) var(--space-4);white-space:pre-wrap;max-height:240px;overflow:auto}
-/* Pensamento aberto com o turno vivo: o texto cresce no lugar (a caixa de
-   240px some) e a rolagem da conversa segue o fim enquanto você está no fim —
-   se você rolar para cima, ela para de seguir. Fechado ou encerrado o turno,
-   o teto volta. */
-.work[data-live=true] .step-toggle[aria-expanded=true] .step-text{max-height:none;overflow:visible}
+.step-text{margin:0;font-family:inherit;font-size:var(--fs-sm-half);line-height:1.5;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
 .step-links{display:flex;flex-direction:column;gap:2px;padding:var(--space-1) 0}
 .step-link{font-size:var(--fs-sm-half);color:var(--accent-text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .step-link:hover{text-decoration:underline}
@@ -288,7 +364,7 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .pulse{width:6px;height:6px;flex:none;border-radius:var(--r-round);background:var(--muted);animation:pulse var(--t-loop) var(--ease-move) infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* Pé da coluna (#42): a linha de atividade ("Pensando… · 5min 43s"), a linha
-   "Vai junto" e a caixa de mensagem começam na mesma margem, --pad. */
+   "Vai junto" e o texto do campo começam na mesma margem, --pad. */
 #activity{display:flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);color:var(--muted);padding:0 var(--pad);min-height:18px;white-space:nowrap;overflow:hidden}
 #activity .activity-label{overflow:hidden;text-overflow:ellipsis}
 @keyframes pulse{50%{opacity:.35}}

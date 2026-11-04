@@ -1,4 +1,6 @@
 import {icon} from '../icons.mjs';
+import {noteOwnScroll} from './chat-scroll-view.mjs';
+export {distanceFromEnd,revealInChat,applyChatScroll} from './chat-scroll-view.mjs';
 import {showHistory,resetAttachments,restoreAttachments} from './chat.mjs';
 import {adopt as adoptQueue} from './queue.mjs';
 import {setResumeRecord} from './resume.mjs';
@@ -17,14 +19,16 @@ import {applyHelpFlags} from './dialogs.mjs';
 import deliveryCore from './generated/agentdelivery.core.js';
 import {captureViewLayout} from './layout-presets.mjs';
 import {t,text as translate,formatDate,currentLanguage} from './ui-text.mjs';
+import {displayFreeTitle} from './free-names.mjs';
 import {message,parseMessage} from './i18n.mjs';
 import {applyAttrs,applyAttrsOn,applyView} from './live-view.mjs';
 import {updateMeter,renderAutoCompact,refreshMeter,installContextMeter,meterUsage} from './context-meter.mjs';
 export {refreshMeter};
-import {shortModelName} from './model-picker.mjs';import {renderModelPicker,setModelPickerDisabled,loadModelRecents,modelRecentsSnapshot,loadModelFavorites,modelFavoritesSnapshot} from './model-picker-ui.mjs';import {renderEffortStrip,setEffortStripDisabled,effortLevelText} from './effort-strip.mjs';import {knownEngine,sessionEngine,isNativeEngine,defaultEffort,defaultCapability} from './engine-facts.mjs';
+import {applyEngineVisibility,setLegacySession} from './visible-engines-ui.mjs';
+import {loadReleaseNotesSeen,releaseNotesSeen} from './release-notes.mjs';import {shortModelName} from './model-picker.mjs';import {renderModelPicker,setModelPickerDisabled,loadModelRecents,modelRecentsSnapshot,loadModelFavorites,modelFavoritesSnapshot,loadModelDefault,modelDefaultSnapshot} from './model-picker-ui.mjs';import {renderEffortStrip,setEffortStripDisabled,effortLevelText} from './effort-strip.mjs';import {knownEngine,sessionEngine,isNativeEngine,defaultEffort,defaultCapability} from './engine-facts.mjs';
 
 export function $(s){return document.querySelector(s);}
-export const S={supportsImages:true,switching:false,modelCatalog:[],library:[],panels:[],pdfDivider:null,connected:false,connecting:null,busy:false,connectCancelled:false,busySince:0,busyStall:0,healthFails:0,refVisible:true,saveTimer:0,currentSession:'',sessions:[],captureOk:false,includeRefs:true,appConfig:{},quizQueue:[],dialogPending:false,activeCourseName:'',currentTheme:'auto',currentAccent:'blue',ggbActive:false,currentCourseId:'',workspace:null,autoCompact:false,bookmarks:[],reviewItems:[],reviewActive:false,attachments:[],attachGen:0,deskVersion:'',engine:'pi',capabilities:null,conversationStatus:null,uncertain:false,turnCancelled:false,effortLevels:[],effortLevel:''};
+export const S={supportsImages:true,switching:false,modelCatalog:[],library:[],panels:[],pdfDivider:null,connected:false,connecting:null,busy:false,connectCancelled:false,busySince:0,busyStall:0,healthFails:0,refVisible:true,saveTimer:0,currentSession:'',sessions:[],captureOk:false,includeRefs:true,appConfig:{},dialogPending:false,activeCourseName:'',currentTheme:'auto',currentAccent:'blue',ggbActive:false,currentCourseId:'',workspace:null,autoCompact:false,bookmarks:[],reviewItems:[],reviewActive:false,attachments:[],pdfAttachments:[],attachGen:0,deskVersion:'',engine:'pi',detected:{},capabilities:null,conversationStatus:null,uncertain:false,turnCancelled:false,effortLevels:[],effortLevel:'',visibleEngines:null,legacySession:false};
 /* Fatos do indicador de modelo e esforço (ticket #14): o estado de conexão
    (`state` + rótulo que o host já usa no ponto) e a escolha em uso. Quem mostra
    é o `tutor-header.mjs`; o evento `desk-tutor-link` evita o ciclo de imports.
@@ -60,9 +64,12 @@ export function mayAdvanceQueue(){return deliveryCore.mayAdvanceQueue(!!S.busy,!
 /* Metadados do motor chegam em initialData/connect/new-session/open-session/
    switch-course. `capabilities` é o nome congelado; `caps` é aceito por
    compatibilidade com o serviço em transição. */
-function applyEngineData(data){
- if(!data||typeof data!=='object'||!knownEngine(data.engine))return false;
- S.engine=data.engine;
+export function applyEngineData(data){
+ if(!data||typeof data!=='object'||!knownEngine(data.engine))return false;S.engine=data.engine;if(!S.detected)S.detected={};
+ /* Presença de cada motor vem no mesmo payload (initialData e connect); o connect não repete `detectedPi`, então o anterior fica. */
+ if(typeof data.detectedPi==='string')S.detected.pi=data.detectedPi;if(typeof data.detectedClaude==='string')S.detected.claude=data.detectedClaude;if(typeof data.detectedOpenCode==='string')S.detected.opencode=data.detectedOpenCode;
+ /* Pi e Claude fora da vista somem de Configurações e dos créditos. */
+ applyEngineVisibility();
  /* O motor da sessão aberta fica num atributo do título (sem texto visível). */
  const engineMark=$('#session-title');if(engineMark)engineMark.dataset.engine=S.engine;
  S.capabilities=normalizeCapabilities(data.capabilities||data.caps,S.engine);
@@ -181,7 +188,7 @@ export function activityLive(text){const box=$('#activity');if(box)applyView(box
    cresce; nesse modo adaptativo o composer fica ao fim, sem cobrir mensagens.
    O que decide é o overflow real da coluna,
    não a altura da janela: o composer nunca mais vaza por cima da calculadora. */
-function messageScroller(){
+export function messageScroller(){
  const chat=$('#chat'),messages=$('#messages');
  if(chat&&messages&&chat.scrollHeight>chat.clientHeight+1)return chat;
  return messages;
@@ -200,14 +207,10 @@ export function syncChatScrollMode(){
  const compact=window.matchMedia?.('(max-height:700px)')?.matches===true;
  const on=document.body.classList.contains('chat-scroll');
  if(compact){
-  if(on){
-   document.body.classList.remove('chat-scroll');
-   /* O modo rolagem leva a coluna ao fim para mostrar o composer. Ao encolher
-      para a janela baixa (composer sticky) a conversa vazia não tem o que
-      seguir: o deslocamento herdado só esconderia o cabeçalho (sessões,
-      exportar, recolher). Com mensagens, a posição do usuário é mantida. */
-   if(!$('#messages')?.querySelector('.message'))chat.scrollTop=0;
-  }
+  if(on)document.body.classList.remove('chat-scroll');
+  /* Sem mensagens ou com o conteúdo já cabendo não há posição a preservar:
+     o deslocamento preso esconderia o topo atrás do cabeçalho sticky (model-indicator-ui). */
+  if(!$('#messages')?.querySelector('.message')||chat.scrollHeight<=chat.clientHeight+1)chat.scrollTop=0;
   return;
  }
  const messages=$('#messages');
@@ -215,12 +218,14 @@ export function syncChatScrollMode(){
   const chrome=chat.scrollHeight-messages.getBoundingClientRect().height;
   if(chrome+84>chat.clientHeight+1)return;
   document.body.classList.remove('chat-scroll');
-  return;
  }
  if(chat.scrollHeight>chat.clientHeight+1){
   const stick=!messages||messages.scrollHeight-messages.scrollTop-messages.clientHeight<=80;
   document.body.classList.add('chat-scroll');
   if(stick)chat.scrollTop=chat.scrollHeight;
+ }else if(chat.scrollTop){
+  /* Sem overflow, um `scrollTop` herdado esconderia o topo atrás do cabeçalho. */
+  chat.scrollTop=0;
  }
 }
 let chatScrollWatch=null,chatScrollFrame=0;
@@ -254,7 +259,11 @@ export function atBottom(threshold=80){
 export function followBottom(stick){
  if(!stick)return;
  const el=messageScroller();
- if(el)el.scrollTop=el.scrollHeight;
+ if(!el)return;
+ const before=el.scrollTop;
+ el.scrollTop=el.scrollHeight;
+ /* Sem mudança não houve rolagem do código; marcar engoliria o scroll do aluno. */
+ if(el.scrollTop!==before)noteOwnScroll(el.scrollTop);
 }
 function pdfSnapshot(){return S.panels.map(p=>({path:p.path,page:p.page,zoom:p.zoom,rotation:p.rotation||0,scrollX:p.scrollX||0,scrollY:p.scrollY||0,invert:!!p.invert,minimized:!!p.minimized}));}
 export function calcHeightPx(){return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--calc'))||220;}
@@ -262,8 +271,17 @@ export function studySnapshot(){return {title:$('#exercise-title').value.trim(),
 /* Páginas abertas (caminho + página) para o registro do Encerrar: os PDFs da
    mesa na ordem dos painéis — a forma e o teto saem do núcleo (`core/resume.bend`). */
 export function pageRefs(){return S.panels.filter(p=>p.path).map(p=>({path:p.path,page:p.page}));}
-export function layoutSnapshot(){return {draft:$('#prompt').value,study:studySnapshot(),pdfs:pdfSnapshot(),pdfRotations:pdfRotationsSnapshot(),pdfSplit:pdfSplitValue(),referenceVisible:S.refVisible,chatWidth:parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat')),calcHeight:calcHeightPx(),theme:S.currentTheme,accent:S.currentAccent,viewLayout:captureViewLayout(),modelRecents:modelRecentsSnapshot(),modelFavorites:modelFavoritesSnapshot()};}
-export function save(immediate=false){clearTimeout(S.saveTimer);if(immediate){window.desk.save(layoutSnapshot()).catch(e=>toast(e.message));return;}S.saveTimer=setTimeout(()=>window.desk.save(layoutSnapshot()).catch(e=>toast(e.message)),400);}
+export function layoutSnapshot(){return {draft:$('#prompt').value,study:studySnapshot(),pdfs:pdfSnapshot(),pdfRotations:pdfRotationsSnapshot(),pdfSplit:pdfSplitValue(),referenceVisible:S.refVisible,chatWidth:parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat')),calcHeight:calcHeightPx(),theme:S.currentTheme,accent:S.currentAccent,viewLayout:captureViewLayout(),modelRecents:modelRecentsSnapshot(),modelFavorites:modelFavoritesSnapshot(),modelDefault:modelDefaultSnapshot(),releaseNotesSeen:releaseNotesSeen()};}
+/* A seta de Enviar só acende quando há o que enviar: texto (sem só espaços),
+   imagem ou PDF na bandeja. A fila não conta: o botão envia o composer, e a
+   fila tem o "Enviar agora" da própria faixa. O estado de Parar não muda. */
+export function paintComposerSend(){
+ const send=$('#send');
+ if(!send)return;
+ const text=$('#prompt')?.value||'';
+ send.classList.toggle('primary',Boolean(String(text).trim()||S.attachments.length||S.pdfAttachments.length));
+}
+export function save(immediate=false){paintComposerSend();clearTimeout(S.saveTimer);if(immediate){window.desk.save(layoutSnapshot()).catch(e=>toast(e.message));return;}S.saveTimer=setTimeout(()=>window.desk.save(layoutSnapshot()).catch(e=>toast(e.message)),400);}
 export function refs(){return S.includeRefs?S.panels.filter((p,i)=>p.path&&(i===0||S.refVisible)).map(p=>({path:p.path,page:p.page})):[];}
 /* A linha "Vai junto" (ticket #15) acima da caixa de mensagem diz o que segue
    com a próxima mensagem: matéria, lista/questão ativa, rascunho .xopp e os
@@ -274,7 +292,7 @@ function fileName(path){return String(path||'').split(/[/\\]/).at(-1);}
 function bendStrings(items){return items.reduceRight((tail,head)=>({$:'Con',head,tail}),{$:'Nil'});}
 /* Os fatos entram crus: quem decide o que vai (a flag `studyContext` leva a
    matéria, a questão e o rascunho) é o núcleo. */
-function openRefs(){return bendStrings(refs().map(r=>`${fileName(r.path)} p.${r.page}`));}
+function openRefs(){return bendStrings(refs().map(r=>({$:'GoesRef',name:fileName(r.path),page:`p.${r.page}`})));}
 /* Os mesmos fatos alimentam o texto (título e acessibilidade) e a árvore em
    partes — `goes-lead`, `goes-course`, `goes-rest` — que o CSS corta na ordem
    certa: o nome da matéria cede antes da lista/questão e da página. */
@@ -290,7 +308,14 @@ export function updateContextSummary(){
  /* O idioma entra na chave: a troca refaz a linha com o mesmo fato (#41). */
  const key=JSON.stringify([currentLanguage(),...facts]);
  if(el.dataset.goes!==key){renderChildren(el,boxCore.goesTree(...facts));el.dataset.goes=key;}
- el.title=el.textContent;
+ /* O texto inteiro (com "Contexto:") fica no nome acessível da linha e na
+    dica: o CSS esconde o prefixo quando há pílula, mas ele continua no
+    `aria-label` (#90). */
+ const labels=[...el.querySelectorAll('.goes-pill')].map(pill=>pill.getAttribute('aria-label')||pill.textContent.trim());
+ const lead=el.querySelector('.goes-lead')?.textContent||'';
+ const full=labels.length?lead+labels.join(' · '):el.textContent.trim();
+ el.title=full;
+ el.setAttribute('aria-label',full);
  const note=$('#context-pop-refs');
  if(note)note.textContent=translate(boxCore.refsNote(!!S.includeRefs,openRefs(),S.appConfig.desk?.conferir!==false));
 }
@@ -343,7 +368,10 @@ export function sessionNameOf(session){return sessionNameParts(session).name;}
 export function paintSessionTitle(){
  const title=$('#session-title');if(!title)return;
  const current=S.sessions.find(s=>s.path===S.currentSession);
- const text=sessionNameOf(current);
+ /* Na aba Livre o campo ao lado já mostra o título da sessão; repetir o padrão
+    "Sessão livre" no cabeçalho gasta a linha com a mesma palavra duas vezes. */
+ const named=sessionNameOf(current);
+ const text=S.workspace?.kind==='free'&&displayFreeTitle(named)===t('free.title.placeholder')?t('session.untitled'):named;
  title.dataset.session=S.currentSession||'';
  title.dataset.engine=current?.engine||S.engine;
  const span=title.querySelector('.session-title-text');
@@ -404,7 +432,7 @@ function paintWritingProgramLabels(){
  label('cfg-desk-xournal-label','settings.features.xournal','settings.features.xournalGeneric');
  label('cfg-desk-conferir-label','settings.features.conferir','settings.features.conferirGeneric');
 }
-export function setBusy(value){S.busy=value;if(value){if(!S.busySince)S.busySince=Date.now();}else{S.busySince=0;S.busyStall=0;}setTabsDisabled(value||!!S.connecting||S.switching);const locked=value||!!S.connecting||S.switching;const title=$('#session-title');if(title)title.disabled=locked;setModelPickerDisabled(value||S.uncertain||!S.connected||capabilities().modelSelection!==true);setEffortStripDisabled(value||S.uncertain||!S.connected||capabilities().effort!==true);applyAttrsOn('#send',boxCore.sendButton(value));applyAttrsOn('#stop',boxCore.stopButton(value));$('#attach').disabled=value;$('#send').disabled=value;updateCheckButton();if(value)activity(message('tutor.thinking'));else if(S.connected)activity('');window.dispatchEvent(new CustomEvent('desk-busy',{detail:{busy:!!value}}));}
+export function setBusy(value){S.busy=value;if(value){if(!S.busySince)S.busySince=Date.now();}else{S.busySince=0;S.busyStall=0;}setTabsDisabled(value||!!S.connecting||S.switching);const locked=value||!!S.connecting||S.switching;const title=$('#session-title');if(title)title.disabled=locked;setModelPickerDisabled(value||S.uncertain||!S.connected||capabilities().modelSelection!==true);setEffortStripDisabled(value||S.uncertain||!S.connected||capabilities().effort!==true);applyAttrsOn('#send',boxCore.sendButton(value));applyAttrsOn('#stop',boxCore.stopButton(value));$('#attach').disabled=value;$('#send').disabled=value;updateCheckButton();if(value)activity(message('tutor.thinking'));else if(S.connected)activity('');paintComposerSend();window.dispatchEvent(new CustomEvent('desk-busy',{detail:{busy:!!value}}));}
 /* A trava das abas de matéria é árvore do núcleo (`core/tabsview.bend`,
    `courseTabsAt`: a matéria atual fica livre, as outras travam com a dica —
    #42); aqui só se registra o fato e o `main.mjs` re-renderiza as abas. O
@@ -428,7 +456,7 @@ function updateSettings(result){
  renderAutoCompact(result?.state);
  updateCheckButton();
  const claudeModel=result?.state?.selection?.model;
- renderModelPicker({catalog:S.modelCatalog,engine:S.engine,selected:S.engine==='claude'&&result?.state?.selection?['anthropic',claudeModel&&claudeModel!=='default'?claudeModel:'']:(current?[current.provider,current.id]:null)});
+ renderModelPicker({catalog:S.modelCatalog,engine:S.engine,selected:S.engine==='claude'&&result?.state?.selection?['anthropic',claudeModel&&claudeModel!=='default'?claudeModel:'']:(current?[current.provider,current.id]:null),effort:result?.state?.thinkingLevel||defaultEffort(S.engine)});
   const levels=result?.levels||[];
  const level=result?.state?.thinkingLevel||defaultEffort(S.engine);
  S.effortLevels=levels.length||!isNativeEngine(S.engine)?levels:['default'];
@@ -480,25 +508,13 @@ export function applyTheme(value){
  /* O select das Configurações acompanha a troca pela busca de comandos; a troca pelo próprio select vale na hora (o `change` aplica e salva). */
  const mode=$('#theme-mode');if(mode)mode.value=S.currentTheme;
 }
-/* Cor de acento (ticket #9): estado de interface, como o tema. O nome é o que
-   o `desk.json` grava (núcleo `core/accent.bend`); azul é o padrão e sai do
-   atributo. O grupo de opções das Configurações acompanha a troca, venha ela
-   dos botões ou da busca de comandos. */
-export const ACCENTS=[['blue','Azul'],['violet','Violeta'],['green','Verde'],['orange','Laranja'],['pink','Rosa'],['graphite','Grafite']];
-export function applyAccent(value){
- S.currentAccent=ACCENTS.some(([id])=>id===value)?value:'blue';
- if(S.currentAccent==='blue')delete document.documentElement.dataset.accent;
- else document.documentElement.dataset.accent=S.currentAccent;
- /* A marca do cabeçalho segue o acento, como o Dock (#61, app-icon-host.cjs);
-    a da primeira abertura em tela cheia (#64) também. As opções das
-    Configurações e as do passo Boas-vindas (#70) marcam a mesma escolha. */
- for(const brand of document.querySelectorAll('.brand-icon'))brand.setAttribute('src',`assets/app-icon/mesa-${S.currentAccent}.svg`);
- for(const option of document.querySelectorAll('.accent-option[data-accent]')){
-  const on=option.dataset.accent===S.currentAccent;
-  option.setAttribute('aria-checked',String(on));
-  option.tabIndex=on?0:-1;
- }
-}
+/* Cor de acento (ticket #9): estado de interface, como o tema. O nome do
+   acento é o que o `desk.json` grava (núcleo `core/accent.bend`), nunca no
+   `config.json`. O aplicador mora em `accent-state.mjs`, para este arquivo
+   continuar no teto de linhas. */
+import {ACCENTS, applyAccentState} from './accent-state.mjs';
+export {ACCENTS};
+export const applyAccent=(value)=>applyAccentState(S,value);
 export function labelBtn(el,name,text){if(!el)return;el.innerHTML=`${icon(name)}${text?` <span>${text}</span>`:''}`;}
 /* Cancelar a chamada (ticket #17): o host derruba o processo que está subindo
    e o `connect()` pendente rejeita; o catch dele lê `S.connectCancelled` para
@@ -533,10 +549,9 @@ export async function connect(){
    /* Metadados do motor ANTES de qualquer gating/estado: o host roteia o
       connect pelo motor da conversa (nunca inicia Pi numa conversa Claude). */
    applyEngineData(result);
-   S.connected=true;S.healthFails=0;S.modelCatalog=result.models||[];if(result.captureAvailable!=null)S.captureOk=!!result.captureAvailable;updateSettings(result);fillSessions(result);updateWindowTitle();connectionState('online');activity(message('tutor.ready'));
-   setTimeout(()=>{if(S.connected&&!S.busy&&$('#activity').textContent===translate(message('tutor.ready')))activity('');},2500);
+   S.connected=true;S.healthFails=0;S.modelCatalog=result.models||[];if(result.captureAvailable!=null)S.captureOk=!!result.captureAvailable;updateSettings(result);fillSessions(result);updateWindowTitle();connectionState('online');
    if(result.conversationStatus?.uncertain)toast(message('tutor.uncertainDelivery'));
-   if(result.messages?.length)showHistory(result.messages);
+   if(result.messages?.length||result.cards?.length)showHistory(result.messages||[],result.cards||[]);
   }catch(e){
    if(S.connectCancelled){
     /* Cancelar é decisão da pessoa: volta a desligado, sem erro nem aviso. */
@@ -545,6 +560,7 @@ export async function connect(){
     throw stop;
    }
    /* Sem aviso flutuante: a coluna já escreve o motivo (e a instrução do motor) com Chamar de novo ao lado (#23). */
+   try{applyEngineData(await window.desk.getConfig());}catch{/* a falha já é a que a coluna mostra */}
    S.connected=false;connectionState('error',message('tutor.link.error'),hung?message('tutor.error.timeout'):e.message);
    if(e&&typeof e==='object')e.connectFailure=true;
    throw e;
@@ -610,10 +626,8 @@ export async function loadCourse(data,{publishWorkspace=true}={}){
  const previousSession=S.currentSession;
  S.workspace=data.workspace||{kind:data.courseId==='mesa-free'?'free':'course',id:data.courseId||''};
  updateCourseFacts(data);
- S.quizQueue=[];
  resetAttachments();
- S.captureOk=!!data.captureAvailable;S.conferirApp=data.state?.conferirApp||null;
- S.appConfig={...(data.config||S.appConfig),platform:data.platform||S.appConfig.platform};
+ S.visibleEngines=Array.isArray(data.visibleEngines)?data.visibleEngines:null;S.captureOk=!!data.captureAvailable;S.conferirApp=data.state?.conferirApp||null;S.appConfig={...(data.config||S.appConfig),platform:data.platform||S.appConfig.platform};
  S.deskVersion=data.deskVersion||S.deskVersion;
  const desk=applyDesk(S.appConfig.desk);
  fillSessions(data);
@@ -622,8 +636,9 @@ export async function loadCourse(data,{publishWorkspace=true}={}){
     mudou para quem congela matéria+sessão (chat lateral/avisos). */
  if(previousCourseId!==S.currentCourseId&&previousSession===S.currentSession)window.dispatchEvent(new Event('desk-conversation-changed'));
  $('#prompt').value=data.state.draft||'';
+ paintComposerSend();
  applyTheme(data.state.theme);
- applyAccent(data.state.accent);loadModelRecents(data.state.modelRecents);loadModelFavorites(data.state.modelFavorites);
+ applyAccent(data.state.accent);loadModelRecents(data.state.modelRecents);loadModelFavorites(data.state.modelFavorites);loadModelDefault(data.state.modelDefault);loadReleaseNotesSeen(data.state.releaseNotesSeen);
  // Esconder o recurso não apaga a questão nem o arquivo associado.
  applyStudy(data.state.study);
  /* Fila e bandeja guardadas da conversa: a faixa volta com o que ainda não foi
@@ -640,7 +655,7 @@ export async function loadCourse(data,{publishWorkspace=true}={}){
     entrega e ele NÃO depende do connect ter dado certo — offline ou sem login,
     o que já foi conversado continua na tela (nunca um fallback para o Pi). O
     connect bem-sucedido reaplica a mesma lista depois. */
- if(Array.isArray(data.messages))showHistory(data.messages);
+ if(Array.isArray(data.messages)||data.cards?.length)showHistory(Array.isArray(data.messages)?data.messages:[],data.cards||[]);
  /* Favoritos nomeados da matéria (popover do leitor): a lista inteira vem do
     main a cada troca de matéria — o nav.mjs monta as linhas do popover com isto. */
  S.bookmarks=Array.isArray(data.bookmarks)?data.bookmarks:[];
@@ -697,9 +712,9 @@ export async function loadCourse(data,{publishWorkspace=true}={}){
  save();
  return true;
 }
-/* O Pi esperando resposta (quiz na tela ou `#pi-dialog` aberto) não é ocioso
-   mesmo com o `busy` solto: trocar de matéria embora abandonaria a pergunta. */
-function piPromptPending(){return !!(S.dialogPending||S.quizQueue.length);}
+/* O Pi esperando resposta (`#pi-dialog` aberto) não é ocioso mesmo com o
+   `busy` solto: trocar de matéria embora abandonaria a pergunta. */
+function piPromptPending(){return !!S.dialogPending;}
 async function waitIdle(){for(let i=0;i<80;i++){if(!S.busy&&!S.connecting&&!piPromptPending())return true;await new Promise(r=>setTimeout(r,150));}return !S.busy&&!S.connecting&&!piPromptPending();}
 /* `{connect:false}`: a primeira matéria criada na primeira abertura não liga o
    tutor sozinha quando o Pi não foi encontrado (o aviso da coluna já diz). */
@@ -720,7 +735,7 @@ export async function switchCourse(id,{connect:autoConnect=true}={}){
   /* A matéria troca junto com a conversa ativa dela: metadados do motor antes
      do vazio e do connect para o rótulo e as capacidades já serem os novos. */
   applyEngineData(data);
-  S.connected=false;connectionState('');$('#messages').replaceChildren();
+  setLegacySession(false);S.connected=false;connectionState('');$('#messages').replaceChildren();
   /* Fatos da matéria e aba ativos antes dos PDFs montarem (o `loadCourse`
      antigo chamava `renderTabs(data); updateWindowTitle()` logo depois do IPC);
      o `loadCourse` abaixo refaz os mesmos fatos com a biblioteca pronta. */

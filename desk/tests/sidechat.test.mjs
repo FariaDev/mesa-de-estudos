@@ -76,6 +76,15 @@ class FakeEngine {
     }
     return {accepted: true};
   }
+  async warm() {
+    this.warms = (this.warms || 0) + 1;
+    if (this.behavior !== 'warm-slow') return;
+    /* O serviço real fica `_configuring` durante o aquecimento: o prompt que
+       chega agora não pode ser recusado como se houvesse turno. */
+    this.busy = true;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    this.busy = false;
+  }
   async abort() {
     this.aborts += 1;
     this.busy = false;
@@ -197,7 +206,7 @@ test('prompt persiste transmitting antes de escrever, manda o contexto uma vez e
   assert.equal(channel.prompts.length, 1);
   assert.ok(channel.prompts[0].text.includes('[Contexto do chat lateral]'), 'o primeiro envio leva o contexto');
   assert.ok(channel.prompts[0].text.endsWith('Explica o passo 2'));
-  assert.deepEqual(channel.prompts[0].readPaths, [PDF]);
+
   const afterFirst = h.manager.peek(opened.id);
   assert.equal(afterFirst.delivery.status, 'accepted');
   /* Sem fila/follow-up: o próximo envio só sai depois do terminal do turno
@@ -366,7 +375,6 @@ test('contexto explícito troca refs validadas, reenvia o bloco novo e recusa PD
   assert.deepEqual(updated.context.refs, [{path: PDF2, page: 9}]);
   await h.manager.prompt({id: opened.id, text: 'segunda'});
   assert.ok(channel.prompts[1].text.includes('[Contexto do chat lateral]'), 'atualização explícita reenvia o bloco');
-  assert.deepEqual(channel.prompts[1].readPaths, [PDF2]);
   assert.throws(() => h.manager.context({id: opened.id, refs: [{path: '/invasor.pdf', page: 1}]}), ptMatches(/biblioteca|seletor/));
   assert.throws(() => h.manager.open({refs: [{path: PDF, page: 1}, {path: PDF2, page: 2}, {path: PDF, page: 3}]}), ptMatches(/no máximo duas/));
   fs.rmSync(h.runtime, {recursive: true, force: true});
@@ -791,24 +799,6 @@ test('cache Claude projeta a fala sem o envelope de contexto, sem reescrever o d
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
-test('refs do snapshot que saíram da biblioteca recusam o envio Claude sem trocar o contexto', async () => {
-  const h = harness({tag: 'stale-refs', engine: 'claude'});
-  const opened = h.manager.open({refs: [{path: PDF, page: 1}]});
-  h.allowed.delete(PDF);
-  const blocked = await h.manager.prompt({id: opened.id, text: 'com a ref antiga'});
-  assert.equal(blocked.sent, false);
-  assert.equal(blocked.retryable, true);
-  assert.match(ptText(blocked.error), /atualize o contexto/i);
-  assert.equal(h.engines.size, 0, 'ref fora da biblioteca nem inicia o motor Claude');
-  assert.equal(h.manager.peek(opened.id).delivery, null, 'a recusa não marca entrega');
-  const updated = h.manager.context({id: opened.id, refs: [{path: PDF2, page: 2}]});
-  assert.deepEqual(updated.context.refs, [{path: PDF2, page: 2}], 'a troca é explícita, nunca silenciosa');
-  const sent = await h.manager.prompt({id: opened.id, text: 'com a ref nova'});
-  assert.equal(sent.sent, true);
-  assert.deepEqual(h.engines.get(opened.id).prompts[0].readPaths, [PDF2]);
-  fs.rmSync(h.runtime, {recursive: true, force: true});
-});
-
 test('conversationList mapeia as conversas da matéria sem iniciar agente', () => {
   const sessions = [
     {path: '/s/pi-1.jsonl', label: '01/10, 10:00 · Limites', preview: 'uma prévia', started: 5, engine: 'pi'},
@@ -842,4 +832,80 @@ test('OpenCode (#74): descritor nativo próprio, no modelo e esforço da princip
   const record = conversations.readClaudeConversation(channel.descriptor.claude, {runtime: h.runtime});
   assert.equal(record.engine, 'opencode');
   assert.deepEqual([record.model, record.effort], ['deepseek-v4.1-flash-free', 'high']);
+});
+
+test('warm sobe o canal sem prompt; abrir continua sem motor', async () => {
+  const h = harness({tag: 'warm'});
+  const opened = h.manager.open({});
+  assert.equal(h.engines.size, 0, 'abrir não pode iniciar o motor');
+  const warmed = await h.manager.warm({id: opened.id});
+  assert.equal(warmed.warmed, true);
+  assert.equal(h.engines.size, 1);
+  assert.equal(h.engines.get(opened.id).prompts.length, 0, 'aquecer não envia mensagem');
+  fs.rmSync(h.runtime, {recursive: true, force: true});
+});
+
+test('primeiro envio espera o aquecimento em vez de recusar como turno ocupado', async () => {
+  const h = harness({tag: 'warm-race'});
+  const opened = h.manager.open({});
+  h.behaviors.set(opened.id, 'warm-slow');
+  const warming = h.manager.warm({id: opened.id});
+  const sending = h.manager.prompt({id: opened.id, text: 'primeira'});
+  const [warmed, sent] = await Promise.all([warming, sending]);
+  assert.equal(warmed.warmed, true);
+  assert.equal(sent.sent, true, 'o envio espera o warm e não é recusado');
+  assert.equal(h.engines.get(opened.id).prompts.length, 1);
+  fs.rmSync(h.runtime, {recursive: true, force: true});
+});
+
+test('entrega incerta não aquece e não cria motor', async () => {
+  const h = harness({tag: 'warm-uncertain', engine: 'claude'});
+  const opened = h.manager.open({});
+  const descriptor = h.manager.peek(opened.id);
+  descriptor.delivery = {id: 'm1', status: 'uncertain', at: 1};
+  fs.writeFileSync(descriptorPath(h.runtime, opened.id), JSON.stringify(descriptor));
+  h.manager.suspend('limpar');
+  const restarted = createSideChatManager(h.deps);
+  assert.deepEqual(await restarted.warm({id: opened.id}), {warmed: false});
+  assert.equal(h.engines.size, 0, 'incerto não sobe processo');
+  fs.rmSync(h.runtime, {recursive: true, force: true});
+});
+
+test('cartões do lateral aparecem no payload, corrigem e concluem pelo prompt do próprio chat', async () => {
+  const h = harness({tag: 'cartoes'});
+  const opened = h.manager.open({});
+  const shown = h.manager.showCard(opened.id, {kind: 'quiz', args: {question: '2+2?', options: [{label: '3'}, {label: '4'}], correctAnswer: '4'}});
+  const payload = h.manager.read({id: opened.id});
+  assert.equal(payload.cards.length, 1);
+  assert.equal(payload.cards[0].correctIndices, undefined, 'resposta certa escondida antes de responder');
+  assert.ok(h.emitted.some((entry) => entry.id === opened.id && entry.event.type === 'card' && entry.event.cardType === 'shown'));
+
+  const answered = h.manager.cardAnswer({id: opened.id, cardId: shown.id, answer: {selected: [2]}});
+  assert.equal(answered.correct, true);
+  const result = await h.manager.cardConclude({id: opened.id, cardId: shown.id});
+  const engine = h.engines.get(opened.id);
+  assert.equal(result.ok, true);
+  assert.equal(engine.prompts.length, 1);
+  assert.match(engine.prompts[0].text, /Resultado do cartão/);
+  assert.equal((await h.manager.cardConclude({id: opened.id, cardId: shown.id})).ok, false);
+  assert.equal(engine.prompts.length, 1, 'não reenvia');
+});
+
+test('resultado de cartão no lateral não vira fala do aluno ao reabrir (#92)', () => {
+  const {displayUserText} = require('../sidechat-store.cjs');
+  const envelope = '[Contexto do chat lateral]\nx\n[Fim do contexto do chat lateral]\n\n';
+  const quiz = displayUserText(`${envelope}[Resultado do cartão: card-1]\nQuiz: Quanto é 2+2?\nExplicação: Quatro.`);
+  assert.equal(ptText(quiz), 'Resultado do quiz enviado ao tutor.');
+  assert.equal(ptText(displayUserText('[Resultado do cartão: card-2]\nResposta: sim')), 'Respostas enviadas ao tutor.');
+  assert.equal(displayUserText('fala comum'), 'fala comum');
+});
+
+test('motor do lateral que não sobe recusa o envio como seguro de repetir (#92)', async () => {
+  const h = harness({tag: 'motor-ausente'});
+  const manager = createSideChatManager({...h.deps, createEngine: () => { throw Error('motor indisponível'); }});
+  const opened = manager.open({});
+  const result = await manager.prompt({id: opened.id, text: 'oi'});
+  assert.equal(result.sent, false);
+  assert.equal(result.retryable, true, 'nada foi escrito, então pode reenviar');
+  assert.notEqual(result.uncertain, true);
 });

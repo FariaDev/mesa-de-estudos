@@ -35,7 +35,7 @@ export function mountAccentOptions(doc = document) {
 export function nextAccent(current, key) {
   const step = {ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1}[key];
   if (!step) return '';
-  const index = Math.max(0, ACCENT_IDS.findIndex((id) => id === current));
+  const index = Math.max(0, ACCENT_IDS.indexOf(/** @type {any} */ (current)));
   return ACCENT_IDS[(index + step + ACCENT_IDS.length) % ACCENT_IDS.length];
 }
 
@@ -49,7 +49,8 @@ export function wireAccentPicker(group, {current, choose}) {
   if (!group) return;
   group.addEventListener('click', (event) => {
     const option = /** @type {HTMLElement | null} */ (/** @type {Element} */ (event.target).closest?.('[data-accent]'));
-    if (option?.dataset.accent) choose(option.dataset.accent);
+    const id = option?.getAttribute('data-accent');
+    if (id) choose(id);
   });
   group.addEventListener('keydown', (event) => {
     const next = nextAccent(current(), event.key);

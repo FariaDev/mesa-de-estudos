@@ -4,7 +4,7 @@ import path from 'node:path';
 import {withArtifacts,launchDesk,tinyPdf,statusOnline,screenshotDirectory,setTheme,freezeMotion,resizeWindow,reviewShot} from './helpers.mjs';
 import {createFakeTriageProfile} from './fake-triage-profile.mjs';
 
-/* "Relatar um problema" (#62) na janela real: Mais opções do tutor → o item →
+/* "Relatar um problema" (#62) na janela real: Guia → o item do rodapé →
    o diálogo com o relatório limpo e as saídas (Claude/Codex, Pi, OpenCode e a issue). A Mesa roda no perfil
    falso (`fake-triage-profile.mjs`: casa, vault, matérias, PDFs, `auth.json`,
    JSONL e chaves no `desk.log`), e o teste prova que nada disso aparece na
@@ -34,10 +34,10 @@ async function installClipboardRecorder(page){
  });
 }
 
-async function openTriageFromMenu(page){
- await page.locator('#chat-more').click();
- await page.locator('#more-triage').waitFor();
- await page.locator('#more-triage').click();
+async function openTriageFromHelp(page){
+ await page.keyboard.press('ControlOrMeta+/');
+ await page.locator('#help-dialog[open]').waitFor();
+ await page.locator('#help-triage').click();
  await page.locator('#triage-dialog[open]').waitFor();
  await page.waitForFunction(()=>document.querySelector('#triage-report')?.textContent.includes('## Ambiente'),null,{timeout:60000});
 }
@@ -60,22 +60,23 @@ await withArtifacts('relatar-problema',async ctx=>{
   await freezeMotion(page);
   await installClipboardRecorder(page);
 
-  /* O item mora em Mais opções, antes de Recolher o tutor. */
+  /* O item saiu do Mais opções do tutor e mora no rodapé do Guia (#90). */
   await page.locator('#chat-more').click();
-  const items=await page.locator('#chat-more-pop button[role="menuitem"]').evaluateAll(nodes=>nodes.map(node=>node.id));
-  assert.equal(items.at(-2),'more-triage',`ordem do menu: ${items.join(', ')}`);
-  assert.equal(items.at(-1),'chat-collapse');
-  assert.equal((await page.locator('#more-triage').textContent()).trim(),'Relatar um problema');
-  for(const theme of ['light','dark']){await setTheme(page,theme);await reviewShot(page,SHOT_DIR,`menu-${theme}.png`);}
+  assert.equal(await page.locator('#chat-more-pop #more-triage').count(),0,'Relatar um problema não fica mais no Mais opções');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('ControlOrMeta+/');
+  await page.locator('#help-dialog[open]').waitFor();
+  assert.equal((await page.locator('#help-triage').textContent()).trim(),'Relatar um problema');
+  for(const theme of ['light','dark']){await setTheme(page,theme);await reviewShot(page,SHOT_DIR,`guia-${theme}.png`);}
   await page.keyboard.press('Escape');
 
-  await openTriageFromMenu(page);
+  await openTriageFromHelp(page);
   const report=await page.locator('#triage-report').textContent();
   assertClean(report,profile.secrets,'relatório na tela');
   assertClean(await page.locator('#triage-dialog').textContent(),profile.secrets,'diálogo');
   assert.match(report,/<matéria 1>/);
   assert.match(report,/\[oculto\]/);
-  assert.match(await page.locator('#triage-opencode-note').textContent(),/Usa o modelo grátis opencode\/deepseek-v4\.1-flash-free\. Modelos grátis podem guardar o que recebem/);
+  assert.match(await page.locator('#triage-opencode-note').textContent(),/Usa o modelo grátis opencode\/deepseek-v4\.1-flash-free\. Grátis pode guardar o que recebe/);
   for(const theme of ['light','dark']){await setTheme(page,theme);await reviewShot(page,SHOT_DIR,`dialogo-${theme}.png`);}
 
   /* Pi: o modelo que a pessoa já usa (recentes e favoritos do seletor), com o aviso de custo. */
@@ -83,7 +84,7 @@ await withArtifacts('relatar-problema',async ctx=>{
   assert.ok(piModels.includes('xai/grok-4')&&piModels.includes('anthropic/claude-sonnet-5-5'),`modelos do Pi: ${piModels.join(', ')}`);
   assert.ok(!piModels.some(model=>model.endsWith('-free')||model==='opencode/big-pickle'),'grátis do Zen não entra no Pi (#57)');
   await page.locator('#triage-pi-model').selectOption('anthropic/claude-sonnet-5-5');
-  assert.match(await page.locator('#triage-pi-note').textContent(),/Usa o modelo anthropic\/claude-sonnet-5-5 da sua conta, pelo Pi: pode cobrar/);
+  assert.match(await page.locator('#triage-pi-note').textContent(),/Usa o modelo anthropic\/claude-sonnet-5-5 da sua conta no Pi: pode cobrar/);
 
   /* Copiar prompt e comandos: o texto copiado também sai limpo. */
   await page.locator('#triage-copy-agent').click();
@@ -112,9 +113,10 @@ await withArtifacts('relatar-problema',async ctx=>{
   /* Inglês: o item e o diálogo seguem o idioma da interface. */
   await page.keyboard.press('Escape');
   await page.evaluate(async()=>{const text=await import('./src/ui-text.mjs');text.setUiLanguage('en');});
-  await page.locator('#chat-more').click();
-  assert.equal((await page.locator('#more-triage').textContent()).trim(),'Report a problem');
-  await page.locator('#more-triage').click();
+  await page.keyboard.press('ControlOrMeta+/');
+  await page.locator('#help-dialog[open]').waitFor();
+  assert.equal((await page.locator('#help-triage').textContent()).trim(),'Report a problem');
+  await page.locator('#help-triage').click();
   await page.waitForFunction(()=>document.querySelector('#triage-report')?.textContent.includes('## Ambiente'),null,{timeout:60000});
   assert.equal((await page.locator('#triage-title').textContent()).trim(),'Report a problem');
   assert.match(await page.locator('#triage-opencode-note').textContent(),/Free models may keep what they receive/);

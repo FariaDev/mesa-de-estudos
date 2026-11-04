@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join, resolve} from 'node:path';
 import {parseMessage} from '../src/i18n.mjs';
 import {ptText} from './pt-text.mjs';
 
@@ -72,7 +72,7 @@ test('detecta o Claude Code na faixa, resolve symlink e devolve auth sanitizado'
       execFile: exec,
     });
 
-    assert.equal(info.path, realpathSync(join(dir, 'bin', 'claude')), 'o caminho devolvido é o binário real, não o launcher');
+    assert.equal(info.path, realpathSync.native(join(dir, 'bin', 'claude')), 'o caminho devolvido é o binário real, não o launcher');
     assert.equal(info.version, '2.1.301');
     assert.deepEqual(info.auth, {loggedIn: true, authMethod: 'oauth', apiProvider: 'firstParty'});
     assert.equal(JSON.stringify(info).includes('pessoa@example.com'), false, 'e-mail não aparece');
@@ -274,13 +274,14 @@ test('binário ausente é CLAUDE_NOT_FOUND; inspect não lança e lista os candi
       configuredPath: join(dir, 'nao-existe'),
       home: join(dir, 'casa'),
       env: {},
+      platform: 'linux',
       execFile: exec,
     });
     assert.equal(missing.found, false);
     assert.deepEqual(missing.searched, [join(dir, 'nao-existe'), join(dir, 'casa', '.local', 'bin', 'claude')]);
 
     await assert.rejects(
-      () => env.detectClaude({configuredPath: join(dir, 'nao-existe'), home: join(dir, 'casa'), env: {}, execFile: exec}),
+      () => env.detectClaude({configuredPath: join(dir, 'nao-existe'), home: join(dir, 'casa'), env: {}, platform: 'linux', execFile: exec}),
       (error) => {
         assert.equal(error.code, 'CLAUDE_NOT_FOUND');
         assert.equal(error.notSent, true);
@@ -291,9 +292,11 @@ test('binário ausente é CLAUDE_NOT_FOUND; inspect não lança e lista os candi
 });
 
 test('candidatos: configurado primeiro, launcher padrão depois; ~ expande', () => {
-  const candidates = env.candidatePaths({configuredPath: '~/meu/claude', home: '/casa'});
-  assert.deepEqual(candidates, ['/casa/meu/claude', '/casa/.local/bin/claude']);
-  assert.deepEqual(env.candidatePaths({home: '/casa'}), ['/casa/.local/bin/claude']);
+  /* `path.resolve` nos dois lados: no Windows o mesmo caminho POSIX vira
+     `D:\casa\...`; a produção resolve todos os candidatos do mesmo jeito. */
+  const candidates = env.candidatePaths({configuredPath: '~/meu/claude', home: '/casa', platform: 'linux'});
+  assert.deepEqual(candidates, [resolve('/casa/meu/claude'), resolve('/casa/.local/bin/claude')]);
+  assert.deepEqual(env.candidatePaths({home: '/casa', platform: 'linux'}), [resolve('/casa/.local/bin/claude')]);
 });
 
 test('launcher Windows .exe é descoberto pelo mesmo resolvedor do main e da inspeção',async()=>{
@@ -429,7 +432,7 @@ test('#51: sem reserva — sem o Claude Code do usuário é CLAUDE_NOT_FOUND e o
   await withTemp(async dir => {
     const exec=async()=>{throw new Error('não devia executar nada');};
     await assert.rejects(
-      ()=>env.detectClaude({configuredPath:join(dir,'nao-existe'),home:join(dir,'casa'),env:{},execFile:exec}),
+      ()=>env.detectClaude({configuredPath:join(dir,'nao-existe'),home:join(dir,'casa'),env:{},platform:'linux',execFile:exec}),
       e=>{
         assert.equal(e.code,'CLAUDE_NOT_FOUND');
         assert.equal(e.notSent,true);

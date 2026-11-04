@@ -33,7 +33,11 @@ test('a marca parada (o "pensando" do chat) é decorativa e recusa humor desconh
   const html = mascoteMarkup({personagem: 'integral', humor: 'pensando', tamanho: 20});
   assert.match(html, /^<span class="mascote mascote-integral" data-humor="pensando" style="--fo-size:20px" aria-hidden="true"><svg/);
   assert.match(html, /class="mascote-look"/);
-  assert.notEqual(html.match(/<filter id="([^"]+)"/)[1], mascoteMarkup({personagem: 'integral', tamanho: 20}).match(/<filter id="([^"]+)"/)[1], 'cada cópia tem o seu filtro');
+  /* Regressão da nitidez do "pensando" (2026-10-30): o filtro de pincel desloca
+     a borda em fração de pixel a 20 px e embaçava o topo da cabeça e os óculos.
+     A marca pequena sai sem filtro; o desenho grande mantém (trio-art.test.mjs). */
+  assert.doesNotMatch(html, /<filter\b|filter="url\(/, 'a marca de 20 px sai sem o filtro de pincel');
+  assert.doesNotMatch(mascoteMarkup({personagem: 'integral', tamanho: 20}), /<filter\b|filter="url\(/, 'as duas cópias saem sem filtro');
   assert.throws(() => mascoteMarkup({personagem: 'integral', humor: /** @type {any} */ ('bravo'), tamanho: 20}), /humor da mascote desconhecido: "bravo"; esperado um destes: normal, feliz/);
   assert.throws(() => mascoteMarkup({personagem: 'pato', tamanho: 20}), /desconhecida: "pato"/);
 });
@@ -108,4 +112,13 @@ test('o movimento do trio usa os tokens e para com movimento reduzido', () => {
   const areas = fs.readFileSync(new URL('../src/desk-areas.css', import.meta.url), 'utf8');
   assert.match(areas, /@import url\('trio\.css'\);/);
   assert.doesNotMatch(areas, /folhinha/);
+});
+
+
+test('o desenho não guarda cor fixa de corpo: as cores vêm do acento (#100)', () => {
+  for (const personagem of TRIO) {
+    const html = mascoteMarkup({personagem, tamanho: 20});
+    assert.doesNotMatch(html, /#6d4fd8|#8b74ec|#5a3fc4|#3f2a9e|#1a1033/i, `${personagem}: cor de corpo fixa`);
+    assert.match(html, /tr-body/);
+  }
 });

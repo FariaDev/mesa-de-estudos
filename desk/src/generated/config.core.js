@@ -1,7 +1,7 @@
 // GERADO de core/config.bend por `bun core/build.mjs` — não editar à mão.
 // core/config.bend
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -22,6 +22,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $orElse(_v_0, _fallback_0) {
   if (_v_0.$ === "None") {
     return _fallback_0;
@@ -38,8 +39,8 @@ function $ifEmpty(_s_0, _fallback_0, _empty_0) {
   }
 }
 function $trimmedOr(_v_0, _fallback_0) {
-  const _s_0 = $String_trim($orElse(_v_0, _fallback_0));
-  return $ifEmpty(_s_0, _fallback_0, $String_is_empty(_s_0));
+  const _s_0 = $$String_trim($$orElse(_v_0, _fallback_0));
+  return $ifEmpty(_s_0, _fallback_0, $$String_is_empty(_s_0));
 }
 function $asStringList_put(_s_0, _rest_0, _empty_0) {
   if (_empty_0) {
@@ -54,8 +55,8 @@ function $asStringList(_items_0) {
   } else {
     const _h_0 = _items_0["head"];
     const _t_0 = _items_0["tail"];
-    const _s_0 = $String_trim(_h_0);
-    return $asStringList_put(_s_0, $asStringList(_t_0), $String_is_empty(_s_0));
+    const _s_0 = $$String_trim(_h_0);
+    return $asStringList_put(_s_0, $$asStringList(_t_0), $$String_is_empty(_s_0));
   }
 }
 function $preferOr(_clean_0, _slot_0, _empty_0) {
@@ -66,8 +67,8 @@ function $preferOr(_clean_0, _slot_0, _empty_0) {
   }
 }
 function $preferOf(_items_0, _slot_0) {
-  const _clean_0 = $asStringList(_items_0);
-  return $preferOr(_clean_0, _slot_0, $List_is_empty(_clean_0));
+  const _clean_0 = $$asStringList(_items_0);
+  return $preferOr(_clean_0, _slot_0, $$List_is_empty(_clean_0));
 }
 function $flagOf(_v_0) {
   if (_v_0.$ === "None") {
@@ -84,7 +85,7 @@ function $normalizePanel(_f_0, _slot_0) {
   const _slotLabel_0 = _slot_0["label"];
   const _slotPrefer_0 = _slot_0["prefer"];
   const _slotToggle_0 = _slot_0["toggle"];
-  return { $: "Panel", label: $trimmedOr(_label_0, _slotLabel_0), prefer: $preferOf(_prefer_0, _slotPrefer_0), toggle: $String_trim($orElse(_toggle_0, _slotToggle_0)) };
+  return { $: "Panel", label: $$trimmedOr(_label_0, _slotLabel_0), prefer: $$preferOf(_prefer_0, _slotPrefer_0), toggle: $$String_trim($$orElse(_toggle_0, _slotToggle_0)) };
 }
 function $defaultPanel0() {
   return { $: "Panel", label: "Enunciado", prefer: { $: "Con", head: "Limites", tail: { $: "Nil" } }, toggle: "" };
@@ -93,13 +94,13 @@ function $defaultPanel1() {
   return { $: "Panel", label: "Formulário & apoio", prefer: { $: "Con", head: "Formul", tail: { $: "Nil" } }, toggle: "Formulário" };
 }
 function $normalizePanel0(_f_0) {
-  return $normalizePanel(_f_0, $defaultPanel0());
+  return $normalizePanel(_f_0, $$defaultPanel0());
 }
 function $normalizePanel1(_f_0) {
-  return $normalizePanel(_f_0, $defaultPanel1());
+  return $normalizePanel(_f_0, $$defaultPanel1());
 }
 function $defaultPanels() {
-  return { $: "Con", head: $defaultPanel0(), tail: { $: "Con", head: $defaultPanel1(), tail: { $: "Nil" } } };
+  return { $: "Con", head: $$defaultPanel0(), tail: { $: "Con", head: $$defaultPanel1(), tail: { $: "Nil" } } };
 }
 function $normalizePanels(_panels_0) {
   if (_panels_0.$ === "Nil") {
@@ -108,15 +109,15 @@ function $normalizePanels(_panels_0) {
     const _p0_0 = _panels_0["head"];
     const _t_0 = _panels_0["tail"];
     if (_t_0.$ === "Nil") {
-      return { $: "Con", head: $normalizePanel0(_p0_0), tail: { $: "Nil" } };
+      return { $: "Con", head: $$normalizePanel0(_p0_0), tail: { $: "Nil" } };
     } else {
       const _p1_0 = _t_0["head"];
-      return { $: "Con", head: $normalizePanel0(_p0_0), tail: { $: "Con", head: $normalizePanel1(_p1_0), tail: { $: "Nil" } } };
+      return { $: "Con", head: $$normalizePanel0(_p0_0), tail: { $: "Con", head: $$normalizePanel1(_p1_0), tail: { $: "Nil" } } };
     }
   }
 }
 function $defaultDesk() {
-  return { $: "Desk", title: "Mesa de Estudos", calculator: true, xournal: true, conferir: true, refsToggle: true, endDay: true, studyContext: true, panels: $defaultPanels() };
+  return { $: "Desk", title: "Mesa de Estudos", calculator: true, xournal: true, conferir: true, refsToggle: true, endDay: true, studyContext: true, panels: $$defaultPanels() };
 }
 function $normalizeDesk(_desk_0) {
   if (_desk_0.$ === "None") {
@@ -131,30 +132,30 @@ function $normalizeDesk(_desk_0) {
     const _endDay_0 = _t_0["endDay"];
     const _studyContext_0 = _t_0["studyContext"];
     const _panels_0 = _t_0["panels"];
-    return { $: "Desk", title: $trimmedOr(_title_0, "Mesa de Estudos"), calculator: $flagOf(_calculator_0), xournal: $flagOf(_xournal_0), conferir: $flagOf(_conferir_0), refsToggle: $flagOf(_refsToggle_0), endDay: $flagOf(_endDay_0), studyContext: $flagOf(_studyContext_0), panels: $normalizePanels(_panels_0) };
+    return { $: "Desk", title: $$trimmedOr(_title_0, "Mesa de Estudos"), calculator: $$flagOf(_calculator_0), xournal: $$flagOf(_xournal_0), conferir: $$flagOf(_conferir_0), refsToggle: $$flagOf(_refsToggle_0), endDay: $$flagOf(_endDay_0), studyContext: $$flagOf(_studyContext_0), panels: $$normalizePanels(_panels_0) };
   }
 }
 function $courseId(_f_0) {
   const _id_0 = _f_0["id"];
   const _base_0 = _f_0["base"];
-  return $String_trim($orElse(_id_0, $orElse(_base_0, "")));
+  return $String_trim($$orElse(_id_0, $$orElse(_base_0, "")));
 }
 function $courseName(_f_0) {
   const _id_0 = _f_0["id"];
   const _name_0 = _f_0["name"];
-  return $String_trim($orElse(_name_0, $orElse(_id_0, "")));
+  return $String_trim($$orElse(_name_0, $$orElse(_id_0, "")));
 }
 function $coursePath(_f_0) {
   const _path_0 = _f_0["path"];
-  return $String_trim($orElse(_path_0, ""));
+  return $String_trim($$orElse(_path_0, ""));
 }
 function $courseOf(_f_0) {
-  return { $: "Course", id: $courseId(_f_0), name: $courseName(_f_0), path: $coursePath(_f_0) };
+  return { $: "Course", id: $$courseId(_f_0), name: $$courseName(_f_0), path: $$coursePath(_f_0) };
 }
 function $courseOk(_c_0) {
   const _id_0 = _c_0["id"];
   const _path_0 = _c_0["path"];
-  return $Bool_and($Bool_not($String_is_empty(_id_0)), $Bool_not($String_is_empty(_path_0)));
+  return $Bool_and($$Bool_not($$String_is_empty(_id_0)), $$Bool_not($$String_is_empty(_path_0)));
 }
 function $keepCourse(_c_0, _rest_0, _ok_0) {
   if (_ok_0) {
@@ -169,12 +170,12 @@ function $normalizeCourses(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _c_0 = $courseOf(_h_0);
-    return $keepCourse(_c_0, $normalizeCourses(_t_0), $courseOk(_c_0));
+    const _c_0 = $$courseOf(_h_0);
+    return $keepCourse(_c_0, $$normalizeCourses(_t_0), $$courseOk(_c_0));
   }
 }
 function $needsSetup(_vaultUsable_0, _courses_0) {
-  return $Bool_and($Bool_not(_vaultUsable_0), $List_is_empty(_courses_0));
+  return $Bool_and($$Bool_not(_vaultUsable_0), $$List_is_empty(_courses_0));
 }
 function $normalize(_facts_0) {
   const _vaultPath_0 = _facts_0["vaultPath"];
@@ -184,10 +185,10 @@ function $normalize(_facts_0) {
   const _xournalPath_0 = _facts_0["xournalPath"];
   const _courses_0 = _facts_0["courses"];
   const _desk_0 = _facts_0["desk"];
-  return { $: "Config", vaultPath: $orElse(_vaultPath_0, ""), runtimePath: $orElse(_runtimePath_0, ""), piPath: $orElse(_piPath_0, ""), claudePath: $orElse(_claudePath_0, ""), xournalPath: $orElse(_xournalPath_0, ""), courses: $normalizeCourses(_courses_0), desk: $normalizeDesk(_desk_0) };
+  return { $: "Config", vaultPath: $$orElse(_vaultPath_0, ""), runtimePath: $$orElse(_runtimePath_0, ""), piPath: $$orElse(_piPath_0, ""), claudePath: $$orElse(_claudePath_0, ""), xournalPath: $$orElse(_xournalPath_0, ""), courses: $$normalizeCourses(_courses_0), desk: $$normalizeDesk(_desk_0) };
 }
 function $String_trim(_s_0) {
-  return $String_trim_end($String_trim_start(_s_0));
+  return $String_trim_end($$String_trim_start(_s_0));
 }
 function $String_is_empty(_s_0) {
   if (_s_0 === "") {
@@ -218,7 +219,7 @@ function $Bool_not(_b_0) {
   }
 }
 function $String_trim_end(_s_0) {
-  return $String_reverse($String_trim_start($String_reverse(_s_0)));
+  return $String_reverse($$String_trim_start($$String_reverse(_s_0)));
 }
 function $String_trim_start($0, $1, $2) {
   let $pc = 0;
@@ -233,7 +234,7 @@ function $String_trim_start($0, $1, $2) {
           const _t_0 = _s_0.slice(char_len(_s_0));
           $0 = _t_0;
           $1 = _h_0;
-          $2 = $Char_is_space(_h_0);
+          $2 = $$Char_is_space(_h_0);
           $pc = 1;
           continue;
         }
@@ -257,11 +258,9 @@ function $String_reverse(_s_0) {
 }
 function $Char_is_space(_c_0) {
   const _x_0 = char_code(_c_0);
-  const _x_1 = char_code(_c_0);
-  const _x_2 = char_code(_c_0);
-  const _x_3 = _x_0 === 32;
-  const _x_4 = $Bool_and(_x_1 >= 9, _x_2 <= 13);
-  return _x_3 || _x_4;
+  const _x_1 = _x_0 === 32;
+  const _x_2 = $$Bool_and(_x_0 >= 9, _x_0 <= 13);
+  return _x_1 || _x_2;
 }
 function $String_reverse_go($0, $1) {
   for (;; ) {
@@ -280,6 +279,32 @@ function $String_reverse_go($0, $1) {
     }
   }
 }
+var $$orElse = $orElse;
+var $$String_trim = $String_trim;
+var $$String_is_empty = $String_is_empty;
+var $$asStringList = $asStringList;
+var $$List_is_empty = $List_is_empty;
+var $$trimmedOr = $trimmedOr;
+var $$preferOf = $preferOf;
+var $$defaultPanel0 = $defaultPanel0;
+var $$defaultPanel1 = $defaultPanel1;
+var $$normalizePanel0 = $normalizePanel0;
+var $$normalizePanel1 = $normalizePanel1;
+var $$defaultPanels = $defaultPanels;
+var $$flagOf = $flagOf;
+var $$normalizePanels = $normalizePanels;
+var $$courseId = $courseId;
+var $$courseName = $courseName;
+var $$coursePath = $coursePath;
+var $$Bool_not = $Bool_not;
+var $$courseOf = $courseOf;
+var $$normalizeCourses = $normalizeCourses;
+var $$courseOk = $courseOk;
+var $$normalizeDesk = $normalizeDesk;
+var $$String_trim_start = $String_trim_start;
+var $$String_reverse = $String_reverse;
+var $$Char_is_space = $Char_is_space;
+var $$Bool_and = $Bool_and;
 var config_default = {
   orElse: run_lib((a0, a1) => str_out(run_loop($orElse(a0, str_in(a1)))), 2),
   ifEmpty: run_lib((a0, a1, a2) => str_out(run_loop($ifEmpty(str_in(a0), str_in(a1), a2))), 3),

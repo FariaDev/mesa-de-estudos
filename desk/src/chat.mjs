@@ -1,5 +1,5 @@
 import {contentParts} from '../text.mjs';
-import {$,S,toast,toastFailure,conferirAppName,activity,activityLive,atBottom,connectionState,followBottom,refs,save,layoutSnapshot,setBusy,refreshMeter,connect,supportsCapability,syncChatScrollMode} from './state.mjs';
+import {$,S,toast,toastFailure,conferirAppName,activity,activityLive,applyChatScroll,connectionState,distanceFromEnd,refs,save,layoutSnapshot,setBusy,refreshMeter,connect,supportsCapability,syncChatScrollMode,paintComposerSend} from './state.mjs';
 import tutorStateCore from './generated/tutorstate.core.js';
 import {t as uiT,text as uiText,tutorText} from './ui-text.mjs';
 import {message as uiMessage} from './i18n.mjs';
@@ -12,7 +12,9 @@ import {installAssetListeners} from './chat-assets.mjs';
 import {addAttachments,clearAttachments,installAttachmentListeners} from './chat-attachments.mjs';
 import {mentionIds,clearMentions} from './mentions.mjs';
 import {installQuoteListeners} from './chat-quote.mjs';
-import {showDialog,cancelDialogRequest,decorateQuizCard,installDialogListeners} from './chat-dialogs.mjs';
+import {showDialog,cancelDialogRequest,installDialogListeners} from './chat-dialogs.mjs';
+import {createCardBoard} from './chat-cards.mjs';
+import {cardToolKind} from './cards/toolnames.mjs';
 import {claudeActivityNotice,claudeLimitNotice,deskErrorIsFatal} from './claude-questions.mjs';
 import * as worklog from './worklog.mjs';
 import * as timeline from './timeline.mjs';
@@ -20,7 +22,7 @@ import {markup,markupInline} from './markdown.mjs';
 import {activityDetailsOf,activitySlotElement,appendAssistantDelta,assistantAnchorAfter,closeSegment,declareTool,ensureActivitySlot,ensureAssistantId,nextAssistantId,openSegment,openTurnLog,paintLive,rememberToolAnchors,renderSegment,renderTurn,resetAssistantBlock,resetAssistantBuffers,scheduleTurn,settleAssistantBlock,settleTurn,staleEvent,toolResultFor} from './chat-turn.mjs';
 import {activitySlots,assistantAnchors,resetRetiredLedgers,turnState} from './chat-turn-state.mjs';
 import {applyActivityNotice,applyLimitNotice,clearNotices} from './chat-notices.mjs';
-import {message,updateMessage} from './chat-message-view.mjs';
+import {clearLatestAnswer,markLatestAnswer,message,updateMessage} from './chat-message-view.mjs';
 /* O renderer Markdown+LaTeX vive em `markdown.mjs` (compartilhado com o chat
    lateral); o realce de código e o pipeline do antigo `chat.mjs` são os mesmos.
    `markup` é reexportado pela compatibilidade dos imports antigos. */
@@ -28,7 +30,23 @@ export {markup,markupInline};
 /* Os importadores antigos (main, pdf, queue, state, ggb, testes) seguem pelo chat. */
 export {MAX_ATTACH,MAX_ATTACH_BYTES,persistTray,addAttachments,resetAttachments,restoreAttachments} from './chat-attachments.mjs';
 export {hideQuoteButton,insertMainDraft} from './chat-quote.mjs';
-export function showHistory(messages){
+
+/* Cartões `quiz`/`perguntar` (#92): o host registra e emite; o cartão é da
+   conversa, não do turno. "Concluir" arma o turno normal — o resultado chega
+   pelo mesmo caminho de uma resposta do tutor e a fila/follow-up é a do motor. */
+const cardBoard=createCardBoard({
+ messages:()=>$('#messages'),
+ api:{
+  answer:(id,answer)=>window.desk.cardAnswer({id,answer}),
+  draft:(id,draft)=>window.desk.cardDraft({id,draft}),
+  dismiss:id=>window.desk.cardDismiss({id}),
+  conclude:id=>window.desk.cardConclude({id}),
+ },
+ onSending(){turnState.promptArmed=true;setBusy(true);activity(uiMessage('tutor.thinking'));},
+ onSettled(_card,streaming){turnState.promptArmed=false;setBusy(streaming);if(!streaming)activity('');},
+ onFailed(_card,error){turnState.promptArmed=false;setBusy(false);activity('');toast(error||uiMessage('quiz.sendFailed'));},
+});
+export function showHistory(messages,cards=[]){
  clearNotices();
  if(turnState.turnLog)settleTurn({reason:'switched'});
  turnState.turnClosed=true;turnState.turnRunId=null;turnState.promptArmed=false;
@@ -73,14 +91,21 @@ export function showHistory(messages){
     (classe `chat-scroll`) é acertado ANTES da medida para o `atBottom()` olhar o
     scroller de verdade já no primeiro render. */
  syncChatScrollMode();
- const stick=atBottom();
+ const distance=distanceFromEnd();
  $('#messages').replaceChildren();
  const frag=document.createDocumentFragment();
  const historySlots=[];
- turnState.historyStick=stick;
+ cardBoard.reset();
+ const sortedCards=[...cards].filter(card=>card&&typeof card.id==='string'&&Number.isFinite(Number(card.createdAt))).sort((a,b)=>Number(a.createdAt)-Number(b.createdAt));
+ let nextCard=0;
+ const flushCards=(limit=Infinity)=>{
+  while(nextCard<sortedCards.length&&Number(sortedCards[nextCard].createdAt)<=limit)frag.append(cardBoard.make(sortedCards[nextCard++]));
+ };
+ turnState.historyStick=distance<=80;
  try{
   for(const turn of turns){
-   if(turn.userText||turn.userImages.length)message('user',turn.userText,turn.userImages,frag);
+   flushCards(turn.userTime||turn.startedAt||turn.time||0);
+   if(turn.userText||turn.userImages.length||turn.userPdfs?.length)message('user',turn.userText,turn.userImages,frag,turn.userPdfs||[]);
    const parts=Array.isArray(turn.parts)?turn.parts:null;
    if(parts&&parts.length){
     for(const part of parts){
@@ -114,8 +139,10 @@ export function showHistory(messages){
    }
   }
  }finally{turnState.historyStick=null;}
+ flushCards();
  $('#messages').append(frag);
- followBottom(stick);
+ markLatestAnswer();
+ applyChatScroll('history',null,distance);
  for(const slot of historySlots){
   activitySlots.set(slot.toolCallId,slot.element);
   window.dispatchEvent(new CustomEvent('desk-activity-slot',{detail:slot}));
@@ -157,16 +184,18 @@ export async function send(text,images,options={}){
  const steer=options.steer===true&&supportsCapability('steer');
  if(options.steer===true&&!steer&&S.busy){toast(uiMessage('send.noSteer'));return false;}
  if(S.busy&&!steer)return false;
- const pending=images===undefined?S.attachments.slice():images;
- if(!text.trim()&&!pending.length)return false;
+ const fromComposer=images===undefined;
+ const pending=fromComposer?S.attachments.slice():images;
+ const pdfs=Array.isArray(options.pdfs)?options.pdfs:(fromComposer?S.pdfAttachments.slice():[]);
+ if(!text.trim()&&!pending.length&&!pdfs.length)return false;
  if(images===undefined&&COMPACT_CMD.test(text.trim())){if(!supportsCapability('compact')){toast(uiMessage('compact.notAvailable'));
    return false;}if(S.busy){toast(uiMessage('compact.stopFirst'));
-   return false;}$('#prompt').value='';
+   return false;}$('#prompt').value='';paintComposerSend();
   await doCompact(text.trim());
   return false;}
  /* `/conferir` digitado na mão não vai mais para o Pi (evita a captura dupla da
     extensão visual): redireciona para o anexo e devolve a observação como rascunho. */
- if(images===undefined&&CONFERIR_CMD.test(text.trim())){const note=text.trim().replace(/^\/conferir\b/i,'').trim();$('#prompt').value='';await conferir();if(note)$('#prompt').value=note;return false;}
+ if(images===undefined&&CONFERIR_CMD.test(text.trim())){const note=text.trim().replace(/^\/conferir\b/i,'').trim();$('#prompt').value='';paintComposerSend();await conferir();if(note){$('#prompt').value=note;paintComposerSend();}return false;}
  let stage='save',userMessage=null,knownNotSent=false;
  try{
   setBusy(true);
@@ -178,11 +207,11 @@ export async function send(text,images,options={}){
      `streaming:false` (busy já caído) seria descartada como atraso. */
   turnState.promptArmed=true;
   if(pending.length&&!S.supportsImages){turnState.promptArmed=false;setBusy(false);toast(uiMessage('send.needsImages'));return false;}
-  userMessage=message('user',text,pending.map(item=>item.dataUrl));
-  if(images===undefined&&$('#prompt').value===text)$('#prompt').value='';
-  const result=await window.desk.prompt({text,refs:options.refs||refs(),images:pending.map(item=>typeof item==='string'?item:{dataUrl:item.dataUrl,capturedAt:item.capturedAt,exercise:item.exercise,app:item.app}),steer,mentions:mentionList});
+  userMessage=message('user',text,pending.map(item=>item.dataUrl),null,pdfs);
+  if(fromComposer&&$('#prompt').value===text)$('#prompt').value='';
+  const result=await window.desk.prompt({text,refs:options.refs||refs(),images:pending.map(item=>typeof item==='string'?item:{dataUrl:item.dataUrl,capturedAt:item.capturedAt,exercise:item.exercise,app:item.app}),pdfs:pdfs.map(item=>({name:item.name,path:item.path,pages:item.pages})),steer,mentions:mentionList});
   if(result?.sent===false){knownNotSent=result.retryable===true;throw Error(result.error||uiMessage('send.refused'));}
-  if(images===undefined){clearAttachments(pending);clearMentions(mentionList);}
+  if(fromComposer){clearAttachments(pending,pdfs);clearMentions(mentionList);}
   /* `streaming` só libera o composer quando o Pi DISSE que não está no turno.
      Estado desconhecido (a leitura falhou depois do aceite) NÃO é envio falho:
      o item sai da fila e o aviso aparece — quem fecha o turno, nesse caso, são
@@ -194,7 +223,7 @@ export async function send(text,images,options={}){
   const safe=stage==='save'||stage==='connect'||knownNotSent;
   if(safe)turnState.promptArmed=false;
   if(knownNotSent)userMessage?.remove();
-  if(images===undefined&&!$('#prompt').value){$('#prompt').value=text;save();}
+  if(fromComposer&&!$('#prompt').value){$('#prompt').value=text;save();}
   options.onFailure?.(safe);
   setBusy(false);toastFailure(e);return false;
  }
@@ -242,7 +271,7 @@ export async function conferir(){
   if(!file){toast(uiMessage('capture.invalid'));return;}
   const added=await addAttachments([file],{capturedAt:Date.now(),exercise:exerciseAtCapture,app});
   if(!added)return;
-  playShutter($('#check'));
+  playShutter($('#attach'));
   toast(uiText(conferirCore.attachedText(app)));
   $('#prompt').focus();
  }catch(e){toast(e.message);}
@@ -323,6 +352,7 @@ window.desk.onEvent(e=>{
   }
   turnState.messageEnded=false;
   turnState.assistant=null;turnState.assistantText='';turnState.assistantKey=null;turnState.assistantEnded=false;
+  clearLatestAnswer();
  }
  if(e.type==='message_update'&&staleEvent(e))return;
  if(e.type==='message_update'&&e.assistantMessageEvent){
@@ -375,7 +405,10 @@ window.desk.onEvent(e=>{
    scheduleTurn();
   }else if(ame.type==='toolcall_end'){
    const call=ame.toolCall||{};
-   if(call.id!=null&&call.id!=='')declareTool({id:call.id,name:call.name,args:call.arguments,pending:true,contentIndex:ame.contentIndex});
+   /* O cartão chega pelo `desk-card`; declarar aqui deixaria um passo preso
+      (a execução e o fim da ferramenta de cartão também são ignorados) com a
+      resposta certa nos argumentos. */
+   if(!cardToolKind(call.name)&&call.id!=null&&call.id!=='')declareTool({id:call.id,name:call.name,args:call.arguments,pending:true,contentIndex:ame.contentIndex});
   }
  }
  if(e.type==='message_end'&&e.message?.role==='assistant'){
@@ -405,25 +438,24 @@ window.desk.onEvent(e=>{
    else message('assistant',text,images);
   }
   turnState.assistant=null;turnState.assistantText='';turnState.assistantKey=null;turnState.assistantEnded=true;turnState.messageEnded=true;turnState.assistantLoose=[];
+  markLatestAnswer();
   if(turnState.turnLog){worklog.closeThinking(turnState.turnLog);turnState.thinkingOpenKey=null;scheduleTurn();}
   if(e.message.errorMessage)toast(e.message.errorMessage);
  }
  if(e.type==='tool_execution_start'){
   if(staleEvent(e))return;
-  if(e.toolName==='quiz'){
-   S.quizQueue.push({id:e.toolCallId,args:e.args||{},card:null});
-   if(S.quizQueue.length>4)S.quizQueue=S.quizQueue.slice(-4);
-  }else{
-   const step=declareTool({id:e.toolCallId,name:e.toolName,args:e.args,pending:e.pending===true});
-   if(step)renderTurn();
+  if(cardToolKind(e.toolName)){
+   /* O cartão já chegou pelo `desk-card` (o host registra antes de a ferramenta
+      voltar); a chamada não vira passo do diário. */
+   return;
   }
+  const step=declareTool({id:e.toolCallId,name:e.toolName,args:e.args,pending:e.pending===true});
+  if(step)renderTurn();
  }
  if(e.type==='tool_execution_end'){
   if(staleEvent(e))return;
-  if(e.toolName==='quiz'){
-   const item=S.quizQueue.find(entry=>entry.id===e.toolCallId);
-   if(item){if(item.card)decorateQuizCard(item.card,e.result);S.quizQueue=S.quizQueue.filter(entry=>entry!==item);}
-  }else if(turnState.turnLog){
+  if(cardToolKind(e.toolName))return;
+  if(turnState.turnLog){
    const normalized=toolResultFor(e);
    const step=worklog.finishTool(turnState.turnLog,{id:e.toolCallId,result:normalized,isError:e.isError,now:Date.now()});
    const activity=activityDetailsOf(normalized);
@@ -521,11 +553,13 @@ window.desk.onEvent(e=>{
  }
  if(e.type==='extension_ui_request'){
   if(e.method==='notify'){toast(e.message);if(e.notifyType==='error')setBusy(false);}
-  else if(['select','confirm','input','editor','question'].includes(e.method))showDialog(e);
-  else if(e.method==='set_editor_text'&&e.text)$('#prompt').value=e.text;
+  else if(['select','confirm','input','editor'].includes(e.method))showDialog(e);
+  else if(e.method==='set_editor_text'&&e.text){$('#prompt').value=e.text;paintComposerSend();}
  }
  /* Pedido interativo vencido: o diálogo daquele id sai SEM resposta. */
  if(e.type==='agent_request_cancelled')cancelDialogRequest(String(e.id||''));
 });
 installDialogListeners();
 installAssetListeners();
+/* Um desfecho atrasado da conversa antiga não monta/atualiza cartão na nova. */
+window.desk.onCard(payload=>{if(payload?.conversationId&&payload.conversationId!==S.currentSession)return;cardBoard.handle(payload);});

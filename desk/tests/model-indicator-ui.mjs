@@ -2,7 +2,7 @@
 // e #42), testado na janela. O indicador mora na fileira da caixa de mensagem,
 // à esquerda do Enviar, com o ponto de conexão; clicar abre, para cima, o
 // popover onde se trocam modelo e esforço. Em caixa estreita a fileira cede em
-// degraus: Referências vira ícone, o esforço sai, o modelo vira ícone. Cobre
+// degraus: o esforço sai, o modelo vira ícone. Cobre
 // cada critério de aceitação e grava capturas (claro/escuro, 1440×900 e 900×650).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -25,7 +25,7 @@ const inside=(box,width,height,note)=>{
 };
 const seedJsonl=(file,text)=>fs.writeFileSync(file,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text}]}})+'\n');
 const listOf=l=>{const out=[];for(let c=l;c&&c.$==='Con';c=c.tail)out.push(String(c.head));return out;};
-const LADDER=['','compact','model','icon'];
+const LADDER=['','model','icon'];
 const LONG_TITLE='Uma sessão com um título bem comprido sobre limites fundamentais, continuidade e a regra de L’Hôpital em detalhe';
 
 /* ---------- tutor ligado: indicador, popover, troca e saídas ---------- */
@@ -70,11 +70,11 @@ await withArtifacts('model-indicator',async ctx=>{
  assert.ok(look.logoRight<=look.textLeft+0.5,'o logo vem antes do texto');
  /* Regressão (ajustes pós-41): com Foto do celular na fileira, 1440×900 na coluna padrão
     ainda mostra o nome do modelo; o Conferir cede antes, virando só ícone. */
- const padrao=await page.evaluate(()=>{const r=document.querySelector('#composer-box .composer-actions'),t=document.querySelector('#model-indicator .mi-text'),c=document.querySelector('#check');return {fit:r.dataset.fit||'',textDisplay:getComputedStyle(t).display,text:t.textContent.trim(),checkAria:c.getAttribute('aria-label'),checkLabelShown:[...c.querySelectorAll('.label-full,.label-short')].some(el=>getComputedStyle(el).display!=='none')};});
+ const padrao=await page.evaluate(()=>{const r=document.querySelector('#composer-box .composer-actions'),t=document.querySelector('#model-indicator .mi-text'),c=document.querySelector('#check');return {fit:r.dataset.fit||'',textDisplay:getComputedStyle(t).display,text:t.textContent.trim(),checkAria:c.getAttribute('aria-label'),inMenu:c.closest('#attach-pop')?.id||''};});
  assert.notEqual(padrao.textDisplay,'none','em 1440×900 o nome do modelo (.mi-text) aparece');
  assert.match(padrao.text,/^Pi de teste/,'em 1440×900 o .mi-text diz o modelo');
  assert.match(padrao.checkAria,/Conferir/,'o Conferir mantém o nome acessível completo');
- if(padrao.fit!=='')assert.equal(padrao.checkLabelShown,false,'nos degraus apertados o Conferir é só ícone');
+ assert.equal(padrao.inMenu,'attach-pop','o Conferir mora no menu Anexar, fora da fileira');
 
  /* ---- a faixa fixa e o rodapé não existem mais ---- */
  for(const gone of ['#pi-settings-panel','#pi-settings-body','#settings-toggle','.side-foot','#foot-status','#compact-tools','#compact-now']){
@@ -139,8 +139,9 @@ await withArtifacts('model-indicator',async ctx=>{
  /* ---- "Contexto da sessão" mora em Mais opções (sem espaço fixo) ---- */
  await openTutorMore(page);
  const ids=await page.locator('#chat-more-pop > *').evaluateAll(list=>list.map(el=>el.id));
- assert.deepEqual(ids,['export-chat','end-day','more-context','more-auto-compact','more-compact-now','more-triage','chat-collapse']);
+ assert.deepEqual(ids,['more-context','more-context-menu','end-day','export-chat','chat-collapse']);
  assert.equal(await page.locator('#more-compact-now').isEnabled(),true,'Resumir agora disponível com o tutor ligado');
+ await page.locator('#more-context').click();
  await page.locator('#more-compact-now').click();
  await toastWait(page,'Contexto compactado',{timeout:15000});
  assert.equal(await page.locator('#chat-more-pop').isHidden(),true,'escolher a ação fecha o menu');
@@ -184,7 +185,15 @@ await withArtifacts('model-indicator',async ctx=>{
   assert.equal(row.before,true,`${tag}: o indicador fica à esquerda do Enviar`);
   assert.equal(row.sameLine,true,`${tag}: indicador e Enviar na mesma linha`);
   assert.equal(row.dot,true,`${tag}: o logo (ou o ponto) continua à vista`);
-  assert.equal(row.cut,false,`${tag}: o nome do modelo nunca sai cortado (${row.shown})`);
+  /* Contrato do `fitIndicator`: nos degraus "" e "compact" o nome cabe
+     inteiro; em "model" ele pode ganhar reticências, mas nunca abaixo do piso
+     `--mi-model-floor` (abaixo disso a fileira vira "icon" e só o ícone fica).
+     Em 900×650 com a fonte larga do Linux é esse degrau que vale — o texto
+     completo continua no `aria-label`. */
+  const floor=await page.evaluate(()=>Number.parseFloat(getComputedStyle(document.querySelector('#model-indicator')).getPropertyValue('--mi-model-floor'))||72);
+  const modelWidth=await page.evaluate(()=>document.querySelector('#model-indicator .mi-model').clientWidth);
+  if(row.fit!=='model'&&row.fit!=='icon')assert.equal(row.cut,false,`${tag}: no degrau "${row.fit}" o nome do modelo cabe inteiro (${row.shown})`);
+  if(row.fit==='model')assert.ok(row.shown&&modelWidth>=floor-1,`${tag}: no degrau "model" o nome respeita o piso ${floor}px (${modelWidth}px, ${row.shown})`);
   assert.match(row.label,/^Tutor ligado: Pi (de teste|com visão)/,`${tag}: o nome acessível segue completo`);
   if(width===1440)assert.match(row.shown,/^Pi (de teste|com visão)/,`${tag}: na coluna padrão o nome do modelo aparece`);
   console.log(`indicador ${tag}: degrau "${row.fit}", texto "${row.shown}"`);
@@ -207,18 +216,20 @@ await withArtifacts('model-indicator',async ctx=>{
  }
 
  /* ---- #42: degraus da fileira, da caixa larga à mais estreita. A ordem é a
-    do núcleo (`rowFit`): Referências vira ícone, o esforço sai, o modelo vira
-    ícone — nunca o contrário. ---- */
+    do núcleo (`rowFit`): o esforço sai, depois o modelo vira ícone — nunca o
+    contrário. ---- */
  await size(app,page,1440,900);
  await layoutStable(page,'#messages');
  const seen=[];
  for(const w of [720,560,420,360,320,280,240,210]){
   await page.evaluate(px=>{const box=document.querySelector('#composer-box');box.style.width=`${px}px`;box.style.maxWidth='none';},w);
   await layoutStable(page,'#model-indicator');
-  const step=await page.evaluate(()=>{const r=document.querySelector('#composer-box .composer-actions'),b=document.querySelector('#model-indicator'),m=b.querySelector('.mi-model');return {fit:r.dataset.fit||'',overflow:r.scrollWidth-r.clientWidth,dot:b.querySelector(b.hasAttribute('data-logo')?'.mi-logo':'#status-dot').getBoundingClientRect().width>0,cut:m.offsetWidth>0&&m.scrollWidth>m.clientWidth+0.5,refsLabel:getComputedStyle(document.querySelector('#include-refs span')||document.body).display!=='none'};});
+  const step=await page.evaluate(()=>{const r=document.querySelector('#composer-box .composer-actions'),b=document.querySelector('#model-indicator'),m=b.querySelector('.mi-model');return {fit:r.dataset.fit||'',overflow:r.scrollWidth-r.clientWidth,dot:b.querySelector(b.hasAttribute('data-logo')?'.mi-logo':'#status-dot').getBoundingClientRect().width>0,cut:m.offsetWidth>0&&m.scrollWidth>m.clientWidth+0.5,room:m.clientWidth,floor:Number.parseFloat(getComputedStyle(b).getPropertyValue('--mi-model-floor'))||0,refsLabel:getComputedStyle(document.querySelector('#include-refs span')||document.body).display!=='none'};});
   seen.push({w,...step});
   assert.equal(step.dot,true,`caixa ${w}px: o logo (ou o ponto) continua à vista`);
-  assert.equal(step.cut,false,`caixa ${w}px: nome do modelo inteiro ou só o ícone`);
+  /* Reticências só no degrau "model" e acima do piso (`modelRoom`): sem a
+     moldura do cartão, a caixa de 240px caiu nessa faixa (8627d40). */
+  assert.ok(!step.cut||(step.fit==='model'&&step.room+1>=step.floor),`caixa ${w}px: nome inteiro, reticências acima do piso ou só o ícone (${JSON.stringify(step)})`);
  }
  console.log('degraus da fileira:',seen.map(x=>`${x.w}px→"${x.fit}"`).join(', '));
  const order=seen.map(x=>LADDER.indexOf(x.fit));
@@ -229,7 +240,7 @@ await withArtifacts('model-indicator',async ctx=>{
  for(const x of seen.filter(x=>x.fit!==''))assert.equal(x.refsLabel,false,`caixa ${x.w}px: Referências cedeu o rótulo antes do indicador`);
  await page.evaluate(()=>{const box=document.querySelector('#composer-box');box.style.width='240px';});
  await layoutStable(page,'#model-indicator');
- await reviewShot(page,out,'caixa-240-so-icone.png');
+ await reviewShot(page,out,'caixa-240-estreita.png');
  await page.evaluate(()=>{const box=document.querySelector('#composer-box');box.style.width='';box.style.maxWidth='';});
  await layoutStable(page,'#model-indicator');
 
@@ -314,6 +325,9 @@ await withArtifacts('model-indicator-image',async ctx=>{
  await reviewShot(page,out,'claro-1440x900-aviso-imagem.png');
  await size(app,page,900,650);
  await layoutStable(page,'#messages');
+ /* O aviso de 1440 some antes do próximo: `toast-item` é uma pilha e o
+    primeiro nó podia ser o antigo, medido na largura anterior. */
+ await page.waitForFunction(()=>!document.querySelector('#toast .toast-item'),undefined,{timeout:8000}).catch(()=>{});
  await page.locator('#attach-input').setInputFiles({name:'plot2.png',mimeType:'image/png',buffer:Buffer.from(PLOT_PNG,'base64')});
  await toastWait(page,'Este modelo não aceita imagens',{timeout:10000});
  inside(await rect(page,'#toast .toast-item'),900,650,'aviso de imagem em 900×650');

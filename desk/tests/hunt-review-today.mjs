@@ -119,7 +119,7 @@ if(only('revisar hoje completa')){
    assert.equal(await page.locator('#review-today .review-grade').count(),4,'quatro resultados, um cartão por vez');
    assert.equal(await page.locator('.review-group-title').first().textContent(),'Vence hoje');
    for(const label of ['Errei','Difícil','Bom','Fácil'])assert.ok(await page.locator('#review-today .review-grade',{hasText:label}).count(),label);
-   assert.match((await page.locator('.review-grade-when').first().textContent()).trim(),/^volta amanhã$/);
+   assert.match((await page.locator('.review-grade-when').first().textContent()).trim(),/^Volta amanhã$/);
   });
 
   await s.step('referência fora da biblioteca aparece com aviso, não some',async()=>{

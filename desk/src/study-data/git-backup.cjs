@@ -236,9 +236,13 @@ function api({root, runner = defaultRunner, deskDir = '', repoRoot = '', runtime
     if (!probe.available) throw new GitBackupError(uiMsg('err.git.notFound', {detail: String(probe.error)}));
     const init = runPlain(['init', '-q', '--bare', GIT_DIR]);
     if (init.code !== 0) throw new GitBackupError(uiMsg('err.git.initFailed', {detail: (init.stderr || '').trim()}));
+    /* `git init` segue o `init.defaultBranch` da máquina (no Linux sem config
+       nasce em `master`), mas o backup fala `main` no ledger e no push: fixa o
+       HEAD sem depender de config nem de versão do git. */
+    const headRef = run(['symbolic-ref', 'HEAD', `refs/heads/${BRANCH}`]);
     const bare = run(['config', 'core.bare', 'false']);
     const worktree = run(['config', 'core.worktree', dest]);
-    if (bare.code !== 0 || worktree.code !== 0) {
+    if (headRef.code !== 0 || bare.code !== 0 || worktree.code !== 0) {
       throw new GitBackupError(uiMsg('err.git.prepareFailed'));
     }
     const excludeFile = path.join(gitDir, 'info', 'exclude');

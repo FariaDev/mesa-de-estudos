@@ -68,10 +68,12 @@ test('contextSize em mil e em milhão', () => {
   assert.deepEqual(contextSize(1500000), {unit: 'M', value: 1.5});
 });
 
-test('o grupo Grátis também vai por nome', () => {
+test('os grátis ficam no grupo do provedor, por nome, sem grupo próprio (#93)', () => {
   const free = {is: true, tail: []};
   const groups = groupModels([{provider: 'openrouter', id: 'z:free', name: 'Zeta (free)', free}, {provider: 'opencode', id: 'a-free', name: 'alfa', free}], {engine: 'pi'});
-  assert.deepEqual(groups.find((g) => g.kind === 'free').items.map((item) => item.name), ['alfa', 'Zeta (free)']);
+  assert.equal(groups.some((group) => group.kind === 'free'), false);
+  assert.deepEqual(groups.find((group) => group.provider === 'openrouter').items.map((item) => item.name), ['Zeta (free)']);
+  assert.deepEqual(groups.find((group) => group.provider === 'opencode').items.map((item) => item.name), ['alfa']);
 });
 
 /* Melhor de 5 rodadas das 6 buscas, em ms por chamada. */

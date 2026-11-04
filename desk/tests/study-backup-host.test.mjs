@@ -144,6 +144,11 @@ test('host: queda no meio da restauração devolve o estado anterior visível', 
 
 test('host: exportar, importar e adotar deixa as anotações visíveis no runtime', async () => {
   const fixture = seedRuntime();
+  /* #75: a conversa do OpenCode também atravessa exportar → importar → adotar. */
+  write(fixture.runtime, 'conversations/opencode-33333333-4444-5555-6666-777777777777.json', JSON.stringify({
+    schemaVersion: 1, engine: 'opencode', id: '33333333-4444-5555-6666-777777777777', nativeSessionId: 'ses_abc123',
+    nativeEstablished: true, courseId: 'mat-1', preview: 'conversa opencode', messages: [{role: 'user', content: 'oi'}],
+  }));
   const dest = tempDir('mesa-host-dest');
   const importRoot = tempDir('mesa-host-import');
   const hostConfig = {courses: [{id: 'mat-1', name: 'Algebra Linear', path: fixture.materialsDir}]};
@@ -187,9 +192,16 @@ test('host: exportar, importar e adotar deixa as anotações visíveis no runtim
     assert.equal(notes.length, 1);
     assert.ok(notes[0].ref.path.startsWith(imported.materialsDir), 'nota aponta para o material importado');
     assert.ok(!JSON.stringify(notes).includes(fixture.materialsDir), 'sem caminho do autor');
-    /* Conversas Pi e Claude importadas existem no runtime. */
-    assert.ok(fs.readdirSync(path.join(fixture.runtime, 'conversations')).some((name) => /^claude-.*\.json$/.test(name)));
-    assert.ok(fs.readdirSync(fixture.runtime).some((name) => /^pi-.*\.jsonl$/.test(name)));
+    /* Conversas Claude e Pi importadas existem no runtime. #79: a sessão do Pi
+       é adotada como transcrição Claude (descritor, sem retomada), e não como
+       um `pi-*.jsonl` novo. O `pi-*.jsonl` do fixture já existia antes, então
+       a prova é a transcrição com a prévia da sessão do Pi. */
+    const conversationsDir = path.join(fixture.runtime, 'conversations');
+    assert.ok(fs.readdirSync(conversationsDir).some((name) => /^claude-.*\.json$/.test(name)));
+    const transcripts = fs.readdirSync(conversationsDir).filter((name) => /^claude-.*\.json$/.test(name)).map((name) => JSON.parse(read(conversationsDir, name)));
+    assert.ok(transcripts.some((item) => item.preview === 'sessão do Pi' && item.nativeEstablished === false), 'a sessão do Pi virou transcrição sem retomada');
+    const adopted = fs.readdirSync(conversationsDir).filter((name) => /^opencode-.*\.json$/.test(name));
+    assert.ok(adopted.some((name) => name !== 'opencode-33333333-4444-5555-6666-777777777777.json'), 'a conversa OpenCode adotada ganha id novo');
     /* A config registrada aponta para a matéria nova. */
     const registered = JSON.parse(read(fixture.runtime, 'config.json')).courses.find((course) => course.id === imported.courseId);
     assert.equal(registered.path, imported.course.path);

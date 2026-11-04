@@ -45,7 +45,6 @@ const ABORT_DELAY = Math.max(0, Number(process.env.HUNT_TIMELINE_ABORT_DELAY) ||
 const model = {provider: 'test', id: 'offline', name: 'Pi de timeline', input: ['text', 'image']};
 const timers = [];
 let streaming = false;
-let quizPending = null;
 let slowSeq = 0;
 
 function write(obj) {
@@ -229,42 +228,45 @@ function scenarioRetry(text) {
   ]);
 }
 
-function scenarioQuiz(text) {
+function scenarioText(text) {
+  append({role: 'user', content: [{type: 'text', text}], timestamp: Date.now() - 10});
+  emit({type: 'agent_start'});
+  emit({type: 'message_start', message: {role: 'assistant', id: 'm-quiz-result'}});
+  emit({type: 'message_update', assistantMessageEvent: {type: 'text_delta', delta: 'Recebi o resultado do cartão.', contentIndex: 0}});
+  emit({type: 'message_end', message: {role: 'assistant', id: 'm-quiz-result', content: [{type: 'text', text: 'Recebi o resultado do cartão.'}]}});
+  emit({type: 'agent_end'});
+  streaming = false;
+}
+
+async function scenarioQuiz(text) {
   const question = 'Quanto vale \\(2+2\\)?';
   const argsQ = {question, details: 'Pergunta de teste', options: [{label: '\\(3\\)', value: 'three'}, {label: '\\(4\\)', value: 'four'}, {label: '\\(5\\)', value: 'five'}], multiSelect: false, correctAnswer: 'four', explanation: 'Pela definição: \\(2+2=4\\).'};
   append({role: 'user', content: [{type: 'text', text}], timestamp: Date.now() - 10});
   emit({type: 'agent_start'});
   emit({type: 'message_start', message: {role: 'assistant', id: 'm-quiz'}});
   emit({type: 'message_update', assistantMessageEvent: {type: 'thinking_delta', delta: 'Vou perguntar.', contentIndex: 0}});
-  emit({type: 'tool_execution_start', toolCallId: 'quiz-1', toolName: 'quiz', args: argsQ});
-  emit({type: 'extension_ui_request', id: 'ui-quiz-1', method: 'select', title: `Quiz · ${question}`, options: [...argsQ.options.map((option) => option.label), 'Não sei']});
-  quizPending = {toolCallId: 'quiz-1', args: argsQ};
-}
-
-function gradeQuiz(response) {
-  if (!quizPending) return;
-  const {toolCallId, args: argsQ} = quizPending;
-  quizPending = null;
-  const label = response.cancelled ? '' : String(response.value ?? '');
-  const index = argsQ.options.findIndex((option) => option.label === label) + 1;
-  const details = {
-    status: response.cancelled ? 'cancelled' : 'answered',
-    question: argsQ.question,
-    answers: index > 0 ? [{index, label}] : [],
-    dontKnow: false,
-    correct: label === argsQ.options[1].label,
-    correctIndices: [2],
-    options: argsQ.options.map((option, at) => ({index: at + 1, label: option.label})),
-    explanation: argsQ.explanation,
-  };
-  emit({type: 'tool_execution_end', toolCallId, toolName: 'quiz', result: {content: [{type: 'text', text: 'User answered the test quiz.'}], details}, isError: false});
-  const text = details.correct ? 'Boa! Resposta correta.' : 'Quase: reveja a resolução com calma.';
+  emit({type: 'tool_execution_start', toolCallId: 'quiz-1', toolName: 'mesa_quiz', args: argsQ});
+  let bridge = null;
+  try { bridge = JSON.parse(process.env.LEARNING_DESK_CARD_BRIDGE || ''); } catch {}
+  let error = '';
+  if (!bridge || typeof bridge.url !== 'string' || typeof bridge.token !== 'string') {
+    error = 'sem ponte de cartão';
+  } else {
+    try {
+      const response = await fetch(String(bridge.url).replace(/\/activity$/, '/card'), {method: 'POST', headers: {'content-type': 'application/json', 'x-mesa-token': bridge.token}, body: JSON.stringify({kind: 'quiz', args: argsQ})});
+      if (!response.ok) error = `HTTP ${response.status}`;
+    } catch (caught) {
+      error = String(caught?.message || caught);
+    }
+  }
+  emit({type: 'tool_execution_end', toolCallId: 'quiz-1', toolName: 'mesa_quiz', result: {content: [{type: 'text', text: error || 'Mostrado ao aluno.'}]}, isError: !!error});
+  const said = error ? `Não consegui mostrar o cartão: ${error}` : 'Deixei o cartão; responda por lá.';
   emit({type: 'message_start', message: {role: 'assistant', id: 'm-quiz-2'}});
-  emit({type: 'message_update', assistantMessageEvent: {type: 'text_delta', delta: text, contentIndex: 0}});
-  emit({type: 'message_end', message: {role: 'assistant', id: 'm-quiz-2', content: [{type: 'text', text}]}});
-  append({role: 'assistant', content: [{type: 'thinking', thinking: 'Vou perguntar.'}, {type: 'toolCall', id: 'quiz-1', name: 'quiz', arguments: argsQ}], timestamp: Date.now() - 5});
-  append({role: 'toolResult', toolCallId: 'quiz-1', toolName: 'quiz', isError: false, content: [{type: 'text', text: 'User answered the test quiz.'}], details, timestamp: Date.now()});
-  append({role: 'assistant', content: [{type: 'text', text}], timestamp: Date.now()});
+  emit({type: 'message_update', assistantMessageEvent: {type: 'text_delta', delta: said, contentIndex: 0}});
+  emit({type: 'message_end', message: {role: 'assistant', id: 'm-quiz-2', content: [{type: 'text', text: said}]}});
+  append({role: 'assistant', content: [{type: 'thinking', thinking: 'Vou perguntar.'}, {type: 'toolCall', id: 'quiz-1', name: 'mesa_quiz', arguments: argsQ}], timestamp: Date.now() - 5});
+  append({role: 'toolResult', toolCallId: 'quiz-1', toolName: 'mesa_quiz', isError: !!error, content: [{type: 'text', text: error || 'Mostrado ao aluno.'}], timestamp: Date.now()});
+  append({role: 'assistant', content: [{type: 'text', text: said}], timestamp: Date.now()});
   emit({type: 'agent_end'});
   streaming = false;
 }
@@ -573,7 +575,8 @@ function onPrompt(e) {
   if (/duas atividades/i.test(text)) return scenarioDuo(text);
   if (/devagar/i.test(text)) return scenarioSlow(text);
   if (/retry/i.test(text)) return scenarioRetry(text);
-  if (/quiz/i.test(text)) return scenarioQuiz(text);
+  if (/^\[Resultado do cartão:/.test(text)) return scenarioText('Recebi o resultado do cartão.');
+  if (/quiz/i.test(text)) { void scenarioQuiz(text); return; }
   return scenarioOrder(text);
 }
 
@@ -590,10 +593,6 @@ process.stdin.on('data', (chunk) => {
     try {
       e = JSON.parse(raw);
     } catch {
-      continue;
-    }
-    if (e.type === 'extension_ui_response') {
-      gradeQuiz(e);
       continue;
     }
     if (e.type === 'get_state') reply(e, {model, thinkingLevel: 'off', isStreaming: streaming, pendingMessageCount: 0, autoCompactionEnabled: true});

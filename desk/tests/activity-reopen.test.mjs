@@ -17,6 +17,7 @@ import {createRequire} from 'node:module';
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {historyTurns} from '../src/worklog.mjs';
 import * as fx from './claude-fixtures.mjs';
 import {createFakeOpencodeServe} from './fake-opencode.mjs';
@@ -79,7 +80,7 @@ function assertBoardBack(boards, published, engine) {
 
 function piGetMessages(session) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [new URL('./fake-pi.mjs', import.meta.url).pathname, '--session', session], {stdio: ['pipe', 'pipe', 'inherit']});
+    const child = spawn(process.execPath, [fileURLToPath(new URL('./fake-pi.mjs', import.meta.url)), '--session', session], {stdio: ['pipe', 'pipe', 'inherit']});
     let buffer = '';
     const timer = setTimeout(() => { child.kill(); reject(Error('fake-pi não respondeu get_messages')); }, 10000);
     child.stdout.on('data', (chunk) => {
@@ -141,7 +142,7 @@ const PASSWORD = 'senha-de-teste';
 
 function openCodeService(serve, sessionId) {
   const adapter = new OpenCodeAdapter({conversationId: 'conv-oc', sessionId, directory: '/tmp/mesa-ws/conv-oc',
-    acquire: async () => ({baseUrl: serve.url, password: PASSWORD, binary: '/fake/opencode'})});
+    acquire: async () => ({baseUrl: serve.url, password: PASSWORD, binary: '/fake/opencode'}), readVersion: async () => 'opencode v2.2.4'});
   const service = new NativeService({adapter, engine: 'opencode'});
   const events = [];
   service.on('event', (event) => events.push(event));

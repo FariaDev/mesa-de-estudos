@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {withArtifacts,newRuntime,seedCourse,writeDeskJson,writeConfigJson,launchDesk,statusOnline,reviewShot,screenshotDirectory} from './helpers.mjs';
+import {withArtifacts,newRuntime,seedCourse,writeDeskJson,writeConfigJson,launchDesk,statusOnline,reviewShot,screenshotDirectory,setTheme} from './helpers.mjs';
 
 const require=createRequire(import.meta.url);
 const conversations=require('../src/agents/conversations.cjs');
@@ -41,6 +41,24 @@ await withArtifacts('opencode-activity',async ctx=>{
  assert.equal(listed[0].title,'Reta secante');
  assert.equal(await page.locator('.work-step[data-kind="tool"] .step-label').filter({hasText:/execute/}).count(),0,'a chamada não passa pela execute do Code Mode');
  await reviewShot(page,out,'opencode-quadro.png');
+ /* Item 12: o diário inteiro (cabeçalho + passos) usa a superfície do cartão. */
+ const work=page.locator('#messages .work').last();
+ await work.waitFor({timeout:30000});
+ if(await work.getAttribute('data-expanded')!=='true') await work.locator('.work-head').click();
+ for(const theme of ['light','dark']){
+  await setTheme(page,theme);
+  await page.locator('#composer textarea').hover();
+  /* espera fixa: a transição de background do cabeçalho (120 ms) terminar. */
+  await page.waitForTimeout(250);
+  const look=await work.evaluate((el)=>{
+   const probe=document.createElement('div');probe.style.background='var(--surface)';el.append(probe);
+   const surface=getComputedStyle(probe).backgroundColor;probe.remove();
+   return {work:getComputedStyle(el).backgroundColor,surface,head:getComputedStyle(el.querySelector('.work-head')).backgroundColor};
+  });
+  assert.equal(look.work,look.surface,`${theme}: o diário usa a superfície do cartão`);
+  assert.equal(look.head,look.surface,`${theme}: o cabeçalho e os passos formam um bloco só`);
+  await page.screenshot({path:path.join('/tmp/mesa-so-opencode',`work-surface-${theme}.png`)});
+ }
  assert.deepEqual(errors,[],'sem erro de página');
 });
 console.log('ok opencode-activity-ui');

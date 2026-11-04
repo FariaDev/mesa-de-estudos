@@ -51,6 +51,8 @@ await withArtifacts('conferir',async ctx=>{
  await statusOnline(page);
  await freezeMotion(page);
  const label=()=>page.locator('#check').evaluate(el=>el.querySelector('.label-full')?.textContent.trim()||el.innerText.trim());
+ /* #90: o Conferir mora no menu Anexar; abrir antes de clicar. */
+ const clickCheck=async()=>{await page.locator('#attach').click();await page.locator('#check').click();};
  const attachments=()=>page.locator('#attachments .attachment').evaluateAll(els=>els.map(el=>el.querySelector('img')?.alt||el.textContent.trim()));
  const clearAttachments=async()=>{
   while(await page.locator('#attachments .attachment').count()){
@@ -87,7 +89,7 @@ await withArtifacts('conferir',async ctx=>{
  assert.equal(await page.locator('#check-more').count(),0,'a caixa de mensagem não tem mais o ▾ do seletor');
  assert.equal(await page.locator('#check-pop').count(),0,'nem o popover do seletor');
  assert.equal(await page.locator('#check-note').isHidden(),true,'o aviso não aparece sozinho');
- await page.locator('#check').click();
+ await clickCheck();
  await page.waitForSelector('#attachments .attachment');
  assert.deepEqual(await attachments(),['Anexo: xournal.png'],'o anexo de sempre');
  await toastWait(page,'Captura do Xournal++ anexada');
@@ -135,7 +137,7 @@ await withArtifacts('conferir',async ctx=>{
  assert.equal(await label(),'Conferir OneNote','Cancelar não desfaz: o botão nomeia o app escolhido');
  assert.equal(await page.locator('#check').getAttribute('title').then(t=>/OneNote/.test(t||'')),true,'a dica também nomeia o app');
  assert.deepEqual(desk().conferirApp,{app:'OneNote',key:'onenote'});
- await page.locator('#check').click();
+ await clickCheck();
  await page.waitForSelector('#attachments .attachment');
  assert.deepEqual(await attachments(),['Anexo: onenote.png'],'o anexo leva o nome do programa');
  await toastWait(page,'Captura de OneNote anexada');
@@ -144,14 +146,14 @@ await withArtifacts('conferir',async ctx=>{
 
  /* ---------- 4. a escolha é o APP: o id muda e o Conferir segue no OneNote ---------- */
  setWindows([win('901','Safari','Aula'),win('902','OneNote','Janela da frente agora'),win('903','OneNote','Atrás')]);
- await page.locator('#check').click();
+ await clickCheck();
  await page.waitForSelector('#attachments .attachment');
  assert.deepEqual(await attachments(),['Anexo: onenote.png']);
  await clearAttachments();
 
  /* ---------- 5. app ausente: uma frase, a saída leva ao campo, nada é capturado ---------- */
  setWindows([win('910','Safari','Aula'),win('911','Xournal++','Lista')]);
- await page.locator('#check').click();
+ await clickCheck();
  await page.locator('#check-note').waitFor({state:'visible'});
  assert.match(await page.locator('#check-note .check-note-text').textContent(),/^OneNote não está aberto/,'diz que o app não está aberto, em uma frase');
  assert.equal(await page.locator('#check-note .check-note-pick').textContent(),'Escolher outro programa…');
@@ -166,7 +168,7 @@ await withArtifacts('conferir',async ctx=>{
  await reviewShot(page,out,'onenote-ausente-claro-1440.png');
  await page.keyboard.press('Escape');
  await page.locator('#check-note').waitFor({state:'hidden'});
- await page.locator('#check').click();
+ await clickCheck();
  await page.locator('#check-note').waitFor({state:'visible'});
  await page.locator('#check-note .check-note-pick').click();
  await page.waitForSelector('#settings-dialog[open]');
@@ -182,14 +184,14 @@ await withArtifacts('conferir',async ctx=>{
  await closeSettings('cancel');
  assert.equal(await label(),'Conferir Xournal++');
  await savedApp(null);
- await page.locator('#check').click();
+ await clickCheck();
  await page.waitForSelector('#attachments .attachment');
  assert.deepEqual(await attachments(),['Anexo: xournal.png']);
  await clearAttachments();
 
  /* ---------- 7. Xournal++ fechado sem escolha: mesma frase de sempre + a saída ---------- */
  setWindows([win('920','Safari','Aula')]);
- await page.locator('#check').click();
+ await clickCheck();
  await page.locator('#check-note').waitFor({state:'visible'});
  assert.match(await page.locator('#check-note .check-note-text').textContent(),/^Abra a resolução no Xournal\+\+/);
  assert.equal(await page.locator('#check-note .check-note-pick').textContent(),'Escolher outro programa…');
@@ -216,7 +218,7 @@ await withArtifacts('conferir',async ctx=>{
  await toastWait(page,'O Conferir vai usar Safari');
  await closeSettings('cancel');
  assert.equal(await label(),'Conferir Safari');
- await page.locator('#check').click();
+ await clickCheck();
  await page.waitForSelector('#attachments .attachment');
  for(const [theme,width,height] of [['light',1440,900],['dark',1440,900],['light',900,650],['dark',900,650]]){
   await setTheme(page,theme);
@@ -234,8 +236,7 @@ await withArtifacts('conferir',async ctx=>{
   });
   assert.ok(row.over<=1,`${tag}: a fileira de ações não estoura (${row.over}px)`);
   assert.equal(row.overlap,false,`${tag}: os botões da fileira não se sobrepõem`);
-  const check=await rect(page,'#check'),box=await rect(page,'#composer-box');
-  assert.ok(check.left>=box.left-0.5&&check.right<=box.right+0.5&&check.top>=box.top-0.5&&check.bottom<=box.bottom+0.5,`${tag}: #check dentro da caixa`);
+  assert.equal(await page.locator('#check').evaluate(el=>el.closest('#attach-pop')?.id),'attach-pop',`${tag}: #check mora no menu Anexar`);
   assert.match(await page.locator('#check').evaluate(el=>(el.getAttribute('aria-label')||el.innerText).trim()),/Conferir/,`${tag}: segue nomeado`);
   await reviewShot(page,out,`caixa-safari-${tag}.png`);
 

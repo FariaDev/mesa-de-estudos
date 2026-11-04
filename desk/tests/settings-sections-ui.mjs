@@ -27,7 +27,7 @@ const INVENTORY={
  leitores:['#cfg-layout','#layout-presets-open'],
  mesa:['#cfg-title',...FLAGS.map(key=>'#cfg-desk-'+key)],
  avisos:['#ui-language','#tutor-language','#theme-mode','#accent-mode','#density-mode','#notify-sound','#notify-desktop','#notify-focused'],
- pastas:['#cfg-vault','#cfg-vault-browse','#cfg-pi','#cfg-pi-detect','#cfg-pi-browse','#cfg-claude','#cfg-claude-browse','#cfg-xournal','#cfg-xournal-browse','#cfg-opencode-key','#cfg-opencode-save','#cfg-opencode-create']
+ pastas:['#cfg-vault','#cfg-vault-browse','#cfg-pi','#cfg-pi-detect','#cfg-pi-browse','#cfg-pi-clear','#cfg-claude','#cfg-claude-browse','#cfg-claude-clear','#cfg-xournal','#cfg-xournal-browse','#cfg-xournal-clear','#cfg-opencode-key','#cfg-opencode-save','#cfg-opencode-create']
 };
 
 const rgb=text=>{
@@ -81,6 +81,11 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
   await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  };
  const tab=id=>page.locator(`#settings-tab-${id}`).click();
+ /* Escolher… de um executável (#83): o diálogo do main é trocado pelo arquivo dado; o campo é só leitura. */
+ const pickExecutable=async(button,file)=>{
+  await ctx.app.evaluate(({dialog},value)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[value]});},file);
+  await page.locator(button).click();
+ };
  const current=()=>page.evaluate(()=>document.querySelector('#settings-tabs [aria-current="page"]')?.dataset.sec??null);
  const visibleSections=()=>page.evaluate(()=>[...document.querySelectorAll('#settings-body > [data-sec]')].filter(el=>!el.hidden).map(el=>el.dataset.sec));
  const save=async()=>{
@@ -147,7 +152,7 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
   await page.locator('#cfg-title').fill('Título editado');
   await page.locator('#cfg-desk-calculator').uncheck();
   await tab('pastas');
-  await page.locator('#cfg-pi').fill('/tmp/pi-editado');
+  await pickExecutable('#cfg-pi-browse','/tmp/pi-editado');
   await tab('leitores');
   await page.locator('#cfg-layout-label-1').fill('Leitor editado');
  };
@@ -196,7 +201,7 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
  const added=page.locator('#cfg-courses .cfg-course').last();
  await added.locator('.cfg-name').fill('Nova sem pasta');
  await tab('pastas');
- await page.locator('#cfg-pi').fill('/tmp/pi-nao-salva');
+ await pickExecutable('#cfg-pi-browse','/tmp/pi-nao-salva');
  await page.locator('#settings-save').click();
  await page.waitForSelector('#cfg-courses .cfg-error',{timeout:5000});
  assert.equal(await page.evaluate(()=>document.querySelector('#settings-dialog').open),true,'o erro impede o Salvar');
@@ -243,9 +248,9 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
  await page.locator('#cfg-desk-conferir').uncheck();
  await page.locator('#cfg-desk-refsToggle').uncheck();
  await tab('pastas');
- await page.locator('#cfg-pi').fill('/tmp/pi-secoes');
- await page.locator('#cfg-claude').fill('/tmp/claude-secoes');
- await page.locator('#cfg-xournal').fill('/tmp/xournal-secoes');
+ await pickExecutable('#cfg-pi-browse','/tmp/pi-secoes');
+ await pickExecutable('#cfg-claude-browse','/tmp/claude-secoes');
+ await pickExecutable('#cfg-xournal-browse','/tmp/xournal-secoes');
  await save();
  const saved=readConfig();
  assert.deepEqual(saved.courses.map(c=>[c.id,c.name,c.path]),[['A','Cálculo I',courseA],['B','Física',courseB],['Química','Química',courseC]],'matérias gravadas como antes');
@@ -334,12 +339,12 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
     const hint=(await page.locator('#settings-hint').textContent()).trim();
     if(id==='avisos'){
      assert.doesNotMatch(hint,/depois de salvar/,`${label}: tema e acento valem na hora, o rodapé não contradiz (${hint})`);
-     assert.match(hint,/na hora/,`${label}: o rodapé diz que vale na hora (${hint})`);
+     assert.match(hint,/tema, acento, densidade, idioma e avisos valem na hora/i,`${label}: o rodapé nomeia o que vale na hora (${hint})`);
     }else if(id==='pastas'){
      assert.match(hint,/Os caminhos só valem depois de salvar/,`${label}: os caminhos seguem com o aviso de salvar (${hint})`);
      assert.match(hint,/O programa de escrita vale na hora/,`${label}: o programa de escrita vale na hora e o rodapé diz (${hint})`);
     }else{
-     assert.equal(hint,'As mudanças só valem depois de salvar.',`${label}: as outras seções seguem com o aviso de salvar`);
+     assert.equal(hint,'',`${label}: o botão Salvar já diz o que faz, o rodapé fica vazio`);
     }
     assert.equal(await page.locator('#settings-hint').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,`${label}: o aviso do rodapé não é cortado`);
     const type=await page.evaluate(()=>{const fs=sel=>{const el=document.querySelector(sel);return el?getComputedStyle(el).fontSize:'';};return {hint:fs('#settings-hint'),title:fs('#settings-form .set-sec:not([hidden]) .set-head h3'),intro:fs('#settings-form .set-sec:not([hidden]) .set-head p')};});
@@ -397,8 +402,7 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
      const add=q('.cfg-layout-prefer-add'),rm=q('.cfg-layout-prefer-remove');
      return {
       labelToInput:gap(q('label[for="cfg-layout-label-2"]'),q('#cfg-layout-label-2')),
-      inputToNote:gap(q('#cfg-layout-label-2'),q('#cfg-layout-note-2')),
-      noteToTitle:gap(q('#cfg-layout-note-2'),q('.cfg-layout-prefer-title')),
+      inputToTitle:gap(q('#cfg-layout-label-2'),q('.cfg-layout-prefer-title')),
       titleToRow:gap(q('.cfg-layout-prefer-title'),rows[0]),
       rowToAdd:gap(rows[rows.length-1],add),
       hintToToggle:gap(q('#cfg-layout-prefer-hint-2'),q('label[for="cfg-layout-toggle-2"]')),
@@ -407,7 +411,7 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
       rmBorder:getComputedStyle(rm).borderTopWidth,
      };
     });
-    assert.deepEqual(panel,{labelToInput:6,inputToNote:4,noteToTitle:16,titleToRow:6,rowToAdd:6,hintToToggle:16,toggleLabelToInput:6,addBorder:'0px',addH:30,rmBorder:'0px'},`${tag}: ritmo do leitor 2`);
+    assert.deepEqual(panel,{labelToInput:6,inputToTitle:16,titleToRow:6,rowToAdd:6,hintToToggle:16,toggleLabelToInput:6,addBorder:'0px',addH:30,rmBorder:'0px'},`${tag}: ritmo do leitor 2`);
    }
    // #27 B9 — editor de matérias nas medidas do canvas.
    {
@@ -440,9 +444,9 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
     assert.equal(b9.addH,30,`${tag}: Adicionar matéria com 30px`);
     assert.equal(b9.addBorder,'0px',`${tag}: Adicionar matéria é ação fantasma`);
     assert.match(b9.addBefore,/\+/,`${tag}: Adicionar matéria leva o +`);
-    assert.equal(b9.dialogRadius,'16px',`${tag}: diálogo com raio 16px`);
+    assert.equal(b9.dialogRadius,'12px',`${tag}: diálogo com raio 12px`);
     assert.equal(b9.tabH,30,`${tag}: itens da lateral com 30px`);
-    assert.equal(b9.tabRadius,'8px',`${tag}: itens da lateral com raio 8px`);
+    assert.equal(b9.tabRadius,'7px',`${tag}: itens da lateral com raio 7px`);
    }
    // Erro de validação (captura): linha com nome e sem pasta.
    await tab('materias');

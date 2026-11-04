@@ -16,6 +16,7 @@ import {canonical} from '../src/extensions/tool-fields.mjs';
 const require = createRequire(import.meta.url);
 const {resolvePi} = require('../pi.cjs');
 const {createStudyToolsServer} = require('../src/agents/study-tools.cjs');
+const {mesaExtensionPaths} = require('../src/agents/mesa-tool-catalog.cjs');
 const desk = path.resolve(import.meta.dirname, '..');
 
 let bin = '';
@@ -23,6 +24,8 @@ try {
   bin = resolvePi({deskDir: desk});
 } catch {}
 if (!bin || !fs.existsSync(bin)) {
+  /* 77 é "pulado" (convenção do automake, a mesma das hunts): `tests/parity.mjs`
+     segue a rodada, mas o pulo continua visível — não é um "ok" calado. */
   console.log('PULADO: o Pi não está instalado nesta máquina.');
   process.exit(77);
 }
@@ -36,8 +39,9 @@ process.env.PI_CODING_AGENT_DIR = agentDir;
 process.env.LEARNING_DESK_ACTIVITY_BRIDGE = JSON.stringify({url: 'http://127.0.0.1:9/activity', token: 'paridade'});
 process.env.LEARNING_DESK_MATERIAL_BRIDGE = JSON.stringify({url: 'http://127.0.0.1:9/pdf', token: 'paridade'});
 process.env.LEARNING_DESK_GGB_BRIDGE = path.join(root, 'ggb-bridge.json');
-/* O GeoGebra segue o idioma do tutor (#41): o Pi lê do ambiente, o Claude do parâmetro. */
-process.env.LEARNING_DESK_TUTOR_LANGUAGE = 'en';
+/* As descrições são em inglês em qualquer idioma: aqui o tutor está em
+   português e o GeoGebra ainda tem de anunciar a descrição em inglês (#41). */
+process.env.LEARNING_DESK_TUTOR_LANGUAGE = 'pt-BR';
 
 let session;
 try {
@@ -46,7 +50,7 @@ try {
   const resourceLoader = new sdk.DefaultResourceLoader({
     cwd: root, agentDir, settingsManager, noExtensions: true, noSkills: true,
     noPromptTemplates: true, noProjectContext: true,
-    additionalExtensionPaths: ['tutor-pdf', 'mesa-activity', 'mesa-figure', 'mesa-geogebra'].map((name) => path.join(desk, 'src', 'extensions', name)),
+    additionalExtensionPaths: mesaExtensionPaths(desk),
   });
   await resourceLoader.reload();
   const model = {id: 'fixture', name: 'No inference', provider: 'fixture', api: 'openai-completions', baseUrl: 'http://127.0.0.1:1', reasoning: false, input: ['text'], cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}, contextWindow: 100000, maxTokens: 1000};
@@ -54,7 +58,7 @@ try {
   await session.bindExtensions({});
   const piTools = Object.fromEntries(session.agent.state.tools.filter((tool) => tool.name.startsWith('mesa_')).map((tool) => [tool.name.slice('mesa_'.length), tool]));
 
-  const server = await createStudyToolsServer({createMaterial: async () => ({}), createActivity: async () => ({}), previewActivity: async () => ({}), viewFigure: async () => ({}), geogebra: {run: async () => ({}), state: async () => ({}), screenshot: async () => ({})}, tutorLanguage: 'en'});
+  const server = await createStudyToolsServer({createMaterial: async () => ({}), createActivity: async () => ({}), previewActivity: async () => ({}), viewFigure: async () => ({}), geogebra: {run: async () => ({}), state: async () => ({}), screenshot: async () => ({})}, readPdf: async () => ({}), searchMaterial: async () => ({}), proposeReview: async () => ({}), listMaterials: async () => ({}), saveNote: async () => ({}), tutorLanguage: 'pt-BR'});
   const [a, b] = InMemoryTransport.createLinkedPair();
   const client = new Client({name: 'mesa-parity', version: '1.0.0'});
   await server.instance.connect(b);
@@ -67,15 +71,16 @@ try {
     await server.instance.close();
   }
 
-  assert.deepEqual(Object.keys(piTools).sort(), ['criar_atividade', 'criar_pdf', 'geogebra', 'previsualizar_atividade', 'ver_figura']);
+  assert.deepEqual(Object.keys(piTools).sort(), ['buscar_material', 'calcular', 'criar_atividade', 'criar_pdf', 'geogebra', 'ler_pdf', 'listar_materiais', 'previsualizar_atividade', 'propor_revisao', 'salvar_nota', 'ver_figura']);
   assert.deepEqual(Object.keys(claudeTools).sort(), Object.keys(piTools).sort(), 'as mesmas ferramentas nos dois motores');
-  assert.match(piTools.geogebra.description, /^Control the GeoGebra applet/, 'geogebra: o Pi fala o idioma do tutor');
+  assert.match(piTools.geogebra.description, /^Control the GeoGebra applet/, 'geogebra: descrição em inglês mesmo com o tutor em português');
+  assert.match(piTools.geogebra.parameters.properties.command.description, /^Command in GeoGebra syntax/);
   for (const [name, pi] of Object.entries(piTools)) {
     const claude = claudeTools[name];
     assert.equal(pi.description, claude.description, `${name}: descrição`);
     assert.deepEqual(canonical(pi.parameters), canonical(claude.inputSchema), `${name}: esquema`);
   }
-  console.log('ok: criar_pdf, criar_atividade, previsualizar_atividade, ver_figura e geogebra iguais no Pi e no Claude (descrição e esquema)');
+  console.log('ok: as ferramentas da Mesa são iguais no Pi e no Claude (descrição e esquema)');
 } finally {
   session?.dispose?.();
   fs.rmSync(root, {recursive: true, force: true});

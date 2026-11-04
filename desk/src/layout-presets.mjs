@@ -165,7 +165,7 @@ export function summaryOf(layout) {
     percent: Math.floor((Math.round(normalized.pdfSplit * 1000) + 5) / 10),
   })];
   const minimized = normalized.minimized.filter(Boolean).length;
-  parts.push(minimized === 0 ? t('layout.summary.readersNormal') : t('layout.summary.readersCollapsed', {count: minimized}));
+  if (minimized > 0) parts.push(t('layout.summary.readersCollapsed', {count: minimized}));
   if (normalized.chatCollapsed) parts.push(t('layout.summary.tutorCollapsed'));
   return parts.join(' · ');
 }
@@ -316,13 +316,11 @@ function buildDialog(doc) {
   const rename = el(doc, 'button', {type: 'button', id: 'layout-preset-rename', text: t('layout.dialog.rename')});
   const remove = el(doc, 'button', {type: 'button', id: 'layout-preset-delete', text: t('layout.dialog.delete')});
   const close = el(doc, 'button', {type: 'button', id: 'layout-presets-close', class: 'icon-btn', 'aria-label': t('common.close'), text: '×'});
-  const leadNode = el(doc, 'p', {class: 'help-lead', text: t('layout.dialog.lead')});
   const selectLabel = el(doc, 'label', {for: 'layout-preset-select', text: t('layout.dialog.label')});
   const nameLabel = el(doc, 'label', {for: 'layout-preset-name', text: t('layout.dialog.name')});
   const title = el(doc, 'h2', {id: 'layout-presets-title', text: t('layout.dialog.title')});
   const dialog = el(doc, 'dialog', {id: 'layout-presets-dialog', 'aria-labelledby': 'layout-presets-title'}, [
     el(doc, 'div', {class: 'help-head'}, [title, close]),
-    leadNode,
     selectLabel,
     select,
     summary,
@@ -332,7 +330,7 @@ function buildDialog(doc) {
     status,
   ]);
   doc.body.append(dialog);
-  return {dialog, select, summary, name, status, apply, save, rename, remove, close, title, leadNode, selectLabel, nameLabel};
+  return {dialog, select, summary, name, status, apply, save, rename, remove, close, title, selectLabel, nameLabel};
 }
 
 export function initLayoutPresetsUI({api, onApplied, document: docArg} = {}) {
@@ -496,7 +494,6 @@ export function initLayoutPresetsUI({api, onApplied, document: docArg} = {}) {
   /* Troca de idioma com o diálogo já montado: reescreve o texto fixo e refaz a lista. */
   function relabel() {
     refs.title.textContent = t('layout.dialog.title');
-    refs.leadNode.textContent = t('layout.dialog.lead');
     refs.selectLabel.textContent = t('layout.dialog.label');
     refs.nameLabel.textContent = t('layout.dialog.name');
     refs.select.setAttribute('aria-label', t('layout.dialog.label'));

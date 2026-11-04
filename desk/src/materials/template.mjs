@@ -24,6 +24,7 @@ import {blockChildren,fillerGap,lineOf,locateRaw,normalizeCompare,normalizeLineE
 import {modelPageCss,runningTexts} from './template-page.mjs';
 import {segmentMaterial} from './template-tokens.mjs';
 import {plotFigure} from '../figures/plot-figure.mjs';
+import {svgFence} from '../figures/svg-fence.mjs';
 import {svgSafeConfig} from '../figures/svg-guard.mjs';
 export {tokenizeMaterial} from './template-tokens.mjs';
 export {MIN_MATH_FONT_PT, runningTexts, modelPageCss, measureMaterialMath, measureMaterialModel} from './template-page.mjs';
@@ -410,6 +411,8 @@ export function renderMaterialHtml({title = '', markdown = '', allowAssets = fal
       if (figure.diagnostic) diagnostics.push(figure.diagnostic);
       return figure.html;
     }
+    const svg = svgFence(unescapeHtml(code), lang);
+    if (svg) return svg.html;
     codes.push(`<pre class="hl"><code data-lang="${attr(lang || '')}">${highlightCode(unescapeHtml(code), lang)}</code></pre>`);
     return `CODEPLACEHOLDER${codes.length - 1}END`;
   });

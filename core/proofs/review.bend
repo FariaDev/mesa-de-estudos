@@ -297,5 +297,23 @@ def Laws.review_draft_edited():
 def Laws.review_empty_title():
   {==}
 
-def Laws.review_empty_lead():
+def Laws.review_empty_body():
+  {==}
+
+def Laws.review_proposal_approved():
+  {==}
+
+def Laws.review_proposal_edited():
+  {==}
+
+def Laws.review_proposal_discarded():
+  {==}
+
+def Laws.review_proposal_busy():
+  {==}
+
+def Laws.review_proposal_pending():
+  {==}
+
+def Laws.review_proposal_other():
   {==}

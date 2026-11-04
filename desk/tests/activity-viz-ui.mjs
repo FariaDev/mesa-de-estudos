@@ -53,8 +53,21 @@ await withArtifacts('activity-viz-ui',async ctx=>{
  await send('Crie uma atividade de movimento.');
  const act=page.locator('.activity-slot[data-activity-call="integrated-call-2"]');
  await act.locator('.activity-card[data-state="ready"]').waitFor({timeout:30000});
- await pollUntil(()=>page.frames().some(f=>f.url().startsWith('mesa-activity://artifact/')),Boolean,{timeout:10000,interval:50,what:'o iframe do artefato carregado',onTimeout:'return'});
- const frames=()=>page.frames().filter(f=>f.url().startsWith('mesa-activity://artifact/'));
+ await pollUntil(()=>page.frames().some(f=>f.url().startsWith('mesa-activity://act-')),Boolean,{timeout:10000,interval:50,what:'o iframe do artefato carregado',onTimeout:'return'});
+ const frames=()=>page.frames().filter(f=>f.url().startsWith('mesa-activity://act-'));
+ /* Reconsulta os quadros a cada poll: o card pode ser desmontado/remontado
+    durante a espera (pausa por rolagem), e um frame guardado antes falha com
+    "Frame was detached". Quadro que morreu no meio vira `null` e a próxima
+    volta pega a lista nova; lista vazia nunca aprova. */
+ const frameTokens=async()=>{
+  const states=[];
+  for(const frame of frames()){
+   try{states.push(await frame.evaluate(()=>{const v=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();return {accent:v('--mesa-accent'),chart1:v('--mesa-chart-1'),bg:v('--mesa-bg')};}));}
+   catch{states.push(null);}
+  }
+  return states;
+ };
+ const tokensAre=(token,value)=>pollUntil(frameTokens,states=>states.length>0&&states.every(state=>state&&state[token]===value),{timeout:5000,interval:50,what:`${token} ${value} em todos os quadros de atividade`});
 
  /* ---- altura inicial = final: o quadro nasceu com a altura medida ---- */
  const heights=await page.evaluate(()=>window.__heights);
@@ -118,7 +131,7 @@ await withArtifacts('activity-viz-ui',async ctx=>{
    for(const frame of frames()){
     const d=await docFacts(frame);
     assert.equal(d.bg,vf.column,`${tag}: o fundo do quadro é o da coluna do tutor (${d.bg} × ${vf.column})`);
-    assert.equal(d.mesaBg,theme==='dark'?'#242424':'#f4f4f4');
+    assert.equal(d.mesaBg,theme==='dark'?'#191919':'#ffffff');
     assert.equal(d.mcp,d.mesaBg,`${tag}: nome do MCP Apps espelhado`);
     assert.match(d.serif,/STIX Two Text/);
    }
@@ -131,14 +144,11 @@ await withArtifacts('activity-viz-ui',async ctx=>{
  await setTheme(page,'dark');
  for(const [accent,fill,text] of [['green','#13865e','#5fd3a4'],['pink','#d8306b','#f783ac'],['blue','#506cdf','#8fa8ff']]){
   await page.evaluate(a=>{if(a==='blue')delete document.documentElement.dataset.accent;else document.documentElement.dataset.accent=a;},accent);
-  for(const frame of frames()){
-   await frame.waitForFunction(([fill])=>getComputedStyle(document.documentElement).getPropertyValue('--mesa-accent').trim()===fill,[fill],{timeout:5000});
-   const d=await docFacts(frame);
-   assert.equal(d.chart1,text,`acento ${accent}: a paleta começa no acento`);
-  }
+  const states=await tokensAre('accent',fill);
+  for(const state of states)assert.equal(state.chart1,text,`acento ${accent}: a paleta começa no acento`);
  }
  await setTheme(page,'light');
- for(const frame of frames())await frame.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--mesa-bg').trim()==='#f4f4f4',undefined,{timeout:5000});
+ await tokensAre('bg','#ffffff');
 
  /* ---- coluna estável com o quadro acima da dobra ----
     O que fica dentro do #messages (a descrição `.activity-sr`, fora da vista)
@@ -193,8 +203,10 @@ await withArtifacts('activity-viz-ui',async ctx=>{
  await send('Mostre a secante.');
  const mixed=page.locator('.activity-slot[data-activity-call="integrated-call-3"]');
  await mixed.locator('.activity-card[data-state="ready"]').waitFor({timeout:30000});
- const mixedId=(await page.evaluate(async()=>(await window.desk.activityList()).items.find(i=>i.toolCallId==='integrated-call-3').id));
- const mixedFrame=()=>page.frames().find(f=>f.url().includes(`/${mixedId}/`));
+ const mixedItem=await page.evaluate(async()=>{const item=(await window.desk.activityList()).items.find(i=>i.toolCallId==='integrated-call-3');return {id:item.id,version:item.version};});
+ /* #89: o host carrega id e versão; a URL do quadro não tem mais `/<id>/`. */
+ const mixedHost=`${mixedItem.id}--v${mixedItem.version}`;
+ const mixedFrame=()=>page.frames().find(f=>{try{return new URL(f.url()).host===mixedHost;}catch{return false;}});
  const inside=()=>mixedFrame().evaluate(()=>{
   const r=el=>{const b=el.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height};};
   const cs=el=>getComputedStyle(el);

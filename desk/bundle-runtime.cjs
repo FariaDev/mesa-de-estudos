@@ -44,8 +44,10 @@ function runtimePackages(nodeModules,roots,{externalClaude=false}={}){
 }
 function stageBundlePayload(desk,dest){
  const modules=fs.readdirSync(desk).filter(file=>/\.(cjs|mjs)$/.test(file)&&fs.statSync(path.join(desk,file)).isFile()).sort();
- /* `free-models.json` é lido pelo `opencode-host.cjs` ao subir (#44). */
- const files=[...modules,'index.html','ggb.html','style.css','package.json','config.example.json','free-models.json'];
+ /* `free-models.json` é lido pelo `opencode-host.cjs` ao subir (#44). A chave
+    pública do update assinado (#80) mora ao lado do código: sem ela, o app
+    instalado recusa toda atualização. */
+ const files=[...modules,'index.html','ggb.html','pdf-render.html','style.css','package.json','config.example.json','free-models.json','update-signing-key.pub'];
  /* Os catálogos ficam em `src/locales` (#72) e `language-host.cjs` os lê ao subir (#41): `src` já entra no payload. Sem eles o app instalado não abre. */
  const dirs=['src','assets','templates'];
  const packages=runtimePackages(path.join(desk,'node_modules'),['marked','katex','dompurify','pdfjs-dist','@anthropic-ai/claude-agent-sdk'],{externalClaude:true});
@@ -128,6 +130,13 @@ function copyBundleHelpers({desk,root,app}){
 function installBundle({desk,root,app,version}){
  if(!fs.existsSync(path.join(app,'Contents','Info.plist')))throw Error(`installBundle: esperava um .app com Contents/Info.plist, recebeu ${JSON.stringify(app)}`);
  setPlistString(app,'CFBundleShortVersionString',version||'0.0.0');
+ /* O Electron.app de origem traz `electron.icns` e nome Electron; o bundle da
+    Mesa precisa apontar para o ícone e o nome próprios já copiados, senão o
+    Dock mostra a logo do Electron e o menu diz Electron. */
+ setPlistString(app,'CFBundleName','Mesa de Estudos');
+ setPlistString(app,'CFBundleDisplayName','Mesa de Estudos');
+ setPlistString(app,'CFBundleIdentifier','local.learningcanvas.mesa');
+ if(fs.existsSync(path.join(desk,'assets','mesa.icns')))setPlistString(app,'CFBundleIconFile','mesa.icns');
  const dest=path.join(app,'Contents','Resources','app');
  const managed=stageBundlePayload(desk,dest);
  recordInstallSource(root,dest);

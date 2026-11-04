@@ -44,6 +44,11 @@ law sk_linha_key:
 law sk_linha_gravando:
   {V.attrGet(V.attrsOf(S.skRowNode(editable(False{}), "check")), "class") == Some{"keys-row recording"} : Maybe<&2, String>}
 
+# A nota "fixo" só aparece ao focar a linha (#90), então a linha fixa precisa
+# entrar na ordem de tabulação: ela não tem botão que a alcance.
+law sk_linha_fixa_focavel:
+  {V.attrGet(V.attrsOf(S.skRowNode(fixed(), "")), "tabindex") == Some{"0"} : Maybe<&2, String>}
+
 law sk_reset_visivel:
   {V.attrGet(V.attrsOf(S.skResetNode("check", True{})), "hidden") == None{} : Maybe<&2, String>}
 

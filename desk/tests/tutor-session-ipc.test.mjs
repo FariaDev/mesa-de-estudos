@@ -75,3 +75,38 @@ test('pi-compact passa ao Claude (#58); a compactação automática continua rec
   assert.ok(bridge.seen.includes('compact'));
   await assert.rejects(async () => ipcMain.invoke('pi-auto-compaction', true), ptMatches(/compactação/i));
 });
+
+test('pi-connect lê estado, histórico, catálogo e medidor ao mesmo tempo', async () => {
+  let inflight = 0;
+  let maxInflight = 0;
+  const bridge = {
+    uncertain: false,
+    isRunning: () => false,
+    async request(method) {
+      inflight += 1;
+      maxInflight = Math.max(maxInflight, inflight);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      inflight -= 1;
+      if (method === 'get_state') return {model: {id: 'm'}};
+      if (method === 'get_messages') return {messages: [{role: 'user'}]};
+      if (method === 'get_available_models') return {models: [{provider: 'p', id: 'm'}]};
+      if (method === 'get_session_stats') return {tokens: 10, contextWindow: 100};
+      return {};
+    },
+    respond() { return {ok: true}; },
+  };
+  const ipcMain = fakeIpcMain();
+  const live = {session: '/s.jsonl', bridge, levelsMod: {getSupportedThinkingLevels: () => ['off', 'high']}, languageHost: {logText: (text) => text},
+    opencodeHost: {liveReady: async () => { await new Promise((resolve) => setTimeout(resolve, 30)); }, annotate: (models) => models, rememberModel: () => {}}};
+  registerTutorSessionIpc({ipcMain, live, runtime: '/rt', deskDir: '/desk', pendingDialogs: new Set(), appendLog: () => {},
+    engine: () => 'pi', connect: () => bridge, stopBridge: () => {}, assertIdle: async () => {}, persist: () => {},
+    courseSessions: () => [], conversationData: () => ({engine: 'pi'}), captureAvailable: () => false, trimMessageImages: (messages) => messages,
+    piBinary: () => '', isNative: (kind) => kind === 'claude' || kind === 'opencode'});
+  const started = Date.now();
+  const out = await ipcMain.invoke('pi-connect');
+  assert.ok(maxInflight >= 2, 'as leituras independentes saem juntas');
+  assert.ok(Date.now() - started < 120, 'não soma o prazo de cada leitura');
+  assert.deepEqual(out.levels, ['off', 'high']);
+  assert.equal(out.contextUsage.percent, 10);
+  assert.equal(out.messages.length, 1);
+});

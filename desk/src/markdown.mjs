@@ -2,10 +2,13 @@ import {marked} from '../node_modules/marked/lib/marked.esm.js';
 import katex from '../node_modules/katex/dist/katex.mjs';
 import DOMPurify from '../node_modules/dompurify/dist/purify.es.mjs';
 import {highlightCode} from '../highlight.mjs';
+import {icon} from '../icons.mjs';
+import {t} from './ui-text.mjs';
 import {build,htmlNode} from './view-host.mjs';
 import talkCore from './generated/talkview.core.js';
 import {plotFigure} from './figures/plot-figure.mjs';
 import {svgSafeConfig} from './figures/svg-guard.mjs';
+import {svgFence} from './figures/svg-fence.mjs';
 
 /* Renderer Markdown+LaTeX compartilhado (chat principal e chat lateral). Mesmo
    pipeline do chat.mjs de sempre: o host reescreve fórmulas/figuras como
@@ -33,6 +36,8 @@ export function markup(text,allowAssets=true){
  html=html.replace(/<pre><code(?: class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g,(all,lang,code)=>{
   /* Cerca `plot` (#60): vira a figura (ou o aviso) e segue pelo DOMPurify junto com o resto. */
   if(lang==='plot')return plotFigure(unescHtml(code)).html;
+  const svg=svgFence(unescHtml(code),lang);
+  if(svg)return svg.html;
   codes.push(`<pre class="hl"><code data-lang="${attrValue(lang||'')}">${highlightCode(unescHtml(code),lang)}</code></pre>`);
   return `CODEPLACEHOLDER${codes.length-1}END`;
  });
@@ -51,6 +56,10 @@ export function decorateCode(body){
  for(const pre of body.querySelectorAll('pre')){
   if(pre.parentElement?.classList.contains('codeblock'))continue;
   const lang=(pre.querySelector('code')?.dataset.lang||'').trim();
-  pre.replaceWith(build(talkCore.codeBlock(htmlNode(pre.outerHTML),lang.toUpperCase())));
+  const block=build(talkCore.codeBlock(htmlNode(pre.outerHTML),lang.toUpperCase()));
+  /* O botão de copiar é ícone (o mesmo da mensagem), com o nome acessível do núcleo. */
+  const copy=block.querySelector('.code-copy');
+  if(copy){copy.innerHTML=icon('copy');copy.title=t('talk.copy');}
+  pre.replaceWith(block);
  }
 }

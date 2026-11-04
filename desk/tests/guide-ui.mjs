@@ -1,5 +1,5 @@
 // node tests/guide-ui.mjs — Guia da Mesa (tickets #34 e #64), medido e percorrido na janela.
-// Mede o casco (raio 16px, lateral de 252px com a mascote e ícones, título de 22px em
+// Mede o casco (raio 12px, lateral de 252px com a luminária e ícones, título de 22px em
 // serifa, barra de 44px, × de 28px, busca de 30px, miolo de até 760px, sem rolagem
 // lateral) nos dois temas, em 1440×900 e 900×650; percorre as sete seções só por
 // "Próximo: … →" até a última e volta só por "← Anterior"; confere o foco no título, a
@@ -50,6 +50,14 @@ await withArtifacts('guide',async ctx=>{
  await page.waitForSelector('.pdf-panel canvas',{timeout:30000});
  await page.keyboard.press('ControlOrMeta+/');
  await page.waitForSelector('#help-dialog[open]');
+ /* Só o título do cartão vai em serifa: o negrito do texto fica no corpo. */
+ const cardFonts=await page.evaluate(()=>{
+  const size=el=>Number.parseFloat(getComputedStyle(el).fontSize);
+  const card=document.querySelector('.guide-card[data-n="3"]');
+  return {title:size(card.querySelector(':scope>strong')),inline:size(card.querySelector('#help-conferir-step strong')),body:size(card.querySelector(':scope>span:last-child'))};
+ });
+ assert.equal(cardFonts.inline,cardFonts.body,`negrito no corpo do cartão (${JSON.stringify(cardFonts)})`);
+ assert.ok(cardFonts.title>cardFonts.body,`título maior que o corpo (${JSON.stringify(cardFonts)})`);
 
  /* ---------- casco e medidas ---------- */
  for(const [width,height] of [[1440,900],[900,650]]){
@@ -58,14 +66,14 @@ await withArtifacts('guide',async ctx=>{
    await setTheme(page,theme);
    const tag=`${theme} ${width}×${height}`;
    const m=await measure(page);
-   assert.equal(m.dialog.radius,'16px',`${tag}: raio 16px`);
+   assert.equal(m.dialog.radius,'12px',`${tag}: raio 12px`);
    assert.ok(m.dialog.bottom<=m.vh&&m.dialog.right<=m.vw,`${tag}: cabe na janela`);
    assert.ok(near(m.side.width,252,1),`${tag}: lateral de 252px (${m.side.width})`);
    assert.equal((await page.locator('#help-title').textContent()).trim(),'Guia da Mesa');
    /* #64: o título do guia é o único de diálogo em serifa de 22px (exceção do padrão de 15px). */
    assert.equal(m.title.font,'22px',`${tag}: título de 22px`);
    assert.match(m.title.family,/STIX|serif/i,`${tag}: título em serifa`);
-   assert.equal(await page.locator('.guide-side .guide-mascote svg').count(),3,`${tag}: o trio ∫ Σ ∇ na lateral`);
+   assert.equal(await page.locator('.guide-side .guide-lamp.brand-icon').evaluate(el=>el.complete&&el.naturalWidth>0&&el.getBoundingClientRect().width===44),true,`${tag}: a luminária na lateral`);
    assert.equal(await page.locator('.guide-nav-item .guide-nav-icon').count(),ORDER.length,`${tag}: um ícone por seção`);
    assert.ok(near(m.search.height,30,0.6),`${tag}: busca de 30px (${m.search.height})`);
    assert.equal(await page.locator('#guide-search').getAttribute('placeholder'),'Buscar no guia');
@@ -143,7 +151,7 @@ await withArtifacts('guide',async ctx=>{
  assert.equal(await page.evaluate(()=>document.activeElement?.id),'guide-section-title');
  await page.locator('#guide-search').fill('acentuacao');
  assert.equal(await page.locator('#guide-empty').isVisible(),true,'sem resultado, o guia diz');
- assert.equal(await page.locator('#guide-empty .guide-empty-mascote .mascote-nabla[data-humor="pensando"]').count(),1,'a mascote pensando no vazio');
+ assert.equal(await page.locator('#guide-empty .guide-empty-mascote .mascote-nabla[data-humor="pensando"]').count(),1,'o ∇ pensando no vazio, como antes da #100');
  assert.equal(await page.locator('#guide-results').isVisible(),false);
  await page.locator('#guide-search').fill('CALCULADORA');
  assert.ok((await page.locator('#guide-results .guide-hit-section').allTextContents()).map(x=>x.trim()).includes('Calculadora'),'busca sem caixa nem acento acha "Calculadora"');
@@ -161,7 +169,10 @@ await withArtifacts('guide',async ctx=>{
  await page.locator('.guide-nav-item',{hasText:'Atalhos'}).click();
  assert.deepEqual(await page.locator('.guide-keygroup h4').allTextContents(),['Mensagem','Material','Mesa']);
  assert.ok(await page.locator('#keys-customize').isVisible(),'Personalizar atalhos… visível');
- assert.equal(await page.locator('.guide-key[data-key="help"] .guide-combo').innerText().then(t=>t.replace(/\s+/g,'')),'⌘/');
+ /* O guia desenha cada tecla num <kbd>, então o innerText não tem o "+" que
+    o `format` usa entre as partes fora do macOS. */
+ const helpCombo=await page.evaluate(()=>window.mesaKeys.format('Mod+/').replace(/\+/g,''));
+ assert.equal(await page.locator('.guide-key[data-key="help"] .guide-combo').innerText().then(t=>t.replace(/\s+/g,'')),helpCombo,`${process.platform}: o rótulo do atalho segue a plataforma`);
  await page.locator('#keys-customize').click();
  await page.waitForSelector('#keys-dialog[open]');
  await page.keyboard.press('Escape');

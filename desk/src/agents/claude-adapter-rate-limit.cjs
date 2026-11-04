@@ -31,10 +31,6 @@ function formatWaitMs(waitMs) {
   return minutes ? `${hours}h${minutes}min` : `${hours}h`;
 }
 
-/* Normaliza o input de AskUserQuestion (sdk-tools.d.ts do pin 0.3.301) para o
-   contrato da Mesa: pergunta sem texto é descartada; header ausente ganha um
-   rótulo neutro; opção sem label é descartada; o restante é preservado. */
-
 class ClaudeAdapterRateLimit {
   _handleApiRetry(message) {
     const retry = turnPolicy.classifyApiRetry(message);

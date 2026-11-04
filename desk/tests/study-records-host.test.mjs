@@ -2,10 +2,12 @@
 import test, {after} from 'node:test';
 import assert from 'node:assert/strict';
 import {ptMatches} from './pt-text.mjs';
+import {parseMessage} from '../src/i18n.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {EventEmitter} from 'node:events';
 import {fakeIpcMain} from './fake-electron-shell.mjs';
 import * as fx from './claude-fixtures.mjs';
 
@@ -17,7 +19,7 @@ const bookmarks = require('../bookmarks.cjs');
 const dirs = [];
 after(() => { for (const dir of dirs) fs.rmSync(dir, {recursive: true, force: true}); });
 
-function studyRecordsHost({engine = 'pi', sdk = null} = {}) {
+function studyRecordsHost({engine = 'pi', sdk = null, openCodeDraft = null} = {}) {
   const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-records-'));
   dirs.push(runtime);
   const ipcMain = fakeIpcMain();
@@ -25,7 +27,7 @@ function studyRecordsHost({engine = 'pi', sdk = null} = {}) {
   const guards = [];
   const live = {courseId: 'calc', session: path.join(runtime, 's.jsonl'), bridge: null, languageHost: {tutorLanguage: () => 'pt-BR'}, opencodeHost: {keyEnv: () => ({})}};
   const host = registerStudyRecordsHost({ipcMain, live, runtime, allowed, allowedXopp: new Set(['/x/q.xopp']), appendLog: () => {},
-    engine: () => engine, piBinary: () => '', claudeBinary: () => null, claudeDetector: () => null, testClaudeSdkLoader: () => (sdk ? async () => sdk : null), bookmarksPayload: () => bookmarks.readBookmarks(runtime, live.courseId).filter(item => allowed.has(item.path)),
+    engine: () => engine, piBinary: () => '', claudeBinary: () => null, claudeDetector: () => null, testClaudeSdkLoader: () => (sdk ? async () => sdk : null), openCodeDraft, bookmarksPayload: () => bookmarks.readBookmarks(runtime, live.courseId).filter(item => allowed.has(item.path)),
     reviewPayload: () => [], assertNoFreeMutation: () => guards.push('free'), assertNoNav: () => guards.push('nav')});
   return {host, ipcMain, runtime, guards};
 }
@@ -70,10 +72,51 @@ test('review-draft no Claude roda numa consulta temporária, sem ferramenta, e a
   assert.deepEqual(fs.readdirSync(runtime).filter((name) => name.startsWith('.review-draft-')), [], 'a pasta temporária sai');
 });
 
+test('review-draft no OpenCode usa a ponte descartável, sem ferramentas (#93)', async () => {
+ let captured = null;
+ class DraftBridge extends EventEmitter {
+  request() { return Promise.resolve({}); }
+  stop() { return undefined; }
+ }
+ const bridge = new DraftBridge();
+ const {ipcMain} = studyRecordsHost({engine: 'opencode', openCodeDraft: (options) => { captured = options; return bridge; }});
+ const draft = ipcMain.invoke('review-draft', {id: 'r-oc', question: 'Quanto é 2 + 2?', attempt: '', answer: 'É 4.'});
+ await new Promise((resolve) => setImmediate(resolve));
+ assert.match(path.basename(captured.cwd), /^\.review-draft-/);
+ assert.equal(captured.systemPrompt.includes('português'), true);
+ assert.deepEqual(captured.selection, {model: null, effort: null});
+ bridge.emit('event', {type: 'message_end', message: {role: 'assistant', content: [{type: 'text', text: '{"question":"Quanto é 2 + 2?","attempt":"","difficulty":"Conta simples"}'}]}});
+ bridge.emit('event', {type: 'agent_settled'});
+ assert.equal((await draft).difficulty, 'Conta simples');
+});
+
 test('review-draft sem resposta selecionada recusa; review-save passa pelas guardas', async () => {
   const {ipcMain, guards, host} = studyRecordsHost({engine: 'claude'});
   await assert.rejects(async () => ipcMain.invoke('review-draft', {id: 'r1'}));
   await assert.rejects(async () => ipcMain.invoke('review-save', {mode: 'add', item: {}}));
   assert.deepEqual(guards, ['free', 'nav']);
   host.cancelReviewDraft();
+});
+
+test('cancelReviewDraft espera a sessão temporária sumir antes de o servidor parar (#93)', async () => {
+ const order = [];
+ class PendingBridge extends EventEmitter {
+  request() { return new Promise(() => {}); }
+  async stop() {
+   if (this.stopped) return;
+   this.stopped = true;
+   await new Promise((resolve) => setTimeout(resolve, 20));
+   order.push('sessão temporária apagada');
+  }
+ }
+ const {ipcMain, host} = studyRecordsHost({engine: 'opencode', openCodeDraft: () => new PendingBridge()});
+ const draft = ipcMain.invoke('review-draft', {id: 'r-quit', question: 'Quanto é 2 + 2?', attempt: '', answer: 'É 4.'});
+ await new Promise((resolve) => setImmediate(resolve));
+ const waited = host.cancelReviewDraft();
+ assert.ok(waited && typeof waited.then === 'function', 'o cancelamento devolve a promessa do rascunho');
+ await waited;
+ order.push('servidor parado');
+ assert.deepEqual(order, ['sessão temporária apagada', 'servidor parado'], 'a sessão some antes de o servidor parar');
+ await assert.rejects(draft, (error) => parseMessage(error.message)?.key === 'review.error.cancelled');
+ assert.equal(host.cancelReviewDraft(), null, 'sem rascunho em curso não há o que esperar');
 });

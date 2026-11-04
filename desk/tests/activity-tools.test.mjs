@@ -11,18 +11,25 @@ test('createActivityTool devolve a definição da ferramenta com schema e handle
   assert.match(ACTIVITY_TOOL_DESCRIPTION, /offline/);
   const definition = await createActivityTool(async () => ({published: true, id: 'x'}));
   assert.equal(typeof definition.handler, 'function');
-  assert.equal(definition.inputSchema.title.safeParse('MRUV').success, true);
-  assert.equal(definition.inputSchema.title.safeParse('x'.repeat(161)).success, false);
-  assert.equal(definition.inputSchema.objective.safeParse('x'.repeat(301)).success, false);
-  assert.equal(definition.inputSchema.alternativeMarkdown.safeParse('x'.repeat(8001)).success, false);
-  assert.equal(definition.inputSchema.html.safeParse('x'.repeat(51201)).success, false);
-  assert.equal(definition.inputSchema.css.safeParse('x'.repeat(32769)).success, false);
-  assert.equal(definition.inputSchema.js.safeParse('x'.repeat(32769)).success, false);
-  assert.equal(definition.inputSchema.callRef.safeParse('x'.repeat(81)).success, false);
-  assert.equal(definition.inputSchema.activityId.safeParse('act-abc12345').success, true);
-  assert.equal(definition.inputSchema.activityId.safeParse('x'.repeat(65)).success, false);
-  assert.equal(definition.inputSchema.activityId.safeParse(undefined).success, true);
-  assert.equal(definition.inputSchema.katex.safeParse(true).success, true);
+  const parse = (args) => definition.inputSchema.safeParse(args).success;
+  const base = {title: 'MRUV', objective: 'Explorar', alternativeMarkdown: 'a'};
+  assert.equal(parse(base), true);
+  assert.equal(parse({...base, title: 'x'.repeat(161)}), false);
+  assert.equal(parse({...base, objective: 'x'.repeat(301)}), false);
+  assert.equal(parse({...base, alternativeMarkdown: 'x'.repeat(8001)}), false);
+  assert.equal(parse({...base, html: 'x'.repeat(51201)}), false);
+  assert.equal(parse({...base, css: 'x'.repeat(32769)}), false);
+  assert.equal(parse({...base, js: 'x'.repeat(32769)}), false);
+  assert.equal(parse({...base, activityId: 'act-abc12345'}), true);
+  assert.equal(parse({...base, activityId: 'x'.repeat(65)}), false);
+  assert.equal(parse({...base, previaId: 'prv-0123456789ab'}), true);
+  assert.equal(parse({...base, katex: true}), true);
+  /* M1: o `callRef` do hook não aparece no esquema que o modelo vê, mas o
+     `passthrough()` o deixa chegar ao handler (o hook o injeta). */
+  assert.equal('callRef' in definition.inputSchema.shape, false);
+  const withRef = definition.inputSchema.safeParse({...base, callRef: 'ref-injetado'});
+  assert.equal(withRef.success, true);
+  assert.equal(withRef.data.callRef, 'ref-injetado');
 });
 
 test('createActivityServer compõe o servidor mesa com a ferramenta (sem API privada)', async () => {
@@ -80,24 +87,38 @@ const path = require('node:path');
 
 test('criar_atividade aceita o tipo e a biblioteca de gráficos', async () => {
   const definition = await createActivityTool(async () => ({published: true}));
-  assert.equal(definition.inputSchema.kind.safeParse('visualizacao').success, true);
-  assert.equal(definition.inputSchema.kind.safeParse('atividade').success, true);
-  assert.equal(definition.inputSchema.kind.safeParse('grafico').success, false);
-  assert.equal(definition.inputSchema.kind.safeParse(undefined).success, true, 'sem tipo = atividade (as antigas seguem valendo)');
-  assert.equal(definition.inputSchema.charts.safeParse(true).success, true);
+  const base = {title: 't', objective: 'o', alternativeMarkdown: 'a'};
+  const parse = (extra) => definition.inputSchema.safeParse({...base, ...extra}).success;
+  assert.equal(parse({kind: 'visualizacao'}), true);
+  assert.equal(parse({kind: 'atividade'}), true);
+  assert.equal(parse({kind: 'grafico'}), false);
+  assert.equal(parse({}), true, 'sem tipo = atividade (as antigas seguem valendo)');
+  assert.equal(parse({charts: true}), true);
 });
 
 test('as instruções dizem o que a issue pede: prévia antes, quadro solto, tokens, offline e o texto que não repete', () => {
   for (const pattern of [
-    /prévia/, /antes de escrever a resposta/, /não o anuncia/, /sem fundo, cartão, borda ou título de banner/,
-    /largura fluida/, /altura fixa em px/, /100vh/, /16px de respiro/, /var\(--mesa-radius\)/,
-    /--mesa-chart-1 … --mesa-chart-6/, /--color-background-primary/, /--mesa-font-serif/, /offline/, /Chart\.js 4/, /KaTeX/,
-    /SVG ou canvas puro/, /imagem PNG gerada/, /Levar ao tutor/,
+    /[Pp]review/, /before writing the reply/, /do not announce it/, /without background, card, border/, /no card, border or title/,
+    /fluid width/, /fixed height in px/, /100vh/, /16px padding/, /var\(--mesa-radius\)/,
+    /--mesa-chart-1 … --mesa-chart-6/, /--color-background-primary/, /--mesa-font-sans\/serif\/mono/, /offline/, /Chart\.js 4/, /KaTeX/,
+    /plain SVG or canvas/, /generated PNG/, /Levar ao tutor/,
   ]) assert.match(ACTIVITY_TOOL_DESCRIPTION, pattern);
-  assert.match(PREVIEW_TOOL_DESCRIPTION, /print PNG/);
+  assert.match(PREVIEW_TOOL_DESCRIPTION, /PNG print/);
   assert.match(PREVIEW_TOOL_DESCRIPTION, /contentHeight/);
-  assert.match(PREVIEW_TOOL_DESCRIPTION, /log, info, warning, error e exceções/);
-  assert.match(PREVIEW_TOOL_DESCRIPTION, /Nada é gravado/);
+  assert.match(PREVIEW_TOOL_DESCRIPTION, /log, info, warning, error and exceptions/);
+  assert.match(PREVIEW_TOOL_DESCRIPTION, /Nothing is saved/);
+});
+
+/* M1: a descrição era ~2,1 mil tokens (auditoria das ferramentas do tutor). O
+   corte de 20% é medido com a mesma régua do `measure-prompts`, incluindo o
+   esquema que vai junto no mesmo objeto da ferramenta. */
+test('M1: criar_atividade encolheu pelo menos 20% sem perder as regras', async () => {
+  const {estimateTokens} = await import('../scripts/measure-prompts.mjs');
+  const definition = await createActivityTool(async () => ({}));
+  const {z} = await import('zod');
+  const tool = JSON.stringify({name: ACTIVITY_TOOL_NAME, description: ACTIVITY_TOOL_DESCRIPTION, input_schema: z.toJSONSchema(definition.inputSchema, {io: 'input', unrepresentable: 'any'})});
+  assert.ok(estimateTokens(tool) <= Math.floor(2127 * 0.8), `ferramenta com ${estimateTokens(tool)} tokens (teto 1701)`);
+  assert.ok(estimateTokens(ACTIVITY_TOOL_DESCRIPTION) <= Math.floor(1681 * 0.8), `descrição com ${estimateTokens(ACTIVITY_TOOL_DESCRIPTION)} tokens (teto 1344)`);
 });
 
 test('paridade: a extensão do Pi registra as duas ferramentas com o MESMO texto do Claude', async () => {
@@ -116,7 +137,7 @@ test('prévia no Claude: devolve a imagem e o resumo do console; nada de publica
   const calls = [];
   const definition = await createPreviewTool(async (args) => {
     calls.push(args);
-    return {previewed: true, width: 390, theme: 'escuro', contentHeight: 240, capturedHeight: 240,
+    return {previewed: true, width: 390, theme: 'escuro', contentHeight: 240, capturedHeight: 240, previaId: 'prv-0123456789ab',
       consoleMessages: [{level: 'log', text: 'ok'}, {level: 'error', text: 'TypeError: x (linha 3)'}],
       screenshot: {mimeType: 'image/png', data: 'iVBORw0KGgo=', width: 390, height: 240}};
   });
@@ -131,6 +152,7 @@ test('prévia no Claude: devolve a imagem e o resumo do console; nada de publica
   assert.match(result.content[1].text, /Prévia em 390px \(escuro\): o conteúdo pede 240px/);
   assert.match(result.content[1].text, /\[error\] TypeError: x \(linha 3\)/);
   assert.match(result.content[1].text, /Corrija os 1 erro/);
+  assert.match(result.content[1].text, /criar_atividade com previaId "prv-0123456789ab"/);
   const failing = await createPreviewTool(async () => { throw new Error('O documento não ficou pronto a tempo.'); });
   const failed = await failing.handler({html: '<p/>'}, {});
   assert.equal(failed.isError, true);
@@ -141,8 +163,8 @@ test('o servidor mesa inclui a prévia só junto da ferramenta de mostrar', asyn
   const withPreview = await study.createStudyToolsServer({createActivity: async () => ({}), previewActivity: async () => ({})});
   const without = await study.createStudyToolsServer({previewActivity: async () => ({})});
   const names = (server) => [...(server.instance?._registeredTools ? Object.keys(server.instance._registeredTools) : [])];
-  assert.deepEqual(names(withPreview).sort(), ['criar_atividade', 'previsualizar_atividade']);
-  assert.deepEqual(names(without), []);
+  assert.deepEqual(names(withPreview).sort(), ['calcular', 'criar_atividade', 'previsualizar_atividade']);
+  assert.deepEqual(names(without), ['calcular']);
   assert.equal(withPreview.name, 'mesa');
 });
 
@@ -154,7 +176,8 @@ test('paridade: o esquema anunciado pelo Claude é o descrito no guia (o mesmo q
   const guide = await import('../src/extensions/mesa-activity/guide.mjs');
   const fields = await import('../src/extensions/tool-fields.mjs');
   const {ACTIVITY_CALL_REF_FIELD} = require('../activity-bridge.cjs');
-  assert.ok(ACTIVITY_CALL_REF_FIELD in guide.CREATE_FIELDS, 'o campo reservado do callRef está no esquema');
+  assert.equal(ACTIVITY_CALL_REF_FIELD in guide.CREATE_FIELDS, false, 'M1: o callRef não aparece no esquema');
+  assert.equal('previaId' in guide.CREATE_FIELDS, true, 'A3: a publicação aceita o id da prévia');
   const server = await createActivityServer(async () => ({}), async () => ({}));
   const [a, b] = InMemoryTransport.createLinkedPair();
   const client = new Client({name: 'mesa-activity-contract', version: '1.0.0'});
@@ -177,4 +200,78 @@ test('paridade: o esquema anunciado pelo Claude é o descrito no guia (o mesmo q
   assert.match(source, /parameters: typeboxObject\(Type, PREVIEW_FIELDS\)/);
   assert.match(source, /parameters: typeboxObject\(Type, CREATE_FIELDS\)/);
   assert.match(source, /publishedText\(result, params\.kind\)/);
+});
+
+/* M1: o `tools/list` não mostra `callRef`, mas o transporte MCP do SDK não a
+   descarta: o `passthrough()` deixa o valor injetado pelo hook chegar ao
+   handler, e a correlação continua igual. */
+test('M1: o callRef injetado passa pelo MCP do Claude sem aparecer em tools/list', async () => {
+  const {Client} = await import('@modelcontextprotocol/sdk/client/index.js');
+  const {InMemoryTransport} = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const calls = [];
+  const server = await require('../src/agents/study-tools.cjs').createStudyToolsServer({
+    createActivity: async (args) => { calls.push(args); return {id: 'act-1', version: 1, title: 't'}; },
+  });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  const client = new Client({name: 'mesa-callref', version: '1.0.0'});
+  await server.instance.connect(b);
+  await client.connect(a);
+  try {
+    const {tools} = await client.listTools();
+    const create = tools.find((tool) => tool.name === 'criar_atividade');
+    assert.equal('callRef' in (create.inputSchema.properties || {}), false, 'o modelo não vê callRef');
+    const result = await client.callTool({name: 'criar_atividade', arguments: {title: 't', objective: 'o', alternativeMarkdown: 'a', html: '<p/>', callRef: 'ref-do-hook'}});
+    assert.equal(result.isError, undefined, JSON.stringify(result.content));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].callRef, 'ref-do-hook', 'o hook continua correlacionando a chamada');
+  } finally {
+    await client.close();
+    await server.instance.close();
+  }
+});
+
+/* ---------- M4: o console da prévia não some em silêncio ---------- */
+
+test('M4: com mais de 50 mensagens, o texto diz quanto mostrou e prioriza erros', async () => {
+  const guide = await import('../src/extensions/mesa-activity/guide.mjs');
+  const messages = [];
+  for (let i = 0; i < 198; i += 1) messages.push({level: 'log', text: `log ${i}`});
+  messages.push({level: 'error', text: 'TypeError: fim 198 (linha 3)'});
+  messages.push({level: 'error', text: 'ReferenceError: fim 199 (linha 4)'});
+  const text = guide.previewText({width: 390, theme: 'claro', contentHeight: 200, consoleMessages: messages});
+  assert.match(text, /\(mostrando 50 de 200 mensagens; as demais ficaram no console da prévia\)/);
+  assert.match(text, /\[error\] TypeError: fim 198/);
+  assert.match(text, /\[error\] ReferenceError: fim 199/);
+  assert.equal(text.split('\n').filter((line) => line.startsWith('- [')).length, 50);
+  const short = guide.previewText({width: 390, theme: 'claro', contentHeight: 200, consoleMessages: messages.slice(0, 10)});
+  assert.doesNotMatch(short, /mostrando 50 de/);
+});
+
+/* ---------- M9: a soma da atividade cabe no store ---------- */
+
+test('M9: soma acima de 64 KiB falha antes de pré-visualizar ou publicar, com tamanho e teto', async () => {
+  const huge = {title: 'Grande', objective: 'o', alternativeMarkdown: 'a'.repeat(8000), html: 'h'.repeat(51200), css: 'c'.repeat(16000), js: 'j'.repeat(16000)};
+  const created = [];
+  const definition = await createActivityTool(async (args) => { created.push(args); return {published: true, id: 'act-1', title: 't', version: 1}; });
+  const result = await definition.handler(huge, {});
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /91207 bytes/);
+  assert.match(result.content[0].text, /65536/);
+  assert.equal(created.length, 0, 'nada foi publicado');
+
+  const previewed = [];
+  const preview = await createPreviewTool(async (args) => { previewed.push(args); return {screenshot: {data: '', mimeType: 'image/png'}}; });
+  const previewResult = await preview.handler(huge, {});
+  assert.equal(previewResult.isError, true);
+  assert.match(previewResult.content[0].text, /65536/);
+  assert.equal(previewed.length, 0, 'a prévia nem abriu');
+});
+
+test('A3/M9: previaId e conteúdo juntos são recusados antes de publicar', async () => {
+  const created = [];
+  const definition = await createActivityTool(async (args) => { created.push(args); return {published: true, id: 'act-1', title: 't', version: 1}; });
+  const result = await definition.handler({title: 't', objective: 'o', alternativeMarkdown: 'a', previaId: 'prv-0123456789ab', html: '<p>x</p>'}, {});
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /previaId sozinho ou html\/css\/js/);
+  assert.equal(created.length, 0);
 });

@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {createI18n} from '../src/i18n.mjs';
+import {guideFor} from '../src/extensions/mesa-geogebra/guide.mjs';
 import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
 import en from '../src/locales/en.json' with {type: 'json'};
 const require = createRequire(import.meta.url);
@@ -23,12 +24,14 @@ const enTutor = (key, args) => createI18n({catalogs: {'pt-BR': ptBR, en}, langua
 const RECT = {x: 10, y: 40, width: 600, height: 400};
 
 /** O renderer de mentira: ao ouvir `ggb-open` abre a aba (manda o retângulo), como `selectTab('geogebra')`. */
-function setup({answerOpen = true, ready = true, saved = '', ggbPackDir = '', tutorLanguage = 'pt-BR'} = {}) {
+function setup({answerOpen = true, ready = true, saved = '', ggbPackDir = '', tutorLanguage = 'pt-BR', confirmExternal = async () => true} = {}) {
   const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'ggb-host-'));
   const applet = new FakeGgbApplet();
   const readyFlag = {value: ready};
   const ipcMain = createFakeIpcMain();
   const state = {ggbBase64: saved};
+  const opened = [];
+  const confirmed = [];
   const window = createFakeWindow((channel) => {
     if (channel === 'ggb-open' && answerOpen) setTimeout(() => ipcMain.invoke('ggb-view', {visible: true, rect: RECT}), 5);
   });
@@ -36,11 +39,45 @@ function setup({answerOpen = true, ready = true, saved = '', ggbPackDir = '', tu
   const host = createGeogebraHost({
     WebContentsView: ViewClass, win: () => window, deskState: () => state, courseKey: () => 'Calc',
     persist() {}, runtime, deskDir: runtime, appendLog() {}, tutorT: tutorLanguage === 'en' ? enTutor : ptTutor, ggbPage: '/ggb-falso.html', openDeadlineMs: 400, ggbPackDir,
+    openExternal: (url) => opened.push(url),
+    confirmExternal: (url) => { confirmed.push(url); return confirmExternal(url); },
   });
   host.register(ipcMain);
   const cleanup = () => { host.close(); fs.rmSync(runtime, {recursive: true, force: true}); };
-  return {applet, readyFlag, ipcMain, state, window, host, runtime, cleanup, ViewClass};
+  return {applet, readyFlag, ipcMain, state, window, host, runtime, cleanup, ViewClass, opened, confirmed};
 }
+
+test('a view do GeoGebra não ganha permissão de página e não sai da própria página', async (t) => {
+  /* Revisão de segurança: antes, a sessão `persist:geogebra` concedia tudo e a view
+     seguia qualquer link; agora só a cópia passa, a navegação fica no documento
+     do applet e link externo vai só ao navegador do sistema (https). */
+  const {ipcMain, ViewClass, opened, confirmed, cleanup} = setup();
+  t.after(cleanup);
+  await ipcMain.invoke('ggb-view', {visible: true, rect: RECT});
+  const contents = ViewClass.instances[0].webContents;
+  assert.equal(await contents.askPermission('media'), false);
+  assert.equal(await contents.askPermission('notifications'), false);
+  assert.equal(contents.checkPermission('geolocation'), false);
+  assert.equal(await contents.askPermission('clipboard-sanitized-write'), true);
+  assert.equal(contents.navigate('https://evil.example/').defaultPrevented, true);
+  assert.equal(contents.navigate(contents.getURL()).defaultPrevented, false);
+  assert.deepEqual(contents.openWindow('https://exemplo.org/ajuda'), {action: 'deny'});
+  assert.deepEqual(contents.openWindow('file:///etc/passwd'), {action: 'deny'});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(confirmed, ['https://exemplo.org/ajuda'], 'o link passa pelo diálogo da Mesa (#81)');
+  assert.deepEqual(opened, ['https://exemplo.org/ajuda']);
+});
+
+test('link externo do applet recusado no diálogo não abre no navegador (#81)', async (t) => {
+  const {ipcMain, ViewClass, opened, confirmed, cleanup} = setup({confirmExternal: async () => false});
+  t.after(cleanup);
+  await ipcMain.invoke('ggb-view', {visible: true, rect: RECT});
+  const contents = ViewClass.instances[0].webContents;
+  assert.deepEqual(contents.openWindow('https://evil.example/phishing'), {action: 'deny'});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(confirmed, ['https://evil.example/phishing']);
+  assert.deepEqual(opened, [], 'o "Cancelar" do diálogo mantém o navegador fechado');
+});
 
 test('com a aba fechada, o pedido do tutor abre o applet e roda o comando', async (t) => {
   const {applet, window, host, cleanup} = setup();
@@ -137,6 +174,16 @@ test('state e screenshot funcionam com a aba fechada e nunca limpam o quadro', a
   const shot = await host.service.screenshot();
   assert.equal(Buffer.from(shot.png, 'base64').toString(), 'png-falso');
   assert.deepEqual([...applet.objects.keys()], ['aluno']);
+});
+
+test('M4: o resumo corta em 80 objetos, mas devolve o total para o texto avisar', async (t) => {
+  const {applet, host, cleanup} = setup();
+  t.after(cleanup);
+  for (let i = 1; i <= 85; i += 1) applet.evalCommand(`o${i}=${i}`);
+  const result = await host.service.state();
+  assert.equal(result.state.count, 85);
+  assert.equal(result.state.objects.split('\n').length, 80);
+  assert.match(guideFor('pt-BR').stateText(result), /\(mostrando 80 de 85 objetos\)$/);
 });
 
 test('pedidos simultâneos do tutor rodam um por vez', async (t) => {

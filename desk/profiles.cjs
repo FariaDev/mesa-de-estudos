@@ -25,7 +25,6 @@ const path = require('node:path');
 /* Extensões globais que a Mesa espera carregar (nome do diretório em
    ~/.pi/agent/extensions, ou arquivo solto na raiz de extensions/). */
 const GLOBAL_EXTENSIONS = [
-  'ask-user/index.ts',
   'browser/index.ts',
   'context-mode/index.ts',
   'copy-all/index.ts',
@@ -47,7 +46,6 @@ const OVERLAY_EXTENSIONS = [
   'anki-cards.ts',
   'code-study-guard.ts',
   'learning-session.ts',
-  'quiz.ts',
   'visual-check.ts',
 ];
 
@@ -57,16 +55,19 @@ const BUILTIN_EXTENSIONS = ['builtin:mcp', 'builtin:codemode', 'builtin:tool-sea
 /* Ferramentas próprias do perfil. O catálogo MCP é assíncrono e depende dos
    servidores do usuário; a sonda o informa separado, sem fixar nomes locais. */
 const EXPECTED_ACTIVE = [
-  'ask_user', 'bash', 'edit', 'mesa_geogebra', 'obsidian-note', 'quiz', 'read',
-  'subagent_cancel', 'subagent_check', 'subagent_list', 'subagent_spawn',
-  'subagent_wait', 'write',
+  'mesa_buscar_material', 'mesa_calcular', 'mesa_criar_atividade',
+  'mesa_criar_pdf', 'mesa_geogebra', 'mesa_ler_pdf', 'mesa_listar_materiais',
+  'mesa_previsualizar_atividade', 'mesa_propor_revisao', 'mesa_salvar_nota',
+  'mesa_ver_figura', 'mesa_perguntar', 'mesa_quiz',
 ];
 
 const EXPECTED_INACTIVE = [
-  'anki_cards',
+  'ask_user', 'quiz', 'anki_cards', 'bash', 'edit', 'read', 'write',
   'browser_click', 'browser_close', 'browser_console', 'browser_eval',
   'browser_fill', 'browser_goto', 'browser_network', 'browser_screenshot',
   'find', 'grep', 'ls', 'powershell', 'web_fetch', 'web_search',
+  'obsidian-note', 'subagent_cancel', 'subagent_check', 'subagent_list',
+  'subagent_spawn', 'subagent_wait',
 ];
 
 function extensionsRoot(home = os.homedir()) {
@@ -102,7 +103,6 @@ function pinnedArgs({home, overlayDirs, freeWorkspace=false} = {}) {
      AGENTS/TUTOR nem ativar o modo da matéria nos ancestrais. */
   if(freeWorkspace)args.push('--no-context-files');
   for (const name of BUILTIN_EXTENSIONS) args.push('--extension', name);
-  args.push('--extension', path.join(__dirname, 'src', 'extensions', 'mcp-policy'));
   for (const file of [...globalExtensionPaths(home), ...overlayExtensionPaths(overlayDirs)]) {
     if(freeWorkspace&&(file.endsWith(path.join('context-mode','index.ts'))||['learning-session.ts','code-study-guard.ts','anki-cards.ts'].includes(path.basename(file))))continue;
     if (fs.existsSync(file)) args.push('--extension', file);

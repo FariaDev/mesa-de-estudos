@@ -2,6 +2,7 @@ import noticeCore from './generated/updatenotice.core.js';
 import {renderChildren} from './view-host.mjs';
 import {renderComponentRows} from './dialogs.mjs';
 import {$, S, toast, connect} from './state.mjs';
+import {visibleEngines} from './visible-engines-ui.mjs';
 import {text, t, LANGUAGE_EVENT} from './ui-text.mjs';
 
 /* Avisos de atualização do Pi e do Claude Code no renderizador (#45).
@@ -31,8 +32,11 @@ export function toolContext() {
   return {busy: !!S.busy, runs};
 }
 
+/* Pi e Claude Code saem do Sobre/Componentes quando não estão na vista (#release OpenCode); a linha da Mesa fica. */
+const ENGINE_COMPONENTS = new Set(['pi', 'claude']);
+const visibleRows = (rows) => (Array.isArray(rows) ? rows : []).filter((row) => !ENGINE_COMPONENTS.has(String(row?.id || '')) || visibleEngines().includes(String(row.id)));
 export function showRows(rows) {
-  lastRows = Array.isArray(rows) ? rows : [];
+  lastRows = visibleRows(rows);
   renderComponentRows(lastRows, handlers, toolContext());
 }
 
@@ -48,7 +52,7 @@ function paintDot(dot) {
 /** Aplica o resumo do main: linhas do Sobre + ponto do ⚙. */
 export function showNotices(summary) {
   lastNotices = {
-    lines: Array.isArray(summary?.lines) ? summary.lines : [],
+    lines: (Array.isArray(summary?.lines) ? summary.lines : []).filter((line) => !ENGINE_COMPONENTS.has(String(line?.id || '')) || visibleEngines().includes(String(line.id))),
     dot: !!summary?.dot,
   };
   paintDot(lastNotices.dot);

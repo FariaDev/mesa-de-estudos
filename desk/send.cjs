@@ -1,5 +1,7 @@
 const {message: uiMsg} = require('./src/i18n.mjs');
 const {causeArg} = require('./src/error-detail.mjs');
+/* Erros do `spawn` que provam que o processo não chegou a ler o stdin. */
+const SPAWN_FAILURE_CODES = new Set(['ENOENT', 'EACCES', 'ENOEXEC', 'EISDIR', 'EPERM', 'ENOTDIR']);
 /* Ciclo de vida do envio de um prompt: validar → conectar → escrever → confirmar.
  *
  * Este é o pedaço do app que decide o que conta como entregue, e ele mora aqui,
@@ -11,6 +13,8 @@ const {causeArg} = require('./src/error-detail.mjs');
  *   foi entregue e o contexto da Mesa não conta como enviado;
  * - falha na escrita é AMBÍGUA, não recusa: o pedido só é recusado depois de
  *   tentar escrever no stdin (ou por tempo), então o Pi pode ter recebido;
+ * - erro de spawn (binário ausente/sem permissão) acontece ANTES do stdin: é
+ *   recusa, como a falha de `connect()`;
  * - `get_state` vem depois de um prompt já aceito: se ele falhar, a entrega
  *   aconteceu e o envio NÃO é erro — volta com aviso e estado desconhecido, para
  *   a fila não repetir uma mensagem que o Pi já recebeu.
@@ -28,7 +32,7 @@ const {causeArg} = require('./src/error-detail.mjs');
  * @param {{message: string, streamingBehavior: string}} options.request pedido já montado, sem anexos
  * @param {unknown} [options.images] anexos crus, como vieram do renderer
  * @param {(images: unknown) => {length: number} | null} [options.validateImages] valida ANTES de escrever
- * @param {() => {request: Function}} options.connect monta o bridge; pode lançar
+ * @param {() => {request: Function} | Promise<{request: Function}>} options.connect monta o bridge; pode lançar
  * @param {() => void} [options.onAccepted] aceite confirmado: atualiza o contexto do turno
  * @param {(aviso: string) => void} [options.onWarning] envio feito, mas algo acessório falhou (estado não lido)
  * @returns {Promise<{streaming: boolean}>}
@@ -47,23 +51,33 @@ async function deliverPrompt({
   const pedido = {...request};
   if (anexos && anexos.length) pedido.images = anexos;
   /* `connect()` pode lançar sem nada ter sido escrito: falha definida, o
-     contexto não conta como enviado. */
-  const bridge = connect();
+     contexto não conta como enviado. A marca `notSent` é o que permite repetir
+     a mensagem (fila e cartão) sem medo de duplicar. */
+  let bridge;
+  try {
+    bridge = await connect();
+  } catch (error) {
+    const refused = Error(uiMsg('err.send.refused', {reason: causeArg(error)}));
+    refused.notSent = true;
+    throw refused;
+  }
   let disposition;
   let outcome;
   let motivoDoEnvio = '';
+  let failureCode = '';
   try {
     const accepted = await bridge.request('prompt', pedido);
     disposition = accepted?.disposition;
     outcome = 'accepted';
   } catch (error) {
-    motivoDoEnvio = error?.message || String(error);
+    motivoDoEnvio = causeArg(error);
+    failureCode = typeof error?.code === 'string' ? error.code : '';
     /* O bridge marca o que PROVA não ter sido transmitido (`notSent`): partida
        impossível, pedido recusado antes da escrita, stdin que não aceitou.
        Nesse caso é recusa — nada foi escrito. Sem a marca, o pedido pode ter
        chegado: reenviar contexto que talvez já esteja na conversa é pior do que
        pedir para o usuário conferir. */
-    outcome = error?.notSent === true ? 'refused' : 'ambiguous';
+    outcome = error?.notSent === true || SPAWN_FAILURE_CODES.has(failureCode) ? 'refused' : 'ambiguous';
   }
   if (outcome === 'accepted') {
     /* Só agora o contexto conta como entregue. */
@@ -75,6 +89,7 @@ async function deliverPrompt({
   } else {
     const refused=Error(uiMsg('err.send.refused', {reason: motivoDoEnvio}));
     refused.notSent=true;
+    if (SPAWN_FAILURE_CODES.has(failureCode)) refused.code = failureCode;
     throw refused;
   }
   /* `get_state` vem DEPOIS de um prompt já aceito: a resposta está entregue e

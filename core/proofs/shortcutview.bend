@@ -16,6 +16,9 @@ def Laws.sk_linha_key():
 def Laws.sk_linha_gravando():
   {==}
 
+def Laws.sk_linha_fixa_focavel():
+  {==}
+
 def Laws.sk_reset_visivel():
   {==}
 

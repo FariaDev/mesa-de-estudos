@@ -21,6 +21,7 @@ export async function createActivity(bridge, spec, {toolCallId = '', callRef = '
     kind: spec && spec.kind === 'visualizacao' ? 'visualizacao' : undefined,
     charts: spec && spec.charts === true,
     activityId: spec && typeof spec.activityId === 'string' ? spec.activityId : undefined,
+    previaId: spec && typeof spec.previaId === 'string' ? spec.previaId : undefined,
     toolCallId: hasCall ? toolCallId : '',
     ...(hasRef ? {callRef} : {}),
   };

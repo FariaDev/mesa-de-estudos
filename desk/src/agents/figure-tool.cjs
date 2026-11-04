@@ -17,6 +17,8 @@ async function createFigureTool(viewFigure, {language} = {}) {
   ]);
   return tool('ver_figura', guide.FIGURE_DESCRIPTION, fields.zodShape(z, guide.FIGURE_FIELDS), async (args) => {
     try {
+      const limitError = guide.figureLimitError(args.kind, args.source);
+      if (limitError) throw Error(limitError);
       const result = await viewFigure({...args});
       return {content: [
         {type: 'image', data: result.screenshot.data, mimeType: result.screenshot.mimeType},

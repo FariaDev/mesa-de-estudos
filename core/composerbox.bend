@@ -24,15 +24,21 @@ import view.bend as V
 #      Parar. Só atributos (como `core/deskflags.bend`): texto, ícone e
 #      handlers são do index.html.
 #
-#   3. A fileira de ações (#42): anexar, Referências, Conferir, o indicador de
-#      modelo e esforço e, por último, Enviar/Parar — como nos apps de chat, o
-#      indicador fica à esquerda do Enviar. Em caixa estreita a fileira cede
-#      em degraus (`rowFit`): o rótulo de Referências, depois o esforço, por
-#      fim o nome do modelo (vira ícone; o nome acessível segue completo). O
-#      host mede se cabe; o núcleo escolhe o degrau.
+#   3. A fileira de ações (#42, #90): anexar (um menu), Referências (ícone com
+#      estado), o indicador de modelo e esforço e, por último, Enviar/Parar —
+#      como nos apps de chat, o indicador fica à esquerda do Enviar. Foto do
+#      celular e a captura do Conferir moram no menu Anexar. Em caixa estreita
+#      a fileira cede em degraus (`rowFit`): primeiro o esforço, depois o nome
+#      do modelo (vira ícone; o nome acessível segue completo). O host mede se
+#      cabe; o núcleo escolhe o degrau.
 #
 # Nada aqui lê DOM, mede ou fala IPC.
 # ---------------------------------------------------------------------------
+
+# Referência aberta: nome do arquivo e a página já formatada ("p.3"). O host
+# resolve os dois fatos; o núcleo não fatia texto nem conhece o caminho.
+type GoesRef is Data:
+  GoesRef{name: String, page: String}
 
 # ---------- linha "Vai junto" ----------
 
@@ -50,9 +56,6 @@ def goesNothing() -> String:
 def goesRefsOff() -> String:
   M.msg("goes.refsOff")
 
-def goesSeparator() -> String:
-  " · "
-
 def refsSeparator() -> String:
   ", "
 
@@ -62,101 +65,109 @@ def present(+text: String) -> Bool:
 def partNode(+text: String) -> V.ViewNode:
   V.viewText(text)
 
+# ---------- pílulas (#90) ----------
+# Cada item da linha é uma pílula: a matéria primeiro, depois questão, rascunho
+# e uma por material aberto. O nome inteiro fica em `title` e `aria-label`; o
+# CSS encurta só o `.goes-pill-name` com reticências.
+
+def pillAttrs(+cls: String, +label: String) -> List<&2, V.ViewAttr>:
+  [V.attrClass("goes-pill " ++ cls), V.attrTitle(label), V.attrAria("label", label)]
+
+def pill(+cls: String, +label: String, kids: List<&2, V.ViewNode>) -> V.ViewNode:
+  V.viewEl("span", pillAttrs(cls, label), kids)
+
+def nameSpan(+text: String) -> V.ViewNode:
+  V.viewEl("span", [V.attrClass("goes-pill-name")], [V.viewText(text)])
+
+def pageSpan(+page: String) -> V.ViewNode:
+  V.viewEl("span", [V.attrClass("goes-pill-page")], [V.viewText(page)])
+
+def textPill(+text: String) -> V.ViewNode:
+  pill("goes-rest", text, [nameSpan(text)])
+
+def coursePill(+course: String) -> V.ViewNode:
+  pill("goes-course", course, [nameSpan(course)])
+
+# A pílula da referência guarda a página num nó que não encolhe (`p.N` sempre
+# visível) enquanto o nome corta com reticências.
+def refLabel(ref: GoesRef) -> String:
+  match ref:
+    case GoesRef{name, page}:
+      name ++ " " ++ page
+
+def refName(ref: GoesRef) -> String:
+  match ref:
+    case GoesRef{name, _}:
+      name
+
+def refPage(ref: GoesRef) -> String:
+  match ref:
+    case GoesRef{_, page}:
+      page
+
+def refPill(+ref: GoesRef) -> V.ViewNode:
+  pill("goes-rest", refLabel(ref), [
+    nameSpan(refName(ref)),
+    pageSpan(" " ++ refPage(ref))
+  ])
+
 # Uma parte da linha: entra só quando a condição vale e o texto não é vazio.
 def keepPart(keep: Bool, +text: String) -> List<&2, V.ViewNode>:
   match keep:
     case True{}:
-      [partNode(text)]
+      [textPill(text)]
     case False{}:
       Nil{}
 
 def partIf(+on: Bool, +text: String) -> List<&2, V.ViewNode>:
   keepPart(Bool.and(on, present(text)), text)
 
-# Referências ligadas listam os materiais abertos (nenhum aberto: nada a
-# dizer); desligadas, a linha diz que estão desligadas e não lista nada.
-def refsParts(refsOn: Bool, refs: +List<String>) -> List<&2, V.ViewNode>:
+# Referências ligadas listam os materiais abertos, um por pílula; nenhum
+# aberto: nada a dizer. Desligadas, a linha diz que estão desligadas e não
+# lista nada.
+def refsParts.go(refs: +List<GoesRef>) -> List<&2, V.ViewNode>:
+  match refs:
+    case Nil{}:
+      Nil{}
+    case Con{h, t}:
+      Con{refPill(h), refsParts.go(t)}
+
+def refsParts(refsOn: Bool, refs: +List<GoesRef>) -> List<&2, V.ViewNode>:
   match refsOn:
     case True{}:
-      match refs:
-        case Nil{}:
-          Nil{}
-        case Con{h, t}:
-          [partNode(String.join(Con{h, t}, refsSeparator()))]
+      refsParts.go(refs)
     case False{}:
-      [partNode(goesRefsOff())]
+      [textPill(goesRefsOff())]
 
-# As partes com o separador entre elas (nunca solto na ponta).
-def interleave.tail(parts: List<&2, V.ViewNode>) -> List<&2, V.ViewNode>:
-  match parts:
-    case Nil{}:
-      Nil{}
-    case Con{h, t}:
-      Con{partNode(goesSeparator()), Con{h, interleave.tail(t)}}
-
-def interleave(parts: List<&2, V.ViewNode>) -> List<&2, V.ViewNode>:
-  match parts:
-    case Nil{}:
-      Nil{}
-    case Con{h, t}:
-      Con{h, interleave.tail(t)}
-
-# A mesma linha como árvore, para o CSS saber o que cortar primeiro quando
-# falta espaço: o nome da matéria cede antes da lista/questão, do rascunho e
-# da página.
-#
-#   <span class="goes-lead">Vai junto: </span>
-#   <span class="goes-course">Cálculo I</span>
-#   <span class="goes-sep"> · </span>
-#   <span class="goes-rest">Lista 3 q.2 · rascunho.xopp · Limites.pdf p. 4</span>
-#
-# O separador depois da matéria é um nó à parte, que encolhe junto com ela: sem
-# a matéria não sobra " · " pendurado. Sem matéria (ou com a flag
-# `studyContext` desligada) não há `goes-course` nem `goes-sep`, e tudo o que
-# vai fica em `goes-rest`. A flag `studyContext` liga e desliga por inteiro o
-# contexto de estudo (a matéria vai junto dele).
-
-def goesSpan(+cls: String, kids: List<&2, V.ViewNode>) -> V.ViewNode:
-  V.viewEl("span", [V.attrClass(cls)], kids)
+# A linha como árvore, em pílulas. O `goes-lead` ("Contexto: ") fica no DOM
+# para o nome acessível, mas o CSS o esconde quando há pílula: a matéria é a
+# primeira coisa à vista. Sem nenhuma parte, a frase "só a mensagem" já traz o
+# próprio prefixo.
 
 def goesSpanText(+cls: String, +text: String) -> V.ViewNode:
-  goesSpan(cls, [partNode(text)])
+  V.viewEl("span", [V.attrClass(cls)], [partNode(text)])
 
 # O que vem depois da matéria: questão, rascunho e referências.
-def afterCourseParts(+study: Bool, +title: String, +xopp: String, refsOn: Bool, refs: +List<String>) -> List<&2, V.ViewNode>:
+def afterCourseParts(+study: Bool, +title: String, +xopp: String, refsOn: Bool, refs: +List<GoesRef>) -> List<&2, V.ViewNode>:
   List.append(
     &2, V.ViewNode,
     List.append(&2, V.ViewNode, partIf(study, title), partIf(study, xopp)),
     refsParts(refsOn, refs)
   )
 
-def restNodes(parts: List<&2, V.ViewNode>) -> List<&2, V.ViewNode>:
-  match parts:
-    case Nil{}:
-      Nil{}
-    case Con{h, t}:
-      [goesSpan("goes-rest", interleave(Con{h, t}))]
-
-def restAfterCourse(parts: List<&2, V.ViewNode>) -> List<&2, V.ViewNode>:
-  match parts:
-    case Nil{}:
-      Nil{}
-    case Con{h, t}:
-      Con{goesSpanText("goes-sep", goesSeparator()), restNodes(Con{h, t})}
-
 def goesWithCourse(+course: String, parts: List<&2, V.ViewNode>) -> List<&2, V.ViewNode>:
   List.append(
     &2, V.ViewNode,
-    [goesSpanText("goes-lead", goesPrefix()), goesSpanText("goes-course", course)],
-    restAfterCourse(parts)
+    [goesSpanText("goes-lead", goesPrefix()), coursePill(course)],
+    parts
   )
 
 def goesWithoutCourse(parts: List<&2, V.ViewNode>) -> List<&2, V.ViewNode>:
   match parts:
     case Nil{}:
       [partNode(goesNothing())]
-    case Con{h, t}:
-      Con{goesSpanText("goes-lead", goesPrefix()), restNodes(Con{h, t})}
+    case Con{_, _}:
+      Con{goesSpanText("goes-lead", goesPrefix()), parts}
 
 # `hasCourse`: a matéria vai junto (flag ligada e nome não vazio). Sem ela, as
 # partes que restam são todas as que vão.
@@ -168,7 +179,7 @@ def goesTreeFrom(hasCourse: Bool, +course: String, rest: List<&2, V.ViewNode>) -
       goesWithoutCourse(rest)
 
 def goesTree(
-  +study: Bool, +course: String, +title: String, +xopp: String, refsOn: Bool, refs: +List<String>
+  +study: Bool, +course: String, +title: String, +xopp: String, refsOn: Bool, refs: +List<GoesRef>
 ) -> List<&2, V.ViewNode>:
   goesTreeFrom(Bool.and(study, present(course)), course, afterCourseParts(study, title, xopp, refsOn, refs))
 
@@ -188,18 +199,28 @@ def noteRefsNone() -> String:
 def noteRefsListed(+list: String, +capture: Bool) -> String:
   match capture:
     case True{}:
-      M.msg1("goes.note.listedCapture", "list", list)
+      M.msg("goes.note.listedCapture")
     case False{}:
-      M.msg1("goes.note.listed", "list", list)
+      M.msg("goes.note.listed")
 
-def refsNote(refsOn: Bool, refs: +List<String>, +capture: Bool) -> String:
+def refLabels.go(refs: +List<GoesRef>) -> List<&2, String>:
+  match refs:
+    case Nil{}:
+      Nil{}
+    case Con{h, t}:
+      Con{refLabel(h), refLabels.go(t)}
+
+def refLabels(refs: +List<GoesRef>) -> List<&2, String>:
+  refLabels.go(refs)
+
+def refsNote(refsOn: Bool, refs: +List<GoesRef>, +capture: Bool) -> String:
   match refsOn:
     case True{}:
       match refs:
         case Nil{}:
           noteRefsNone()
-        case Con{h, t}:
-          noteRefsListed(String.join(Con{h, t}, refsSeparator()), capture)
+        case Con{_, _}:
+          noteRefsListed(String.join(refLabels(refs), refsSeparator()), capture)
     case False{}:
       noteRefsOff()
 
@@ -230,29 +251,22 @@ def stopButton(busy: Bool) -> V.ViewNode:
 # `index.html` nesta ordem; Enviar e Parar dividem o último lugar (um só
 # aparece).
 def actionIds() -> List<&2, String>:
-  ["attach", "include-refs", "check", "model-indicator", "stop", "send"]
+  ["attach", "include-refs", "model-indicator", "stop", "send"]
 
 # Degrau da fileira em caixa estreita (o host grava em `data-fit` da fileira):
-#   ""        tudo com rótulo: Referências escrito e o par "modelo · esforço";
-#   "compact" Referências vira só o ícone (o estado ligado/desligado continua
-#             na forma do botão);
-#   "model"   o esforço do indicador cede — fica só o modelo;
-#   "icon"    o modelo vira só o ícone (o nome acessível segue completo).
+#   ""       o par "modelo · esforço";
+#   "model"  o esforço do indicador cede — fica só o modelo;
+#   "icon"   o modelo vira só o ícone (o nome acessível segue completo).
 # O host mede, do mais folgado ao mais apertado, se cada degrau cabe; o núcleo
-# escolhe o primeiro que cabe. O esforço cede antes do modelo, e o rótulo de
-# Referências antes dos dois: o indicador diz algo que nenhum outro lugar
-# da fileira diz.
-def rowFit(fullFits: Bool, compactFits: Bool, modelFits: Bool) -> String:
+# escolhe o primeiro que cabe. O esforço cede antes do modelo porque o modelo
+# diz algo que nenhum outro lugar da fileira diz.
+def rowFit(fullFits: Bool, modelFits: Bool) -> String:
   match fullFits:
     case True{}:
       ""
     case False{}:
-      match compactFits:
+      match modelFits:
         case True{}:
-          "compact"
+          "model"
         case False{}:
-          match modelFits:
-            case True{}:
-              "model"
-            case False{}:
-              "icon"
+          "icon"

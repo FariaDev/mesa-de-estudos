@@ -16,9 +16,6 @@ def Laws.pdfpage_find_placeholder():
 def Laws.pdfpage_find_label():
   {==}
 
-def Laws.pdfpage_open_title():
-  {==}
-
 def Laws.pdfpage_shot_title():
   {==}
 
@@ -31,12 +28,6 @@ def Laws.pdfpage_invert_title():
 def Laws.pdfpage_invert_aria():
   {==}
 
-def Laws.pdfpage_prev_aria():
-  {==}
-
-def Laws.pdfpage_next_aria():
-  {==}
-
 def Laws.pdfpage_out_aria():
   {==}
 
@@ -47,9 +38,6 @@ def Laws.pdfpage_divider_aria():
   {==}
 
 def Laws.pdfpage_document_aria():
-  {==}
-
-def Laws.pdfpage_open_aria():
   {==}
 
 def Laws.pdfpage_find_aria():
@@ -190,15 +178,6 @@ def Laws.pdfpage_nav_clique():
 def Laws.pdfpage_nav_expandido():
   {==}
 
-def Laws.pdfpage_open_btn():
-  {==}
-
-def Laws.pdfpage_open_btn_icon():
-  {==}
-
-def Laws.pdfpage_open_btn_aria():
-  {==}
-
 def Laws.pdfpage_find_toggle_icon():
   {==}
 
@@ -236,31 +215,13 @@ def Laws.pdfpage_fit_btn():
 def Laws.pdfpage_bar_back_class():
   {==}
 
-def Laws.pdfpage_bar_prev_class():
-  {==}
-
 def Laws.pdfpage_bar_page_number():
-  {==}
-
-def Laws.pdfpage_bar_page_total():
-  {==}
-
-def Laws.pdfpage_bar_next_class():
   {==}
 
 def Laws.pdfpage_bar_find_toggle():
   {==}
 
-def Laws.pdfpage_bar_nav():
-  {==}
-
 def Laws.pdfpage_bar_more():
-  {==}
-
-def Laws.pdfpage_prev_click():
-  {==}
-
-def Laws.pdfpage_next_click():
   {==}
 
 def Laws.pdfpage_more_icon():
@@ -288,9 +249,6 @@ def Laws.pdfpage_menu_aria():
   {==}
 
 def Laws.pdfpage_menu_kids():
-  {==}
-
-def Laws.pdfpage_menu_open():
   {==}
 
 def Laws.pdfpage_menu_shot():
@@ -335,6 +293,24 @@ def Laws.pdfpage_menu_collapse_texto():
 def Laws.pdfpage_menu_collapse_restaurar():
   {==}
 
+def Laws.pdfpage_menu_nav():
+  {==}
+
+def Laws.pdfpage_page_input_hidden():
+  {==}
+
+def Laws.pdfpage_pager_class():
+  {==}
+
+def Laws.pdfpage_pager_click():
+  {==}
+
+def Laws.pdfpage_pager_aria():
+  {==}
+
+def Laws.pdfpage_bar_pager():
+  {==}
+
 def Laws.pdfpage_restore_class():
   {==}
 
@@ -353,15 +329,9 @@ def Laws.pdfpage_panel_menu():
 def Laws.pdfpage_panel_restore():
   {==}
 
-def Laws.pdfpage_printed_toggle_texto():
-  {==}
-
 # ---------- palco, busca e divisor ----------
 
 def Laws.pdfpage_stage_viewport():
-  {==}
-
-def Laws.pdfpage_stage_foot():
   {==}
 
 def Laws.pdfpage_find_tag():
@@ -458,6 +428,24 @@ def Laws.pdfpage_viewport_loading():
 def Laws.pdfpage_viewport_failed():
   {==}
 
+def Laws.pdfpage_fail_text():
+  {==}
+
+def Laws.pdfpage_fail_reason_limit():
+  {==}
+
+def Laws.pdfpage_fail_reason_trim():
+  {==}
+
+def Laws.pdfpage_fail_panel_class():
+  {==}
+
+def Laws.pdfpage_fail_panel_role():
+  {==}
+
+def Laws.pdfpage_fail_panel_filhos():
+  {==}
+
 # ---------- destaques da busca ----------
 
 def Laws.pdfpage_hl_none():
@@ -488,9 +476,6 @@ def Laws.pdfpage_hl_prefix():
   {==}
 
 # ---------- handlers ----------
-
-def Laws.pdfpage_open_click():
-  {==}
 
 def Laws.pdfpage_find_toggle_click():
   {==}
@@ -633,15 +618,6 @@ def Laws.pdfpage_printed_offset_save_click():
   {==}
 
 def Laws.pdfpage_printed_offset_auto_click():
-  {==}
-
-def Laws.pdfpage_printed_toggle_click():
-  {==}
-
-def Laws.pdfpage_printed_toggle_icon():
-  {==}
-
-def Laws.pdfpage_printed_toggle_aria():
   {==}
 
 def Laws.pdfpage_drop_hint_class():

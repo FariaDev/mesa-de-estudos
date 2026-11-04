@@ -15,7 +15,7 @@ const conversations=require('./src/agents/conversations.cjs');
    O main entrega o que o lateral lê do principal como acessores (`session`,
    `courseId`, `courses`, `config`, `state`, `bridge` são reatribuídos lá) e as
    preparações que dependem do motor (`piLaunch`, `prepareClaudeSide`). */
-function createMesaSidechat({runtime,freeId,session,courseId,courses,config,state,bridge,engine,validPdf,allowedXopp,descriptorCache,piLaunch,prepareClaudeSide,connectOpenCodeSide,testClaudeSdkLoader,claudeBinary,claudeDetector,win,appendLog,languageHost}){
+function createMesaSidechat({runtime,freeId,session,courseId,courses,config,state,bridge,engine,validPdf,allowedXopp,descriptorCache,piLaunch,prepareClaudeSide,connectOpenCodeSide,testClaudeSdkLoader,claudeBinary,claudeDetector,win,appendLog,languageHost,readPdf,searchMaterial,listMaterials,activityBridge}){
  /* O digest vai ao modelo: os rótulos seguem o idioma do tutor (#41). */
  const roleLabel=(isUser)=>languageHost.tutorT(isUser?'sidechatctx.roleUser':'sidechatctx.roleAssistant');
  function mainHistoryLines(limit=12){
@@ -80,7 +80,7 @@ function createMesaSidechat({runtime,freeId,session,courseId,courses,config,stat
   const current=await main.request('get_state',{},5000);
   return current?.model?{provider:current.model.provider,id:current.model.id,level:current.thinkingLevel||null}:null;
  }
- return createSideChatManager({
+ const manager=createSideChatManager({
   runtime,
   current:()=>({session:session(),courseId:courseId(),engine:engine(),...mainNativeSelection(),courseName:courseId()===freeId?'':(courses().find(c=>c.id===courseId())?.name||'')}),
   /* O manager chama `snapshot({refs})` (objeto), não o array solto: sem o
@@ -88,17 +88,21 @@ function createMesaSidechat({runtime,freeId,session,courseId,courses,config,stat
      PDF do snapshot. O contrato é objeto com `refs` já validado. */
   snapshot:({refs})=>sidechatSnapshot(refs),
   validPdf:p=>validPdf(p),
-  createEngine:({engine,id,descriptor,onEvent})=>{
+  createEngine:async({engine,id,descriptor,onEvent})=>{
    if(engine==='opencode')return createOpenCodeSideEngine({id,descriptor:descriptor.claude,runtime,connect:side=>connectOpenCodeSide(side),onEvent,log:(src,line)=>appendLog(src,line)});
    if(engine==='claude'){
-    return createClaudeSideEngine({id,descriptor:descriptor.claude,runtime,prepare:record=>prepareClaudeSide(record),sdkLoader:testClaudeSdkLoader(),claudePath:claudeBinary(),detectClaude:claudeDetector(),onEvent,log:(src,line)=>appendLog(src,line)});
+    return createClaudeSideEngine({id,descriptor:descriptor.claude,runtime,prepare:record=>prepareClaudeSide(record),sdkLoader:testClaudeSdkLoader(),claudePath:claudeBinary(),detectClaude:claudeDetector(),onEvent,log:(src,line)=>appendLog(src,line),readPdf,searchMaterial,listMaterials,showCard:(kind,args)=>manager.showCard(id,{kind,args})});
    }
-   const launch=piLaunch();
-   return createPiSideEngine({id,sessionPath:descriptor.session,cwd:launch.cwd,pi:launch.pi,env:launch.env,extraArgs:launch.extraArgs,promptFile:launch.promptFile,onEvent,log:(src,line)=>appendLog(src,line),mainModel:()=>mainPiModel()});
+   const launch=await piLaunch({cardScope:{conversationId:id}});
+   const channel=createPiSideEngine({id,sessionPath:descriptor.session,cwd:launch.cwd,pi:launch.pi,env:launch.env,extraArgs:launch.extraArgs,promptFile:launch.promptFile,onEvent,log:(src,line)=>appendLog(src,line),mainModel:()=>mainPiModel()});
+   if(launch.cardGrant)channel.cardGrant=launch.cardGrant;
+   return channel;
   },
   emit:payload=>{const target=win();if(target&&!target.isDestroyed())target.webContents.send('sidechat-event',payload);},
   log:(src,line)=>appendLog(src,line),
+  revokeCardGrant:grant=>{try{activityBridge().revoke(grant.token);}catch(error){appendLog('sidechat',`concessão de cartão não revogada: ${error?.message || error}`);}},
  });
+ return manager;
 }
 
 /* ---------- chat lateral: IPC e listagem de conversas ----------
@@ -109,9 +113,14 @@ function registerSidechatIpc({ipcMain,sidechatManager,courseSessions}){
  ipcMain.handle('sidechat-open',(_e,payload)=>sidechatManager.open(payload||{}));
  ipcMain.handle('sidechat-read',(_e,payload)=>sidechatManager.read(payload||{}));
  ipcMain.handle('sidechat-prompt',(_e,payload)=>sidechatManager.prompt(payload||{}));
+ ipcMain.handle('sidechat-warm',(_e,payload)=>sidechatManager.warm(payload||{}));
  ipcMain.handle('sidechat-abort',(_e,payload)=>sidechatManager.abort(payload||{}));
  ipcMain.handle('sidechat-save',(_e,payload)=>sidechatManager.save(payload||{}));
  ipcMain.handle('sidechat-context',(_e,payload)=>sidechatManager.context(payload||{}));
+ ipcMain.handle('sidechat-card-draft',(_e,payload)=>sidechatManager.cardDraft(payload||{}));
+ ipcMain.handle('sidechat-card-answer',(_e,payload)=>sidechatManager.cardAnswer(payload||{}));
+ ipcMain.handle('sidechat-card-dismiss',(_e,payload)=>sidechatManager.cardDismiss(payload||{}));
+ ipcMain.handle('sidechat-card-conclude',(_e,payload)=>sidechatManager.cardConclude(payload||{}));
  ipcMain.handle('sidechat-respond',(_e,payload)=>sidechatManager.respond(payload||{}));
  ipcMain.handle('conversation-list',()=>conversationList(courseSessions()));
 }

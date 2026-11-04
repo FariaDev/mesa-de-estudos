@@ -10,7 +10,7 @@ import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {resolvePi} = require('../pi.cjs');
 const {createActivityStore} = require('../activity-store.cjs');
-const {createActivityRuntime} = require('../activity-runtime.cjs');
+const {createActivityRuntime, activityArtifactUrl} = require('../activity-runtime.cjs');
 const {createActivityBridge, createActivityService, createCallRegistry} = require('../activity-bridge.cjs');
 const desk = path.resolve(import.meta.dirname, '..');
 let pkg = path.dirname(fs.realpathSync(resolvePi({deskDir: desk})));
@@ -67,7 +67,7 @@ try {
   assert.equal(items[0].toolCallId, 'call-native-1');
   assert.equal(items[0].generation, 1);
   assert.equal(activityRuntime.has(items[0].id, items[0].version), true, 'runtime serve o documento publicado');
-  const response = await activityRuntime.protocolHandler({url: `mesa-activity://artifact/${items[0].id}/${items[0].version}/index.html`});
+  const response = await activityRuntime.protocolHandler({url: activityArtifactUrl(items[0].id, items[0].version)});
   assert.equal(response.status, 200);
   console.log('PASS: SDK Pi carrega a extensão mesa-activity e publica pela ponte HTTP real; sem inferência.');
 } finally {

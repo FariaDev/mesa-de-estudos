@@ -173,7 +173,7 @@ function createOpencodeHost(deps) {
     const key = String(rawKey ?? '').trim();
     const result = await test(key);
     if (!result.ok) return result;
-    try { keyStore.save(key); } catch (error) {
+    try { await keyStore.save(key); } catch (error) {
       appendLog('opencode', `chave não guardada: ${error.message}`);
       return {ok: false, outcome: 'vault', message: message('freeModels.save.noVault'), masked: result.masked};
     }
@@ -190,7 +190,7 @@ function createOpencodeHost(deps) {
     candidate = '';
     const raw = String((await readClipboard()) ?? '').trim();
     if (!raw || raw.length > CLIPBOARD_MAX || !core.clipboardKey(raw)) return {found: false};
-    if (keyStore.has() && raw === keyStore.load()) return {found: false};
+    if (keyStore.has() && raw === await keyStore.load()) return {found: false};
     candidate = raw;
     return {found: true, masked: core.mask(raw)};
   }
@@ -218,14 +218,16 @@ function createOpencodeHost(deps) {
 
   /* ---------- estado e padrão ---------- */
 
-  function status() {
+  async function status() {
     const file = authFile();
     let exists;
     try { exists = fs.statSync(file).isFile(); } catch { exists = false; }
+    const saved = keyStore.has();
+    const key = saved ? await keyStore.load() : '';
     return {
-      saved: keyStore.has(),
-      masked: keyStore.has() ? core.mask(keyStore.load()) : '',
-      secure: keyStore.available(),
+      saved,
+      masked: key ? core.mask(key) : '',
+      secure: await keyStore.available(),
       authFile: {exists, display: displayPath(file, homeDir)},
       model: String(state()?.opencodeModel || ''),
       paidConfirmed: state()?.opencodePaidOk === true,
@@ -242,7 +244,7 @@ function createOpencodeHost(deps) {
   }
 
   /** O Pi nasce com a chave (e só se ela existe) no ambiente do provedor `opencode`. */
-  const keyEnv = () => { const key = keyStore.load(); return key ? {OPENCODE_API_KEY: key} : {}; };
+  const keyEnv = async () => { const key = await keyStore.load(); return key ? {OPENCODE_API_KEY: key} : {}; };
 
   /** Quem escolheu um modelo do Zen nasce com ele; trocar para outro provedor desfaz.
       Um grátis lembrado de antes da #57 não volta: pelo Pi ele dá 403. */
@@ -264,7 +266,7 @@ function createOpencodeHost(deps) {
   ipcMain.handle('opencode-clipboard-accept', () => acceptCandidate());
   ipcMain.handle('opencode-clipboard-forget', () => { candidate = ''; });
   ipcMain.handle('opencode-key-save', (_event, request) => accept(request?.key, 'campo'));
-  ipcMain.handle('opencode-key-test', (_event, request) => test(request?.key ? request.key : keyStore.load()));
+  ipcMain.handle('opencode-key-test', async (_event, request) => test(request?.key ? request.key : await keyStore.load()));
   ipcMain.handle('opencode-key-remove', () => remove());
   ipcMain.handle('opencode-auth-file-use', () => useAuthFile());
   ipcMain.handle('opencode-paid-ack', () => { patchState({opencodePaidOk: true}); return true; });

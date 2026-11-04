@@ -98,12 +98,6 @@ def Laws.calc_angulo_desconhecido():
 def Laws.calc_angulo_grupo_graus():
   {==}
 
-def Laws.calc_angulo_dica_rad():
-  {==}
-
-def Laws.calc_angulo_dica_graus():
-  {==}
-
 def Laws.calc_angulo_linha():
   {==}
 
@@ -197,23 +191,3 @@ def Laws.calc_guia_trig():
 def Laws.calc_guia_chips_trig():
   {==}
 
-def Laws.calc_guia_dicas_classe():
-  {==}
-
-def Laws.calc_guia_dicas_tamanho():
-  {==}
-
-def Laws.calc_guia_dica1():
-  {==}
-
-def Laws.calc_guia_dica2():
-  {==}
-
-def Laws.calc_guia_dica3():
-  {==}
-
-def Laws.calc_guia_dica4():
-  {==}
-
-def Laws.calc_guia_dica5():
-  {==}

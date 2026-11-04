@@ -5,6 +5,7 @@
    claude-adapter.cjs na #43 fase 2. */
 
 const {MAX_TOOL_RESULT_CHARS, MAX_TOOL_DETAILS_CHARS, MAX_HISTORY_BYTES, MAX_PRIOR_MESSAGES} = require('./claude-adapter-contract.cjs');
+const {userContentWithoutPrompt} = require('./tutor-prompt-text.mjs');
 
 function normalizeAssistantBlocks(content) {
   const blocks = typeof content === 'string' ? [{type: 'text', text: content}] : Array.isArray(content) ? content : [];
@@ -113,8 +114,12 @@ function normalizeHistory(sessionMessages, {maxBytes = MAX_HISTORY_BYTES, onTrun
     let content = [];
     const flush = () => {
       if (!content.length) return;
-      ordered.push({role: entry.type, content});
+      const source = content;
       content = [];
+      /* Papel `system` já não entra. Se o prompt vazou numa fala de usuário, sai aqui. */
+      const visible = entry.type === 'user' ? userContentWithoutPrompt(source, '') : source;
+      if (!visible.length) return;
+      ordered.push({role: entry.type, content: visible});
     };
     let resultSeen = 0;
     for (const block of blocks) {

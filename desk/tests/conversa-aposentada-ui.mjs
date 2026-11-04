@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts, launchDesk, newRuntime, seedCourse, seedSession, writeDeskJson, sendEnabled, statusOnline} from './helpers.mjs';
+import {withArtifacts, launchDesk, newRuntime, seedCourse, seedSession, writeConfigJson, writeDeskJson, sendEnabled, statusOnline} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
 
 const BLOCO_ANTIGO = '\n\n[Da Conversa]\n- objetivo: revisar limites\n- pergunta pendente: como isolar x?';
@@ -58,7 +58,8 @@ const promptsEnviados = (logFile) => (fs.existsSync(logFile) ? fs.readFileSync(l
 
 await withArtifacts('conversa-aposentada', async (ctx) => {
   const runtime = ctx.runtime = newRuntime('conversa-aposentada');
-  seedCourse(runtime, 'Calc');
+  const course = seedCourse(runtime, 'Calc');
+  writeConfigJson(runtime, {vaultPath: runtime, courses: [{id: 'Calc', name: 'Cálculo', path: course}]});
   escreverArvoreAntiga(runtime);
   const antes = digestDaPasta(path.join(runtime, 'handoff'));
 

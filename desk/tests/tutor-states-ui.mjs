@@ -212,6 +212,27 @@ await withArtifacts('tutor-states',async ctx=>{
  assert.equal(view.lead,'O tutor está desligado.');
  assert.deepEqual(view.buttons.map(b=>b.text),['Chamar o tutor']);
  typography(view,'convite 1440');withinColumn(view,'convite 1440');record('1440x900',view);
+ /* Convite: bloco centrado na área vazia da coluna, com respiro entre título,
+    frase e botão. */
+ const invite=await page.evaluate(()=>{
+  const state=document.querySelector('#tutor-state');
+  const lead=state.querySelector('.ts-lead').getBoundingClientRect();
+  const fine=state.querySelector('.ts-fine').getBoundingClientRect();
+  const actions=state.querySelector('.ts-actions').getBoundingClientRect();
+  const column=document.querySelector('#chat').getBoundingClientRect();
+  const text=state.querySelector('.ts-text').getBoundingClientRect();
+  return {grow:getComputedStyle(state).flexGrow,justify:getComputedStyle(state).justifyContent,align:getComputedStyle(state).textAlign,
+   centered:Math.abs((text.left+text.right)/2-(column.left+column.right)/2)<=1.5,
+   gapTitleFine:fine.top-lead.bottom,gapFineActions:actions.top-fine.bottom,
+   stateHeight:state.getBoundingClientRect().height,columnHeight:column.height};
+ });
+ assert.equal(invite.grow,'1','o bloco do convite ocupa a área vazia da coluna');
+ assert.equal(invite.justify,'center','o conteúdo fica centrado na vertical');
+ assert.equal(invite.align,'center','o texto fica centrado na horizontal');
+ assert.equal(invite.centered,true,'título, frase e botão no eixo da coluna');
+ assert.ok(invite.gapTitleFine>=8,`respiro entre título e frase (${invite.gapTitleFine}px)`);
+ assert.ok(invite.gapFineActions>=16,`respiro entre frase e botão (${invite.gapFineActions}px)`);
+ assert.ok(invite.stateHeight>invite.columnHeight/3,'o convite ocupa a área vazia, não fica grudado no rodapé');
  for(const theme of ['light','dark']){
   await setTheme(page,theme);await nextFrames(page);
   await shot(page,`${theme}-1440x900-desligado-sem-retomada.png`);
@@ -256,7 +277,7 @@ await withArtifacts('tutor-states-error',async ctx=>{
  assert.equal(view.lead,'O tutor não atendeu.');
  assert.equal(view.fine,'O tutor fechou sem aviso.','o motivo em português, sem o código de saída (o número fica no log, #27)');
  assert.equal(/\d/.test(view.fine),false,'nenhum número na frase');
- assert.deepEqual(view.buttons.map(b=>b.text),['Chamar de novo','Ver o log','Ajustes do Pi']);
+ assert.deepEqual(view.buttons.map(b=>b.text),['Chamar de novo','Ver o log','Ajustes do tutor']);
  assert.equal(view.activityText,'','o erro não vai também para a linha de atividade');
  assert.equal(await page.locator('#prompt').getAttribute('placeholder'),'Pode ir escrevendo: vai assim que ele atender…','sem resposta: a mensagem fica guardada e vai quando ele atender (#27)');
  assert.equal(await page.locator('#toast > *').count(),0,'sem aviso flutuante repetindo o erro que a coluna já escreve (#23)');
@@ -281,7 +302,7 @@ await withArtifacts('tutor-states-error',async ctx=>{
  calls=await pollUntil(()=>app.evaluate(()=>globalThis.__openLogCalls),Boolean,{timeout:3000,interval:50,what:'Ver o log chamar o log da Mesa',onTimeout:'return'});
  assert.equal(calls,1,'Ver o log chama o log da Mesa');
 
- /* Ajustes do Pi: Configurações abertas no campo do caminho do Pi. */
+ /* Ajustes do tutor: Configurações abertas no campo do caminho do Pi. */
  await page.locator('#state-pi').click();
  await page.waitForFunction(()=>document.querySelector('#settings-dialog')?.open&&document.activeElement?.id==='cfg-pi',undefined,{timeout:10000});
  await page.keyboard.press('Escape');
@@ -305,7 +326,6 @@ await withArtifacts('tutor-states-error',async ctx=>{
   assert.equal((await read(page)).fine,'O tutor fechou sem aviso.',`${label}: a coluna segue com o motivo`);
  };
  await page.locator('#new-session').click();
- await page.locator('#new-session-default').click();
  await onlyColumn('Sessão nova');
  await page.locator('#session-title').click();
  await page.waitForSelector('#conv-list .conv-row:not(.current)',{timeout:10000});
@@ -350,18 +370,20 @@ await withArtifacts('tutor-states-no-pi',async ctx=>{
  await page.waitForSelector('#tutor-state[data-state="error"]',{timeout:30000});
  const view=await read(page);
  assert.equal(view.lead,'O tutor não atendeu.');
- assert.match(view.fine,/^Tutor não encontrado\. Rode npm run setup/,'o motivo traz também a instrução do motor');
+ assert.match(view.fine,/^O tutor desta conversa \(Pi\) não está instalado\./,'o motivo diz o que instalar para ligar o tutor');
  assert.equal(await page.locator('#toast > *').count(),0,'sem aviso flutuante repetindo o erro da coluna');
  typography(view,'sem Pi 1440');withinColumn(view,'sem Pi 1440');
  await small(page,app,'sem-pi');
  const narrow=await read(page);
- assert.match(narrow.fine,/Rode npm run setup/,'a instrução segue à vista na janela mínima');
+ assert.match(narrow.fine,/Abra uma sessão nova/,'a instrução segue à vista na janela mínima');
  assert.deepEqual(errors,[]);
 });
 
 /* ---- as distâncias são as mesmas nos três estados (medidas, não vistas) ---- */
 for(const [size,table] of Object.entries(gaps)){
- const states=Object.entries(table);
+ /* O convite desligado tem ritmo próprio (bloco centrado na área vazia), então
+    a igualdade de distâncias vale para os estados que dividem a casca. */
+ const states=Object.entries(table).filter(([name])=>name!=='off');
  if(states.length<2)continue;
  const [firstName,first]=states[0];
  for(const [name,value] of states.slice(1)){

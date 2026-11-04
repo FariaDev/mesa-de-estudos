@@ -123,9 +123,6 @@ class NativeService extends EventEmitter{
   try{
    await this.adapter.connect();
    if(this.adapter.initializeControls)await this.adapter.initializeControls();
-   /* O steer entra no turno em voo, que já tem a política dele: o adaptador
-      recusa trocá-la com turno aberto, e o envio morreria antes de sair (#58). */
-   if(args.toolPolicy&&!steering)this.adapter.setToolPolicy(args.toolPolicy);
    const id=crypto.randomUUID();this.pendingUser={role:'user',content:[{type:'text',text:args.message},...(args.images||[])],uuid:id};
    const slash=steering?null:await this._slash(args.message);
    const result=slash?await this.adapter.command({id,...slash,images:args.images||[]}):await this.adapter.send({id,text:args.message,images:args.images||[],...(steering?{delivery:'steer'}:{})});
@@ -141,7 +138,7 @@ class NativeService extends EventEmitter{
   return parseSlashCommand(text,await this._commands());
  }
  respond(data){return this.adapter.respond(data);}
- stop(){this.adapter.stop();}
+ stop(){return this.adapter.stop();}
 }
 /* Nome antigo do serviço do Claude: o sidechat e os testes ainda o usam. */
 class ClaudeService extends NativeService{

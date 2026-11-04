@@ -46,6 +46,7 @@ await withArtifacts('activity-preview-ui',async ctx=>{
  /* ---- visualização: print, altura e console; largura da coluna por padrão ---- */
  const chart=await run('Faça uma previa do grafico.');
  assert.equal(chart.previewed,true);
+ assert.match(chart.previaId,/^prv-[a-z0-9]{8,24}$/,'A3: a prévia devolve um id curto para publicar');
  assert.equal(chart.width,column,`largura padrão = texto da resposta (${chart.width} × ${column})`);
  assert.equal(chart.theme,'claro');
  assert.ok(chart.contentHeight>=300&&chart.contentHeight<=900,`altura do conteúdo plausível (${chart.contentHeight})`);
@@ -82,6 +83,18 @@ await withArtifacts('activity-preview-ui',async ctx=>{
  assert.equal((await page.evaluate(()=>window.desk.activityList())).items.length,0,'nenhuma atividade publicada');
  assert.equal(await page.locator('.activity-slot').count(),0,'nada apareceu na conversa');
  assert.equal(await page.evaluate(()=>[...document.querySelectorAll('iframe')].filter(f=>String(f.src).startsWith('mesa-activity:')).length),0,'nenhum quadro na janela da Mesa');
+
+ /* ---- A3: publicar com o id da prévia grava exatamente o que ela mediu ---- */
+ const published=await run('Faça uma previa e publica.');
+ assert.equal(published.publicado?.published,true,`publicou com previaId (${published.publishError||''})`);
+ assert.equal(published.publicado.reused,false);
+ const listed=(await page.evaluate(()=>window.desk.activityList())).items;
+ assert.equal(listed.length,1,'uma atividade publicada');
+ assert.equal(listed[0].toolCallId,'previa-publicada');
+ const read=await page.evaluate((item)=>window.desk.activityRead({id:item.id,version:item.version,scopeRef:item.scopeRef}),listed[0]);
+ assert.equal(read.spec.title,'Publicado da prévia');
+ assert.match(read.spec.html,/canvas id="chart"/,'o documento é o da prévia, não um reenvio vazio');
+ assert.equal(read.spec.kind,'visualizacao','o tipo veio da prévia');
  assert.deepEqual(errors,[]);
 });
 console.log('activity-preview-ui: PASS — prévia offline devolve PNG, altura e console (com o erro e a linha), na largura da coluna ou na pedida, e não grava nada.');

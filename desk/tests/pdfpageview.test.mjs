@@ -67,73 +67,70 @@ test('panelShell monta a section: barra única, palco, busca, menu e faixa recol
   assert.deepEqual(classes, ['pdf-title', 'pdf-stage', 'pdf-find', 'pdf-more-pop', 'pdf-restore']);
 });
 
-test('titleBar: uma linha com rótulo, material, voltar, página, busca, favoritos e mais opções', () => {
+test('titleBar: uma linha com rótulo, material, voltar, pager, busca e mais opções', () => {
   const built = build(pdfPage.titleBar(shell()), {});
   assert.equal(attr(built, 'class'), 'pdf-title');
-  assert.equal(built.children.length, 10);
+  assert.equal(built.children.length, 7);
   assert.deepEqual(built.children.map((kid) => attr(kid, 'class')), [
-    undefined, 'pdf-select', 'back icon-btn', 'prev icon-btn', 'page-number', 'page-total',
-    'next icon-btn', 'find-toggle icon-btn', 'nav icon-btn', 'more icon-btn',
+    undefined, 'pdf-select', 'back icon-btn', 'pager', 'page-number',
+    'find-toggle icon-btn', 'more icon-btn',
   ]);
   assert.equal(built.children[0].tag, 'strong');
   assert.equal(built.children[0].children[0].text, 'Enunciado');
-  const [, select, back, prev, page, total, next, toggle, nav, more] = built.children;
+  const [, select, back, pager, page, toggle, more] = built.children;
   assert.equal(attr(select, 'aria-label'), 'Documento de Enunciado');
   assert.equal(attr(back, 'data-icon'), 'chevronLeft');
   assert.equal(attr(back, 'title'), 'Voltar à página anterior');
   assert.equal(attr(back, 'aria-label'), 'Voltar à página anterior de Enunciado');
   assert.equal(attr(back, 'hidden'), '');
-  assert.equal(attr(prev, 'aria-label'), 'Página anterior');
-  assert.equal(attr(next, 'aria-label'), 'Próxima página');
+  assert.equal(rawAttr(pdfPage.pagerBtn(), 'on:click'), 'OpenPager');
+  assert.equal(attr(pager, 'aria-label'), 'Página 1 de 1');
+  assert.deepEqual(pager.children.map((kid) => attr(kid, 'class')), ['pager-current', 'page-total']);
   assert.equal(attr(page, 'type'), 'number');
   assert.equal(attr(page, 'min'), '1');
   assert.equal(attr(page, 'value'), '1');
-  assert.equal(attr(page, 'aria-label'), 'Página de Enunciado');
-  assert.equal(total.children.length, 0);
+  assert.equal(attr(page, 'aria-label'), 'Página 1 de 1');
+  assert.equal(attr(page, 'hidden'), '');
   assert.equal(attr(toggle, 'data-icon'), 'search');
   assert.equal(attr(toggle, 'aria-pressed'), 'false');
-  assert.equal(attr(nav, 'data-icon'), 'bookmark');
-  assert.equal(attr(nav, 'title'), 'Sumário e favoritos');
-  assert.equal(attr(nav, 'aria-label'), 'Sumário e favoritos de Enunciado');
-  assert.equal(attr(nav, 'aria-expanded'), 'false');
   assert.equal(attr(more, 'data-icon'), 'more');
   assert.equal(attr(more, 'title'), 'Mais opções');
   assert.equal(attr(more, 'aria-label'), 'Mais opções de Enunciado');
   assert.equal(attr(more, 'aria-expanded'), 'false');
   assert.equal(rawAttr(pdfPage.moreBtn('Enunciado'), 'on:click'), 'ToggleMore');
   const searching = build(pdfPage.titleBar(shell({findOpen: true})), {});
-  assert.equal(attr(searching.children[7], 'aria-pressed'), 'true');
+  assert.equal(attr(searching.children[5], 'aria-pressed'), 'true');
 });
 
-test('moreMenu: o que saiu da barra mora no menu, com texto, e nasce fechado', () => {
+test('moreMenu: seis itens, com zoom e marcadores; nasce fechado', () => {
   const built = build(pdfPage.moreMenu('Enunciado', 0, false), {});
   assert.equal(attr(built, 'class'), 'pdf-more-pop');
   assert.equal(attr(built, 'hidden'), '');
   assert.equal(attr(built, 'aria-label'), 'Mais opções de Enunciado');
   assert.deepEqual(built.children.map((kid) => attr(kid, 'class')), [
-    'open more-item', 'page-shot more-item', 'more-zoom', 'fit more-item',
-    'invert more-item', 'rotate more-item', 'collapse more-item',
+    'page-shot more-item', 'more-zoom', 'invert more-item',
+    'rotate more-item', 'nav more-item', 'collapse more-item',
   ]);
   const text = (node) => node.children.map((kid) => ptText(kid.text ?? '')).join('');
-  assert.equal(text(built.children[0]), 'Abrir outro PDF');
-  assert.equal(attr(built.children[0], 'data-icon'), 'plus');
-  assert.equal(text(built.children[1]), 'Capturar página');
-  assert.equal(attr(built.children[1], 'data-icon'), 'camera');
-  assert.equal(text(built.children[3]), 'Ajustar à largura');
-  assert.equal(attr(built.children[3], 'data-icon'), 'unfold');
-  assert.equal(text(built.children[4]), 'Página escura');
-  assert.equal(attr(built.children[4], 'aria-label'), 'Página escura');
-  assert.equal(text(built.children[5]), 'Girar');
-  assert.equal(text(built.children[6]), 'Minimizar este leitor');
-  const zoom = built.children[2].children[1];
-  assert.deepEqual(zoom.children.map((kid) => attr(kid, 'class')), ['out icon-btn', 'zoom-label', 'in icon-btn']);
+  assert.equal(text(built.children[0]), 'Capturar página');
+  assert.equal(attr(built.children[0], 'data-icon'), 'camera');
+  assert.equal(text(built.children[2]), 'Página escura');
+  assert.equal(attr(built.children[2], 'aria-label'), 'Página escura');
+  assert.equal(text(built.children[3]), 'Girar');
+  assert.equal(text(built.children[4]), 'Marcadores');
+  assert.equal(attr(built.children[4], 'data-icon'), 'bookmark');
+  assert.equal(text(built.children[5]), 'Minimizar este leitor');
+  const zoom = built.children[1].children[1];
+  assert.deepEqual(zoom.children.map((kid) => attr(kid, 'class')), ['out icon-btn', 'zoom-label', 'in icon-btn', 'fit more-zoom-fit']);
   assert.equal(attr(zoom.children[0], 'aria-label'), 'Diminuir zoom');
   assert.equal(attr(zoom.children[2], 'aria-label'), 'Aumentar zoom');
+  assert.equal(attr(zoom.children[3], 'aria-label'), 'Ajustar à largura');
+  assert.equal(ptText(zoom.children[3].children[0].text), 'Largura');
   assert.equal(zoom.children[1].children.length, 0);
   const minimized = build(pdfPage.moreMenu('Enunciado', 0, true), {});
-  assert.equal(attr(minimized.children[6], 'aria-pressed'), 'true');
-  assert.equal(attr(minimized.children[6], 'data-icon'), 'chevronUp');
-  assert.equal(text(minimized.children[6]), 'Restaurar este leitor');
+  assert.equal(attr(minimized.children[5], 'aria-pressed'), 'true');
+  assert.equal(attr(minimized.children[5], 'data-icon'), 'chevronUp');
+  assert.equal(text(minimized.children[5]), 'Restaurar este leitor');
 });
 
 test('restoreBtn: a faixa do leitor recolhido mostra o rótulo e reabre', () => {
@@ -167,15 +164,17 @@ test('rotação: ciclo 0→90→180→270→0, validação e normalização do n
   assert.equal(ptText(pdfPage.rotateToast(180)), 'Orientação: 180°');
 });
 
-test('select da biblioteca: opção vazia, nome/path e selected', () => {
+test('select da biblioteca: opção vazia, nome/path, selected e "Abrir PDF…" no fim', () => {
   const options = optionList([{$: 'PdfOption', name: 'Limites.pdf', path: '/x/Limites.pdf'}]);
   const built = build(pdfPage.selectNode('Enunciado', options, '/x/Limites.pdf'), {});
-  assert.equal(built.children.length, 2);
+  assert.equal(built.children.length, 3);
   assert.equal(attr(built.children[0], 'value'), '');
   assert.equal(built.children[0].children[0].text, 'Nenhum material');
   assert.equal(attr(built.children[1], 'value'), '/x/Limites.pdf');
   assert.equal(attr(built.children[1], 'selected'), '');
   assert.equal(built.children[1].children[0].text, 'Limites.pdf');
+  assert.equal(attr(built.children[2], 'value'), '__open__');
+  assert.equal(built.children[2].children[0].text, 'Abrir PDF…');
   const other = build(pdfPage.selectNode('Enunciado', options, '/y/Outro.pdf'), {});
   assert.equal(attr(other.children[1], 'selected'), undefined);
 });
@@ -194,9 +193,9 @@ test('findForm: form escondido, input e contador escondido', () => {
   assert.equal(button.children[0].text, 'Buscar');
 });
 
-test('stage e divider preservam o contrato do smoke', () => {
+test('stage e divider preservam o contrato do smoke (sem rodapé)', () => {
   const stage = build(pdfPage.stage(), {});
-  assert.deepEqual(stage.children.map((kid) => attr(kid, 'class')), ['pdf-viewport', 'pdf-foot']);
+  assert.deepEqual(stage.children.map((kid) => attr(kid, 'class')), ['pdf-viewport']);
   const div = build(pdfPage.divider(), {});
   assert.equal(attr(div, 'class'), 'pdf-divider');
   assert.equal(attr(div, 'role'), 'separator');
@@ -217,7 +216,31 @@ test('viewport: vazio mostra o placeholder, pronto monta o documento', () => {
   const empty = pdfPage.viewport({$: 'PdfEmpty'}, {$: 'Nil'});
   assert.equal(attr(build(empty.value, {}), 'class'), 'pdf-placeholder');
   assert.deepEqual(pdfPage.viewport({$: 'PdfLoading'}, {$: 'Nil'}), {$: 'None'});
-  assert.deepEqual(pdfPage.viewport({$: 'PdfFailed'}, {$: 'Nil'}), {$: 'None'});
+  const calls = [];
+  const failed = pdfPage.viewport({$: 'PdfFailed', reason: 'arquivo removido'}, {$: 'Nil'});
+  assert.equal(failed.$, 'Some');
+  const panel = build(failed.value, {OpenFile: () => calls.push('OpenFile')});
+  assert.equal(attr(panel, 'class'), 'pdf-failed');
+  assert.equal(attr(panel, 'role'), 'alert');
+  assert.equal(panel.children[0].tag, 'p');
+  assert.match(panel.children[0].children[0].text, /arquivo removido/);
+  const retry = panel.children[1];
+  assert.equal(retry.tag, 'button');
+  assert.equal(attr(retry, 'class'), 'pdf-failed-open');
+  assert.match(retry.children[0].text, /Abrir outro/);
+  retry.listeners.get('click')();
+  assert.deepEqual(calls, ['OpenFile']);
+});
+
+test('erro de abertura: motivo curto e mensagem dentro de 80 caracteres', () => {
+  assert.equal(ptText(pdfPage.failReason('  Invalid PDF structure.  ')), 'Invalid PDF structure.');
+  const message = ptText(pdfPage.failText('x'.repeat(200)));
+  assert.ok([...message].length <= 80, `mensagem com ${[...message].length} caracteres`);
+  assert.match(message, /^Não foi possível abrir: /);
+});
+
+test('pageAria: o pager e o campo dizem a página real, não o rótulo', () => {
+  assert.equal(ptText(pdfPage.pageAria(2, 5)), 'Página 2 de 5');
 });
 
 test('hlSegments: destaques com os índices da dobra e sem sobreposição', () => {
@@ -259,28 +282,26 @@ test('os handlers do painel vêm ligados na árvore (tabela do host)', () => {
   const handlers = {
     OpenFile() {}, ToggleFind() {}, PageShot() {}, ToggleCollapse() {}, ToggleInvert() {}, Rotate() {},
     NavBack() {}, ToggleNav() {}, ToggleMore() {},
-    OpenDoc() {}, GotoPage() {}, Prev() {}, Next() {}, ZoomOut() {}, ZoomIn() {},
+    OpenDoc() {}, OpenPager() {}, GotoPage() {}, Prev() {}, Next() {}, ZoomOut() {}, ZoomIn() {},
     Fit() {}, Find() {},
   };
   const panel = build(pdfPage.panelShell(shell()), handlers);
   const [title, , form, menu, strip] = panel.children;
   assert.equal(title.children[1].listeners.get('change'), handlers.OpenDoc);
   assert.equal(title.children[2].listeners.get('click'), handlers.NavBack);
-  assert.equal(title.children[3].listeners.get('click'), handlers.Prev);
+  assert.equal(title.children[3].listeners.get('click'), handlers.OpenPager);
   assert.equal(title.children[4].listeners.get('change'), handlers.GotoPage);
-  assert.equal(title.children[6].listeners.get('click'), handlers.Next);
-  assert.equal(title.children[7].listeners.get('click'), handlers.ToggleFind);
-  assert.equal(title.children[8].listeners.get('click'), handlers.ToggleNav);
-  assert.equal(title.children[9].listeners.get('click'), handlers.ToggleMore);
-  const zoom = menu.children[2].children[1];
-  assert.equal(menu.children[0].listeners.get('click'), handlers.OpenFile);
-  assert.equal(menu.children[1].listeners.get('click'), handlers.PageShot);
+  assert.equal(title.children[5].listeners.get('click'), handlers.ToggleFind);
+  assert.equal(title.children[6].listeners.get('click'), handlers.ToggleMore);
+  const zoom = menu.children[1].children[1];
+  assert.equal(menu.children[0].listeners.get('click'), handlers.PageShot);
   assert.equal(zoom.children[0].listeners.get('click'), handlers.ZoomOut);
   assert.equal(zoom.children[2].listeners.get('click'), handlers.ZoomIn);
-  assert.equal(menu.children[3].listeners.get('click'), handlers.Fit);
-  assert.equal(menu.children[4].listeners.get('click'), handlers.ToggleInvert);
-  assert.equal(menu.children[5].listeners.get('click'), handlers.Rotate);
-  assert.equal(menu.children[6].listeners.get('click'), handlers.ToggleCollapse);
+  assert.equal(zoom.children[3].listeners.get('click'), handlers.Fit);
+  assert.equal(menu.children[2].listeners.get('click'), handlers.ToggleInvert);
+  assert.equal(menu.children[3].listeners.get('click'), handlers.Rotate);
+  assert.equal(menu.children[4].listeners.get('click'), handlers.ToggleNav);
+  assert.equal(menu.children[5].listeners.get('click'), handlers.ToggleCollapse);
   assert.equal(strip.listeners.get('click'), handlers.ToggleCollapse);
   assert.equal(form.listeners.get('submit'), handlers.Find);
 });

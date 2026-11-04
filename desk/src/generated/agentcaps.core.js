@@ -10,6 +10,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $piCaps() {
   return { $: "Caps", images: true, permissions: true, steer: true, compact: true, autoCompaction: true, modelSelection: true, effort: true, reviewDraft: true, commands: true, geogebra: true, quiz: true, contextUsage: true };
 }
@@ -24,13 +25,13 @@ function $claudeControlCaps(_catalogReady_0, _effortSupported_0) {
   }
 }
 function $opencodeCaps() {
-  return { $: "Caps", images: true, permissions: true, steer: true, compact: true, autoCompaction: false, modelSelection: false, effort: false, reviewDraft: false, commands: true, geogebra: true, quiz: true, contextUsage: true };
+  return { $: "Caps", images: true, permissions: true, steer: true, compact: true, autoCompaction: false, modelSelection: false, effort: false, reviewDraft: true, commands: true, geogebra: true, quiz: true, contextUsage: true };
 }
 function $opencodeControlCaps(_catalogReady_0, _effortSupported_0) {
   if (!_catalogReady_0) {
     return $opencodeCaps();
   } else {
-    return { $: "Caps", images: true, permissions: true, steer: true, compact: true, autoCompaction: false, modelSelection: true, effort: _effortSupported_0, reviewDraft: false, commands: true, geogebra: true, quiz: true, contextUsage: true };
+    return { $: "Caps", images: true, permissions: true, steer: true, compact: true, autoCompaction: false, modelSelection: true, effort: _effortSupported_0, reviewDraft: true, commands: true, geogebra: true, quiz: true, contextUsage: true };
   }
 }
 function $unknownCaps() {
@@ -50,8 +51,8 @@ function $canSteer(_caps_0, _busy_0) {
 function $canSend(_caps_0, _busy_0, _hasImages_0) {
   const _images_0 = _caps_0["images"];
   const _steer_0 = _caps_0["steer"];
-  const _x_0 = $Bool_not(_busy_0);
-  return $Bool_and($imagesAllowed(_images_0, _hasImages_0), _x_0 || _steer_0);
+  const _x_0 = $$Bool_not(_busy_0);
+  return $Bool_and($$imagesAllowed(_images_0, _hasImages_0), _x_0 || _steer_0);
 }
 function $controlVisible(_caps_0, _control_0) {
   const _images_0 = _caps_0["images"];
@@ -106,6 +107,8 @@ function $Bool_not(_b_0) {
     return false;
   }
 }
+var $$imagesAllowed = $imagesAllowed;
+var $$Bool_not = $Bool_not;
 var agentcaps_default = {
   piCaps: run_lib(() => run_loop($piCaps()), 0),
   claudeCaps: run_lib(() => run_loop($claudeCaps()), 0),

@@ -1,8 +1,8 @@
 // node tests/about-ui.mjs — Sobre (ticket #34), medido na janela.
-// Mede o casco (540px, raio 16px, marca de 44px, nome em serifa de 24px, × de 28px,
+// Mede o casco (540px, raio 12px, marca de 44px, nome em serifa de 24px, × de 28px,
 // faixa de atualização de 44px, bolinha de 7px, ações de 30px, rodapé de 52px encostado
 // na base, sem vão vazio) nos dois temas, em 1440×900 e 900×650, com a faixa "Atualizada."
-// e com a faixa "vX disponível"; a marca é a G1 do acento (#70); confere "Créditos e licenças" e "Abrir o log".
+// e com a faixa "vX disponível"; a marca é a luminária do acento (#101); confere "Créditos e licenças" e "Abrir o log".
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -63,12 +63,12 @@ await withArtifacts('about',async ctx=>{
  await page.waitForFunction(()=>![...document.querySelectorAll('#component-rows .component-state')].some(e=>e.textContent==='Verificando…'),undefined,{timeout:10000});
 
  const check=(m,tag)=>{
-  assert.equal(m.dialog.radius,'16px',`${tag}: raio 16px`);
+  assert.equal(m.dialog.radius,'12px',`${tag}: raio 12px`);
   assert.ok(m.dialog.bottom<=m.vh&&m.dialog.right<=m.vw&&m.dialog.left>=0&&m.dialog.top>=0,`${tag}: cabe na janela`);
   assert.ok(near(m.dialog.width,540,1),`${tag}: diálogo de 540px (${m.dialog.width})`);
   assert.ok(near(m.mark.width,44,0.6)&&near(m.mark.height,44,0.6),`${tag}: marca de 44px`);
-  /* #70: a marca é a G1 do acento escolhido, não o quadrado com "M" de antes da #61. */
-  assert.match(m.markSrc,/assets\/app-icon\/mesa-violet\.svg$/,`${tag}: marca G1 no acento violeta (${m.markSrc})`);
+  /* #101: a marca é o ícone do app (a luminária) no acento escolhido. */
+  assert.match(m.markSrc,/assets\/app-icon\/lamp-violet-128\.png$/,`${tag}: marca no acento violeta (${m.markSrc})`);
   assert.equal(m.name.font,'24px',`${tag}: nome de 24px`);
   assert.match(m.name.family,/Newsreader|Iowan|Charter|Georgia|serif/i,`${tag}: nome serifado`);
   assert.ok(near(m.close.width,28,0.6)&&near(m.close.height,28,0.6)&&!m.close.border,`${tag}: × de 28px sem borda`);
@@ -114,7 +114,7 @@ await withArtifacts('about',async ctx=>{
  assert.match(credits,/Lobe Icons 1\.95\.1 — logos dos provedores e dos fabricantes.*MIT, © 2023 LobeHub/,'os logos do seletor de modelo creditados, com a licença');
  /* #61: os ícones do Lucide (ISC) e a STIX embutida (OFL) levam o aviso. */
  assert.match(credits,/Lucide — .*ISC, © Lucide Contributors/,'o Lucide creditado, com a licença');
- assert.match(credits,/STIX Two Text 2\.13 — .*SIL OFL 1\.1/,'a STIX creditada, com a licença');
+ assert.match(credits,/STIX Two Text\/Math 2\.13 — .*SIL OFL 1\.1/,'a STIX creditada, com a licença');
  assert.match(await page.locator('#about-license-t3').textContent(),/Copyright \(c\) 2026 T3 Tools Inc\. Permission is hereby granted/);
  const withCredits=await measure(page);
  assert.ok(withCredits.dialog.bottom<=withCredits.vh,'com créditos o diálogo continua cabendo em 900×650');

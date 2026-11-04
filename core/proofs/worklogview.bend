@@ -9,6 +9,9 @@ def Laws.worklogview_kind_thinking():
 def Laws.worklogview_kind_search():
   {==}
 
+def Laws.worklogview_kind_material():
+  {==}
+
 def Laws.worklogview_kind_reference():
   {==}
 

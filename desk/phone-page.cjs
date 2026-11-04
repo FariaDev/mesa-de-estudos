@@ -10,6 +10,8 @@
    "Tirar foto" usa `capture="environment"`: abre a câmera e, no iPhone, o
    escaneamento de documento, sem HTTPS. Cada foto vai num pedido próprio para
    `<caminho>/photo`, uma de cada vez, e a página confirma "Enviado para a Mesa".
+   A fila (prazo por envio, uma tentativa a mais, `wake` quando a página volta
+   da suspensão) mora em `phone-upload.cjs` e entra aqui pelo `toString()`.
 
    Redesenho da #66: três estados em `main[data-state]`, cada um com um do trio
    (`phone-cast.cjs`): start (∫, o convite), sending (Σ, a barra e as enviadas)
@@ -17,6 +19,10 @@
    O layout mora em `src/phone-page.css`. */
 
 const {phoneCastMarkup} = require('./phone-cast.cjs');
+const {createPhotoUploader, UPLOAD_LIMITS} = require('./phone-upload.cjs');
+
+/* A fila vai inteira para o `<script>`: `toString()` da função, sem módulo (ver `phone-upload.cjs`). */
+const UPLOADER = createPhotoUploader.toString();
 
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
 
@@ -51,14 +57,16 @@ const ICON = {
   done: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>',
 };
 
-/* Script da página: envia cada foto num pedido, uma de cada vez. Sem rede, as
-   que faltaram ficam em `pending` para o "Tentar de novo". */
+/* Script da página: põe as fotos na tela e liga os eventos. A fila (prazo,
+   tentativa a mais, `busy` e o que falta para o "Tentar de novo") é
+   `UPLOADER`, serializada aqui, e não guarda nada de DOM. */
 const SCRIPT = `
 const texts=JSON.parse(document.getElementById('texts').textContent);
 const $=id=>document.getElementById(id);
 const main=document.querySelector('main'),status=$('status'),ready=$('ready'),progress=$('progress'),fillBar=$('bar-fill'),log=$('log'),sent=$('sent'),doneMark=$('done-mark').content;
 for(const el of document.querySelectorAll('[data-style]'))for(const rule of el.dataset.style.split(';')){const at=rule.indexOf(':');if(at>0)el.style.setProperty(rule.slice(0,at).trim(),rule.slice(at+1).trim());}
-let sentCount=0,busy=false,pending=[];
+let sentCount=0;
+const thumbs=new Map();
 const fill=(s,v)=>s.replace(/\\{(\\w+)\\}/g,(m,k)=>k in v?v[k]:m);
 const failure={404:texts.gone,413:texts.tooBig,415:texts.wrongType};
 function setState(state){
@@ -67,41 +75,47 @@ function setState(state){
  $('camera-text').textContent=more?texts.more:texts.camera;
  $('gallery-text').textContent=more?texts.moreGallery:texts.gallery;
 }
-function showProgress(text,done,total,bad){
- status.textContent=text;status.classList.toggle('bad',!!bad);progress.classList.toggle('busy',busy);
+function showProgress(text,done,total,{bad=false,busy=false}={}){
+ status.textContent=text;status.classList.toggle('bad',bad);progress.classList.toggle('busy',busy);
  ready.textContent=busy&&done?fill(done===1?texts.readyOne:texts.readyOther,{count:done}):'';
  fillBar.style.setProperty('--done',String(total?done/total:0));
 }
-function addThumb(file){
+function verdictText(verdict){return verdict.reason==='full'?texts.full:(failure[verdict.status]||texts.network);}
+function addThumb(item){
  const thumb=document.createElement('figure');thumb.className='thumb pending';
- const img=document.createElement('img');img.alt='';img.src=URL.createObjectURL(file);
+ const img=document.createElement('img');img.alt='';img.src=URL.createObjectURL(item.file);
  const mark=document.createElement('span');mark.className='done';mark.append(doneMark.cloneNode(true));
  thumb.append(img,mark);sent.append(thumb);document.querySelector('.sent-title').hidden=false;
- return thumb;
+ thumbs.set(item,thumb);
 }
-function dropThumb(thumb){URL.revokeObjectURL(thumb.querySelector('img').src);thumb.remove();if(!sent.children.length)document.querySelector('.sent-title').hidden=true;}
-async function send(files){
- if(busy||!files.length)return;busy=true;pending=[...files];setState('sending');
- const total=files.length;let done=0;
- for(const file of files){
-  showProgress(fill(texts.sending,{n:done+1,total}),done,total);
-  const thumb=addThumb(file);
-  let reply;
-  try{reply=await fetch(location.pathname.replace(/\\/$/,'')+'/photo',{method:'POST',body:file,headers:{'Content-Type':file.type||'application/octet-stream'}});}
-  catch{dropThumb(thumb);busy=false;setState('offline');return;}
-  if(!reply.ok){
-   const body=await reply.json().catch(()=>({}));
-   dropThumb(thumb);busy=false;pending=[];
-   showProgress(body.reason==='full'?texts.full:(failure[reply.status]||texts.network),done,total,true);return;
-  }
-  done++;pending.shift();
-  thumb.classList.remove('pending');thumb.querySelector('img').alt=fill(texts.sentAlt,{n:sentCount+=1});
-  const item=document.createElement('li');item.textContent=fill(texts.sent,{n:done,total});log.prepend(item);
- }
- busy=false;showProgress(fill(texts.sent,{n:done,total}),done,total);
+function dropThumb(item){
+ const thumb=thumbs.get(item);thumbs.delete(item);
+ URL.revokeObjectURL(thumb.querySelector('img').src);thumb.remove();
+ if(!sent.children.length)document.querySelector('.sent-title').hidden=true;
 }
-for(const input of document.querySelectorAll('input[type=file]'))input.addEventListener('change',()=>{const files=[...input.files];input.value='';send(files);});
-$('retry').addEventListener('click',()=>send(pending));
+function markSent(item,done,total){
+ const thumb=thumbs.get(item);thumb.classList.remove('pending');thumb.querySelector('img').alt=fill(texts.sentAlt,{n:sentCount+=1});
+ const entry=document.createElement('li');entry.textContent=fill(texts.sent,{n:done,total});log.prepend(entry);
+}
+function showPhase(name,{done,total,verdict}){
+ if(name==='offline'){progress.classList.remove('busy');setState('offline');return;}
+ if(name==='refused'){showProgress(verdictText(verdict),done,total,{bad:true});return;}
+ if(name==='sending'){setState('sending');showProgress(fill(texts.sending,{n:done+1,total}),done,total,{busy:true});return;}
+ showProgress(fill(texts.sent,{n:done,total}),done,total);
+}
+const uploader=(${UPLOADER})({
+ post:(file,signal,id)=>fetch(location.pathname.replace(/\\/$/,'')+'/photo',{method:'POST',body:file,headers:{'Content-Type':file.type||'application/octet-stream','X-Mesa-Photo-Id':id},signal}).then(async(reply)=>({ok:reply.ok,status:reply.status,reason:reply.ok?'':(await reply.json().catch(()=>({}))).reason})),
+ newController:()=>new AbortController(),
+ setTimer:(run,ms)=>setTimeout(run,ms),
+ clearTimer:(id)=>clearTimeout(id),
+ limits:${JSON.stringify(UPLOAD_LIMITS)},
+ on:{added:addThumb,sent:markSent,dropped:dropThumb,phase:showPhase},
+});
+for(const input of document.querySelectorAll('input[type=file]'))input.addEventListener('change',()=>{const files=[...input.files];input.value='';uploader.enqueue(files);});
+$('retry').addEventListener('click',()=>uploader.resume());
+/* Voltar à página (desbloqueou, ou o navegador restaurou a aba): o envio que ficou no ar aborta e refaz; a fila parada retoma. */
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)uploader.wake();});
+addEventListener('pageshow',()=>uploader.wake());
 `;
 
 /** O topo: ∫ no início e Σ enquanto envia, ao lado do título; no erro, só o título. */

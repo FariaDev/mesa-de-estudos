@@ -4,15 +4,15 @@
 /* ---------- Diálogos ---------- */
 
 dialog{
- border:1px solid var(--border-strong);border-radius:var(--r-3xl);padding:20px;max-width:500px;
+ border:1px solid var(--border-strong);border-radius:var(--r-xl);padding:20px;max-width:500px;
  width:min(500px,calc(100% - 32px));
- background:var(--surface);color:var(--fg);box-shadow:var(--shadow-pop);
+ background:var(--raised);color:var(--fg);box-shadow:var(--shadow-pop);
 }
 /* Abrir e fechar o modal animam em src/motion.css (#63). */
 dialog::backdrop{background:var(--scrim)}
 dialog h2{margin:0 0 14px;font-size:var(--fs-xl);font-weight:600;color:var(--fg-strong)}
 dialog label{display:flex;flex-direction:column;gap:var(--space-2);font-size:var(--fs-sm-half);color:var(--muted);margin-bottom:var(--space-6)}
-dialog input,dialog textarea,dialog select{border:1px solid var(--border-strong);border-radius:var(--r-md);padding:7px 9px;background:var(--surface);font-size:var(--fs-md);color:var(--fg)}
+dialog input,dialog textarea,dialog select{border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:7px 9px;background:var(--surface);font-size:var(--fs-md);color:var(--fg)}
 dialog menu{display:flex;justify-content:flex-end;gap:var(--space-3);margin:18px 0 0;padding:0}
 .dialog-actions{display:flex;gap:var(--space-3);justify-content:flex-end;margin-top:var(--space-6)}
 /* Layouts pessoais: o cabeçalho não soma recuo ao do diálogo; o rótulo cola no
@@ -29,32 +29,16 @@ dialog textarea{display:block}
 .dialog-actions button,dialog menu button{height:30px}
 dialog select,dialog input:is([type=text],[type=search],[type=number],[type=url],[type=email],[type=password],:not([type])){height:30px;padding-block:0}
 #dialog-message{margin:0 0 14px;font-size:var(--fs-md);color:var(--muted);line-height:1.5}
-#dialog-fields input,#dialog-fields select,#dialog-fields textarea{width:100%;padding:var(--space-3);margin-top:var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--fg);font-size:var(--fs-md)}
+/* Confirmação do tutor (#78): o comando ou o arquivo entra como bloco cercado,
+   sem reescrever o texto e sem cortar a linha longa; o bloco rola sozinho. */
+#dialog-message pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;max-height:40vh;overflow:auto;font:var(--fs-sm)/1.5 var(--font-mono)}
+#dialog-fields input,#dialog-fields select,#dialog-fields textarea{width:100%;padding:var(--space-3);margin-top:var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--fg);font-size:var(--fs-md)}
 #dialog-fields label{display:block;margin:var(--space-3)}
-/* Perguntas estruturadas do Claude Code (#pi-dialog): cada pergunta é um bloco
-   com opções (radio/checkbox) e texto livre. O casco é o mesmo dos outros
-   diálogos; só o miolo e a rolagem são específicos. */
-#pi-dialog[data-question=true]{max-height:min(680px,88vh)}
-#pi-dialog[data-question=true] form{display:flex;flex-direction:column;max-height:min(680px,88vh)}
-#pi-dialog[data-question=true] #dialog-fields{overflow:auto;min-height:0;padding-right:var(--space-1)}
-#dialog-fields .cq-question{margin:var(--space-4) 0 0;padding:var(--space-4) 0 0;border-top:1px solid var(--border)}
-#dialog-fields .cq-question:first-child{margin-top:0;padding-top:0;border-top:0}
-.cq-header{margin:0 0 var(--space-2);font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
-.cq-text{margin:0 0 var(--space-3);font-size:var(--fs-md);line-height:1.5;color:var(--fg)}
-.cq-options{display:grid;gap:var(--space-2)}
-#dialog-fields .cq-option{display:flex;align-items:flex-start;gap:var(--space-3);margin:0;padding:var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);cursor:pointer;font-size:var(--fs-md);color:var(--fg)}
-#dialog-fields .cq-option:hover{background:var(--hover)}
-#dialog-fields .cq-option input{width:auto;margin:2px 0 0;flex:none;accent-color:var(--primary)}
-.cq-option-body{display:flex;flex-direction:column;gap:var(--space-0);min-width:0}
-.cq-option-label{line-height:1.4;overflow-wrap:anywhere}
-.cq-option-desc{color:var(--muted);font-size:var(--fs-sm);line-height:1.4;overflow-wrap:anywhere}
-#dialog-fields .cq-other{display:block;margin:var(--space-3) 0 0}
-.cq-other-label{display:block;font-size:var(--fs-xs);color:var(--faint)}
-.cq-other .cq-text-input{margin-top:var(--space-2)}
-#dialog-fields .cq-question.cq-invalid .cq-option,#dialog-fields .cq-question.cq-invalid .cq-text-input{border-color:var(--danger)}
-.cq-error{margin:var(--space-2) 0 0;color:var(--danger-text);font-size:var(--fs-sm);line-height:1.4}
-
 #end-day-dialog{max-width:460px;width:min(460px,92vw);max-height:min(640px,88vh);padding:0;overflow:hidden}
+/* #81: o domínio de destino é a parte que a pessoa precisa ler; o caminho fica embaixo, mais discreto. */
+#link-dialog{max-width:440px;width:min(440px,92vw)}
+#link-dialog .link-confirm-host{margin:0;font-size:var(--fs-lg);font-weight:600;color:var(--fg-strong);overflow-wrap:anywhere}
+#link-dialog .link-confirm-path{margin:var(--space-2) 0 0;color:var(--muted);overflow-wrap:anywhere}
 #image-dialog{max-width:min(1100px,94vw);width:min(1100px,94vw);padding:0}
 #image-dialog form{display:flex;flex-direction:column;max-height:92vh}
 #image-dialog .help-head{padding:14px 18px 6px}
@@ -73,7 +57,6 @@ dialog select,dialog input:is([type=text],[type=search],[type=number],[type=url]
 .help-head .icon-btn{font-size:var(--fs-xl);color:var(--muted);width:28px;height:28px}
 /* Fechar de diálogo: × sem borda nem fundo, 28px, no canto do cabeçalho. */
 .dialog-close{flex:none;width:28px;height:28px;font-size:var(--fs-xl);color:var(--muted)}
-.help-body{overflow:auto;padding:0 20px var(--space-3);min-height:0}
 .help-lead{margin:0 0 var(--space-6);font-size:var(--fs-md);line-height:1.5;color:var(--muted)}
 .help-version{margin:16px 0 var(--space-0);font-size:var(--fs-xs);color:var(--faint);font-variant-numeric:tabular-nums}
 kbd{
@@ -84,7 +67,7 @@ kbd{
 
 .settings-body label{display:block;font-size:var(--fs-sm);color:var(--muted);margin:0 0 var(--space-4)}
 .settings-body input[type="text"]{
- width:100%;padding:var(--space-2) var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-md);
+ width:100%;padding:var(--space-2) var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-sm);
  background:var(--surface);color:var(--fg);font-size:var(--fs-sm);
 }
 .settings-body input[type="text"]::placeholder{color:var(--faint)}
@@ -92,7 +75,7 @@ kbd{
 .path-row input{flex:1;min-width:0}
 /* Editor de matérias (#27 B9, canvas Configurações): colunas 170px · pasta ·
    Escolher… · remover, com o cabeçalho "Nome" / "Pasta dos PDFs" uma vez; campos
-   e botões de 30px, raio 8px. A linha e o cabeçalho dividem a grade, então as
+   e botões de 30px, raio 7px. A linha e o cabeçalho dividem a grade, então as
    colunas alinham mesmo sendo grades separadas (a coluna `auto` tem o mesmo
    conteúdo em todas). */
 .cfg-course,.cfg-course-head{
@@ -103,11 +86,11 @@ kbd{
 .cfg-course-head>span:nth-child(2){grid-column:2 / 5}
 #settings-dialog .cfg-course :is(input.cfg-name,input.cfg-path){
  width:100%;height:30px;box-sizing:border-box;padding:0 var(--space-4);min-width:0;
- border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--fg);font-size:var(--fs-md);
+ border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--fg);font-size:var(--fs-md);
 }
 #settings-dialog .cfg-course :is(input.cfg-name,input.cfg-path):focus{border-color:var(--ring);outline:none;box-shadow:var(--ring-shadow)}
 #settings-dialog .cfg-course .cfg-browse{
- height:30px;padding:0 var(--space-5);border:1px solid var(--border-strong);border-radius:var(--r-md);
+ height:30px;padding:0 var(--space-5);border:1px solid var(--border-strong);border-radius:var(--r-sm);
  background:transparent;box-shadow:none;color:var(--fg-strong);font-size:var(--fs-md);font-weight:600;white-space:nowrap;
 }
 #settings-dialog .cfg-course .cfg-browse:hover{background:var(--hover)}
@@ -116,7 +99,7 @@ kbd{
 /* "Adicionar matéria": ação fantasma com +, no acento, alinhada ao texto dos campos. */
 #cfg-add-course{
  display:inline-flex;align-items:center;gap:var(--space-3);height:30px;margin:0 0 var(--space-5) calc(-1 * var(--space-4));padding:0 var(--space-4);
- border-radius:var(--r-md);color:var(--accent-text);font-size:var(--fs-md);font-weight:500;text-decoration:none;
+ border-radius:var(--r-sm);color:var(--accent-text);font-size:var(--fs-md);font-weight:500;text-decoration:none;
 }
 #cfg-add-course::before{content:"+" / "";font-size:var(--fs-xl);font-weight:400;line-height:1}
 #cfg-add-course:hover{background:var(--hover);text-decoration:none}
@@ -133,10 +116,10 @@ kbd{
 #keys-dialog .keys-head .dialog-close{position:absolute;top:-6px;right:-6px}
 #keys-dialog .keys-head h2{margin:0 0 var(--space-1)}
 #keys-dialog .keys-sub{margin:0 0 14px;font-size:var(--fs-sm);color:var(--faint)}
-#keys-dialog .keys-groups{max-height:min(56vh,440px);overflow:auto;padding:var(--space-0) var(--space-5);border:1px solid var(--border);border-radius:var(--r-xl);background:var(--surface)}
+#keys-dialog .keys-groups{max-height:min(56vh,440px);overflow:auto;padding:var(--space-0) var(--space-5);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface)}
 #keys-dialog .keys-group{margin:var(--space-5) 0 var(--space-1)}
 #keys-dialog .keys-group h3{margin:0;font-size:var(--fs-xs);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
-#keys-dialog .keys-row{display:grid;grid-template-columns:minmax(0,1fr) max-content max-content max-content;align-items:center;gap:var(--space-1) var(--space-3);padding:5px var(--space-2);border-radius:var(--r-md)}
+#keys-dialog .keys-row{display:grid;grid-template-columns:minmax(0,1fr) max-content max-content max-content;align-items:center;gap:var(--space-1) var(--space-3);padding:5px var(--space-2);border-radius:var(--r-sm)}
 #keys-dialog .keys-row+.keys-row{box-shadow:inset 0 1px 0 var(--border)}
 #keys-dialog .keys-row.recording{background:var(--hover);box-shadow:inset 0 0 0 1px var(--ring)}
 #keys-dialog .keys-label{min-width:0;font-size:var(--fs-sm-half);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -151,7 +134,8 @@ kbd{
 #keys-dialog .keys-reset{height:26px;padding:0 var(--space-3);font-size:var(--fs-xs-half);color:var(--muted)}
 #keys-dialog .keys-reset:hover{background:var(--hover);color:var(--fg)}
 #keys-dialog .keys-note{font-size:var(--fs-xs-half);color:var(--faint)}
-#keys-dialog .keys-row.is-fixed .keys-note{grid-column:2;grid-row:1;justify-self:end}
+#keys-dialog .keys-row.is-fixed .keys-note{grid-column:2;grid-row:1;justify-self:end;opacity:0}
+#keys-dialog .keys-row.is-fixed:hover .keys-note,#keys-dialog .keys-row.is-fixed:focus-within .keys-note{opacity:1}
 #keys-dialog .keys-row.is-fixed .keys-kbd{grid-column:3;grid-row:1}
 #keys-dialog .keys-status{min-height:17px;margin:var(--space-3) 0 0;font-size:var(--fs-sm);color:var(--muted)}
 #keys-dialog .keys-status[data-kind=ok]{color:var(--success-text)}

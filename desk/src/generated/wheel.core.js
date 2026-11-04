@@ -10,6 +10,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $pageTurn_under(_under_0, _next_0) {
   if (_under_0) {
     return { $: "Spin", accum: 0, turn: { $: "Prev" } };

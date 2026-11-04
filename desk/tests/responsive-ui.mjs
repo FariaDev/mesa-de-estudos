@@ -164,6 +164,7 @@ await withArtifacts('responsivo-900-dois',async ctx=>{
  await page.locator('#settings-save').click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  await page.waitForSelector('.pdf-panel',{timeout:15000});
+ await statusOnline(page).catch(()=>{});
  await page.waitForFunction(()=>document.querySelector('#check')?.hidden===true,undefined,{timeout:5000}).catch(()=>{});
 assert.equal(await page.locator('#check').isHidden(),true,'conferir off esconde o botão de captura');
  assert.doesNotMatch(await page.locator('#goes-along').textContent(),/Conferir|captura/i,'conferir off não deixa rastro na linha Vai junto');
@@ -174,8 +175,9 @@ assert.equal(await page.locator('#check').isHidden(),true,'conferir off esconde 
  await page.locator('#settings-save').click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  await page.waitForSelector('.pdf-panel',{timeout:15000});
+ await statusOnline(page).catch(()=>{});
  await page.waitForFunction(()=>document.querySelector('#check')?.hidden===false,undefined,{timeout:5000}).catch(()=>{});
-assert.equal(await page.locator('#check').isHidden(),false,'conferir on volta com o botão de captura');
+assert.equal(await page.locator('#check').evaluate(el=>el.hidden),false,'conferir on volta com o item de captura');
  await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.captureOk=false;state.setBusy(false);});
  assert.match(await page.locator('#check').getAttribute('title'),/indisponível/i,'captura indisponível aparece no botão Conferir');
  await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.captureOk=true;state.setBusy(false);});

@@ -5,6 +5,7 @@
 export type TutorEngineHost = ReturnType<typeof import('../tutor-engine-host.cjs').createTutorEngineHost>;
 export type TutorBridgeHost = ReturnType<typeof import('../tutor-bridge-host.cjs').createTutorBridgeHost>;
 export type CourseStateHost = ReturnType<typeof import('../course-state-host.cjs').createCourseStateHost>;
+export type OpenCodeTutorHost = ReturnType<typeof import('../opencode-tutor-host.cjs').createOpenCodeTutorHost>;
 export type FreeSessionHost = ReturnType<typeof import('../free-session-host.cjs').createFreeSessionHost>;
 export type DeskGuards = ReturnType<typeof import('../desk-guards-host.cjs').createDeskGuards>;
 export type PromptImages = ReturnType<typeof import('../prompt-images.cjs').createPromptImages>;

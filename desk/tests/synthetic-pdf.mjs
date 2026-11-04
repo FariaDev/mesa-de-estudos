@@ -10,6 +10,17 @@ function pdfBytes(objects){
  return Buffer.from(out,'latin1');
 }
 
+const escapeText = (text) => String(text).replace(/([\\()])/g, '\\$1');
+
+/** Várias linhas de `Tj`: uma só string longa o pdf.js corta na extração. */
+function textOps(text, size = 16, maxChars = 100) {
+ const raw = String(text);
+ const chunks = [];
+ for (let at = 0; at < raw.length; at += maxChars) chunks.push(raw.slice(at, at + maxChars));
+ if (chunks.length === 0) return '';
+ return chunks.map((chunk, index) => `${index === 0 ? '' : `0 -${Math.ceil(size * 1.4)} Td `}(${escapeText(chunk)}) Tj`).join(' ');
+}
+
 /**
  * PDF de `count` páginas Carta, cada uma com a linha que `line(n, total)` devolve.
  * @param {number} count
@@ -21,8 +32,31 @@ export function multiPagePdf(count,line){
  const objects=['<</Type/Catalog/Pages 2 0 R>>',`<</Type/Pages/Kids[${Array.from({length:count},(_,i)=>`${4+i} 0 R`).join(' ')}]/Count ${count}>>`,'<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>'];
  for(let i=0;i<count;i++)objects.push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>>>/Contents ${4+count+i} 0 R>>`);
  for(let i=0;i<count;i++){
-  const contents=`BT /F1 16 Tf 72 720 Td (${String(line(i+1,count)).replace(/([\\()])/g,'\\$1')}) Tj ET`;
+  const contents=`BT /F1 16 Tf 72 720 Td ${textOps(line(i+1,count), 16)} ET`;
   objects.push(`<</Length ${Buffer.byteLength(contents,'latin1')}>>\nstream\n${contents}\nendstream`);
  }
+ return pdfBytes(objects);
+}
+
+/**
+ * PDF de `count` páginas com texto e imagens: `images[page]` lista
+ * `{width, height, x, y}` em pontos. Uma imagem de 48×48 é um logo (0,5% da
+ * folha) e uma de 350×300 é uma figura (21,7%).
+ * @param {number} count
+ * @param {(n: number, total: number) => string} line
+ * @param {Record<number, Array<{width: number, height: number, x: number, y: number}>>} [images]
+ * @returns {Buffer}
+ * @example imagePagesPdf(2, () => 'texto', {1: [{width: 48, height: 48, x: 520, y: 30}]})
+ */
+export function imagePagesPdf(count,line,images={}){
+ const imageId=4+2*count;
+ const objects=['<</Type/Catalog/Pages 2 0 R>>',`<</Type/Pages/Kids[${Array.from({length:count},(_,i)=>`${4+i} 0 R`).join(' ')}]/Count ${count}>>`,'<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>'];
+ for(let i=0;i<count;i++)objects.push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>/XObject<</Im0 ${imageId} 0 R>>>>/Contents ${4+count+i} 0 R>>`);
+ for(let i=0;i<count;i++){
+  const draws=(images[i+1]||[]).map(({width,height,x,y})=>`q ${width} 0 0 ${height} ${x} ${y} cm /Im0 Do Q`).join('\n');
+  const contents=`BT /F1 4 Tf 40 760 Td ${textOps(line(i+1,count), 4, 200)} ET\n${draws}`;
+  objects.push(`<</Length ${Buffer.byteLength(contents,'latin1')}>>\nstream\n${contents}\nendstream`);
+ }
+ objects.push('<</Type/XObject/Subtype/Image/Width 1/Height 1/ColorSpace/DeviceRGB/BitsPerComponent 8/Length 3>>\nstream\n\xff\x00\x00\nendstream');
  return pdfBytes(objects);
 }

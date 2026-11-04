@@ -40,7 +40,7 @@ const CSS_ID = 'mesa-backup-panel-style';
 const DIALOG_ID = 'mesa-backup-panel';
 
 const CSS = `
-.mesa-bkp{max-width:720px;width:min(720px,94vw);max-height:min(760px,90vh);padding:0;border:1px solid var(--border-strong,var(--border,#c7c7c7));border-radius:var(--r-3xl,16px);background:var(--surface,#fff);color:var(--fg,#272727);box-shadow:var(--shadow-pop,0 12px 32px -12px rgb(0 0 0/.35))}
+.mesa-bkp{max-width:720px;width:min(720px,94vw);max-height:min(760px,90vh);padding:0;border:1px solid var(--border-strong,var(--border,#c7c7c7));border-radius:var(--r-xl,12px);background:var(--surface,#fff);color:var(--fg,#272727);box-shadow:var(--shadow-pop,0 12px 32px -12px rgb(0 0 0/.35))}
 .mesa-bkp::backdrop{background:var(--scrim,rgb(0 0 0/.45))}
 .mesa-bkp form{display:flex;flex-direction:column;max-height:min(758px,calc(90vh - 2px));min-height:0;margin:0}
 .mesa-bkp .mesa-bkp-head{display:flex;align-items:center;gap:var(--space-4,10px);padding:var(--space-5,12px) 20px;border-bottom:1px solid var(--border,#dadada);flex-shrink:0}
@@ -55,8 +55,8 @@ const CSS = `
 .mesa-bkp p{margin:0;font-size:var(--fs-sm,12px);line-height:1.5;color:var(--muted,#525252)}
 .mesa-bkp .mesa-bkp-field{display:flex;flex-direction:column;gap:var(--space-2,6px);font-size:var(--fs-sm,12px);color:var(--muted,#525252)}
 .mesa-bkp .mesa-bkp-row{display:flex;gap:var(--space-3,8px);align-items:center;flex-wrap:wrap}
-.mesa-bkp .mesa-bkp-row input[type="text"],.mesa-bkp .mesa-bkp-row input[type="url"]{flex:1;min-width:180px;height:30px;padding:0 9px;border:1px solid var(--border-strong,#c7c7c7);border-radius:var(--r-md,8px);background:var(--surface,#ffffff);color:var(--fg,#272727)}
-.mesa-bkp input[type="number"]{width:88px;height:30px;padding:0 8px;border:1px solid var(--border-strong,#c7c7c7);border-radius:var(--r-md,8px);background:var(--surface,#ffffff);color:var(--fg,#272727)}
+.mesa-bkp .mesa-bkp-row input[type="text"],.mesa-bkp .mesa-bkp-row input[type="url"]{flex:1;min-width:180px;height:30px;padding:0 9px;border:1px solid var(--border-strong,#c7c7c7);border-radius:var(--r-sm,7px);background:var(--surface,#ffffff);color:var(--fg,#272727)}
+.mesa-bkp input[type="number"]{width:88px;height:30px;padding:0 8px;border:1px solid var(--border-strong,#c7c7c7);border-radius:var(--r-sm,7px);background:var(--surface,#ffffff);color:var(--fg,#272727)}
 .mesa-bkp .mesa-bkp-check{display:flex;align-items:center;gap:var(--space-3,8px);font-size:var(--fs-sm,12px);color:var(--fg,#272727);padding:2px 0}
 .mesa-bkp .mesa-bkp-check input{width:auto;margin:0;accent-color:var(--primary,#6d28d9)}
 .mesa-bkp .mesa-bkp-status{display:flex;flex-direction:column;gap:var(--space-1,4px);border:1px solid var(--border,#dadada);border-radius:var(--r-lg,10px);padding:var(--space-5,12px);background:var(--side,#f4f4f4)}
@@ -180,7 +180,6 @@ export function renderBackupPanelView(view) {
   const backup = `
   <section class="mesa-bkp-sec ${v.section === 'backup' ? '' : 'mesa-bkp-hidden'}" data-bkp-sec="backup" aria-label="${t('backup.nav.backup')}">
     <h3>${t('backup.local.title')}</h3>
-    <p>${t('backup.local.lead')}</p>
     <div class="mesa-bkp-field"><span>${t('backup.folder')}</span>
       <div class="mesa-bkp-row">
         <input id="mesa-bkp-dest" type="text" readonly value="${escapeHtml(v.destination)}" placeholder="${t('backup.noFolder')}" aria-label="${t('backup.folder')}">
@@ -193,7 +192,7 @@ export function renderBackupPanelView(view) {
       <label class="mesa-bkp-check">${t('backup.idle', {input: `<input type="number" id="mesa-bkp-parado" min="5" max="1440" value="${v.settings.idleMinutes}" aria-label="${t('backup.idleAria')}">`})}</label>
       <label class="mesa-bkp-check">${t('backup.keep', {input: `<input type="number" id="mesa-bkp-guardar" min="1" max="200" value="${v.settings.keep}" aria-label="${t('backup.keepAria')}">`})}</label>
     </div>
-    <label class="mesa-bkp-check"><input type="checkbox" id="mesa-bkp-git" ${v.settings.git ? 'checked' : ''}> ${t('backup.git')}</label>
+    <label class="mesa-bkp-check" title="${t('backup.git.title')}"><input type="checkbox" id="mesa-bkp-git" ${v.settings.git ? 'checked' : ''}> ${t('backup.git')}</label>
     <div class="mesa-bkp-field" data-bkp-git-fields style="${v.settings.git ? '' : 'display:none'}"><span>${t('backup.gitFolder')}</span>
       <div class="mesa-bkp-row">
         <input id="mesa-bkp-gitroot" type="text" readonly value="${escapeHtml(v.settings.gitRoot)}" placeholder="${t('backup.noFolder')}" aria-label="${t('backup.gitFolder')}">
@@ -208,8 +207,7 @@ export function renderBackupPanelView(view) {
       ${git.error ? `<span class="mesa-bkp-warn">${t('backup.gitLastFailed', {error: escapeHtml(git.error)})}</span>` : git.at ? `<span>${t('backup.gitLastAt', {at: escapeHtml(git.at)})}</span>` : ''}
     </div>
     <div class="mesa-bkp-row">
-      <button type="button" class="primary" data-bkp-act="rodar" ${v.hasDestination ? '' : 'disabled'}>${t('backup.runNow')}</button>
-      <span>${t('backup.runNote')}</span>
+      <button type="button" class="primary" data-bkp-act="rodar" title="${t('backup.runNote', {keep: v.settings.keep})}" ${v.hasDestination ? '' : 'disabled'}>${t('backup.runNow')}</button>
     </div>
     <div class="mesa-bkp-status">
       <strong>${t('backup.lastBackup', {at: escapeHtml(v.status.lastAt)})}</strong>
@@ -242,7 +240,7 @@ export function renderBackupPanelView(view) {
     <p>${t('backup.share.lead')}</p>
     <div class="mesa-bkp-status">
       <strong>${t('backup.share.activeCourse', {name: escapeHtml(v.course.name || t('backup.share.noCourse'))})}</strong>
-      <span>${v.course.hasCourse ? t('backup.share.sessionsOptIn') : t('backup.share.openCourse')}</span>
+      ${v.course.hasCourse ? '' : `<span>${t('backup.share.openCourse')}</span>`}
     </div>
     <label class="mesa-bkp-check"><input type="checkbox" id="mesa-bkp-conv" ${''}> ${t('backup.share.includeSessions')}</label>
     <div class="mesa-bkp-row">

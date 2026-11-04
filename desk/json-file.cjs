@@ -34,7 +34,41 @@ function atomicWrite(file, data) {
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
   fs.mkdirSync(path.dirname(file), {recursive: true});
   fs.writeFileSync(tmp, data);
-  fs.renameSync(tmp, file);
+  renameWithWindowsRetry(tmp, file);
 }
 
-module.exports = {readJson, atomicWrite};
+/* No Windows, antivírus e indexador seguram por instantes um arquivo recém-lido
+   ou recém-escrito, e o rename falha com EPERM, EACCES ou EBUSY (visto na CI do
+   481e2bb, na restauração de backup). Nos outros sistemas esses erros são
+   permanentes e sobem na hora. */
+const WINDOWS_TRANSIENT_RENAME_CODES = new Set(['EPERM', 'EACCES', 'EBUSY']);
+const WINDOWS_RENAME_ATTEMPTS = 8;
+const WINDOWS_RENAME_WAIT_MS = 50;
+
+function waitBlocking(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Renomeia; no Windows repete por até cerca de 1,4 s quando o arquivo está
+ * preso por outro processo.
+ * @param {string} from caminho atual
+ * @param {string} to caminho final
+ * @param {{platform?: string, rename?: (from: string, to: string) => void, wait?: (ms: number) => void}} [deps]
+ * @returns {void}
+ * @example renameWithWindowsRetry('/runtime/a.json.tmp', '/runtime/a.json')
+ */
+function renameWithWindowsRetry(from, to, {platform = process.platform, rename = fs.renameSync, wait = waitBlocking} = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rename(from, to);
+      return;
+    } catch (error) {
+      const transient = platform === 'win32' && WINDOWS_TRANSIENT_RENAME_CODES.has(error.code);
+      if (!transient || attempt >= WINDOWS_RENAME_ATTEMPTS) throw error;
+      wait(WINDOWS_RENAME_WAIT_MS * attempt);
+    }
+  }
+}
+
+module.exports = {readJson, atomicWrite, renameWithWindowsRetry};

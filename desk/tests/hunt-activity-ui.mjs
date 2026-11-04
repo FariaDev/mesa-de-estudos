@@ -38,7 +38,7 @@ async function waitFor(run, timeout = 8000, interval = 120) {
   return null;
 }
 
-async function frameFor(page, prefix = 'mesa-activity://') {
+async function frameFor(page, prefix = 'mesa-activity://act-') {
   return waitFor(async () => page.frames().find((frame) => frame.url().startsWith(prefix)) || null, 10000);
 }
 
@@ -145,7 +145,7 @@ try {
   /* 4. Reiniciar cria contexto novo. */
   await page.locator('.activity-slot[data-activity-call="call-live-1"] [data-act="restart"]').click();
   const restartedFrame = await waitFor(async () => {
-    const frame = page.frames().find((candidate) => candidate.url().startsWith('mesa-activity://'));
+    const frame = page.frames().find((candidate) => candidate.url().startsWith('mesa-activity://act-'));
     return frame && frame !== mruvFrame && !frame.isDetached() ? frame : null;
   }, 10000);
   await restartedFrame.waitForSelector('#s-out', {timeout: 10000});
@@ -182,8 +182,6 @@ try {
   await page.locator('.activity-slot[data-activity-call="call-loop-1"] [data-act="stop"]').click();
   const loopStopped = await waitFor(async () => !(await page.locator('.activity-slot[data-activity-call="call-loop-1"] .activity-iframe').count()));
   check('laço pode ser encerrado sem perder o chat', !!loopStopped);
-  /* O kill do processo travado pode levar alguns segundos (o frame some da
-     árvore depois); a prova fica na checagem final. */
 
   /* 7b. Flood DIRETO (parent.postMessage fora do wrapper): host limita taxa e
      segue responsivo; parar encerra o frame. */
@@ -371,17 +369,17 @@ try {
   await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
   await reopenedAgain.waitForFunction(() => document.documentElement.dataset.theme === 'dark', undefined, {timeout: 5000}).catch(() => {});
   const darkInfo = await reopenedAgain.evaluate(() => ({theme: document.documentElement.dataset.theme, scheme: getComputedStyle(document.documentElement).colorScheme, bg: getComputedStyle(document.documentElement).backgroundColor}));
-  check('tema dark chega ao artefato', darkInfo.theme === 'dark' && darkInfo.scheme === 'dark' && darkInfo.bg === 'rgb(36, 36, 36)', JSON.stringify(darkInfo));
+  check('tema dark chega ao artefato', darkInfo.theme === 'dark' && darkInfo.scheme === 'dark' && darkInfo.bg === 'rgb(25, 25, 25)', JSON.stringify(darkInfo));
   await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
   await reopenedAgain.waitForFunction(() => document.documentElement.dataset.theme === 'light', undefined, {timeout: 5000}).catch(() => {});
   const lightInfo = await reopenedAgain.evaluate(() => ({theme: document.documentElement.dataset.theme, scheme: getComputedStyle(document.documentElement).colorScheme, bg: getComputedStyle(document.documentElement).backgroundColor}));
-  check('tema light chega ao artefato', lightInfo.theme === 'light' && lightInfo.scheme === 'light' && lightInfo.bg === 'rgb(244, 244, 244)', JSON.stringify(lightInfo));
+  check('tema light chega ao artefato', lightInfo.theme === 'light' && lightInfo.scheme === 'light' && lightInfo.bg === 'rgb(255, 255, 255)', JSON.stringify(lightInfo));
   await page.evaluate(() => { document.documentElement.removeAttribute('data-theme'); });
   await reopenedAgain.waitForFunction(() => document.documentElement.dataset.theme !== 'light', undefined, {timeout: 5000}).catch(() => {});
   const autoInfo = await reopenedAgain.evaluate(() => ({theme: document.documentElement.dataset.theme, scheme: getComputedStyle(document.documentElement).colorScheme, bg: getComputedStyle(document.documentElement).backgroundColor}));
   const systemDark = await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches);
   const resolved = systemDark ? 'dark' : 'light';
-  check('tema system chega ao artefato (resolvido pelo host)', autoInfo.theme === resolved && autoInfo.scheme === resolved && autoInfo.bg === (systemDark ? 'rgb(36, 36, 36)' : 'rgb(244, 244, 244)'), JSON.stringify(autoInfo));
+  check('tema system chega ao artefato (resolvido pelo host)', autoInfo.theme === resolved && autoInfo.scheme === resolved && autoInfo.bg === (systemDark ? 'rgb(25, 25, 25)' : 'rgb(255, 255, 255)'), JSON.stringify(autoInfo));
 
   /* 10. Evento atrasado de outra conversa é ignorado pelo renderer. */
   await page.evaluate(() => window.__addSlot('call-stale-1', 'done'));
@@ -429,8 +427,16 @@ try {
   await page.waitForSelector('.activity-slot[data-activity-call="call-late-1"] .activity-iframe', {timeout: 10000});
   check('abrir explicitamente depois do Parar ainda monta', true);
 
-  const watchdogKills = await app.evaluate(() => global.__ui.watchdogLog().filter((entry) => entry.type === 'kill'));
-  check('watchdog mata o processo travado do laço', watchdogKills.length > 0 && watchdogKills[0].pid > 0, JSON.stringify(watchdogKills));
+  const watchdogOn = await app.evaluate(() => global.__ui.watchdogEnabled);
+  if (watchdogOn) {
+    const watchdogKills = await app.evaluate(() => global.__ui.watchdogLog().filter((entry) => entry.type === 'kill'));
+    check('watchdog mata o processo travado do laço', watchdogKills.length > 0 && watchdogKills[0].pid > 0, JSON.stringify(watchdogKills));
+  } else {
+    /* Este harness desliga o watchdog: o Playwright trata o crash do OOPIF do
+       artefato como crash da página inteira e o roteiro não continua. O kill
+       é provado em `hunt-activity-watchdog.mjs` e `activity-process-guard`. */
+    console.log('[NOTE] watchdog desligado no harness de UI; kill coberto por hunt-activity-watchdog');
+  }
   const failuresNow = pageErrors.filter((text) => !/DevTools|Autofill/.test(text));
   check('sem erros de página no host', failuresNow.length === 0, failuresNow.join(' | '));
 } finally {

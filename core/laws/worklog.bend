@@ -19,6 +19,10 @@ law worklog_tool_reference:
 law worklog_tool_search:
   {L.toolKind("web_search") == L.Search{} : L.StepKind}
 
+# LAW: buscar no material da matéria vira Material, mesmo contendo "busca".
+law worklog_tool_material:
+  {L.toolKind("mesa_buscar_material") == L.Material{} : L.StepKind}
+
 # LAW: "fetch_page" vira Fetch (bate em "page").
 law worklog_tool_fetch:
   {L.toolKind("fetch_page") == L.Fetch{} : L.StepKind}

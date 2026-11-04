@@ -12,7 +12,7 @@ const out=screenshotDirectory('course-pdf-ui');
 await withArtifacts('course-pdf-ui',async ctx=>{
  const runtime=ctx.runtime=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-course-pdf-ui-'))),course=seedCourse(runtime,'discreta');
  fs.writeFileSync(path.join(course,'Lista existente.pdf'),tinyPdf('Lista de exercicios'));
- const source=fakePiSource(),marker='else if(/quiz/i.test(studentText(e.message)))emitQuiz(e.message);';assert.ok(source.includes(marker));
+ const source=fakePiSource(),marker='else if(/quiz/i.test(studentText(e.message)))void emitQuiz(e.message);';assert.ok(source.includes(marker));
  const branch=`else if(String(e.message).includes('Prepare um PDF na Mesa')){
   streaming=true;emit({type:'agent_start'});
   (async()=>{try{

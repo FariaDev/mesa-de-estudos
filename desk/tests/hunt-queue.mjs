@@ -21,6 +21,20 @@ import {pollUntil} from './waits.mjs';
 
 const EVIDENCE=process.env.EVIDENCE==='1';
 const log=(...a)=>console.log(...a);
+/* O abort ainda re-renderiza a faixa por alguns quadros; clicar no × durante
+   essa troca desanexa o botão (o Playwright chama de "not stable"). Espera a
+   faixa parar de mudar por 300 ms — estado, não tempo fixo — antes de remover. */
+async function quietQueue(page,quietMs=300){
+ return page.evaluate(ms=>new Promise(resolve=>{
+  const strip=document.querySelector('.queue-strip');
+  if(!strip)return resolve(true);
+  let timer=setTimeout(done,ms);
+  const observer=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(done,ms);});
+  function done(){observer.disconnect();resolve(true);}
+  observer.observe(strip,{childList:true,subtree:true,attributes:true});
+  setTimeout(()=>{observer.disconnect();resolve(false);},2000);
+ }),quietMs);
+}
 function watch(page){
  const errors=[],consoleErrors=[];
  page.on('pageerror',e=>errors.push(e.message));
@@ -40,10 +54,12 @@ await withArtifacts('hunt-queue',async ctx=>{
     real do autor). */
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{session:current,courseId:'Calc',courseStates:{Calc:{session:current,sessions:[{path:other,started:1700000001000,preview:'outra conversa'}]}}});
- const env={FAKE_PI_QUEUE_LOG:logFile,FAKE_PI_QUEUE_HOLD_MS:'4000'};
+ /* 8 s: dá folga para editar/remover a fila antes de o turno do fake terminar. */
+ const env={FAKE_PI_QUEUE_LOG:logFile,FAKE_PI_QUEUE_HOLD_MS:'8000',FAKE_PI_REFUSAL_LOG:path.join(runtime,'refusal.log')};
  let app=ctx.app=await launchDesk({runtime,env});
  let page=await app.firstWindow();
  const windows=[watch(page)];
+ await statusOnline(page);
 
  const entries=()=>{
   try{return fs.readFileSync(logFile,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}
@@ -77,7 +93,8 @@ await withArtifacts('hunt-queue',async ctx=>{
    clear:!!document.querySelector('.queue-clear')&&!document.querySelector('.queue-clear').hidden,
   })),
  });
- let {bubble,busy,idle,settle,queueIn,rows,strip}=ui(page);
+ let strip;
+ let {bubble,busy,idle,settle,queueIn,rows}=ui(page);
 
  /* ---------- 1. ⏎ livre envia; ocupado enfileira ---------- */
  await page.locator('#prompt').fill('base');
@@ -99,6 +116,11 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.equal(queued.sending,0,'nenhum item nasce sending');
  assert.equal(queued.field,'','⏎ enfileirou: o campo esvaziou');
  assert.deepEqual(firstLines(),['base'],'nada foi para o Pi antes de o turno acabar');
+ /* Para o turno e segura a fila: editar/remover não corre contra o fim do
+    turno do fake (o auto-flush só volta depois, no "Enviar agora"). */
+ await page.locator('#stop').click();
+ await toastWait(page,'a fila ficou segurada');
+ await idle();
 
  /* ---------- 2. editar (⏎ salva / Esc cancela) e remover (×) ---------- */
  await page.locator('.queue-item span').first().click();
@@ -112,12 +134,13 @@ await withArtifacts('hunt-queue',async ctx=>{
  await page.locator('.queue-edit').press('Escape');
  assert.deepEqual(await rows(),['um editado','dois'],'Esc descarta o texto mexido');
  assert.equal(await page.evaluate(()=>document.activeElement?.id),'prompt','Esc devolve o foco ao composer');
- await page.locator('.queue-item button').nth(1).click();
+ await page.locator('.queue-item button[title="Remover da fila"]').nth(1).click();
  assert.deepEqual(await rows(),['um editado'],'o × remove a linha');
 
  /* ---------- 3. flush na ordem, como followUp, sem perder o rascunho ---------- */
- await page.waitForFunction(()=>!!document.querySelector('.queue-item.sending'),undefined,{timeout:30000});
  await page.locator('#prompt').fill('rascunho novo');
+ await page.locator('.queue-send-now').click();
+ await waitLog('um editado');
  await page.waitForFunction(()=>!document.querySelector('.queue-strip'),undefined,{timeout:60000});
  await settle();
  await sendEnabled(page,{timeout:60000});
@@ -133,7 +156,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  await page.locator('#prompt').press('Enter');
  await busy();
  await queueIn(['depois']);
- assert.equal(await page.locator('.queue-label').textContent(),'Na fila','a faixa abre com um item só');
+ assert.equal(await page.locator('.queue-label').textContent(),'Na fila · 1','a faixa abre com um item só, com a contagem');
  await page.locator('#prompt').fill('agora');
  await page.locator('#prompt').press('ControlOrMeta+Enter');
  await bubble('agora');
@@ -147,6 +170,71 @@ await withArtifacts('hunt-queue',async ctx=>{
  await waitLog('depois');
  assert.equal(entries().at(-1).streamingBehavior,'followUp','o item que ficou na fila sai depois, como followUp');
  await settle();
+
+ /* ---------- 4b. "Enviar agora" da linha manda o item guardado como steer ---------- */
+ await page.locator('#prompt').fill('base do item');
+ await page.locator('#prompt').press('Enter');
+ await busy();
+ await page.locator('#prompt').fill('item com anexo');
+ await page.setInputFiles('#attach-input',seedPlot(runtime,'Calc'));
+ await page.waitForSelector('#attachments .attachment',{timeout:15000});
+ await page.locator('#prompt').press('Enter');
+ await page.locator('#prompt').fill('item depois');
+ await page.locator('#prompt').press('Enter');
+ assert.deepEqual(await rows(),['item com anexo','item depois']);
+ assert.equal(await page.locator('.queue-item .queue-steer-now').count(),2,'cada linha oferece Enviar agora com o tutor ocupado');
+ await page.locator('.queue-item span').first().click();
+ assert.equal(await page.locator('.queue-item .queue-steer-now').count(),1,'a linha em edição não oferece Enviar agora');
+ await page.locator('.queue-edit').press('Escape');
+ /* O fato "motor sem steer" é do host: o render acompanha o evento. */
+ await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.capabilities={...state.capabilities(),steer:false};window.dispatchEvent(new Event('desk-engine-facts'));});
+ assert.equal(await page.locator('.queue-item .queue-steer-now').count(),0,'motor sem steer esconde o botão');
+ await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.capabilities={...state.capabilities(),steer:true};window.dispatchEvent(new Event('desk-engine-facts'));});
+ assert.equal(await page.locator('.queue-item .queue-steer-now').count(),2,'com steer, o botão volta');
+ await page.locator('.queue-item .queue-steer-now').first().click();
+ await bubble('item com anexo');
+ await waitLog('item com anexo');
+ await waitLog('item depois');
+ const rowSteer=entries().find(entry=>String(entry.message).split('\n')[0]==='item com anexo');
+ log('[fila] steer da linha:',JSON.stringify(rowSteer));
+ assert.equal(rowSteer.streamingBehavior,'steer','o item da fila saiu como steer');
+ assert.equal(rowSteer.images,1,'o anexo do snapshot do enqueue foi junto');
+ assert.equal(entries().filter(entry=>String(entry.message).split('\n')[0]==='item com anexo').length,1,'o item saiu uma vez só');
+ await settle();
+ const afterRowSteer=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
+ assert.ok(!afterRowSteer[current]||afterRowSteer[current].items.length===0,'o item steer saiu do disco e o flush não repetiu');
+
+ /* ---------- 4c. recusa provada devolve o item à posição original ---------- */
+ await page.locator('#prompt').fill('base da recusa');
+ await page.locator('#prompt').press('Enter');
+ await busy();
+ await queueIn(['fica antes','falhar na fila','fica depois']);
+ assert.equal(await page.locator('.queue-item .queue-steer-now').count(),3);
+ await page.locator('.queue-item .queue-steer-now').nth(1).click();
+ await toastWait(page,'Recusa de teste antes do aceite');
+ await page.waitForFunction(()=>[...document.querySelectorAll('.queue-item span')].map(el=>el.textContent).join('|')==='fica antes|falhar na fila|fica depois',undefined,{timeout:10000});
+ const restored=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
+ assert.deepEqual(restored[current].items.map(item=>item.text),['fica antes','falhar na fila','fica depois'],'o item recusado voltou ao disco na posição original');
+ assert.ok(!firstLines().includes('falhar na fila'),'a recusa não chegou ao Pi');
+ /* A recusa escondeu o Parar enquanto o turno antigo ainda roda: segura a fila
+    e aborta antes de mexer nas linhas (o auto-flush tentaria a recusada de novo). */
+ await page.evaluate(()=>{window.dispatchEvent(new Event('desk-stop'));return window.desk.abort().catch(()=>{});});
+ await idle();
+ assert.equal(await quietQueue(page),true,'a faixa da fila parou de re-renderizar depois do abort');
+ for(let i=0;i<3;i++){
+  await page.locator('.queue-item button[title="Remover da fila"]').last().click();
+  await page.waitForFunction(n=>document.querySelectorAll('.queue-item').length===n,2-i,{timeout:10000});
+ }
+ await page.waitForFunction(()=>!document.querySelector('.queue-strip'),undefined,{timeout:10000});
+ const emptiedRefusal=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
+ assert.ok(!emptiedRefusal[current]||emptiedRefusal[current].items.length===0,'o item recusado não fica no disco depois de removido');
+ /* Reabre limpo para os blocos seguintes. */
+ await app.close();
+ app=ctx.app=await launchDesk({runtime,env});
+ page=await app.firstWindow();
+ windows.push(watch(page));
+ ({busy,idle,settle,queueIn,rows,strip}=ui(page));
+ await statusOnline(page);
 
  /* ---------- 5. Parar só interrompe: a fila fica segurada e "Enviar agora" manda ---------- */
  await page.locator('#prompt').fill('segura dois');
@@ -162,6 +250,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.deepEqual(stopped.rows,['segurada um','segurada dois'],'Parar não descarta a fila');
  assert.equal(stopped.label,'Na fila · 2');
  assert.equal(stopped.sendNow,true,'a faixa oferece Enviar agora');
+ assert.equal(await page.locator('.queue-item .queue-steer-now').count(),0,'livre (segurada), a linha não oferece steer');
  await page.waitForTimeout(1600);// espera fixa: "nada acontece em 1,6 s" — depois de Parar nada sai sozinho para o Pi
  assert.ok(!firstLines().includes('segurada um')&&!firstLines().includes('segurada dois'),'nada sai sozinho depois de Parar');
  const held=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
@@ -220,8 +309,9 @@ await withArtifacts('hunt-queue',async ctx=>{
  page=await app.firstWindow();
  windows.push(watch(page));
  ({busy,idle,settle,queueIn,strip}=ui(page));
- await statusOnline(page);
+ /* O aviso de recuperação nasce no boot e vive ~3 s: espera antes do ping. */
  await toastWait(page,'mensagens pendentes foram recuperadas');
+ await statusOnline(page);
  const recovered=await strip();
  log('[fila] recuperada:',JSON.stringify(recovered));
  assert.equal(recovered.label,'Recuperadas · 2','a faixa diz que a fila veio do disco');
@@ -261,7 +351,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  await statusOnline(page);
  const back=await strip();
  log('[fila] de volta à A:',JSON.stringify(back));
- assert.equal(back.label,'Na fila','a fila é desta execução (não é recuperação)');
+ assert.equal(back.label,'Na fila · 1','a fila é desta execução (não é recuperação), com a contagem');
  assert.deepEqual(back.rows,['fica na A'],'a fila da conversa volta com ela');
  assert.equal(back.sendNow,true,'a guarda do Parar voltou junto');
  await page.locator('.queue-send-now').click();
@@ -283,7 +373,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  app=ctx.app=await launchDesk({runtime,env:{...env,FAKE_PI_CHAOS:'state-fail'}});
  page=await app.firstWindow();
  windows.push(watch(page));
- ({settle}=ui(page));
+ ({busy,settle,queueIn}=ui(page));
  await statusOnline(page);
  await toastWait(page,'pendente foi recuperada');
  await page.locator('.queue-send-now').click();
@@ -298,6 +388,23 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.equal(repeated.length,1,`a mensagem aceita não é reenviada (log: ${JSON.stringify(firstLines())})`);
  const rest=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
  assert.ok(!rest[current]||rest[current].items.length===0,'o arquivo da fila ficou sem o item entregue');
+
+ /* ---------- 10. entrega incerta não devolve o item (não duplica a fala) ---------- */
+ await page.locator('#prompt').fill('base incerta');
+ await page.locator('#prompt').press('Enter');
+ await busy();
+ await queueIn(['talvez tenha ido']);
+ /* O Pi de teste aceita tudo: a incerteza é encenada no handler, como o
+    renderer a recebe de um transporte que não provou a entrega. */
+ await app.evaluate(({ipcMain})=>{ipcMain.removeHandler('pi-prompt');ipcMain.handle('pi-prompt',async()=>({sent:false,retryable:false,error:'entrega incerta (teste)'}));});
+ await page.locator('.queue-item .queue-steer-now').first().click();
+ await toastWait(page,'entrega incerta (teste)');
+ await page.waitForFunction(()=>!document.querySelector('.queue-item'),undefined,{timeout:10000});
+ assert.equal(await page.locator('.queue-strip').count(),0,'entrega incerta não devolve o item à fila');
+ const uncertainDisk=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
+ assert.ok(!uncertainDisk[current]||uncertainDisk[current].items.length===0,'o arquivo não guarda o item incerto');
+ assert.ok(!firstLines().includes('talvez tenha ido'),'o item incerto não chegou ao Pi de teste');
+ assert.deepEqual(windows.flatMap(w=>w.errors),[],`erros de página: ${JSON.stringify(windows.flatMap(w=>w.errors))}`);
 
  if(EVIDENCE)await saveArtifacts(ctx);
  log('HUNT queue PASSED');

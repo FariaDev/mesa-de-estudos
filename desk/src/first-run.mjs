@@ -4,8 +4,7 @@ import {applyIcons} from './view-host.mjs';
 import {icon} from '../icons.mjs';
 import firstRun from './generated/firstrun.core.js';
 import {t,setUiLanguage,LANGUAGE_EVENT} from './ui-text.mjs';
-import {createSetupCast} from './setup-cast.mjs';
-import {initialSetup,nextSetup,backSetup,goToStep,stepId,mascoteOf,castOf,clearFolder} from './setup-flow.mjs';
+import {initialSetup,nextSetup,backSetup,goToStep,stepId,clearFolder} from './setup-flow.mjs';
 import {paintSetup,focusTarget} from './setup-view.mjs';
 
 /* Primeira abertura (tickets #21, #24 e #64).
@@ -16,7 +15,7 @@ import {paintSetup,focusTarget} from './setup-view.mjs';
    nascia sozinha com nome e pasta). O núcleo `core/firstrun.bend` decide qual
    primeira abertura vale, se pode criar e o id; os passos são de
    `setup-flow.mjs` e a pintura de `setup-view.mjs`. Aqui ficam o ciclo
-   (entrar, sincronizar, sair), o arrasto, o trio ∫ Σ ∇ e a ponte.
+   (entrar, sincronizar, sair), o arrasto e a ponte.
 
    O estado por baixo é o do Livre (sem matéria o host abre `mesa-free`): a
    tela cobre a Mesa, que fica `inert` atrás, e "Estudar sem matéria" sai daqui
@@ -29,20 +28,13 @@ let kind='setup';
    aba Livre), só volta quando passa de ter matéria a não ter nenhuma. */
 let seenCourses=null;
 let state=initialSetup('setup');
-let facts={kind:'setup',piFound:false,dataFolder:'',pdfNames:[],elsewhere:0};
+let facts={kind:'setup',piFound:false,claudeFound:false,opencodeFound:false,opencodeBinary:'',opencodeOldVersion:'',installSupported:false,platform:'',dataFolder:'',pdfNames:[],elsewhere:0,visibleEngines:['pi','claude','opencode']};
 let creating=false;
 let wired=false;
 let hooks={createCourse:async()=>{},openPiSettings:()=>{}};
-/** @type {ReturnType<typeof createSetupCast>|null} */
-let cast=null;
-let lastMilestone=0;
-let lastStep=0;
-let idleTimer=0;
-let writingTimer=0;
 let benched=[];
-
-/* Sem mexer por 12 s, o trio cochila; qualquer movimento acorda. */
-const SLEEP_MS=12000;
+/** Estado vivo da instalação do OpenCode na tela (#release OpenCode). */
+let install={state:'idle',phase:'',percent:-1,errorCode:'',error:'',version:''};
 
 const announce=()=>{try{window.dispatchEvent(new Event('desk-tutor-link'));}catch{}};
 
@@ -54,19 +46,14 @@ const actions={
  UseFreeModels:()=>window.dispatchEvent(new Event('desk-open-free-models')),
  OpenPiSettings:()=>hooks.openPiSettings(),
  ChangeDataFolder:()=>{changeDataFolder();},
+ InstallOpenCode:()=>{runInstall();},
+ UpdateOpenCode:()=>{if(window.confirm(t('firstrun.tutor.opencodeOldConfirm',{version:facts.opencodeOldVersion})))runInstall();},
+ OpenOpenCodeHelp:()=>{window.desk.openExternal?.('https://opencode.ai/v2/docs/').catch(()=>{});},
 };
 
 function paint(){
  if(!active)return;
- paintSetup(state,facts,actions);
- if(!cast)return;
- const look=mascoteOf(state);
- cast.paint(castOf(state),look);
- /* Passo vencido: o Σ soma (✓); quadro do passeio vencido: um pulo. */
- if(state.step>lastStep)cast.tally();
- else if(look.milestone>lastMilestone)cast.jump();
- lastMilestone=look.milestone;
- lastStep=state.step;
+ paintSetup(state,facts,actions,install);
 }
 
 /** Troca o estado e repinta; o foco vai para o campo do passo novo. */
@@ -139,11 +126,7 @@ async function create(){
  creating=true;
  try{
   /* "empty": a pasta de dados já valia e não é pedida nem regravada. */
-  /* Os três comemoram enquanto a matéria nasce; a tela sai depois do pulo. */
-  await Promise.all([
-   hooks.createCourse({id:firstRun.courseId(typed,state.folder),name:typed.trim(),folder:state.folder,dataFolder:String(firstRun.dataToConfirm(kind,facts.dataFolder))}),
-   cast?.celebrate(),
-  ]);
+  await hooks.createCourse({id:firstRun.courseId(typed,state.folder),name:typed.trim(),folder:state.folder,dataFolder:String(firstRun.dataToConfirm(kind,facts.dataFolder))});
   leave();
  }catch(error){toast(error?.message||t('firstrun.error.create'));}
  finally{creating=false;}
@@ -179,22 +162,45 @@ function leave(){
  kind='setup';
  delete document.body.dataset.firstRun;
  bench(false);
- clearTimeout(idleTimer);
  announce();
+}
+
+/* Instalação do OpenCode: a casca do main responde com a versão conferida e
+   a detecção refeita. O erro volta ao botão; nada de sair da tela. */
+async function runInstall(){
+ if(install.state==='installing')return;
+ install={state:'installing',phase:'prepare',percent:-1,errorCode:'',error:'',version:''};
+ paint();
+ try{
+  if(typeof window.desk.openCodeInstall!=='function')throw Error(t('firstrun.install.failed'));
+  const result=await window.desk.openCodeInstall();
+  if(!result?.ok){
+   const failure=Error(String(result?.message||t('firstrun.install.failed')));
+   failure.code=String(result?.code||'failed');
+   throw failure;
+  }
+  let detected=result.detected||{};
+  try{
+   const data=await window.desk.getConfig();
+   detected={...detected,detectedOpenCode:data?.detectedOpenCode||detected.detectedOpenCode,detectedOpenCodeOldVersion:data?.detectedOpenCodeOldVersion||''};
+   S.detected={...(S.detected||{}),opencode:data?.detectedOpenCode||''};
+  }catch{/* a detecção do retorno já basta para a tela */}
+  const binary=String(detected.detectedOpenCode||result.binary||'');
+  facts={...facts,opencodeFound:binary,opencodeBinary:binary,opencodeOldVersion:String(detected.detectedOpenCodeOldVersion||'')};
+  install={state:'done',phase:'done',percent:100,errorCode:'',error:'',version:String(result.version||'')};
+  window.dispatchEvent(new Event('desk-engine-facts'));
+ }catch(error){
+  /* A tela usa o código; a mensagem técnica (HTTP, hash, fs) fica no log do
+     host e nunca aparece crua aqui. */
+  install={state:'error',phase:'',percent:-1,errorCode:String(error?.code||'failed'),error:String(error?.message||''),version:''};
+ }
+ paint();
 }
 
 /* ---------- ligação ---------- */
 
-function wake(){
- clearTimeout(idleTimer);
- if(state.sleepy){state={...state,sleepy:false};paint();}
- idleTimer=window.setTimeout(()=>{if(!active)return;state={...state,sleepy:true};paint();},SLEEP_MS);
-}
-
 function typing(){
- clearTimeout(writingTimer);
- writingTimer=window.setTimeout(()=>{state={...state,writing:false};paint();},700);
- state={...state,name:$('#first-run-name').value,writing:true};
+ state={...state,name:$('#first-run-name').value};
  paint();
 }
 
@@ -255,28 +261,34 @@ function wire(){
  $('#setup-language').addEventListener('click',chooseLanguage);
  /* Enter no último passo cria, fora de um campo ou botão (que já agem sozinhos). */
  setup.addEventListener('keydown',event=>{
-  wake();
   if(event.key!=='Enter'||stepId(state)!=='ready'||event.target.closest?.('button,input'))return;
   event.preventDefault();create();
  });
- setup.addEventListener('mousemove',event=>{wake();cast?.lookAt(event);});
- setup.addEventListener('mouseleave',()=>cast?.rest());
- /* Pelo teclado, os olhos seguem o campo ou botão com foco. */
- setup.addEventListener('focusin',event=>{if(event.target instanceof Element&&!event.target.closest('.setup-mascote'))cast?.lookAtElement(event.target);});
  wireDrop(setup);
  window.addEventListener(LANGUAGE_EVENT,paint);
+ window.desk.onOpenCodeInstallProgress?.(payload=>{
+  if(!active||install.state!=='installing')return;
+  const phase=String(payload?.phase||install.phase||'');
+  const percent=Number(payload?.percent);
+  /* Percentual só existe no download e nunca volta: fases sem número têm
+     barra indeterminada, sem herdar o 99% anterior. */
+  const next=Number.isFinite(percent)?Math.max(0,Math.min(100,percent)):-1;
+  const shown=next<0?-1:Math.max(install.percent,next);
+  install={...install,phase,percent:shown};
+  paint();
+ });
  /* O tutor ligou (ou caiu) pelo "Chamar o tutor": o passo do tutor acompanha. */
  window.addEventListener('desk-tutor-link',()=>{
   const online=String(S.link?.state||'')==='online';
   if(active&&online!==state.online){state={...state,online};paint();}
  });
- cast=createSetupCast($('#setup-mascote'),$('#setup-speech'));
- window.addEventListener('resize',()=>{if(active)cast?.aim();});
  applyIcons(setup,icon);
 }
 
 /* Entra na primeira abertura: o host já carregou o estado (Livre) e disse que
-   falta configuração ou matéria. `data.detectedPi` é o que o host achou do Pi.
+   falta configuração ou matéria. `detectedPi`, `detectedClaude`,
+   `detectedOpenCode` e `detectedOpenCodeOldVersion` são o que o host achou de
+   cada motor; a 1.x do OpenCode aparece com a versão e não conta como pronta.
    Sem `needsSetup` o núcleo lê "tem configuração e nenhuma matéria" e vale o
    "empty" (começa no Nome, sem **Mudar**); quem quer a abertura completa passa
    `needsSetup: true`, como o host e o first-run-ui. */
@@ -288,15 +300,15 @@ export async function enterFirstRun(data,nextHooks={}){
  active=true;
  let dataFolder;
  try{dataFolder=String((await window.desk.firstRunDefaults())?.dataFolder||'');}catch{dataFolder='';}
- facts={kind,piFound:!!data?.detectedPi,dataFolder,pdfNames:[],elsewhere:0};
+ let installSupported=false;
+ try{installSupported=!!(await window.desk.openCodeInstallSupported?.());}catch{/* a tela oferece o link oficial */}
+ install={state:'idle',phase:'',percent:-1,errorCode:'',error:'',version:''};
+ facts={kind,piFound:!!data?.detectedPi,claudeFound:!!data?.detectedClaude,opencodeFound:!!data?.detectedOpenCode,opencodeBinary:String(data?.detectedOpenCode||''),opencodeOldVersion:String(data?.detectedOpenCodeOldVersion||''),installSupported,platform:String(data?.platform||''),dataFolder,pdfNames:[],elsewhere:0,visibleEngines:Array.isArray(data?.visibleEngines)&&data.visibleEngines.length?data.visibleEngines:['pi','claude','opencode']};
  state={...initialSetup(kind),online:String(S.link?.state||'')==='online'};
- lastMilestone=mascoteOf(state).milestone;
- lastStep=state.step;
  $('#first-run-name').value='';
  document.body.dataset.firstRun='true';
  bench(true);
  paint();
- wake();
  announce();
  const target=focusTarget(state);
  target?.focus();

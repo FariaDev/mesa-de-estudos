@@ -4,12 +4,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {message} from '../src/i18n.mjs';
 import {
-  RECENT_LIMIT, providerName, modelKey, foldSearch, matchesQuery, groupModels, flattenGroups,
+  RECENT_LIMIT, providerName, providerAccessibleName, modelKey, foldSearch, matchesQuery, groupModels, flattenGroups, onlyFreeCatalog,
   stepActive, initialActive, normalizeRecents, pushRecent, railEntries,
   FAVORITE_LIMIT, normalizeFavorites, toggleFavorite, alignedScrollTop, isFavoriteShortcut, activeAfterFlip,
 } from '../src/model-picker.mjs';
+import {normalizeModelDefault, toggleModelDefault} from '../src/model-default.mjs';
 
-const zeroTail = [message('freeModels.badge'), message('freeModels.policy.zero')];
+const zeroTail = [message('freeModels.policy.zero')];
 const catalog = [
   {name: 'Sonnet 5', id: 'sonnet-5', provider: 'anthropic'},
   {name: 'Grok 4', id: 'grok-4', provider: 'xai'},
@@ -24,6 +25,10 @@ const titles = (groups) => groups.map((group) => group.kind === 'provider' ? gro
 test('providerName: o mapa dá o nome e um id desconhecido aparece cru', () => {
   assert.equal(providerName('xai'), 'xAI');
   assert.equal(providerName('opencode'), 'OpenCode Zen');
+  assert.equal(providerName('claude-agent'), 'Claude', 'o motor Claude aparece pelo nome, não pelo id');
+  assert.equal(providerAccessibleName('opencode-go'), 'OpenCode Go (assinatura)');
+  assert.equal(providerAccessibleName('opencode'), 'OpenCode Zen (por uso)');
+  assert.equal(providerAccessibleName('xai'), 'xAI');
   assert.equal(providerName('meu-provedor'), 'meu-provedor');
   assert.equal(providerName('constructor'), 'constructor', 'chave herdada do Object não é provedor');
 });
@@ -33,13 +38,11 @@ test('modelKey é o par [provedor, id] em JSON, o mesmo valor que o host entende
   assert.deepEqual(JSON.parse(modelKey('anthropic', '')), ['anthropic', '']);
 });
 
-test('groupModels: um grupo por provedor, A–Z, e os grátis num grupo só deles', () => {
+test('groupModels: um grupo por provedor, A–Z; o grátis fica no provedor, sem grupo próprio (#93)', () => {
   const groups = groupModels(catalog, {engine: 'pi'});
-  assert.deepEqual(titles(groups), ['free', 'Anthropic', 'meu-provedor', 'OpenCode Zen', 'xAI']);
-  const free = groups[0];
-  assert.deepEqual(free.items.map((item) => item.id), ['glm-5.3-flash-free']);
+  assert.deepEqual(titles(groups), ['Anthropic', 'meu-provedor', 'OpenCode Zen', 'xAI']);
   const zen = groups.find((group) => group.provider === 'opencode');
-  assert.deepEqual(zen.items.map((item) => item.id), ['gpt-5.5'], 'o grátis não se repete no grupo do provedor');
+  assert.deepEqual(zen.items.map((item) => item.id), ['glm-5.3-flash-free', 'gpt-5.5'], 'o grátis não tem destaque de grupo');
 });
 
 test('groupModels: dentro do provedor a ordem é por nome, sem caixa nem acento (ajustes do seletor)', () => {
@@ -54,11 +57,18 @@ test('groupModels: dentro do provedor a ordem é por nome, sem caixa nem acento 
   assert.deepEqual(xai.items.map((item) => item.id), ['grok-4', 'grok-4-fast']);
 });
 
-test('o grátis guarda a política e o aviso, sem repetir a marca que o título já diz', () => {
-  const [free] = groupModels(catalog, {engine: 'opencode'})[0].items;
+test('o grátis guarda a política e o aviso, sem selo visual (#93)', () => {
+  const free = flattenGroups(groupModels(catalog, {engine: 'opencode'})).find((item) => item.id === 'glm-5.3-flash-free');
   assert.deepEqual(free.notes, [message('freeModels.policy.zero')]);
   assert.equal(free.free, true);
   assert.equal(free.zenPaid, false);
+});
+
+test('onlyFreeCatalog: a dica de provider aparece só quando o catálogo é todo grátis (#93)', () => {
+  assert.equal(onlyFreeCatalog([catalog[3], {...catalog[4], free: {is: true, tail: []}}]), true);
+  assert.equal(onlyFreeCatalog(catalog), false);
+  assert.equal(onlyFreeCatalog([{id: 'pago', provider: 'opencode'}]), false);
+  assert.equal(onlyFreeCatalog([]), false);
 });
 
 test('o pago do Zen leva a marca zenPaid; pago de outro provedor e sem anotação não', () => {
@@ -75,6 +85,13 @@ test('recentes: vão no topo, do mais novo ao mais velho, e o que saiu do catál
   assert.equal(groups[0].kind, 'recent');
   assert.deepEqual(groups[0].items.map((item) => item.id), ['grok-4-fast', 'sonnet-5']);
   assert.ok(groups.some((group) => group.provider === 'xai'), 'o recente continua no grupo do provedor');
+});
+
+test('recentes: não repetem um modelo que já está em Favoritos (#release OpenCode)', () => {
+  const groups = groupModels(catalog, {engine: 'pi', recents: [['xai', 'grok-4-fast'], ['anthropic', 'sonnet-5']], favorites: [['xai', 'grok-4-fast']]});
+  const recent = groups.find((group) => group.kind === 'recent');
+  assert.deepEqual(recent.items.map((item) => item.id), ['sonnet-5'], 'o favorito não se repete em Recentes');
+  assert.equal(recent.items.some((item) => item.favorite), false);
 });
 
 test('recentes: no máximo RECENT_LIMIT, mesmo com mais guardados', () => {
@@ -98,7 +115,7 @@ test('busca: filtra pelo nome, pelo id e pelo provedor, sem acento nem caixa, e 
 
 test('busca: os termos valem em conjunto e grupos sem resultado somem', () => {
   assert.deepEqual(groupModels(catalog, {engine: 'pi', query: 'xai sonnet'}), []);
-  assert.deepEqual(titles(groupModels(catalog, {engine: 'pi', query: 'flash'})), ['free']);
+  assert.deepEqual(titles(groupModels(catalog, {engine: 'pi', query: 'flash'})), ['OpenCode Zen']);
 });
 
 test('busca em branco não filtra', () => {
@@ -154,6 +171,17 @@ test('normalizeRecents: guarda só pares de texto por motor, até o limite, e ig
   const ten = Array.from({length: 10}, (_, n) => ['p', `m${n}`]);
   assert.equal(normalizeRecents({pi: ten}).pi.length, RECENT_LIMIT);
   assert.equal(Object.hasOwn(normalizeRecents(JSON.parse('{"__proto__": [["a","b"]]}')), '__proto__'), false);
+});
+
+test('modelo padrão: guarda provedor, id e esforço; a mesma ação desfaz e lixo cai', () => {
+  const chosen = toggleModelDefault(null, 'opencode', 'big-pickle', 'high');
+  assert.deepEqual(chosen, {provider: 'opencode', id: 'big-pickle', effort: 'high'});
+  assert.equal(toggleModelDefault(chosen, 'opencode', 'big-pickle', 'low'), null, 'desfazer ignora o esforço novo');
+  assert.deepEqual(normalizeModelDefault({provider: 'opencode', id: 'x'}), {provider: 'opencode', id: 'x', effort: ''});
+  assert.equal(normalizeModelDefault({provider: '', id: 'x'}), null);
+  assert.equal(normalizeModelDefault({provider: 'opencode'}), null);
+  assert.equal(normalizeModelDefault('opencode/x'), null);
+  assert.equal(normalizeModelDefault({provider: 'opencode', id: 'x', effort: 7}).effort, '');
 });
 
 test('pushRecent: o novo vai ao topo, sem repetir, no limite, sem mudar o original e por motor', () => {

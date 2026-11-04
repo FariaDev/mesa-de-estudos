@@ -84,7 +84,6 @@ await withArtifacts('claude-ui',async ctx=>{
  /* A janela da Mesa é a primeira página do app; a prévia escondida pode vir antes em getAllWindows(). */
  const emit=async(app,data)=>(await pageWindow(app,await app.firstWindow())).evaluate((win,payload)=>win.webContents.send('pi-event',payload),data);
  const watch=page=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))console.log('CONSOLE',m.text());});return errors;};
- const acceptNextConfirm=page=>page.once('dialog',dialog=>dialog.accept());
  const logHas=(file,text)=>claudeEntries(file).some(entry=>String(entry.text||'').includes(text));
  const waitForLog=async(file,text,{timeout=30000}={})=>{
   const start=Date.now();
@@ -109,8 +108,8 @@ await withArtifacts('claude-ui',async ctx=>{
  await page.locator('#send').click();
  await page.waitForSelector('#messages .message.assistant .katex',{timeout:30000});
  await sendEnabled(page,{timeout:30000});
- await page.locator('#new-session').click();
- assert.deepEqual((await page.locator('#new-session-pop button[role="menuitem"]').allTextContents()).map(text=>text.trim()),['Sessão nova','Sessão nova com Claude (experimental)','Sessão nova com OpenCode (modelos grátis)'],'menu com o motor padrão, o Claude (experimental) e o OpenCode (#57)');
+ await page.locator('#new-session').click({button:'right'});
+ assert.deepEqual((await page.locator('#new-session-pop button[role="menuitem"]').allTextContents()).map(text=>text.trim()),['Padrão','Claude (experimental)','OpenCode'],'menu com o motor padrão, o Claude (experimental) e o OpenCode (#57)');
  await page.keyboard.press('Escape');
  await page.locator('#new-session-pop').waitFor({state:'hidden'});
  const piSession=await currentSession(page);
@@ -125,7 +124,7 @@ await withArtifacts('claude-ui',async ctx=>{
  fs.writeFileSync(piSentinel,'');
 
  /* ---------- 2. o item do menu escolhe o motor da sessão NOVA ---------- */
- await page.locator('#new-session').click();
+ await page.locator('#new-session').click({button:'right'});
  assert.equal(await currentEngine(page),'pi','abrir o menu não muda o motor da sessão atual');
  await page.locator('#new-session-claude').click();
  await page.waitForFunction(()=>document.querySelector('#session-title')?.dataset.engine==='claude',undefined,{timeout:30000});
@@ -187,22 +186,18 @@ await withArtifacts('claude-ui',async ctx=>{
  assert.equal(imageEntry.marker,'image','o marcador escolheu o roteiro de imagem');
  assert.equal(sentinelLines(piSentinel).length,0,'imagem em conversa Claude não acorda o Pi');
 
- /* ---------- 4. permissões: permitir, negar e cancelar ---------- */
- /* 4a. ciclo completo pelo transporte: o host pede e a UI responde. */
+ /* ---------- 4. leitura sem diálogo; permissões e cancelamento usam o diálogo ---------- */
+ /* 4a. Read nativo é negado na hora: o tutor não tem ferramenta de arquivo (#91). */
  await page.locator('#prompt').fill('[claude:permission-allow]');
  await page.locator('#send').click();
- await page.waitForSelector('#pi-dialog[open]',{timeout:30000});
- assert.equal(await page.locator('#pi-dialog').getAttribute('data-permission'),'true','o pedido de permissão chega marcado para a UI');
- await page.locator('#pi-dialog .dialog-actions .primary').click();
- await waitBody('concedida');
+ await waitBody('negada');
+ assert.equal(await page.locator('#pi-dialog[open]').count(),0,'leitura nativa negada não abre diálogo');
  await sendEnabled(page,{timeout:30000});
- /* 4b. negar pelo diálogo (mesmo caminho, resposta negada). */
+ /* 4b. Read fora da política é negado na hora, também sem diálogo. */
  await page.locator('#prompt').fill('[claude:permission-deny]');
  await page.locator('#send').click();
- await page.waitForSelector('#pi-dialog[open]',{timeout:30000});
- assert.equal(await page.locator('#pi-dialog').getAttribute('data-permission'),'true','o pedido negado também marca o diálogo');
- await page.locator('#pi-dialog .dialog-actions button[value="cancel"]').click();
  await waitBody('negada');
+ assert.equal(await page.locator('#pi-dialog[open]').count(),0,'leitura recusada não abre diálogo');
  await sendEnabled(page,{timeout:30000});
  /* 4c. cancelamento vindo do host (`agent_request_cancelled`): o diálogo vencido
     não recebe resposta e o próximo da fila abre no lugar. */
@@ -226,27 +221,7 @@ await withArtifacts('claude-ui',async ctx=>{
  assert.equal(await page.locator('#pi-dialog[open]').count(),0,'evento explícito de outra conversa não abre diálogo');
  assert.equal(sentinelLines(piSentinel).length,0,'permissões não iniciam processo Pi');
 
- /* ---------- 5. fila: permissão pendente, cancelamento e incerteza ---------- */
- /* 5a. com permissão pendente a fila não avança; o turno confiável a libera.
-    O item entra ANTES do diálogo abrir (o campo continua ativo com o turno
-    aberto; digitar com o modal aberto é inert). */
- await page.evaluate(()=>{
-  // Deliver these UI events in one renderer turn: the asynchronous SDK cannot
-  // open its modal between the send click and the queued Enter key.
-  const prompt=document.querySelector('#prompt');
-  prompt.value='[claude:permission-allow]';prompt.dispatchEvent(new Event('input'));
-  document.querySelector('#send').click();
-  prompt.value='fila na permissão';prompt.dispatchEvent(new Event('input'));
-  prompt.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
- });
- await page.waitForSelector('.queue-item',{timeout:15000});
- await page.waitForSelector('#pi-dialog[open]',{timeout:30000});
- assert.equal(await page.locator('.queue-item').count(),1,'a mensagem enfileirou durante a permissão');
- assert.equal(logHas(claudeLog,'fila na permissão'),false,'permissão pendente não deixa a fila avançar');
- await page.locator('#pi-dialog .dialog-actions .primary').click();
- await page.waitForFunction(()=>document.querySelectorAll('.queue-item').length===0,undefined,{timeout:30000});
- await waitForLog(claudeLog,'fila na permissão');
- await sendEnabled(page,{timeout:30000});
+ /* ---------- 5. fila: erro do SDK, cancelamento e incerteza ---------- */
  // Exercise an actual SDK error/result, beyond the uncertain IPC fixture.
  await page.evaluate(()=>{
   const prompt=document.querySelector('#prompt');
@@ -260,8 +235,8 @@ await withArtifacts('claude-ui',async ctx=>{
  await page.waitForTimeout(1600);
  assert.equal(await page.locator('.queue-item').count(),1,'SDK error holds the queue');
  assert.equal(logHas(claudeLog,'fila após erro SDK'),false,'desk_error and failed agent_settled cannot advance the queue');
- acceptNextConfirm(page);
- await page.locator('.queue-clear').click();
+ assert.equal(await page.locator('.queue-clear').isVisible(),false,'com uma mensagem só, Limpar não aparece');
+ await page.locator('.queue-item .queue-remove').click();
  await page.waitForFunction(()=>document.querySelectorAll('.queue-item').length===0,undefined,{timeout:15000});
  /* 5b. aceite NÃO libera a fila com o turno aberto; cancelar a segura. */
  await page.locator('#prompt').fill('[claude:stall]');
@@ -407,5 +382,5 @@ await withArtifacts('claude-ui',async ctx=>{
  assert.ok(sentinelLines(piSentinel).length>=1,'a conversa Pi continua funcional (processo iniciado pelo trap)');
 
  assert.deepEqual(errors,[],`erros de página: ${JSON.stringify(errors)}`);
- console.log('CLAUDE UI PASSED: descriptor JSON e zero processo Pi; texto/imagem sem bolha duplicada; permissões permitir/negar/cancelar (com a fila esperando permissão e turno); cancelamento/incerteza sem auto-retry; reabertura com fila recuperada; export pelo histórico nativo paginado; cache visível offline/sem binário sem fallback para o Pi; conversa Pi preservada.');
+ console.log('CLAUDE UI PASSED: descriptor JSON e zero processo Pi; texto/imagem sem bolha duplicada; permissões negar/cancelar (com a fila esperando permissão e turno); cancelamento/incerteza sem auto-retry; reabertura com fila recuperada; export pelo histórico nativo paginado; cache visível offline/sem binário sem fallback para o Pi; conversa Pi preservada.');
 });

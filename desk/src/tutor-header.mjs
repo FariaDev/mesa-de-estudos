@@ -1,4 +1,5 @@
 import {$,S,labelBtn,supportsCapability,paintSessionTitle} from './state.mjs';
+import {visibleEngines} from './visible-engines-ui.mjs';
 import {icon} from '../icons.mjs';
 import {choiceIcon} from './provider-icons.mjs';
 import {build,renderChildren} from './view-host.mjs';
@@ -7,6 +8,7 @@ import {resetModelSearch} from './model-picker-ui.mjs';
 import core from './generated/tutorheader.core.js';
 import boxCore from './generated/composerbox.core.js';
 import {t,text as translate,LANGUAGE_EVENT} from './ui-text.mjs';
+import {engineReady} from './engine-facts.mjs';
 
 /* ---------------------------------------------------------------------------
    Cabeçalho do tutor (tickets #13, #14 e #42). Uma linha de --bar: título da
@@ -32,16 +34,20 @@ const POPS=[
  {pop:'#conversations-pop',trigger:'#session-title'},
  {pop:'#model-pop',trigger:'#model-indicator',anchor:true},
  {pop:'#new-session-pop',trigger:'#new-session'},
- {pop:'#chat-more-pop',trigger:'#chat-more'}
+ {pop:'#chat-more-pop',trigger:'#chat-more'},
+ {pop:'#attach-pop',trigger:'#attach'}
 ];
 const MENUS=['#new-session-pop','#chat-more-pop'];
 
-/* Andaime `data-icon`: o núcleo diz o nome do ícone; o SVG é do host. */
+/* Andaime `data-icon`: o núcleo diz o nome do ícone; o SVG é do host. O rótulo
+   entra como texto (nó), nunca por innerHTML, como em header-tabs.mjs: hoje os
+   rótulos são do catálogo, mas um nome de fora não pode virar marcação. */
 function iconize(root){
  for(const el of root.querySelectorAll('[data-icon]')){
   const name=el.dataset.icon,label=el.textContent;
   el.removeAttribute('data-icon');
-  el.innerHTML=icon(name)+(label?` <span>${label}</span>`:'');
+  el.innerHTML=icon(name);
+  if(label){const text=document.createElement('span');text.textContent=label;el.append(' ',text);}
  }
 }
 
@@ -49,6 +55,21 @@ let host=null;
 let listing=false;
 
 function isOpen(selector){const el=$(selector);return !!el&&!el.hidden;}
+
+/* O submenu de Contexto abre no próprio lugar (sem flyout): o gatilho fica
+   com aria-expanded e o menu aninhado mostra a medição e as compactações. */
+function closeContextMenu(){
+ const menu=$('#more-context-menu'),trigger=$('#more-context');
+ if(menu)menu.hidden=true;
+ trigger?.setAttribute('aria-expanded','false');
+}
+function openContextMenu(){
+ const menu=$('#more-context-menu'),trigger=$('#more-context');
+ if(!menu)return;
+ menu.hidden=false;
+ trigger?.setAttribute('aria-expanded','true');
+}
+function contextMenuOpen(){return isOpen('#more-context-menu');}
 
 export function closeTutorPops({restoreFocus=false}={}){
  let focusTarget=null;
@@ -59,6 +80,7 @@ export function closeTutorPops({restoreFocus=false}={}){
   el.hidden=true;
   button?.setAttribute('aria-expanded','false');
  }
+ closeContextMenu();
  if(restoreFocus&&focusTarget)focusTarget.focus();
 }
 function tutorPopOpen(){return POPS.some(({pop})=>isOpen(pop));}
@@ -72,6 +94,7 @@ function openPop(selector){
  }
  const el=$(entry.pop);
  if(!el)return;
+ closeContextMenu();
  syncMore();
  el.hidden=false;
  $(entry.trigger)?.setAttribute('aria-expanded','true');
@@ -117,12 +140,12 @@ function orderActions(){
    do mais folgado ao mais apertado, se cada degrau cabe; o núcleo
    (`rowFit`) escolhe — o rótulo de Referências cede primeiro, depois o
    esforço, por fim o modelo vira ícone.
-   O indicador encolhe com a fileira (ajustes do indicador). Nos dois primeiros
-   degraus o nome tem de caber inteiro, até o teto do CSS: antes de cortar o
-   nome, sai o esforço. No degrau "model" o nome pode ganhar reticências até o
-   piso `--mi-model-floor`; abaixo disso vira ícone. Antes o teto do CSS
-   contava como "não cabe": um nome do OpenRouter maior que o teto mandava
-   tudo para o ícone, com a fileira vazia. */
+   O indicador encolhe com a fileira (ajustes do indicador). Cheio, o nome tem
+   de caber inteiro, até o teto do CSS: antes de cortar o nome, sai o esforço.
+   No degrau "model" o nome pode ganhar reticências até o piso
+   `--mi-model-floor`; abaixo disso vira ícone. Antes o teto do CSS contava
+   como "não cabe": um nome do OpenRouter maior que o teto mandava tudo para o
+   ícone, com a fileira vazia. */
 function modelRoom(model,floor){
  const cap=Number.parseFloat(getComputedStyle(model).maxWidth);
  const whole=Math.min(model.scrollWidth,Number.isFinite(cap)?cap:Infinity);
@@ -138,8 +161,8 @@ export function fitIndicator(){
  if(!button||!row||!row.getClientRects().length)return;
  const floor=Number.parseFloat(getComputedStyle(button).getPropertyValue('--mi-model-floor'))||0;
  const at=(fit,least)=>{row.dataset.fit=fit;return rowFits(row,least);};
- const full=at('',Infinity),compact=at('compact',Infinity),model=at('model',floor);
- row.dataset.fit=String(boxCore.rowFit(full,compact,model));
+ const full=at('',Infinity),model=at('model',floor);
+ row.dataset.fit=String(boxCore.rowFit(full,model));
 }
 
 function focusModelField(){
@@ -148,29 +171,65 @@ function focusModelField(){
 }
 
 function menuItems(menu){
- return [...menu.querySelectorAll('button[role^="menuitem"]')].filter(button=>!button.hidden&&!button.disabled);
+ return [...menu.querySelectorAll('button[role^="menuitem"]')].filter(button=>!button.hidden&&!button.disabled&&!button.closest('[hidden]'));
 }
+function focusSubmenu(){menuItems($('#more-context-menu')||document.body)[0]?.focus();}
 function focusFirst(selector){menuItems($(selector)||document.body)[0]?.focus();}
 
 /* ---------- sessão nova e mais opções (árvores do núcleo) ---------- */
 
+/* O item "Padrão" cria a sessão no motor padrão, que é o Pi quando ele existe.
+   Sem Pi, ele some do seletor: quem não instalou o Pi não vê o motor nem no
+   menu (#release OpenCode). A escolha explícita de Claude/OpenCode continua. */
+function viewNodeId(node){
+ for(let attr=node?.attrs;attr&&attr.$==='Con';attr=attr.tail)if(attr.head.name==='id')return String(attr.head.value||'');
+ return '';
+}
+
+function listToArray(list){
+ const items=[];
+ for(let node=list;node&&node.$==='Con';node=node.tail)items.push(node.head);
+ return items;
+}
+
+function arrayToList(items){
+ return items.reduceRight((tail,head)=>({$:'Con',head,tail}),{$:'Nil'});
+}
+
+const SESSION_ENGINE_OF={ 'new-session-default':'pi','new-session-claude':'claude','new-session-opencode':'opencode' };
+function sessionMenuItems(){
+ const menu=core.newSessionMenu();
+ const visible=visibleEngines();
+ const known=Object.prototype.hasOwnProperty.call(S.detected||{},'pi');
+ return arrayToList(listToArray(menu).filter(node=>{
+  const engine=SESSION_ENGINE_OF[viewNodeId(node)];
+  /* O cabeçalho "Nova sessão com…" não é item de motor: fica sempre. */
+  if(!engine)return true;
+  if(!visible.includes(engine))return false;
+  /* O item "Padrão" é o Pi instalado; sem Pi ele não aparece (#release OpenCode). */
+  return engine!=='pi'||!known||!!S.detected.pi;
+ }));
+}
+
 function renderMenus(){
  const meter=$('#ctx-meter');
  const handlers={
-  NewSession:()=>{closeTutorPops({restoreFocus:true});host.newSession('pi');},
+  /* "Padrão" (#93): o host escolhe o motor instalado; sessão nova nunca troca
+     o motor da conversa aberta, só a da próxima. */
+  NewSession:()=>{closeTutorPops({restoreFocus:true});host.newSession();},
   NewSessionClaude:()=>{closeTutorPops({restoreFocus:true});host.newSession('claude');},
   NewSessionOpenCode:()=>{closeTutorPops({restoreFocus:true});host.newSession('opencode');},
   ExportSession:()=>{closeTutorPops({restoreFocus:true});host.exportSession();},
   OpenEndDay:()=>{closeTutorPops({restoreFocus:true});host.openEndDay();},
   ToggleAutoCompact:()=>{$('#auto-compact')?.click();},
   CompactNow:()=>{closeTutorPops({restoreFocus:true});host.compactNow();},
+  ToggleContextMenu:()=>{if(contextMenuOpen()){closeContextMenu();$('#more-context')?.focus();}else openContextMenu();},
   ToggleTutor:()=>{closeTutorPops();host.toggleTutor();}
  };
  const sessionPop=$('#new-session-pop'),morePop=$('#chat-more-pop');
- if(sessionPop){renderChildren(sessionPop,core.newSessionItems(),handlers);iconize(sessionPop);}
+ if(sessionPop){renderChildren(sessionPop,sessionMenuItems(),handlers);iconize(sessionPop);}
  if(morePop){
   renderChildren(morePop,core.moreItems(host.endDayEnabled()),handlers);
-  morePop.querySelector('#chat-collapse')?.before(triageItem());
   iconize(morePop);
   /* O medidor é nó vivo (a barra anima por transição de largura): sai do
      render com o resto do menu e volta para o encaixe do uso de contexto. */
@@ -180,29 +239,22 @@ function renderMenus(){
  syncMore();
 }
 
-/* "Relatar um problema" (#62): item novo de interface, em JS como manda o
-   ADR 0001 (o núcleo `tutorheader` segue com os seis itens dele). Entra antes
-   de "Recolher o tutor", com a mesma forma dos itens do núcleo. */
-function triageItem(){
- const button=document.createElement('button');
- button.type='button';button.id='more-triage';button.setAttribute('role','menuitem');
- button.dataset.icon='alert';button.textContent=t('triage.menu');
- button.addEventListener('click',()=>{closeTutorPops({restoreFocus:true});host.reportProblem();});
- return button;
-}
-
 /* O medidor, o interruptor e o rótulo do recolher são fatos vivos: espelham-se
    no menu a cada render, a cada evento do estado e ao abrir. */
 function syncMore(){
+ const context=$('#more-context'),menu=$('#more-context-menu');
+ if(context&&menu)context.setAttribute('aria-expanded',String(!menu.hidden));
  const meter=$('#ctx-meter'),empty=$('#more-context-empty');
  if(empty)empty.hidden=!!meter&&!meter.hidden;
  const toggle=$('#more-auto-compact'),auto=$('#auto-compact');
  if(toggle){
+  /* Sem controle de compactação automática (Claude e OpenCode compactam
+     sozinhos; #93), o item sai do menu — nada de controle morto. */
   const canAuto=supportsCapability('autoCompaction');
-  const usable=canAuto&&!!S.connected;
+  toggle.hidden=!canAuto;
   toggle.setAttribute('aria-checked',String(!!auto&&auto.getAttribute('aria-pressed')==='true'));
-  toggle.disabled=!usable;
-  toggle.title=t(!canAuto?'more.autoCompact.unsupported':!S.connected?'more.autoCompact.needsTutor':'more.autoCompact.hint');
+  toggle.disabled=!canAuto||!S.connected;
+  toggle.title=t(!S.connected?'more.autoCompact.needsTutor':'more.autoCompact.hint');
  }
  /* Resumir agora: a ação manual que morava no painel "Contexto da sessão". */
  const now=$('#more-compact-now');
@@ -303,9 +355,22 @@ function wire(){
   if($('#model-pop').contains(next)||next===$('#model-indicator'))return;
   closeTutorPops();
  });
+ /* O clique no "+" cria na hora, com o motor da sessão que está aberta; o
+    menu "Nova sessão com…" fica no clique direito e na seta para baixo. */
  $('#new-session').addEventListener('click',()=>{
   if(isOpen('#new-session-pop')){closeTutorPops({restoreFocus:true});return;}
-  openPop('#new-session-pop');
+  /* O "+" usa o motor da sessão aberta enquanto ele existe e está na vista; se
+     o motor sumiu (ou a sessão é de um motor antigo), manda sem motor para o
+     host escolher o visível agora. Com um motor só, abre direto (#release OpenCode). */
+  const ready=visibleEngines().includes(S.engine)&&engineReady({engine:S.engine,detectedPi:S.detected?.pi,detectedClaude:S.detected?.claude,detectedOpenCode:S.detected?.opencode});
+  host.newSession(ready?(S.engine||'opencode'):null);
+ });
+ $('#new-session').addEventListener('contextmenu',event=>{
+  event.preventDefault();
+  /* Um motor só não tem o que escolher: nada de menu nem no clique direito. */
+  if(visibleEngines().length<=1)return;
+  if(!isOpen('#new-session-pop'))openPop('#new-session-pop');
+  focusFirst('#new-session-pop');
  });
  $('#chat-more').addEventListener('click',()=>{
   if(isOpen('#chat-more-pop')){closeTutorPops({restoreFocus:true});return;}
@@ -325,12 +390,21 @@ function wire(){
   pop.addEventListener('click',event=>{
    /* Escolher uma ação fecha o menu (o handler do item já rodou); o
       interruptor fica aberto para mostrar o novo estado. */
-   const item=event.target.closest?.('button[role="menuitem"]');
+   const item=event.target.closest?.('button[role="menuitem"]:not([aria-haspopup])');
    if(item)closeTutorPops({restoreFocus:true});
   });
   pop.addEventListener('keydown',event=>{
    const items=menuItems(pop);
    const at=items.indexOf(document.activeElement);
+   if(event.key==='ArrowRight'&&document.activeElement?.id==='more-context'){
+    event.preventDefault();openContextMenu();focusSubmenu();return;
+   }
+   if(event.key==='ArrowLeft'&&document.activeElement?.closest?.('#more-context-menu')){
+    event.preventDefault();closeContextMenu();$('#more-context')?.focus();return;
+   }
+   if(event.key==='Escape'&&contextMenuOpen()){
+    event.preventDefault();event.stopPropagation();closeContextMenu();$('#more-context')?.focus();return;
+   }
    if(event.key==='ArrowDown'){event.preventDefault();items[(at+1)%items.length]?.focus();}
    else if(event.key==='ArrowUp'){event.preventDefault();items[(at-1+items.length)%items.length]?.focus();}
    else if(event.key==='Home'){event.preventDefault();items[0]?.focus();}

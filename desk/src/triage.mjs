@@ -1,5 +1,6 @@
 // @ts-check
-import {$,S} from './state.mjs';
+import {$,S,toast} from './state.mjs';
+import {visibleEngines} from './visible-engines-ui.mjs';
 import {t,applyStaticText} from './ui-text.mjs';
 import {piCommand} from '../triage-outputs.mjs';
 
@@ -86,11 +87,13 @@ function pickPiModel(model){
 /** @param {import('../triage-host.cjs').TriageResult['pi']} pi */
 function paintPi(pi){
  const select=/** @type {HTMLSelectElement} */($('#triage-pi-model'));
- $('#triage-pi-row').hidden=false;
  const missing='reason' in pi;
- $('#triage-copy-pi').hidden=missing;
- select.hidden=missing||pi.facts.piModels.length===0;
- if(missing){$('#triage-pi-note').textContent=t(pi.reason);return;}
+ /* Sem Pi não há linha: quem não o instalou não precisa saber que ele existe
+    (#release OpenCode). O aviso de motivo fica só para uma falha com Pi achado. */
+ $('#triage-pi-row').hidden=missing||!visibleEngines().includes('pi');
+ if(missing){$('#triage-copy-pi').hidden=true;select.hidden=true;return;}
+ $('#triage-copy-pi').hidden=false;
+ select.hidden=pi.facts.piModels.length===0;
  select.replaceChildren(...pi.facts.piModels.map(model=>new Option(model,model,false,model===pi.model)));
  pickPiModel(pi.model);
 }
@@ -145,6 +148,12 @@ export function initTriage(){
  $('#triage-copy-opencode').addEventListener('click',()=>{if(current?.opencode.command)copy(current.opencode.command);});
  $('#triage-copy-pi').addEventListener('click',()=>{if(current?.pi.command)copy(current.pi.command);});
  $('#triage-pi-model').addEventListener('change',event=>pickPiModel(/** @type {HTMLSelectElement} */(event.target).value));
+ /* O relatório saiu do Mais opções do tutor (#90) para o rodapé do Guia. */
+ $('#help-triage')?.addEventListener('click',()=>{
+  const help=$('#help-dialog');
+  if(help?.open)help.close('ok');
+  openTriage().catch(error=>toast(error.message));
+ });
  $('#triage-open-issue').addEventListener('click',async()=>{
   if(!current)return;
   const answer=await window.desk.triageOpenIssue(current.issue.url);

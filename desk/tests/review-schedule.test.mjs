@@ -16,18 +16,24 @@ import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
-import {buildStudyCores} from './study-core-build.mjs';
+import {buildStudyCores, studyCoreSkipReason} from './study-core-build.mjs';
 import {ptText} from './pt-text.mjs';
 
-const built = buildStudyCores({entries: ['studystats.bend', 'reviewschedule.bend']});
-process.env.MESA_STUDYSTATS_CORE = built.corePath('studystats');
-process.env.MESA_REVIEWSCHEDULE_CORE = built.corePath('reviewschedule');
+const skip = studyCoreSkipReason();
+const built = skip ? null : buildStudyCores({entries: ['studystats.bend', 'reviewschedule.bend']});
+if (built) {
+  process.env.MESA_STUDYSTATS_CORE = built.corePath('studystats');
+  process.env.MESA_REVIEWSCHEDULE_CORE = built.corePath('reviewschedule');
+}
 const require = createRequire(import.meta.url);
 const schedule = require('../src/study-data/review-schedule.cjs');
 
 const AT = Date.UTC(2026, 0, 10, 12, 0, 0);
 const DAY = 86400000;
-const TODAY = schedule.localDay(AT, 0);
+const TODAY = skip ? 0 : schedule.localDay(AT, 0);
+/* Sem a toolchain do Bend o arquivo inteiro é pulado com o motivo, em vez de
+   reprovar o `npm test` de quem só usa o app. */
+const withToolchain = skip ? (name, fn) => test(name, {skip}, fn) : test;
 const fileOf = (runtime) => join(runtime, schedule.FILENAME);
 const stored = (runtime) => JSON.parse(readFileSync(fileOf(runtime), 'utf8'));
 
@@ -47,14 +53,14 @@ const item = (question, extra = {}) => ({
   ref: extra.ref ?? {name: 'Limites.pdf', page: 3, path: '/p/Limites.pdf'},
 });
 
-test('sem arquivo a agenda é vazia e a leitura não cria nada', () => {
+withToolchain('sem arquivo a agenda é vazia e a leitura não cria nada', () => {
   withRuntime((runtime) => {
     assert.deepEqual(schedule.listItems(runtime, {courseId: 'A', today: TODAY}), []);
     assert.equal(existsSync(fileOf(runtime)), false);
   });
 });
 
-test('arquivo corrompido não derruba a leitura', () => {
+withToolchain('arquivo corrompido não derruba a leitura', () => {
   withRuntime((runtime) => {
     writeFileSync(fileOf(runtime), 'não é json');
     const {dueLabel, ...counts} = schedule.summary(runtime, {courseId: 'A', today: TODAY});
@@ -63,7 +69,7 @@ test('arquivo corrompido não derruba a leitura', () => {
   });
 });
 
-test('id estável: o mesmo item dá o mesmo id; questão ou referência muda o id', () => {
+withToolchain('id estável: o mesmo item dá o mesmo id; questão ou referência muda o id', () => {
   const base = schedule.stableId(item('Limites no infinito'));
   assert.equal(schedule.stableId(item('  Limites no infinito  ')), base, 'o núcleo apara os textos da chave');
   assert.notEqual(schedule.stableId(item('Outra questão')), base);
@@ -71,7 +77,7 @@ test('id estável: o mesmo item dá o mesmo id; questão ou referência muda o i
   assert.match(base, /^[0-9a-f]{16}$/);
 });
 
-test('migração: cria vencendo hoje, idempotente e preservando o texto do caderno', () => {
+withToolchain('migração: cria vencendo hoje, idempotente e preservando o texto do caderno', () => {
   withRuntime((runtime) => {
     const items = [item('Limites no infinito', {attempt: 'dividi por x²', difficulty: 'não vi a fatoração'}), item('Derivadas')];
     const first = schedule.sync(runtime, {courseId: 'A', items, today: TODAY, at: AT});
@@ -94,7 +100,7 @@ test('migração: cria vencendo hoje, idempotente e preservando o texto do cader
   });
 });
 
-test('migração é determinística entre execuções (mesmos ids no arquivo)', () => {
+withToolchain('migração é determinística entre execuções (mesmos ids no arquivo)', () => {
   const items = [item('Limites'), item('Derivadas')];
   const ids = [];
   for (let run = 0; run < 2; run += 1) {
@@ -106,7 +112,7 @@ test('migração é determinística entre execuções (mesmos ids no arquivo)', 
   assert.deepEqual(ids[0], ids[1]);
 });
 
-test('o caderno manda no texto; a agenda manda nas datas', () => {
+withToolchain('o caderno manda no texto; a agenda manda nas datas', () => {
   withRuntime((runtime) => {
     schedule.sync(runtime, {courseId: 'A', items: [item('Limites')], today: TODAY, at: AT});
     schedule.grade(runtime, {courseId: 'A', id: schedule.stableId(item('Limites')), result: 'bom', at: AT, today: TODAY});
@@ -123,7 +129,7 @@ test('o caderno manda no texto; a agenda manda nas datas', () => {
   });
 });
 
-test('item que sai do caderno fica inativo com histórico; item que volta reativa', () => {
+withToolchain('item que sai do caderno fica inativo com histórico; item que volta reativa', () => {
   withRuntime((runtime) => {
     schedule.sync(runtime, {courseId: 'A', items: [item('Limites'), item('Derivadas')], today: TODAY, at: AT});
     schedule.grade(runtime, {courseId: 'A', id: schedule.stableId(item('Derivadas')), result: 'facil', at: AT, today: TODAY});
@@ -140,7 +146,7 @@ test('item que sai do caderno fica inativo com histórico; item que volta reativ
   });
 });
 
-test('marcar o resultado agenda a próxima revisão e guarda o histórico', () => {
+withToolchain('marcar o resultado agenda a próxima revisão e guarda o histórico', () => {
   withRuntime((runtime) => {
     schedule.sync(runtime, {courseId: 'A', items: [item('Limites')], today: TODAY, at: AT});
     const id = schedule.stableId(item('Limites'));
@@ -168,7 +174,7 @@ test('marcar o resultado agenda a próxima revisão e guarda o histórico', () =
   });
 });
 
-test('resultado inválido e item inexistente são recusados sem gravar', () => {
+withToolchain('resultado inválido e item inexistente são recusados sem gravar', () => {
   withRuntime((runtime) => {
     schedule.sync(runtime, {courseId: 'A', items: [item('Limites')], today: TODAY, at: AT});
     assert.throws(
@@ -183,7 +189,7 @@ test('resultado inválido e item inexistente são recusados sem gravar', () => {
   });
 });
 
-test('vencidos: hoje conta, atrasado conta, futuro não', () => {
+withToolchain('vencidos: hoje conta, atrasado conta, futuro não', () => {
   withRuntime((runtime) => {
     schedule.sync(runtime, {courseId: 'A', items: [item('Hoje'), item('Amanhã'), item('Atrasado')], today: TODAY, at: AT});
     schedule.grade(runtime, {courseId: 'A', id: schedule.stableId(item('Amanhã')), result: 'facil', at: AT, today: TODAY});
@@ -198,7 +204,7 @@ test('vencidos: hoje conta, atrasado conta, futuro não', () => {
   });
 });
 
-test('referência fora da biblioteca ou não encontrada é estado visível, nunca filtro', () => {
+withToolchain('referência fora da biblioteca ou não encontrada é estado visível, nunca filtro', () => {
   withRuntime((runtime) => {
     const items = [
       item('Ok', {ref: {name: 'Limites.pdf', page: 1, path: '/p/Limites.pdf'}}),
@@ -222,7 +228,7 @@ test('referência fora da biblioteca ou não encontrada é estado visível, nunc
   });
 });
 
-test('biblioteca como predicado (adapter de serviços) também é aceita', () => {
+withToolchain('biblioteca como predicado (adapter de serviços) também é aceita', () => {
   withRuntime((runtime) => {
     const items = [item('Dentro', {ref: {name: 'A.pdf', page: 1, path: '/p/A.pdf'}}), item('Fora', {ref: {name: 'B.pdf', page: 1, path: '/b/B.pdf'}})];
     const listed = schedule.sync(runtime, {
@@ -238,7 +244,7 @@ test('biblioteca como predicado (adapter de serviços) também é aceita', () =>
   });
 });
 
-test('coleção vazia acusa fora como o Caderno; sem `allowed` não acusa', () => {
+withToolchain('coleção vazia acusa fora como o Caderno; sem `allowed` não acusa', () => {
   withRuntime((runtime) => {
     const items = [item('Referência', {ref: {name: 'A.pdf', page: 1, path: '/p/A.pdf'}})];
     const closed = schedule.sync(runtime, {courseId: 'A', items, today: TODAY, at: AT, exists: () => true, allowed: new Set()}).items;
@@ -250,7 +256,7 @@ test('coleção vazia acusa fora como o Caderno; sem `allowed` não acusa', () =
   });
 });
 
-test('resumo por matéria separa os cadernos', () => {
+withToolchain('resumo por matéria separa os cadernos', () => {
   withRuntime((runtime) => {
     schedule.sync(runtime, {courseId: 'A', items: [item('A1'), item('A2')], today: TODAY, at: AT});
     schedule.sync(runtime, {courseId: 'B', items: [item('B1')], today: TODAY, at: AT});
@@ -263,14 +269,14 @@ test('resumo por matéria separa os cadernos', () => {
   });
 });
 
-test('datas determinísticas: mesmo instante e fuso dão o mesmo dia', () => {
+withToolchain('datas determinísticas: mesmo instante e fuso dão o mesmo dia', () => {
   const at = Date.UTC(2026, 0, 10, 1, 0, 0);
   assert.equal(schedule.localDay(at, 180), schedule.dayOf(at, 180, true));
   assert.notEqual(schedule.localDay(at, 180), schedule.localDay(at, -120));
   assert.equal(schedule.localDay(AT, 0), TODAY);
 });
 
-test('campos hostis e schema antigo extra são reduzidos à forma segura', () => {
+withToolchain('campos hostis e schema antigo extra são reduzidos à forma segura', () => {
   withRuntime((runtime) => {
     schedule.sync(runtime, {
       courseId: 'C'.repeat(500),
@@ -297,7 +303,7 @@ test('campos hostis e schema antigo extra são reduzidos à forma segura', () =>
   });
 });
 
-test('a gravação é atômica e o arquivo fica em runtime/<FILENAME>', () => {
+withToolchain('a gravação é atômica e o arquivo fica em runtime/<FILENAME>', () => {
   withRuntime((runtime) => {
     schedule.sync(runtime, {courseId: 'A', items: [item('Limites')], today: TODAY, at: AT});
     assert.equal(existsSync(fileOf(runtime)), true);

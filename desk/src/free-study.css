@@ -46,17 +46,16 @@
 }
 #tutor-material-status{margin:0;padding:var(--space-3) var(--pad);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-sm);flex-shrink:0}
 #free-empty h2{margin:0;font-size:var(--fs-xl)}
-.free-start-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--space-3);width:100%;max-width:720px;text-align:left}
-.free-start-actions>div{flex:1 1 180px;max-width:240px;padding:var(--space-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);font-size:var(--fs-sm)}
-.free-start-actions p{margin:var(--space-2) 0 var(--space-4);color:var(--muted);line-height:1.5}
+.free-start-actions{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:var(--space-3);width:100%;max-width:720px}
+/* Os três caminhos têm o mesmo peso de largura; só a cor destaca o principal (#90). */
+.free-start-actions>button{flex:0 1 168px;justify-content:center}
 /* Sem PDF aberto: o leitor e a área de apoio somem e o texto da sessão ocupa o
    espaço; a conversa ganha a coluna reservada (o vazio usa o lugar da mesa). */
 #free-empty{
  display:none;flex:1;min-height:0;flex-direction:column;align-items:center;justify-content:safe center;
- gap:var(--space-4);text-align:center;padding:var(--space-5);overflow:auto;
+ gap:var(--space-5);text-align:center;padding:var(--space-5);overflow:auto;
 }
 #references.free-empty #free-empty{display:flex}
-#free-empty .free-empty-text{margin:0;max-width:46ch;font-size:var(--fs-md);line-height:1.55;color:var(--muted)}
 #references.free-empty #pdf-grid{display:none}
 #references.free-empty.support-chat #pdf-grid{display:flex;flex:1;min-height:0}
 #references.free-empty.support-chat #pdf-grid>.pdf-panel,#references.free-empty.support-chat .pdf-divider{display:none}
@@ -78,7 +77,7 @@ main.free-empty{grid-template-columns:minmax(260px,1fr) 1px minmax(360px,min(54v
 .free-pdf-preview .fine{margin:0}
 /* Montar PDF (ticket #39): faixa de modelos, edição à esquerda, prévia A4 à
    direita e rodapé de 52px com a frase de estado. Casco comum dos diálogos da
-   Mesa (raio 16, título 15, × de 28, controles de 30). */
+   Mesa (raio 12, título 15, × de 28, controles de 30). */
 #free-pdf-dialog{width:min(1160px,calc(100vw - 32px));max-width:none;height:min(720px,calc(100vh - 32px));max-height:none}
 #free-pdf-form{display:flex;flex-direction:column;height:100%;min-height:0}
 #free-pdf-dialog .help-head{padding-bottom:var(--space-2)}

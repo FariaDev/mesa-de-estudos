@@ -52,3 +52,16 @@ export function fakeShell() {
     openExternal: async (url) => { opened.push(url); },
   };
 }
+
+/** dialog do Electron: `showOpenDialog` devolve `answer` (troque-o no teste) e guarda as opções de cada chamada. */
+export function fakeDialog() {
+  const dialog = {
+    calls: [],
+    answer: {canceled: true, filePaths: []},
+    showOpenDialog: async (win, options) => {
+      dialog.calls.push({win, options});
+      return dialog.answer;
+    },
+  };
+  return dialog;
+}

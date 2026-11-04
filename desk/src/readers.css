@@ -39,7 +39,7 @@ main{height:calc(100vh - var(--header));display:grid;grid-template-columns:minma
  width:min(330px,92%);max-height:min(60%,420px);overflow:auto;
  display:flex;flex-direction:column;gap:var(--space-3);
  padding:var(--space-3);border:1px solid var(--border-strong);border-radius:var(--r-md);
- background:var(--surface);box-shadow:var(--shadow-pop);
+ background:var(--raised);box-shadow:var(--shadow-pop);
 }
 .nav-section{display:flex;flex-direction:column;gap:var(--space-hairline)}
 .nav-section h4{
@@ -116,10 +116,10 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
    menus que abrem do painel. */
 #sidebar{position:relative}
 :is(.pdf-panel,#sidebar,#sidechat):focus-within::after{content:"";position:absolute;inset:0;z-index:7;border:1px solid var(--ring);pointer-events:none}
-/* Uma linha só, de 40px: rótulo, material, voltar, página, busca, favoritos e
-   Mais opções. Nada quebra nem passa da borda — o rótulo e o material encolhem
-   com reticências; o resto tem tamanho fixo. O último ícone (Mais opções)
-   termina a --pad da borda do leitor. */
+/* Uma linha só, de 40px: rótulo, material, voltar, pager, busca e Mais opções.
+   Nada quebra nem passa da borda — o rótulo e o material encolhem com
+   reticências; o resto tem tamanho fixo. O último ícone (Mais opções) termina
+   a --pad da borda do leitor. */
 .pdf-panel>.pdf-title{display:flex;align-items:center;column-gap:var(--space-1);padding-right:var(--bar-end);flex-wrap:nowrap}
 .pdf-panel>.pdf-title>*{flex:none}
 .pdf-panel>.pdf-title strong{font-size:var(--fs-sm);font-weight:600;flex:0 1 auto;min-width:0;max-width:34%;line-height:var(--ctl);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg-strong);margin-right:var(--space-1)}
@@ -149,16 +149,12 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
  .pdf-panel>.pdf-title button.icon-btn{width:24px}
  .pdf-panel>.pdf-title .page-number{width:30px}
  .pdf-panel>.pdf-title strong{display:none}
- /* Terceiro degrau (#23): as setas de página cedem antes do nome do material
-    (o campo de página, a rolagem contínua e as teclas seguem navegando), para
-    o seletor mostrar pelo menos 8 caracteres do nome. */
- .pdf-panel>.pdf-title .prev,.pdf-panel>.pdf-title .next{display:none}
  /* sem o rótulo, o material abre a barra: a margem negativa de cima não vale */
  .pdf-panel>.pdf-title strong+.pdf-select{margin-left:0}
 }
 /* Leitor sem material (#27 B3): a barra é rótulo + "Nenhum material" + Mais
    opções. O seletor segue no DOM (nome acessível, valor), mas se lê como texto. */
-.pdf-panel[data-no-material]>.pdf-title :is(.back,.prev,.next,.page-number,.page-total,.find-toggle,.nav){display:none}
+.pdf-panel[data-no-material]>.pdf-title :is(.back,.pager,.page-number,.page-total,.find-toggle){display:none}
 .pdf-panel[data-no-material]>.pdf-title .pdf-select{
  border-color:transparent;background:transparent;color:var(--faint);appearance:none;-webkit-appearance:none;
  pointer-events:none;padding:0 var(--space-3);
@@ -173,6 +169,17 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
  padding:0 3px;background:var(--surface);color:var(--fg);font-size:var(--fs-sm);
 }
 .pdf-title .page-number{height:24px}
+.pdf-title .page-number[hidden]{display:none}
+/* Pager "1 / 3": texto clicável que vira campo de página (o `OpenPager` do
+   host troca um pelo outro). Sem caixa em repouso; o alvo é o da barra. */
+.pdf-title .pager{
+ display:inline-flex;align-items:center;gap:3px;height:24px;padding:0 var(--space-1);
+ border:1px solid transparent;border-radius:var(--r-2xs);background:transparent;
+ color:var(--fg);font-size:var(--fs-sm);font-variant-numeric:tabular-nums;line-height:1;
+}
+.pdf-title .pager:hover{background:var(--hover)}
+.pdf-title .pager[hidden]{display:none}
+.pdf-title .pager-current{font-weight:600}
 .page-total{font-size:var(--fs-xs);color:var(--faint);line-height:var(--ctl);white-space:nowrap;font-variant-numeric:tabular-nums}
 .zoom-label{font-size:var(--fs-xs);min-width:36px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
 
@@ -182,7 +189,7 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
  position:absolute;top:calc(var(--bar) - var(--space-1));right:var(--space-2);z-index:12;
  display:flex;flex-direction:column;gap:var(--space-hairline);
  width:min(260px,calc(100% - var(--space-5)));padding:var(--space-1);
- border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow-pop);
+ border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--raised);box-shadow:var(--shadow-pop);
 }
 .more-item{
  justify-content:flex-start;width:100%;height:var(--ctl);padding:0 var(--space-2);gap:var(--space-3);
@@ -198,6 +205,11 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
 .more-item.invert[aria-pressed="true"]::after{content:'Ligada';color:var(--accent-text)}
 .more-zoom{display:flex;align-items:center;justify-content:space-between;height:var(--ctl);padding:0 var(--space-1) 0 var(--space-2);font-size:var(--fs-sm);color:var(--fg)}
 .more-zoom-ctl{display:inline-flex;align-items:center}
+.more-zoom-fit{
+ height:22px;padding:0 var(--space-2);border-color:transparent;background:transparent;box-shadow:none;
+ color:var(--muted);font-size:var(--fs-xs);
+}
+.more-zoom-fit:hover{background:var(--hover);color:var(--fg)}
 .pdf-more-pop .icon-btn{color:var(--fg)}
 .pdf-stage{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
 .pdf-viewport{
@@ -256,45 +268,44 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
 .textLayer :is(span,br)::selection{background:rgb(0 0 255/.25);color:transparent}
 .pdf-hl{background:var(--find-mark);border-radius:var(--r-2xs);color:inherit;font-style:normal}
 .pdf-placeholder{font-size:var(--fs-md);text-align:center;margin:72px 24px;color:var(--muted);line-height:1.5}
+/* Falha ao abrir o PDF (#90): o painel sai do carregamento e diz o motivo,
+   com uma saída para escolher outro arquivo. */
+.pdf-failed{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-3);min-height:100%;padding:var(--pad) var(--space-6);text-align:center;color:var(--muted)}
+.pdf-failed-text{margin:0;max-width:42ch;font-size:var(--fs-sm);line-height:1.5;overflow-wrap:anywhere}
+.pdf-failed-open{height:var(--ctl);padding:0 var(--space-3)}
 /* Folha "Lista 0" (core/readersheet.bend): o leitor sem material de uma matéria.
-   É papel, como a página do PDF: branca com texto escuro nos dois temas (`only
-   light` resolve o light-dark() para o claro aqui) e os links usam o tom de
-   acento legível sobre branco (--accent-paper), não o do tema. O recuo é em
+   Segue o tema: vazia é interface, e duas folhas brancas ofuscavam o tema escuro
+   (só a página do PDF aberto continua papel). O recuo é em
    porcentagem e o texto acompanha a largura do próprio leitor (container
    query), então a folha cabe inteira num leitor de ~450px sem cortar. */
 .reader-sheet{
- --sheet-ink:#171717;--sheet-soft:#525252;--sheet-line:#9a9aa6;
- container-type:inline-size;color-scheme:only light;
- display:flex;flex-direction:column;
+ --sheet-ink:var(--fg);--sheet-soft:var(--muted);--sheet-line:light-dark(#9a9aa6,#6f6f6f);
+ container-type:inline-size;
+ display:flex;flex-direction:column;justify-content:center;align-items:stretch;
  width:100%;min-height:100%;
  padding:clamp(24px,11%,58px) clamp(20px,10%,52px);
- background:#fff;color:var(--sheet-ink);text-align:left;
- /* Papel (#27 B13): serifada, como a página do PDF. Desde a #61 a folha é STIX
-    inteira, link e quadro de soltar incluídos. Medidas do canvas de 520px,
-    escaladas pelo leitor. */
- font-family:var(--serif);font-size:clamp(13px,3.1cqw,16px);line-height:1.5;
+ background:var(--surface);color:var(--sheet-ink);text-align:left;
+ /* O vazio é interface (#90): fonte do sistema, não a
+    serifa da página do PDF. Medidas do canvas de 520px, escaladas pelo leitor. */
+ font-family:var(--font-sans);font-size:clamp(13px,3.1cqw,16px);line-height:1.5;
 }
-.reader-sheet :is(h1,p,ol){margin:0}
-.reader-sheet .sheet-title{font-size:clamp(17px,4cqw,21px);font-weight:700;line-height:1.2;text-align:center}
-.reader-sheet .sheet-course{margin:2px 0 clamp(18px,5.8cqw,30px);text-align:center;font-style:italic;color:var(--sheet-ink)}
-.reader-sheet .sheet-intro{margin-bottom:clamp(12px,3.8cqw,20px)}
-.reader-sheet .sheet-items{padding-left:1.7em;display:flex;flex-direction:column;gap:clamp(10px,3.5cqw,18px)}
-.reader-sheet .sheet-item::marker{font-weight:400;color:var(--sheet-ink)}
+.reader-sheet .sheet-links{display:flex;justify-content:center;align-items:baseline;flex-wrap:wrap;gap:var(--space-2);margin-top:clamp(14px,4cqw,22px)}
+.reader-sheet .sheet-sep{font-size:var(--fs-sm);color:var(--sheet-soft);user-select:none}
 .reader-sheet .sheet-link{
  /* O padding vertical só amplia o alvo do clique (inline não muda a linha). */
  display:inline;padding:4px 0;margin:0;border:0;border-radius:var(--r-2xs);
- background:transparent;box-shadow:none;color:var(--accent-paper);
- font-family:inherit;font-size:.9em;font-weight:600;
+ background:transparent;box-shadow:none;color:var(--accent-text);
+ font-family:inherit;font-size:var(--fs-sm);font-weight:400;
  text-decoration:underline;text-underline-offset:3px;white-space:nowrap;
 }
 .reader-sheet .sheet-link:hover,.reader-sheet .sheet-link:active{background:transparent;text-decoration-thickness:2px}
-.reader-sheet .sheet-link:focus-visible{outline-color:var(--accent-paper)}
+.reader-sheet .sheet-link:focus-visible{outline-color:var(--accent-text)}
 .reader-sheet .sheet-drop{
- margin-top:clamp(18px,5.4cqw,28px);display:flex;flex-direction:column;align-items:center;gap:var(--space-2);
- padding:clamp(14px,4.2cqw,22px) var(--space-5);text-align:center;
- border:1px dashed var(--sheet-line);border-radius:12px;color:var(--sheet-soft);
+ display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-2);
+ min-height:clamp(120px,34cqw,210px);padding:clamp(14px,4.2cqw,22px) var(--space-5);text-align:center;
+ border:1px dashed var(--sheet-line);border-radius:var(--r-lg);color:var(--sheet-soft);
 }
-.reader-sheet .sheet-drop strong{font-size:var(--fs-lg);font-weight:600;color:var(--sheet-ink)}
+.reader-sheet .sheet-drop strong{font-family:var(--font-sans);font-size:var(--reading-size);font-weight:500;color:var(--sheet-ink)}
 .reader-sheet .sheet-drop small{font-size:var(--fs-sm)}
 .reader-sheet .sheet-drop-icon{display:inline-flex;color:var(--sheet-soft)}
 .reader-sheet .sheet-drop-icon .icon{width:22px;height:22px}
@@ -308,12 +319,6 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
 .pdf-find button{font-size:var(--fs-sm);height:var(--ctl);padding:0 var(--space-3)}
 .find-count{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .find-count.none{color:var(--faint)}
-.pdf-foot{
- position:absolute;left:0;right:0;bottom:0;padding:var(--space-1) var(--space-3);color:var(--muted);font-size:var(--fs-2xs);
- white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
- background:linear-gradient(transparent,var(--stage));
-}
-
 #divider{cursor:col-resize;background:var(--border-strong);width:1px;position:relative;z-index:5}
 #divider:after{content:"";position:absolute;left:-3px;top:0;bottom:0;width:7px}
 #divider:hover,#divider:focus-visible{background:var(--muted)}
@@ -323,7 +328,7 @@ body.chat-collapsed #chat{display:none}
    mora no pé dela, onde o tutor volta, sem cobrir barra nenhuma. */
 #chat-restore{
  position:fixed;right:var(--pad);bottom:var(--pad);z-index:9;
- padding:var(--space-1) 9px;border-radius:var(--r-pill);font-size:var(--fs-xs);
+ padding:var(--space-1) 9px;border-radius:var(--r-sm);font-size:var(--fs-xs);
  background:var(--surface);color:var(--fg);border:1px solid var(--border-strong);
  white-space:nowrap;
 }

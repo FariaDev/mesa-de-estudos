@@ -12,7 +12,7 @@ const MONO = /^<span class="provider-mono" data-slot="[1-6]" aria-hidden="true">
 /* Provedor → slug esperado: os do Pi do usuário, os do Simple Icons de antes e os ids do models.dev. */
 const PROVIDERS = Object.freeze({
   anthropic: 'anthropic', openai: 'openai', 'openai-codex': 'openai', google: 'google', 'google-vertex': 'googlecloud',
-  xai: 'grok', opencode: 'opencode', 'opencode-go': 'opencode', commandcode: 'commandcode', openrouter: 'openrouter', groq: 'groq', cerebras: 'cerebras', mistral: 'mistral',
+  xai: 'grok', opencode: 'opencode', 'opencode-go': 'opencode', 'claude-agent': 'anthropic', commandcode: 'commandcode', openrouter: 'openrouter', groq: 'groq', cerebras: 'cerebras', mistral: 'mistral',
   deepseek: 'deepseek', 'github-copilot': 'githubcopilot', 'amazon-bedrock': 'bedrock', 'azure-openai-responses': 'azure',
   zai: 'zai', minimax: 'minimax', huggingface: 'huggingface', moonshotai: 'moonshot', zhipuai: 'zhipu', nvidia: 'nvidia',
   cohere: 'cohere', perplexity: 'perplexity', inception: 'inception',
@@ -52,7 +52,7 @@ test('mappedIconSlugs: todo slug mapeado tem caminho', () => {
 });
 
 test('providerIcon: provedor com logo tem SVG próprio, só de caminhos, na cor do texto', () => {
-  for (const provider of Object.keys(PROVIDERS)) {
+  for (const provider of Object.keys(PROVIDERS).filter((id) => id !== 'opencode' && id !== 'opencode-go')) {
     const svg = providerIcon(provider);
     assert.match(svg, SVG, provider);
     assert.equal(svg.includes(`data-brand="${providerIconSlug(provider)}"`), true);
@@ -60,6 +60,15 @@ test('providerIcon: provedor com logo tem SVG próprio, só de caminhos, na cor 
   assert.match(providerIcon('openai', 'OpenAI'), /data-brand="openai"/, 'o pedido começou pelo logo da OpenAI');
   assert.match(brandIcon('azure'), /fill-opacity="0\.5"/, 'os tons do Azure vêm do desenho original, sem cor');
   assert.match(brandIcon('nova'), /viewBox="0 0 33 32" fill="currentColor" aria-hidden/, 'a Nova guarda o viewBox e o preenchimento do original');
+});
+
+test('providerIcon: Go e Zen mantêm a marca OpenCode com a letra da assinatura', () => {
+  for (const [provider, letter] of [['opencode-go', 'G'], ['opencode', 'Z']]) {
+    const mark = providerIcon(provider);
+    assert.match(mark, new RegExp(`^<span class="provider-mark" data-mark="${letter}" aria-hidden="true"><svg class="icon provider-icon" data-brand="opencode"`), provider);
+    assert.match(mark, new RegExp(`<span class="provider-mark-badge">${letter}</span></span>$`), provider);
+  }
+  assert.match(providerIcon('claude-agent'), /data-brand="anthropic"/, 'Claude usa o logo do fabricante, não o monograma CA');
 });
 
 test('providerIcon: sem logo, o monograma com as letras do nome (ajustes do seletor)', () => {

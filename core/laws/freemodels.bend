@@ -19,7 +19,7 @@ import ../freemodels.bend as F
 #      nem sufixo nem custo zero dão a marca (`isFreeModel`);
 #   4. política: cada valor da tabela tem a sua frase; valor desconhecido diz
 #      que não há informação, e só `zero` vale como retenção zero;
-#   5. seletor: a marca Grátis e a política vêm antes do aviso "pode ter saído";
+#   5. seletor: a política vem antes do aviso "pode ter saído" (sem selo de
 #      modelo pago não ganha nada; o aviso só existe com a lista ao vivo
 #      conferida;
 #   6. padrão: o primeiro da lista de retenção zero que o Pi oferece; nenhum
@@ -183,14 +183,14 @@ law free_so_zero_e_retencao_zero:
 
 # ---------- seletor ----------
 
-law free_seletor_gratis_tem_marca_e_politica:
-  {F.optionTail(True{}, "zero", False{}) == [M.msg("freeModels.badge"), M.msg("freeModels.policy.zero")] : List<&2, String>}
+law free_seletor_gratis_tem_politica:
+  {F.optionTail(True{}, "zero", False{}) == [M.msg("freeModels.policy.zero")] : List<&2, String>}
 
 law free_seletor_gratis_sem_politica_conhecida:
-  {F.optionTail(True{}, "", False{}) == [M.msg("freeModels.badge"), M.msg("freeModels.policy.unknown")] : List<&2, String>}
+  {F.optionTail(True{}, "", False{}) == [M.msg("freeModels.policy.unknown")] : List<&2, String>}
 
 law free_seletor_aviso_de_saida_vai_por_ultimo:
-  {F.optionTail(True{}, "improve", True{}) == [M.msg("freeModels.badge"), M.msg("freeModels.policy.improve"), M.msg("freeModels.maybeLeft")] : List<&2, String>}
+  {F.optionTail(True{}, "improve", True{}) == [M.msg("freeModels.policy.improve"), M.msg("freeModels.maybeLeft")] : List<&2, String>}
 
 law free_seletor_pago_nao_ganha_nada:
   {F.optionTail(False{}, "zero", True{}) == [] : List<&2, String>}

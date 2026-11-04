@@ -86,7 +86,9 @@ function bars(page){
     scrolls:title?title.scrollWidth>title.clientWidth+1:false,
     kids:title?[...title.children].filter(shown).map(el=>({cls:String(el.className),tag:el.tagName.toLowerCase(),...rect(el)})):[],
     select:shown(select)?{...rect(select),textOverflow:getComputedStyle(select).textOverflow,fit:fit(select),fontSize:getComputedStyle(select).fontSize}:null,
-    pageFont:shown(panel.querySelector('.page-number'))?getComputedStyle(panel.querySelector('.page-number')).fontSize:null,
+    pageFont:panel.querySelector('.page-number')?getComputedStyle(panel.querySelector('.page-number')).fontSize:null,
+    hasPageInput:!!panel.querySelector('.page-number'),
+    pager:shown(panel.querySelector('.pager'))?{...rect(panel.querySelector('.pager')),text:panel.querySelector('.pager').textContent.trim()}:null,
     moreIcon:shown(icon)?rect(icon):null,
     menuHidden:panel.querySelector('.pdf-more-pop')?.hidden??null
    };
@@ -109,16 +111,15 @@ function assertOneLine(list,label,{readers}){
   }
   /* Leitor estreito (contêiner ≤330px de conteúdo + 18px de recuo): o total de
      páginas cede, e ≤290px o rótulo também — o painel guarda o nome acessível. */
-  const roomy=bar.title.width>348,tight=bar.title.width<=308;
-  /* Em leitor estreito as setas de página cedem (#23): o campo de página, a
-     rolagem contínua e as teclas seguem navegando. */
-  const needed=['pdf-select','page-number','find-toggle','nav','more',...(tight?[]:['prev','next']),...(roomy?['page-total']:[])];
+  const tight=bar.title.width<=308;
+  const needed=['pdf-select','pager','find-toggle','more'];
+  assert.ok(bar.hasPageInput,`${tag}: o campo de página existe (escondido até o clique no pager)`);
   for(const cls of needed){
    assert.ok(bar.kids.some(k=>k.cls.split(/\s+/).includes(cls)),`${tag}: ${cls} está na barra`);
   }
   if(!tight)assert.ok(bar.kids.some(k=>k.tag==='strong'),`${tag}: o rótulo está na barra`);
   assert.ok(bar.label,`${tag}: o leitor guarda o nome acessível`);
-  for(const cls of ['in','out','fit','invert','rotate','page-shot','open','collapse']){
+  for(const cls of ['in','out','fit','invert','rotate','page-shot','open','collapse','nav']){
    assert.ok(!bar.kids.some(k=>k.cls.split(/\s+/).includes(cls)),`${tag}: ${cls} saiu da barra (vai para Mais opções)`);
   }
   /* #27 B6: controles a 13px; em leitor estreito (≤330px) o fallback é 12px. */
@@ -157,11 +158,12 @@ await withArtifacts('leitor-dois',async ctx=>{
  const zoom=()=>first.locator('.zoom-label').textContent().then(s=>s.trim());
  const menu=first.locator('.pdf-more-pop');
 
- /* Mais opções: tudo o que saiu da barra está lá e funciona. */
+ /* Mais opções: capturar, zoom com largura, página escura, girar, marcadores e recolher. */
  await first.locator('.more').click();
  await menu.waitFor({state:'visible'});
  assert.equal(await first.locator('.more').getAttribute('aria-expanded'),'true','Mais opções: expandido ao abrir');
- for(const cls of ['in','out','fit','invert','rotate','page-shot','open','collapse','zoom-label']){
+ assert.deepEqual(await menu.locator(':scope > *').evaluateAll(list=>list.map(el=>el.className.split(' ')[0])),['page-shot','more-zoom','invert','rotate','nav','collapse'],'Mais opções: seis itens na ordem da #90');
+ for(const cls of ['in','out','fit','invert','rotate','page-shot','nav','collapse','zoom-label']){
   assert.ok(await menu.locator(`.${cls}`).first().isVisible(),`Mais opções: ${cls} à vista no menu`);
  }
  await shot(page,'dois-leitores-claro-1440x900-mais-opcoes.png');
@@ -172,7 +174,7 @@ await withArtifacts('leitor-dois',async ctx=>{
  await menu.locator('.out').click();
  assert.equal(await zoom(),'80%','zoom − no menu');
  await menu.locator('.fit').click();
- assert.equal(await zoom(),'100%','ajustar à largura no menu');
+ assert.equal(await zoom(),'100%','ajustar à largura na linha do zoom');
  assert.ok(await menu.isHidden(),'escolher uma ação fecha o menu');
  await first.locator('.more').click();
  await menu.locator('.invert').click();
@@ -261,7 +263,7 @@ await withArtifacts('leitor-dois',async ctx=>{
   for(const size of [WIDE,MINIMUM]){
    await setSize(ctx.app,page,size);
    const label=`${tag} ${size.join('x')}`;
-   await first.locator('.page-number').focus();
+   await first.locator('.pager').focus();
    only(await rings(),'reader',`${label} leitor`);
    await shot(page,`foco-leitor-${tag}-${size.join('x')}.png`);
    await page.locator('#prompt').focus();
@@ -277,14 +279,21 @@ await withArtifacts('leitor-dois',async ctx=>{
  await setTheme(page,'light');
  await setSize(ctx.app,page,WIDE);
 
- /* Páginas: por número e pelos botões. */
+ /* Páginas: o pager vira campo; as setas do teclado continuam andando. */
+ assert.equal(await first.locator('.pager').getAttribute('aria-label'),'Página 1 de 6','o pager diz a página e o total');
+ await first.locator('.pager').click();
+ assert.equal(await first.locator('.page-number').getAttribute('aria-label'),'Página 1 de 6','o campo diz a página e o total');
  await first.locator('.page-number').fill('3');
  await first.locator('.page-number').press('Enter');
- await page.waitForFunction(()=>document.querySelector('#pdf-grid .pdf-panel .pdf-foot')?.textContent.includes('Página 3'),undefined,{timeout:8000});
- await first.locator('.next').click();
- await page.waitForFunction(()=>document.querySelector('#pdf-grid .pdf-panel .pdf-foot')?.textContent.includes('Página 4'),undefined,{timeout:8000});
- await first.locator('.prev').click();
- await page.waitForFunction(()=>document.querySelector('#pdf-grid .pdf-panel .pdf-foot')?.textContent.includes('Página 3'),undefined,{timeout:8000});
+ await page.waitForFunction(()=>document.querySelector('#pdf-grid .pdf-panel .pager-current')?.textContent.trim()==='3',undefined,{timeout:8000});
+ assert.equal(await first.locator('.pager').getAttribute('aria-label'),'Página 3 de 6','o pager acompanha a página atual');
+ assert.equal(await first.locator('.page-number').getAttribute('aria-label'),'Página 3 de 6','o campo acompanha a página atual');
+ assert.ok(await first.locator('.pager').isVisible(),'Enter devolve o pager ao lugar do campo');
+ await first.focus();
+ await page.keyboard.press('ArrowRight');
+ await page.waitForFunction(()=>document.querySelector('#pdf-grid .pdf-panel .pager-current')?.textContent.trim()==='4',undefined,{timeout:8000});
+ await page.keyboard.press('ArrowLeft');
+ await page.waitForFunction(()=>document.querySelector('#pdf-grid .pdf-panel .pager-current')?.textContent.trim()==='3',undefined,{timeout:8000});
 
  /* Material: trocar pelo nome na barra. */
  const options=await first.locator('.pdf-select option').evaluateAll(list=>list.map(o=>({value:o.value,text:o.textContent,selected:o.selected})));
@@ -300,7 +309,8 @@ await withArtifacts('leitor-dois',async ctx=>{
  await first.locator('.pdf-find').waitFor({state:'visible'});
  assertOneLine(await bars(page),'busca aberta',{readers:2});
  await first.locator('.find-toggle').click();
- await first.locator('.nav').click();
+ await first.locator('.more').click();
+ await menu.locator('.nav').click();
  await first.locator('.pdf-nav-pop').waitFor({state:'visible'});
  assert.ok(await first.locator('.pdf-nav-pop .nav-save').isVisible(),'favoritos: guardar a página está no painel');
  await page.keyboard.press('Escape');

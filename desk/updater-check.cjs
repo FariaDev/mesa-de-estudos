@@ -35,10 +35,36 @@ async function defaultFetchJson(url){
   }
  }
 }
-async function defaultFetchBuffer(url){
- const res=await timedFetch(url,{timeout:120000,headers:{'user-agent':'mesa-de-estudos'}});
+/* #80: todo download do updater tem teto. `content-length` maior que o teto
+   aborta antes de ler; sem ele, o stream é lido em pedaços e cancelado assim
+   que passa do limite (um corpo mentiroso não enche a memória). */
+async function defaultFetchBuffer(url,{timeout=120000,maxBytes=0}={}){
+ const res=await timedFetch(url,{timeout,headers:{'user-agent':'mesa-de-estudos'}});
  if(!res.ok)throw Error('HTTP '+res.status);
- return Buffer.from(await res.arrayBuffer());
+ const declared=Number(res.headers.get('content-length'));
+ if(maxBytes&&Number.isFinite(declared)&&declared>maxBytes){
+  await res.body?.cancel().catch(()=>{});
+  throw Error(`download de ${declared} bytes passou do teto de ${maxBytes}`);
+ }
+ if(!res.body||typeof res.body.getReader!=='function'){
+  const buffer=Buffer.from(await res.arrayBuffer());
+  if(maxBytes&&buffer.length>maxBytes)throw Error(`download de ${buffer.length} bytes passou do teto de ${maxBytes}`);
+  return buffer;
+ }
+ const reader=res.body.getReader();
+ const chunks=[];
+ let total=0;
+ for(;;){
+  const {done,value}=await reader.read();
+  if(done)break;
+  total+=value.length;
+  if(maxBytes&&total>maxBytes){
+   await reader.cancel().catch(()=>{});
+   throw Error(`download passou do teto de ${maxBytes} bytes (já tinham ${total})`);
+  }
+  chunks.push(Buffer.from(value));
+ }
+ return Buffer.concat(chunks,total);
 }
 /* Dedup dos GETs em voo: checagem automática e botão manual (ou painel e
    updater) que pedem a mesma URL dividem uma única resposta. */

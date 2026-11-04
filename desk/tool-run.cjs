@@ -6,6 +6,7 @@
    últimas ~64 KB) — a Sobre mostra isso numa área rolável. */
 const {spawn}=require('node:child_process');
 const updater=require('./updater.cjs');
+const {killProcessTree}=require('./src/proc-tree.cjs');
 
 const RUN_TIMEOUT_MS=10*60*1000;
 const OUTPUT_TAIL_BYTES=64*1024;
@@ -55,7 +56,9 @@ function runTool({file,args,env=process.env,cwd,onOutput,timeoutMs=RUN_TIMEOUT_M
   child.on('error',e=>finish({ok:false,code:null,error:`não foi possível iniciar o comando (${String(e&&e.message||e)})`}));
   child.on('close',code=>finish({ok:code===0,code,error:code===0?'':`o comando saiu com código ${code}`}));
   timer=setTimeout(()=>{
-   try{child.kill('SIGTERM');}catch{/* já saiu */}
+   /* `npm`/`npx` no Windows são `.cmd`: o shell fica no pid do filho e o
+      Node real é neto. Matar só o shell deixaria o comando rodando (CI windows-latest). */
+   killProcessTree(child);
    finish({ok:false,code:null,error:'o comando passou do prazo e foi interrompido'});
   },timeoutMs);
  });

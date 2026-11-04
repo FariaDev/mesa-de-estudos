@@ -128,10 +128,10 @@ law quadro_altura_inicial:
 
 # O fundo do quadro é o da coluna do tutor: some na conversa.
 law quadro_fundo_claro:
-  {A.valueOf("--mesa-bg", A.mesaTokens("light", "blue")) == "#f4f4f4" : String}
+  {A.valueOf("--mesa-bg", A.mesaTokens("light", "blue")) == "#ffffff" : String}
 
 law quadro_fundo_escuro:
-  {A.valueOf("--mesa-bg", A.mesaTokens("dark", "blue")) == "#242424" : String}
+  {A.valueOf("--mesa-bg", A.mesaTokens("dark", "blue")) == "#191919" : String}
 
 law quadro_serifa_dos_pdfs:
   {A.valueOf("--mesa-font-serif", A.mesaTokens("light", "blue")) == A.fontSerif() : String}
@@ -171,13 +171,13 @@ law quadro_paleta_escuro_azul:
 
 # Os nomes do MCP Apps espelham os da Mesa.
 law quadro_mcp_fundo:
-  {A.valueOf("--color-background-primary", A.themeTokens("dark", "green")) == "#242424" : String}
+  {A.valueOf("--color-background-primary", A.themeTokens("dark", "green")) == "#191919" : String}
 
 law quadro_mcp_texto:
-  {A.valueOf("--color-text-primary", A.themeTokens("light", "blue")) == "#272727" : String}
+  {A.valueOf("--color-text-primary", A.themeTokens("light", "blue")) == "#191919" : String}
 
 law quadro_mcp_anel:
   {A.valueOf("--color-ring-primary", A.themeTokens("dark", "pink")) == "#f783ac" : String}
 
 law quadro_css_comeca_pelo_esquema:
-  {String.starts_with(A.rootCss("dark", "blue"), ":root{color-scheme:dark;--mesa-bg:#242424;") == True{} : Bool}
+  {String.starts_with(A.rootCss("dark", "blue"), ":root{color-scheme:dark;--mesa-bg:#191919;") == True{} : Bool}

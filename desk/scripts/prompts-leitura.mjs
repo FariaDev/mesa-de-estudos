@@ -148,7 +148,7 @@ const SKILLS = [
   '',
   'A Mesa não carrega skill própria em nenhum motor.',
   '',
-  '- **Claude:** `settingSources: []` e `strictMcpConfig: true` (`src/agents/claude-adapter.cjs`): nenhuma skill, nenhum `CLAUDE.md` nem MCP herdado. As ferramentas são `Read`, `Glob`, `Grep`, `AskUserQuestion` e as quatro da Mesa acima (PDF, mostrar, prévia do quadro e GeoGebra).',
+  '- **Claude:** `settingSources: []` e `strictMcpConfig: true` (`src/agents/claude-adapter.cjs`): nenhuma skill, nenhum `CLAUDE.md` nem MCP herdado. As ferramentas são só as da Mesa acima (`mcp__mesa__ler_pdf`, `mcp__mesa__propor_revisao`, PDF do tutor, mostrar, prévia do quadro, GeoGebra, cálculo, lista e nota). Não há `AskUserQuestion`, `Read`, `Glob`, `Grep`, shell nem política de caminhos (#91/#92).',
   '- **Pi:** o perfil fixado (`profiles.cjs`) liga as extensões da Mesa e as do perfil do usuário. Skills, as extensões do overlay (`quiz`…) e o TUTOR.md lido pelo `learning-session` vêm de `~/.pi` e do vault, que são pessoais e ficam fora deste arquivo.',
 ].join('\n');
 

@@ -27,6 +27,11 @@ const BUILD = [
   {entry: "chatlibraryview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "studysearch.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "studyannotations.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  /* Notas do tutor (#91): `Notas/` da matéria, sem sair da pasta. */
+  {entry: "tutornotes.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  /* Cartões quiz/perguntar (#92): resposta certa escondida e envio no máximo
+     uma vez. */
+  {entry: "quizcard.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "studystats.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "reviewschedule.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "studycontext.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},

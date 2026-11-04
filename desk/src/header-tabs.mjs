@@ -33,7 +33,10 @@ const tabsHandlers={SelectCourse:e=>selectTab(e.currentTarget.dataset.id),OpenGe
    módulos de domínio montam (`studyToolHandlers`, mais abaixo). */
 /* Preenchido pelo main em `initHeaderTabs` (as ações moram lá). */
 const menuHandlers={};
-/* Andaime `data-icon`: o núcleo diz o nome do ícone; o SVG é deste arquivo. */
+/* Andaime `data-icon`: o núcleo diz o nome do ícone; o SVG é deste arquivo. O
+   rótulo entra como nó de texto, nunca por innerHTML: a matéria ativa sai no
+   seletor com `data-icon="check"` e o nome vem da pasta (revisão de segurança:
+   `<img src=x>` como nome de pasta executava). */
 function iconize(root){
  for(const el of root.querySelectorAll('[data-icon]')){
   /* A tecla do item (`.menu-kbd`, #27 B8) é irmã do rótulo: sai antes de o texto virar <span> e volta depois. */
@@ -41,7 +44,8 @@ function iconize(root){
   for(const key of keys)key.remove();
   const name=el.dataset.icon,tight=el.hasAttribute('data-icon-tight'),label=el.textContent;
   el.removeAttribute('data-icon');el.removeAttribute('data-icon-tight');
-  el.innerHTML=icon(name)+(label?(tight?'':' ')+`<span>${label}</span>`:'');
+  el.innerHTML=icon(name);
+  if(label){const text=document.createElement('span');text.textContent=label;el.append(...(tight?[]:[' ']),text);}
   el.append(...keys);
  }
 }

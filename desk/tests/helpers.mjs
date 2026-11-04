@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {testEnv} from './electron-env.mjs';
+import {primeHiddenFrames} from './frame-prime.mjs';
 import {closeApp} from './proc-tree.mjs';
 import {appendTimingRow} from './suite-tempos.mjs';
 
@@ -66,6 +67,24 @@ export function tinyPdf(text,repeat=1){
  return Buffer.from(out,'latin1');
 }
 
+/** PDF mínimo com `count` páginas de uma linha cada ("pagina 1", "pagina 2"…).
+ *  Serve para o teste listar todas as páginas de um documento de verdade —
+ *  `tinyPdf(text, repeat)` repete linhas na MESMA página.
+ *  @example fs.writeFileSync(path.join(course,'Lista.pdf'),tinyPdfPages(3)); */
+export function tinyPdfPages(count,label='pagina'){
+ const objects=['<</Type/Catalog/Pages 2 0 R>>',`<</Type/Pages/Kids[${Array.from({length:count},(_,i)=>`${4+i} 0 R`).join(' ')}]/Count ${count}>>`,'<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>'];
+ for(let i=0;i<count;i++)objects.push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>>>/Contents ${4+count+i} 0 R>>`);
+ for(let i=0;i<count;i++){
+  const contents=`BT /F1 16 Tf 72 720 Td (${label} ${i+1}) Tj ET`;
+  objects.push(`<</Length ${contents.length}>>\nstream\n${contents}\nendstream`);
+ }
+ let out='%PDF-1.4\n';const offsets=[];
+ objects.forEach((object,index)=>{offsets.push(out.length);out+=`${index+1} 0 obj\n${object}\nendobj\n`;});
+ const startxref=out.length;
+ out+=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n${offsets.map(offset=>`${String(offset).padStart(10,'0')} 00000 n \n`).join('')}trailer\n<</Size ${objects.length+1}/Root 1 0 R>>\nstartxref\n${startxref}\n%%EOF\n`;
+ return Buffer.from(out,'latin1');
+}
+
 export function newRuntime(tag='run'){
  const runtime=path.resolve(DESK,'.test-runtime-'+Date.now()+'-'+tag);
  fs.mkdirSync(path.join(runtime,'learning','Courses'),{recursive:true});
@@ -91,8 +110,11 @@ export function seedSession(runtime,records){
 export function writeDeskJson(runtime,data){fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify(data));}
 export function writeConfigJson(runtime,data){fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify(data));}
 
+/* `HOME`/`USERPROFILE` apontam para o runtime: sem config, o app não enxerga
+   o vault de verdade da pessoa (e qualquer leitura de `~` cai na pasta de
+   teste). O `main.cjs` já põe o `userData` em `<runtime>/electron`. */
 export function deskEnv(runtime,extra={},pi=true){
- const base={LEARNING_DESK_RUNTIME:runtime};
+ const base={LEARNING_DESK_RUNTIME:runtime,HOME:runtime,USERPROFILE:runtime};
  if(pi)base.LEARNING_DESK_PI=FAKE_PI;
  return testEnv({...base,...extra});
 }
@@ -119,14 +141,21 @@ function recordLaunchTime(app,startedAt,launchedAt){
   .then(()=>appendTimingRow(file,{...row,paintMs:Date.now()-startedAt,ts:new Date().toISOString()}))
   .catch(()=>{/* app fechado antes de pintar: sem linha */});
 }
+/* Interruptores do Chromium para o Electron de teste: o app de verdade fica
+   com o comportamento padrão (#49). */
+const UNTHROTTLED_SWITCHES=['--disable-renderer-backgrounding','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows'];
 export async function launchDesk({runtime,env={},pi=true,execPath=''}={}){
  fs.chmodSync(FAKE_PI,0o755);
  const fullEnv=deskEnv(runtime,env,pi);
  const bin=execPath||process.env.DESK_ELECTRON_BIN||'';
  const startedAt=Date.now();
  const app=bin
-  ?await electron.launch({executablePath:bin,args:[],cwd:DESK,env:fullEnv})
-  :await electron.launch({args:[path.join(DESK,'main.cjs')],cwd:DESK,env:fullEnv});
+  ?await electron.launch({executablePath:bin,args:[...UNTHROTTLED_SWITCHES],cwd:DESK,env:fullEnv})
+  :await electron.launch({args:[...UNTHROTTLED_SWITCHES,path.join(DESK,'main.cjs')],cwd:DESK,env:fullEnv});
+ const firstPage=await app.firstWindow();
+ /* Sem esperar o `load`: o teste precisa ver o boot (conectando) como a
+    pessoa vê; o aquecimento dos quadros entra quando a página termina. */
+ firstPage.waitForLoadState('load').then(()=>primeHiddenFrames(firstPage)).catch(()=>{});
  recordLaunchTime(app,startedAt,Date.now());
  return app;
 }
@@ -140,7 +169,25 @@ export const pageWindow=(app,page)=>app.browserWindow(page);
    `setContentSize`) e só volta quando o renderer enxerga o tamanho novo em
    innerWidth/innerHeight. Um pedido que a janela não aceita (abaixo do mínimo
    de 900×650, por exemplo) é erro: medir no tamanho errado passaria calado. */
-export async function resizeWindow(app,page,width,height,{content=false,timeout=10000}={}){
+export async function resizeWindow(app,page,width,height,options={}){
+ /* No Linux, o Electron 45 devolve a janela escondida ao tamanho de abertura
+    logo depois do setSize: o renderer chega a ver o tamanho novo e volta. Pede
+    de novo até o tamanho ficar parado por 400ms (antes, o tutor-states media o
+    estado de erro a 1326×674 com o rótulo 1440×900). */
+ for(let attempt=1;;attempt++){
+  const result=await resizeWindowOnce(app,page,width,height,options);
+  const win=await pageWindow(app,page);
+  await page.waitForTimeout(400);
+  const [ow,oh]=await win.evaluate((bw,content)=>content?bw.getContentSize():bw.getSize(),!!options.content);
+  if(ow===width&&oh===height)return result;
+  if(attempt>=5)throw Error(`a janela não ficou em ${width}×${height}${options.content?' (conteúdo)':''}: voltou para ${ow}×${oh}`);
+ }
+}
+
+async function resizeWindowOnce(app,page,width,height,{content=false,timeout=10000}={}){
+ /* Redimensionar durante o boot é atropelado pelo tamanho que o app aplica ao
+    terminar de carregar; espera a página terminar antes de pedir o tamanho. */
+ await page.waitForLoadState('load').catch(()=>{});
  const win=await pageWindow(app,page);
  const got=await win.evaluate((bw,[w,h,content])=>{
   if(content)bw.setContentSize(w,h);else bw.setSize(w,h);
@@ -150,7 +197,18 @@ export async function resizeWindow(app,page,width,height,{content=false,timeout=
   return {ow,oh,inner:[Math.round(cw/zoom),Math.round(ch/zoom)]};
  },[width,height,content]);
  if(got.ow!==width||got.oh!==height)throw Error(`a janela não aceitou ${width}×${height}${content?' (conteúdo)':''}: ficou ${got.ow}×${got.oh}`);
- await page.waitForFunction(([w,h])=>innerWidth===w&&innerHeight===h,got.inner,{timeout});
+ /* O resize chega ao renderer no próximo quadro; acorda o compositor antes de
+    esperar o `innerWidth` novo (a janela escondida não promete esse quadro). */
+ await primeHiddenFrames(page);
+ try{
+  await page.waitForFunction(([w,h])=>innerWidth===w&&innerHeight===h,got.inner,{timeout,polling:50});
+ }catch(error){
+  const actual=await page.evaluate(()=>[innerWidth,innerHeight]).catch(()=>null);
+  throw Error(`redimensionar para ${width}×${height}${content?' (conteúdo)':''}: o renderer ficou em ${JSON.stringify(actual)}; esperado ${JSON.stringify(got.inner)} (${error.message})`);
+ }
+ /* Redimensionar uma janela escondida devolve o compositor ao ritmo de 1 fps:
+   o aquecimento vale de novo a cada tamanho. */
+ await primeHiddenFrames(page);
  return {width:got.inner[0],height:got.inner[1]};
 }
 
@@ -265,13 +323,12 @@ export async function withArtifacts(block,run){
  return out;
 }
 
-/* Barra única do leitor (ticket #11): zoom, ajustar, inverter, girar, capturar,
-   abrir outro PDF, numeração impressa e recolher moram no menu "Mais opções" de
-   cada leitor. `menuLocator` devolve o locator do item como se ele estivesse à
+/* Menu do leitor (#90): capturar, zoom com ajustar à largura, inverter, girar,
+   marcadores e recolher moram no menu "Mais opções" de cada leitor. `menuLocator` devolve o locator do item como se ele estivesse à
    vista: o clique abre o menu do leitor antes; `.collapse` num leitor já
    recolhido clica a faixa, que o reabre. O resto (contagem, atributos,
    visibilidade, foco) é o do Playwright. `panel` é o locator do `.pdf-panel`. */
-const MORE_ITEMS=new Set(['.in','.out','.fit','.invert','.rotate','.page-shot','.open','.printed-toggle','.collapse']);
+const MORE_ITEMS=new Set(['.in','.out','.fit','.invert','.rotate','.page-shot','.nav','.collapse']);
 export async function openMore(panel){
  const pop=panel.locator('.pdf-more-pop');
  if(await insideHidden(pop))await panel.locator('.more').click();
@@ -371,7 +428,9 @@ export async function openSessionLibrary(page){
 }
 export async function openNewSessionMenu(page){
  const pop=page.locator('#new-session-pop');
- if(await insideHidden(pop))await page.locator('#new-session').click();
+ /* O clique no "+" cria na hora; o menu com os motores abre pelo clique
+    direito (ou pela seta para baixo, no teclado). */
+ if(await insideHidden(pop))await page.locator('#new-session').click({button:'right'});
  await pop.waitFor({state:'visible',timeout:5000});
  return pop;
 }
@@ -389,7 +448,11 @@ export async function openTutorMore(page){
 export function tutorMore(page,selector){
  const target=page.locator(`#chat-more-pop ${selector}`);
  return new Proxy(target,{get(locator,prop){
-  if(prop==='click')return async options=>{await openTutorMore(page);return locator.click(options);};
+  if(prop==='click')return async options=>{
+   await openTutorMore(page);
+   if(await target.evaluate(el=>!!el.closest('#more-context-menu')?.hidden))await page.locator('#more-context').click();
+   return locator.click(options);
+  };
   const value=Reflect.get(locator,prop,locator);
   return typeof value==='function'?value.bind(locator):value;
  }});

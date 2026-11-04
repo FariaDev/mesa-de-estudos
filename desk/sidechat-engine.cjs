@@ -9,8 +9,9 @@
  *   pelo main para reaproveitar exatamente a política do principal (auth
  *   original, `deliveryUncertain`, catálogo/controles e permissões).
  *
- * O canal só nasce quando o manager pede (envio/aborto); abrir/ler não inicia
- * processo. Fechar não apaga nada: sessão/descritor continuam recuperáveis. */
+ * O canal só nasce quando o manager pede (envio/aborto/aquecer); abrir/ler não
+ * inicia processo. `warm` sobe o processo sem mensagem. Fechar não apaga nada:
+ * sessão/descritor continuam recuperáveis. */
 
 const fs = require('node:fs');
 const {message} = require('./src/i18n.mjs');
@@ -55,6 +56,26 @@ function createPiSideEngine({id, sessionPath, cwd, pi, env, extraArgs = [], prom
   const bridge = new PiBridge({cwd, session: sessionPath, pi, env, promptFile, extraArgs});
   let closed = false;
   let modelSynced = false;
+  /** @type {Promise<void>|null} */
+  let ready = null;
+  /* O primeiro chamador arma a sincronia do modelo. Só o aquecimento, sem
+     mensagem, pede `get_state` para o processo existir antes do envio. */
+  function prepare(spawn) {
+    if (ready) return ready;
+    ready = (async () => {
+      try {
+        if (!modelSynced) {
+          modelSynced = true;
+          await syncSideModel(bridge, mainModel, (line) => log?.('sidechat', `${id}: ${line}`));
+        }
+        if (spawn && !bridge.isAlive()) await bridge.request('get_state');
+      } catch (error) {
+        ready = null;
+        throw error;
+      }
+    })();
+    return ready;
+  }
   bridge.on('event', (event) => {
     if (!closed) onEvent?.(event);
   });
@@ -63,11 +84,12 @@ function createPiSideEngine({id, sessionPath, cwd, pi, env, extraArgs = [], prom
   });
   return {
     engine: 'pi',
+    async warm() {
+      if (closed) return;
+      await prepare(true);
+    },
     async prompt({text, running}) {
-      if (!modelSynced) {
-        modelSynced = true;
-        await syncSideModel(bridge, mainModel, (line) => log?.('sidechat', `${id}: ${line}`));
-      }
+      await prepare(false);
       const result = await bridge.request('prompt', {message: text, ...(running ? {streamingBehavior: 'followUp'} : {})});
       return {accepted: true, result};
     },
@@ -84,7 +106,10 @@ function createPiSideEngine({id, sessionPath, cwd, pi, env, extraArgs = [], prom
     close() {
       closed = true;
       bridge.removeAllListeners();
-      bridge.stop();
+      /* Devolve a espera do `exit`: quem fecha o canal e apaga o temporário
+         logo depois (testes, troca de sessão) não pode correr com o processo
+         que ainda segura os arquivos (CI windows-latest). */
+      return bridge.stop();
     },
     isBusy() {
       return bridge.isRunning();
@@ -111,7 +136,11 @@ function previewFromMessages(messages, fallback = '') {
  * Canal Claude de um chat lateral. `deps` troca o adaptador e o serviço nos testes.
  * @param {{id: string, descriptor: string, runtime: string, prepare: (record: object) => unknown,
  *   sdkLoader?: unknown, claudePath?: string, detectClaude?: unknown, onEvent: (event: object) => void,
- *   log: (scope: string, line: string) => void, deps?: {Adapter?: typeof ClaudeAdapter, Service?: typeof ClaudeService}}} options
+ *   log: (scope: string, line: string) => void, readPdf?: (raw: object) => Promise<object>,
+ *   searchMaterial?: (raw: object) => Promise<object>,
+ *   listMaterials?: (raw: object) => Promise<object>,
+ *   showCard?: (kind: 'quiz'|'ask', args: object) => Promise<object>,
+ *   deps?: {Adapter?: typeof ClaudeAdapter, Service?: typeof ClaudeService}}} options
  */
 function createClaudeSideEngine({
   id,
@@ -123,6 +152,10 @@ function createClaudeSideEngine({
   detectClaude,
   onEvent,
   log,
+  readPdf = null,
+  searchMaterial = null,
+  listMaterials = null,
+  showCard = null,
   deps = {},
 } = {}) {
   const Adapter = deps.Adapter || ClaudeAdapter;
@@ -132,7 +165,6 @@ function createClaudeSideEngine({
   const record = conversations.readClaudeConversation(descriptor, {runtime});
   if (!record) throw Error(message('err.sidechat.recordMissing'));
   const {cwd, systemPrompt} = prepare(record);
-  const toolPolicy = {readPaths: [], readRoots: [cwd]};
   const deliveryUncertain = record.delivery?.status === 'uncertain';
   const adapter = new Adapter({
     conversationId: descriptor,
@@ -148,7 +180,10 @@ function createClaudeSideEngine({
     deliveryUncertain,
     selection: {model: record.model || null, effort: record.effort || null},
     priorMessages:record.messages||[],
-    toolPolicy,
+    readPdf: typeof readPdf === 'function' ? readPdf : null,
+    searchMaterial: typeof searchMaterial === 'function' ? searchMaterial : null,
+    listMaterials: typeof listMaterials === 'function' ? listMaterials : null,
+    showCard: typeof showCard === 'function' ? showCard : null,
     persistDelivery(delivery) {
       conversations.updateClaudeConversation(descriptor, {
         delivery,
@@ -176,8 +211,7 @@ function createClaudeSideEngine({
       if (event?.executableNote) log?.('sidechat', event.executableNote);
     },
   });
-  service.toolPolicy = toolPolicy;
-  return nativeSideChannel({engine: 'claude', id, service, toolPolicy, onEvent, log});
+  return nativeSideChannel({engine: 'claude', id, service, onEvent, log});
 }
 
 /**
@@ -185,22 +219,30 @@ function createClaudeSideEngine({
  * do canal Pi para o manager. Só o Claude lê os PDFs do contexto pela política
  * de ferramentas; o OpenCode recebe o texto.
  * @param {{engine: 'claude'|'opencode', id: string, service: import('./src/agents/service.cjs').NativeService,
- *   toolPolicy?: {readPaths: string[], readRoots: string[]}|null, onEvent: (event: object) => void,
+ *   onEvent: (event: object) => void,
  *   log: (scope: string, line: string) => void}} options
  * @example nativeSideChannel({engine: 'opencode', id: 'sc-1', service, onEvent, log})
  */
-function nativeSideChannel({engine, id, service, toolPolicy = null, onEvent, log}) {
+function nativeSideChannel({engine, id, service, onEvent, log}) {
   let closed = false;
   service.on('event', (event) => {
     if (!closed) onEvent?.(event);
   });
+  let warming = null;
   return {
     engine,
-    async prompt({text, readPaths}) {
-      const policy = toolPolicy ? {
-        toolPolicy: {readPaths: (Array.isArray(readPaths) ? readPaths : []).slice(0, 2), readRoots: toolPolicy.readRoots},
-      } : {};
-      const result = await service.request('prompt', {message: text, ...policy});
+    async warm() {
+      if (closed || service.uncertain === true) return;
+      if (!warming) {
+        warming = service.request('initialize_controls').catch((error) => {
+          warming = null;
+          throw error;
+        });
+      }
+      await warming;
+    },
+    async prompt({text}) {
+      const result = await service.request('prompt', {message: text});
       return {accepted: true, result};
     },
     async abort() {

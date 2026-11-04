@@ -5,6 +5,9 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {spawnSync} from 'node:child_process';
+import winCmdSpawn from './src/win-cmd-spawn.cjs';
+
+const {spawnPlan}=winCmdSpawn;
 import {doctorChecks,doctorText} from './doctor-checks.mjs';
 import {createScrubber,cleanLogLines} from './triage-scrub.mjs';
 import {freeZenIds,pickTriageModel} from './triage-free-model.mjs';
@@ -38,7 +41,8 @@ const deskDir=path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {RunCommand} */
 export function runCommand(command,args,{cwd}={}){
- const result=spawnSync(command,args,{cwd,encoding:'utf8',timeout:15000,shell:process.platform==='win32'&&/\.(cmd|bat)$/i.test(command)});
+ const plan=spawnPlan(command,args);
+ const result=spawnSync(plan.file,plan.args,{cwd,encoding:'utf8',timeout:15000,...plan.options});
  return {status:result.status,stdout:String(result.stdout||'')};
 }
 

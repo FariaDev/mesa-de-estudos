@@ -34,11 +34,24 @@ function exitMessages(label=DEFAULT_LABEL){
 }
 const EXIT_MESSAGES=exitMessages();
 
-/* Nome de processo vira literal PowerShell entre aspas simples: aspas duplicadas
-   e nada de quebra de linha (o nome vem da lista do sistema, não da pessoa, mas
-   o script não confia nele). */
+/* Literal PowerShell entre aspas simples, sem quebra de linha. O PowerShell lê
+   também ‘ ’ ‚ ‛ como aspa simples: todas são dobradas (a aspa dobrada vira a
+   própria aspa no literal), senão um caminho com aspa curva fecha o literal no
+   meio (revisão de segurança: só `'` era escapada). */
+const PS_QUOTE=/['‘’‚‛]/g;
 function psLiteral(value){
- return String(value).replace(/[\r\n]+/g,' ').replace(/'/g,"''");
+ return String(value).replace(/[\r\n]+/g,' ').replace(PS_QUOTE,q=>q+q);
+}
+
+/* Nome do processo vai para o script como literal, então entra só uma lista
+   branca: letras de qualquer alfabeto, números, espaço e `. _ + ( ) -` (nomes
+   de programa do Windows). Qualquer aspa, inclusive as curvas, é recusada
+   antes de o script existir. */
+const PROCESS_NAME_FORMAT=/^[\p{L}\p{N} ._+()-]+$/u;
+function assertProcessName(name){
+ const text=String(name);
+ if(!PROCESS_NAME_FORMAT.test(text))throw Error(uiMsg('err.capture.badProcess',{name:text}));
+ return text;
 }
 
 /* O script: DPI-aware (o retângulo bate com os pixels físicos), acha a
@@ -47,7 +60,7 @@ function psLiteral(value){
    sai no stdout (uma linha) — mesmo formato do listing do macOS. */
 function buildScript(outFile,processName=PROCESS_NAME){
  const saida=psLiteral(outFile);
- const processo=psLiteral(processName);
+ const processo=psLiteral(assertProcessName(processName));
  return `$ErrorActionPreference='Stop'
 [Console]::OutputEncoding=[System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing
@@ -100,8 +113,9 @@ async function captureWindow(opts={}){
  const dir=tmp?tmp():fs.mkdtempSync(path.join(os.tmpdir(),'mesa-visual-'));
  const scriptPath=path.join(dir,'capture.ps1');
  const outFile=path.join(dir,'attempt.png');
- fs.writeFileSync(scriptPath,buildScript(outFile,processName));
  try{
+  /* Dentro do try: um nome recusado pela lista branca não deixa o temporário para trás. */
+  fs.writeFileSync(scriptPath,buildScript(outFile,processName));
   let stdout='';
   try{
    const r=await exec('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',scriptPath],{timeout:20000,maxBuffer:1024*1024});

@@ -68,7 +68,7 @@ const SCREENS=[
   ['Caderno de revisão',async page=>page.locator('#review-tab').click()],
   ['GeoGebra',async page=>page.locator('#course-tabs [data-id="geogebra"]').click()],
   ['calculadora aberta',async page=>page.locator('#calc-toggle').click()],
-  ['menu de sessão nova',async page=>page.locator('#new-session').click()],
+  ['menu de sessão nova',async page=>page.locator('#new-session').click({button:'right'})],
   ['chat lateral',async page=>page.locator('#sidechat-toggle').click()],
   ['menções @',async page=>{await page.locator('#prompt').fill('@');await page.waitForTimeout(300);// espera fixa: o popup de menções abre depois de uma busca assíncrona sem estado observável
   }],

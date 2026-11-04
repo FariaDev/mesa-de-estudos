@@ -11,6 +11,10 @@ function setEmpty(empty){
  const main=mainOf(),references=refsOf();
  main?.classList.toggle('free-empty',!!empty);
  references?.classList.toggle('free-empty',!!empty);
+ /* #90: com a tela vazia, o destaque fica só na linha central; a barra recua. */
+ const tutorPdf=document.getElementById('free-tutor-pdf');
+ tutorPdf?.classList.toggle('primary',!empty);
+ tutorPdf?.classList.toggle('free-quiet',!!empty);
 }
 function renderMaterials(materials){
  const select=$('#free-materials');

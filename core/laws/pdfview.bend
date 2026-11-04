@@ -101,20 +101,6 @@ law pdf_page_max:
 law pdf_zoom_100:
   {P.zoomLabelText(100n) == "100%" : String}
 
-law pdf_foot_loading:
-  {P.footLoadingText() == M.msg("pdf.loading") : String}
-
-law pdf_foot_error:
-  {P.footErrorText() == M.msg("pdf.openFailed") : String}
-
-law pdf_foot_ready:
-  {P.footReadyText(2n, 10n, "Limites.pdf")
-    == M.msg3("pdf.foot.ready", "page", "2", "total", "10", "file", "Limites.pdf") : String}
-
-law pdf_foot_ready_node:
-  {P.footReady(2n, 10n, "Limites.pdf")
-    == V.viewText(P.footReadyText(2n, 10n, "Limites.pdf")) : V.ViewNode}
-
 # ---------- find-count (fatos Hidden/Shown/All já resolvidos) ----------
 
 law pdf_find_hidden:
@@ -131,17 +117,3 @@ law pdf_find_shown:
 
 law pdf_find_label_shown:
   {P.findCountLabel(P.CountChrome{False{}, "1/3"}) == V.viewText("1/3") : V.ViewNode}
-
-# ---------- rodapé com número impresso ----------
-
-law pdf_foot_labeled_empty:
-  {P.footReadyTextLabeled(2n, 10n, "Limites.pdf", "") == M.msg3("pdf.foot.ready", "page", "2", "total", "10", "file", "Limites.pdf") : String}
-
-law pdf_foot_labeled_roman:
-  {P.footReadyTextLabeled(7n, 200n, "Livro.pdf", "iv") == M.msg4("pdf.foot.readyLabeled", "page", "7", "total", "200", "label", "iv", "file", "Livro.pdf") : String}
-
-law pdf_foot_labeled_node_text:
-  {V.kidsOf(P.footReadyLabeled(7n, 200n, "Livro.pdf", "5")) == Con{V.viewText(M.msg4("pdf.foot.readyLabeled", "page", "7", "total", "200", "label", "5", "file", "Livro.pdf")), Nil{}} : List<&2, V.ViewNode>}
-
-law pdf_foot_labeled_node_title:
-  {V.attrGet(V.attrsOf(P.footReadyLabeled(7n, 200n, "Livro.pdf", "5")), "title") == Some{M.msg4("pdf.foot.readyLabeled", "page", "7", "total", "200", "label", "5", "file", "Livro.pdf")} : Maybe<&2, String>}

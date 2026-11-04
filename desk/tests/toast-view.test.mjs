@@ -57,8 +57,9 @@ const toastCore = (await import('../src/generated/toastview.core.js')).default;
 
 const Toast = (text, closing) => ({$: 'Toast', text, closing});
 const list = (...xs) => xs.reduceRight((tail, head) => ({$: 'Con', head, tail}), {$: 'Nil'});
+/* O bend 2.0.39 exporta o que vem de módulo importado como `módulo:nome` (antes `módulo.nome`). */
 const attrOf = (node, name) => {
-  const found = toastCore['view.attrGet'](node.attrs, name);
+  const found = toastCore['view:attrGet'](node.attrs, name);
   return found.$ === 'Some' ? found.value : null;
 };
 

@@ -1,6 +1,7 @@
 // @ts-check
 import {t,currentLanguage} from './ui-text.mjs';
 import {TOUR,stepId,setupBlocked,primaryKey,hintKey,setupTrail,speechOf,activeRegion,pdfPreview} from './setup-flow.mjs';
+import {lampStateOf,nameLineScale} from './setup-lamp.mjs';
 
 /* Pintura da primeira abertura em tela cheia (#64). O HTML estático
    (`#setup` no index.html) tem os seis passos com `data-i18n`; aqui só se
@@ -12,12 +13,21 @@ import {TOUR,stepId,setupBlocked,primaryKey,hintKey,setupTrail,speechOf,activeRe
  * @typedef {object} SetupFacts
  * @property {string} kind "setup" ou "empty"
  * @property {boolean} piFound
+ * @property {boolean} claudeFound
+ * @property {boolean} opencodeFound
+ * @property {string} opencodeBinary
+ * @property {string} opencodeOldVersion
+ * @property {boolean} installSupported
+ * @property {string} platform
  * @property {string} dataFolder
  * @property {string[]} pdfNames
  * @property {number} elsewhere
+ * @property {string[]} [visibleEngines]
  */
 
-/** @typedef {{Connect:()=>void, UseFreeModels:()=>void, OpenPiSettings:()=>void, ChangeDataFolder:()=>void}} SetupActions */
+/** @typedef {{Connect:()=>void, UseFreeModels:()=>void, OpenPiSettings:()=>void, ChangeDataFolder:()=>void, InstallOpenCode:()=>void, UpdateOpenCode:()=>void, OpenOpenCodeHelp:()=>void}} SetupActions */
+
+/** @typedef {{state:'idle'|'installing'|'done'|'error', phase?:string, percent?:number, errorCode?:string, error?:string, version?:string}} SetupInstall */
 
 const $=(/** @type {string} */ selector)=>/** @type {HTMLElement} */(document.querySelector(selector));
 
@@ -52,7 +62,6 @@ function paintTour(state){
  setText($('#setup-tour-num'),String(state.frame+1));
  setText($('#setup-tour-title'),t(`setup.tour.${frame.id}.title`));
  setText($('#setup-tour-text'),t(`setup.tour.${frame.id}.body`));
- $('#setup-tour-extras').replaceChildren(...['extra1','extra2'].map(extra=>make('li',{},t(`setup.tour.${frame.id}.${extra}`))));
  const region=activeRegion(state);
  for(const el of document.querySelectorAll('#setup [data-region]'))el.toggleAttribute('data-lit',/** @type {HTMLElement} */(el).dataset.region===region);
  [...$('#setup-dots').children].forEach((dot,i)=>{dot.toggleAttribute('data-on',i===state.frame);dot.toggleAttribute('data-seen',i<=state.frame);});
@@ -64,7 +73,7 @@ function paintFolder(state,facts){
  const has=!!state.folder;
  $('#first-run-pick').toggleAttribute('data-chosen',has);
  setText($('#setup-drop-title'),t(has?'setup.drop.changeTitle':'firstrun.drop.title'));
- setText($('#setup-drop-help'),t(has?'setup.drop.changeHelp':'firstrun.drop.help'));
+ setText($('#setup-drop-help'),has?'':t('firstrun.drop.help'));
  $('#setup-chosen').hidden=!has;
  setText($('#setup-chosen-folder'),has?t('firstrun.chosen',{folder:state.folder}):'');
  const {shown,more}=pdfPreview(facts.pdfNames,state.pdfCount);
@@ -75,33 +84,149 @@ function paintFolder(state,facts){
  setText($('#setup-elsewhere'),away?t('firstrun.elsewhere',{count:facts.elsewhere}):'');
 }
 
-/* O tutor de hoje (o `tutorView` da #21): Pi achado — Chamar o tutor e
-   Usar modelos grátis; sem Pi — Ajustes do Pi como principal; ligado — só
-   diz que está ligado. */
-/** @param {import('./setup-flow.mjs').SetupState} state @param {SetupFacts} facts @param {SetupActions} actions */
-function paintTutor(state,facts,actions){
+/* O tutor de hoje (o `tutorView` da #21): qualquer motor achado — Chamar o
+   tutor; nenhum — a tela oferece a instalação do OpenCode e os Ajustes. Quem
+   não tem Pi não vê o aviso de Codex e Grok; quem já tem continua igual. */
+/** @param {SetupFacts} facts @returns {string} */
+function enginesFoundText(facts){
+ const visible=facts.visibleEngines||['pi','claude','opencode'];
+ const names=[
+  ...(facts.piFound&&visible.includes('pi')?['pi']:[]),
+  ...(facts.claudeFound&&visible.includes('claude')?['claude']:[]),
+  ...(facts.opencodeFound&&visible.includes('opencode')?['opencode']:[]),
+ ].map(name=>t(`firstrun.engine.${name}`));
+ const old=facts.opencodeOldVersion?t('firstrun.tutor.opencodeOld',{version:facts.opencodeOldVersion}):'';
+ if(names.length)return [t('firstrun.engines.found',{engines:names.join(', ')}),old].filter(Boolean).join(' ');
+ return old||t('firstrun.tutor.noEngine');
+}
+
+/** @param {string} command */
+function codeNode(command){
+ const code=document.createElement('code');
+ code.textContent=command;
+ return code;
+}
+
+/**
+ * O binário do OpenCode pronto para colar num shell. No Windows o caminho real
+ * termina em `.exe`. Em macOS/Linux a pasta pessoal pode virar `~` só quando o
+ * resto do caminho não tem espaço nem metacaractere — assim o comando continua
+ * colável sem aspas; com espaço, vai o caminho completo entre aspas.
+ * @param {string} binary caminho detectado ou instalado
+ * @param {string} [platform] `win32` para o `.exe`
+ * @returns {string} caminho (com aspas quando precisa)
+ * @example loginBinary('/home/ana/.opencode/bin/opencode', 'linux') // '~/.opencode/bin/opencode'
+ * @example loginBinary('C:\\Users\\ana\\.opencode\\bin\\opencode', 'win32') // 'C:\\Users\\ana\\.opencode\\bin\\opencode.exe'
+ */
+export function loginBinary(binary,platform=''){
+ const raw=String(binary||'').trim();
+ if(!raw)return '';
+ let file=platform==='win32'&&!/\.exe$/i.test(raw)?`${raw}.exe`:raw;
+ const homeAt=file.indexOf('/.opencode/bin/');
+ if(platform!=='win32'&&homeAt>0&&!/\s/.test(file))file=`~${file.slice(homeAt)}`;
+ return /\s/.test(file)?`"${file}"`:file;
+}
+
+/** Texto e comando de entrada no OpenCode; o comando fica copiável. @param {HTMLElement} target @param {boolean} visible @param {SetupFacts} facts */
+function paintLoginHint(target,visible,facts){
+ target.hidden=!visible;
+ if(!visible)return;
+ const binary=loginBinary(facts.opencodeBinary,facts.platform);
+ target.replaceChildren(document.createTextNode(`${t('firstrun.login.lead')} `),codeNode(t('firstrun.login.command',{binary})),document.createTextNode(` ${t('firstrun.login.hint')}`));
+}
+
+/** @param {string} phase */
+export function installPhaseText(phase){
+ return t(`firstrun.install.phase.${phase||'prepare'}`);
+}
+
+/* O erro da instalação chega como código; a tela mostra título curto e frase
+   humana, e a causa técnica fica no log do host. Código desconhecido cai no
+   texto genérico, nunca em texto cru. */
+const INSTALL_ERROR_KIND={network:'network',integrity:'integrity',unsupported:'unsupported',busy:'busy',permission:'permission',space:'space',symlink:'symlink',version:'version',verify:'version'};
+/** @param {string} code @returns {{title:string, body:string}} */
+export function installErrorText(code){
+ const kind=INSTALL_ERROR_KIND[code]||'generic';
+ return {title:t(`firstrun.install.error.${kind}.title`),body:t(`firstrun.install.error.${kind}.body`)};
+}
+
+/** @param {SetupInstall} install */
+function installProgress(install){
+ const wrap=make('div',{class:'setup-install',id:'setup-install'});
+ const progress=make('progress',{class:'setup-install-progress',max:'100'});
+ const percent=Number(install.percent);
+ const known=Number.isFinite(percent)&&percent>=0;
+ if(known)progress.setAttribute('value',String(Math.round(percent)));
+ else progress.removeAttribute('value');
+ const pct=make('span',{class:'setup-install-percent'},known?`${Math.round(percent)}%`:'');
+ pct.setAttribute('aria-hidden','true');
+ wrap.append(progress,pct,make('span',{class:'setup-install-text'},installPhaseText(install.phase)));
+ return wrap;
+}
+
+/** @param {import('./setup-flow.mjs').SetupState} state @param {SetupFacts} facts @param {SetupActions} actions @param {SetupInstall} install */
+function paintTutor(state,facts,actions,install){
  setText($('#setup-tutor-title'),t(state.online?'firstrun.tutor.onlineLead':'firstrun.tutor.lead'));
  setText($('#setup-tutor-text'),t(state.online?'firstrun.tutor.onlineFine':'firstrun.tutor.intro'));
  $('#setup-tutor-off').hidden=state.online;
- const pi=$('#setup-pi');
- pi.dataset.pi=facts.piFound?'found':'missing';
- setText(pi,t(facts.piFound?'firstrun.pi.found':'firstrun.pi.missing'));
- const key=`${facts.piFound}:${currentLanguage()}`;
+ const visible=facts.visibleEngines||['pi','claude','opencode'];
+ const anyFound=(facts.piFound&&visible.includes('pi'))||(facts.claudeFound&&visible.includes('claude'))||(facts.opencodeFound&&visible.includes('opencode'));
+ const status=$('#setup-pi');
+ status.dataset.pi=anyFound?'found':'missing';
+ setText(status,enginesFoundText(facts));
+ paintLoginHint($('#setup-login-hint'),facts.opencodeFound&&!state.online,facts);
+ $('#setup-codex-grok').hidden=!facts.piFound||!visible.includes('pi');
+ const key=JSON.stringify([facts.piFound,facts.claudeFound,facts.opencodeFound,facts.opencodeBinary,facts.opencodeOldVersion,facts.installSupported,facts.platform,visible,install.state,install.phase,install.percent,install.errorCode,install.error,currentLanguage()]);
  const box=$('#setup-tutor-actions');
  if(box.dataset.painted===key)return;
  box.dataset.painted=key;
+ box.classList.toggle('setup-done',install.state==='done');
+ const update=!!facts.opencodeOldVersion;
  const button=(/** @type {string} */ id,/** @type {string} */ cls,/** @type {string} */ label,/** @type {string} */ title,/** @type {()=>void} */ run)=>{
   const el=make('button',{type:'button',id,class:cls,title:t(title)},t(label));
   el.addEventListener('click',run);
   return el;
  };
- box.replaceChildren(...(facts.piFound
-  ?[button('connect','primary','tutor.connect','tutor.connectTitle',actions.Connect),button('free-models','','freeModels.open','freeModels.openTitle',actions.UseFreeModels)]
-  :[button('state-pi','primary','tutor.piSettings','tutor.piSettingsTitle',actions.OpenPiSettings),button('connect','','tutor.connect','tutor.connectTitle',actions.Connect)]));
+ const installButton=()=>{
+  const el=button('install-opencode','primary',update?'firstrun.install.update':'firstrun.install.button',update?'firstrun.install.updateTitle':'firstrun.install.buttonTitle',update?actions.UpdateOpenCode:actions.InstallOpenCode);
+  return el;
+ };
+ const connect=button('connect','primary','tutor.connect','tutor.connectTitle',actions.Connect);
+ const settings=button('state-pi','','tutor.engineSettings','tutor.engineSettingsTitle',actions.OpenPiSettings);
+ if(install.state==='installing'){
+  const busy=installButton();
+  busy.setAttribute('disabled','');
+  busy.setAttribute('aria-busy','true');
+  box.replaceChildren(busy,installProgress(install),settings);
+  return;
+ }
+ const parts=[];
+ if(anyFound&&install.state!=='error')parts.push(connect);
+ if(install.state==='done')parts.push(make('p',{class:'setup-install-done',id:'setup-install-done'},t('firstrun.install.done',{version:install.version||''})));
+ if(install.state==='error'){
+  const copy=installErrorText(install.errorCode||'');
+  const error=make('div',{class:'setup-install-error',id:'setup-install-error',role:'alert'});
+  error.append(make('strong',{},copy.title),make('p',{},copy.body));
+  parts.push(error);
+ }
+ if(!facts.opencodeFound){
+  if(facts.installSupported){
+   const el=installButton();
+   if(install.state==='error')el.textContent=t('firstrun.install.retry');
+   parts.push(el);
+  }else{
+   const help=make('div',{class:'setup-install-help',id:'setup-install-help'});
+   help.append(make('p',{},t('firstrun.install.unsupported')));
+   help.append(button('open-opencode-docs','setup-link','firstrun.install.openDocs','firstrun.install.openDocsTitle',actions.OpenOpenCodeHelp));
+   parts.push(help);
+  }
+ }
+ parts.push(settings);
+ box.replaceChildren(...parts);
 }
 
-/** @param {import('./setup-flow.mjs').SetupState} state @param {SetupFacts} facts @param {SetupActions} actions */
-function paintReady(state,facts,actions){
+/** @param {import('./setup-flow.mjs').SetupState} state @param {SetupFacts} facts */
+function paintReady(state,facts){
  setText($('#setup-ready-title'),t('setup.ready.title',{name:shortName(state.name)}));
  const rows=[
   ['setup.summary.course',state.name.trim()],
@@ -110,14 +235,15 @@ function paintReady(state,facts,actions){
   ['setup.summary.language',currentLanguage()==='en'?'English':'Português'],
  ];
  $('#setup-summary').replaceChildren(...rows.flatMap(([label,value])=>[make('dt',{},t(label)),make('dd',{},value)]));
- /* A pasta de dados: no "empty" ela já valia e só é informada, sem Mudar (#24). */
- const known=facts.kind==='empty';
- const line=$('#setup-data');
- line.replaceChildren(t('firstrun.data.prefix'),make('code',{class:'setup-path'},facts.dataFolder),t(known?'firstrun.data.end':'firstrun.data.suffix'));
- if(known)return;
- const change=make('button',{type:'button',id:'first-run-data-change',class:'setup-link'},t('firstrun.data.change'));
- change.addEventListener('click',actions.ChangeDataFolder);
- line.append(change);
+ paintLoginHint($('#setup-ready-login'),facts.opencodeFound&&!state.online,facts);
+}
+
+/** A luz da cena e a linha do nome (#101). @param {import('./setup-flow.mjs').SetupState} state @param {SetupFacts} facts @param {SetupInstall} install */
+function paintLamp(state,facts,install){
+ const scene=$('#setup-lamp');
+ if(!scene)return;
+ scene.dataset.lamp=lampStateOf(state,facts,install);
+ scene.style.setProperty('--lamp-name-scale',String(nameLineScale(state.name)));
 }
 
 /** @param {import('./setup-flow.mjs').SetupState} state */
@@ -131,6 +257,10 @@ function paintFoot(state){
  const next=/** @type {HTMLButtonElement} */($('#setup-next'));
  next.disabled=setupBlocked(state);
  setText(next,t(primaryKey(state)));
+ /* Enquanto "Instalar o OpenCode" está na tela, ele é o caminho principal: o
+    "Pular por agora" do rodapé fica secundário (um só botão forte por passo). */
+ const installOffered=id==='tutor'&&!!document.querySelector('#setup-tutor-actions #install-opencode');
+ next.classList.toggle('primary',!installOffered);
 }
 
 /**
@@ -138,8 +268,9 @@ function paintFoot(state){
  * @param {import('./setup-flow.mjs').SetupState} state
  * @param {SetupFacts} facts
  * @param {SetupActions} actions
+ * @param {SetupInstall} [install]
  */
-export function paintSetup(state,facts,actions){
+export function paintSetup(state,facts,actions,install={state:'idle'}){
  const id=stepId(state);
  /* Só os painéis: o `#setup-card` também leva `data-step` (para o CSS) e não
     pode entrar aqui, senão some a cada troca de passo (bug da #64 pego no first-run-ui). */
@@ -148,15 +279,16 @@ export function paintSetup(state,facts,actions){
  $('#setup').toggleAttribute('data-dragging',state.alert&&id==='folder');
  $('#setup-card').setAttribute('aria-label',t(`setup.step.${id}`));
  const speech=speechOf(state);
- setText($('#setup-speech'),t(speech.key,speech.args));
+ setText($('#setup-speech'),speech.key?t(speech.key,speech.args):'');
  paintTrail(state);
  /* Passeio, pasta e Pronto se pintam mesmo escondidos: trocar o idioma em
     outro passo deixava o texto antigo neles (o language-ui achou "Open the
     material" em português). O tutor monta botões e fica só no passo dele. */
  paintTour(state);
  paintFolder(state,facts);
- if(id==='tutor')paintTutor(state,facts,actions);
- paintReady(state,facts,actions);
+ paintLamp(state,facts,install);
+ if(id==='tutor')paintTutor(state,facts,actions,install);
+ paintReady(state,facts);
  paintFoot(state);
  for(const button of document.querySelectorAll('#first-run-language [data-language]'))button.setAttribute('aria-pressed',String(/** @type {HTMLElement} */(button).dataset.language===currentLanguage()));
  for(const button of document.querySelectorAll('#setup-language [data-language]'))button.setAttribute('aria-checked',String(/** @type {HTMLElement} */(button).dataset.language===currentLanguage()));

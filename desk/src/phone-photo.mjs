@@ -112,9 +112,10 @@ function stop(){
 
 /* ---------- popover ---------- */
 
-/* Abre para cima do botão, como o de modelo e esforço, sem sair da coluna. */
+/* Abre para cima do Anexar (o item do menu fecha ao abrir), como o de modelo
+   e esforço, sem sair da coluna. */
 function place(){
- const pop=$('#phone-pop'),button=$('#phone-photo'),host=pop.offsetParent||pop.parentElement;
+ const pop=$('#phone-pop'),button=$('#attach'),host=pop.offsetParent||pop.parentElement;
  if(!host||!button)return;
  const box=host.getBoundingClientRect(),at=button.getBoundingClientRect(),gutter=8;
  pop.style.bottom=`${Math.round(box.bottom-at.top+4)}px`;
@@ -140,7 +141,7 @@ export function closePhonePop({restoreFocus=false}={}){
  $('#phone-pop').hidden=true;
  $('#phone-photo').setAttribute('aria-expanded','false');
  stop();
- if(restoreFocus&&hadFocus)$('#phone-photo').focus();
+ if(restoreFocus&&hadFocus)$('#attach')?.focus();
 }
 
 /* ---------- foto → bandeja ---------- */
@@ -191,7 +192,7 @@ function onPhoneEvent(event){
 
 function paintLabels(){
  const button=$('#phone-photo');
- button.innerHTML=icon('phone');
+ button.innerHTML=`${icon('phone')} <span>${t('phone.button')}</span>`;
  button.setAttribute('aria-label',t('phone.button'));
  button.title=t('phone.buttonTitle');
  $('#phone-pop').setAttribute('aria-label',t('phone.button'));

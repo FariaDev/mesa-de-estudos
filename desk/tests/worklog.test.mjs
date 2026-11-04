@@ -5,12 +5,27 @@ import {
  headLine,historyTurns,liveLabel,replaceThinking,runningStep,startTool,stepDetail,stepLabel,stepPreview,thinkingDelta,toolKind,
 } from '../src/worklog.mjs';
 
-test('toolKind separa busca, referência e leitura', () => {
+test('toolKind separa busca, material, referência e leitura', () => {
  assert.equal(toolKind('web_search'), STEP.SEARCH);
  assert.equal(toolKind('Buscar na web'), STEP.SEARCH);
+ assert.equal(toolKind('mesa_buscar_material'), STEP.MATERIAL);
+ assert.equal(toolKind('mcp__mesa__buscar_material'), STEP.MATERIAL);
  assert.equal(toolKind('open_reference'), STEP.REFERENCE);
  assert.equal(toolKind('web_fetch'), STEP.FETCH);
  assert.equal(toolKind('quiz'), STEP.TOOL);
+});
+
+test('buscar_material tem rótulo próprio e lê o termo de `consulta`', () => {
+ const log = createLog(0);
+ const step = startTool(log, {id: 'm1', name: 'mesa_buscar_material', args: {consulta: ' Lógica Formal Parte 6 '}, now: 0});
+ assert.equal(step.kind, STEP.MATERIAL);
+ assert.equal(step.query, 'Lógica Formal Parte 6');
+ assert.equal(liveLabel(step), 'Procurando no material: «Lógica Formal Parte 6»');
+ finishTool(log, {id: 'm1', now: 1_200, isError: false, result: {content: [{type: 'text', text: 'Aula 06.pdf, p. 1: …'}]}});
+ assert.equal(step.status, 'done');
+ assert.equal(stepLabel(step), 'Procurou no material: «Lógica Formal Parte 6»');
+ finishLog(log, {now: 2_000});
+ assert.equal(headLine(log), 'Trabalhou por 2s · 1 busca no material');
 });
 
 test('formatDuration em segundos, minutos e arredondamento', () => {
@@ -30,7 +45,7 @@ test('turno com pensamento, busca e resposta', () => {
 
  closeThinking(log, 4_000);
  assert.equal(runningStep(log), null);
- assert.equal(stepLabel(log.steps[0]), 'Pensou por 3s');
+ assert.equal(stepLabel(log.steps[0]), 'Pensou');
 
  const step = startTool(log, {id: 's1', name: 'web_search', args: {query: 'kojima xbox'}, now: 4_100});
  assert.equal(liveLabel(step), 'Procurando na web: «kojima xbox»');
@@ -104,6 +119,24 @@ test('historyTurns reconstrói turnos do JSONL pareando toolResult', () => {
  assert.equal(stepLabel(turn.steps[1]), 'Procurou na web: «kojima xbox»');
  assert.equal(turn.steps[1].results[0].url, 'https://example.com/od');
  assert.equal(headLine({...turn, endedAt: turn.endedAt}), 'Trabalhou por 3s · 1 busca');
+});
+
+test('historyTurns nunca expõe ferramenta de cartão como passo (três motores e nomes antigos)', () => {
+ const names = ['quiz', 'mesa_quiz', 'mcp__mesa__quiz', 'perguntar', 'mesa_perguntar', 'mcp__mesa__perguntar', 'AskUserQuestion', 'ask_user'];
+ for (const [index, name] of names.entries()) {
+  const id = `card-${index}`;
+  const secret = {question: 'Quanto é 2+2?', options: [{label: '3'}, {label: '4'}], correctAnswer: 'SEGREDO-CARTAO', explanation: 'EXPLICACAO-CARTAO'};
+  const turns = historyTurns([
+   {role: 'user', content: [{type: 'text', text: 'quiz'}], timestamp: 1_000},
+   {role: 'assistant', content: [{type: 'text', text: 'Deixei o cartão.'}, {type: 'toolCall', id, name, arguments: secret}], timestamp: 2_000},
+   {role: 'toolResult', toolCallId: id, content: [{type: 'text', text: 'Mostrado ao aluno.'}], timestamp: 3_000},
+  ]);
+  assert.equal(turns.length, 1, name);
+  assert.deepEqual(turns[0].steps, [], `${name} não vira passo do diário`);
+  assert.ok(!turns[0].parts.some((part) => part.type === 'artifact'), `${name} não publica artefato`);
+  assert.ok(!JSON.stringify(turns).includes('SEGREDO-CARTAO'), `${name} não leva a resposta ao DOM`);
+  assert.ok(!JSON.stringify(turns).includes('EXPLICACAO-CARTAO'), `${name} não leva a explicação ao DOM`);
+ }
 });
 
 test('historyTurns sem resultado marca a ferramenta como parada', () => {

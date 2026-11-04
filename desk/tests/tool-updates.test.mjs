@@ -172,7 +172,7 @@ test('run: o lock compartilhado impede duas atualizações ao mesmo tempo e é s
 
 test('run: sem o instalador no computador a frase é de falha, com o nome do que faltou', async () => {
   const h = harness();
-  fs.rmSync(path.join(h.tools.bin, 'brew'));
+  fs.rmSync(h.tools.brewPath);
   const r = await h.host.run('pi');
   assert.equal(r.ok, false);
   assert.match(ptText(r.output), /Não achei "brew" neste computador/);

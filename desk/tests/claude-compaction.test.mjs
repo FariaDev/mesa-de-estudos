@@ -4,6 +4,7 @@
  * classificação de `system/status` e `system/compact_boundary`, e o pedido em
  * voo (`CompactRequest`). Sem I/O, sem rede e sem DOM. */
 import test from 'node:test';
+import './keep-loop-alive.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 

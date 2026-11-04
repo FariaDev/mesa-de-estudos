@@ -141,17 +141,18 @@ test('collect: Pi de PATH mostra o comando e não vira botão', async () => {
   assert.match(ptText(piRow.hint), /Fora da pasta da Mesa/);
 });
 
-test('collect: sem Pi e sem registry = desconhecido, sem erro', async () => {
+test('collect: sem Pi a linha dele some; o resto continua sem erro', async () => {
   const {rows} = await components.collect({
     deskDir: tmp(), config: {}, cacheFile: '', version: '0.4.0', testMode: true, piPath: '',
-    run: async () => { throw Error('não roda'); }, platform: 'win32', nodeVersion: '22.19.0', envPath: '', ...NO_CLAUDE,
+    run: async () => { throw Error('não roda'); }, platform: 'win32', nodeVersion: '20.11.0', envPath: '', ...NO_CLAUDE,
   });
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
-  assert.equal(byId.pi.state, 'unknown');
-  assert.match(ptText(byId.pi.hint), /npm run setup/);
+  assert.equal(byId.pi, undefined, 'quem não tem Pi não vê a linha');
   assert.equal(byId.claude.state, 'unknown');
   assert.equal(byId.xournal.state, 'unknown');
   assert.match(ptText(byId.xournal.hint), /Configurações/);
+  assert.equal(byId.node.note, '', 'sem Pi, o aviso do Node sobre o Pi não aparece');
+  assert.doesNotMatch(JSON.stringify(rows), /exige Node 22\.19|Pi/);
 });
 
 test('collect: Node do SISTEMA é medido de verdade; sem node cai no embutido, rotulado', async () => {
@@ -170,14 +171,20 @@ test('collect: Node do SISTEMA é medido de verdade; sem node cai no embutido, r
   /* E o painel rotula os dois: */
   const base = {deskDir: tmp(), config: {}, cacheFile: '', version: '0.4.0', testMode: true, run: async () => ({stdout: ''}), platform: 'linux', envPath: '', ...NO_CLAUDE};
   const comSistema = await components.collect({...base, nodeVersion: '24.4.0', nodeSource: 'system'});
-  assert.equal(ptText(comSistema.rows[2].label), 'Node (sistema)');
+  const comNode = comSistema.rows.find((row) => row.id === 'node');
+  assert.equal(comSistema.rows.some((row) => row.id === 'pi'), false, 'testMode sem LEARNING_DESK_PI não vê o Pi real do Homebrew');
+  assert.equal(ptText(comNode.label), 'Node (sistema)');
   const semSistema = await components.collect({...base, nodeVersion: '22.19.0', nodeSource: 'embedded'});
-  assert.equal(ptText(semSistema.rows[2].label), 'Node (embutido)');
-  assert.match(ptText(semSistema.rows[2].hint), /node do sistema/);
+  const semNode = semSistema.rows.find((row) => row.id === 'node');
+  assert.equal(ptText(semNode.label), 'Node (embutido)');
+  assert.match(ptText(semNode.hint), /node do sistema/);
 });
 
-test('collect: Node abaixo de 22.19 avisa (o corte é do núcleo)', async () => {
-  const base = {deskDir: tmp(), config: {}, cacheFile: '', version: '0.4.0', testMode: true, run: async () => ({stdout: ''}), platform: 'linux', envPath: '', ...NO_CLAUDE};
+test('collect: Node abaixo de 22.19 avisa com Pi; sem Pi o aviso some (o corte é do núcleo)', async () => {
+  const deskDir = tmp();
+  const pi = path.join(tmp(), 'pi');
+  fs.writeFileSync(pi, '#!/usr/bin/env node\n');
+  const base = {deskDir, config: {}, cacheFile: '', version: '0.4.0', testMode: true, piPath: pi, run: async () => ({stdout: ''}), platform: 'linux', envPath: '', ...NO_CLAUDE};
   const antigo = await components.collect({...base, nodeVersion: '22.18.0'});
   assert.equal(antigo.rows[2].state, 'warn');
   assert.equal(ptText(antigo.rows[2].note), 'abaixo de 22.19 — o Pi exige Node 22.19+');
@@ -185,6 +192,10 @@ test('collect: Node abaixo de 22.19 avisa (o corte é do núcleo)', async () => 
   assert.equal(limite.rows[2].state, 'ok');
   const velho = await components.collect({...base, nodeVersion: '20.11.0'});
   assert.equal(velho.rows[2].state, 'warn');
+  const semPi = await components.collect({...base, piPath: '', nodeVersion: '20.11.0'});
+  const semPiNode = semPi.rows.find((row) => row.id === 'node');
+  assert.equal(semPiNode.state, 'warn');
+  assert.equal(semPiNode.note, '', 'sem Pi o aviso não fala do Pi');
 });
 
 test('collect: Xournal++ no macOS lê o CFBundleShortVersionString e compara (só informativo)', async () => {
@@ -209,7 +220,7 @@ test('collect: Xournal++ no macOS lê o CFBundleShortVersionString e compara (s�
     run, platform: 'darwin', nodeVersion: '22.19.0', envPath: '', ...NO_CLAUDE,
   });
   assert.ok(chamadas.some(([cmd]) => cmd.endsWith('PlistBuddy')), 'a versão vem do plist');
-  const xournal = rows[3];
+  const xournal = rows.find((row) => row.id === 'xournal');
   assert.equal(xournal.version, '1.2.5');
   assert.equal(xournal.state, 'outdated');
   assert.equal(xournal.latest, '1.2.7');

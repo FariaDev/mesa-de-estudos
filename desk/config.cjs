@@ -77,7 +77,6 @@ function defaultDesk(){return fromDesk(configCore.defaultDesk());}
 
 function normalizeDesk(raw){return fromDesk(configCore.normalizeDesk(deskFacts(raw)));}
 
-function emptyConfig(){return {vaultPath:'',runtimePath:'',piPath:'',claudePath:'',xournalPath:'',courses:[],desk:defaultDesk()};}
 
 function normalize(raw={}){
  return fromConfig(configCore.normalize({
@@ -173,4 +172,4 @@ function pickPdfs(library,panels){
  return picked;
 }
 
-module.exports={HOME_VAULT,installRoot,defaultDesk,normalizeDesk,emptyConfig,normalize,readConfig,writeConfig,homeVaultExists,seedConfig,needsSetup,nameMatches,pickPdfs};
+module.exports={HOME_VAULT,installRoot,defaultDesk,normalizeDesk,normalize,readConfig,writeConfig,homeVaultExists,seedConfig,needsSetup,nameMatches,pickPdfs};

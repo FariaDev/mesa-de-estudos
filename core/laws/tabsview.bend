@@ -435,10 +435,10 @@ law tabs_caderno_aria_label:
 
 law tabs_menu_ajustes:
   {T.settingsItems()
-    == [T.settingsItem(), T.helpItem(), T.shortcutsItem(), T.aboutItem()] : List<&2, V.ViewNode>}
+    == [T.settingsItem(), T.helpItem(), T.shortcutsItem(), T.releaseNotesItem(), T.aboutItem()] : List<&2, V.ViewNode>}
 
 law tabs_menu_ajustes_comprimento:
-  {List.length(&2, V.ViewNode, T.settingsItems()) == 4n : Nat}
+  {List.length(&2, V.ViewNode, T.settingsItems()) == 5n : Nat}
 
 law tabs_atalhos_id:
   {V.attrGet(V.attrsOf(T.shortcutsItem()), "id") == Some{"shortcuts"} : Maybe<&2, String>}

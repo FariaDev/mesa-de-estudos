@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {launchDesk,newRuntime,seedCourse,tinyPdf,writeConfigJson,withArtifacts,screenshotDirectory,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
+import {launchDesk,newRuntime,seedCourse,tinyPdf,writeConfigJson,withArtifacts,screenshotDirectory,setTheme,freezeMotion,resizeWindow,openNewSessionMenu} from './helpers.mjs';
 import {layoutStable,pollUntil} from './waits.mjs';
 import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
 import en from '../src/locales/en.json' with {type: 'json'};
@@ -250,7 +250,8 @@ const closePopups=page=>page.keyboard.press('Escape');
 
 /** Abre o popover do botão, mede e varre, e fecha. */
 async function sweepTutorPopup(page,language,tag,[button,popup],problems){
-  await page.locator(`#${button}`).click();
+  if(button==='new-session')await openNewSessionMenu(page);
+  else await page.locator(`#${button}`).click();
   await page.waitForSelector(`${popup}:not([hidden])`,{timeout:10000});
   await layoutStable(page,popup);
   for(const m of await clipped(page,popup))problems.push(`${tag} ${popup}: ${m}`);

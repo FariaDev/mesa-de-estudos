@@ -53,7 +53,7 @@ test('ponto de conexão: classe, tooltip e aria', () => {
   assert.equal(online.get('data-tip'), 'Pi conectado');
   assert.equal(attrsOf(sv.statusDot({$: 'ConnConnecting'}, 'Conectando')).get('class'), 'connecting');
   assert.equal(attrsOf(sv.statusDot({$: 'ConnError'}, 'Falha')).get('class'), 'error');
-  assert.equal(attrsOf(sv.statusDot({$: 'ConnOff'}, '')).get('aria-label'), 'Pi desconectado');
+  assert.equal(attrsOf(sv.statusDot({$: 'ConnOff'}, '')).get('aria-label'), 'Tutor desconectado');
 });
 
 test('compactação automática: hidden sem conexão e aria-pressed', () => {

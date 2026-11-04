@@ -26,7 +26,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /* Só o que a página importa: `src` (os catálogos ficam em `src/locales`, #72), `node_modules`, `style.css` e `highlight.mjs`. */
 function allowedFile(file) {
   const roots = [path.join(__dirname, 'src'), path.join(__dirname, 'node_modules')].map((root) => path.resolve(root));
-  const loose = [path.join(__dirname, 'highlight.mjs'), path.join(__dirname, 'style.css')].map((entry) => path.resolve(entry));
+  const loose = [path.join(__dirname, 'highlight.mjs'), path.join(__dirname, 'icons.mjs'), path.join(__dirname, 'style.css')].map((entry) => path.resolve(entry));
   const target = path.resolve(file);
   return loose.includes(target) || roots.some((root) => target.startsWith(root + path.sep));
 }
@@ -91,6 +91,10 @@ function createFigurePreview({createWindow = (size) => createFigureWindow(requir
     const win = createWindow({width: request.width});
     try {
       await Promise.race([win.loadFile(FIGURE_HTML), sleep(loadMs).then(() => { throw new Error(`a página da figura não carregou em ${loadMs} ms`); })]);
+      /* `loadFile` resolve no load da página, mas o módulo pode ainda não ter
+         publicado `window.mesaFigure`: espera o contrato antes de chamar. */
+      const ready = await win.webContents.executeJavaScript(`new Promise((resolve) => { const started = Date.now(); const tick = () => { if (window.mesaFigure) resolve(true); else if (Date.now() - started > ${loadMs}) resolve(false); else setTimeout(tick, 20); }; tick(); })`);
+      if (!ready) throw new Error(`a página da figura não publicou window.mesaFigure em ${loadMs} ms`);
       const report = await win.webContents.executeJavaScript(`window.mesaFigure.render(${JSON.stringify(request)})`);
       const height = Math.min(MAX_CAPTURE, Math.max(48, report.contentHeight));
       win.setContentSize(request.width, height);

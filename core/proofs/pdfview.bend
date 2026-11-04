@@ -78,18 +78,6 @@ def Laws.pdf_page_max():
 def Laws.pdf_zoom_100():
   {==}
 
-def Laws.pdf_foot_loading():
-  {==}
-
-def Laws.pdf_foot_error():
-  {==}
-
-def Laws.pdf_foot_ready():
-  {==}
-
-def Laws.pdf_foot_ready_node():
-  {==}
-
 def Laws.pdf_find_hidden(shown, index, total):
   {==}
 
@@ -100,15 +88,4 @@ def Laws.pdf_find_shown():
   {==}
 
 def Laws.pdf_find_label_shown():
-  {==}
-def Laws.pdf_foot_labeled_empty():
-  {==}
-
-def Laws.pdf_foot_labeled_roman():
-  {==}
-
-def Laws.pdf_foot_labeled_node_text():
-  {==}
-
-def Laws.pdf_foot_labeled_node_title():
   {==}

@@ -54,7 +54,9 @@ export function findUnsafe(root) {
  * @returns {string}
  */
 export function describeUnsafe(hits) {
-  const lines = hits.map((hit) => `  core/${hit.file}:${hit.line} [${hit.rule}] ${hit.text}`);
+  /* O prefixo `core/` já é POSIX; normalizar o relativo evita a mensagem
+     misturar `core/` com barra invertida no Windows e mantém o texto estável. */
+  const lines = hits.map((hit) => `  core/${hit.file.split(/[\\/]/).join("/")}:${hit.line} [${hit.rule}] ${hit.text}`);
   return [
     `escape do verificador no núcleo (${hits.length}); um bend 2.0.27 aceitaria prova falsa por aqui (#47):`,
     ...lines,

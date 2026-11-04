@@ -11,7 +11,8 @@ import {parseMessage} from '../src/i18n.mjs';
 
 const require = createRequire(import.meta.url);
 const {materializeImages} = require('../src/agents/opencode-images.cjs');
-const {messageList, normalizeHistory} = require('../src/agents/opencode-history.cjs');
+const {messageList, normalizeHistory, nextCursor} = require('../src/agents/opencode-history.cjs');
+const {mintWireMessageId} = require('../src/agents/opencode-ids.cjs');
 
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
@@ -57,4 +58,28 @@ test('o histórico mantém as chamadas de ferramenta e o resultado delas', () =>
     {role: 'toolResult', toolCallId: 'call_ok', toolName: 'mesa_criar_atividade', content: [{type: 'text', text: 'fim call_ok'}]},
     {role: 'toolResult', toolCallId: 'call_err', toolName: 'mesa_criar_atividade', content: [{type: 'text', text: 'fim call_err'}], isError: true},
   ]);
+});
+
+test('histórico volta na ordem das falas mesmo com id fora de ordem no servidor', () => {
+  /* Conversa gravada com o id aleatório antigo: o servidor ordena pelo id e a
+     fala do aluno vinha depois da resposta ao trocar de sessão. */
+  const list = normalizeHistory([
+    {id: 'msg_18e9a', type: 'assistant', content: [{type: 'text', text: 'resposta'}], time: {created: 2000}},
+    {id: 'msg_k', type: 'compaction', status: 'completed'},
+    {id: 'msg_Zk', type: 'user', text: 'pergunta', time: {created: 1000}},
+    {id: 'msg_18e9b', type: 'user', text: 'outra', time: {created: 3000}},
+  ]);
+  assert.deepEqual(list.map((item) => item.content[0].text), ['pergunta', 'resposta', 'outra']);
+});
+
+test('id de mensagem cunhado cresce com o tempo, no formato do servidor', () => {
+  const ids = [mintWireMessageId(1793393632844), mintWireMessageId(1793393632844), mintWireMessageId(1793393632845), mintWireMessageId(1893393632845)];
+  assert.deepEqual([...ids].sort(), ids);
+  for (const id of ids) assert.match(id, /^msg_[0-9a-f]{12}[0-9A-Za-z]{14}$/);
+});
+
+test('cursor da próxima página: string ou nada', () => {
+  assert.equal(nextCursor({data: [], cursor: {next: 'c2'}}), 'c2');
+  assert.equal(nextCursor({data: [], cursor: {next: null}}), '');
+  assert.equal(nextCursor([]), '');
 });

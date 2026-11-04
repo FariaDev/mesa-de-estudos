@@ -18,11 +18,13 @@
 
 const http = require('node:http');
 const crypto = require('node:crypto');
-const {normalizeSpec, canonicalSpec, isSafeId, ActivityStoreError} = require('./activity-store.cjs');
+const {normalizeSpec, canonicalSpec, isSafeId, ActivityStoreError, MAX_SPEC_BYTES} = require('./activity-store.cjs');
 const {message} = require('./src/i18n.mjs');
 const {describeReceived, invalidValue} = require('./src/error-detail.mjs');
 
 const ACTIVITY_CALL_REF_FIELD = 'callRef';
+const ACTIVITY_PREVIEW_FIELD = 'previaId';
+const PREVIEW_ID_PATTERN = /^prv-[a-z0-9]{8,24}$/;
 const MAX_BODY_BYTES = 300000;
 const MAX_BODY_TIME = 15000;
 
@@ -90,12 +92,84 @@ function httpStatus(error) {
   return 400;
 }
 
-/* Extrai só os campos do contrato: nada de caminho, URL ou campo extra entra.
+/* `previaId` (A3): a prévia guardou o conteúdo em memória e a publicação o
+   reusa. O id é opaco e validado aqui; o host confere a conversa e o prazo.
    `activityId` (opcional) pede uma revisão imutável da atividade existente na
    MESMA conversa; ele participa do paramsHash para que o hook e o handler
    recusem qualquer troca entre a reserva e a execução. */
+function previewIdOf(raw) {
+  const value = raw && raw[ACTIVITY_PREVIEW_FIELD];
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value !== 'string' || !PREVIEW_ID_PATTERN.test(value)) throw new ActivityStoreError('BAD_INPUT', message('err.activity.previewIdInvalid', {received: describeReceived(value)}));
+  return value;
+}
+
+function activityIdOf(raw) {
+  if (raw.activityId === undefined || raw.activityId === null || raw.activityId === '') return '';
+  if (typeof raw.activityId !== 'string' || !isSafeId(raw.activityId)) throw new ActivityStoreError('BAD_INPUT', message('err.bridge.badRevision', {received: describeReceived(raw.activityId)}));
+  return raw.activityId;
+}
+
+const textOf = (value) => (typeof value === 'string' ? value : '');
+const previewHashFields = (raw, previewId, activityId) => JSON.stringify({
+  previaId: previewId,
+  activityId,
+  title: textOf(raw.title).trim(),
+  objective: textOf(raw.objective).trim(),
+  alternativeMarkdown: textOf(raw.alternativeMarkdown),
+});
+
+function hashOf(value) {
+  return 'sha256:' + crypto.createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+/* A mesma soma do `normalizeSpec` (store, 64 KiB), medida no handler comum
+   antes de abrir a prévia ou publicar (M9): o modelo recebe o tamanho e o teto
+   sem pagar uma janela ou uma gravação que só falhariam depois. */
+function specBytesOf(raw) {
+  const fields = ['html', 'css', 'js'];
+  let bytes = Buffer.byteLength(textOf(raw.title).trim(), 'utf8') + Buffer.byteLength(textOf(raw.objective).trim(), 'utf8') + Buffer.byteLength(textOf(raw.alternativeMarkdown), 'utf8');
+  for (const name of fields) bytes += Buffer.byteLength(textOf(raw[name]), 'utf8');
+  return bytes;
+}
+
+function assertSpecFits(raw) {
+  const bytes = specBytesOf(raw);
+  if (bytes > MAX_SPEC_BYTES) throw new ActivityStoreError('TOO_BIG', message('err.activity.specTooBig', {bytes, max: MAX_SPEC_BYTES}));
+  return bytes;
+}
+
+function hasContent(raw) {
+  return ['html', 'css', 'js'].some((name) => textOf(raw[name]).trim() !== '');
+}
+
+/* Prévia e publicação passam por aqui: `previaId` e conteúdo são alternativas,
+   não complementos; e o conteúdo direto já é medido contra o teto do store. */
+function assertActivityArgsFit(raw) {
+  const previewId = previewIdOf(raw);
+  if (previewId) {
+    if (hasContent(raw)) throw new ActivityStoreError('BAD_INPUT', message('err.activity.previewConflict', {received: describeReceived(previewId)}));
+    return {previewId, bytes: 0};
+  }
+  return {previewId: '', bytes: assertSpecFits(raw)};
+}
+
 function pickPayload(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ActivityStoreError('BAD_INPUT', message('err.bridge.badPayload', {what: 'activity', received: describeReceived(raw)}));
+  const {previewId} = assertActivityArgsFit(raw);
+  const activityId = activityIdOf(raw);
+  const toolCallId = typeof raw.toolCallId === 'string' ? raw.toolCallId.slice(0, 160) : '';
+  const callRef = typeof raw[ACTIVITY_CALL_REF_FIELD] === 'string' ? raw[ACTIVITY_CALL_REF_FIELD].slice(0, 80) : '';
+  if (previewId) {
+    /* Sem conteúdo: o host resolve o rascunho pelo id e normaliza o spec. O
+       hash cobre só o que a chamada manda, para o hook e o SSE casarem sem
+       precisar do conteúdo (que a prévia já validou). */
+    const spec = {
+      title: raw.title, objective: raw.objective, alternativeMarkdown: raw.alternativeMarkdown,
+      html: '', css: '', js: '', katex: false, previaId: previewId,
+    };
+    return {spec, toolCallId, callRef, paramsHash: hashOf(previewHashFields(raw, previewId, activityId)), activityId, previewId};
+  }
   const spec = normalizeSpec({
     title: raw.title,
     objective: raw.objective,
@@ -107,27 +181,23 @@ function pickPayload(raw) {
     kind: raw.kind === 'visualizacao' ? 'visualizacao' : undefined,
     charts: raw.charts === true,
   });
-  let activityId = '';
-  if (raw.activityId !== undefined && raw.activityId !== null && raw.activityId !== '') {
-    if (typeof raw.activityId !== 'string' || !isSafeId(raw.activityId)) throw new ActivityStoreError('BAD_INPUT', message('err.bridge.badRevision', {received: describeReceived(raw.activityId)}));
-    activityId = raw.activityId;
-  }
-  const toolCallId = typeof raw.toolCallId === 'string' ? raw.toolCallId.slice(0, 160) : '';
-  const callRef = typeof raw[ACTIVITY_CALL_REF_FIELD] === 'string' ? raw[ACTIVITY_CALL_REF_FIELD].slice(0, 80) : '';
-  const paramsHash = 'sha256:' + crypto.createHash('sha256').update(canonicalSpec(spec) + '\n' + activityId, 'utf8').digest('hex');
-  return {spec, toolCallId, callRef, paramsHash, activityId};
+  return {spec, toolCallId, callRef, paramsHash: hashOf(canonicalSpec(spec) + '\n' + activityId), activityId, previewId: ''};
 }
+
 
 /**
  * @param {{publish?: (scope: object, spec: object, caller: {toolCallId: string, callRef?: string}) => Promise<unknown>,
  *   preview?: ((raw: unknown, options: object) => Promise<unknown>) | null,
- *   figure?: ((raw: unknown) => Promise<unknown>) | null, pdfPage?: ((raw: {path?: unknown, first?: unknown, last?: unknown}) => Promise<object>) | null,
- *   engine?: string, maxBodyBytes?: number,
+ *   figure?: ((raw: unknown) => Promise<unknown>) | null, pdfPage?: ((raw: {path?: unknown, first?: unknown, last?: unknown, imagem?: unknown}) => Promise<object>) | null,
+ *   searchMaterial?: ((scope: object, raw: {consulta?: unknown, limite?: unknown}) => Promise<object>) | null,
+ *   materialList?: ((scope: object) => Promise<object>) | null,
+ *   reviewProposal?: ((scope: object, raw: object, options: {signal?: AbortSignal}) => Promise<object>) | null,
+ *   card?: ((scope: object, raw: object, caller: {engine?: string}) => Promise<object>|object) | null, engine?: string, maxBodyBytes?: number,
  *   tutorText?: (raw: string) => string}} [options]
  *   `tutorText` põe a mensagem marcada no idioma do tutor: a resposta vai ao
  *   modelo, que não lê a marca U+E000 (#43 fase 3).
  */
-function createActivityBridge({publish, preview = null, figure = null, pdfPage = null, engine = 'pi', maxBodyBytes = MAX_BODY_BYTES, tutorText = (raw) => raw} = {}) {
+function createActivityBridge({publish, preview = null, figure = null, pdfPage = null, searchMaterial = null, materialList = null, reviewProposal = null, card = null, engine = 'pi', maxBodyBytes = MAX_BODY_BYTES, tutorText = (raw) => raw} = {}) {
   if (typeof publish !== 'function') throw new Error(invalidValue('publish', publish, 'function'));
   const grants = new Map();
   let port = 0;
@@ -150,7 +220,14 @@ function createActivityBridge({publish, preview = null, figure = null, pdfPage =
         /* `/figure` (#60): o print da figura (SVG ou `plot`) — mesmo token, nada gravado. */
         : req.url === '/figure' && typeof figure === 'function' ? 'figure'
           /* `/pdf-page` (#70): o texto de páginas da biblioteca para o OpenCode — mesmo token, nada gravado. */
-          : req.url === '/pdf-page' && typeof pdfPage === 'function' ? 'pdf-page' : '';
+          : req.url === '/pdf-page' && typeof pdfPage === 'function' ? 'pdf-page'
+            /* `/search`: a busca do tutor no material da sessão — mesmo token, nada gravado. */
+            : req.url === '/search' && typeof searchMaterial === 'function' ? 'search'
+              /* `/materials`: os PDFs da matéria/Livre, com o caminho canônico. */
+              : req.url === '/materials' && typeof materialList === 'function' ? 'materials'
+                /* `/review-proposal`: o tutor propõe um card; quem grava é o aluno. */
+                : req.url === '/review-proposal' && typeof reviewProposal === 'function' ? 'review-proposal'
+                  : req.url === '/card' && typeof card === 'function' ? 'card' : '';
     if (req.method !== 'POST' || !route) {
       refuse(res, 404, 'err.bridge.unavailable', {method: describeReceived(req.method), route: describeReceived(req.url)});
       return;
@@ -193,9 +270,39 @@ function createActivityBridge({publish, preview = null, figure = null, pdfPage =
         refuse(res, 409, 'err.bridge.sessionChanged');
         return;
       }
+      if (route === 'card') {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ActivityStoreError('BAD_INPUT', message('err.bridge.badPayload', {what: 'card', received: describeReceived(raw)}));
+        reply(res, 200, {shown: true, ...(await card({...grant.scope}, raw, {engine: grant.engine || engine}))});
+        return;
+      }
+      if (route === 'review-proposal') {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ActivityStoreError('BAD_INPUT', message('err.bridge.badPayload', {what: 'review-proposal', received: describeReceived(raw)}));
+        /* `req` 'close' também dispara quando o corpo acaba, com o aluno ainda
+           no diálogo. O que importa é a resposta cair antes do fim. */
+        const abort = new AbortController();
+        const onClose = () => { if (!res.writableEnded) abort.abort(); };
+        res.on('close', onClose);
+        try {
+          const result = await reviewProposal({...grant.scope}, raw, {signal: abort.signal});
+          const agent = result && typeof result === 'object' ? (({items, ...rest}) => rest)(result) : result;
+          reply(res, 200, agent);
+        } finally {
+          res.off('close', onClose);
+        }
+        return;
+      }
       if (route === 'pdf-page') {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ActivityStoreError('BAD_INPUT', message('err.bridge.badPayload', {what: 'pdf-page', received: describeReceived(raw)}));
         reply(res, 200, {read: true, ...(await pdfPage(raw))});
+        return;
+      }
+      if (route === 'search') {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ActivityStoreError('BAD_INPUT', message('err.bridge.badPayload', {what: 'search', received: describeReceived(raw)}));
+        reply(res, 200, {searched: true, ...(await searchMaterial({...grant.scope}, raw))});
+        return;
+      }
+      if (route === 'materials') {
+        reply(res, 200, {listed: true, ...(await materialList({...grant.scope}))});
         return;
       }
       if (route === 'figure') {
@@ -205,7 +312,8 @@ function createActivityBridge({publish, preview = null, figure = null, pdfPage =
       }
       if (route === 'preview') {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ActivityStoreError('BAD_INPUT', message('err.bridge.badPayload', {what: 'preview', received: describeReceived(raw)}));
-        const result = await preview(raw, {theme: raw.theme, width: raw.width});
+        assertActivityArgsFit(raw);
+        const result = await preview(raw, {theme: raw.theme, width: raw.width, scope: grant.scope});
         reply(res, 200, {previewed: true, ...result});
         return;
       }
@@ -223,6 +331,8 @@ function createActivityBridge({publish, preview = null, figure = null, pdfPage =
         hash: result.hash,
         kind: 'activity',
         title: result.title,
+        ...(result.view ? {view: result.view} : {}),
+        ...(result.measureFailed ? {measureFailed: true} : {}),
         reused: result.reused === true,
         reviewRequired: false,
       });
@@ -377,11 +487,14 @@ function createActivityService({store, runtime, registry, emit, isScopeActive, e
 
 module.exports = {
   ACTIVITY_CALL_REF_FIELD,
+  ACTIVITY_PREVIEW_FIELD,
   MAX_BODY_BYTES,
   createCallRegistry,
   createActivityBridge,
   createActivityService,
   pickPayload,
   paramsHashOfToolInput,
+  assertActivityArgsFit,
+  specBytesOf,
   httpStatus,
 };

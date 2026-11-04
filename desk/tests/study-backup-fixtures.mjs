@@ -80,6 +80,8 @@ export function seedRuntime({cloak = 'mat-1'} = {}) {
   /* Negativas: credencial, cache do Electron, log, rascunho de revisão,
      workspace efêmero do Claude e diretório de estado do próprio backup. */
   write(runtime, 'auth.json', '{"token":"NUNCA-BACKUP"}');
+  write(runtime, 'opencode-key.bin', Buffer.from('blob-cifrado-da-chave'));
+  write(runtime, 'ggb-bridge.json', '{"port":1,"token":"NUNCA-BACKUP"}');
   write(runtime, 'settings.local.json', '{"apikey":"NUNCA"}');
   write(runtime, 'electron/Cache/data_0', 'cache do chromium');
   write(runtime, 'desk.log', 'linha de log');

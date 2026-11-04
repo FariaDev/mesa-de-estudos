@@ -9,7 +9,7 @@ const bookmarks=require('./bookmarks.cjs');
 const review=require('./review.cjs');
 const {PiBridge}=require('./rpc.cjs');
 const {spawnEnv}=require('./pi.cjs');
-const {draftPrompt,draftContext,generateReviewDraft}=require('./review-draft.cjs');
+const {draftPrompt,draftContext,generateReviewDraft,draftPiArgs}=require('./review-draft.cjs');
 const {createClaudeDraftBridge}=require('./src/agents/claude-review-draft.cjs');
 const conversations=require('./src/agents/conversations.cjs');
 const {isPlainObject,asString}=require('./desk-state-sanitize.cjs');
@@ -30,18 +30,23 @@ const {invalidRequest}=require('./src/error-detail.mjs');
  *   appendLog: import('./types/host-deps').AppendLog, engine: import('./types/main-hosts').TutorEngineHost['engine'], piBinary: import('./types/main-hosts').TutorEngineHost['piBinary'],
  *   claudeBinary: import('./types/main-hosts').TutorEngineHost['claudeBinary'], claudeDetector: import('./types/main-hosts').TutorEngineHost['claudeDetector'],
  *   testClaudeSdkLoader: import('./types/main-hosts').TutorEngineHost['testClaudeSdkLoader'],
+ *   openCodeDraft: import('./types/main-hosts').OpenCodeTutorHost['draft'],
  *   bookmarksPayload: import('./types/main-hosts').CourseStateHost['bookmarksPayload'], reviewPayload: import('./types/main-hosts').CourseStateHost['reviewPayload'],
  *   assertNoFreeMutation: import('./types/main-hosts').DeskGuards['assertNoFreeMutation'], assertNoNav: import('./types/main-hosts').DeskGuards['assertNoNav']}} options
- * @returns {{cancelReviewDraft:()=>void}} aborta o rascunho de revisão em curso (o app chama ao encerrar)
- * @example const {cancelReviewDraft}=registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appendLog,engine,piBinary,claudeBinary,claudeDetector,testClaudeSdkLoader,bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav});
+ * @returns {{cancelReviewDraft:()=>Promise<void>|null}} aborta e espera o rascunho de revisão em curso (o app chama ao encerrar)
+ * @example const {cancelReviewDraft}=registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appendLog,engine,piBinary,claudeBinary,claudeDetector,testClaudeSdkLoader,openCodeDraft,bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav});
  */
-function registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appendLog,engine,piBinary,claudeBinary,claudeDetector,testClaudeSdkLoader,bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav}){
+function registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appendLog,engine,piBinary,claudeBinary,claudeDetector,testClaudeSdkLoader,openCodeDraft,bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav}){
  /* Claude Code (#58): adaptador temporário, sem ferramenta e sem sessão salva;
     o modelo e o esforço são os do descritor da conversa, que não é tocada. */
+ function nativeDraftSelection(){
+  const record=conversations.readClaudeConversation(live.session,{runtime});
+  return {model:record?.model||null,effort:record?.effort||null};
+ }
  function claudeDraftWorker(folder){
   const record=conversations.readClaudeConversation(live.session,{runtime});
   return createClaudeDraftBridge({cwd:folder,systemPrompt:draftPrompt(live.languageHost.tutorLanguage()),claudePath:claudeBinary()||record?.pinnedExecutable||null,
-   detectClaude:claudeDetector(),sdkLoader:testClaudeSdkLoader(),selection:{model:record?.model||null,effort:record?.effort||null}});
+   detectClaude:claudeDetector(),sdkLoader:testClaudeSdkLoader(),selection:nativeDraftSelection()});
  }
  let activeReviewDraft=null;
  /* Fila e bandeja guardadas (`desk/pending.cjs`, núcleo `core/pending.bend`): o
@@ -56,7 +61,9 @@ function registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appe
  ipcMain.handle('tray-save',(_e,payload)=>{
   const images=payload?.images;
   if(!Array.isArray(images)||images.length>16)throw Error(invalidRequest('tray-save','images',images,'array(0..16)'));
-  return pending.saveTray(runtime,live.session,images);
+  const pdfs=payload?.pdfs===undefined?[]:payload.pdfs;
+  if(!Array.isArray(pdfs)||pdfs.length>16)throw Error(invalidRequest('tray-save','pdfs',pdfs,'array(0..16)'));
+  return pending.saveTray(runtime,live.session,images,pdfs);
  });
  /* Registro do "Encerrar por hoje": grava LOCAL primeiro (é o ponto do módulo) e
     o host só aceita o que é da matéria: páginas da biblioteca aberta e `.xopp`
@@ -84,31 +91,34 @@ function registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appe
  /* `add` e `edit` recebem o item do diálogo; `remove` usa a identidade.
     A resposta preserva todas as questões e informa o estado da referência. */
  ipcMain.handle('review-draft',async(_e,payload)=>{
-  if(engine()==='opencode')throw Error(message('review.error.opencode'));
   const raw=isPlainObject(payload)?payload:{};
   if(typeof raw.id!=='string'||!raw.id||raw.id.length>80)throw Error(message('review.error.request'));
   const context=draftContext(raw);
   activeReviewDraft?.controller.abort();
-  const controller=new AbortController(),task={id:raw.id,controller};activeReviewDraft=task;
+  const controller=new AbortController(),task={id:raw.id,controller,cancelled:false};
+  task.done=new Promise(resolve=>{task.settle=resolve;});activeReviewDraft=task;
   let folder,worker;
   try{
    fs.mkdirSync(runtime,{recursive:true});folder=fs.mkdtempSync(path.join(runtime,'.review-draft-'));
    const source=review.normalizeOne({question:context.question||'Revisão',ref:raw.ref});
    if(engine()==='claude'){worker=claudeDraftWorker(folder);return await generateReviewDraft({bridge:worker,context,ref:source.ref,signal:controller.signal});}
+   /* OpenCode (#93): consulta temporária no mesmo servidor, sem MCP nem
+      ferramenta nativa; o modelo e o esforço são os da conversa aberta. */
+   if(engine()==='opencode'){worker=openCodeDraft({cwd:folder,systemPrompt:draftPrompt(live.languageHost.tutorLanguage()),selection:nativeDraftSelection()});return await generateReviewDraft({bridge:worker,context,ref:source.ref,signal:controller.signal});}
    // Match the selected conversation model without changing that conversation.
    const current=live.bridge?await live.bridge.request('get_state',{},5000).catch(error=>{appendLog('review-draft',`Estado indisponível; usando o modelo padrão do tutor: ${error.message}`);return {};}):{};
    if(controller.signal.aborted)throw Error(message('review.error.cancelled'));
    const file=path.join(folder,'prompt.md');fs.writeFileSync(file,draftPrompt(live.languageHost.tutorLanguage()));
-   const extraArgs=['--no-tools','--no-extensions','--no-skills','--no-prompt-templates','--no-session'];
-   if(current.model?.provider&&current.model?.id)extraArgs.push('--provider',current.model.provider,'--model',current.model.id);
-   worker=new PiBridge({cwd:folder,session:path.join(folder,'session.jsonl'),pi:piBinary(),env:{...spawnEnv(piBinary()),...live.opencodeHost.keyEnv()},promptFile:file,extraArgs});
+   const extraArgs=draftPiArgs(current.model);
+   worker=new PiBridge({cwd:folder,session:path.join(folder,'session.jsonl'),pi:piBinary(),env:{...spawnEnv(piBinary()),...await live.opencodeHost.keyEnv()},promptFile:file,extraArgs});
    return await generateReviewDraft({bridge:worker,context,ref:source.ref,signal:controller.signal});
   }finally{
-   worker?.stop();if(folder)fs.rmSync(folder,{recursive:true,force:true});
+   await worker?.stop();if(folder)fs.rmSync(folder,{recursive:true,force:true});
    if(activeReviewDraft===task)activeReviewDraft=null;
+   task.settle();
   }
  });
- ipcMain.handle('review-draft-cancel',(_e,id)=>{if(activeReviewDraft?.id===id)activeReviewDraft.controller.abort();});
+ ipcMain.handle('review-draft-cancel',(_e,id)=>activeReviewDraft?.id===id?cancelReviewDraft():null);
  ipcMain.handle('review-save',(_e,payload)=>{
   assertNoFreeMutation();assertNoNav();
   const raw=isPlainObject(payload)?payload:{};
@@ -124,7 +134,20 @@ function registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appe
   const result=review.reviewUndo(runtime,{courseId:live.courseId,conversation:live.session,token:asString(payload?.token).slice(0,64)});
   return {ok:result.ok,reason:result.reason,items:reviewPayload()};
  });
- function cancelReviewDraft(){activeReviewDraft?.controller.abort();}
+ /* Aborta e espera o `finally` do rascunho, que apaga a sessão temporária do
+    OpenCode antes de o main derrubar o servidor (#93). O teto curto impede que
+    um motor travado segure o fechamento do app. */
+ function cancelReviewDraft(){
+  const task=activeReviewDraft;
+  if(!task||task.cancelled)return null;
+  task.cancelled=true;task.controller.abort();
+  /** @type {Promise<void>} */
+  const waited=new Promise((resolve)=>{
+   const timer=setTimeout(resolve,2000);timer.unref?.();
+   task.done.finally(()=>{clearTimeout(timer);resolve();});
+  });
+  return waited;
+ }
  return {cancelReviewDraft};
 }
 

@@ -15,6 +15,7 @@ test('o style.css tem os tokens que a página do celular usa, para cada acento',
   for (const token of ['bg', 'surface', 'fg', 'muted', 'border']) assert.ok(palette[token], `falta --${token}`);
   for (const accent of ACCENTS) assert.match(palette[`acc-${accent}`]?.light ?? '', /^#[0-9a-f]{6}$/i, `--acc-${accent}`);
   assert.equal(palette.border.dark, 'rgb(255 255 255/.10)');
+  for (const accent of ACCENTS) for (const part of ['corpo', 'claro', 'membro', 'sinal', 'tinta']) assert.match(palette[`trio-${accent}-${part}`]?.light ?? '', /^#[0-9a-f]{6}$/i, `--trio-${accent}-${part}`);
 });
 
 test('tema fixo da Mesa vale no celular, sem seguir o tema do aparelho', () => {
@@ -33,6 +34,13 @@ test('tema automático segue o aparelho, com os dois tons do acento', () => {
   assert.match(css, new RegExp(`--accent:${palette['acc-violet'].light}.*@media \\(prefers-color-scheme:dark\\).*--accent:${palette['acc-violet'].dark}`));
 });
 
+test('o trio do celular segue o acento escolhido (#100)', () => {
+  const css = phoneLookCss({theme: 'dark', accent: 'green', palette});
+  assert.match(css, new RegExp(`--trio-corpo:${palette['trio-green-corpo'].dark}`));
+  assert.match(css, new RegExp(`--trio-sinal:${palette['trio-green-sinal'].dark}`));
+  assert.match(phoneLookCss({theme: 'light', accent: 'pink', palette}), new RegExp(`--trio-claro:${palette['trio-pink-claro'].light}`));
+});
+
 test('grafite no escuro leva texto escuro sobre o botão; acento desconhecido vira azul', () => {
   assert.match(phoneLookCss({theme: 'dark', accent: 'graphite', palette}), /--on-accent:#181818/);
   assert.match(phoneLookCss({theme: 'light', accent: 'roxo-neon', palette}), new RegExp(`--accent:${palette['acc-blue'].light}`));
@@ -43,5 +51,5 @@ test('a página leva o :root da Mesa e o lugar das fotos enviadas', () => {
   const html = phonePageHtml({t, lang: 'pt-BR', nonce: 'n', maxMb: 15, lookCss: phoneLookCss({theme: 'dark', accent: 'orange', palette})});
   assert.match(html, /<style nonce="n">:root\{color-scheme:dark;/);
   assert.match(html, /<div id="sent"/);
-  assert.match(html, /URL\.createObjectURL\(file\)/, 'a prévia é feita no celular, sem buscar a foto no servidor');
+  assert.match(html, /URL\.createObjectURL\(item\.file\)/, 'a prévia é feita no celular, sem buscar a foto no servidor');
 });

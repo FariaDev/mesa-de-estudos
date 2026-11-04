@@ -105,7 +105,7 @@ law settings_nav_desconhecida_marca_materias:
   {S.navChildren("nada") == S.navChildren("materias") : List<&2, V.ViewNode>}
 
 law settings_dica_do_rodape:
-  {S.footerHint("materias") == M.msg("settings.hint.save") : String}
+  {S.footerHint("materias") == "" : String}
 
 law settings_dica_do_rodape_vale_para_as_seccoes_de_formulario:
   {S.footerHint("leitores") == S.footerHint("materias") : String}

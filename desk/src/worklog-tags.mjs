@@ -4,7 +4,7 @@
    resto (`worklog.mjs`). Este mapa é do consumidor `worklogview`. Mora fora do
    `worklog-view.mjs` para o teste poder importá-lo sem DOM. */
 export const VIEW_KIND_CORE={
- thinking:{$:'Thinking'},search:{$:'Search'},
+ thinking:{$:'Thinking'},search:{$:'Search'},material:{$:'Material'},
  reference:{$:'Reference'},fetch:{$:'Fetch'},
  tool:{$:'Tool'},error:{$:'ErrorKind'},
 };

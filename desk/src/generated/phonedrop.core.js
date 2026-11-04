@@ -10,6 +10,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $running(_f_0) {
   if (_f_0.$ === "PhoneOff") {
     return false;
@@ -63,9 +64,9 @@ function $onPhoto(_f_0) {
 }
 function $closeAs(_f_0, _expired_0) {
   if (_expired_0) {
-    return { $: "PhoneExpired", count: $received(_f_0) };
+    return { $: "PhoneExpired", count: $$received(_f_0) };
   } else {
-    return { $: "PhoneStopped", count: $received(_f_0) };
+    return { $: "PhoneStopped", count: $$received(_f_0) };
   }
 }
 function $onClose_when(_up_0, _f_0, _expired_0) {
@@ -76,7 +77,7 @@ function $onClose_when(_up_0, _f_0, _expired_0) {
   }
 }
 function $onClose(_f_0, _expired_0) {
-  return $onClose_when($running(_f_0), _f_0, _expired_0);
+  return $onClose_when($$running(_f_0), _f_0, _expired_0);
 }
 function $step(_f_0, _e_0) {
   if (_e_0.$ === "EvStart") {
@@ -145,8 +146,8 @@ function $acceptUnless(_full_0) {
   }
 }
 function $sessionFull(_photos_0, _total_0, _bytes_0) {
-  const _x_0 = $maxSessionPhotos();
-  const _x_1 = $maxSessionBytes();
+  const _x_0 = $$maxSessionPhotos();
+  const _x_1 = $$maxSessionBytes();
   const _x_2 = _x_1 - _total_0 >>> 0;
   const _x_3 = _photos_0 >= _x_0;
   const _x_4 = _bytes_0 > _x_2;
@@ -156,11 +157,11 @@ function $fitsFile_when(_big_0, _bytes_0, _photos_0, _total_0) {
   if (_big_0) {
     return { $: "PhotoTooLarge" };
   } else {
-    return $acceptUnless($sessionFull(_photos_0, _total_0, _bytes_0));
+    return $acceptUnless($$sessionFull(_photos_0, _total_0, _bytes_0));
   }
 }
 function $fitsFile(_bytes_0, _photos_0, _total_0) {
-  const _x_0 = $maxFileBytes();
+  const _x_0 = $$maxFileBytes();
   return $fitsFile_when(_bytes_0 > _x_0, _bytes_0, _photos_0, _total_0);
 }
 function $imageVerdict_when(_ok_0, _bytes_0, _photos_0, _total_0) {
@@ -171,7 +172,7 @@ function $imageVerdict_when(_ok_0, _bytes_0, _photos_0, _total_0) {
   }
 }
 function $imageVerdict(_k_0, _bytes_0, _photos_0, _total_0) {
-  return $imageVerdict_when($Bool_and($isImage(_k_0), $Bool_not(_bytes_0 === 0)), _bytes_0, _photos_0, _total_0);
+  return $imageVerdict_when($$Bool_and($$isImage(_k_0), $$Bool_not(_bytes_0 === 0)), _bytes_0, _photos_0, _total_0);
 }
 function $photo(_up_0, _k_0, _bytes_0, _photos_0, _total_0) {
   if (_up_0) {
@@ -207,6 +208,15 @@ function $Bool_not(_b_0) {
     return false;
   }
 }
+var $$received = $received;
+var $$running = $running;
+var $$maxSessionPhotos = $maxSessionPhotos;
+var $$maxSessionBytes = $maxSessionBytes;
+var $$sessionFull = $sessionFull;
+var $$maxFileBytes = $maxFileBytes;
+var $$isImage = $isImage;
+var $$Bool_not = $Bool_not;
+var $$Bool_and = $Bool_and;
 var phonedrop_default = {
   running: run_lib((a0) => run_loop($running(a0)), 1),
   received: run_lib((a0) => run_loop($received(a0)), 1),

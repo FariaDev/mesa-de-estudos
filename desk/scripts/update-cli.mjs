@@ -3,7 +3,10 @@
    detectada como no app — clone (`git pull --ff-only` na branch de
    DESENVOLVIMENTO), bundle (`install-source.json` → atualiza o clone e
    re-sincroniza) ou zip da tag (só a lista explícita de código; caminhos
-   protegidos nunca). `npm ci` só quando o package-lock.json mudou; no macOS
+   protegidos nunca). Em todos os modos, só aplica release assinada (#80): o
+   manifesto Ed25519 da Release é conferido com desk/update-signing-key.pub e
+   o commit da tag/hash do zip tem de bater. `npm ci` só quando o
+   package-lock.json mudou; no macOS
    re-roda o install-app (sync + codesign); no fim a Mesa reabre sozinha.
    Falhou = rollback e a versão anterior sobe de novo, com o motivo em
    .runtime/desk.log; rollback incompleto PRESERVA o backup (caminho no log).
@@ -103,7 +106,8 @@ async function main() {
   console.log(`Aplicando v${target} por pedido (--versao; instalado: v${pkg.version}).`);
  }
 
- const result = await updater.applyUpdate({mode, rootDir: root, deskDir: desk, runtime, announcedVersion: target, sourceInfo: source, reopen, cacheFile});
+ const publicKey = updater.readUpdatePublicKey(path.join(desk, 'update-signing-key.pub'));
+ const result = await updater.applyUpdate({mode, rootDir: root, deskDir: desk, runtime, announcedVersion: target, sourceInfo: source, reopen, cacheFile, publicKey});
  if (!result.ok) {
   console.error(`Atualização falhou (${result.reason}) — rollback aplicado; motivo em ${path.join(runtime, 'desk.log')}`);
   if (result.incomplete) console.error(`Atenção: recuperação incompleta — backup preservado em ${result.backup}`);

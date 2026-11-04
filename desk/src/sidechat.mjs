@@ -6,12 +6,12 @@ import {message as uiMessage} from './i18n.mjs';
 import {deskErrorIsFatal} from './claude-questions.mjs';
 import {h,sidechatMessageCard,paintSidechatBody,copySidechatMessage,sendSidechatMessageToMain} from './sidechat-message-view.mjs';
 import {createSidechatRequests} from './sidechat-requests.mjs';
-
+import {sideCardApi, renderSideCards, handleSideCardEvent} from './sidechat-cards.mjs';
+import {createSidechatScroll} from './sidechat-scroll.mjs';
 /* ---------------------------------------------------------------------------
    Chat lateral: uma conversa INDEPENDENTE da principal, no espaço da área de
    apoio (segundo leitor). Estado e DOM isolados: nada aqui usa `#messages`,
    `#prompt`, `#pi-dialog` nem a fila do composer principal.
-
    Quem conversa com o motor é o backend (`window.desk.sidechat*`); a UI:
    - abre/reabre a sessão lateral escopada à sessão principal;
    - recebe eventos normalizados por `onSidechatEvent` e ignora id obsoleto;
@@ -50,9 +50,9 @@ function api(){return bridgeOverride||window.desk;}
    terem mudado — usar o escopo vivo guardaria o rascunho antigo na chave nova.
    Estado/DOM isolados: nada aqui usa `#messages`, `#prompt`, `#pi-dialog` nem a
    fila do composer principal. */
-const state={id:'',engine:'',scope:null,messages:[],draft:'',busy:false,sending:false,sendGen:0,uncertain:false,stopping:false,context:null,requests:new Map(),visible:false,gen:0,opening:null,unavailable:false};
+const state={id:'',engine:'',scope:null,messages:[],cards:[],draft:'',busy:false,sending:false,sendGen:0,uncertain:false,stopping:false,context:null,requests:new Map(),visible:false,gen:0,opening:null,unavailable:false};
 let root=null,promptEl=null,msgsEl=null,activityEl=null,sendEl=null,stopEl=null,ctxPop=null,engineEl=null,morePop=null,scopeTextEl=null;
-let draftTimer=0,paintTimer=0,liveText='',liveEl=null;
+let draftTimer=0,paintTimer=0,liveText='',liveEl=null,sideScroll=null;
 /* Eventos do motor vistos durante o `await` do aceite: o aceite pode voltar
    antes (tardio) ou depois do terminal; o estado do turno sai do que o motor
    emitiu, nunca de um timer hipotético de 2,5s. */
@@ -62,7 +62,7 @@ let ackWatch=null;
 let saveChain=Promise.resolve();
 /* Perguntas/permissões do lateral no seu próprio canal (#43 fase 2: saíram
    para sidechat-requests.mjs); o cartão vive em `state.requests`. */
-const {showRequest,answerRequest,submitFreeAnswer}=createSidechatRequests({state,api:()=>api(),messagesEl:()=>msgsEl,scrollBottom:()=>scrollBottom()});
+const {showRequest,answerRequest,submitFreeAnswer}=createSidechatRequests({state,api:()=>api(),messagesEl:()=>msgsEl,scrollBottom:()=>sideScroll?.scrollBottom()});
 
 /* ---------- DOM ---------- */
 
@@ -89,6 +89,7 @@ export function mountSidechat(container){
   h('div',{id:'sidechat-composer'},
    h('div',{id:'sidechat-scope',class:'goes-along'},
     h('span',{id:'sidechat-scope-text',role:'status'}),
+    h('span',{id:'sidechat-scope-lock',class:'scope-lock',role:'img',tabindex:'0'}),
     h('button',{type:'button',id:'sidechat-refresh'})),
    h('div',{id:'sidechat-box',class:'composer-box'},
     h('textarea',{id:'sidechat-prompt',class:'composer-field',rows:'3'}),
@@ -112,6 +113,10 @@ export function mountSidechat(container){
  window.addEventListener(LANGUAGE_EVENT,repaintForLanguage);
 
  promptEl.addEventListener('input',onDraftInput);
+ promptEl.addEventListener('focus',()=>{
+  if(!state.id||state.uncertain)return;
+  api()?.sidechatWarm?.({id:state.id})?.catch(()=>{});
+ });
  promptEl.addEventListener('keydown',event=>{
   if(event.key!=='Enter'||event.isComposing)return;
   if(event.shiftKey)return;
@@ -134,6 +139,7 @@ export function mountSidechat(container){
  root.querySelector('#sidechat-refresh').addEventListener('click',()=>refreshContext());
  msgsEl.addEventListener('click',onMessagesClick);
  msgsEl.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.target?.classList?.contains('sidechat-request-input')){event.preventDefault();submitFreeAnswer(event.target.closest('.sidechat-request'));}});
+ sideScroll=createSidechatScroll(msgsEl);
  document.addEventListener('click',event=>{
   if(morePop&&!morePop.hidden&&!event.target?.closest?.('#sidechat-more, #sidechat-more-pop'))hideMorePop();
   if(!ctxPop||ctxPop.hidden)return;
@@ -226,6 +232,7 @@ function clearLocalDraft(scope){
 }
 function onDraftInput(){
  state.draft=promptEl?.value||'';
+ paintSend();
  mirrorDraft(state.draft,{scope:state.scope});
  clearTimeout(draftTimer);
  draftTimer=setTimeout(saveDraftNow,DRAFT_SAVE_MS);
@@ -338,7 +345,7 @@ async function newSidechat(){
  state.gen++;
  state.sendGen++;
  state.opening=null;
- state.id='';state.messages=[];state.requests.clear();state.busy=false;state.sending=false;state.stopping=false;state.uncertain=false;state.context=null;liveText='';liveEl=null;state.draft='';
+ state.id='';state.messages=[];state.cards=[];state.requests.clear();state.busy=false;state.sending=false;state.stopping=false;state.uncertain=false;state.context=null;liveText='';liveEl=null;state.draft='';
  if(promptEl)promptEl.value='';
  adopt(pendingPlaceholder(),{scope:scopeOf(),useLocal:false});
  await openSidechat({fresh:true});
@@ -350,9 +357,11 @@ function pendingPlaceholder(){
 function adopt(payload,{scope=null,useLocal=true}={}){
  payload=payload&&typeof payload==='object'?payload:{};
  state.scope=scope||state.scope||scopeOf();
+ sideScroll?.setFollowing(true);
  state.id=String(payload.id||'');
  state.engine=String(payload.engine||S.engine||'pi');
  state.messages=(Array.isArray(payload.messages)?payload.messages:[]).map(normalizeMessage).filter(message=>message&&String(message.text||'').trim());
+ state.cards=(Array.isArray(payload.cards)?payload.cards:[]).filter(card=>card&&typeof card.id==='string');
  state.busy=!!payload.busy;
  state.stopping=false;
  state.uncertain=!!payload.uncertain;
@@ -371,7 +380,7 @@ export function resetSidechat(){
  state.gen++;
  state.sendGen++;
  state.opening=null;
- state.id='';state.messages=[];state.requests.clear();state.busy=false;state.sending=false;state.stopping=false;state.uncertain=false;state.context=null;liveText='';liveEl=null;
+ state.id='';state.messages=[];state.cards=[];state.requests.clear();state.busy=false;state.sending=false;state.stopping=false;state.uncertain=false;state.context=null;liveText='';liveEl=null;
  state.draft='';
  state.scope=scopeOf();
  if(promptEl)promptEl.value='';
@@ -399,6 +408,7 @@ function removeLocalMessage(message){
 function restoreRefusedDraft(raw){
  if(promptEl&&promptEl.value==='')promptEl.value=raw;
  state.draft=promptEl?.value||'';
+ paintSend();
  mirrorDraft(state.draft,{scope:state.scope});
  saveDraftNow();
 }
@@ -415,11 +425,13 @@ async function sendMessage(){
    motor é suprimido pelo backend; a bolha local é a fonte. */
  const localUser={role:'user',text,id:''};
  state.messages.push(localUser);
+ sideScroll?.setFollowing(true);
  renderMessages();
  /* O campo esvazia no clique (comparação com o texto BRUTO: só espaços em
    volta também limpam); se o usuário digitar B durante o aceite, B fica. */
  if(promptEl&&promptEl.value===raw)promptEl.value='';
  state.draft=promptEl?.value||'';
+ paintSend();
  mirrorDraft(state.draft,{scope:state.scope});
  saveDraftNow(); /* A aceito não pode ressuscitar no hide/show/restart */
  const watch={terminal:false};
@@ -486,7 +498,7 @@ function contextRows(){
  const study=context.study||{};
  if(study.title||study.xopp)rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.study')}),document.createTextNode(` ${[study.title,study.xopp&&String(study.xopp).split(/[/\\]/).pop()].filter(Boolean).join(' · ')}.`)));
  if(context.at)rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.copiedAt')}),document.createTextNode(` ${formatWhen(context.at)}.`)));
- rows.push(h('p',{class:'fine',text:uiT('sidechat.ctx.note')}));
+ rows.push(h('button',{type:'button',class:'guide-link','data-open-guide':'lateral',text:uiT('guide.howItWorks')}));
  return rows;
 }
 
@@ -523,6 +535,7 @@ export async function refreshContext(){
   if(state.id!==id)return;
   if(payload&&typeof payload==='object')state.context=payload.context&&typeof payload.context==='object'?payload.context:payload;
   if(Array.isArray(payload?.messages)&&payload.messages.length&&!state.messages.length)state.messages=payload.messages.map(normalizeMessage).filter(message=>message&&String(message.text||'').trim());
+  if(Array.isArray(payload?.cards))state.cards=payload.cards.filter(card=>card&&typeof card.id==='string');
   paintContextPop();
   paintScope();
   const context=state.context||{};
@@ -575,6 +588,10 @@ function handleEvent(event){
   schedulePaint();
   return;
  }
+ if(type==='card'){
+  handleSideCardEvent(event,state,renderMessages);
+  return;
+ }
  if(type==='message_end'){
   const message=normalizeMessage(event.message);
   /* O backend suprime o eco `role:'user'` do motor (a bolha local já está na
@@ -617,7 +634,7 @@ function handleEvent(event){
  }
  if(type==='desk_warn'){console.warn('Chat lateral:',event.message);return;}
  if(type==='extension_ui_request'||type==='request'){
-  if(['select','confirm','input','editor','question','permission'].includes(String(event.method||'')))showRequest(event);
+  if(['select','confirm','input','editor','permission'].includes(String(event.method||'')))showRequest(event);
   else if(event.method==='notify'&&event.message)toast(String(event.message));
   return;
  }
@@ -658,8 +675,9 @@ function schedulePaint(){
  paintTimer=setTimeout(()=>{
   paintTimer=0;
   if(!liveEl||!liveEl.isConnected)return;
+  const follow=sideScroll?.isFollowing()??true;
   paintSidechatBody(liveEl.querySelector('.sidechat-body'),liveText,true);
-  scrollBottom();
+  sideScroll?.scrollBottom(follow);
  },80);
 }
 
@@ -732,11 +750,21 @@ function paintScope(){
  const list=labels.reduceRight((tail,head)=>({$:'Con',head,tail}),{$:'Nil'});
  const text=uiText(String(sidechatCore.scopeLine(list)));
  if(scopeTextEl.textContent!==text)scopeTextEl.textContent=text;
+ const lock=root.querySelector('#sidechat-scope-lock');
+ if(lock){
+  if(!lock.querySelector('.icon'))lock.innerHTML=icon('lock');
+  lock.setAttribute('aria-label',uiT('scope.outside'));
+  lock.title=uiT('scope.outside');
+ }
+}
+function paintSend(){
+ if(sendEl)sendEl.classList.toggle('primary',Boolean(String(state.draft||'').trim()));
 }
 function paintHeader(){
  paintScope();
  const busy=state.busy||state.stopping;
  if(stopEl)stopEl.hidden=!busy;
+ paintSend();
  if(sendEl)sendEl.disabled=state.unavailable||state.busy;
  if(activityEl)activityEl.textContent=state.busy?uiT(state.stopping?'sidechat.stopping':'sidechat.answering'):(state.uncertain?uiT('sidechat.uncertainShort'):'');
 }
@@ -745,17 +773,14 @@ function paintBusy(){
  if(state.busy)ensureLive();
 }
 function renderMessages(){
- if(!msgsEl)return;
- const frag=document.createDocumentFragment();
+ if(!msgsEl)return;const follow=sideScroll?.isFollowing()??true,frag=document.createDocumentFragment();
  for(const message of state.messages)frag.append(sidechatMessageCard(message,engineLabel()));
- if(!state.messages.length&&!state.uncertain)frag.append(h('p',{class:'sidechat-empty',text:uiT('sidechat.empty')}));
+ renderSideCards(frag,state,sideCardApi(state,api));
+ if(!state.messages.length&&!state.cards.length&&!state.uncertain)frag.append(h('p',{class:'sidechat-empty',text:uiT('sidechat.empty')}));
  if(state.uncertain)frag.append(h('p',{class:'sidechat-warn',text:uiT('sidechat.warn')}));
  msgsEl.replaceChildren(frag);
  for(const card of state.requests.values())if(!card.isConnected)msgsEl.append(card);
- scrollBottom();
-}
-function scrollBottom(){
- if(msgsEl)msgsEl.scrollTop=msgsEl.scrollHeight;
+ sideScroll?.scrollBottom(follow);
 }
 
 /* O contrato de eventos entra UMA vez por bridge; ids obsoletos são ignorados.

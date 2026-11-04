@@ -191,19 +191,10 @@ law calc_angulo_grupo_graus:
   ], [C.angleButton("rad", "RAD", "deg"), C.angleButton("deg", M.msg("calc.unit.deg"), "deg")])
     : V.ViewNode}
 
-law calc_angulo_dica_rad:
-  {C.angleHint("rad") == V.viewEl("span", [V.attrClass("calc-hint")], [V.viewText(M.msg("calc.hint.rad"))])
-    : V.ViewNode}
-
-law calc_angulo_dica_graus:
-  {C.angleHint("deg") == V.viewEl("span", [V.attrClass("calc-hint")], [V.viewText(M.msg("calc.hint.deg"))])
-    : V.ViewNode}
-
 law calc_angulo_linha:
-  {C.angleRow("deg") == V.viewEl("div", [V.attrClass("calc-angle")], [
+  {C.angleRow("deg") == V.viewEl("div", [V.attrClass("calc-angle"), V.attrTitle(M.msg("calc.hint.deg"))], [
     V.viewEl("span", [V.attrClass("calc-angle-label")], [V.viewText(M.msg("calc.angleLabel"))]),
-    C.angleGroup("deg"),
-    C.angleHint("deg")
+    C.angleGroup("deg")
   ]) : V.ViewNode}
 
 # ---------- formulário / resultado ----------
@@ -356,7 +347,7 @@ law calc_guia_no:
     V.viewEl("summary", Nil{}, [V.viewText(M.msg("calc.guideSummary"))]),
     C.guideLead(),
     C.guideGroups(),
-    C.guideTips()
+    C.guideLink()
   ]) : V.ViewNode}
 
 law calc_guia_lead:
@@ -389,53 +380,3 @@ law calc_guia_trig:
 
 law calc_guia_chips_trig:
   {List.length(&2, V.ViewNode, C.chips(C.trigNames())) == 9n : Nat}
-
-law calc_guia_dicas_classe:
-  {V.attrGet(V.attrsOf(C.guideTips()), "class") == Some{"calc-tips"} : Maybe<&2, String>}
-
-law calc_guia_dicas_tamanho:
-  {List.length(&2, V.ViewNode, V.kidsOf(C.guideTips())) == 5n : Nat}
-
-law calc_guia_dica1:
-  {C.guideTip1() == V.viewEl("li", Nil{}, [
-    V.viewText(M.msg("calc.tip1.a")),
-    C.codeNode("2*pi"),
-    V.viewText(M.msg("calc.tip1.b")),
-    C.codeNode("2pi"),
-    V.viewText(M.msg("calc.tip1.c")),
-    C.codeNode("2,5"),
-    V.viewText(".")
-  ]) : V.ViewNode}
-
-law calc_guia_dica2:
-  {C.guideTip2() == V.viewEl("li", Nil{}, [
-    C.codeNode("log"),
-    V.viewText(M.msg("calc.tip2.a")),
-    C.codeNode("ln"),
-    V.viewText(M.msg("calc.tip2.b"))
-  ]) : V.ViewNode}
-
-law calc_guia_dica3:
-  {C.guideTip3() == V.viewEl("li", Nil{}, [
-    V.viewText(M.msg("calc.tip3.a")),
-    C.codeNode("sin(pi/2)"),
-    V.viewText(M.msg("calc.tip3.b")),
-    C.codeNode("sin(90)"),
-    V.viewText(M.msg("calc.tip3.c")),
-    C.codeNode("asin(0.5)"),
-    V.viewText(M.msg("calc.tip3.d"))
-  ]) : V.ViewNode}
-
-law calc_guia_dica4:
-  {C.guideTip4() == V.viewEl("li", Nil{}, [
-    V.viewText(M.msg("calc.tip4.a")),
-    C.codeNode("cos(90)"),
-    V.viewText(M.msg("calc.tip4.b")),
-    C.codeNode("tan(90)"),
-    V.viewText(M.msg("calc.tip4.c"))
-  ]) : V.ViewNode}
-
-law calc_guia_dica5:
-  {C.guideTip5() == V.viewEl("li", Nil{}, [
-    V.viewText(M.msg("calc.tip5"))
-  ]) : V.ViewNode}

@@ -10,10 +10,13 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -34,6 +37,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -41,8 +45,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -61,7 +65,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $view_attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
@@ -132,7 +136,7 @@ function $view_attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $view_attrGet_choose(_av_0, $$view_attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $view_attrGet(_attrs_0, _name_0) {
@@ -183,7 +187,7 @@ function $view_boolStr(_on_0) {
   }
 }
 function $view_attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$view_boolStr(_on_0) };
 }
 function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -194,7 +198,7 @@ function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $view_classAppend(_acc_0, _name_0) {
-  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $view_classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -207,7 +211,7 @@ function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $view_classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $view_classValue_go($0, $1) {
@@ -223,7 +227,7 @@ function $view_classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$view_classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -233,7 +237,7 @@ function $view_classValue(_xs_0) {
   return $view_classValue_go(_xs_0, "");
 }
 function $view_classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$view_classValue(_xs_0) };
 }
 function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -267,24 +271,6 @@ function $view_viewMapTextI_go(_xs_0, _i_0) {
 function $view_viewMapTextI(_xs_0) {
   return $view_viewMapTextI_go(_xs_0, 0);
 }
-function $sheetTitle() {
-  return $msg_msg("sheet.title");
-}
-function $introText() {
-  return $msg_msg("sheet.intro");
-}
-function $dragText() {
-  return $msg_msg("sheet.drag");
-}
-function $openText() {
-  return $msg_msg("sheet.open");
-}
-function $folderText() {
-  return $msg_msg("sheet.folder");
-}
-function $tutorText() {
-  return $msg_msg("sheet.tutor");
-}
 function $openLabel() {
   return $msg_msg("sheet.openLabel");
 }
@@ -297,21 +283,8 @@ function $tutorLabel() {
 function $dropTitle() {
   return $msg_msg("sheet.dropTitle");
 }
-function $dropHelp() {
-  return $msg_msg("sheet.dropHelp");
-}
 function $sheetAria(_course_0) {
   return $msg_msg1("sheet.aria", "course", _course_0);
-}
-function $courseLine_pick(_blank_0, _course_0) {
-  if (_blank_0) {
-    return $msg_msg("sheet.courseBlank");
-  } else {
-    return $msg_msg1("sheet.course", "course", _course_0);
-  }
-}
-function $courseLine(_course_0) {
-  return $courseLine_pick($String_is_empty($String_trim(_course_0)), $String_trim(_course_0));
 }
 function $tutorSeed_pick(_blank_0, _course_0) {
   if (_blank_0) {
@@ -321,25 +294,37 @@ function $tutorSeed_pick(_blank_0, _course_0) {
   }
 }
 function $tutorSeed(_course_0) {
-  return $tutorSeed_pick($String_is_empty($String_trim(_course_0)), $String_trim(_course_0));
+  return $tutorSeed_pick($$String_is_empty($$String_trim(_course_0)), $$String_trim(_course_0));
 }
 function $link(_label_0, _handler_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("sheet-link"), tail: { $: "Con", head: $view_attrOn("click", _handler_0), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("sheet-link"), tail: { $: "Con", head: $$view_attrOn("click", _handler_0), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } });
 }
-function $plainItem(_text_0) {
-  return $view_viewEl("li", { $: "Con", head: $view_attrClass("sheet-item"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } });
+function $separator() {
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("sheet-sep"), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText("·"), tail: { $: "Nil" } });
 }
-function $linkItem(_text_0, _label_0, _handler_0) {
-  return $view_viewEl("li", { $: "Con", head: $view_attrClass("sheet-item"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Con", head: $view_viewText(" "), tail: { $: "Con", head: $link(_label_0, _handler_0), tail: { $: "Nil" } } } });
+function $spaced_go(_items_0) {
+  if (_items_0.$ === "Nil") {
+    return { $: "Nil" };
+  } else {
+    const _h_0 = _items_0["head"];
+    const _t_0 = _items_0["tail"];
+    if (_t_0.$ === "Nil") {
+      return { $: "Con", head: _h_0, tail: { $: "Nil" } };
+    } else {
+      const __0 = _t_0["head"];
+      const __1 = _t_0["tail"];
+      return { $: "Con", head: _h_0, tail: { $: "Con", head: $$separator(), tail: $$spaced_go({ $: "Con", head: __0, tail: __1 }) } };
+    }
+  }
 }
 function $items() {
-  return { $: "Con", head: $plainItem($dragText()), tail: { $: "Con", head: $linkItem($openText(), $openLabel(), "OpenFile"), tail: { $: "Con", head: $linkItem($folderText(), $folderLabel(), "RevealFolder"), tail: { $: "Con", head: $linkItem($tutorText(), $tutorLabel(), "AskTutor"), tail: { $: "Nil" } } } } };
+  return $spaced_go({ $: "Con", head: $$link($$openLabel(), "OpenFile"), tail: { $: "Con", head: $$link($$folderLabel(), "RevealFolder"), tail: { $: "Con", head: $$link($$tutorLabel(), "AskTutor"), tail: { $: "Nil" } } } });
 }
 function $dropZone() {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("sheet-drop"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("sheet-drop-icon"), tail: { $: "Con", head: $view_attrData("icon", "download"), tail: { $: "Con", head: $view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("strong", { $: "Nil" }, { $: "Con", head: $view_viewText($dropTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("small", { $: "Nil" }, { $: "Con", head: $view_viewText($dropHelp()), tail: { $: "Nil" } }), tail: { $: "Nil" } } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("sheet-drop"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("sheet-drop-icon"), tail: { $: "Con", head: $$view_attrData("icon", "download"), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Nil" }), tail: { $: "Con", head: $$view_viewEl("strong", { $: "Nil" }, { $: "Con", head: $$view_viewText($$dropTitle()), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
 }
 function $sheet(_course_0) {
-  return $view_viewEl("article", { $: "Con", head: $view_attrClass("reader-sheet"), tail: { $: "Con", head: $view_attrAria("label", $sheetAria(_course_0)), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewEl("h1", { $: "Con", head: $view_attrClass("sheet-title"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($sheetTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("sheet-course"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($courseLine(_course_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("sheet-intro"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($introText()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("ol", { $: "Con", head: $view_attrClass("sheet-items"), tail: { $: "Nil" } }, $items()), tail: { $: "Con", head: $dropZone(), tail: { $: "Nil" } } } } } });
+  return $view_viewEl("article", { $: "Con", head: $$view_attrClass("reader-sheet"), tail: { $: "Con", head: $$view_attrAria("label", $$sheetAria(_course_0)), tail: { $: "Nil" } } }, { $: "Con", head: $$dropZone(), tail: { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("sheet-links"), tail: { $: "Nil" } }, $$items()), tail: { $: "Nil" } } });
 }
 function $String_join(_xs_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -350,52 +335,11 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -403,7 +347,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -412,7 +356,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -428,7 +372,7 @@ function $view_viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
+    return { $: "Con", head: $$view_viewText(_h_0), tail: $$view_viewMap_0(_t_0) };
   }
 }
 function $view_viewMapI_go_0(_xs_0, _i_0) {
@@ -437,11 +381,11 @@ function $view_viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$view_asTextI(_i_0, _h_0), tail: $$view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $String_trim(_s_0) {
-  return $String_trim_end($String_trim_start(_s_0));
+  return $String_trim_end($$String_trim_start(_s_0));
 }
 function $String_join_go(_xs_0, _h_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -449,15 +393,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_eq(_c_0) {
   if (_c_0.$ === "EQ") {
@@ -470,7 +449,7 @@ function $String_order(_a_0, _b_0) {
   return $String_order_go(_a_0, _b_0, { $: "EQ" });
 }
 function $String_trim_end(_s_0) {
-  return $String_reverse($String_trim_start($String_reverse(_s_0)));
+  return $String_reverse($$String_trim_start($$String_reverse(_s_0)));
 }
 function $String_trim_start($0, $1, $2) {
   let $pc = 0;
@@ -485,7 +464,7 @@ function $String_trim_start($0, $1, $2) {
           const _t_0 = _s_0.slice(char_len(_s_0));
           $0 = _t_0;
           $1 = _h_0;
-          $2 = $Char_is_space(_h_0);
+          $2 = $$Char_is_space(_h_0);
           $pc = 1;
           continue;
         }
@@ -503,6 +482,11 @@ function $String_trim_start($0, $1, $2) {
         }
       }
     }
+}
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
 }
 function $String_order_go($0, $1, $2) {
   for (;; ) {
@@ -522,6 +506,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -531,13 +516,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -552,11 +536,9 @@ function $String_reverse(_s_0) {
 }
 function $Char_is_space(_c_0) {
   const _x_0 = char_code(_c_0);
-  const _x_1 = char_code(_c_0);
-  const _x_2 = char_code(_c_0);
-  const _x_3 = _x_0 === 32;
-  const _x_4 = $Bool_and(_x_1 >= 9, _x_2 <= 13);
-  return _x_3 || _x_4;
+  const _x_1 = _x_0 === 32;
+  const _x_2 = $$Bool_and(_x_0 >= 9, _x_0 <= 13);
+  return _x_1 || _x_2;
 }
 function $String_reverse_go($0, $1) {
   for (;; ) {
@@ -582,76 +564,106 @@ function $Bool_and(_a_0, _b_0) {
     return _b_0;
   }
 }
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$view_attrGet_go = $view_attrGet_go;
+var $$String_eq = $String_eq;
+var $$view_boolStr = $view_boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$view_classNext_on = $view_classNext_on;
+var $$view_classValue = $view_classValue;
+var $$String_trim = $String_trim;
+var $$view_attrType = $view_attrType;
+var $$view_attrClass = $view_attrClass;
+var $$view_attrOn = $view_attrOn;
+var $$view_viewText = $view_viewText;
+var $$view_attrAria = $view_attrAria;
+var $$separator = $separator;
+var $$spaced_go = $spaced_go;
+var $$openLabel = $openLabel;
+var $$link = $link;
+var $$folderLabel = $folderLabel;
+var $$tutorLabel = $tutorLabel;
+var $$view_attrData = $view_attrData;
+var $$view_viewEl = $view_viewEl;
+var $$dropTitle = $dropTitle;
+var $$sheetAria = $sheetAria;
+var $$dropZone = $dropZone;
+var $$items = $items;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
+var $$List_concat = $List_concat;
+var $$view_viewMap_0 = $view_viewMap_0;
+var $$view_asTextI = $view_asTextI;
+var $$view_viewMapI_go_0 = $view_viewMapI_go_0;
+var $$String_trim_start = $String_trim_start;
+var $$String_join_go = $String_join_go;
+var $$Char_is_eq = $Char_is_eq;
+var $$String_reverse = $String_reverse;
+var $$Char_is_space = $Char_is_space;
+var $$Bool_and = $Bool_and;
 var readersheet_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
-  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
-  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
-  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
-  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
-  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
-  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
-  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
-  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
-  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
-  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
-  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
-  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
-  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
-  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
-  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
-  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
-  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
-  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
-  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
-  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
-  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
-  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
-  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
-  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
-  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
-  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
-  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
-  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
-  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
-  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
-  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
-  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
-  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
-  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
-  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
-  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
-  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
-  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
-  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
-  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
-  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
-  sheetTitle: run_lib(() => str_out(run_loop($sheetTitle())), 0),
-  introText: run_lib(() => str_out(run_loop($introText())), 0),
-  dragText: run_lib(() => str_out(run_loop($dragText())), 0),
-  openText: run_lib(() => str_out(run_loop($openText())), 0),
-  folderText: run_lib(() => str_out(run_loop($folderText())), 0),
-  tutorText: run_lib(() => str_out(run_loop($tutorText())), 0),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "view:attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view:classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view:viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view:viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view:viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view:tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view:attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view:kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view:textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view:isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view:attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view:attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view:attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view:attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view:attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view:attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view:attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view:attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view:attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view:attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view:attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view:attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view:attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view:attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view:boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view:attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view:classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view:classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view:classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view:classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view:classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view:classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view:classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view:viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view:viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view:viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view:viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view:viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view:asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view:viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view:viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
   openLabel: run_lib(() => str_out(run_loop($openLabel())), 0),
   folderLabel: run_lib(() => str_out(run_loop($folderLabel())), 0),
   tutorLabel: run_lib(() => str_out(run_loop($tutorLabel())), 0),
   dropTitle: run_lib(() => str_out(run_loop($dropTitle())), 0),
-  dropHelp: run_lib(() => str_out(run_loop($dropHelp())), 0),
   sheetAria: run_lib((a0) => str_out(run_loop($sheetAria(str_in(a0)))), 1),
-  "courseLine.pick": run_lib((a0, a1) => str_out(run_loop($courseLine_pick(a0, str_in(a1)))), 2),
-  courseLine: run_lib((a0) => str_out(run_loop($courseLine(str_in(a0)))), 1),
   "tutorSeed.pick": run_lib((a0, a1) => str_out(run_loop($tutorSeed_pick(a0, str_in(a1)))), 2),
   tutorSeed: run_lib((a0) => str_out(run_loop($tutorSeed(str_in(a0)))), 1),
   link: run_lib((a0, a1) => run_loop($link(str_in(a0), str_in(a1))), 2),
-  plainItem: run_lib((a0) => run_loop($plainItem(str_in(a0))), 1),
-  linkItem: run_lib((a0, a1, a2) => run_loop($linkItem(str_in(a0), str_in(a1), str_in(a2))), 3),
+  separator: run_lib(() => run_loop($separator()), 0),
+  "spaced.go": run_lib((a0) => run_loop($spaced_go(a0)), 1),
   items: run_lib(() => run_loop($items()), 0),
   dropZone: run_lib(() => run_loop($dropZone()), 0),
   sheet: run_lib((a0) => run_loop($sheet(str_in(a0))), 1)

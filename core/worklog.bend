@@ -21,6 +21,7 @@ import Base
 type StepKind is Data:
   Thinking{}
   Search{}
+  Material{}
   Reference{}
   Fetch{}
   Tool{}
@@ -122,9 +123,10 @@ def anyContains.go(+n: String, needles: List<String>, found: Bool) -> Bool:
 def anyContains(+n: String, needles: List<String>) -> Bool:
   anyContains.go(n, needles, False{})
 
-# `reference` antes de `search`: "open_reference" também casaria com a busca,
-# então a ordem importa. (Cada etapa é um def próprio porque Bend não deixa
-# casar direto num valor computado.)
+# `reference` antes de `search`, e `material` antes de `search`: "buscar_material"
+# também casaria com "busca", mas é busca no material da matéria, não na web.
+# (Cada etapa é um def próprio porque Bend não deixa casar direto num valor
+# computado.)
 
 def toolKind.fetch.if(n: String, fetch: Bool) -> StepKind:
   match fetch:
@@ -146,12 +148,22 @@ def toolKind.search.if(n: String, search: Bool) -> StepKind:
 def toolKind.search(+n: String) -> StepKind:
   toolKind.search.if(n, anyContains(n, ["search", "busca"]))
 
+def toolKind.material.if(n: String, material: Bool) -> StepKind:
+  match material:
+    case True{}:
+      Material{}
+    case False{}:
+      toolKind.search(n)
+
+def toolKind.material(+n: String) -> StepKind:
+  toolKind.material.if(n, anyContains(n, ["material"]))
+
 def toolKind.ref(n: String, ref: Bool) -> StepKind:
   match ref:
     case True{}:
       Reference{}
     case False{}:
-      toolKind.search(n)
+      toolKind.material(n)
 
 def toolKind(name: String) -> StepKind:
   +n = toLower(name)

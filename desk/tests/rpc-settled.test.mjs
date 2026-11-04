@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {fakeCommand} from './fake-executable.mjs';
 const require=createRequire(import.meta.url);
 {
  const file=path.resolve(import.meta.dirname,'../rpc.cjs');
@@ -12,7 +13,7 @@ const require=createRequire(import.meta.url);
   fs.writeFileSync(pi,`#!/usr/bin/env node
 const emit=e=>process.stdout.write(JSON.stringify(e)+'\\n');let buffer='';process.stdin.setEncoding('utf8');process.stdin.on('data',data=>{buffer+=data;let i;while((i=buffer.indexOf('\\n'))>=0){const e=JSON.parse(buffer.slice(0,i));buffer=buffer.slice(i+1);if(e.events)for(const event of e.events)emit(event);emit({type:'response',id:e.id,success:true,data:['prompt','follow_up'].includes(e.type)?{disposition:['handled','queued'].includes(e.message)?e.message:'started'}:{isStreaming:false,isCompacting:!!e.compact,pendingMessageCount:0}});}});
 `);fs.chmodSync(pi,0o755);
-  const b=new PiBridge({cwd:root,session:path.join(root,'session'),pi});
+  const b=new PiBridge({cwd:root,session:path.join(root,'session'),pi:fakeCommand(pi)});
   try{
    await b.request('prompt',{message:'start'});assert.equal(b.isRunning(await b.request('get_state')),true,'accepted before first agent_start');
    await b.request('get_state',{events:[{type:'agent_start'},{type:'agent_end',willRetry:false}]});
@@ -27,6 +28,6 @@ const emit=e=>process.stdout.write(JSON.stringify(e)+'\\n');let buffer='';proces
    await b.request('follow_up',{message:'queued'});assert.equal(b.isRunning(),false,'queued alone does not start a run');
    assert.equal(b.isRunning({pendingMessageCount:1}),true,'queue still counts as busy');
    assert.equal(b.isRunning({pendingMessageCount:0}),false,'cleared queue cannot leave a sticky run');
-  }finally{b.removeAllListeners();b.stop();fs.rmSync(root,{recursive:true,force:true});}
+  }finally{b.removeAllListeners();await b.stop();fs.rmSync(root,{recursive:true,force:true,maxRetries:20,retryDelay:100});}
  });
 }

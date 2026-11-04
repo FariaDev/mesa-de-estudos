@@ -12,12 +12,18 @@ import assert from 'node:assert/strict';
 import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
-import {buildStudyCores} from './study-core-build.mjs';
+import {buildStudyCores, studyCoreSkipReason} from './study-core-build.mjs';
 import {ptText} from './pt-text.mjs';
 
-const built = buildStudyCores();
-process.env.MESA_STUDYSTATS_CORE = built.corePath('studystats');
-process.env.MESA_REVIEWSCHEDULE_CORE = built.corePath('reviewschedule');
+const skip = studyCoreSkipReason();
+const built = skip ? null : buildStudyCores();
+if (built) {
+  process.env.MESA_STUDYSTATS_CORE = built.corePath('studystats');
+  process.env.MESA_REVIEWSCHEDULE_CORE = built.corePath('reviewschedule');
+}
+/* Sem a toolchain do Bend o arquivo inteiro é pulado com o motivo, em vez de
+   reprovar o `npm test` de quem só usa o app. */
+const withToolchain = skip ? (name, fn) => test(name, {skip}, fn) : test;
 const require = createRequire(import.meta.url);
 const {createStudyServices} = require('../src/study-data/services.cjs');
 const statistics = require('../src/study-data/statistics.cjs');
@@ -48,7 +54,7 @@ const reviewItem = {
   ref: {name: 'Limites.pdf', page: 3, path: '/p/Limites.pdf'},
 };
 
-test('reviewToday migra o caderno antigo e reviewGrade agenda a próxima revisão', () => {
+withToolchain('reviewToday migra o caderno antigo e reviewGrade agenda a próxima revisão', () => {
   const pdf = join(tmpdir(), `mesa-services-${process.pid}-limites.pdf`);
   writeFileSync(pdf, '%PDF-1.4 sintético\n');
   try {
@@ -76,14 +82,14 @@ test('reviewToday migra o caderno antigo e reviewGrade agenda a próxima revisã
   }
 });
 
-test('reviewGrade recusa resultado e id desconhecidos', () => {
+withToolchain('reviewGrade recusa resultado e id desconhecidos', () => {
   withServices(({services}) => {
     assert.throws(() => services.reviewGrade({id: 'x', result: 'mais ou menos'}), (error) => /resultado de revisão desconhecido/.test(ptText(error.message)));
     assert.throws(() => services.reviewGrade({id: 'x', result: 'bom'}), (error) => /não encontrado/.test(ptText(error.message)));
   });
 });
 
-test('estatísticas: control + beat contam tempo ativo; invisível não soma', () => {
+withToolchain('estatísticas: control + beat contam tempo ativo; invisível não soma', () => {
   withServices(({runtime, services}) => {
     const at = Date.now();
     statistics.control(runtime, {action: 'start', at: at - 30000, courseId: 'A'});
@@ -102,7 +108,7 @@ test('estatísticas: control + beat contam tempo ativo; invisível não soma', (
 
 /* #70: o cronômetro nunca ligava sozinho; 112 perguntas e zero minuto, com
    "Pausado" na tela. O batimento com a janela à vista agora liga a sessão. */
-test('#70: o batimento visível liga o cronômetro sem o botão', () => {
+withToolchain('#70: o batimento visível liga o cronômetro sem o botão', () => {
   withServices(({runtime, services}) => {
     services.beat(false);
     assert.equal(statistics.readStore(runtime).meta.timer.running, false, 'janela escondida não liga nada');
@@ -113,7 +119,7 @@ test('#70: o batimento visível liga o cronômetro sem o botão', () => {
   });
 });
 
-test('#70: a pausa do aluno segura o cronômetro; continuar solta', () => {
+withToolchain('#70: a pausa do aluno segura o cronômetro; continuar solta', () => {
   withServices(({runtime, services}) => {
     services.beat(true);
     services.statsControl({action: 'pause'});
@@ -127,7 +133,7 @@ test('#70: a pausa do aluno segura o cronômetro; continuar solta', () => {
   });
 });
 
-test('#70: trocar de matéria fecha a sessão anterior e abre a da nova', () => {
+withToolchain('#70: trocar de matéria fecha a sessão anterior e abre a da nova', () => {
   const runtime = mkdtempSync(join(tmpdir(), 'mesa-study-services-'));
   let courseId = 'A';
   try {
@@ -153,7 +159,7 @@ test('#70: trocar de matéria fecha a sessão anterior e abre a da nova', () => 
   }
 });
 
-test('estatísticas: lifecycle, pergunta aceita, uso e reset consciente', () => {
+withToolchain('estatísticas: lifecycle, pergunta aceita, uso e reset consciente', () => {
   withServices(({runtime, services}) => {
     services.lifecycle('freeze');
     assert.equal(statistics.readStore(runtime).meta.frozen, true);
@@ -174,7 +180,7 @@ test('estatísticas: lifecycle, pergunta aceita, uso e reset consciente', () => 
   });
 });
 
-test('statsControl usa o escopo do host, não o payload', () => {
+withToolchain('statsControl usa o escopo do host, não o payload', () => {
   withServices(({runtime, services}) => {
     const timer = services.statsControl({action: 'start', courseId: 'OUTRA'});
     assert.equal(timer.courseId, 'A', 'o adapter fixa a matéria ativa');
@@ -182,7 +188,7 @@ test('statsControl usa o escopo do host, não o payload', () => {
   });
 });
 
-test('statsSummary só aceita courseId que existe na lista do host', () => {
+withToolchain('statsSummary só aceita courseId que existe na lista do host', () => {
   withServices(({runtime, services}) => {
     services.accepted({id: 'p1', engine: 'pi'});
     statistics.recordPrompt(runtime, {id: 'p2', accepted: true, courseId: 'B'});

@@ -7,51 +7,17 @@ import view.bend as V
 #
 # O host resolve Markdown/KaTeX em `V.ViewNode`s opacos (na prática, a extensão
 # `{ $: "Html" }` do aplicador), entrega fatos Bool e aplica a árvore. Este
-# módulo decide o DOM das bolhas e dos cards de quiz; não lê seleção, relógio,
-# scroll, clipboard nem IPC.
+# módulo decide o DOM das bolhas; não lê seleção, relógio, scroll, clipboard
+# nem IPC. Os cartões de quiz/pergunta vivem no aplicador (#92).
 #
 # Contrato principal:
 #   article.message.user|assistant[data-role]
-#     .role + .body + button.msg-copy / button.msg-quote
-#   article.message.assistant.quiz[data-tool]
-#     .role + .quiz-card (.quiz-question, .quiz-details, .quiz-options,
-#     .quiz-actions, .quiz-verdict, .quiz-note, .quiz-explain)
+#     .role + .body + .message-actions (button.msg-copy / button.msg-quote /
+#     button.msg-review, só ícone com nome acessível)
 # HTML sanitizado continua sendo criado pelo host e só atravessa a árvore como
 # filho opaco. Imagens enviadas são `img.shot`; o host acrescenta o overlay de
 # cópia depois de aplicar a árvore.
 # ---------------------------------------------------------------------------
-
-type QuizOptionRow is Data:
-  QuizOptionRow{
-    label: String,
-    index: String,
-    markup: V.ViewNode,
-    checked: Bool,
-    disabled: Bool,
-    correct: Bool,
-    wrong: Bool,
-    dim: Bool,
-    mark: String
-  }
-
-type QuizRow is Data:
-  QuizRow{
-    toolId: String,
-    multi: Bool,
-    question: V.ViewNode,
-    hasDetails: Bool,
-    details: V.ViewNode,
-    options: +List<QuizOptionRow>,
-    showSend: Bool,
-    sendDisabled: Bool,
-    showSkip: Bool,
-    hasVerdict: Bool,
-    verdict: String,
-    hasNote: Bool,
-    note: V.ViewNode,
-    hasExplain: Bool,
-    explain: V.ViewNode
-  }
 
 def off(on: Bool) -> Bool:
   match on:
@@ -105,19 +71,24 @@ def shotNodes(xs: List<&2, String>) -> List<&2, V.ViewNode>:
 def messageBody(markup: V.ViewNode, images: List<&2, String>) -> V.ViewNode:
   V.viewEl("div", [V.attrClass("body")], Con{markup, shotNodes(images)})
 
-def messageAction(className: String, label: String, handler: String) -> V.ViewNode:
+# As ações da mensagem são só ícones (#90): o nome acessível e o tooltip
+# carregam o rótulo que antes era texto. O glifo é `data-icon` para o host.
+def messageAction(className: String, +label: String, handler: String, icon: String) -> V.ViewNode:
   V.viewEl(
     "button",
-    [V.attrType("button"), V.attrClass(className), V.attrOn("click", handler)],
-    [V.viewText(label)]
+    [ V.attrType("button"), V.attrClass(className)
+    , V.attrAria("label", label), V.attrTitle(label)
+    , V.attrData("icon", icon), V.attrOn("click", handler)
+    ],
+    Nil{}
   )
 
-def messageActions(canCopy: Bool, canQuote: Bool, canReview: Bool) -> List<&2, V.ViewNode>:
-  V.viewJoin([
-    V.viewWhen(canCopy, messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage")),
-    V.viewWhen(canQuote, messageAction("msg-quote", M.msg("talk.quote"), "QuoteMessage")),
-    V.viewWhen(canReview, messageAction("msg-review", M.msg("talk.review"), "SaveForReview"))
-  ])
+def messageActions(canCopy: Bool, canQuote: Bool, canReview: Bool) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("message-actions")], V.viewJoin([
+    V.viewWhen(canCopy, messageAction("msg-copy", M.msg("talk.copy"), "CopyMessage", "copy")),
+    V.viewWhen(canQuote, messageAction("msg-quote", M.msg("talk.quote"), "QuoteMessage", "textQuote")),
+    V.viewWhen(canReview, messageAction("msg-review", M.msg("talk.review"), "SaveForReview", "bookmark"))
+  ]))
 
 def messageKids(
   +user: Bool,
@@ -127,10 +98,7 @@ def messageKids(
   canQuote: Bool,
   canReview: Bool
 ) -> List<&2, V.ViewNode>:
-  V.viewConcat(
-    [roleNode(roleLabel(user)), messageBody(markup, images)],
-    messageActions(canCopy, canQuote, canReview)
-  )
+  [roleNode(roleLabel(user)), messageBody(markup, images), messageActions(canCopy, canQuote, canReview)]
 
 def message(
   +user: Bool,
@@ -199,208 +167,23 @@ def codeCopy() -> V.ViewNode:
     [V.viewText(M.msg("talk.copyShort"))]
   )
 
-# O rótulo da linguagem chega já em caixa alta (fato do host); vazio, some.
-def codeBlock.kids(+lang: String, pre: V.ViewNode) -> List<&2, V.ViewNode>:
+# O rótulo da linguagem chega já em caixa alta (fato do host); vazio, some. A
+# faixa de cabeçalho leva a linguagem à esquerda e o copiar à direita; o código
+# começa abaixo dela, sem etiqueta sobreposta (ticket de polimento visual).
+def codeHead.kids(+lang: String) -> List<&2, V.ViewNode>:
   V.viewConcat(
     V.viewWhen(
       Bool.not(String.is_empty(lang)),
       V.viewEl("span", [V.attrClass("code-lang")], [V.viewText(lang)])
     ),
-    [codeCopy(), pre]
+    [codeCopy()]
   )
+
+def codeHead(+lang: String) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("code-head")], codeHead.kids(lang))
+
+def codeBlock.kids(+lang: String, pre: V.ViewNode) -> List<&2, V.ViewNode>:
+  [codeHead(lang), pre]
 
 def codeBlock(pre: V.ViewNode, lang: String) -> V.ViewNode:
   V.viewEl("div", [V.attrClass("codeblock")], codeBlock.kids(lang, pre))
-
-# ---------- quiz ----------
-
-def quizRole(multi: Bool) -> String:
-  match multi:
-    case True{}:
-      M.msg("talk.quizMulti")
-    case False{}:
-      M.msg("talk.quiz")
-
-def quizAria(multi: Bool) -> String:
-  match multi:
-    case True{}:
-      M.msg("talk.quizMultiAria")
-    case False{}:
-      M.msg("talk.quizAria")
-
-def optionRole(multi: Bool) -> String:
-  match multi:
-    case True{}:
-      "checkbox"
-    case False{}:
-      "radio"
-
-def optionsRole(multi: Bool) -> String:
-  match multi:
-    case True{}:
-      "group"
-    case False{}:
-      "radiogroup"
-
-def optionClasses(correct: Bool, wrong: Bool, dim: Bool) -> List<&2, V.ViewClass>:
-  [ V.classOn("quiz-option", True{})
-  , V.classOn("correct", correct)
-  , V.classOn("wrong", wrong)
-  , V.classOn("dim", dim)
-  ]
-
-def optionAttrs(
-  label: String,
-  +index: String,
-  multi: Bool,
-  checked: Bool,
-  disabled: Bool,
-  correct: Bool,
-  wrong: Bool,
-  dim: Bool
-) -> List<&2, V.ViewAttr>:
-  V.attrJoin([
-    [ V.attrType("button")
-    , V.classes(optionClasses(correct, wrong, dim))
-    , V.attrKey(String.join(["quiz-option-", index], ""))
-    , V.attrData("label", label)
-    , V.attrData("index", index)
-    , V.attr("role", optionRole(multi))
-    , V.attrAria("checked", V.boolStr(checked))
-    ],
-    V.attrWhen(disabled, V.attr("disabled", "")),
-    [V.attrOn("click", "SelectQuizOption")]
-  ])
-
-def markKids(+mark: String) -> List<&2, V.ViewNode>:
-  V.viewWhen(
-    Bool.not(String.is_empty(mark)),
-    V.viewEl("span", [V.attrClass("quiz-mark")], [V.viewText(mark)])
-  )
-
-def quizOption.go(
-  label: String,
-  +index: String,
-  markup: V.ViewNode,
-  checked: Bool,
-  disabled: Bool,
-  correct: Bool,
-  wrong: Bool,
-  dim: Bool,
-  +mark: String,
-  multi: Bool
-) -> V.ViewNode:
-  V.viewEl(
-    "button",
-    optionAttrs(label, index, multi, checked, disabled, correct, wrong, dim),
-    V.viewConcat(
-      [V.viewEl("span", Nil{}, [V.viewText(String.join([index, ". "], "")), markup])],
-      markKids(mark)
-    )
-  )
-
-def quizOption(row: QuizOptionRow, multi: Bool) -> V.ViewNode:
-  match row:
-    case QuizOptionRow{label, index, markup, checked, disabled, correct, wrong, dim, mark}:
-      quizOption.go(label, index, markup, checked, disabled, correct, wrong, dim, mark, multi)
-
-def quizOptions(xs: List<&2, QuizOptionRow>, +multi: Bool) -> List<&2, V.ViewNode>:
-  match xs:
-    case Nil{}:
-      Nil{}
-    case Con{h, t}:
-      Con{quizOption(h, multi), quizOptions(t, multi)}
-
-def quizQuestion(markup: V.ViewNode) -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("quiz-question")], [markup])
-
-def quizDetails(has: Bool, markup: V.ViewNode) -> List<&2, V.ViewNode>:
-  V.viewWhen(has, V.viewEl("div", [V.attrClass("quiz-details")], [markup]))
-
-def quizOptionsBox(+multi: Bool, options: List<&2, QuizOptionRow>) -> V.ViewNode:
-  V.viewEl(
-    "div",
-    [V.attrClass("quiz-options"), V.attr("role", optionsRole(multi)), V.attrAria("label", M.msg("talk.quizOptionsAria"))],
-    quizOptions(options, multi)
-  )
-
-def sendButton(disabled: Bool) -> V.ViewNode:
-  V.viewEl(
-    "button",
-    V.attrConcat(
-      [ V.attrType("button")
-      , V.attrClass("quiz-send primary")
-      , V.attrKey("quiz-send")
-      , V.attrOn("click", "SendQuiz")
-      ],
-      V.attrWhen(disabled, V.attr("disabled", ""))
-    ),
-    [V.viewText(M.msg("talk.quizSend"))]
-  )
-
-def skipButton() -> V.ViewNode:
-  V.viewEl(
-    "button",
-    [V.attrType("button"), V.attrClass("quiz-skip"), V.attrOn("click", "SkipQuiz")],
-    [V.viewText(M.msg("talk.quizSkip"))]
-  )
-
-def quizActions(+showSend: Bool, sendDisabled: Bool, +showSkip: Bool) -> List<&2, V.ViewNode>:
-  +kids = V.viewConcat(V.viewWhen(showSend, sendButton(sendDisabled)), V.viewWhen(showSkip, skipButton()))
-  V.viewWhenAll(
-    Bool.or(showSend, showSkip),
-    [V.viewEl("div", [V.attrClass("quiz-actions")], kids)]
-  )
-
-def quizTail(
-  hasVerdict: Bool,
-  verdict: String,
-  hasNote: Bool,
-  note: V.ViewNode,
-  hasExplain: Bool,
-  explain: V.ViewNode
-) -> List<&2, V.ViewNode>:
-  V.viewJoin([
-    V.viewWhen(hasVerdict, V.viewEl("div", [V.attrClass("quiz-verdict")], [V.viewText(verdict)])),
-    V.viewWhen(hasNote, V.viewEl("div", [V.attrClass("quiz-note")], [V.viewText(M.msg("talk.quizNotePrefix")), note])),
-    V.viewWhen(hasExplain, V.viewEl("div", [V.attrClass("quiz-explain")], [explain]))
-  ])
-
-def quizCard.go(
-  +toolId: String,
-  +multi: Bool,
-  question: V.ViewNode,
-  hasDetails: Bool,
-  details: V.ViewNode,
-  options: List<&2, QuizOptionRow>,
-  showSend: Bool,
-  sendDisabled: Bool,
-  showSkip: Bool,
-  hasVerdict: Bool,
-  verdict: String,
-  hasNote: Bool,
-  note: V.ViewNode,
-  hasExplain: Bool,
-  explain: V.ViewNode
-) -> V.ViewNode:
-  +boxKids = V.viewJoin([
-    [quizQuestion(question)],
-    quizDetails(hasDetails, details),
-    [quizOptionsBox(multi, options)],
-    quizActions(showSend, sendDisabled, showSkip),
-    quizTail(hasVerdict, verdict, hasNote, note, hasExplain, explain)
-  ])
-  V.viewEl(
-    "article",
-    [ V.attrClass("message assistant quiz")
-    , V.attrData("role", "assistant")
-    , V.attrData("tool", toolId)
-    , V.attrAria("label", quizAria(multi))
-    ],
-    [roleNode(quizRole(multi)), V.viewEl("div", [V.attrClass("quiz-card")], boxKids)]
-  )
-
-def quizCard(row: QuizRow) -> V.ViewNode:
-  match row:
-    case QuizRow{toolId, multi, question, hasDetails, details, options, showSend, sendDisabled, showSkip, hasVerdict, verdict, hasNote, note, hasExplain, explain}:
-      quizCard.go(toolId, multi, question, hasDetails, details, options, showSend, sendDisabled, showSkip, hasVerdict, verdict, hasNote, note, hasExplain, explain)

@@ -67,6 +67,40 @@ test('item sem texto e sem anexo não entra na fila', () => {
   });
 });
 
+test('item só com PDF entra na fila e a bandeja guarda o caminho, sem o arquivo', () => {
+  withRuntime((runtime) => {
+    const session = join(runtime, SESSION);
+    const pdf = {name: 'Aula.pdf', path: '/c/Aula.pdf', pages: 12};
+    const queued = pending.saveQueue(runtime, session, [
+      {text: '   ', images: [], pdfs: [pdf]},
+      {text: '', images: [], pdfs: [{path: 'relativo.pdf', pages: 3}]},
+    ], false);
+    assert.equal(queued.items.length, 1, 'PDF absoluto conta como anexo; caminho relativo não');
+    assert.equal(queued.items[0].text.trim(), '', 'texto em branco continua em branco');
+    assert.deepEqual(queued.items[0].pdfs, [pdf]);
+    const tray = pending.saveTray(runtime, session, [], [pdf, {path: 'nota.txt', pages: 1}]);
+    assert.deepEqual(tray.pdfs, [pdf]);
+    assert.equal(tray.items.length, 1, 'gravar a bandeja não apaga o item que só tem PDF');
+    const stored = readFileSync(fileOf(runtime), 'utf8');
+    assert.equal(stored.includes('%PDF'), false, 'o arquivo do PDF não entra no pending');
+    assert.equal(pending.readPending(runtime, session).pdfs[0].pages, 12);
+  });
+});
+
+test('item só com PDF em UNC ou caminho longo do Windows entra na fila', () => {
+  withRuntime((runtime) => {
+    const session = join(runtime, SESSION);
+    const unc = {name: 'Aula.pdf', path: '\\\\servidor\\Compartilhado\\Aula.pdf', pages: 2};
+    const long = {name: 'Longa.pdf', path: '\\\\?\\C:\\Curso\\Longa.pdf', pages: 3};
+    const queued = pending.saveQueue(runtime, session, [{text: '', images: [], pdfs: [unc, long]}], false);
+    assert.equal(queued.items.length, 1, 'o PDF fora de C: conta como anexo');
+    assert.deepEqual(queued.items[0].pdfs, [unc, long]);
+    assert.deepEqual(pending.readPending(runtime, session).items[0].pdfs, [unc, long], 'o caminho volta do disco');
+    const tray = pending.saveTray(runtime, session, [], [unc, long]);
+    assert.deepEqual(tray.pdfs, [unc, long]);
+  });
+});
+
 test('o save da bandeja não apaga a fila nem a guarda dela', () => {
   withRuntime((runtime) => {
     const session = join(runtime, SESSION);
@@ -99,7 +133,7 @@ test('fila lida por outra execução não é "live" (o renderer a marca recupera
 test('leitura tolerante: arquivo torto, gigante, lista no lugar do objeto e chave estranha', () => {
   withRuntime((runtime) => {
     const session = join(runtime, SESSION);
-    assert.deepEqual(pending.readPending(runtime, session), {items: [], attachments: [], held: false, live: false}, 'sem arquivo não há nada guardado');
+    assert.deepEqual(pending.readPending(runtime, session), {items: [], attachments: [], pdfs: [], held: false, live: false}, 'sem arquivo não há nada guardado');
 
     mkdirSync(runtime, {recursive: true});
     writeFileSync(fileOf(runtime), '{isso não é json');

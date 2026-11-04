@@ -17,6 +17,7 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {testEnv} from './electron-env.mjs';
+import {parseMessage} from '../src/i18n.mjs';
 
 const require = createRequire(import.meta.url);
 const electronPath = require('electron');
@@ -85,7 +86,9 @@ test('payload inválido é recusado sem abrir janela (Node puro)', async () => {
   const materialPdf = require('../material-pdf.cjs');
   await assert.rejects(materialPdf.renderPdf({markdown: 42}), (error) => error.code === 'BAD_PAYLOAD');
   await assert.rejects(materialPdf.renderPdf({markdown: '   '}), (error) => error.code === 'BAD_PAYLOAD');
-  await assert.rejects(materialPdf.renderPdf({markdown: 'x'.repeat(materialPdf.MAX_MARKDOWN_CHARS + 1)}), (error) => error.code === 'TOO_BIG');
+  const tooBig = await materialPdf.renderPdf({markdown: 'x'.repeat(materialPdf.MAX_MARKDOWN_CHARS + 1)}).catch((error) => error);
+  assert.equal(tooBig.code, 'TOO_BIG');
+  assert.deepEqual(parseMessage(tooBig.message), {key: 'err.pdf.tooBig', args: {received: String(materialPdf.MAX_MARKDOWN_CHARS + 1), max: String(materialPdf.MAX_MARKDOWN_CHARS)}});
   await assert.rejects(materialPdf.savePdf({dir: path.join(os.tmpdir(), 'mesa-nao-existe-xyz'), stem: 'x', markdown: '# x'}), (error) => error.code === 'BAD_DIR');
 });
 
@@ -144,7 +147,10 @@ test('cancelar a geração não grava arquivo nem material', {skip, timeout: SCE
   assert.equal(data.materials, 0);
 });
 
-test('gravação que falha não deixa falso sucesso', {skip, timeout: SCENARIO_TIMEOUT}, (t) => {
+/* O cenário falha a escrita com `chmod 0555`; no Windows isso não bloqueia, e
+   o PDF é gravado com sucesso. O comportamento atômico em si continua coberto
+   pelo teste de `free-workspaces`. */
+test('gravação que falha não deixa falso sucesso', {skip: skip || (process.platform === 'win32' && 'chmod não bloqueia escrita no Windows'), timeout: SCENARIO_TIMEOUT}, (t) => {
   const result = scenario('writefail');
   t.after(() => fs.rmSync(result.runtime, {recursive: true, force: true}));
   const data = expectData(result, 'writefail');

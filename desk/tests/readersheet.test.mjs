@@ -41,22 +41,21 @@ globalThis.document = {
 const attr = (node, name) => node.attrs.get(name);
 const textOf = (node) => ptText(node.text) + node.children.map(textOf).join('');
 
-test('a folha tem título, matéria, abertura, quatro itens e o quadro de soltar', () => {
+test('a folha é a zona de soltar com três atalhos pequenos embaixo', () => {
   const root = build(sheet.sheet('Cálculo I'), {});
   assert.equal(root.tag, 'article');
   assert.equal(attr(root, 'class'), 'reader-sheet');
-  assert.equal(attr(root, 'aria-label'), 'Lista 0 de Cálculo I');
-  assert.deepEqual(root.children.map((kid) => attr(kid, 'class')), [
-    'sheet-title', 'sheet-course', 'sheet-intro', 'sheet-items', 'sheet-drop',
-  ]);
-  assert.equal(textOf(root.children[0]), 'Lista 0');
-  assert.equal(textOf(root.children[1]), 'Cálculo I · pôr algo na mesa');
-  assert.equal(root.children[3].children.length, 4);
+  assert.equal(attr(root, 'aria-label'), 'Leitor de Cálculo I');
+  assert.deepEqual(root.children.map((kid) => attr(kid, 'class')), ['sheet-drop', 'sheet-links']);
+  assert.equal(textOf(root.children[0]), 'Solte um PDF aqui');
+  assert.equal(root.children[1].children.length, 5);
+  assert.deepEqual(root.children[1].children.map((kid) => attr(kid, 'class')), ['sheet-link', 'sheet-sep', 'sheet-link', 'sheet-sep', 'sheet-link']);
 });
 
-test('matéria sem nome não vira "undefined": só o convite', () => {
+test('matéria sem nome não vira "undefined": a folha só não tem nome no aria', () => {
   const root = build(sheet.sheet('   '), {});
-  assert.equal(textOf(root.children[1]), 'Pôr algo na mesa');
+  assert.equal(attr(root, 'aria-label'), 'Leitor de    ');
+  assert.equal(textOf(root.children[0]), 'Solte um PDF aqui');
 });
 
 test('os três atalhos chamam os handlers da tabela do leitor', () => {
@@ -67,8 +66,11 @@ test('os três atalhos chamam os handlers da tabela do leitor', () => {
     AskTutor: () => calls.push('AskTutor'),
   };
   const root = build(sheet.sheet('Cálculo I'), handlers);
-  const buttons = root.children[3].children.flatMap((li) => li.children.filter((kid) => kid.tag === 'button'));
-  assert.deepEqual(buttons.map(textOf), ['Abrir PDF…', 'Mostrar a pasta', 'Pedir ao tutor']);
+  const buttons = root.children[1].children.filter((kid) => kid.tag === 'button');
+  const separators = root.children[1].children.filter((kid) => attr(kid, 'class') === 'sheet-sep');
+  assert.deepEqual(separators.map(textOf), ['·', '·']);
+  assert.ok(separators.every((kid) => attr(kid, 'aria-hidden') === 'true'));
+  assert.deepEqual(buttons.map(textOf), ['Abrir', 'Pasta', 'Pedir ao tutor']);
   for (const button of buttons) button.listeners.get('click')();
   assert.deepEqual(calls, ['OpenFile', 'RevealFolder', 'AskTutor']);
 });
@@ -85,6 +87,8 @@ test('o miolo do leitor: folha no estado PdfSheet, nada mudou nos outros', () =>
   const placeholder = pdfPage.viewport({$: 'PdfEmpty'}, {$: 'Nil'});
   assert.equal(attr(build(placeholder.value, {}), 'class'), 'pdf-placeholder');
   assert.deepEqual(pdfPage.viewport({$: 'PdfLoading'}, {$: 'Nil'}), {$: 'None'});
+  const failed = pdfPage.viewport({$: 'PdfFailed', reason: 'arquivo removido'}, {$: 'Nil'});
+  assert.equal(attr(build(failed.value, {}), 'class'), 'pdf-failed');
 });
 
 test('a sobreposição do arrasto diz o rótulo do leitor', () => {

@@ -10,10 +10,13 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -34,6 +37,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $view_attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
 }
@@ -103,7 +107,7 @@ function $view_attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $view_attrGet_choose(_av_0, $$view_attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $view_attrGet(_attrs_0, _name_0) {
@@ -154,7 +158,7 @@ function $view_boolStr(_on_0) {
   }
 }
 function $view_attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$view_boolStr(_on_0) };
 }
 function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -165,7 +169,7 @@ function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $view_classAppend(_acc_0, _name_0) {
-  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $view_classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -178,7 +182,7 @@ function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $view_classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $view_classValue_go($0, $1) {
@@ -194,7 +198,7 @@ function $view_classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$view_classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -204,7 +208,7 @@ function $view_classValue(_xs_0) {
   return $view_classValue_go(_xs_0, "");
 }
 function $view_classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$view_classValue(_xs_0) };
 }
 function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -251,26 +255,26 @@ function $refsPressed_if(_refsToggle_0, _includeRefs_0) {
 function $includeRefsButton(_f_0) {
   const _refsToggle_0 = _f_0["refsToggle"];
   const _includeRefs_0 = _f_0["includeRefs"];
-  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("include-refs"), tail: { $: "Con", head: $view_attrAria("pressed", $view_boolStr($refsPressed_if(_refsToggle_0, _includeRefs_0))), tail: { $: "Nil" } } }, tail: { $: "Con", head: $hiddenAttrs($Bool_not(_refsToggle_0)), tail: { $: "Nil" } } }), { $: "Nil" });
+  return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("include-refs"), tail: { $: "Con", head: $$view_attrAria("pressed", $$view_boolStr($$refsPressed_if(_refsToggle_0, _includeRefs_0))), tail: { $: "Nil" } } }, tail: { $: "Con", head: $$hiddenAttrs($$Bool_not(_refsToggle_0)), tail: { $: "Nil" } } }), { $: "Nil" });
 }
 function $studyContextRow(_f_0) {
   const _studyContext_0 = _f_0["studyContext"];
-  return $view_viewEl("div", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("study-context"), tail: { $: "Nil" } }, tail: { $: "Con", head: $hiddenAttrs($Bool_not(_studyContext_0)), tail: { $: "Nil" } } }), { $: "Nil" });
+  return $view_viewEl("div", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("study-context"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$hiddenAttrs($$Bool_not(_studyContext_0)), tail: { $: "Nil" } } }), { $: "Nil" });
 }
 function $contextEditButton(_f_0) {
   const _studyContext_0 = _f_0["studyContext"];
-  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("context-edit"), tail: { $: "Nil" } }, tail: { $: "Con", head: $hiddenAttrs($Bool_not(_studyContext_0)), tail: { $: "Nil" } } }), { $: "Nil" });
+  return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("context-edit"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$hiddenAttrs($$Bool_not(_studyContext_0)), tail: { $: "Nil" } } }), { $: "Nil" });
 }
 function $conferirButton(_f_0) {
   const _conferir_0 = _f_0["conferir"];
-  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("check"), tail: { $: "Nil" } }, tail: { $: "Con", head: $hiddenAttrs($Bool_not(_conferir_0)), tail: { $: "Nil" } } }), { $: "Nil" });
+  return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("check"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$hiddenAttrs($$Bool_not(_conferir_0)), tail: { $: "Nil" } } }), { $: "Nil" });
 }
 function $calcDivider(_f_0) {
   const _calculator_0 = _f_0["calculator"];
-  return $view_viewEl("div", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("calc-divider"), tail: { $: "Nil" } }, tail: { $: "Con", head: $hiddenAttrs($Bool_not(_calculator_0)), tail: { $: "Nil" } } }), { $: "Nil" });
+  return $view_viewEl("div", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("calc-divider"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$hiddenAttrs($$Bool_not(_calculator_0)), tail: { $: "Nil" } } }), { $: "Nil" });
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -278,7 +282,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -287,7 +291,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -303,7 +307,7 @@ function $view_viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
+    return { $: "Con", head: $$view_viewText(_h_0), tail: $$view_viewMap_0(_t_0) };
   }
 }
 function $view_viewMapI_go_0(_xs_0, _i_0) {
@@ -312,7 +316,7 @@ function $view_viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$view_asTextI(_i_0, _h_0), tail: $$view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $Bool_not(_b_0) {
@@ -350,6 +354,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -359,13 +364,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -375,48 +379,67 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$view_attrGet_go = $view_attrGet_go;
+var $$String_eq = $String_eq;
+var $$view_boolStr = $view_boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$view_classNext_on = $view_classNext_on;
+var $$view_classValue = $view_classValue;
+var $$view_attrId = $view_attrId;
+var $$refsPressed_if = $refsPressed_if;
+var $$view_attrAria = $view_attrAria;
+var $$Bool_not = $Bool_not;
+var $$hiddenAttrs = $hiddenAttrs;
+var $$view_attrJoin = $view_attrJoin;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
+var $$List_concat = $List_concat;
+var $$view_viewText = $view_viewText;
+var $$view_viewMap_0 = $view_viewMap_0;
+var $$view_asTextI = $view_asTextI;
+var $$view_viewMapI_go_0 = $view_viewMapI_go_0;
 var deskflags_default = {
-  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
-  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
-  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
-  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
-  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
-  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
-  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
-  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
-  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
-  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
-  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
-  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
-  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
-  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
-  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
-  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
-  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
-  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
-  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
-  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
-  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
-  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
-  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
-  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
-  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
-  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
-  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
-  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
-  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
-  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
-  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
-  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
-  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
-  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
-  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
-  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
-  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
-  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
-  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
-  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
-  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
+  "view:attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view:classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view:viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view:viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view:viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view:tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view:attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view:kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view:textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view:isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view:attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view:attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view:attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view:attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view:attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view:attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view:attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view:attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view:attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view:attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view:attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view:attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view:attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view:attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view:boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view:attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view:classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view:classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view:classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view:classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view:classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view:classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view:classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view:viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view:viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view:viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view:viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view:viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view:asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view:viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view:viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
   hiddenAttrs: run_lib((a0) => run_loop($hiddenAttrs(a0)), 1),
   "refsPressed.if": run_lib((a0, a1) => run_loop($refsPressed_if(a0, a1)), 2),
   includeRefsButton: run_lib((a0) => run_loop($includeRefsButton(a0)), 1),

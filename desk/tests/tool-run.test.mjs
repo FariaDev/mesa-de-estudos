@@ -4,16 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {writeFakeExecutable} from './fake-executable.mjs';
 
 const require = createRequire(import.meta.url);
 const {runTool, plainOutput, OUTPUT_TAIL_BYTES} = require('../tool-run.cjs');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-tool-run-'));
 
 function script(dir, body) {
-  const file = path.join(dir, 'cmd.js');
-  fs.writeFileSync(file, `#!${process.execPath}\n${body}\n`);
-  fs.chmodSync(file, 0o755);
-  return file;
+  return writeFakeExecutable(dir, 'cmd', `#!${process.execPath}\n${body}\n`);
 }
 
 test('runTool: sucesso devolve a saída e entrega pedaços a quem escuta', async () => {

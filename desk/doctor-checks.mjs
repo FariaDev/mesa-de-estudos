@@ -5,6 +5,9 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {spawnSync} from 'node:child_process';
+import winCmdSpawn from './src/win-cmd-spawn.cjs';
+
+const {spawnPlan}=winCmdSpawn;
 
 /* Checagens do `npm run doctor`, numa fonte só para o próprio doctor
    (`scripts/doctor.mjs`, que só imprime) e para o "Relatar um problema" (#62),
@@ -15,7 +18,8 @@ import {spawnSync} from 'node:child_process';
 const require=createRequire(import.meta.url);
 const {readConfig,seedConfig}=require('./config.cjs');
 const {mergeCourses,courseLibrary}=require('./courses.cjs');
-const {resolvePi}=require('./pi.cjs');
+const {detectTutorEngines,engineNames,defaultEngineFrom,ENGINE_NAMES}=require('./tutor-default-engine.cjs');
+const {visibleEngines}=require('./visible-engines.cjs');
 const profile=require('./profiles.cjs');
 const desk=path.dirname(fileURLToPath(import.meta.url));
 const repo=path.dirname(desk);
@@ -38,17 +42,23 @@ export function doctorContext({env=process.env,home=os.homedir()}={}){
  return {config,configPath,runtime,vault:config.vaultPath||'',courses:mergeCourses(config)};
 }
 
-/** @param {DoctorRow[]} rows @param {NodeJS.ProcessEnv} env @param {any} config */
-function checkSetup(rows,env,config){
+/** @param {DoctorRow[]} rows @param {NodeJS.ProcessEnv} env @param {any} config @param {string} home */
+function checkSetup(rows,env,config,home){
  const check=(name,ok,detail)=>rows.push({name,ok:!!ok,detail:String(detail??'')});
- const [nodeMajor,nodeMinor]=process.versions.node.split('.').map(Number);
- check('Node 22.19+',nodeMajor>22||(nodeMajor===22&&nodeMinor>=19),process.version);
+ const [nodeMajor]=process.versions.node.split('.').map(Number);
+ /* Node só é exigência do setup a partir do código; o app e o MCP rodam no
+    Node do Electron (#93). A linha antiga (22.19) era exigência do Pi. */
+ check('Node 20+ (setup a partir do código)',nodeMajor>=20,process.version);
  const dependenciesReady=fs.existsSync(path.join(desk,'node_modules','electron'));
  check('Dependências da Mesa',dependenciesReady,dependenciesReady?'instaladas':'rode npm ci');
- const pi=resolvePi({configPath:config.piPath,deskDir:desk,envPath:env.LEARNING_DESK_PI||''});
- check('Executável do Pi',pi,pi||'rode npm run setup ou configure o caminho');
- if(!pi)return;
- const result=spawnSync(pi,['--version'],{encoding:'utf8',timeout:10000,shell:process.platform==='win32'&&/\.(cmd|bat)$/i.test(pi)});
+ const all=detectTutorEngines({config,deskDir:desk,env,home,testMode:false});
+ const shown=visibleEngines({testMode:false,env});
+ const engines=Object.fromEntries(Object.entries(all).filter(([id])=>shown.includes(id)));
+ const labels=engineNames(engines);
+ check('Tutor instalado',labels.length>0,labels.length?`${labels.join(', ')} (padrão: ${ENGINE_NAMES[defaultEngineFrom(engines)]})`:'instale o OpenCode na primeira abertura (ou use o Claude Code que já existe)');
+ if(!engines.pi)return;
+ const plan=spawnPlan(engines.pi,['--version']);
+ const result=spawnSync(plan.file,plan.args,{encoding:'utf8',timeout:10000,...plan.options});
  const version=String(result.stdout||'').trim();
  const [major,minor,patch]=version.split('.').map(Number);
  check('Pi 0.99.1+ (MCP nativo)',result.status===0&&Number.isInteger(major)&&(major>0||minor>99||(minor===99&&patch>=1)),version||'não respondeu; atualize o Pi');
@@ -77,15 +87,19 @@ function visualExtension(overlay,env,home){
  return {ok,detail:ok?target:`${target} (re-export relativo quebra quando o .pi é simbólico; resolva via realpath em runtime ou caminho absoluto)`};
 }
 
-/** @param {DoctorRow[]} rows @param {DoctorContext} context @param {NodeJS.ProcessEnv} env @param {string} home */
-function checkVault(rows,{vault,courses,runtime},env,home){
+/** @param {DoctorRow[]} rows @param {DoctorContext} context @param {NodeJS.ProcessEnv} env @param {string} home @param {boolean} piPresent */
+function checkVault(rows,{vault,courses,runtime},env,home,piPresent){
  const check=(name,ok,detail)=>rows.push({name,ok:!!ok,detail:String(detail??'')});
  check('Vault / pasta de dados',vault&&fs.existsSync(vault),vault||'não configurado');
  for(const name of ['TUTOR.md','LEARNER.md'])check(`Política ${name}`,vault&&fs.existsSync(path.join(vault,name)),vault?path.join(vault,name):'vault não configurado');
- const overlay=vault&&path.join(vault,'.pi');
- check('Overlay .pi',overlay&&fs.existsSync(overlay),overlay||'vault não configurado');
- const visual=visualExtension(overlay,env,home);
- check('Extensão visual',visual.ok,visual.detail);
+ /* Overlay e extensões visuais são do perfil do Pi: sem Pi, não há o que
+    conferir e nenhuma linha falta (#93). */
+ if(piPresent){
+  const overlay=vault&&path.join(vault,'.pi');
+  check('Overlay .pi',overlay&&fs.existsSync(overlay),overlay||'vault não configurado');
+  const visual=visualExtension(overlay,env,home);
+  check('Extensão visual',visual.ok,visual.detail);
+ }
  check('Capturador visual',process.platform!=='darwin'||fs.existsSync(path.join(repo,'visual-check','windows')),process.platform==='darwin'?path.join(repo,'visual-check','windows'):'não se aplica neste sistema');
  check('Matérias configuradas',courses.length>0,`${courses.length} encontrada(s)`);
  for(const course of courses){
@@ -101,10 +115,21 @@ function checkVault(rows,{vault,courses,runtime},env,home){
    O portão em si (bloqueio antes da execução) mora no workspace-guard; aqui o
    objetivo é tornar visível o que ele vai aplicar, para que uma superfície de
    permissão quebrada apareça no doctor em vez de só no log da sessão. */
-/** @param {DoctorRow[]} rows @param {DoctorContext} context @param {NodeJS.ProcessEnv} env @param {string} home */
-function checkProfile(rows,{config,vault},env,home){
+/** @param {DoctorRow[]} rows @param {DoctorContext} context @param {NodeJS.ProcessEnv} env @param {string} home @param {boolean} piPresent */
+function checkProfile(rows,{config,vault},env,home,piPresent){
  const check=(name,ok,detail)=>rows.push({name,ok:!!ok,detail:String(detail??'')});
  const agentDir=path.join(home,'.pi','agent');
+ if(!piPresent){
+  /* Fora do Pi, só o temporário e o git importam para a Mesa. */
+  let tempOk=false,tempWhy=os.tmpdir();
+  try{const probe=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-doctor-')),'.probe');fs.writeFileSync(probe,'ok');fs.rmSync(path.dirname(probe),{recursive:true,force:true});tempOk=true;}catch(e){tempWhy=e.message;}
+  check('Diretório temporário gravável',tempOk,tempWhy);
+  const PATH_DIRS=(env.PATH||'').split(path.delimiter).filter(Boolean);
+  const GIT_NAMES=process.platform==='win32'?['git.exe','git.cmd','git']:['git'];
+  const git=PATH_DIRS.flatMap(dir=>GIT_NAMES.map(name=>path.join(dir,name))).find(p=>{try{return fs.existsSync(p);}catch{return false;}});
+  check('Executável git',git,git||'não encontrado no PATH — o updater por git e o verify o usam');
+  return;
+ }
  const profileOn=config.desk?.pinnedExtensions!==false;
  const declaredPaths=profile.globalExtensionPaths();
  const presentPaths=declaredPaths.filter(f=>fs.existsSync(f));
@@ -143,9 +168,12 @@ export function doctorChecks({env=process.env,home=os.homedir()}={}){
  const context=doctorContext({env,home});
  /** @type {DoctorRow[]} */
  const rows=[];
- checkSetup(rows,env,context.config);
- checkVault(rows,context,env,home);
- checkProfile(rows,context,env,home);
+ checkSetup(rows,env,context.config,home);
+ const all=detectTutorEngines({config:context.config,deskDir:desk,env,home,testMode:false});
+ const shown=visibleEngines({testMode:false,env});
+ const engines=Object.fromEntries(Object.entries(all).filter(([id])=>shown.includes(id)));
+ checkVault(rows,context,env,home,!!engines.pi);
+ checkProfile(rows,context,env,home,!!engines.pi);
  return {rows,context};
 }
 
@@ -153,7 +181,7 @@ export function doctorChecks({env=process.env,home=os.homedir()}={}){
  * As linhas no formato que o `npm run doctor` sempre imprimiu.
  * @param {DoctorRow[]} rows
  * @returns {string}
- * @example doctorText([{name:'Node 22.19+',ok:true,detail:'v22.19.0'}]) // '✓ Node 22.19+: v22.19.0\n\nSetup learning pronto.'
+ * @example doctorText([{name:'Node 20+ (setup a partir do código)',ok:true,detail:'v20.0.0'}]) // '✓ Node 20+ (setup a partir do código): v20.0.0\n\nSetup learning pronto.'
  */
 export function doctorText(rows){
  const lines=rows.map(row=>`${row.ok?'✓':'✗'} ${row.name}: ${row.detail}`);

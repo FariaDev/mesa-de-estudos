@@ -10,7 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync} from 'node:fs';
 import {EventEmitter} from 'node:events';
-import {dirname} from 'node:path';
+import {delimiter, dirname} from 'node:path';
 import {createRequire} from 'node:module';
 import {ptText} from './pt-text.mjs';
 
@@ -82,8 +82,8 @@ test('a Mesa pede silêncio de Obsidian e de memória observacional', () => {
 test('o PATH do Pi preserva o herdado e acrescenta os binários do usuário', () => {
   const {launched} = startBridge();
   const [launch] = launched;
-  const inherited = (process.env.PATH || '').split(':').filter(Boolean);
-  const parts = launch.opts.env.PATH.split(':').filter(Boolean);
+  const inherited = (process.env.PATH || '').split(delimiter).filter(Boolean);
+  const parts = launch.opts.env.PATH.split(delimiter).filter(Boolean);
   assert.equal(parts[0], dirname(launch.cmd), 'o diretório do Pi deve vir primeiro');
   for (const dir of inherited) {
     assert.ok(parts.includes(dir), `o PATH herdado perdeu ${dir} — o app quebraria o que já funcionava no terminal`);

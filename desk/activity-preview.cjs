@@ -23,6 +23,7 @@
 const crypto = require('node:crypto');
 const {activityArtifactUrl} = require('./activity-runtime.cjs');
 const {normalizeSpec, specHash} = require('./activity-store.cjs');
+const {createActivityPreviewDrafts} = require('./activity-preview-drafts.cjs');
 const view = require('./src/activity-view.mjs');
 const {message} = require('./src/i18n.mjs');
 const {invalidValue} = require('./src/error-detail.mjs');
@@ -80,10 +81,11 @@ function previewSpec(raw = {}) {
  *   createWindow?: (size: {width: number, height: number}) => import('electron').BrowserWindow,
  *   columnWidth?: () => number, readyMs?: number}} [options]
  */
-function createActivityPreview({runtime, createWindow, columnWidth = () => 360, readyMs = READY_MS} = {}) {
+function createActivityPreview({runtime, createWindow, columnWidth = () => 360, readyMs = READY_MS, drafts = createActivityPreviewDrafts()} = {}) {
   if (!runtime || typeof runtime.remember !== 'function' || typeof runtime.forget !== 'function') throw new Error(invalidValue('runtime', runtime, '{remember, forget}'));
   if (typeof createWindow !== 'function') throw new Error(invalidValue('createWindow', createWindow, 'function'));
   let chain = Promise.resolve();
+  /** @template T @param {() => Promise<T>} job @returns {Promise<T>} */
   const serial = (job) => {
     const run = chain.then(job, job);
     chain = run.catch(() => {});
@@ -160,7 +162,9 @@ function createActivityPreview({runtime, createWindow, columnWidth = () => 360, 
     return out.slice(0, 200);
   }
 
-  /* A prévia: print, altura e console. Não grava nada. */
+  /* A prévia: print, altura e console. Não grava nada; guarda o conteúdo em
+     memória e devolve o `previaId` para a publicação reusar (A3). Sem escopo
+     de conversa (chamada direta em teste), o id não é emitido. */
   function preview(raw = {}, options = {}) {
     return serial(async () => {
       const spec = previewSpec(raw);
@@ -179,7 +183,7 @@ function createActivityPreview({runtime, createWindow, columnWidth = () => 360, 
         const scaled = size.width > width ? image.resize({width, height: captured, quality: 'best'}) : image;
         const shot = scaled.getSize();
         const list = await events(win);
-        return {
+        const previewed = {
           width,
           contentHeight,
           capturedHeight: captured,
@@ -187,14 +191,22 @@ function createActivityPreview({runtime, createWindow, columnWidth = () => 360, 
           consoleMessages: consoleOf(list),
           screenshot: {mimeType: 'image/png', data: scaled.toPNG().toString('base64'), width: shot.width, height: shot.height},
         };
+        if (options.scope && typeof options.scope.conversationId === 'string' && options.scope.conversationId.trim()) {
+          previewed.previaId = drafts.remember(options.scope, spec);
+        }
+        return previewed;
       } finally {
         close();
       }
     });
   }
 
-  /* Pares largura→altura nas larguras do núcleo, para a publicação. Falha
-     vira `undefined`: o quadro segue a medição viva, como antes do #42. */
+  /* Pares largura→altura nas larguras do núcleo, para a publicação, mais o
+     console da medição (M7): a publicação recusa um quadro com erro e avisa
+     quando a medição em si falha. Devolve `heights: undefined` quando alguma
+     largura não mediu; o host decide o que fazer com isso.
+     @param {object} [raw] spec do quadro (html/css/js)
+     @returns {Promise<{heights?: number[][], consoleMessages: {level: string, text: string}[]}>} */
   function measure(raw = {}) {
     return serial(async () => {
       const spec = previewSpec(raw);
@@ -210,14 +222,33 @@ function createActivityPreview({runtime, createWindow, columnWidth = () => 360, 
           const height = await settle(win);
           pairs.push([width, height]);
         }
-        return pairs.every(([, height]) => height > 0) ? pairs : undefined;
+        return {
+          heights: pairs.every(([, height]) => height > 0) ? pairs : undefined,
+          consoleMessages: consoleOf(await events(win)),
+        };
       } finally {
         close();
       }
-    }).catch(() => undefined);
+    });
   }
 
-  return {preview, measure, previewSpec};
+  /* O conteúdo de um rascunho, para o host publicar exatamente o que foi
+     pré-visualizado. Id de outra conversa ou vencido devolve null: quem chama
+     decide a mensagem (A3).
+     @param {{conversationId?: string}} scope
+     @param {object} spec
+     @returns {object | null} */
+  function resolveDraft(scope, spec) {
+    const previewId = spec && typeof spec.previaId === 'string' ? spec.previaId : '';
+    if (!previewId) return spec;
+    const content = drafts.resolve(scope, previewId);
+    if (!content) return null;
+    return {...spec, ...content};
+  }
+
+  function clearDrafts() { drafts.clear(); }
+
+  return {preview, measure, previewSpec, resolveDraft, clearDrafts, drafts};
 }
 
 module.exports = {createActivityPreview, previewSpec, cleanWidth, cleanTheme};

@@ -1,4 +1,6 @@
 import attachments from './src/generated/attachments.core.js';
+import {PDF_HEADERS} from './src/chat-pdf.mjs';
+import {withoutTutorPrompt} from './src/agents/tutor-prompt-text.mjs';
 import {t as uiT} from './src/ui-text.mjs';
 
 /* Conteúdo da mensagem (texto + imagens): núcleo Bend (core/attachments.bend).
@@ -19,11 +21,16 @@ const coerce = (value) => (typeof value === 'string' ? value : '');
    (`[Da Conversa]`) saiu na #50, mas sessões gravadas antes dele ainda o trazem
    DEPOIS do contexto da Mesa, até o fim do texto — o padrão fica separado
    porque com `studyContext: false` não havia bloco da Mesa nenhum antes dele. */
+function escapeRegExp(text){return text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+/* O bloco de PDF anexado vai até o fim, como o contexto. Sem o contexto da
+   mesa (estudo desligado) ele ficaria visível com o caminho do arquivo. */
+const PDF_BLOCK=new RegExp(`\\n\\n\\[(?:${PDF_HEADERS.map(escapeRegExp).join('|')})\\][\\s\\S]*$`);
 const CONTEXT_BLOCKS=[
  /* Menção `@` (#53): cabeçalho e a linha de instruções; só esse trecho sai, o contexto vem depois. */
  /\n\n\[Ferramenta pedida na Mesa:[^\]\n]*\][^\n]*\n[^\n]*/,
  /\n\n\[Da Conversa\][\s\S]*$/,
  /\n\n\[(?:Contexto da Mesa|Desk context)\][\s\S]*$/,
+ PDF_BLOCK,
  /\n\n\[Contexto da sessão na Mesa:[\s\S]*?(?=\n\n\[Referências abertas|$)/,
  /\n\n\[Referências abertas[\s\S]*$/,
  /\n\n\[Conferência visual[\s\S]*$/,
@@ -31,7 +38,14 @@ const CONTEXT_BLOCKS=[
 
 export function displayUserText(text){
  if(typeof text!=='string')return '';
- let t=text;
+ /* O prompt do tutor às vezes volta como fala (OpenCode colava no envio; Pi e
+    Claude usam canal de sistema, mas a bolha é a mesma). */
+ let t=withoutTutorPrompt(text);
+ if(!t)return '';
+ /* O resultado do cartão é um prompt da Mesa, não fala do aluno: depois do
+    reload a bolha não pode repetir o marcador nem o conteúdo do cartão. */
+ const result=t.match(/^\[Resultado do cartão: [^\]]+\]\n([\s\S]*)$/);
+ if(result)return /^(?:Quiz|Pergunta):/m.test(result[1])?uiT('quiz.sentQuiz'):uiT('quiz.sentAsk');
  for(const block of CONTEXT_BLOCKS)t=t.replace(block,'');
  if(/^\/conferir\b/.test(t.trim())||/Conferência visual solicitada pelo usuário/.test(text)){
   const extra=t.replace(/^\/conferir\s*/,'').replace(/^Confira minha resolução e indique o primeiro erro relevante\.?\s*/i,'').trim();

@@ -9,7 +9,7 @@ App local (Electron) para estudar com PDFs e um tutor de IA na mesma janela. A e
 ```
 Mesa de Estudos                         Xournal++ (ou outro)
   enunciado + formulário (PDF)            escrita à mão
-  tutor (Pi, OpenCode ou Claude Code)     tentativa
+  tutor (OpenCode ou Claude Code)        tentativa
   calculadora, GeoGebra, caderno          → Conferir manda a página ao tutor
 ```
 
@@ -20,7 +20,7 @@ Em inglês o app se chama **Study Desk**.
 ## O que tem
 
 - **Dois leitores de PDF** independentes, com busca, favoritos, sumário e citação "Arquivo.pdf, p. N" clicável nas respostas.
-- **Tutor** com três motores: [Pi](https://github.com/earendil-works/pi), OpenCode e Claude Code (experimental). Modelos grátis pelo OpenCode Zen: dá para começar sem assinatura de IA.
+- **Tutor** com OpenCode (o caminho padrão) e Claude Code (experimental); o Pi continua disponível para quem já o usa. O OpenCode usa a conta ou o provider que você já configurou nele.
 - **Conferir:** captura a janela do programa de escrita e anexa à mensagem. **Foto do celular:** um QR code abre uma página na mesma rede, e as fotos entram na Mesa na ordem de envio.
 - **Figuras, gráficos e atividades interativas** no chat, que funcionam offline. GeoGebra sob demanda, com pacote offline opcional.
 - **PDF pelo tutor:** Lista, Apostila, Resumo, Simulado e Formulário, com prévia em A4 e revisão antes de salvar.
@@ -32,8 +32,8 @@ Em inglês o app se chama **Study Desk**.
 
 ## Requisitos
 
-- Node 22.19+.
-- Um motor de tutor. O `npm run setup` instala o Pi (testado com o 1.3.0). O OpenCode e o Claude Code são opcionais e usam o que você já tem instalado; o Claude Code aceito vai de 2.1.296 até a série 2.1.
+- Node **20+** só para instalar a partir do código (`npm ci`, `npm run setup`, `npm start`). O app e o servidor MCP do tutor rodam no Node embutido do Electron, então estudar não depende do Node do sistema.
+- **OpenCode 2.2.4** (a Mesa instala na primeira abertura, com o pacote fixado) ou **Claude Code** (a faixa aceita vai de 2.1.296 até a série 2.1), que a Mesa detecta e usa na conversa nova. O Pi, se já existir, continua valendo.
 - Os PDFs da matéria numa pasta qualquer.
 - macOS ou Windows. O Conferir funciona nos dois; o resto do dia a dia foi testado à mão no macOS.
 
@@ -47,9 +47,9 @@ npm run doctor
 npm start
 ```
 
-Na primeira abertura, a Mesa mostra um passo por vez: idioma e cor, como a Mesa funciona, nome da matéria, pasta de PDFs (subpastas contam), tutor e pronto. A matéria só é criada no último passo. O Pi pede as credenciais do provedor na primeira conexão, e elas ficam no Pi, não na Mesa.
+Na primeira abertura, a Mesa mostra um passo por vez: idioma e cor, como a Mesa funciona, nome da matéria, pasta de PDFs (subpastas contam), tutor e pronto. A matéria só é criada no último passo. O motor escolhido (OpenCode ou Claude Code) pede as credenciais na primeira conexão, e elas ficam nele, não na Mesa.
 
-`npm run doctor` confere Pi, políticas, fontes, extensão visual e persistência sem abrir o app. No Mac, `npm run install-app` monta o **Mesa de Estudos.app**.
+`npm run doctor` confere o motor instalado, políticas, fontes, extensão visual (quando aplicável) e persistência sem abrir o app. No Mac, `npm run install-app` monta o **Mesa de Estudos.app**.
 
 Para um agente configurar o computador: [`desk/SETUP.md`](desk/SETUP.md).
 

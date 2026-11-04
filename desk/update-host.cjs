@@ -6,6 +6,7 @@ const {writeReadableLog}=require('./desk-log.cjs');
 const updater=require('./updater.cjs');
 const components=require('./components.cjs');
 const {createToolUpdates}=require('./tool-updates.cjs');
+const {visibleEngines}=require('./visible-engines.cjs');
 
 /* Updater por clique, painel de componentes e acesso ao log. Recebe do main só o
    que usa: `config` e `win` são acessores porque o main os reatribui. */
@@ -25,7 +26,10 @@ function registerUpdateHost({ipcMain,app,shell,runtime,deskDir,logFile,testMode,
   let source=null;try{source=JSON.parse(fs.readFileSync(path.join(deskDir,'install-source.json'),'utf8'));}catch{/* sem install-source.json: instalação por git ou zip */}
   const mode=source&&source.path?'bundle':fs.existsSync(path.join(root,'.git'))?'git':'zip';
   const reopen=mode==='bundle'?{cmd:'open',args:[bundle]}:{cmd:'npm',args:['start'],cwd:deskDir,shell:process.platform==='win32'};
-  return {mode,rootDir:root,deskDir,runtime,sourceInfo:source,reopen};
+  /* #80: a chave pública viaja por parâmetro (o worker é uma cópia no tmpdir);
+     marcador/ausente faz o updater recusar antes de qualquer download. */
+  const publicKey=updater.readUpdatePublicKey(path.join(deskDir,'update-signing-key.pub'));
+  return {mode,rootDir:root,deskDir,runtime,sourceInfo:source,reopen,publicKey};
  }
  ipcMain.handle('update-check',(_e,opts)=>{
   if(TEST_MODE)return {status:'unknown',version:'',notes:'',url:'',current:app.getVersion()};
@@ -86,6 +90,7 @@ function registerUpdateHost({ipcMain,app,shell,runtime,deskDir,logFile,testMode,
   runtime,deskDir,config,testMode,appendLog,
   state:toolHost.state,persist:toolHost.persist,isBusy:toolHost.isBusy,hasBridge:toolHost.hasBridge,relink:toolHost.relink,
   send:(channel,payload)=>{const target=win();if(target&&!target.isDestroyed())target.webContents.send(channel,payload);},
+  visibleEngines:()=>visibleEngines({testMode:TEST_MODE,env:process.env}),
   ...fixtures,
  });
  const toolFixtures=fixtures;

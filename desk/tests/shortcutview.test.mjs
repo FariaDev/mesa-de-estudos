@@ -95,6 +95,7 @@ test('linha fixa traz nota e linha sem tecla traz o fallback', () => {
   const firstSection = nodes(groups.kids)[0];
   const fixed = nodes(firstSection.kids)[2];
   assert.equal(attrs(fixed).class, 'keys-row is-fixed');
+  assert.equal(attrs(fixed).tabindex, '0', 'a linha fixa entra na tabulação para revelar a nota');
   assert.deepEqual(nodes(fixed.kids).map(text), ['Parar a resposta', 'Esc', 'fixo']);
   const empty = nodes(nodes(groups.kids)[1].kids)[1];
   assert.equal(text(nodes(empty.kids)[1]), 'Sem atalho');

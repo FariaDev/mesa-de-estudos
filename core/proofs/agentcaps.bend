@@ -120,9 +120,6 @@ def Laws.caps_opencode_esforco_com_metadado():
 def Laws.caps_opencode_modelo_sem_catalogo():
   {==}
 
-def Laws.caps_opencode_auto_compactacao():
-  {==}
-
 def Laws.caps_opencode_rascunho():
   {==}
 

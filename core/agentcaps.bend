@@ -16,10 +16,11 @@ import Base
 #     entram com o catálogo nativo (`claudeControlCaps`) (capacidade false
 #     vale para host e UI, sem fallback escondido para Pi);
 #   - `opencodeCaps()` (#57): imagens, permissões, steer, compactação manual,
-#     comandos, GeoGebra, atividade e medidor de contexto LIGADOS — cada um
-#     com caminho medido no `opencode serve` 2.0.32. Compactação automática,
-#     e rascunho de revisão ficam DESLIGADOS (o rascunho não foi
-#     portado). Modelo e esforço só entram com o catálogo do servidor
+#     rascunho de revisão (#93: consulta temporária sem MCP), comandos,
+#     GeoGebra, atividade e medidor de contexto LIGADOS — cada um com caminho
+#     medido no `opencode serve` 2.0.32. Compactação automática fica DESLIGADA:
+#     o servidor compacta sozinho, mas a Mesa não tem como ligar/desligar isso
+#     com prova. Modelo e esforço só entram com o catálogo do servidor
 #     (`opencodeControlCaps`);
 #   - `unknownCaps()`: motor que a Mesa não reconhece fica TODO fechado. Não
 #     herda `piCaps` — um descritor estranho nunca ganha ferramenta do Pi.
@@ -102,7 +103,7 @@ def claudeControlCaps(catalogReady: Bool, effortSupported: Bool) -> Caps:
 def opencodeCaps() -> Caps:
   Caps{
     True{}, True{}, True{}, True{}, False{}, False{}, False{},
-    False{}, True{}, True{}, True{}, True{}
+    True{}, True{}, True{}, True{}, True{}
   }
 
 # Catálogo do servidor lido (`GET /api/model`): o seletor de modelo aparece; a
@@ -115,7 +116,7 @@ def opencodeControlCaps(catalogReady: Bool, effortSupported: Bool) -> Caps:
     case True{}:
       Caps{
         True{}, True{}, True{}, True{}, False{}, True{}, effortSupported,
-        False{}, True{}, True{}, True{}, True{}
+        True{}, True{}, True{}, True{}, True{}
       }
 
 # Motor fora de Pi, Claude e OpenCode: nada liga. O host usa isto em vez de

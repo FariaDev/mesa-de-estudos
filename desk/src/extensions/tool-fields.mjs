@@ -29,6 +29,11 @@ export function toZod(z, field) {
     case 'enum': schema = z.enum(field.values); break;
     case 'literal': schema = z.literal(field.value); break;
     case 'anyOf': schema = z.union(field.of.map((entry) => toZod(z, entry))); break;
+    case 'array':
+      schema = z.array(toZod(z, field.items));
+      if (field.min != null) schema = schema.min(field.min);
+      if (field.max != null) schema = schema.max(field.max);
+      break;
     case 'object': schema = z.object(zodShape(z, field.fields)); break;
     default: throw Error(`tipo de campo desconhecido: ${field.type}`);
   }
@@ -64,6 +69,12 @@ export function toTypebox(Type, field) {
     case 'enum': schema = Type.Union(field.values.map((value) => Type.Literal(value)), options); break;
     case 'literal': schema = Type.Literal(field.value, options); break;
     case 'anyOf': schema = Type.Union(field.of.map((entry) => toTypebox(Type, entry)), options); break;
+    case 'array': {
+      if (field.min != null) options.minItems = field.min;
+      if (field.max != null) options.maxItems = field.max;
+      schema = Type.Array(toTypebox(Type, field.items), options);
+      break;
+    }
     case 'object': schema = typeboxObject(Type, field.fields, options); break;
     default: throw Error(`tipo de campo desconhecido: ${field.type}`);
   }
@@ -91,6 +102,12 @@ export function canonical(schema) {
   } else if (options) {
     out.type = 'anyOf';
     out.of = options.map(canonical);
+  } else if (schema.type === 'array') {
+    out.type = 'array';
+    out.items = canonical(schema.items);
+    for (const [from, to] of [['minItems', 'min'], ['maxItems', 'max']]) {
+      if (schema[from] != null) out[to] = schema[from];
+    }
   } else if (schema.type === 'object') {
     out.type = 'object';
     out.fields = Object.fromEntries(Object.keys(schema.properties || {}).sort().map((name) => [name, canonical(schema.properties[name])]));
@@ -123,6 +140,7 @@ export function jsonSchemaOf(fields) {
       case 'enum': return {enum: field.values, ...base};
       case 'literal': return {const: field.value, ...base};
       case 'anyOf': return {anyOf: field.of.map(toJson), ...base};
+      case 'array': return {type: 'array', items: toJson(field.items), minItems: field.min, maxItems: field.max, ...base};
       case 'object': return {...objectJson(field.fields), ...base};
       default: throw Error(`tipo de campo desconhecido: ${field.type}`);
     }

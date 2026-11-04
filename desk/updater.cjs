@@ -14,11 +14,20 @@
      qualquer mutação): quem chamou só fecha o app depois de o worker confirmar
      que subiu — Node ausente do PATH, spawn que falha ou handshake que não
      chega abortam a atualização COM o app ainda de pé.
-   - Origem: clone (`desk/../.git`) → `git pull --ff-only` (a branch de
-     DESENVOLVIMENTO — a versão final é conferida no package.json; clone com
+   - Assinatura (#80): todo modo exige o manifesto Ed25519 da Release
+     (`mesa-manifest-vX.Y.Z.json` + `.sig`, chave pública em
+     `desk/update-signing-key.pub`). O manifesto declara versão, commit,
+     `zipSha256` e `zipBytes`; git/bundle conferem o commit da tag e o modo zip
+     baixa o ZIP ASSINADO da Release (não o codeload, que muda de bytes),
+     confere tamanho/SHA-256 e só então aplica. Sem manifesto, com assinatura
+     inválida ou hash/commit diferente, o update é recusado com o motivo.
+   - Teto de download: manifesto 64 KB, assinatura 8 KB e zip 64 MB; o stream
+     é cancelado assim que passa do teto (content-length ou leitura em pedaços).
+   - Origem: clone (`desk/../.git`) → `git merge --ff-only` até o commit da tag
+     assinada (a versão final é conferida no package.json; clone com
      trabalho local é recusado antes de qualquer mutação); bundle com
      `install-source.json` → atualiza o clone e re-sincroniza (install-app);
-     sem git → baixa o zip da tag (codeload), valida a versão no staging,
+     sem git → baixa o zip assinado da tag, valida a versão no staging,
      substitui SÓ a lista explícita de arquivos de código (o manifesto gravado
      na instalação define o que é gerenciado: órfão gerenciado sai, arquivo
      local fica), nunca os caminhos protegidos.
@@ -49,6 +58,7 @@ const {CHECK_TTL,CLAUDE_REGISTRY_URL,PI_REGISTRY_URL,RELEASES_URL,TAGS_URL,XOURN
 const {LOCK_STALE_MS,acquireLock,defaultRun,doReopen,lockFileOf,needsShell,pidAlive,releaseLock,resolveNode,spawnReopen,spawnWorker,stageWorkerFiles,WORKER_FILES,waitForHandshake,waitForPid,workerEnv,writeHandshake}=require('./updater-worker.cjs');
 const {applyZip,assertRealTarget,assertSafeEntries,isProtected,isReplaceable,manifestFile,normalizeRel,readManifest,readZip,removeOrphans,restoreTree,snapshotTree,stripCommonRoot,writeManifest}=require('./updater-files.cjs');
 const {checkForUpdates,claudeLatest,defaultFetchBuffer,defaultFetchJson,piLatest,releaseFromGithub,releaseFromTags,sharedFetchJson,timedFetch,xournalLatest}=require('./updater-check.cjs');
+const {MANIFEST_MAX_BYTES,SIGNATURE_MAX_BYTES,ZIP_MAX_BYTES,assertAppliedCommitMatches,assertTagCommitMatches,loadSignedRelease,normalizeVersion,readUpdatePublicKey,tagMissingError}=require('./updater-signature.cjs');
 
 /* ---------- aplicação ---------- */
 
@@ -96,7 +106,7 @@ async function syncBundle({mode,sourceDir,run,log}){
  catch(e){log('update: install-app falhou ('+String(e&&e.message||e)+') — fonte atualizada, bundle desatualizado; rode npm run install-app');}
 }
 
-/* Modo git: o pull só é seguro num clone sem trabalho local — `git reset
+/* Modo git: o avanço só é seguro num clone sem trabalho local — `git reset
    --hard` do rollback destruiria essas mudanças. Política EXPLÍCITA: o update
    recusa clones sujos (modificação em arquivo rastreado) antes de qualquer
    mutação; arquivos não rastreados (`??`) sobrevivem ao reset e não bloqueiam. */
@@ -111,6 +121,24 @@ async function assertCleanClone(sourceDir,run){
  }
 }
 
+/* #80: a tag anunciada pode ainda não existir no clone (release nova). Busca
+   as tags e resolve o commit; tag ausente depois disso recusa o update. */
+async function resolveTagCommit({sourceDir,version,run,log}){
+ const tag=`v${normalizeVersion(version)}`;
+ const rev=async()=>{
+  try{return (await run('git',['rev-parse','--verify',`${tag}^{commit}`],{cwd:sourceDir})).stdout.trim();}
+  catch{return '';}
+ };
+ let commit=await rev();
+ if(commit)return {tag,commit};
+ log(`update: tag ${tag} ausente no clone — buscando tags do remoto`);
+ try{await run('git',['fetch','--tags','--force','origin'],{cwd:sourceDir});}
+ catch(e){log('update: git fetch --tags falhou ('+causeText(e)+')');}
+ commit=await rev();
+ if(!commit)throw tagMissingError(version);
+ return {tag,commit};
+}
+
 /* O coração do updater: uma TRANSAÇÃO verificável.
    `ok:false` = abortado antes de qualquer mutação ou rollback aplicado, e a
    versão antiga sobe de novo sozinha (o `reopen` roda nos caminhos que tocam
@@ -118,9 +146,10 @@ async function assertCleanClone(sourceDir,run){
    nunca a anunciada sem conferência. */
 async function applyUpdate(opts={}){
  const {
-  mode='zip',rootDir='',deskDir='',runtime='',announcedVersion='',sourceInfo=null,
+  mode='zip',rootDir='',deskDir='',runtime='',announcedVersion='',sourceInfo=null,publicKey='',
   waitPid=0,reopen=null,run=defaultRun,fetchBuffer=defaultFetchBuffer,
   cacheFile='',lockFile='',pidTimeout=120000,
+  manifestMaxBytes=MANIFEST_MAX_BYTES,signatureMaxBytes=SIGNATURE_MAX_BYTES,zipMaxBytes=ZIP_MAX_BYTES,
   snapshot=snapshotTree,restore=restoreTree, /* injeção de teste (mesma ideia do run) */
  }=opts;
  const logFile=runtime?path.join(runtime,'desk.log'):'';
@@ -165,21 +194,36 @@ async function applyUpdate(opts={}){
    const plist=path.join(path.resolve(deskDir,'..','..','..'),'Contents','Info.plist');
    if(fs.existsSync(plist))fs.copyFileSync(plist,path.join(backup,'__Info.plist__'));
   }
+  /* #80: nada é aplicado sem o manifesto assinado pela chave do autor. O zip
+     baixado é o asset da Release (bytes estáveis), não o codeload. */
+  const release=await loadSignedRelease({version:announcedVersion,publicKey,fetchBuffer,needZip:mode==='zip',manifestMaxBytes,signatureMaxBytes,zipMaxBytes});
+  log(`update: release v${release.manifest.version} assinada conferida (commit ${release.manifest.commit.slice(0,12)}${release.zip?`, zip ${release.manifest.zipBytes} bytes`:''})`);
   if(mode==='zip'){
-   const buffer=await fetchBuffer(`https://codeload.github.com/FariaDev/mesa-de-estudos/zip/refs/tags/v${announcedVersion}`);
    /* `created`/`written` são do chamador: se a cópia morrer no meio, o
       rollback ainda sabe o que apagar e o que era gerenciado. */
-   const result=applyZip(buffer,{rootDir,announcedVersion,log,created,written});
+   const result=applyZip(release.zip,{rootDir,announcedVersion:release.manifest.version,log,created,written});
    log(`update: zip aplicado (${result.replaced} arquivo(s) de código, ${result.skipped} pulado(s))`);
-   writeManifest(manifestRoot,announcedVersion,written);
+   writeManifest(manifestRoot,release.manifest.version,written);
    removeOrphans(rootDir,previous,written,log);
   }else{
    head=(await run('git',['rev-parse','HEAD'],{cwd:sourceDir})).stdout.trim();
    await assertCleanClone(sourceDir,run);
    /* Passou do portão: o clone estava limpo — o reset do rollback sabe disso. */
    cloneClean=true;
-   await run('git',['pull','--ff-only'],{cwd:sourceDir});
-   log('update: git pull --ff-only ok (branch de desenvolvimento do clone)');
+   const tag=await resolveTagCommit({sourceDir,version:announcedVersion,run,log});
+   assertTagCommitMatches(release.manifest,tag.commit,{tag:tag.tag});
+   log(`update: tag ${tag.tag} confere com o manifesto assinado (commit ${tag.commit.slice(0,12)})`);
+   /* Avança até o commit ASSINADO da tag, não até a ponta da branch: com
+      `git pull`, um commit no main depois da tag deixava o HEAD fora do
+      manifesto e toda atualização por git era recusada até o próximo release.
+      `--ff-only` mantém a regra antiga: nunca faz merge de histórico local. */
+   await run('git',['merge','--ff-only',tag.commit],{cwd:sourceDir});
+   log(`update: git merge --ff-only ${tag.tag} ok (commit da Release)`);
+   /* Só o commit da Release é autenticado: clone já à frente da tag (código
+      não assinado) não vira update. */
+   const applied=(await run('git',['rev-parse','HEAD'],{cwd:sourceDir})).stdout.trim();
+   assertAppliedCommitMatches(release.manifest,applied);
+   log(`update: HEAD no commit assinado ${applied.slice(0,12)}`);
    if(mode==='bundle')log(`update: re-sincronizando o bundle a partir de ${sourceDir}`);
   }
   /* A1: "dependências mexidas" é estado INDEPENDENTE — vale desde que o lock
@@ -191,8 +235,8 @@ async function applyUpdate(opts={}){
    await npmCi({deskDir:npmCiDir,run});
   }
   /* A3: "vX no lugar" só depois de conferir a versão INSTALADA no
-     package.json. No modo git o pull segue a branch de desenvolvimento —
-     divergir da tag anunciada é aviso explícito, não sucesso silencioso. */
+     package.json. No modo git o commit da tag pode trazer outra versão no
+     package.json — divergir da tag anunciada é aviso explícito, não sucesso silencioso. */
   const finalVersion=installedVersion(npmCiDir);
   if(announcedVersion&&finalVersion&&finalVersion!==String(announcedVersion)){
    diverged=true;
@@ -341,5 +385,6 @@ module.exports={
  snapshotTree,restoreTree,readFileSafe,lockChangedSince,installedVersion,defaultRun,needsShell,
  spawnReopen,doReopen,spawnWorker,stageWorkerFiles,WORKER_FILES,waitForPid,pidAlive,resolveNode,workerEnv,
  writeHandshake,waitForHandshake,acquireLock,releaseLock,lockFileOf,LOCK_STALE_MS,
- applyUpdate,applyPiOnly,appendLog,persistResult,
+ applyUpdate,applyPiOnly,appendLog,persistResult,readUpdatePublicKey,
+ MANIFEST_MAX_BYTES,SIGNATURE_MAX_BYTES,ZIP_MAX_BYTES,
 };

@@ -26,7 +26,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {specHash, normalizeSpec} = require('./activity-store.cjs');
 const {invalidValue} = require('./src/error-detail.mjs');
-const {ACTIVITY_SCHEME, ARTIFACT_HOST, KATEX_DIST, KATEX_HOST, LIB_FILES, LIB_HOST, MAX_REGISTRY, activityArtifactUrl, canTerminateActivityProcess, canTerminateSharedStalledProcess, collectActivityFrames, katexFile, parseActivityUrl} = require('./activity-protocol.cjs');
+const {ACTIVITY_SCHEME, DETACHED_RETRY_MS, KATEX_DIST, KATEX_HOST, LIB_FILES, LIB_HOST, MAX_REGISTRY, activityArtifactUrl, activityFramesOtherThan, canTerminateActivityProcess, canTerminateSharedStalledProcess, collectActivityFrames, detachedActivityDecision, katexFile, parseActivityUrl, trackedActivityEntry} = require('./activity-protocol.cjs');
 const {DANGEROUS_TAGS, LOCKDOWN_SCRIPT} = require('./activity-lockdown-script.cjs');
 const {HOST_CSS, RUNTIME_SCRIPT} = require('./activity-page-script.cjs');
 const {buildActivityDocument, cspFor} = require('./activity-document.cjs');
@@ -120,12 +120,14 @@ function createActivityRuntime({onWatchdog} = {}) {
      negava a carga legítima de uma montagem nova. `about:blank` inicial é
      ignorado. */
   /* Watchdog de contenção: um laço/JS travado no artefato bloqueia a thread do
-     PRÓPRIO processo OOPIF; o frame removido pode ter o processo reusado pelo
-     próximo artefato (medido: laço parado deixou um processo a 12% e a próxima
-     atividade nunca carregava). O runtime faz ping por `executeJavaScript` com
-     timeout, e MATA o processo do frame depois de 3 falhas seguidas — e também
-     quando um frame some da árvore tendo ficado >1,5 s sem responder. Nunca
-     mata o processo do renderer principal da janela. */
+     PRÓPRIO processo OOPIF. Desde a #89 cada REVISÃO tem site e processo
+     próprios (host = id + versão); só a mesma revisão remontada divide
+     processo. O runtime faz ping por `executeJavaScript` com timeout, e MATA o
+     processo do frame depois de 3 falhas seguidas — e também quando um frame
+     some da árvore tendo ficado >1,5 s sem responder. Um processo de atividade
+     que ficou sem NENHUM frame é encerrado mesmo sem travamento confirmado
+     (`detached-frameless`): o Parar cedo demais não pode deixar o laço vivo.
+     Nunca mata o processo do renderer principal da janela. */
   const attachWindow = (win, {watchdog = true} = {}) => {
     if (!win || (!win.webContents && !win)) return;
     const wc = win.webContents || win;
@@ -153,8 +155,10 @@ function createActivityRuntime({onWatchdog} = {}) {
     const framesOn = (pid) => collectActivityFrames(pid, () => require('electron').webContents.getAllWebContents());
     /* Decide e executa a terminação. O caminho destacado continua exigindo a
        guarda de PID; o caminho compartilhado exige que todos os outros frames
-       do pid estejam confirmados travados. */
-    const terminateEntry = (entry, at) => {
+       do pid estejam confirmados travados. `detachedReason` só vale quando o
+       pid não tem outros frames: o frame que sumiu sem nunca ter travado
+       (Parar cedo) sai como `detached-frameless` (#88). */
+    const terminateEntry = (entry, at, detachedReason = 'detached-unresponsive') => {
       try {
         const metric = processMetric(entry && entry.pid);
         const guardMainPid = mainPid();
@@ -163,28 +167,43 @@ function createActivityRuntime({onWatchdog} = {}) {
            completa; qualquer exceção/PID desconhecido nega o kill. */
         const snapshot = framesOn(entry.pid);
         if (!snapshot.complete) return {ok: false, reason: 'enumeration'};
-        const others = snapshot.frames.filter((frame) => frame !== entry.frame);
+        const others = activityFramesOtherThan(snapshot.frames, entry);
         if (others.length > 0) {
           const stalledOthers = others.map((frame) => ({stalled: confirmedStall(tracked.get(frame), at)}));
           if (!canTerminateSharedStalledProcess({entry, mainPid: guardMainPid, metric, others: stalledOthers})) return {ok: false, reason: 'shared-live'};
         }
         process.kill(entry.pid, 'SIGKILL');
-        return {ok: true, reason: others.length > 0 ? 'shared-stalled' : 'detached-unresponsive'};
+        return {ok: true, reason: others.length > 0 ? 'shared-stalled' : detachedReason};
       } catch { return {ok: false, reason: 'error'}; }
     };
+    /* Lista os frames de atividade da janela e diz se a enumeração foi
+       completa. Uma leitura parcial NÃO pode fazer um frame vivo parecer
+       destacado — o watchdog só decide "sumiu" com a árvore inteira legível. */
     const liveArtifactFrames = () => {
+      let frames;
       try {
         const rootFrame = wc.mainFrame;
-        if (!rootFrame) return [];
-        const frames = rootFrame.framesInSubtree || rootFrame.frames || [];
-        return [...frames].filter((frame) => String(frame.url || '').startsWith(`${ACTIVITY_SCHEME}://`));
-      } catch { return []; }
+        if (!rootFrame) return {frames: [], complete: false};
+        frames = [...(rootFrame.framesInSubtree || rootFrame.frames || [])];
+      } catch { return {frames: [], complete: false}; }
+      const artifacts = [];
+      let complete = true;
+      for (const frame of frames) {
+        let url;
+        try { url = String(frame.url || ''); } catch { complete = false; continue; }
+        /* Só o artefato conta como frame de atividade (#88); KaTeX/lib são
+           recursos, nunca frames, e um host fora do formato não entra no
+           watchdog. */
+        if (parseActivityUrl(url)?.kind === 'artifact') artifacts.push(frame);
+      }
+      return {frames: artifacts, complete};
     };
     const tick = async () => {
       if (busy) return;
       busy = true;
       try {
-        const live = liveArtifactFrames();
+        const liveSnapshot = liveArtifactFrames();
+        const live = liveSnapshot.frames;
         const nowAt = Date.now();
         const frameFacts = (frame) => {
           try {
@@ -196,19 +215,45 @@ function createActivityRuntime({onWatchdog} = {}) {
         for (const [frame, entry] of [...tracked]) {
           const facts = frameFacts(frame);
           if (facts.osPid) identifyProcess(entry,facts.osPid);
-          if (!live.includes(frame)) {
-            /* Só mata ao destacar com evidência de travamento (dois pings
-               falhos e 2,5 s sem sucesso — timeout transitório não basta). O
-               Chromium pode já ter reusado o processo para outra montagem; a
-               guarda de pid/creationTime confere a posse atual. */
-            if (detachedStall(entry, nowAt)) {
-              const result = terminateEntry(entry, nowAt);
-              watchdogEvent(result.ok
-                ? {type: 'kill', pid: entry.pid, mainPid: mainPid(), reason: result.reason, url: facts.url}
-                : {type: 'kill-failed', pid: entry.pid, reason: result.reason, url: facts.url});
-            }
-            tracked.delete(frame);
+          if (live.includes(frame)) {
+            if (entry.detachedAt) entry.detachedAt = 0;
+            continue;
           }
+          /* Árvore ilegível: não dá para afirmar que este frame sumiu; segura
+             a entrada e tenta de novo no próximo tick. */
+          if (!liveSnapshot.complete) continue;
+          /* O frame sumiu da árvore (#88): se o pid não tem outro frame, o
+             processo é inútil e sai mesmo sem travamento (Parar cedo). Com
+             outros frames, vale o caminho de travamento de sempre. Sem pid
+             identificado ou enumeração incompleta, guarda a entrada por até
+             3 s — o timer não pode parar com uma pendência. */
+          if (!entry.detachedAt) entry.detachedAt = nowAt;
+          const snapshot = entry.pid > 0 ? framesOn(entry.pid) : {complete: false, frames: []};
+          const alone = snapshot.complete && Array.isArray(snapshot.frames) && activityFramesOtherThan(snapshot.frames, entry).length === 0;
+          if (!alone) entry.framelessAt = 0;
+          else if (!entry.framelessAt) entry.framelessAt = nowAt;
+          const decision = detachedActivityDecision({
+            pid: entry.pid,
+            complete: snapshot.complete,
+            frames: snapshot.frames,
+            frame,
+            stalled: detachedStall(entry, nowAt),
+            waitedMs: nowAt - entry.detachedAt,
+            framelessMs: entry.framelessAt ? nowAt - entry.framelessAt : 0,
+          });
+          if (decision === 'retry') continue;
+          if (decision === 'drop') {
+            tracked.delete(frame);
+            continue;
+          }
+          const reason = decision === 'frameless' ? 'detached-frameless' : 'detached-unresponsive';
+          const result = terminateEntry(entry, nowAt, reason);
+          watchdogEvent(result.ok
+            ? {type: 'kill', pid: entry.pid, mainPid: mainPid(), reason: result.reason, url: facts.url}
+            : {type: 'kill-failed', pid: entry.pid, reason: result.reason, url: facts.url});
+          /* No caminho frameless, guarda/creationTime pode só amadurecer no
+             próximo tick: retenta até o prazo antes de desistir. */
+          if (result.ok || decision === 'stalled' || nowAt - entry.detachedAt >= DETACHED_RETRY_MS) tracked.delete(frame);
         }
         for (const frame of live) {
           if (killed.has(frame)) continue;
@@ -217,8 +262,10 @@ function createActivityRuntime({onWatchdog} = {}) {
           if (!entry) {
             /* `processId` do WebFrameMain é o id interno do Chromium; o que se
                pode matar é o pid do SO (`osProcessId`), que pode só aparecer
-               depois do commit — daí a atualização a cada tick. */
-            entry = {pid: 0, creationTime: 0, lastOk: 0, misses: 0};
+               depois do commit — daí a atualização a cada tick. A entrada
+               guarda o PRÓPRIO frame (identidade) para separar `shared-stalled`
+               de `detached-unresponsive` (#88). */
+            entry = trackedActivityEntry(frame, 0, 0);
             identifyProcess(entry,facts.osPid);
             tracked.set(frame, entry);
           } else if (facts.osPid && facts.osPid !== entry.pid) {
@@ -253,7 +300,7 @@ function createActivityRuntime({onWatchdog} = {}) {
             }
           }
         }
-        if (!tracked.size && live.length === 0 && timer) {
+        if (!tracked.size && live.length === 0 && liveSnapshot.complete && timer) {
           clearInterval(timer);
           timer = null;
         }
@@ -265,6 +312,10 @@ function createActivityRuntime({onWatchdog} = {}) {
       if (!watchdog || timer) return;
       watchdogEvent({type: 'ensure'});
       timer = setInterval(() => { tick().catch(() => {}); }, 1200);
+      /* Um tick imediato registra o frame antes do primeiro intervalo: o
+         Parar em menos de 1 s ainda encontra uma entrada rastreada para
+         encerrar o processo sem frames (#88). */
+      tick().catch(() => {});
     };
     const stopWatchdog = () => {
       if (timer) {
@@ -337,7 +388,6 @@ function createActivityRuntime({onWatchdog} = {}) {
 
 module.exports = {
   ACTIVITY_SCHEME,
-  ARTIFACT_HOST,
   KATEX_HOST,
   LIB_HOST,
   activityArtifactUrl,
@@ -352,4 +402,7 @@ module.exports = {
   canTerminateActivityProcess,
   canTerminateSharedStalledProcess,
   collectActivityFrames,
+  trackedActivityEntry,
+  activityFramesOtherThan,
+  detachedActivityDecision,
 };

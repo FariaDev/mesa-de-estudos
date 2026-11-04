@@ -55,7 +55,7 @@ test('tokens: os nomes do T3 adaptados à Mesa e o espelho MCP Apps', () => {
 
 test('rootCss: regra :root pronta, com esquema de cor e sem caractere que quebre a folha', () => {
   const css = core.rootCss('light', 'green');
-  assert.match(css, /^:root\{color-scheme:light;--mesa-bg:#f4f4f4;/);
+  assert.match(css, /^:root\{color-scheme:light;--mesa-bg:#ffffff;/);
   assert.ok(css.endsWith('}'));
   assert.equal(/[<>{]/.test(css.slice(6, -1)), false);
 });

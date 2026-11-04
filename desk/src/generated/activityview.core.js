@@ -13,13 +13,16 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 var char_new = function char_new(c) {
   return c < 55296 || c >= 57344 && c <= 1114111 ? String.fromCodePoint(c) : String.fromCharCode(56320, c >>> 22, c >>> 11 & 2047, c & 2047);
 };
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -40,6 +43,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -47,8 +51,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -67,7 +71,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $strIf(_hit_0, _found_0, _rest_0) {
   if (_hit_0) {
@@ -91,7 +95,7 @@ function $listIf(_hit_0, _found_0, _rest_0) {
   }
 }
 function $natMax(_a_0, _b_0) {
-  return $natIf($Nat_is_gt(_a_0, _b_0), _a_0, _b_0);
+  return $natIf($$Nat_is_gt(_a_0, _b_0), _a_0, _b_0);
 }
 function $vizKind() {
   return "visualizacao";
@@ -100,16 +104,16 @@ function $activityKind() {
   return "atividade";
 }
 function $kindOf(_raw_0) {
-  return $strIf($String_eq(_raw_0, $vizKind()), $vizKind(), $activityKind());
+  return $strIf($$String_eq(_raw_0, $$vizKind()), $$vizKind(), $$activityKind());
 }
 function $isViz(_kind_0) {
-  return $String_eq($kindOf(_kind_0), $vizKind());
+  return $String_eq($$kindOf(_kind_0), $$vizKind());
 }
 function $showsBring(_kind_0) {
-  return $Bool_not($isViz(_kind_0));
+  return $Bool_not($$isViz(_kind_0));
 }
 function $controlIds(_kind_0) {
-  return $listIf($isViz(_kind_0), { $: "Con", head: "fullscreen", tail: { $: "Nil" } }, { $: "Con", head: "fullscreen", tail: { $: "Con", head: "restart", tail: { $: "Con", head: "stop", tail: { $: "Con", head: "bring", tail: { $: "Nil" } } } } });
+  return $listIf($$isViz(_kind_0), { $: "Con", head: "fullscreen", tail: { $: "Nil" } }, { $: "Con", head: "fullscreen", tail: { $: "Con", head: "restart", tail: { $: "Con", head: "stop", tail: { $: "Con", head: "bring", tail: { $: "Nil" } } } } });
 }
 function $restartLabel() {
   return $msg_msg("activity.restart");
@@ -121,10 +125,10 @@ function $openLabel() {
   return $msg_msg("activity.open");
 }
 function $kindKey(_kind_0) {
-  return $strIf($isViz(_kind_0), "activity.kind.viz", "activity.kind.activity");
+  return $strIf($$isViz(_kind_0), "activity.kind.viz", "activity.kind.activity");
 }
 function $kindLabel(_kind_0) {
-  return $msg_msg($kindKey(_kind_0));
+  return $msg_msg($$kindKey(_kind_0));
 }
 function $fullscreenLabel() {
   return $msg_msg("activity.fullscreen");
@@ -142,7 +146,7 @@ function $descriptionLabel() {
   return $msg_msg("activity.description");
 }
 function $frameTitle(_kind_0, _title_0) {
-  return $msg_msg2("activity.frameTitle", "kind", $kindKey(_kind_0), "title", _title_0);
+  return $msg_msg2("activity.frameTitle", "kind", $$kindKey(_kind_0), "title", _title_0);
 }
 function $heightMin() {
   return 48;
@@ -151,14 +155,14 @@ function $heightMax() {
   return 1200;
 }
 function $clampHeight(_h_0) {
-  const _x_0 = $heightMin();
-  return $natIf(_h_0 < _x_0, $heightMin(), $natIf($Nat_is_gt(_h_0, $heightMax()), $heightMax(), _h_0));
+  const _x_0 = $$heightMin();
+  return $natIf(_h_0 < _x_0, $$heightMin(), $$natIf($$Nat_is_gt(_h_0, $$heightMax()), $$heightMax(), _h_0));
 }
 function $measureWidths() {
   return { $: "Con", head: 320, tail: { $: "Con", head: 375, tail: { $: "Con", head: 430, tail: { $: "Con", head: 520, tail: { $: "Con", head: 640, tail: { $: "Con", head: 728, tail: { $: "Con", head: 860, tail: { $: "Con", head: 1000, tail: { $: "Con", head: 1144, tail: { $: "Nil" } } } } } } } } } };
 }
 function $heightAt_hit(_prev_0, _w_0, _ht_0, _width_0) {
-  return $natIf($Nat_is_eq(_w_0, _width_0), _ht_0, $natMax(_prev_0, _ht_0));
+  return $natIf($$Nat_is_eq(_w_0, _width_0), _ht_0, $$natMax(_prev_0, _ht_0));
 }
 function $heightAt_go(_pairs_0, _prev_0, _width_0) {
   if (_pairs_0.$ === "Nil") {
@@ -168,42 +172,42 @@ function $heightAt_go(_pairs_0, _prev_0, _width_0) {
     const _w_0 = _t_0["width"];
     const _ht_0 = _t_0["height"];
     const _t_1 = _pairs_0["tail"];
-    return $natIf($Nat_is_ge(_w_0, _width_0), $heightAt_hit(_prev_0, _w_0, _ht_0, _width_0), $heightAt_go(_t_1, _ht_0, _width_0));
+    return $natIf($$Nat_is_ge(_w_0, _width_0), $$heightAt_hit(_prev_0, _w_0, _ht_0, _width_0), $$heightAt_go(_t_1, _ht_0, _width_0));
   }
 }
 function $heightAt(_pairs_0, _width_0) {
   return $heightAt_go(_pairs_0, 0, _width_0);
 }
 function $initialHeight(_pairs_0, _width_0) {
-  const _raw_0 = $heightAt(_pairs_0, _width_0);
-  return $natIf($Nat_is_eq(_raw_0, 0), 0, $clampHeight(_raw_0));
+  const _raw_0 = $$heightAt(_pairs_0, _width_0);
+  return $natIf($$Nat_is_eq(_raw_0, 0), 0, $$clampHeight(_raw_0));
 }
 function $isDark(_theme_0) {
   return $String_eq(_theme_0, "dark");
 }
 function $byTheme(_theme_0, _light_0, _dark_0) {
-  return $strIf($isDark(_theme_0), _dark_0, _light_0);
+  return $strIf($$isDark(_theme_0), _dark_0, _light_0);
 }
 function $accentIds() {
   return { $: "Con", head: "blue", tail: { $: "Con", head: "violet", tail: { $: "Con", head: "green", tail: { $: "Con", head: "orange", tail: { $: "Con", head: "pink", tail: { $: "Con", head: "graphite", tail: { $: "Nil" } } } } } } };
 }
 function $accentOf(_accent_0) {
-  return $strIf($String_eq(_accent_0, "violet"), "violet", $strIf($String_eq(_accent_0, "green"), "green", $strIf($String_eq(_accent_0, "orange"), "orange", $strIf($String_eq(_accent_0, "pink"), "pink", $strIf($String_eq(_accent_0, "graphite"), "graphite", "blue")))));
+  return $strIf($$String_eq(_accent_0, "violet"), "violet", $$strIf($$String_eq(_accent_0, "green"), "green", $$strIf($$String_eq(_accent_0, "orange"), "orange", $$strIf($$String_eq(_accent_0, "pink"), "pink", $$strIf($$String_eq(_accent_0, "graphite"), "graphite", "blue")))));
 }
 function $accentFill(_theme_0, _accent_0) {
-  return $strIf($String_eq($accentOf(_accent_0), "violet"), $byTheme(_theme_0, "#6d28d9", "#8c52ef"), $strIf($String_eq($accentOf(_accent_0), "green"), $byTheme(_theme_0, "#0f7b55", "#13865e"), $strIf($String_eq($accentOf(_accent_0), "orange"), $byTheme(_theme_0, "#c2410c", "#d0460d"), $strIf($String_eq($accentOf(_accent_0), "pink"), $byTheme(_theme_0, "#c02667", "#d8306b"), $strIf($String_eq($accentOf(_accent_0), "graphite"), $byTheme(_theme_0, "#27272a", "#ededed"), $byTheme(_theme_0, "#2548c7", "#506cdf"))))));
+  return $strIf($$String_eq($$accentOf(_accent_0), "violet"), $$byTheme(_theme_0, "#6d28d9", "#8c52ef"), $$strIf($$String_eq($$accentOf(_accent_0), "green"), $$byTheme(_theme_0, "#0f7b55", "#13865e"), $$strIf($$String_eq($$accentOf(_accent_0), "orange"), $$byTheme(_theme_0, "#c2410c", "#d0460d"), $$strIf($$String_eq($$accentOf(_accent_0), "pink"), $$byTheme(_theme_0, "#c02667", "#d8306b"), $$strIf($$String_eq($$accentOf(_accent_0), "graphite"), $$byTheme(_theme_0, "#27272a", "#ededed"), $$byTheme(_theme_0, "#2548c7", "#506cdf"))))));
 }
 function $accentText(_theme_0, _accent_0) {
-  return $strIf($String_eq($accentOf(_accent_0), "violet"), $byTheme(_theme_0, "#6d28d9", "#a78bfa"), $strIf($String_eq($accentOf(_accent_0), "green"), $byTheme(_theme_0, "#0f7b55", "#5fd3a4"), $strIf($String_eq($accentOf(_accent_0), "orange"), $byTheme(_theme_0, "#c2410c", "#fb9a6b"), $strIf($String_eq($accentOf(_accent_0), "pink"), $byTheme(_theme_0, "#c02667", "#f783ac"), $strIf($String_eq($accentOf(_accent_0), "graphite"), $byTheme(_theme_0, "#27272a", "#ededed"), $byTheme(_theme_0, "#2548c7", "#8fa8ff"))))));
+  return $strIf($$String_eq($$accentOf(_accent_0), "violet"), $$byTheme(_theme_0, "#6d28d9", "#a78bfa"), $$strIf($$String_eq($$accentOf(_accent_0), "green"), $$byTheme(_theme_0, "#0f7b55", "#5fd3a4"), $$strIf($$String_eq($$accentOf(_accent_0), "orange"), $$byTheme(_theme_0, "#c2410c", "#fb9a6b"), $$strIf($$String_eq($$accentOf(_accent_0), "pink"), $$byTheme(_theme_0, "#c02667", "#f783ac"), $$strIf($$String_eq($$accentOf(_accent_0), "graphite"), $$byTheme(_theme_0, "#27272a", "#ededed"), $$byTheme(_theme_0, "#2548c7", "#8fa8ff"))))));
 }
 function $accentFg(_theme_0, _accent_0) {
-  return $strIf($String_eq($accentOf(_accent_0), "graphite"), $byTheme(_theme_0, "#ffffff", "#181818"), "#ffffff");
+  return $strIf($$String_eq($$accentOf(_accent_0), "graphite"), $$byTheme(_theme_0, "#ffffff", "#181818"), "#ffffff");
 }
 function $slot(_theme_0, _accent_0, _family_0, _light_0, _dark_0, _spareLight_0, _spareDark_0) {
-  return $strIf($String_eq($accentOf(_accent_0), _family_0), $byTheme(_theme_0, _spareLight_0, _spareDark_0), $byTheme(_theme_0, _light_0, _dark_0));
+  return $strIf($$String_eq($$accentOf(_accent_0), _family_0), $$byTheme(_theme_0, _spareLight_0, _spareDark_0), $$byTheme(_theme_0, _light_0, _dark_0));
 }
 function $chartColors(_theme_0, _accent_0) {
-  return { $: "Con", head: $accentText(_theme_0, _accent_0), tail: { $: "Con", head: $slot(_theme_0, _accent_0, "orange", "#c77700", "#d9480f", "#0b9b8f", "#0d9488"), tail: { $: "Con", head: $slot(_theme_0, _accent_0, "violet", "#3b1782", "#c4b5fd", "#13423e", "#99f6e4"), tail: { $: "Con", head: $slot(_theme_0, _accent_0, "pink", "#e0508a", "#db2777", "#1a8aa8", "#0d9488"), tail: { $: "Con", head: $slot(_theme_0, _accent_0, "green", "#2f4a10", "#a3e635", "#1b2f78", "#93c5fd"), tail: { $: "Con", head: $slot(_theme_0, _accent_0, "blue", "#3d6fd0", "#60a5fa", "#8a5a06", "#f59e0b"), tail: { $: "Nil" } } } } } } };
+  return { $: "Con", head: $$accentText(_theme_0, _accent_0), tail: { $: "Con", head: $$slot(_theme_0, _accent_0, "orange", "#c77700", "#d9480f", "#0b9b8f", "#0d9488"), tail: { $: "Con", head: $$slot(_theme_0, _accent_0, "violet", "#3b1782", "#c4b5fd", "#13423e", "#99f6e4"), tail: { $: "Con", head: $$slot(_theme_0, _accent_0, "pink", "#e0508a", "#db2777", "#1a8aa8", "#0d9488"), tail: { $: "Con", head: $$slot(_theme_0, _accent_0, "green", "#2f4a10", "#a3e635", "#1b2f78", "#93c5fd"), tail: { $: "Con", head: $$slot(_theme_0, _accent_0, "blue", "#3d6fd0", "#60a5fa", "#8a5a06", "#f59e0b"), tail: { $: "Nil" } } } } } } };
 }
 function $fontSans() {
   return '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
@@ -223,18 +227,18 @@ function $chartTokens_go(_colors_0, _i_0) {
   } else {
     const _h_0 = _colors_0["head"];
     const _t_0 = _colors_0["tail"];
-    const _x_0 = $Nat_show(_i_0);
-    return { $: "Con", head: { $: "Token", name: "--mesa-chart-" + _x_0, value: _h_0 }, tail: $chartTokens_go(_t_0, nat_chk(_i_0 + 1)) };
+    const _x_0 = $$Nat_show(_i_0);
+    return { $: "Con", head: { $: "Token", name: "--mesa-chart-" + _x_0, value: _h_0 }, tail: $$chartTokens_go(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $chartTokens(_theme_0, _accent_0) {
-  return $chartTokens_go($chartColors(_theme_0, _accent_0), 1);
+  return $chartTokens_go($$chartColors(_theme_0, _accent_0), 1);
 }
 function $baseTokens(_theme_0, _accent_0) {
-  return { $: "Con", head: { $: "Token", name: "--mesa-bg", value: $byTheme(_theme_0, "#f4f4f4", "#242424") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-fg", value: $byTheme(_theme_0, "#272727", "#e4e4e4") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-muted", value: $byTheme(_theme_0, "#525252", "#a6a6a6") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-card", value: $byTheme(_theme_0, "#ffffff", "#2c2c2c") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-surface", value: $byTheme(_theme_0, "#ffffff", "#2c2c2c") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-hover", value: $byTheme(_theme_0, "#e8e8e8", "#333333") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-border", value: $byTheme(_theme_0, "#dadada", "#3a3a3a") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-input", value: $byTheme(_theme_0, "#c7c7c7", "#4a4a4a") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-ring", value: $accentText(_theme_0, _accent_0) }, tail: { $: "Con", head: { $: "Token", name: "--mesa-accent", value: $accentFill(_theme_0, _accent_0) }, tail: { $: "Con", head: { $: "Token", name: "--mesa-accent-fg", value: $accentFg(_theme_0, _accent_0) }, tail: { $: "Con", head: { $: "Token", name: "--mesa-accent-text", value: $accentText(_theme_0, _accent_0) }, tail: { $: "Con", head: { $: "Token", name: "--mesa-good", value: $byTheme(_theme_0, "#15803d", "#34d399") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-good-surface", value: $byTheme(_theme_0, "#e6f4ea", "#1d3a2c") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-warn", value: $byTheme(_theme_0, "#b45309", "#fbbf24") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-warn-surface", value: $byTheme(_theme_0, "#fdf2dc", "#3d3220") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-bad", value: $byTheme(_theme_0, "#c4281c", "#f08a80") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-bad-surface", value: $byTheme(_theme_0, "#fbe9e7", "#432624") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-code-bg", value: $byTheme(_theme_0, "#ffffff", "#2c2c2c") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-code-fg", value: $byTheme(_theme_0, "#272727", "#e4e4e4") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-radius", value: $radius() }, tail: { $: "Con", head: { $: "Token", name: "--mesa-font-sans", value: $fontSans() }, tail: { $: "Con", head: { $: "Token", name: "--mesa-font-serif", value: $fontSerif() }, tail: { $: "Con", head: { $: "Token", name: "--mesa-font-mono", value: $fontMono() }, tail: { $: "Nil" } } } } } } } } } } } } } } } } } } } } } } } } };
+  return { $: "Con", head: { $: "Token", name: "--mesa-bg", value: $$byTheme(_theme_0, "#ffffff", "#191919") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-fg", value: $$byTheme(_theme_0, "#191919", "#efefef") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-muted", value: $$byTheme(_theme_0, "#5c5c5c", "#a8a8a8") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-card", value: $$byTheme(_theme_0, "#ffffff", "#1f1f1f") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-surface", value: $$byTheme(_theme_0, "#ffffff", "#1f1f1f") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-hover", value: $$byTheme(_theme_0, "#f1f1f1", "rgb(255 255 255/.05)") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-border", value: $$byTheme(_theme_0, "#e0e0e0", "rgb(255 255 255/.10)") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-input", value: $$byTheme(_theme_0, "#d0d0d0", "rgb(255 255 255/.16)") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-ring", value: $$accentText(_theme_0, _accent_0) }, tail: { $: "Con", head: { $: "Token", name: "--mesa-accent", value: $$accentFill(_theme_0, _accent_0) }, tail: { $: "Con", head: { $: "Token", name: "--mesa-accent-fg", value: $$accentFg(_theme_0, _accent_0) }, tail: { $: "Con", head: { $: "Token", name: "--mesa-accent-text", value: $$accentText(_theme_0, _accent_0) }, tail: { $: "Con", head: { $: "Token", name: "--mesa-good", value: $$byTheme(_theme_0, "#137a3a", "#34d399") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-good-surface", value: $$byTheme(_theme_0, "#e6f4ea", "#1d3a2c") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-warn", value: $$byTheme(_theme_0, "#9a5508", "#fbbf24") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-warn-surface", value: $$byTheme(_theme_0, "#fdf2dc", "#3d3220") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-bad", value: $$byTheme(_theme_0, "#c81e1e", "#f87171") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-bad-surface", value: $$byTheme(_theme_0, "#fbe9e7", "#432624") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-code-bg", value: $$byTheme(_theme_0, "#f7f7f7", "#232323") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-code-fg", value: $$byTheme(_theme_0, "#191919", "#efefef") }, tail: { $: "Con", head: { $: "Token", name: "--mesa-radius", value: $$radius() }, tail: { $: "Con", head: { $: "Token", name: "--mesa-font-sans", value: $$fontSans() }, tail: { $: "Con", head: { $: "Token", name: "--mesa-font-serif", value: $$fontSerif() }, tail: { $: "Con", head: { $: "Token", name: "--mesa-font-mono", value: $$fontMono() }, tail: { $: "Nil" } } } } } } } } } } } } } } } } } } } } } } } } };
 }
 function $mesaTokens(_theme_0, _accent_0) {
-  return $List_append($baseTokens(_theme_0, _accent_0), $chartTokens(_theme_0, _accent_0));
+  return $List_append($$baseTokens(_theme_0, _accent_0), $$chartTokens(_theme_0, _accent_0));
 }
 function $valueOf(_name_0, _tokens_0) {
   if (_tokens_0.$ === "Nil") {
@@ -244,7 +248,7 @@ function $valueOf(_name_0, _tokens_0) {
     const _n_0 = _t_0["name"];
     const _v_0 = _t_0["value"];
     const _t_1 = _tokens_0["tail"];
-    return $strIf($String_eq(_n_0, _name_0), _v_0, $valueOf(_name_0, _t_1));
+    return $strIf($$String_eq(_n_0, _name_0), _v_0, $$valueOf(_name_0, _t_1));
   }
 }
 function $mcpPairs() {
@@ -258,14 +262,14 @@ function $mcpTokens_go(_pairs_0, _mesa_0) {
     const _name_0 = _t_0["name"];
     const _from_0 = _t_0["value"];
     const _t_1 = _pairs_0["tail"];
-    return { $: "Con", head: { $: "Token", name: _name_0, value: $valueOf(_from_0, _mesa_0) }, tail: $mcpTokens_go(_t_1, _mesa_0) };
+    return { $: "Con", head: { $: "Token", name: _name_0, value: $$valueOf(_from_0, _mesa_0) }, tail: $$mcpTokens_go(_t_1, _mesa_0) };
   }
 }
 function $mcpTokens(_theme_0, _accent_0) {
-  return $mcpTokens_go($mcpPairs(), $mesaTokens(_theme_0, _accent_0));
+  return $mcpTokens_go($$mcpPairs(), $$mesaTokens(_theme_0, _accent_0));
 }
 function $themeTokens(_theme_0, _accent_0) {
-  return $List_append($mesaTokens(_theme_0, _accent_0), $mcpTokens(_theme_0, _accent_0));
+  return $List_append($$mesaTokens(_theme_0, _accent_0), $$mcpTokens(_theme_0, _accent_0));
 }
 function $schemeOf(_theme_0) {
   return $byTheme(_theme_0, "light", "dark");
@@ -281,14 +285,14 @@ function $declarations(_tokens_0) {
     const _x_0 = _n_0 + ":";
     const _x_1 = _x_0 + _v_0;
     const _x_2 = _x_1 + ";";
-    const _x_3 = $declarations(_t_1);
+    const _x_3 = $$declarations(_t_1);
     return _x_2 + _x_3;
   }
 }
 function $rootCss(_theme_0, _accent_0) {
-  const _x_0 = $schemeOf(_theme_0);
+  const _x_0 = $$schemeOf(_theme_0);
   const _x_1 = ":root{color-scheme:" + _x_0;
-  const _x_2 = $declarations($themeTokens(_theme_0, _accent_0));
+  const _x_2 = $$declarations($$themeTokens(_theme_0, _accent_0));
   const _x_3 = _x_1 + ";";
   const _x_4 = _x_2 + "}";
   return _x_3 + _x_4;
@@ -302,55 +306,14 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $Nat_is_gt(_a_0, _b_0) {
   return $Cmp_is_gt(cmp_new(_a_0, _b_0));
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $Bool_not(_b_0) {
   if (!_b_0) {
@@ -367,7 +330,7 @@ function $Nat_is_ge(_a_0, _b_0) {
 }
 function $Nat_show(_n_0) {
   const _m_0 = _n_0;
-  return $Nat_show_fin(_m_0, "", $Nat_show_put(nat_divmod(_m_0, 10)));
+  return $Nat_show_fin(_m_0, "", $$Nat_show_put(nat_divmod(_m_0, 10)));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -375,7 +338,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $String_join_go(_xs_0, _h_0, _sep_0) {
@@ -384,15 +347,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_gt(_c_0) {
   if (_c_0.$ === "GT") {
@@ -428,12 +426,11 @@ function $Nat_show_fin($0, $1, $2) {
         const _dq_0 = $2;
         const _d_0 = _dq_0["fst"];
         const _t_0 = _dq_0["snd"];
-        if (_t_0 === 0) {
+        if (_t_0 == 0) {
           return _d_0 + _acc_0;
         } else {
-          const _p_0 = _t_0 - 1;
           $0 = _g_0;
-          $1 = nat_chk(_p_0 + 1);
+          $1 = _t_0;
           $2 = _d_0 + _acc_0;
           $pc = 1;
           continue;
@@ -443,13 +440,13 @@ function $Nat_show_fin($0, $1, $2) {
         const _f_0 = $0;
         const _n_0 = $1;
         const _acc_0 = $2;
-        if (_f_0 === 0) {
+        if (_f_0 == 0) {
           return _acc_0;
         } else {
           const _g_0 = _f_0 - 1;
           $0 = _g_0;
           $1 = _acc_0;
-          $2 = $Nat_show_put(nat_divmod(_n_0, 10));
+          $2 = $$Nat_show_put(nat_divmod(_n_0, 10));
           $pc = 0;
           continue;
         }
@@ -461,6 +458,11 @@ function $Nat_show_put(_qr_0) {
   const _r_0 = _qr_0["snd"];
   const _x_0 = nat_chk(48 + _r_0);
   return { $: "Tuple", fst: char_new(_x_0 >>> 0), snd: _q_0 };
+}
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
 }
 function $String_order_go($0, $1, $2) {
   for (;; ) {
@@ -480,6 +482,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -489,13 +492,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -505,16 +507,66 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$Nat_is_gt = $Nat_is_gt;
+var $$vizKind = $vizKind;
+var $$String_eq = $String_eq;
+var $$activityKind = $activityKind;
+var $$kindOf = $kindOf;
+var $$isViz = $isViz;
+var $$kindKey = $kindKey;
+var $$heightMin = $heightMin;
+var $$heightMax = $heightMax;
+var $$natIf = $natIf;
+var $$Nat_is_eq = $Nat_is_eq;
+var $$natMax = $natMax;
+var $$Nat_is_ge = $Nat_is_ge;
+var $$heightAt_hit = $heightAt_hit;
+var $$heightAt_go = $heightAt_go;
+var $$heightAt = $heightAt;
+var $$clampHeight = $clampHeight;
+var $$isDark = $isDark;
+var $$strIf = $strIf;
+var $$accentOf = $accentOf;
+var $$byTheme = $byTheme;
+var $$accentText = $accentText;
+var $$slot = $slot;
+var $$Nat_show = $Nat_show;
+var $$chartTokens_go = $chartTokens_go;
+var $$chartColors = $chartColors;
+var $$accentFill = $accentFill;
+var $$accentFg = $accentFg;
+var $$radius = $radius;
+var $$fontSans = $fontSans;
+var $$fontSerif = $fontSerif;
+var $$fontMono = $fontMono;
+var $$baseTokens = $baseTokens;
+var $$chartTokens = $chartTokens;
+var $$valueOf = $valueOf;
+var $$mcpTokens_go = $mcpTokens_go;
+var $$mcpPairs = $mcpPairs;
+var $$mesaTokens = $mesaTokens;
+var $$mcpTokens = $mcpTokens;
+var $$declarations = $declarations;
+var $$schemeOf = $schemeOf;
+var $$themeTokens = $themeTokens;
+var $$String_order = $String_order;
+var $$Nat_show_put = $Nat_show_put;
+var $$List_append = $List_append;
+var $$String_join_go = $String_join_go;
+var $$Char_is_eq = $Char_is_eq;
 var activityview_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
   strIf: run_lib((a0, a1, a2) => str_out(run_loop($strIf(a0, str_in(a1), str_in(a2)))), 3),
   natIf: run_lib((a0, a1, a2) => run_loop($natIf(a0, nat_in(a1), nat_in(a2))), 3),
   listIf: run_lib((a0, a1, a2) => run_loop($listIf(a0, a1, a2)), 3),

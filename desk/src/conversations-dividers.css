@@ -8,7 +8,7 @@
  position:absolute;z-index:20;top:calc(var(--bar) - var(--space-1));right:var(--space-2);
  display:flex;flex-direction:column;
  width:min(380px,94%);max-height:min(64vh,440px);overflow:hidden;
- background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);
+ background:var(--raised);border:1px solid var(--border-strong);border-radius:var(--r-md);
  box-shadow:var(--shadow-pop);padding:var(--space-3);
 }
 .conv-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin-bottom:var(--space-1)}
@@ -42,7 +42,7 @@
 /* ---------- Divisórias: a linha de 1px basta; a pegada só aparece no hover e no foco ---------- */
 #divider::before,.pdf-divider::before,#calc-divider::before{
  content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
- background:transparent;border-radius:var(--r-pill);pointer-events:none;
+ background:transparent;border-radius:var(--r-2xs);pointer-events:none;
 }
 #divider::before,.pdf-divider::before{width:3px;height:30px}
 #calc-divider::before{width:30px;height:3px}
@@ -68,9 +68,18 @@
     composer para fora da janela. O #messages cresce com o conteúdo
     (`contain:none`) — sem scroller aninhado. */
  #chat{overflow-y:auto;overflow-x:hidden}
- #messages{flex:1 0 auto;min-height:120px;overflow:visible;contain:none}
+ #messages{flex:1 0 auto;min-height:0;overflow:visible;contain:none}
  #composer{position:sticky;bottom:0;z-index:3;background:var(--side);padding:var(--space-2) var(--pad) var(--space-3)}
- .composer-box .composer-field{min-height:44px}
+ /* Na janela baixa o respiro vertical aperta para os botões do estado do
+    tutor não ficarem sob o composer. Os lados seguem em 12px. */
+ .composer-box .composer-field{min-height:34px}
+ /* O mesmo aperto vertical vale para a casca dos estados, que divide a
+    coluna com o composer; o respiro entre texto e ações continua. */
+ .tutor-state{padding:var(--space-3) var(--pad) var(--space-2);gap:var(--space-3)}
+ /* As três saídas do estado cabem numa linha só na janela baixa; assim a
+    terceira não fica sob a caixa de mensagem. */
+ .tutor-state .ts-actions{gap:var(--space-1)}
+ .tutor-state .ts-actions button{padding:0 var(--space-2)}
 }
 /* Coluna apertada com a janela ainda alta (calculadora grande, anexos/fila no
    composer): o host liga `body.chat-scroll` (state.mjs#syncChatScrollMode) e a
@@ -79,4 +88,4 @@
    fim do conteúdo e o `followBottom` o mantém à vista quando a conversa está
    no fim. A decisão é medida, não presumida pela altura da janela. */
 body.chat-scroll #chat{overflow-y:auto;overflow-x:hidden}
-body.chat-scroll #messages{flex:1 0 auto;min-height:120px;overflow:visible;contain:none}
+body.chat-scroll #messages{flex:1 0 auto;min-height:0;overflow:visible;contain:none}

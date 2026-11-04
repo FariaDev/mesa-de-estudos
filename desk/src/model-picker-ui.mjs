@@ -1,13 +1,15 @@
 // @ts-check
 import {icon} from '../icons.mjs';
 import {t, text} from './ui-text.mjs';
-import {groupModels, flattenGroups, railEntries, stepActive, initialActive, modelKey, pushRecent, normalizeRecents, normalizeFavorites, toggleFavorite, alignedScrollTop, isFavoriteShortcut, activeAfterFlip} from './model-picker.mjs';
+import {toggleModelDefault, normalizeModelDefault} from './model-default.mjs';
+import {groupModels, flattenGroups, railEntries, stepActive, initialActive, modelKey, pushRecent, normalizeRecents, normalizeFavorites, toggleFavorite, alignedScrollTop, isFavoriteShortcut, activeAfterFlip, onlyFreeCatalog} from './model-picker.mjs';
 import {railButton, groupNode, itemRow, defaultRow, waitingRow, chartTokens} from './model-picker-rows.mjs';
 
 /* O seletor de modelo do `#model-pop` (#59), a parte que toca o DOM. Substitui o
    `<select>` por uma caixa de busca (`role=combobox`, o foco fica nela) e uma
-   lista (`role=listbox`) com grupos por provedor, os recentes no topo e os
-   grátis num grupo só deles. A mecânica do teclado é a do menu `@` (#53): ↑↓ com
+   lista (`role=listbox`) com grupos por provedor e os recentes no topo. Os
+   grátis do Zen aparecem como qualquer modelo, sem grupo nem selo; quando são
+   os únicos, a lista ensina a configurar um provider no OpenCode (#93). A mecânica do teclado é a do menu `@` (#53): ↑↓ com
    volta, ⏎ escolhe, Esc fecha o popover; o foco nunca sai da busca, a linha
    ativa vai em `aria-activedescendant`. Agrupar, filtrar e andar o índice são
    funções puras de `model-picker.mjs`.
@@ -17,10 +19,10 @@ import {railButton, groupNode, itemRow, defaultRow, waitingRow, chartTokens} fro
    favoritos vão no `desk.json` (estado de interface, fora do `config.json`)
    pelo `save-state`.
 
-   Acabamento visual (#59): cada linha tem duas camadas, o nome (com o selo
-   "Grátis") em cima e o logo e o nome do provedor embaixo, e uma estrela à
-   direita que liga e desliga o favorito. O trilho usa os logos de
-   `provider-icons.mjs`; Favoritos, Recentes e Grátis usam estrela, relógio e faísca. */
+   Acabamento visual (#59): cada linha tem duas camadas, o nome em cima e o
+   logo e o nome do provedor embaixo, e uma estrela à direita que liga e
+   desliga o favorito. O trilho usa os logos de `provider-icons.mjs`;
+   Favoritos e Recentes usam estrela e relógio. */
 
 /** @typedef {import('./model-picker.mjs').PickerItem} PickerItem */
 /** @typedef {{provider: string, id: string, zenPaid: boolean, free: boolean}} ModelPick */
@@ -46,10 +48,16 @@ const picker = {
   recents: {},
   /** @type {import('./model-picker.mjs').ModelFavorites} */
   favorites: {},
+  /** @type {{provider: string, id: string, effort: string} | null} */
+  default: null,
+  /** Esforço em uso, para o padrão guardar modelo e esforço juntos. */
+  effort: '',
   /** @type {null | ((pick: ModelPick) => void)} */
   onPick: null,
   /** @type {null | (() => void)} */
   onFavorites: null,
+  /** @type {null | (() => void)} */
+  onDefault: null,
 };
 
 /** @param {string} selector @returns {HTMLElement | null} */
@@ -58,12 +66,13 @@ const el = (selector) => document.querySelector(selector);
 /**
  * Liga a busca, a lista e o teclado; `pick` recebe a linha escolhida e
  * `favoritesChanged` avisa que a estrela mudou algo a gravar.
- * `initModelPicker({pick: ({provider, id}) => trocarModelo(provider, id), favoritesChanged: () => gravar()})`
- * @param {{pick: (pick: ModelPick) => void, favoritesChanged?: () => void}} wiring
+ * `initModelPicker({pick: ({provider, id}) => trocarModelo(provider, id), favoritesChanged: () => gravar(), defaultChanged: () => gravar()})`
+ * @param {{pick: (pick: ModelPick) => void, favoritesChanged?: () => void, defaultChanged?: () => void}} wiring
  */
-export function initModelPicker({pick, favoritesChanged}) {
+export function initModelPicker({pick, favoritesChanged, defaultChanged}) {
   picker.onPick = pick;
   picker.onFavorites = favoritesChanged || null;
+  picker.onDefault = defaultChanged || null;
   const search = /** @type {HTMLInputElement | null} */ (el(SEARCH));
   const list = el(LIST);
   if (!search || !list) return;
@@ -81,12 +90,13 @@ export function initModelPicker({pick, favoritesChanged}) {
  * Atualiza o catálogo, o motor e/ou o modelo em uso (`selected` é `[provedor, id]`
  * ou `null`) e repinta a lista. Sem argumentos, só repinta (troca de idioma).
  * `renderModelPicker({catalog, engine: 'pi', selected: ['xai', 'grok-4']})`
- * @param {{catalog?: Array<{name?: string, id: string, provider: string, free?: {is?: boolean, tail?: string[]}}>, engine?: string, selected?: [string, string] | null}} [change]
+ * @param {{catalog?: Array<{name?: string, id: string, provider: string, free?: {is?: boolean, tail?: string[]}}>, engine?: string, selected?: [string, string] | null, effort?: string}} [change]
  */
 export function renderModelPicker(change = {}) {
   if (change.catalog) picker.catalog = change.catalog;
   if (change.engine) picker.engine = change.engine;
   if (change.selected !== undefined) picker.selectedKey = change.selected ? modelKey(change.selected[0], change.selected[1]) : '';
+  if (change.effort !== undefined) picker.effort = change.effort || '';
   paint({resetActive: true});
 }
 
@@ -125,6 +135,17 @@ export function loadModelFavorites(raw) {
 /** Os favoritos para o `save-state`. */
 export function modelFavoritesSnapshot() {
   return picker.favorites;
+}
+
+/** O modelo padrão da sessão nova, lido do estado de interface. @param {unknown} raw */
+export function loadModelDefault(raw) {
+  picker.default = normalizeModelDefault(raw);
+  paint({resetActive: false});
+}
+
+/** O modelo padrão para o `save-state`. */
+export function modelDefaultSnapshot() {
+  return picker.default;
 }
 
 /**
@@ -194,6 +215,8 @@ function onRailClick(event) {
 function onListClick(event) {
   const at = rowIndexOf(event.target);
   if (at < 0) return;
+  const action = event.target instanceof Element && event.target.closest('.model-row-default-action');
+  if (action) { flipDefault(at); return; }
   const star = event.target instanceof Element && event.target.closest('.model-row-star');
   if (star) { flipFavorite(at); return; }
   choose(at);
@@ -217,6 +240,25 @@ function flipFavorite(at) {
   picker.onFavorites?.();
 }
 
+/* A ação "Usar como padrão" só existe no OpenCode. O esforço em uso vai junto;
+   a mesma ação desfaz. Sessão aberta não muda de modelo. */
+/** @param {number} at */
+function flipDefault(at) {
+  const item = picker.rows[at];
+  if (!item || picker.engine !== 'opencode' || picker.disabled) return;
+  if (!el(LIST)?.querySelector(`[data-row="${at}"] .model-row-default-action`)) return;
+  picker.default = toggleModelDefault(picker.default, item.provider, item.id, picker.effort);
+  const list = el(LIST);
+  const keep = list ? list.scrollTop : 0;
+  paint({resetActive: false});
+  if (list) list.scrollTop = keep;
+  setActive(activeAfterFlip(picker.rows, item.key, at), {scroll: false});
+  const on = picker.default?.provider === item.provider && picker.default?.id === item.id;
+  const status = el(STATUS);
+  if (status) status.textContent = t(on ? 'modelPicker.default.added' : 'modelPicker.default.removed', {model: item.name});
+  picker.onDefault?.();
+}
+
 /** @param {KeyboardEvent} event */
 function onKeydown(event) {
   const {key} = event;
@@ -228,6 +270,13 @@ function onKeydown(event) {
   if (key === 'Enter') {
     event.preventDefault();
     choose(picker.active);
+    return;
+  }
+  const mod = IS_MAC ? event.metaKey : event.ctrlKey;
+  if (mod && event.shiftKey && (key === 'd' || key === 'D')) {
+    event.preventDefault();
+    event.stopPropagation();
+    flipDefault(picker.active);
     return;
   }
   if (!isFavoriteShortcut(event, IS_MAC)) return;
@@ -300,13 +349,14 @@ function paint({resetActive}) {
   const waiting = picker.catalog.length === 0;
   const fallback = picker.engine === 'opencode' && !picker.query.trim() && !waiting;
   let row = 0;
+  const defaultKey = picker.default ? modelKey(picker.default.provider, picker.default.id) : '';
   /** @type {(item: PickerItem, context: import('./model-picker-rows.mjs').RowContext) => Node} */
-  const rowOf = (item, context) => itemRow(item, context, row++);
+  const rowOf = (item, context) => itemRow(item, {...context, engine: picker.engine, defaultKey}, row++);
   const fragment = document.createDocumentFragment();
   if (waiting) fragment.append(waitingRow());
   if (fallback) fragment.append(defaultRow(picker.selectedKey === ''));
   groups.forEach((group, groupAt) => {
-    if (group.kind !== 'flat') { fragment.append(groupNode(group, groupAt, rowOf, picker.selectedKey)); return; }
+    if (group.kind !== 'flat') { fragment.append(groupNode(group, groupAt, rowOf, picker.selectedKey, {engine: picker.engine, defaultKey})); return; }
     for (const item of group.items) fragment.append(rowOf(item, {selectedKey: picker.selectedKey, short: false, kind: 'flat'}));
   });
   list.replaceChildren(fragment);
@@ -330,8 +380,10 @@ function paintChrome(noMatch) {
   if (search) search.placeholder = t('modelPicker.search');
   const empty = el(EMPTY);
   if (!empty) return;
-  empty.hidden = !noMatch;
-  empty.textContent = noMatch ? t('modelPicker.noMatch', {query: picker.query.trim()}) : '';
+  const onlyFree = !noMatch && onlyFreeCatalog(picker.catalog) && !picker.query.trim();
+  empty.hidden = !noMatch && !onlyFree;
+  if (noMatch) empty.textContent = t('modelPicker.noMatch', {query: picker.query.trim()});
+  else empty.textContent = onlyFree ? t('modelPicker.onlyFree') : '';
 }
 
 /** @param {import('./model-picker.mjs').PickerGroup[]} groups */

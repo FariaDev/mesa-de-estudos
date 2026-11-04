@@ -17,6 +17,10 @@ const ESPERADO = 'dentro de src/, assets/, templates/, scripts/ ou tests/, ou na
 const EXCECOES = new Set([
   // Metadado do git. O app não faz require dele.
   'desk/.gitignore',
+  /* #80: a regra da 0.5.0 não conhece .pub na raiz. Instalação por zip dessa
+     época não recebe a chave; o release assinado pede reinstalação/atualização
+     por git (docs/agents/release.md). Da 1.0.3 em diante a lista aceita .pub. */
+  'desk/update-signing-key.pub',
   // Só o typecheck (`npm run typecheck`). O runtime usa estes nomes em JSDoc, que o Node não carrega.
   'desk/types/agent.d.ts',
   'desk/types/bend-core.d.ts',

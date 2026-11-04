@@ -1,6 +1,10 @@
 /* Cliente da ferramenta "ver o que desenhei" (#60): a mesma ponte local e o
    mesmo token do quadro (`mesa-activity/client.mjs`), rota `/figure`. Nada é
-   publicado nem gravado; a Mesa devolve o print e o resumo. */
+   publicado nem gravado; a Mesa devolve o print e o resumo. O limite do `plot`
+   é conferido aqui (M8): erro local, com a frase do parser, não custa ida à
+   ponte. */
+
+import {figureLimitError} from './guide.mjs';
 
 /**
  * @param {{url?: string, token?: string} | null | undefined} bridge concessão da ponte (`LEARNING_DESK_ACTIVITY_BRIDGE`)
@@ -13,6 +17,8 @@ export async function viewFigure(bridge, spec, {signal} = {}) {
   if (!bridge || typeof bridge.token !== 'string' || !/^http:\/\/127\.0\.0\.1:\d+\/activity$/.test(bridge.url || '')) {
     throw Error('Ver a figura está disponível na sessão principal da Mesa.');
   }
+  const limitError = figureLimitError(spec && spec.kind, spec && spec.source);
+  if (limitError) throw Error(limitError);
   const body = {
     kind: spec && spec.kind,
     source: spec && spec.source,

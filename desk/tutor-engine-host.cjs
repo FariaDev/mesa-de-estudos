@@ -11,6 +11,9 @@ const {findClaudeLauncher,detectClaude}=require('./src/agents/claude-environment
 const {findOpenCodeLauncher}=require('./src/agents/opencode-process.cjs');
 const {sessionPreviewFromJsonl}=require('./lib.cjs');
 const {resolvePi}=require('./pi.cjs');
+const {detectTutorEngines}=require('./tutor-default-engine.cjs');
+const {visibleEngines,defaultVisibleEngine}=require('./visible-engines.cjs');
+const {oldOpenCode,readOpenCodeVersionSync}=require('./src/agents/opencode-version.cjs');
 const {message}=require('./src/i18n.mjs');
 
 /* Motor do tutor da conversa ativa (#43 fase 2: saiu do main.cjs): Pi,
@@ -24,15 +27,21 @@ const isNative=kind=>conversations.NATIVE_ENGINES.includes(kind);
 
 /**
  * Cria o motor do tutor sobre o estado vivo do main.
- * Devolve piBinary, engine, isNative, openCodeBinary, claudeBinary, claudeDetector, descriptorCache,
- * conversationData, sessionInfo, claudeProfile, prepareClaude, prepareOpenCode, prepareClaudeSide, prepareOpenCodeSide,
- * testClaudeSdkLoader e previewFile.
+ * Devolve piBinary, engine, isNative, openCodeBinary, claudeBinary, claudeDetector, defaultEngine,
+ * newSessionPath, resumeSession, engineFacts, descriptorCache, conversationData, sessionInfo, claudeProfile,
+ * prepareClaude, prepareOpenCode, prepareClaudeSide, prepareOpenCodeSide, testClaudeSdkLoader e previewFile.
  * @param {{live: import('./main.cjs').DeskLive, runtime: string, deskDir: string, TEST_MODE: boolean, FREE_ID: string}} options
  *   `live` traz config, sessão, matéria, ponte, estado e idioma do main
  * @example const {engine,prepareClaude}=createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID});
  */
 function createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID}){
- function piBinary(){return resolvePi({configPath:live.config.piPath,deskDir,envPath:process.env.LEARNING_DESK_PI||''});}
+ function piBinary(){
+  /* Em teste só vale o fake apontado por LEARNING_DESK_PI (mesma regra do
+     OpenCode): o Pi real do PATH ou do Homebrew não pode decidir uma janela
+     de teste nem ser executado por ela (#93). */
+  if(TEST_MODE){const file=process.env.LEARNING_DESK_PI||'';try{return file&&fs.statSync(file).isFile()?file:'';}catch{return '';}}
+  return resolvePi({configPath:live.config.piPath,deskDir,envPath:process.env.LEARNING_DESK_PI||''});
+ }
  function engine(file=live.session){
   // A missing/corrupt managed descriptor keeps its engine for display and is
   // blocked by prepareClaude/prepareOpenCode. It must never start Pi as a recovery fallback.
@@ -66,15 +75,68 @@ function createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID}){
  function openCodeBinary(){
   const envPath=process.env.LEARNING_DESK_OPENCODE||'';
   if(TEST_MODE)return envPath&&fs.existsSync(envPath)?envPath:'';
-  return findOpenCodeLauncher({envPath});
+  const found=findOpenCodeLauncher({envPath});
+  return found&&!oldOpenCode(readOpenCodeVersionSync(found))?found:'';
+ }
+ /* Motor de uma conversa nova quando não há nada salvo (#93). Em teste só os
+    fakes do ambiente contam; fora dele vale a preferência Pi → Claude →
+    OpenCode. O Pi continua primeiro para a mesa de quem já o usa não mudar. */
+ function engineFacts(){
+  return detectTutorEngines({config:live.config,deskDir,env:process.env,testMode:TEST_MODE});
+ }
+ /* A vista deste release (#release OpenCode): só o OpenCode aparece e só ele
+    recebe sessão nova. A chave de teste reabre os fakes; produção não. */
+ function visible(){return visibleEngines({testMode:TEST_MODE,env:process.env});}
+ /* Sem nenhum motor visível o padrão é OpenCode — o caminho do release —, e o
+    erro de conexão já fala dele, nunca do Pi. */
+ function defaultEngine(){return defaultVisibleEngine(engineFacts(),{testMode:TEST_MODE,env:process.env});}
+ /* Modelo e esforço padrão da pessoa (estado de interface) para uma sessão
+    OpenCode nova; sessão aberta mantém o modelo dela. */
+ function openCodeDefault(){
+  const choice=/** @type {{provider?: string, id?: string, effort?: string} | null | undefined} */ (live.state?.modelDefault);
+  return choice?.provider&&choice.id?{model:`${choice.provider}/${choice.id}`,...(choice.effort?{effort:String(choice.effort)}:{})}:{};
+ }
+ /* Caminho de conversa nova no motor escolhido: descritor para Claude e
+    OpenCode, JSONL para o Pi. `chosen` fora da vista cai no padrão (OpenCode
+    neste release). */
+ function newSessionPath(course,chosen=defaultEngine()){
+  const pick=visible().includes(chosen)?chosen:defaultEngine();
+  return isNative(pick)?conversations.createClaudeConversation({runtime,courseId:course,engine:pick,...(pick==='opencode'?openCodeDefault():{})}):path.join(runtime,`pi-${Date.now()}.jsonl`);
+ }
+ /* A conversa salva só volta se o motor dela aparece neste release. Pi e Claude
+    antigos ficam na lista e abrem pela lista (somente leitura); o boot e a troca
+    de matéria começam uma sessão OpenCode nova, sem apagar nada. */
+ function resumeSession(file,course){
+  if(!file)return newSessionPath(course);
+  const kind=engine(file);
+  if(visible().includes(kind))return isNative(kind)||piBinary()?file:newSessionPath(course);
+  return newSessionPath(course);
  }
  const descriptorCache=new DescriptorCache({read:file=>conversations.readClaudeConversation(file,{runtime})});
+ /* Histórico Pi em somente leitura (#93): sem Pi instalado a conversa antiga
+    não some; o JSONL é lido, nunca reescrito. */
+ function piHistory(file){
+  try{
+   const out=[];
+   for(const line of fs.readFileSync(file,'utf8').slice(0,200000).split('\n')){
+    if(!line.trim())continue;
+    let entry;try{entry=JSON.parse(line);}catch{continue;}
+    const msg=entry.message||entry;const role=msg.role||entry.role;
+    const parts=typeof msg.content==='string'?[msg.content]:Array.isArray(msg.content)?msg.content.filter(p=>p&&(p.type==='text'||typeof p==='string')).map(p=>typeof p==='string'?p:p.text||''):[];
+    const value=parts.join('\n').trim();
+    if(value&&(role==='user'||role==='assistant'))out.push({role,content:[{type:'text',text:value}]});
+   }
+   return out;
+  }catch{return [];}
+ }
  function conversationData({messages=true}={}){
   const kind=engine();let record=null;const native=isNative(kind);
   if(native)try{record=descriptorCache.get(live.session,{messages});
    if(!live.bridge&&['accepted','transmitting'].includes(record?.delivery?.status)){conversations.recoverClaudeConversation(live.session,{runtime});
     record=descriptorCache.get(live.session,{messages});}}catch{/* registro nulo chega à tela como conversationStatus.invalid */}
-  return {...agentMetadata(kind,native?live.bridge?.adapter?.controlsSnapshot?.():null),conversationStatus:native?{uncertain:record?.delivery?.status==='uncertain'||!!live.bridge?.uncertain,invalid:!record}:null,detectedClaude:claudeBinary(),detectedOpenCode:kind==='opencode'?openCodeBinary():'',...(native&&messages?{messages:record?.messages||[]}:{})};
+  const facts=engineFacts();
+  const piMessages=kind==='pi'&&messages?piHistory(live.session):[];
+  return {...agentMetadata(kind,native?live.bridge?.adapter?.controlsSnapshot?.():null),conversationStatus:native?{uncertain:record?.delivery?.status==='uncertain'||!!live.bridge?.uncertain,invalid:!record}:null,detectedClaude:claudeBinary(),detectedOpenCode:openCodeBinary(),detectedOpenCodeOldVersion:facts.opencodeOld||'',visibleEngines:visible(),...(native&&messages?{messages:record?.messages||[]}:{}),...(piMessages.length?{messages:piMessages}:{}),cards:live.cardHost?live.cardHost.list(live.session):[]};
  }
  function sessionInfo(file){
   const kind=engine(file);
@@ -113,13 +175,14 @@ function createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID}){
  }
  function prepareClaude(){
   const {cwd,record}=prepareNative('claude');
-  return {cwd,systemPrompt:claudePrompt({profile:claudeProfile(),transcript:record.importedTranscript||'',tools:true,tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app}),record};
+  /* B2: a aba Livre não tem caderno de revisão, então não oferece propor_revisao. */
+  return {cwd,systemPrompt:claudePrompt({profile:claudeProfile(),transcript:record.importedTranscript||'',tools:true,review:live.courseId!==FREE_ID,tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app}),record};
  }
  /* OpenCode (#57): mesma pasta por conversa (`opencode-workspaces/<id>`), que
-    vira o `location.directory` da sessão; o prompt vai no primeiro envio. */
+    vira o `location.directory` da sessão; o prompt vai no canal de instruções. */
  function prepareOpenCode(){
   const {cwd,record}=prepareNative('opencode');
-  return {cwd,systemPrompt:openCodePrompt({profile:claudeProfile(),transcript:record.importedTranscript||'',tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app}),record};
+  return {cwd,systemPrompt:openCodePrompt({profile:claudeProfile(),transcript:record.importedTranscript||'',review:live.courseId!==FREE_ID,tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app}),record};
  }
  /* Preparação do chat lateral Claude: workspace PRÓPRIO (record.id do descritor
     lateral), mesmo perfil de estudo e mesma recusa de matéria — nunca inicia o Pi
@@ -133,10 +196,12 @@ function createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID}){
   const cwd=prepareSide('claude',record);
   return {cwd,systemPrompt:claudePrompt({profile:claudeProfile(),tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app})};
  }
- /* O lateral OpenCode (#74): o mesmo preparo, com o prompt do OpenCode. */
+ /* O lateral OpenCode (#74): o mesmo preparo, com o prompt do OpenCode.
+    `sidechat` troca as ofertas da sessão principal pelo texto lateral: o MCP
+    desse chat é `pdfOnly` e só tem ler_pdf e buscar_material (A4). */
  function prepareOpenCodeSide(record){
   const cwd=prepareSide('opencode',record);
-  return {cwd,systemPrompt:openCodePrompt({profile:claudeProfile(),tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app})};
+  return {cwd,systemPrompt:openCodePrompt({profile:claudeProfile(),sidechat:true,tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app})};
  }
  function testClaudeSdkLoader(){
   if(!TEST_MODE||!process.env.LEARNING_DESK_CLAUDE_SDK_FACTORY)return undefined;
@@ -148,7 +213,7 @@ function createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID}){
   if(isNative(engine(file)))return descriptorCache.get(file)?.preview||'';
   try{return sessionPreviewFromJsonl(fs.readFileSync(file,'utf8').slice(0,200000));}catch{return '';}
  }
- return {piBinary,engine,isNative,openCodeBinary,claudeBinary,claudeDetector,descriptorCache,conversationData,sessionInfo,claudeProfile,prepareClaude,prepareOpenCode,prepareClaudeSide,prepareOpenCodeSide,testClaudeSdkLoader,previewFile};
+ return {piBinary,engine,isNative,openCodeBinary,claudeBinary,claudeDetector,defaultEngine,newSessionPath,resumeSession,engineFacts,visibleEngines:visible,descriptorCache,conversationData,piHistory,sessionInfo,claudeProfile,prepareClaude,prepareOpenCode,prepareClaudeSide,prepareOpenCodeSide,testClaudeSdkLoader,previewFile};
 }
 
 module.exports={createTutorEngineHost};

@@ -140,7 +140,7 @@ function countFieldset(m){
   value:String(n),
   checked:n === 1,
  }));
- const labels = [1, 2].map((n) => make(doc, 'label', {class:'set-check', for:`cfg-layout-count-${n}`}, [
+ const labels = [1, 2].map((n) => make(doc, 'label', {class:'set-check', for:`cfg-layout-count-${n}`, title:t('settings.layout.countNote')}, [
   radios[n - 1],
   make(doc, 'span', {}, [textNode(doc, t(n === 1 ? 'settings.layout.single' : 'settings.layout.double'))]),
  ]));
@@ -152,9 +152,6 @@ function countFieldset(m){
  return make(doc, 'fieldset', {class:'set-sec cfg-layout-readers'}, [
   legend(doc, t('settings.layout.legend')),
   ...labels,
-  make(doc, 'p', {class:'fine'}, [
-   textNode(doc, t('settings.layout.countNote')),
-  ]),
  ]);
 }
 
@@ -178,19 +175,24 @@ function panelFieldset(m, i){
   preferRow(m, i, '');
   updatePreview();
  });
+ const printed = make(doc, 'button', {
+  type:'button',
+  id:`cfg-layout-printed-${n}`,
+  class:'set-link cfg-layout-printed',
+  title:t('settings.layout.printedTitle'),
+  'aria-label':t('settings.layout.printedAria', {n}),
+ }, [textNode(doc, t('settings.layout.printed'))]);
+ printed.addEventListener('click', () => m.hooks?.onPrinted?.(i));
  const kids = [
   legend(doc, t('settings.layout.reader', {n})),
   make(doc, 'label', {for:`cfg-layout-label-${n}`}, [textNode(doc, t('settings.layout.nameLabel'))]),
   labelInput,
-  make(doc, 'p', {class:'fine', id:`cfg-layout-note-${n}`}, [
-   textNode(doc, t('settings.layout.inheritNote', {default:DEFAULTS[i].label})),
-  ]),
   make(doc, 'div', {class:'cfg-layout-prefer', role:'group', 'aria-labelledby':preferTitleId}, [
    make(doc, 'span', {class:'cfg-layout-prefer-title', id:preferTitleId}, [textNode(doc, t('settings.layout.termsTitle'))]),
    preferList,
    add,
    make(doc, 'p', {class:'fine', id:`cfg-layout-prefer-hint-${n}`}, [
-    textNode(doc, t('settings.layout.termsHint', {default:DEFAULTS[i].prefer[0]})),
+    textNode(doc, t('settings.layout.termsHint')),
    ]),
   ]),
  ];
@@ -204,12 +206,10 @@ function panelFieldset(m, i){
   m.toggle = toggleInput;
   kids.push(
    make(doc, 'label', {for:'cfg-layout-toggle-2'}, [textNode(doc, t('settings.layout.toggleLabel'))]),
-   toggleInput,
-   make(doc, 'p', {class:'fine', id:'cfg-layout-toggle-hint'}, [
-    textNode(doc, t('settings.layout.inheritNote', {default:DEFAULTS[1].toggle})),
-   ])
+   toggleInput
   );
  }
+ kids.push(printed);
  const fieldset = make(doc, 'fieldset', {
   class:'set-sec cfg-layout-panel',
   id:`cfg-layout-panel-${n}`,
@@ -280,13 +280,14 @@ function updatePreview(){
 
 /* ---------- contrato do host ---------- */
 
-export function mountLayoutSettings(container){
+export function mountLayoutSettings(container, hooks = {}){
  if(!container || typeof container.appendChild !== 'function')throw new TypeError(invalidValue('mountLayoutSettings(container)', container, 'elemento com appendChild'));
- if(mounted && mounted.container === container)return container;
+ if(mounted && mounted.container === container){mounted.hooks = hooks;return container;}
  const doc = container.ownerDocument || globalThis.document;
  if(!doc || typeof doc.createElement !== 'function')throw new Error('mountLayoutSettings: documento indisponível');
  mounted?.root?.remove?.();
  const m = emptyState(container, doc);
+ m.hooks = hooks;
  mounted = m;
  m.root = make(doc, 'div', {class:'cfg-layout'}, [
   countFieldset(m),

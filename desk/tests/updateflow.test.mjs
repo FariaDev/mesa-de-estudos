@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {makeZip} from './zipkit.mjs';
+import {TEST_COMMIT, makeSignedRelease} from './fake-update-release.mjs';
 
 /* Aplicação do updater em raiz fake (modos git e zip), SEM rede e SEM processo
    real: comandos (git/npm/node) e o reopen são falsos/injetados. Os cenários
@@ -84,17 +85,18 @@ test('modo zip: substitui só a lista explícita, protegido intocado, npm ci só
   const runtime = tmp();
   const reopens = [];
   const {run, calls} = fakeRun();
-  let pedidoUrl = '';
+  const urls = [];
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: makeZip(NOVO)});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
-    announcedVersion: '0.4.1',
-    fetchBuffer: async (url) => { pedidoUrl = url; return makeZip(NOVO); },
+    announcedVersion: '0.4.1', publicKey: release.publicKey,
+    fetchBuffer: async (url) => { urls.push(url); return release.fetchBuffer(url); },
     run,
     reopen: () => reopens.push('reabriu'),
     waitPid: 0,
   });
   assert.equal(result.ok, true);
-  assert.match(pedidoUrl, /codeload\.github\.com\/FariaDev\/mesa-de-estudos\/zip\/refs\/tags\/v0\.4\.1$/);
+  assert.deepEqual(urls, [release.urls.manifest, release.urls.signature, release.urls.zip], 'baixa o manifesto assinado, a assinatura e o zip da Release');
 
   assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main novo');
   assert.equal(read(path.join(root, 'desk', 'index.html')), 'index novo');
@@ -125,9 +127,10 @@ test('modo zip: lock igual não roda npm ci', async () => {
   const runtime = tmp();
   const {run, calls} = fakeRun();
   const zip = makeZip({'x/desk/main.cjs': 'main novo', 'x/desk/package.json': '{"version":"0.4.0"}', 'x/desk/package-lock.json': '{"lock":"antigo"}'});
+  const release = makeSignedRelease({version: '0.4.0', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.0',
-    fetchBuffer: async () => zip, run, reopen: () => {}, waitPid: 0,
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer, run, reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, true);
   assert.deepEqual(calls, [], 'sem mudança de lock não há npm ci (nem git/node)');
@@ -138,10 +141,11 @@ test('modo zip: package.json extraído não bate com a anunciada → nada é toc
   const runtime = tmp();
   const reopens = [];
   const {run, calls} = fakeRun();
+  const release = makeSignedRelease({version: '9.9.9', commit: TEST_COMMIT, zip: makeZip(NOVO)});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
-    announcedVersion: '9.9.9',
-    fetchBuffer: async () => makeZip(NOVO),
+    announcedVersion: '9.9.9', publicKey: release.publicKey,
+    fetchBuffer: release.fetchBuffer,
     run, reopen: () => reopens.push('reabriu'), waitPid: 0,
   });
   assert.equal(result.ok, false);
@@ -158,10 +162,11 @@ test('modo zip: caminho com .. é barrado antes de qualquer escrita', async () =
   const root = fakeInstallRoot();
   const runtime = tmp();
   const zip = makeZip({'x/desk/package.json': '{"version":"0.4.1"}', 'x/../evil.txt': 'fuga'});
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
-    announcedVersion: '0.4.1',
-    fetchBuffer: async () => zip, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+    announcedVersion: '0.4.1', publicKey: release.publicKey,
+    fetchBuffer: release.fetchBuffer, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, false);
   assert.match(result.reason, /suspeito/);
@@ -180,10 +185,11 @@ test('modo zip: falha no meio → rollback devolve a versão antiga inteira e re
     'mesa-de-estudos-0.4.1/desk/src/bloqueado.mjs': 'não vai entrar',
   });
   const reopens = [];
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
-    announcedVersion: '0.4.1',
-    fetchBuffer: async () => zip,
+    announcedVersion: '0.4.1', publicKey: release.publicKey,
+    fetchBuffer: release.fetchBuffer,
     run: async () => ({stdout: ''}),
     reopen: () => reopens.push('reabriu'),
     waitPid: 0,
@@ -207,9 +213,9 @@ test('lock mudou + npm ci falhou no meio: rollback refaz o ci com o lock antigo'
   const reopens = [];
   let npmCount = 0;
   const {run, calls} = fakeRun((cmd, args) => {
-    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: 'abc123\n'};
-    if (cmd === 'git' && args[0] === 'pull') {
-      /* O pull trouxe lock novo — é o único estado que quebra o invariante. */
+    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: TEST_COMMIT + '\n'};
+    if (cmd === 'git' && args[0] === 'merge') {
+      /* O merge trouxe lock novo — é o único estado que quebra o invariante. */
       write(path.join(root, 'desk', 'package.json'), '{"version":"0.4.1"}');
       write(path.join(root, 'desk', 'package-lock.json'), '{"lock":"novo"}');
       return {stdout: ''};
@@ -221,17 +227,19 @@ test('lock mudou + npm ci falhou no meio: rollback refaz o ci com o lock antigo'
     }
     return {stdout: ''};
   });
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: Buffer.from('zip')});
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
-    announcedVersion: '0.4.1', run, reopen: () => reopens.push('reabriu'), waitPid: 0,
+    announcedVersion: '0.4.1', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+    run, reopen: () => reopens.push('reabriu'), waitPid: 0,
   });
   assert.equal(result.ok, false);
   assert.match(result.reason, /npm ci morreu/);
   assert.equal(npmCount, 2, 'o rollback roda o npm ci de recuperação com o lock antigo');
   assert.deepEqual(calls.map((c) => c.slice(0, 2).join(' ')), [
-    'git rev-parse', 'git status', 'git pull', 'npm ci', 'git reset', 'npm ci',
-  ], 'ordem: status → pull → ci quebra → reset/restore → ci de recuperação');
-  assert.ok(calls.find((c) => c[0] === 'git' && c[1] === 'pull')?.includes('--ff-only'), 'o pull nunca faz merge: só avança em fast-forward');
+    'git rev-parse', 'git status', 'git rev-parse', 'git merge', 'git rev-parse', 'npm ci', 'git reset', 'npm ci',
+  ], 'ordem: status → conferência da tag → merge ff → HEAD assinado → ci quebra → reset/restore → ci de recuperação');
+  assert.ok(calls.find((c) => c[0] === 'git' && c[1] === 'merge')?.includes('--ff-only'), 'nunca faz merge de verdade: só avança em fast-forward');
   assert.equal(read(path.join(root, 'desk', 'package.json')), '{"version":"0.4.0"}', 'package.json antigo de volta');
   assert.equal(read(path.join(root, 'desk', 'package-lock.json')), '{"lock":"antigo"}', 'lock antigo de volta');
   assert.deepEqual(reopens, ['reabriu'], 'a versão antiga sobe de novo sozinha');
@@ -253,9 +261,10 @@ test('A1: falha depois do npm ci → rollback refaz as dependências (depsTouche
   write(path.join(payload, 'main.cjs'), 'main antigo (payload)');
   const runtime = tmp();
   let npmCount = 0;
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: Buffer.from('zip')});
   const {run} = fakeRun((cmd, args) => {
-    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: 'abc123\n'};
-    if (cmd === 'git' && args[0] === 'pull') {
+    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: TEST_COMMIT + '\n'};
+    if (cmd === 'git' && args[0] === 'merge') {
       write(path.join(clone, 'desk', 'package-lock.json'), '{"lock":"novo"}');
       return {stdout: ''};
     }
@@ -272,6 +281,7 @@ test('A1: falha depois do npm ci → rollback refaz as dependências (depsTouche
   const result = await updater.applyUpdate({
     mode: 'bundle', rootDir: clone, deskDir: payload, runtime,
     announcedVersion: '0.4.1', sourceInfo: {path: clone},
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
     run, reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, false);
@@ -297,8 +307,9 @@ test('A1: rollback re-sincroniza as dependências do payload quando o sync passa
   const runtime = tmp();
   let nodeCalls = 0;
   const assinaturas = [];
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: Buffer.from('zip')});
   const {run} = fakeRun((cmd, args) => {
-    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: 'abc123\n'};
+    if (cmd === 'git' && args[0] === 'rev-parse') return {stdout: TEST_COMMIT + '\n'};
     if (cmd === 'node') {nodeCalls++; if (nodeCalls === 1) throw Error('install-app estourou no meio'); return {stdout: ''};}
     if (cmd === 'codesign') {assinaturas.push(args.join(' ')); return {stdout: ''};}
     return {stdout: ''};
@@ -306,6 +317,7 @@ test('A1: rollback re-sincroniza as dependências do payload quando o sync passa
   const result = await updater.applyUpdate({
     mode: 'bundle', rootDir: clone, deskDir: payload, runtime,
     announcedVersion: '0.4.1', sourceInfo: {path: clone},
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
     run, reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, false);
@@ -375,9 +387,10 @@ test('D2/A2: update da Mesa deixa o Pi local (.pi-local) resolvível e executáv
     'x/desk/package-lock.json': '{"lock":"novo"}',
     'x/desk/main.cjs': 'main novo',
   });
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir, runtime, announcedVersion: '0.4.1',
-    fetchBuffer: async () => zip, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, true);
   /* O update reescreveu o desk inteiro; o Pi local (e o lock dele) ficou. */
@@ -409,9 +422,10 @@ test('D5/B1: órfão gerenciado some; adição local fica; manifesto renasce', a
     'x/desk/main.cjs': 'main novo',
     'x/desk/src/foo.mjs': 'foo novo',
   });
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
-    fetchBuffer: async () => zip, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, true);
   assert.equal(fs.existsSync(path.join(root, 'desk', 'src', 'velho.mjs')), false, 'órfão gerenciado sai (estava no manifesto, sumiu da versão nova)');
@@ -452,9 +466,10 @@ test('#50: instalação antiga com chat/ no disco atualiza sem apagar nem tocar 
     'x/desk/package.json': '{"version":"0.4.1"}',
     'x/desk/main.cjs': 'main novo',
   });
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
-    fetchBuffer: async () => zip, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
   });
 
   assert.equal(result.ok, true, 'a atualização termina bem com chat/ no disco');
@@ -483,9 +498,10 @@ test('D5/B2: symlink no destino (ou no pai) é recusado antes da escrita', async
     'x/desk/src/escapado.mjs': 'não vai entrar', /* por baixo de um dir-link */
   });
   const reopens = [];
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
-    fetchBuffer: async () => zip, run: async () => ({stdout: ''}), reopen: () => reopens.push('r'), waitPid: 0,
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer, run: async () => ({stdout: ''}), reopen: () => reopens.push('r'), waitPid: 0,
   });
   assert.equal(result.ok, false);
   assert.match(result.reason, /link simbólico/);
@@ -509,9 +525,10 @@ test('D4/A5: recuperação que falha PRESERVA o backup e diz o caminho no log', 
   });
   fs.mkdirSync(path.join(root, 'desk', 'src', 'bloqueado.mjs'));
   let backupInjetado = null;
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
-    fetchBuffer: async () => zip,
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
     run: async () => ({stdout: ''}),
     reopen: () => {}, waitPid: 0,
     restore: (rootDir, backupDir) => {
@@ -523,9 +540,12 @@ test('D4/A5: recuperação que falha PRESERVA o backup e diz o caminho no log', 
   assert.equal(result.incomplete, true, 'a falha é declarada como recuperação incompleta');
   assert.ok(result.backup && fs.existsSync(result.backup), 'o backup fica no disco');
   assert.equal(backupInjetado, result.backup, 'o backup reportado é o que o updater criou');
-  const log = logOf(runtime);
-  assert.match(log, /rollback incompleto \(disco cheio no meio do restore\)/);
-  assert.match(log, new RegExp(`backup PRESERVADO em ${result.backup.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  const entries = logOf(runtime).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  assert.ok(entries.some((entry) => /rollback incompleto \(disco cheio no meio do restore\)/.test(entry.msg)));
+  /* O log é JSON: a barra invertida do caminho do Windows chega dobrada. Lê o
+     campo `msg` já decodificado em vez de montar regex sobre o texto cru. */
+  const preserved = entries.find((entry) => entry.msg.includes('backup PRESERVADO em'));
+  assert.ok(preserved?.msg.includes(result.backup), preserved?.msg);
   /* O restore foi interrompido antes de copiar: o código novo sobreviveu — é
      exatamente por isso que o backup não pode ser apagado. */
   assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main novo');
@@ -557,9 +577,11 @@ test('D3/A4: PID que sai normalmente destrava a aplicação', async () => {
   const root = fakeInstallRoot();
   const runtime = tmp();
   const child = require('node:child_process').spawn('sleep', ['0.2']);
+  const zip = makeZip({'x/desk/main.cjs': 'main novo', 'x/desk/package.json': '{"version":"0.4.0"}'});
+  const release = makeSignedRelease({version: '0.4.0', commit: TEST_COMMIT, zip});
   const result = await updater.applyUpdate({
     mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.0',
-    fetchBuffer: async () => makeZip({'x/desk/main.cjs': 'main novo', 'x/desk/package.json': '{"version":"0.4.0"}'}),
+    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
     run: async () => ({stdout: ''}),
     reopen: () => {},
     waitPid: child.pid,
@@ -568,4 +590,101 @@ test('D3/A4: PID que sai normalmente destrava a aplicação', async () => {
   assert.equal(result.ok, true, 'com o PID saído o update aplica');
   assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main novo');
   child.kill();
+});
+
+/* ---------- #80: atualização assinada ---------- */
+
+test('#80: chave pública marcador recusa sem sequer baixar a release', async () => {
+  const root = fakeInstallRoot();
+  const runtime = tmp();
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: makeZip(NOVO)});
+  let downloads = 0;
+  const result = await updater.applyUpdate({
+    mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
+    publicKey: 'PLACEHOLDER — chave ainda não configurada',
+    fetchBuffer: async (url) => { downloads++; return release.fetchBuffer(url); },
+    run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /chave pública de atualização não foi configurada/);
+  assert.equal(downloads, 0, 'o marcador recusa antes de qualquer download');
+  assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main antigo', 'nada aplicado');
+});
+
+test('#80: manifesto ausente (404) recusa a atualização inteira', async () => {
+  const root = fakeInstallRoot();
+  const runtime = tmp();
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: makeZip(NOVO)});
+  const result = await updater.applyUpdate({
+    mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
+    publicKey: release.publicKey,
+    fetchBuffer: async () => { throw Error('HTTP 404'); },
+    run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /manifesto assinado/);
+  assert.match(result.reason, /HTTP 404/);
+  assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main antigo', 'nada aplicado');
+});
+
+test('#80: branch que para fora do commit assinado recusa e desfaz (só o commit da Release vale)', async () => {
+  const root = fakeInstallRoot();
+  fs.mkdirSync(path.join(root, '.git'));
+  const runtime = tmp();
+  const outroCommit = 'c'.repeat(40);
+  let heads = 0;
+  const calls = [];
+  const run = async (cmd, args) => {
+    calls.push([cmd, ...args]);
+    if (cmd === 'git' && args[0] === 'rev-parse') {
+      if (args[1] === '--verify') return {stdout: `${TEST_COMMIT}\n`};
+      heads++;
+      return {stdout: `${heads === 1 ? TEST_COMMIT : outroCommit}\n`};
+    }
+    return {stdout: ''};
+  };
+  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: Buffer.from('zip')});
+  const result = await updater.applyUpdate({
+    mode: 'git', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
+    announcedVersion: '0.4.1', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+    run, reopen: () => {}, waitPid: 0,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /manifesto assinado é do commit/);
+  assert.ok(calls.some((call) => call[0] === 'git' && call[1] === 'reset'), 'rollback volta o HEAD anterior');
+  assert.ok(!calls.some((call) => call[0] === 'npm' && call[1] === 'ci'), 'sem lock novo, sem npm ci');
+  assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main antigo');
+});
+
+test('#80: commit da tag diferente do manifesto recusa git e bundle antes do merge', async () => {
+  for (const mode of ['git', 'bundle']) {
+    const clone = fakeInstallRoot();
+    fs.mkdirSync(path.join(clone, '.git'));
+    const payload = mode === 'bundle' ? tmp() : null;
+    if (payload) {
+      write(path.join(payload, 'package.json'), '{"version":"0.4.0"}');
+      write(path.join(payload, 'main.cjs'), 'main antigo (payload)');
+    }
+    const runtime = tmp();
+    const calls = [];
+    const outroCommit = 'b'.repeat(40);
+    const run = async (cmd, args) => {
+      calls.push([cmd, ...args]);
+      if (cmd === 'git' && args[0] === 'rev-parse') {
+        return {stdout: args[1] === '--verify' ? `${outroCommit}\n` : `${TEST_COMMIT}\n`};
+      }
+      return {stdout: ''};
+    };
+    const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: Buffer.from('zip')});
+    const result = await updater.applyUpdate({
+      mode, rootDir: clone, deskDir: payload || path.join(clone, 'desk'), runtime,
+      announcedVersion: '0.4.1', sourceInfo: mode === 'bundle' ? {path: clone} : null,
+      publicKey: release.publicKey, fetchBuffer: release.fetchBuffer, run, reopen: () => {}, waitPid: 0,
+    });
+    assert.equal(result.ok, false, `${mode}: recusa`);
+    assert.match(result.reason, /commit da tag v0\.4\.1/, `${mode}: motivo diz a tag`);
+    assert.match(result.reason, /não bate com o commit do manifesto assinado/, `${mode}: motivo diz o manifesto`);
+    assert.ok(!calls.some((call) => call[0] === 'git' && call[1] === 'merge'), `${mode}: merge nunca acontece`);
+    assert.equal(read(path.join(clone, 'desk', 'main.cjs')), 'main antigo', `${mode}: nada aplicado`);
+  }
 });

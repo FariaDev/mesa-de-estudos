@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {writeFakeExecutable} from './fake-executable.mjs';
 
 /* Fake nomeado dos instaladores do Pi e do Claude Code (`brew`, `npm`, `claude`).
    Nenhum teste da Mesa roda o `brew upgrade`, o `npm i -g` nem o `claude update`
@@ -61,18 +62,13 @@ if(args[0]==='update'){
  process.exit(0);
 }
 process.exit(2);`);
-  const write = (name, text) => {
-    const file = path.join(bin, name);
-    fs.writeFileSync(file, text);
-    fs.chmodSync(file, 0o755);
-    return file;
-  };
-  write('brew', pi('brew', failBrew));
-  write('npm', pi('npm', failBrew));
+  const write = (name, text) => writeFakeExecutable(bin, name, text);
+  const brewPath = write('brew', pi('brew', failBrew));
+  const npmPath = write('npm', pi('npm', failBrew));
   const claudeLauncher = write('claude', claude);
 
   const allCalls = () => fs.readFileSync(callsFile, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
   /* `claude --version` roda a cada leitura de versão; `calls` só mostra o que mexe. */
   const calls = () => allCalls().filter((call) => call.args[0] !== '--version');
-  return {bin, piPath, claudeLauncher, calls, allCalls, pkgFile, claudeVersionFile};
+  return {bin, piPath, brewPath, npmPath, claudeLauncher, calls, allCalls, pkgFile, claudeVersionFile};
 }

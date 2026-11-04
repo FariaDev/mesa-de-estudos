@@ -13,13 +13,16 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 var char_new = function char_new(c) {
   return c < 55296 || c >= 57344 && c <= 1114111 ? String.fromCodePoint(c) : String.fromCharCode(56320, c >>> 22, c >>> 11 & 2047, c & 2047);
 };
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -40,6 +43,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -47,8 +51,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -67,7 +71,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $heartbeatInterval() {
   return 30;
@@ -91,7 +95,7 @@ function $gapSeconds(_prev_0, _now_0) {
   return _now_0 < _prev_0 ? 0 : _now_0 - _prev_0;
 }
 function $gapOk(_prev_0, _now_0) {
-  return $Bool_and($Nat_is_gt(_now_0, _prev_0), $Nat_is_le(_now_0 < _prev_0 ? 0 : _now_0 - _prev_0, $maxGap()));
+  return $Bool_and($$Nat_is_gt(_now_0, _prev_0), $$Nat_is_le(_now_0 < _prev_0 ? 0 : _now_0 - _prev_0, $$maxGap()));
 }
 function $gapSeconds_if(_prev_0, _now_0, _ok_0) {
   if (_ok_0) {
@@ -101,7 +105,7 @@ function $gapSeconds_if(_prev_0, _now_0, _ok_0) {
   }
 }
 function $gapSeconds_checked(_prev_0, _now_0) {
-  return $gapSeconds_if(_prev_0, _now_0, $gapOk(_prev_0, _now_0));
+  return $gapSeconds_if(_prev_0, _now_0, $$gapOk(_prev_0, _now_0));
 }
 function $activeEvidence(_prev_0, _now_0, _running_0) {
   if (!_running_0) {
@@ -131,20 +135,20 @@ function $qualifiesSession(_seconds_0) {
   return $Nat_is_gt(_seconds_0, 0);
 }
 function $offsetSeconds(_minutes_0) {
-  const _x_0 = $secondsPerMinute();
+  const _x_0 = $$secondsPerMinute();
   return nat_chk(_minutes_0 * _x_0);
 }
 function $localSeconds(_seconds_0, _offsetMinutes_0, _west_0) {
   if (_west_0) {
-    const _x_0 = $offsetSeconds(_offsetMinutes_0);
+    const _x_0 = $$offsetSeconds(_offsetMinutes_0);
     return _seconds_0 < _x_0 ? 0 : _seconds_0 - _x_0;
   } else {
-    const _x_1 = $offsetSeconds(_offsetMinutes_0);
+    const _x_1 = $$offsetSeconds(_offsetMinutes_0);
     return nat_chk(_seconds_0 + _x_1);
   }
 }
 function $dayNumber(_seconds_0, _offsetMinutes_0, _west_0) {
-  return $Nat_div($localSeconds(_seconds_0, _offsetMinutes_0, _west_0), $secondsPerDay());
+  return $Nat_div($$localSeconds(_seconds_0, _offsetMinutes_0, _west_0), $$secondsPerDay());
 }
 function $periodDays(_period_0) {
   if (_period_0.$ === "PeriodWeek") {
@@ -173,13 +177,13 @@ function $startFrom(_today_0, _days_0, _all_0) {
   }
 }
 function $windowStart(_today_0, _period_0) {
-  return $startFrom(_today_0, $periodDays(_period_0), $periodAll(_period_0));
+  return $startFrom(_today_0, $$periodDays(_period_0), $$periodAll(_period_0));
 }
 function $inWindow(_day_0, _start_0, _today_0) {
-  return $Bool_and($Nat_is_ge(_day_0, _start_0), $Nat_is_le(_day_0, _today_0));
+  return $Bool_and($$Nat_is_ge(_day_0, _start_0), $$Nat_is_le(_day_0, _today_0));
 }
 function $inPeriod(_day_0, _today_0, _period_0) {
-  return $inWindow(_day_0, $windowStart(_today_0, _period_0), _today_0);
+  return $inWindow(_day_0, $$windowStart(_today_0, _period_0), _today_0);
 }
 function $token(_has_0, _count_0) {
   if (!_has_0) {
@@ -208,7 +212,7 @@ function $unavailableLabel() {
   return $msg_msg("stats.unavailable");
 }
 function $usageEmpty() {
-  return { $: "StatsUsage", input: $token(false, 0), output: $token(false, 0), cache: $token(false, 0) };
+  return { $: "StatsUsage", input: $$token(false, 0), output: $$token(false, 0), cache: $$token(false, 0) };
 }
 function $usageAdd(_a_0, _b_0) {
   const _input_0 = _a_0["input"];
@@ -217,7 +221,7 @@ function $usageAdd(_a_0, _b_0) {
   const _input2_0 = _b_0["input"];
   const _output2_0 = _b_0["output"];
   const _cache2_0 = _b_0["cache"];
-  return { $: "StatsUsage", input: $tokenAdd(_input_0, _input2_0), output: $tokenAdd(_output_0, _output2_0), cache: $tokenAdd(_cache_0, _cache2_0) };
+  return { $: "StatsUsage", input: $$tokenAdd(_input_0, _input2_0), output: $$tokenAdd(_output_0, _output2_0), cache: $$tokenAdd(_cache_0, _cache2_0) };
 }
 function $addsPrompt(_accepted_0, _duplicate_0) {
   if (!_accepted_0) {
@@ -234,11 +238,11 @@ function $percent_if(_part_0, _total_0, _zero_0) {
   }
 }
 function $percent(_part_0, _total_0) {
-  return $percent_if(_part_0, _total_0, $Nat_is_eq(_total_0, 0));
+  return $percent_if(_part_0, _total_0, $$Nat_is_eq(_total_0, 0));
 }
 function $pad2_if(_n_0, _small_0) {
   if (_small_0) {
-    const _x_0 = $Nat_show(_n_0);
+    const _x_0 = $$Nat_show(_n_0);
     return "0" + _x_0;
   } else {
     return $Nat_show(_n_0);
@@ -248,57 +252,57 @@ function $pad2(_n_0) {
   return $pad2_if(_n_0, _n_0 < 10);
 }
 function $minutesOf(_seconds_0) {
-  return $Nat_div($Nat_mod(_seconds_0, $secondsPerHour()), $secondsPerMinute());
+  return $Nat_div($$Nat_mod(_seconds_0, $$secondsPerHour()), $$secondsPerMinute());
 }
 function $hoursOf(_seconds_0) {
-  return $Nat_div(_seconds_0, $secondsPerHour());
+  return $Nat_div(_seconds_0, $$secondsPerHour());
 }
 function $durationHour(_seconds_0, _exactHour_0) {
   if (_exactHour_0) {
-    return $msg_msg1("stats.duration.hours", "hours", $Nat_show($hoursOf(_seconds_0)));
+    return $msg_msg1("stats.duration.hours", "hours", $$Nat_show($$hoursOf(_seconds_0)));
   } else {
-    return $msg_msg2("stats.duration.hoursMinutes", "hours", $Nat_show($hoursOf(_seconds_0)), "minutes", $pad2($minutesOf(_seconds_0)));
+    return $msg_msg2("stats.duration.hoursMinutes", "hours", $$Nat_show($$hoursOf(_seconds_0)), "minutes", $$pad2($$minutesOf(_seconds_0)));
   }
 }
 function $durationHasHour(_seconds_0, _hasHour_0) {
   if (!_hasHour_0) {
-    return $msg_msg1("stats.duration.minutes", "minutes", $Nat_show($minutesOf(_seconds_0)));
+    return $msg_msg1("stats.duration.minutes", "minutes", $$Nat_show($$minutesOf(_seconds_0)));
   } else {
-    return $durationHour(_seconds_0, $Nat_is_eq($minutesOf(_seconds_0), 0));
+    return $durationHour(_seconds_0, $$Nat_is_eq($$minutesOf(_seconds_0), 0));
   }
 }
 function $durationUnder(_seconds_0, _under_0) {
   if (_under_0) {
     return $msg_msg("stats.duration.under");
   } else {
-    return $durationHasHour(_seconds_0, $Nat_is_ge(_seconds_0, $secondsPerHour()));
+    return $durationHasHour(_seconds_0, $$Nat_is_ge(_seconds_0, $$secondsPerHour()));
   }
 }
 function $durationLabel_if(_seconds_0, _zero_0) {
   if (_zero_0) {
     return $msg_msg("stats.duration.zero");
   } else {
-    const _x_0 = $secondsPerMinute();
+    const _x_0 = $$secondsPerMinute();
     return $durationUnder(_seconds_0, _seconds_0 < _x_0);
   }
 }
 function $durationLabel(_seconds_0) {
-  return $durationLabel_if(_seconds_0, $Nat_is_eq(_seconds_0, 0));
+  return $durationLabel_if(_seconds_0, $$Nat_is_eq(_seconds_0, 0));
 }
 function $weekdayLabel(_index_0) {
-  if (_index_0 === 0) {
+  if (_index_0 == 0) {
     return $msg_msg("stats.weekday.short.sun");
-  } else if (_index_0 === 1) {
+  } else if (_index_0 == 1) {
     return $msg_msg("stats.weekday.short.mon");
-  } else if (_index_0 === 2) {
+  } else if (_index_0 == 2) {
     return $msg_msg("stats.weekday.short.tue");
-  } else if (_index_0 === 3) {
+  } else if (_index_0 == 3) {
     return $msg_msg("stats.weekday.short.wed");
-  } else if (_index_0 === 4) {
+  } else if (_index_0 == 4) {
     return $msg_msg("stats.weekday.short.thu");
-  } else if (_index_0 === 5) {
+  } else if (_index_0 == 5) {
     return $msg_msg("stats.weekday.short.fri");
-  } else if (_index_0 === 6) {
+  } else if (_index_0 == 6) {
     return $msg_msg("stats.weekday.short.sat");
   } else {
     return "";
@@ -339,49 +343,8 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $Bool_and(_a_0, _b_0) {
   if (!_a_0) {
@@ -404,7 +367,7 @@ function $Nat_is_ge(_a_0, _b_0) {
 }
 function $Nat_show(_n_0) {
   const _m_0 = _n_0;
-  return $Nat_show_fin(_m_0, "", $Nat_show_put(nat_divmod(_m_0, 10)));
+  return $Nat_show_fin(_m_0, "", $$Nat_show_put(nat_divmod(_m_0, 10)));
 }
 function $Bool_not(_b_0) {
   if (!_b_0) {
@@ -425,15 +388,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_gt(_c_0) {
   if (_c_0.$ === "GT") {
@@ -470,12 +468,11 @@ function $Nat_show_fin($0, $1, $2) {
         const _dq_0 = $2;
         const _d_0 = _dq_0["fst"];
         const _t_0 = _dq_0["snd"];
-        if (_t_0 === 0) {
+        if (_t_0 == 0) {
           return _d_0 + _acc_0;
         } else {
-          const _p_0 = _t_0 - 1;
           $0 = _g_0;
-          $1 = nat_chk(_p_0 + 1);
+          $1 = _t_0;
           $2 = _d_0 + _acc_0;
           $pc = 1;
           continue;
@@ -485,13 +482,13 @@ function $Nat_show_fin($0, $1, $2) {
         const _f_0 = $0;
         const _n_0 = $1;
         const _acc_0 = $2;
-        if (_f_0 === 0) {
+        if (_f_0 == 0) {
           return _acc_0;
         } else {
           const _g_0 = _f_0 - 1;
           $0 = _g_0;
           $1 = _acc_0;
-          $2 = $Nat_show_put(nat_divmod(_n_0, 10));
+          $2 = $$Nat_show_put(nat_divmod(_n_0, 10));
           $pc = 0;
           continue;
         }
@@ -515,16 +512,48 @@ function $Pair_snd(_p_0) {
   const _b_0 = _p_0["snd"];
   return _b_0;
 }
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
+}
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$Nat_is_gt = $Nat_is_gt;
+var $$maxGap = $maxGap;
+var $$Nat_is_le = $Nat_is_le;
+var $$gapOk = $gapOk;
+var $$secondsPerMinute = $secondsPerMinute;
+var $$offsetSeconds = $offsetSeconds;
+var $$localSeconds = $localSeconds;
+var $$secondsPerDay = $secondsPerDay;
+var $$periodDays = $periodDays;
+var $$periodAll = $periodAll;
+var $$Nat_is_ge = $Nat_is_ge;
+var $$windowStart = $windowStart;
+var $$token = $token;
+var $$tokenAdd = $tokenAdd;
+var $$Nat_is_eq = $Nat_is_eq;
+var $$Nat_show = $Nat_show;
+var $$secondsPerHour = $secondsPerHour;
+var $$Nat_mod = $Nat_mod;
+var $$hoursOf = $hoursOf;
+var $$minutesOf = $minutesOf;
+var $$pad2 = $pad2;
+var $$Nat_show_put = $Nat_show_put;
+var $$String_join_go = $String_join_go;
+var $$Char_is_eq = $Char_is_eq;
 var studystats_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
   heartbeatInterval: run_lib(() => run_loop($heartbeatInterval()), 0),
   maxGap: run_lib(() => run_loop($maxGap()), 0),
   secondsPerMinute: run_lib(() => run_loop($secondsPerMinute()), 0),

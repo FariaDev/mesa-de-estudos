@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import {createRequire} from 'node:module';
-import {seedRuntime, tempDir, read, cleanup, PDF_BYTES} from './study-backup-fixtures.mjs';
+import {seedRuntime, tempDir, cleanup, write, PDF_BYTES} from './study-backup-fixtures.mjs';
 
 /* Compartilhar matéria: pacote portátil com manifesto, importação que cria
    destino NOVO (id novo, referências remapeadas) e a validação que recusa zip
@@ -15,6 +15,7 @@ const require = createRequire(import.meta.url);
 const packages = require('../src/study-data/packages.cjs');
 const zipkit = require('../src/study-data/zipkit.cjs');
 const conversations = require('../src/agents/conversations.cjs');
+const packageImport = require('../src/study-data/package-import.cjs');
 
 function buildFixturePackage(overrides = {}) {
   const fixture = seedRuntime();
@@ -50,6 +51,15 @@ test('pacote: manifesto lista tudo com hash e a origem da matéria', () => {
       assert.equal(hash, item.sha256, `hash de ${item.archivePath}`);
       assert.equal(data.data.length, item.bytes);
     }
+    /* #79: o manifesto já diz que nenhuma conversa retoma o provedor do autor;
+       a sessão do Pi vira transcrição e não carrega o JSONL vivo. */
+    for (const item of built.manifest.conversations) {
+      assert.equal(item.resume, 'exported-transcript');
+      assert.equal(item.nativeResume, false);
+    }
+    const piConversation = built.manifest.conversations.find((item) => item.engine === 'pi');
+    assert.ok(piConversation, 'a sessão do Pi entra no manifesto');
+    assert.equal(piConversation.nativeResume, false, 'o JSONL do Pi não é retomável no destino');
     /* O manifesto do pacote não carrega credencial nem caminho de runtime. */
     const text = JSON.stringify(built.manifest);
     assert.ok(!/auth\.json|token|\.pi\/agent|\.claude\/projects/.test(text), 'sem credencial/caminho sensível');
@@ -70,8 +80,10 @@ test('pacote: importar cria destino novo, id novo e remapeia referências', () =
     assert.ok(preview.storeFeatures.includes('review'));
     assert.ok(preview.storeFeatures.includes('annotations'), 'notas de página entram no pacote');
     assert.notEqual(preview.courseId, 'mat-1');
-    assert.ok(preview.conversations.every((item) => item.resume === 'pi-jsonl-portable' || item.resume === 'exported-transcript'));
-    assert.ok(preview.conversations.filter((item) => item.engine === 'claude').every((item) => item.nativeResume === false));
+    /* #79: nenhuma conversa do pacote retoma o provedor do autor. A do Pi,
+       que antes era `pi-jsonl-portable`, também aparece como transcrição. */
+    assert.ok(preview.conversations.every((item) => item.resume === 'exported-transcript'));
+    assert.ok(preview.conversations.every((item) => item.nativeResume === false));
 
     const result = packages.importPackage({buffer: built.buffer, destination, courseId: preview.courseId});
     assert.equal(result.imported, true);
@@ -100,36 +112,142 @@ test('pacote: importar cria destino novo, id novo e remapeia referências', () =
 
     /* Conversa Claude entra como transcrição VÁLIDA: id/arquivo/nativeSessionId
        novos (uuid), `nativeEstablished` false e o módulo real aceita o
-       descritor — nunca "descritor corrompido", nunca retomada nativa. */
+       descritor — nunca "descritor corrompido", nunca retomada nativa.
+       #79: a sessão do Pi também cai nesta pasta, como transcrição Claude. As
+       duas são achadas pelo conteúdo da primeira mensagem, não pela ordem do
+       diretório. */
     const claudeFiles = fs.readdirSync(path.join(result.conversationsDir, 'claude'));
-    assert.equal(claudeFiles.length, 1);
-    const claudeFile = path.join(result.conversationsDir, 'claude', claudeFiles[0]);
-    const claude = JSON.parse(fs.readFileSync(claudeFile, 'utf8'));
+    assert.equal(claudeFiles.length, 2, 'a Claude e a sessão do Pi viram transcrição');
+    const transcripts = claudeFiles.map((name) => {
+      const file = path.join(result.conversationsDir, 'claude', name);
+      return {name, file, descriptor: JSON.parse(fs.readFileSync(file, 'utf8'))};
+    });
+    /* O normalizador do descritor guarda `content` em blocos `[{type, text}]`. */
+    const textOf = (message) => (typeof message.content === 'string' ? message.content : message.content.map((part) => part.text).join('\n'));
+    const firstText = ({descriptor}) => (descriptor.messages?.[0] ? textOf(descriptor.messages[0]) : undefined);
+    const claudeOrigin = transcripts.find((item) => firstText(item) === 'oi');
+    const piOrigin = transcripts.find((item) => firstText(item) === 'sessão do Pi');
+    assert.ok(claudeOrigin && piOrigin, 'as duas transcrições estão no destino');
+
+    const claude = claudeOrigin.descriptor;
     assert.equal(claude.nativeEstablished, false);
     assert.match(claude.id, /^[0-9a-f-]{36}$/);
     assert.match(claude.nativeSessionId, /^[0-9a-f-]{36}$/);
-    assert.equal(claude.id, claudeFiles[0].replace(/^claude-/, '').replace(/\.json$/, ''));
+    assert.equal(claude.id, claudeOrigin.name.replace(/^claude-/, '').replace(/\.json$/, ''));
     assert.equal(claude.courseId, preview.courseId);
     assert.notEqual(claude.id, 'claude-11111111-2222-3333-4444-555555555555');
     assert.equal(claude.importedFrom, '22222222-3333-4444-5555-666666666666');
     assert.equal(claude.delivery, undefined);
     assert.ok(Array.isArray(claude.messages) && claude.messages.length === 1, 'transcrição preservada');
-    const accepted = conversations.readClaudeConversation(claudeFile);
-    assert.ok(accepted, 'conversations.cjs aceita o descritor importado');
-    assert.equal(conversations.conversationEngine(claudeFile), 'claude');
-    const importedInfo = result.record.conversations.find((item) => item.engine === 'claude');
+    assert.ok(conversations.readClaudeConversation(claudeOrigin.file), 'conversations.cjs aceita o descritor importado');
+    assert.equal(conversations.conversationEngine(claudeOrigin.file), 'claude');
+    const importedInfo = result.record.conversations.find((item) => item.origin !== 'pi');
     assert.equal(importedInfo.resume, 'exported-transcript');
     assert.equal(importedInfo.nativeResume, false);
-    /* JSONL do Pi preserva o arquivo (retomada possível quando o mesmo
-       provedor existe do outro lado). */
-    const piFiles = fs.readdirSync(path.join(result.conversationsDir, 'pi'));
-    assert.equal(piFiles.length, 1);
-    assert.ok(read(path.join(result.conversationsDir, 'pi'), piFiles[0]).includes('sessão do Pi'));
+
+    /* #79: a sessão JSONL do Pi NÃO é mais um arquivo de sessão viva (o
+       `--session` recarregaria o histórico do autor como contexto nativo).
+       O que sobra é a transcrição, com o histórico de texto do JSONL. */
+    assert.equal(fs.existsSync(path.join(result.conversationsDir, 'pi')), false, 'nenhum JSONL do Pi entra como arquivo de sessão');
+    const pi = piOrigin.descriptor;
+    assert.equal(pi.nativeEstablished, false, 'sem retomada nativa');
+    assert.match(pi.id, /^[0-9a-f-]{36}$/);
+    assert.equal(pi.courseId, preview.courseId);
+    assert.equal(pi.started, 1700000000000, 'início vem do nome pi-<digits>.jsonl');
+    assert.equal(pi.preview, 'sessão do Pi');
+    assert.deepEqual(pi.messages.map((message) => ({role: message.role, content: textOf(message)})), [{role: 'user', content: 'sessão do Pi'}]);
+    assert.ok(conversations.readClaudeConversation(piOrigin.file), 'conversations.cjs aceita a transcrição do Pi');
+    const piInfo = result.record.conversations.find((item) => item.origin === 'pi');
+    assert.equal(piInfo.engine, 'claude');
+    assert.equal(piInfo.resume, 'exported-transcript');
+    assert.equal(piInfo.nativeResume, false);
 
     /* Registro da importação fica no destino (sem sobrescrever nada). */
     const record = JSON.parse(fs.readFileSync(path.join(result.destination, '.mesa-import.json'), 'utf8'));
     assert.equal(record.courseId, preview.courseId);
     assert.ok(record.conversations.length >= 1);
+  } finally {
+    cleanup(fixture.runtime, fixture.materialsDir, fixture.agentHome, root);
+  }
+});
+
+/* #79: a sessão JSONL do Pi vira transcrição. O histórico de exibição sai só
+   das mensagens de texto; a chamada de ferramenta dentro da resposta do
+   assistente (aqui um `rm -rf`) e o resultado dela ficam de fora. */
+test('#79: sessão do Pi vira mensagens de texto, sem chamada de ferramenta nem linha torta', () => {
+  const text = [
+    '{"type":"session","id":"abc"}',
+    '{"type":"model_change","model":"x"}',
+    '{"type":"message","message":{"role":"user","content":[{"type":"text","text":"Explica a integral"}]}}',
+    '{"type":"message","message":{"role":"assistant","content":[{"type":"thinking","thinking":"pensando"},{"type":"toolCall","name":"bash","arguments":{"command":"rm -rf x"}},{"type":"text","text":"Claro."}]}}',
+    '{"type":"message","message":{"role":"toolResult","content":[{"type":"text","text":"saída"}]}}',
+    'linha torta',
+    '{"type":"message","message":{"role":"user","content":"   "}}',
+  ].join('\n');
+  assert.deepEqual(packageImport.piSessionMessages(text), [
+    {role: 'user', content: 'Explica a integral'},
+    {role: 'assistant', content: 'Claro.'},
+  ]);
+});
+
+/* #75: o pacote juntava só `claude-*.json`; a conversa do OpenCode (e o chat
+   lateral dele) ficava de fora do pacote e do backup. Os dois usam o mesmo
+   `opencode-<id>.json`, então o teste leva um de cada. */
+test('pacote: conversa e chat lateral do OpenCode entram no pacote e voltam como transcrição', () => {
+  const fixture = seedRuntime();
+  write(fixture.runtime, 'conversations/opencode-33333333-4444-5555-6666-777777777777.json', JSON.stringify({
+    schemaVersion: 1, engine: 'opencode', id: '33333333-4444-5555-6666-777777777777',
+    nativeSessionId: 'ses_abc123', nativeEstablished: true, courseId: 'mat-1',
+    preview: 'conversa opencode da matéria', messages: [{role: 'user', content: 'oi do opencode'}],
+  }));
+  write(fixture.runtime, 'conversations/opencode-44444444-5555-6666-7777-888888888888.json', JSON.stringify({
+    schemaVersion: 1, engine: 'opencode', id: '44444444-5555-6666-7777-888888888888',
+    nativeSessionId: 'ses_side456', nativeEstablished: true, courseId: 'mat-1',
+    mainSession: 'opencode-33333333-4444-5555-6666-777777777777.json',
+    preview: 'chat lateral do opencode', messages: [{role: 'user', content: 'e no chat lateral?'}],
+  }));
+  const built = packages.buildPackage({
+    runtime: fixture.runtime,
+    course: {id: 'mat-1', name: 'Algebra Linear'},
+    materialsDir: fixture.materialsDir,
+    learningDir: path.join(fixture.runtime, 'learning', 'Courses', 'Algebra Linear'),
+    include: {review: true, bookmarks: true, resume: true, conversations: true},
+  });
+  const root = tempDir('mesa-import-opencode');
+  try {
+    const destination = packages.planDestination({root, name: 'Algebra Linear'});
+    const preview = packages.previewImport({buffer: built.buffer, destination});
+    const listed = preview.conversations.filter((item) => item.engine === 'opencode');
+    assert.equal(listed.length, 2, 'a conversa principal e o chat lateral estão no manifesto');
+    for (const item of listed) {
+      assert.match(item.archivePath, /opencode\/opencode-/);
+      assert.equal(item.resume, 'exported-transcript');
+      assert.equal(item.nativeResume, false, 'o ses_ do autor não abre do outro lado');
+    }
+
+    const result = packages.importPackage({buffer: built.buffer, destination, courseId: preview.courseId});
+    const files = fs.readdirSync(path.join(result.conversationsDir, 'opencode'));
+    assert.equal(files.length, 2);
+    assert.ok(files.every((name) => /^opencode-[0-9a-f-]{36}\.json$/.test(name)));
+    const descriptors = files.map((name) => {
+      const file = path.join(result.conversationsDir, 'opencode', name);
+      assert.equal(conversations.conversationEngine(file), 'opencode');
+      assert.ok(conversations.readClaudeConversation(file), 'conversations.cjs aceita o descritor importado');
+      return {file, record: JSON.parse(fs.readFileSync(file, 'utf8'))};
+    });
+    for (const {record} of descriptors) {
+      assert.equal(record.engine, 'opencode');
+      assert.equal(record.courseId, preview.courseId);
+      assert.equal(record.nativeEstablished, false, 'a transcrição não retoma o provedor do autor');
+      assert.ok(Array.isArray(record.messages) && record.messages.length === 1, 'transcrição preservada');
+    }
+    assert.ok(descriptors.some(({record}) => record.preview === 'conversa opencode da matéria'));
+    assert.ok(descriptors.some(({record}) => record.preview === 'chat lateral do opencode'));
+    assert.ok(descriptors.some(({record}) => record.importedFrom === 'ses_abc123'));
+    assert.ok(descriptors.some(({record}) => record.importedFrom === 'ses_side456'));
+    const info = result.record.conversations.filter((item) => item.engine === 'opencode');
+    assert.equal(info.length, 2);
+    for (const item of info) assert.ok(files.includes(path.basename(item.file)));
   } finally {
     cleanup(fixture.runtime, fixture.materialsDir, fixture.agentHome, root);
   }
@@ -297,6 +415,21 @@ test('pacote: zip bomb e limites são barrados', () => {
   }
 });
 
+test('pacote: zip bomb com tamanho declarado pequeno para no teto, sem expandir', (t) => {
+  /* 16 MiB de zeros deflados viram uns 16 KB, e a entrada declara 1 KiB: a razão
+     fica abaixo de 1000:1 e o zip chega ao inflate. Antes, o inflate alocava os
+     16 MiB inteiros e só então recusava pelo tamanho; agora o teto é size+1. */
+  const bomb = bombZip('payload/materials/bomba.txt', 16 * 1024 * 1024, 1024);
+  const original = zlib.inflateRawSync;
+  const limits = [];
+  t.mock.method(zlib, 'inflateRawSync', (raw, options) => {
+    limits.push(options);
+    return original(raw, options);
+  });
+  assert.throws(() => zipkit.readZip(bomb), ptMatches(/tamanho de payload\/materials\/bomba\.txt/));
+  assert.deepEqual(limits, [{maxOutputLength: 1025}]);
+});
+
 test('pacote: arquivo sem manifesto ou com formato desconhecido é recusado', () => {
   const {buffer, fixture} = repack((entries) => {
     const index = entries.findIndex((entry) => entry.name === packages.MANIFEST_NAME);
@@ -339,12 +472,27 @@ test('pacote: config exportada NÃO é aplicada na importação', () => {
 });
 
 test('pacote: remapValue troca caminho e id em estrutura aninhada', () => {
+  /* O remap compara caminhos absolutos do sistema: no Windows `/antigo` vira
+     `D:\antigo`, então o fixture usa `path.resolve` como o dado real usa. */
+  const oldBase = path.resolve('/antigo');
+  const newBase = path.resolve('/novo');
   const out = packages.remapValue(
-    {mat: {path: '/antigo/aula.pdf', nested: [{path: '/antigo/sub/b.pdf', id: 'mat-1'}], id: 'mat-1'}},
-    {oldBase: '/antigo', newBase: '/novo', oldId: 'mat-1', newId: 'materia-2'},
+    {mat: {path: path.join(oldBase, 'aula.pdf'), nested: [{path: path.join(oldBase, 'sub', 'b.pdf'), id: 'mat-1'}], id: 'mat-1'}},
+    {oldBase, newBase, oldId: 'mat-1', newId: 'materia-2'},
   );
-  assert.deepEqual(out, {mat: {path: '/novo/aula.pdf', nested: [{path: '/novo/sub/b.pdf', id: 'materia-2'}], id: 'materia-2'}});
+  assert.deepEqual(out, {mat: {path: path.join(newBase, 'aula.pdf'), nested: [{path: path.join(newBase, 'sub', 'b.pdf'), id: 'materia-2'}], id: 'materia-2'}});
 });
+
+/* Zip de uma entrada cujo tamanho descomprimido declarado (cabeçalho local e
+   diretório central) não é o real: o zip bomb da revisão de segurança. */
+function bombZip(name, realBytes, declaredBytes) {
+  const zip = rawZip([{name, data: Buffer.alloc(realBytes)}]);
+  const eocd = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const cdOffset = zip.readUInt32LE(eocd + 16);
+  zip.writeUInt32LE(declaredBytes, 22);
+  zip.writeUInt32LE(declaredBytes, cdOffset + 24);
+  return zip;
+}
 
 /* Zip cru montado à mão (nome livre, inclusive perigoso): o leitor tem de
    recusar ANTES de qualquer escrita, e o escritor do domínio nem o produz. */
@@ -403,6 +551,13 @@ function rawZip(entries, {crcOverride = null} = {}) {
   if (crcOverride !== null) out.writeUInt32LE(crcOverride, 14);
   return out;
 }
+
+test('zipkit: razão de compressão e total descompactado têm teto (#82)', () => {
+  const buf = zipkit.writeZip({a: Buffer.alloc(4096, 0x61), b: Buffer.alloc(4096, 0x62)}, {deflate: true});
+  assert.equal(zipkit.readZip(buf).length, 2);
+  assert.throws(() => zipkit.readZip(buf, {limits: {maxRatio: 2}}), ptMatches(/razão de compressão suspeita em a/));
+  assert.throws(() => zipkit.readZip(buf, {limits: {maxTotalBytes: 5000}}), ptMatches(/grande demais depois de descompactar/));
+});
 
 test('zipkit: leitura própria concorda com um zip feito por fora', () => {
   /* O `zipkit.mjs` dos testes do updater fabrica zips com deflate de verdade;

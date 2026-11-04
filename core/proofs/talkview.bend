@@ -21,6 +21,15 @@ def Laws.talk_message_assistant_role(body):
 def Laws.talk_message_copy_handler():
   {==}
 
+def Laws.talk_message_copy_accessible():
+  {==}
+
+def Laws.talk_message_copy_icon():
+  {==}
+
+def Laws.talk_message_actions_class():
+  {==}
+
 def Laws.talk_message_actions_bools():
   {==}
 
@@ -33,33 +42,6 @@ def Laws.talk_shots_length(xs):
       {==}
 
 def Laws.talk_shot_alt(src):
-  {==}
-
-def Laws.talk_quiz_simple_class():
-  {==}
-
-def Laws.talk_quiz_simple_aria():
-  {==}
-
-def Laws.talk_quiz_roles():
-  {==}
-
-def Laws.talk_quiz_single_role():
-  {==}
-
-def Laws.talk_quiz_option_handler():
-  {==}
-
-def Laws.talk_quiz_send_disabled():
-  {==}
-
-def Laws.talk_quiz_send_enabled():
-  {==}
-
-def Laws.talk_quiz_no_actions():
-  {==}
-
-def Laws.talk_quiz_verdict():
   {==}
 
 def Laws.talk_asset_img_class(src):
@@ -90,6 +72,18 @@ def Laws.talk_codeblock_sem_lang():
   {==}
 
 def Laws.talk_codeblock_com_lang():
+  {==}
+
+def Laws.talk_codehead_class():
+  {==}
+
+def Laws.talk_codehead_lang_class():
+  {==}
+
+def Laws.talk_codehead_copy_class():
+  {==}
+
+def Laws.talk_codehead_sem_lang_copia():
   {==}
 
 def Laws.talk_message_review_handler():

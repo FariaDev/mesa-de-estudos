@@ -12,6 +12,7 @@ const prompts = require('../src/agents/desk-prompts.cjs');
 const pdfGuide = await import('../src/extensions/tutor-pdf/guide.mjs');
 const activityGuide = await import('../src/extensions/mesa-activity/guide.mjs');
 const figureGuide = await import('../src/extensions/mesa-figure/guide.mjs');
+const reviewGuide = await import('../src/extensions/mesa-review/guide.mjs');
 const tutorTemplate = fs.readFileSync(new URL('../templates/TUTOR.md', import.meta.url), 'utf8');
 
 const profile = [{name: 'TUTOR.md', text: '# Contrato\nregra do tutor'}, {name: 'LEARNER.md', text: '# Perfil\nregra do aluno'}];
@@ -19,12 +20,40 @@ const profile = [{name: 'TUTOR.md', text: '# Contrato\nregra do tutor'}, {name: 
 /* Toda combinação de motor e sessão que a Mesa monta. */
 const variants = {
   'Pi principal': prompts.piPrompt({materialTools: true}),
+  'Pi Livre': prompts.piPrompt({materialTools: true, review: false}),
   'Pi chat lateral': prompts.piPrompt(),
   'Claude principal': prompts.claudePrompt({profile, tools: true}),
-  'Claude Livre': prompts.claudePrompt({tools: true}),
+  'Claude Livre': prompts.claudePrompt({tools: true, review: false}),
   'Claude chat lateral': prompts.claudePrompt({profile}),
   'OpenCode principal': prompts.openCodePrompt({profile}),
+  'OpenCode Livre': prompts.openCodePrompt({profile, review: false}),
+  'OpenCode chat lateral': prompts.openCodePrompt({profile, sidechat: true}),
 };
+
+/* Ferramentas que cada modo REALMENTE tem: cada oferta no texto precisa citar
+   uma delas. O chat lateral só lê e busca nos PDFs; a Livre não tem caderno para revisão. */
+const MODE_TOOLS = {
+  'Pi principal': ['geogebra', 'ver_figura', 'criar_atividade', 'criar_pdf', 'propor_revisao', 'quiz', 'perguntar', 'calcular', 'listar_materiais', 'salvar_nota'],
+  'Pi Livre': ['geogebra', 'ver_figura', 'criar_atividade', 'criar_pdf', 'quiz', 'perguntar', 'calcular', 'listar_materiais', 'salvar_nota'],
+  'Pi chat lateral': ['quiz', 'perguntar', 'calcular', 'listar_materiais'],
+  'Claude principal': ['geogebra', 'ver_figura', 'criar_atividade', 'criar_pdf', 'propor_revisao', 'quiz', 'perguntar', 'calcular', 'listar_materiais', 'salvar_nota'],
+  'Claude Livre': ['geogebra', 'ver_figura', 'criar_atividade', 'criar_pdf', 'quiz', 'perguntar', 'calcular', 'listar_materiais', 'salvar_nota'],
+  'Claude chat lateral': ['quiz', 'perguntar', 'calcular', 'listar_materiais'],
+  'OpenCode principal': ['geogebra', 'ver_figura', 'criar_atividade', 'criar_pdf', 'propor_revisao', 'quiz', 'perguntar', 'calcular', 'listar_materiais', 'salvar_nota'],
+  'OpenCode Livre': ['geogebra', 'ver_figura', 'criar_atividade', 'criar_pdf', 'quiz', 'perguntar', 'calcular', 'listar_materiais', 'salvar_nota'],
+  'OpenCode chat lateral': ['quiz', 'perguntar', 'calcular', 'listar_materiais'],
+};
+const OFFER_TOOLS = [
+  [/ferramenta geogebra/, 'geogebra'],
+  [/ver_figura/, 'ver_figura'],
+  [/um quadro/, 'criar_atividade'],
+  [/- um PDF/, 'criar_pdf'],
+  [/propor_revisao/, 'propor_revisao'],
+  [/- um quiz ou uma pergunta/, 'quiz'],
+  [/- calcular/, 'calcular'],
+  [/listar_materiais/, 'listar_materiais'],
+  [/salvar_nota/, 'salvar_nota'],
+];
 
 function sentences(text) {
   return text.split(/(?<=[.;:])\s+/).map((part) => part.trim()).filter((part) => part.length >= 40);
@@ -37,14 +66,14 @@ test('paridade: a base comum abre o prompt dos dois motores, igual, uma vez só'
   }
   assert.equal(prompts.PI_DESK_PROMPT, prompts.DESK_BASE_PROMPT + '\n\n' + prompts.PI_ENGINE_PROMPT);
   assert.equal(prompts.CLAUDE_DESK_PROMPT, prompts.DESK_BASE_PROMPT + '\n\n' + prompts.CLAUDE_ENGINE_PROMPT);
-  /* A sessão principal dos dois difere só no quiz, que o Claude não tem. */
+  /* A sessão principal é a mesma nos três motores. */
   const piMain = variants['Pi principal'].slice(prompts.PI_DESK_PROMPT.length);
   const claudeMain = prompts.claudePrompt({tools: true}).slice(prompts.CLAUDE_DESK_PROMPT.length);
-  assert.equal(piMain.replace(/\n- um quiz[^\n]*/, ''), claudeMain);
+  assert.equal(piMain, claudeMain);
 });
 
 test('cada motor fala só do que tem', () => {
-  const piOnly = [/PI_LEARNING_ASSET_DIR/, /subagente/i, /quiz/i, /outros aplicativos/];
+  const piOnly = [/PI_LEARNING_ASSET_DIR/, /subagente/i, /outros aplicativos/];
   for (const name of ['Claude principal', 'Claude Livre', 'Claude chat lateral']) {
     for (const pattern of piOnly) assert.doesNotMatch(variants[name], pattern, `${name}: ${pattern}`);
   }
@@ -53,6 +82,12 @@ test('cada motor fala só do que tem', () => {
      "imagem gerada" na #60 (é figura do chat, com a cerca `plot`), então só o Mermaid segue de fora. */
   assert.doesNotMatch(variants['Pi principal'], /Mermaid/);
   assert.ok(variants['Pi chat lateral'].endsWith(prompts.PI_SIDECHAT_PROMPT));
+});
+
+test('a busca no material vem antes de varrer a aula, com o nome do motor (A2)', () => {
+  for (const name of ['Pi principal', 'Pi chat lateral']) assert.match(variants[name], /mesa_buscar_material antes de varrer a aula com mesa_ler_pdf/, name);
+  for (const name of ['Claude principal', 'Claude Livre', 'Claude chat lateral']) assert.match(variants[name], /mcp__mesa__buscar_material antes de varrer a aula com mcp__mesa__ler_pdf/, name);
+  assert.match(variants['OpenCode principal'], /mesa_buscar_material antes de varrer a aula com mesa_ler_pdf/);
 });
 
 test('o GeoGebra abre sozinho: os dois motores o oferecem na sessão principal e nenhum pede a aba aberta (#53)', () => {
@@ -94,6 +129,24 @@ test('Claude: o fixo vem antes do variável (base, sessão principal, perfil da 
   assert.ok(text.startsWith(shared) && other.startsWith(shared));
 });
 
+test('A4/B2: cada oferta cita ferramenta que existe no modo; lateral e Livre não prometem o que não há', () => {
+  for (const [name, text] of Object.entries(variants)) {
+    for (const [pattern, tool] of OFFER_TOOLS) {
+      if (pattern.test(text)) assert.ok(MODE_TOOLS[name].includes(tool), `${name} oferece ${tool}, que não existe no modo`);
+    }
+  }
+  const side = variants['OpenCode chat lateral'];
+  assert.equal(side.includes(prompts.mainSessionPrompt()), false, 'o lateral não leva as ofertas da principal');
+  assert.equal(side.includes(prompts.CITATION_PROMPT), false, 'o lateral não ensina a citação com link');
+  assert.ok(side.includes(prompts.OPENCODE_SIDECHAT_PROMPT));
+  for (const name of ['Pi Livre', 'Claude Livre', 'OpenCode Livre']) {
+    assert.equal(variants[name].includes('propor_revisao'), false, `${name}: sem caderno, sem oferta de revisão`);
+  }
+  for (const name of ['Pi principal', 'Claude principal', 'OpenCode principal']) {
+    assert.match(variants[name], /propor_revisao/, `${name}: a matéria oferece revisão`);
+  }
+});
+
 test('Claude: Livre sem perfil; chat lateral sem ferramentas nem citação com link', () => {
   const free = variants['Claude Livre'];
   /* Nem o nome: `free-host-ipc.test.mjs` confere o prompt da Livre assim. */
@@ -108,35 +161,56 @@ test('Claude: Livre sem perfil; chat lateral sem ferramentas nem citação com l
 test('Pi: a sessão principal leva citação e o que oferecer; o chat lateral, não', () => {
   const main = variants['Pi principal'];
   assert.ok(main.startsWith(prompts.PI_DESK_PROMPT));
-  assert.ok(main.endsWith(prompts.mainSessionPrompt({quiz: true})));
+  assert.ok(main.endsWith(prompts.mainSessionPrompt()));
   assert.equal(variants['Pi chat lateral'].includes(prompts.CITATION_PROMPT), false);
   assert.equal(require('../rpc.cjs').DESK_PROMPT, prompts.PI_DESK_PROMPT);
 });
 
-test('o que oferecer: quadro, PDF, quiz (só Pi) e Guardar para revisar', () => {
-  const pi = prompts.offerPrompt({quiz: true});
+test('figuras: margem, rótulo e cores do tema saem da mesma fonte em todo motor', () => {
+  for (const [name, text] of Object.entries(variants)) {
+    assert.equal(text.split(figureGuide.FIGURE_RULES).length, 2, `${name}: a regra entra uma vez`);
+    assert.match(text, /text-anchor/, name);
+    assert.match(text, /var\(--plot-1\)/, name);
+  }
+  assert.ok(figureGuide.FIGURE_CHOICE.includes(figureGuide.FIGURE_RULES_EN));
+  assert.equal(figureGuide.FIGURE_CHOICE.includes(figureGuide.FIGURE_RULES), false, 'as regras da descrição são em inglês; as do sistema seguem em português');
+  /* M1: as regras de figura já vão na base em toda sessão com criar_pdf; o
+     guia do PDF aponta para ver_figura em vez de repeti-las (~300 tokens). */
+  assert.equal(figureGuide.PDF_FIGURE_GUIDE.includes(figureGuide.FIGURE_RULES), false);
+  assert.match(figureGuide.PDF_FIGURE_GUIDE, /ver_figura/);
+});
+
+test('o que oferecer: quadro, PDF, quiz/pergunta e Guardar para revisar', () => {
+  const pi = prompts.offerPrompt();
   const claude = prompts.offerPrompt();
-  for (const pattern of [/o GeoGebra/, /cerca `plot`[\s\S]*SVG simples[\s\S]*GeoGebra/, /ver_figura/, /um quadro/, /kind "visualizacao"[\s\S]*kind "atividade"/, /um PDF/, /"Guardar para revisar"/]) {
+  for (const pattern of [/o GeoGebra/, /cerca `plot`[\s\S]*SVG simples[\s\S]*GeoGebra/, /ver_figura/, /um quadro/, /kind "visualizacao"[\s\S]*kind "atividade"/, /um PDF/, /propor_revisao/, /nunca em toda resposta/, /"Guardar para revisar"/, /- calcular/, /listar_materiais/, /salvar_nota/]) {
     assert.match(pi, pattern);
     assert.match(claude, pattern);
   }
   assert.match(pi, /quiz/);
-  assert.doesNotMatch(claude, /quiz/);
+  assert.match(claude, /quiz/);
+  assert.doesNotMatch(prompts.offerPrompt({review: false}), /propor_revisao/);
   /* O "quando usar" é curto: o texto antigo (760 e 900 caracteres; o GeoGebra entrou na #53 com 70) repetia a
      ferramenta com outras palavras, o que a busca de frase não pega. A #60 acrescentou a linha da figura
      (~150 caracteres: plot, SVG ou GeoGebra); o limite subiu de 570 para 720. */
-  assert.ok(pi.length <= 720, `o que oferecer com ${pi.length} caracteres: o como vai na descrição da ferramenta`);
+  assert.ok(pi.length <= 900, `o que oferecer com ${pi.length} caracteres: o como vai na descrição da ferramenta`);
 });
 
 test('o sistema diz quando usar; a descrição da ferramenta diz como — sem frase repetida', () => {
-  const tools = [pdfGuide.TOOL_DESCRIPTION, activityGuide.CREATE_DESCRIPTION, activityGuide.PREVIEW_DESCRIPTION, figureGuide.FIGURE_DESCRIPTION].join('\n');
+  const tools = [pdfGuide.TOOL_DESCRIPTION, activityGuide.CREATE_DESCRIPTION, activityGuide.PREVIEW_DESCRIPTION, figureGuide.FIGURE_DESCRIPTION, reviewGuide.REVIEW_DESCRIPTION].join('\n');
+  /* Margem, rótulo e cor da figura são a mesma frase na base e na ferramenta:
+     a descrição sozinha não segurou o modelo (hex e rótulo em cima do traço). */
+  const figureRules = new Set(sentences(figureGuide.FIGURE_RULES));
   for (const text of Object.values(variants)) {
-    for (const sentence of sentences(text)) assert.equal(tools.includes(sentence), false, `repetida na ferramenta: ${sentence}`);
+    for (const sentence of sentences(text)) {
+      if (figureRules.has(sentence)) continue;
+      assert.equal(tools.includes(sentence), false, `repetida na ferramenta: ${sentence}`);
+    }
   }
   /* As regras que moravam só no sistema seguem valendo, agora na ferramenta. */
-  assert.match(pdfGuide.TOOL_DESCRIPTION, /sem um pedido claro, deixe `modelo` de fora/);
-  assert.match(pdfGuide.TOOL_DESCRIPTION, /pronto para revisar no diálogo, nunca que o PDF já foi salvo/);
-  assert.match(activityGuide.CREATE_DESCRIPTION, /com unidades e cálculos conferidos/);
+  assert.match(pdfGuide.TOOL_DESCRIPTION, /without a clear request, leave `modelo` out/);
+  assert.match(pdfGuide.TOOL_DESCRIPTION, /ready to review in the dialog, never that the PDF has already been saved/);
+  assert.match(activityGuide.CREATE_DESCRIPTION, /with units and checked calculations/);
 });
 
 test('R1: o TUTOR.md do repositório vale para os dois motores e não repete a base', () => {
@@ -163,8 +237,11 @@ function everySession(tutorLanguage) {
     'Pi principal': prompts.piPrompt({materialTools: true, tutorLanguage}),
     'Pi chat lateral': prompts.piPrompt({tutorLanguage}),
     'Claude principal': prompts.claudePrompt({profile, tools: true, tutorLanguage}),
-    'Claude Livre': prompts.claudePrompt({tools: true, tutorLanguage}),
+    'Claude Livre': prompts.claudePrompt({tools: true, review: false, tutorLanguage}),
     'Claude chat lateral': prompts.claudePrompt({profile, tutorLanguage}),
+    'OpenCode principal': prompts.openCodePrompt({profile, tutorLanguage}),
+    'OpenCode oferta Livre': prompts.openCodePrompt({profile, review: false, tutorLanguage}),
+    'OpenCode chat lateral': prompts.openCodePrompt({profile, sidechat: true, tutorLanguage}),
   };
 }
 
@@ -229,16 +306,35 @@ test('writingAppName tira caracteres de controle, limita o tamanho e ignora o qu
 
 test('quadro: as chaves do attempt seguem a língua da conversa, sem português fixo', () => {
   const guide = fs.readFileSync(new URL('../src/extensions/mesa-activity/guide.mjs', import.meta.url), 'utf8');
-  assert.match(guide, /legíveis, na língua desta conversa/);
+  assert.match(guide, /readable keys in the language of this conversation/);
   assert.equal(guide.includes('legíveis em português'), false);
 });
 
-test('OpenCode (#57): base, motor, sessão principal sem PDF e o perfil por último', () => {
+test('descrições de ferramenta em inglês: a linha da base aponta para a regra de idioma nos três motores e nas três opções', () => {
+  assert.ok(prompts.TOOL_DESCRIPTIONS_ENGLISH_LINE.length <= 120, prompts.TOOL_DESCRIPTIONS_ENGLISH_LINE);
+  for (const tutorLanguage of TUTOR_LANGUAGES) {
+    for (const [name, text] of Object.entries(everySession(tutorLanguage))) {
+      assert.equal(text.split(prompts.TOOL_DESCRIPTIONS_ENGLISH_LINE).length, 2, `${name} (${tutorLanguage}): a linha entra uma vez`);
+    }
+  }
+});
+
+test('as descrições das ferramentas da Mesa são em inglês mesmo com o tutor em português', () => {
+  assert.match(activityGuide.CREATE_DESCRIPTION, /^Show a board in the conversation/);
+  assert.match(activityGuide.PREVIEW_DESCRIPTION, /^Preview of the board/);
+  assert.match(figureGuide.FIGURE_DESCRIPTION, /^Shows you, as an image/);
+  assert.match(reviewGuide.REVIEW_DESCRIPTION, /^Proposes a card in the review notebook/);
+  assert.match(pdfGuide.TOOL_DESCRIPTION, /^Prepare the PDF content/);
+});
+
+test('OpenCode (#57): base, motor, sessão principal com PDF e o perfil por último', () => {
   const text = variants['OpenCode principal'];
-  assert.ok(text.startsWith(prompts.OPENCODE_DESK_PROMPT + '\n\n' + prompts.mainSessionPrompt({pdf: false})));
+  assert.ok(text.startsWith(prompts.OPENCODE_DESK_PROMPT + '\n\n' + prompts.mainSessionPrompt()));
   assert.match(text, /ferramenta geogebra/);
   assert.match(text, /um quadro/);
-  assert.doesNotMatch(text, /- um PDF|quiz|\bRead\b|PI_LEARNING_ASSET_DIR/);
+  assert.match(text, /- um PDF/);
+  assert.match(text, /quiz ou uma pergunta/);
+  assert.doesNotMatch(text, /\bRead\b|PI_LEARNING_ASSET_DIR/);
   assert.ok(text.endsWith('LEARNER.md\n# Perfil\nregra do aluno'));
   assert.match(prompts.openCodePrompt({transcript: 'user: oi'}), /Transcrição importada[\s\S]*user: oi$/);
 });

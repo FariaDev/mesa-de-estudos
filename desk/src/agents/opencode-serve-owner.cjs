@@ -20,7 +20,7 @@ const {message} = require('../i18n.mjs');
 
 /**
  * @typedef {import('./opencode-process.cjs').OpenCodeServer} OpenCodeServer
- * @typedef {{baseUrl: string, password: string, binary: string}} ServeLease
+ * @typedef {{baseUrl: string, password: string, binary: string, pid?: number}} ServeLease
  */
 
 /** @param {Record<string, string>} env @returns {string} */
@@ -30,7 +30,7 @@ function fingerprint(env) {
 
 /**
  * Cria o dono do servidor.
- * @param {{findBinary: () => string, keyEnv: () => Record<string, string>, baseEnv?: () => Record<string, string|undefined>,
+ * @param {{findBinary: () => string, keyEnv: () => Record<string, string> | Promise<Record<string, string>>, baseEnv?: () => Record<string, string|undefined>,
  *   cwd: string, ledgerDir: string, log?: (area: string, line: string) => void,
  *   start?: typeof startOpenCodeServer, sweep?: typeof sweepOrphans}} deps
  * @example const owner = createServeOwner({findBinary, keyEnv: () => opencodeHost.keyEnv(), cwd, ledgerDir: runtime});
@@ -60,21 +60,31 @@ function createServeOwner({findBinary, keyEnv, baseEnv = () => process.env, cwd,
       log('opencode', `servidor saiu sozinho (código ${code}); o próximo envio sobe outro`);
     });
     log('opencode', `servidor da Mesa em ${next.baseUrl} (pid ${next.pid})`);
-    return {baseUrl: next.baseUrl, password: next.password, binary: next.binary};
+    return {baseUrl: next.baseUrl, password: next.password, binary: next.binary, pid: next.pid};
   }
 
   /**
    * O servidor vivo com a chave de agora; sobe ou troca se preciso.
    * @returns {Promise<ServeLease>}
    */
+  async function acquireReady() {
+    const keys = await keyEnv();
+    const print = fingerprint(keys);
+    if (server && serverPrint === print) return {baseUrl: server.baseUrl, password: server.password, binary: server.binary, pid: server.pid};
+    const binary = findBinary();
+    if (!binary) {
+      /* A tela não mostra caminho nem variável; o log guarda o que foi procurado. */
+      log('opencode', 'binário não encontrado; procurei LEARNING_DESK_OPENCODE, ~/.opencode/bin/opencode e o PATH');
+      throw Error(message('err.opencode.notFound'));
+    }
+    return launch(binary, keys, print);
+  }
+
   function acquire() {
     if (starting) return starting;
-    const keys = keyEnv();
-    const print = fingerprint(keys);
-    if (server && serverPrint === print) return Promise.resolve({baseUrl: server.baseUrl, password: server.password, binary: server.binary});
-    const binary = findBinary();
-    if (!binary) return Promise.reject(Error(message('err.opencode.notFound')));
-    starting = launch(binary, keys, print).finally(() => { starting = null; });
+    /* `starting` é marcado antes do primeiro await: duas chamadas juntas
+       dividem a mesma subida mesmo com a chave vindo do cofre assíncrono. */
+    starting = acquireReady().finally(() => { starting = null; });
     return starting;
   }
 

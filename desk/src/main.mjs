@@ -1,26 +1,27 @@
 import {bindPointerDrag} from './pointer-drag.mjs';
 import {icon} from '../icons.mjs';
-import {$,S,toast,toastFailure,conferirAppName,updateCheckButton,cancelConnect,connectionState,save,calcHeightPx,studySnapshot,pageRefs,layoutSnapshot,updateContextSummary,sessionTitleOf,applyStudy,applyTheme,applyAccent,ACCENTS,labelBtn,settings,connect,loadCourse,switchCourse,supportsCapability,relabelTutorColumn,relabelFreeCourseName} from './state.mjs';
+import {$,S,toast,toastFailure,conferirAppName,updateCheckButton,cancelConnect,connectionState,save,calcHeightPx,studySnapshot,pageRefs,refs,layoutSnapshot,updateContextSummary,sessionTitleOf,applyStudy,applyTheme,applyAccent,ACCENTS,labelBtn,settings,connect,loadCourse,switchCourse,supportsCapability,relabelTutorColumn,relabelFreeCourseName,paintComposerSend} from './state.mjs';
+import {visibleEngines} from './visible-engines-ui.mjs';
 import {conferir,conferirGeogebra,send,hideQuoteButton,doCompact} from './chat.mjs';
 import {toggleReferencePanel,selectTab as selectSupportTab,supportState,setOpen as setSupportOpen} from './support.mjs';
 import {initSidechat,openSavedSidechat} from './sidechat.mjs';
 import {studyToolHandlers} from './study-tools.mjs';
 import {initStudySearch,openStudySearch,closeStudySearch} from './study-search.mjs';
 import {initPdfNotes,openPdfNotes} from './pdf-notes.mjs';
-import {initStudyStats,openStudyStats} from './study-stats.mjs';
 import {initBackupPanel} from './backup-panel.mjs';
 import {openRef} from './nav.mjs';
 import {initFreeStudy,openTutorPdfDialog} from './free-study.mjs';
 import {initActivityHost} from './activity.mjs';
 import {initConversationLibrary} from './conversation-library.mjs';
 import {setResumeRecord} from './resume.mjs';
+import {confirmOpenLink} from './link-confirm.mjs';
 import {initTutorState,showTutorState} from './tutor-state.mjs';import {engineReady} from './engine-facts.mjs';
 import {initConferir,closeConferirNote,paintConferirField,openConferirSettings} from './conferir.mjs';
 import {initFreeModels,paintFreeSettings,confirmPaidModel} from './free-models.mjs';
 import {initTriage,openTriage} from './triage.mjs';
 import {initModelPicker,noteModelPicked} from './model-picker-ui.mjs';import {initEffortStrip} from './effort-strip.mjs';
 import conferirCore from './generated/conferir.core.js';
-import {syncFirstRun,isFirstRun} from './first-run.mjs';import {mountSetupMarkup} from './setup-markup.mjs';import {wireAccentPicker,mountAccentOptions} from './accent-picker.mjs';
+import {createFirstRunBoot} from './first-run-boot.mjs';import {openReleaseNotes,showPendingReleaseNotes} from './release-notes-ui.mjs';import {mountSetupMarkup} from './setup-markup.mjs';import {mountAccentOptions} from './accent-picker.mjs';import {initAppearanceSettings} from './settings-appearance.mjs';
 import resumeCore from './generated/resume.core.js';
 
 import {sendGgbRect,freezeGgbView,thawGgbView} from './ggb.mjs';
@@ -31,11 +32,11 @@ import {relabelGuide} from './guide.mjs';
 import {initCommandPalette,openCommandPalette,closeCommandPalette} from './command-palette.mjs';
 import {registerLayoutSurface,applyViewLayout,initLayoutPresetsUI,applyLayout,builtinPresets,summaryOf} from './layout-presets.mjs';
 import {retranslateTree} from './view-host.mjs';
+import {createLazyModule} from './lazy-module.mjs';
 import {t,text,setUiLanguage,currentLanguage,LANGUAGE_EVENT} from './ui-text.mjs';
 import {localizeFreeCourse} from './free-names.mjs';
 import {initTutorHeader,closeTutorPops,syncTutorMenus} from './tutor-header.mjs';
 import {initPhonePhoto,closePhonePop} from './phone-photo.mjs';
-import {initSettings,prepareSettings,validateSettings,setSettingsFooter,saveBlockedNow,showSaveError} from './settings.mjs';
 import {appendCourseRow,relabelCourseRows,clearEndDay,renderAboutLead,renderCourseRows,renderEndDay,renderHelpVersion} from './dialogs.mjs';
 import {initToolNotices,noticesOpened} from './tool-notices.mjs';
 import * as slash from './slash.mjs';
@@ -47,13 +48,25 @@ import {closeMenus,initNavMenus} from './nav-menus.mjs';
 import {menuHandlers,renderTabsView,renderMenus,selectTab,moveTabFocus,numberedTabs,cycleToTab,getTabsCourses,setTabsCourses,refreshTabsOnReviewCount,initHeaderTabs} from './header-tabs.mjs';
 import {aboutHandlers,openAbout,openHelp,paintUpdateNotice,refreshAbout,syncUpdateNotice} from './about-update.mjs';
 import {closeContextPop,openContextPop,placeContextPop} from './context-pop.mjs';
+import {installComposerAlign} from './composer-align.mjs';
 import {newSession,openConversation,renderConversations} from './course-conversations.mjs';
+/* Configurações (#desempenho): o núcleo `settingsview.core.js` (133 KiB) e o
+   aplicador só são necessários quando o diálogo abre. O init (ouvintes da
+   lateral e do idioma) roda uma vez, ali; a partida não espera por eles. */
+const settingsModule=createLazyModule({importModule:()=>import('./settings.mjs'),prepare:module=>module.initSettings()}),studyStatsModule=createLazyModule({importModule:()=>import('./study-stats.mjs'),prepare:module=>module.initStudyStats({state:S})});
+function setSettingsFooter(facts){settingsModule.current()?.setSettingsFooter(facts);}
+function showSaveError(message){settingsModule.current()?.showSaveError(message);}
+/* Primeira abertura (#desempenho): o `firstrun.core.js` (125 KiB) e a tela só
+   entram quando os dados dizem que ela vale; o markup do #setup fica no index. */
+const firstRunBoot=createFirstRunBoot({importModule:()=>import('./first-run.mjs')});
+const syncFirstRun=(data,hooks)=>firstRunBoot.sync(data,hooks);
+const isFirstRun=()=>firstRunBoot.isActive();
 /* Idioma (#41): o main entrega o idioma já resolvido (preload); o texto estático e o <html lang> seguem antes do primeiro desenho. */
-/* A tela de passos (#64) entra antes, para ser traduzida junto. */
+/* O markup do #setup entra antes do primeiro `setUiLanguage` para ser traduzido junto. */
 mountSetupMarkup();mountAccentOptions();
 setUiLanguage(currentLanguage());
 initNavMenus();
-initHeaderTabs({openSettings:(...args)=>openSettings(...args),syncPaletteField:()=>syncPaletteField(),menu:{ToggleReference:toggleReference,OpenXournal:openXournal,OpenHelp:openHelp,OpenSettings:()=>openSettings(),OpenShortcuts:()=>openShortcuts(),OpenAbout:openAbout,OpenEndDay:openEndDay}});
+initHeaderTabs({openSettings:(...args)=>openSettings(...args),syncPaletteField:()=>syncPaletteField(),menu:{ToggleReference:toggleReference,OpenXournal:openXournal,OpenHelp:openHelp,OpenSettings:()=>openSettings(),OpenShortcuts:()=>openShortcuts(),OpenAbout:openAbout,OpenReleaseNotes:()=>openReleaseNotes().catch(err=>toast(err.message)),OpenEndDay:openEndDay}});
 function openXournal(){window.desk.openXournal().catch(e=>toast(e.message));}
 /* O menu Estudar → Formulário delega à área de apoio (mesma semântica de antes:
    alterna o painel 2; se o Chat lateral está à frente, traz o Formulário). */
@@ -88,7 +101,7 @@ $('#prompt').onkeydown=e=>{
   /* Motor sem steer: ⌘/Ctrl+⏎ com o turno aberto enfileira — a Mesa não promete
      interromper e reenviar onde o transporte não oferece. */
   if(S.busy&&!supportsCapability('steer')){queue.enqueueFromComposer();return;}
-  if(value.trim()||S.attachments.length)queue.submit(value,{steer:true,release:false});
+  if(value.trim()||S.attachments.length||S.pdfAttachments.length)queue.submit(value,{steer:true,release:false});
   return;
  }
  if(!S.busy)queue.submit(value);
@@ -130,14 +143,11 @@ window.desk.onMenuChatToggle(()=>toggleChat());
 $('#include-refs').onclick=()=>{S.includeRefs=!S.includeRefs;$('#include-refs').setAttribute('aria-pressed',String(S.includeRefs));updateContextSummary();};
 
 window.addEventListener('resize',()=>placeContextPop());
-$('#context-edit').onclick=()=>{
- const pop=$('#context-pop');
- if(pop&&!pop.hidden){closeContextPop({restoreFocus:true});return;}
- openContextPop();
-};
+$('#context-edit').onclick=()=>{const pop=$('#context-pop');if(pop&&!pop.hidden){closeContextPop({restoreFocus:true});return;}openContextPop();};
+$('#context-summary').onclick=$('#context-edit').onclick; /* #90: a pílula inteira também abre a edição */
 document.addEventListener('click',event=>{
  const pop=$('#context-pop');if(!pop||pop.hidden)return;
- if(event.target?.closest?.('#context-pop, #context-edit'))return;
+ if(event.target?.closest?.('#context-pop, #context-edit, #context-summary'))return;
  closeContextPop();
 });
 /* Trocar de sessão ou recolher o tutor deixaria o popover órfão. */
@@ -240,8 +250,9 @@ initModelPicker({pick:async({provider,id,zenPaid})=>{
  if(zenPaid&&!(await confirmPaidModel())){settings({});return;}
  await settings({model:{provider,id}});
  if(noteModelPicked(provider,id))save(true);/* recentes (#59): só entra o que o host confirmou */
-},favoritesChanged:()=>save(true)/* favoritos (estrela): estado de interface, como os recentes */
+},favoritesChanged:()=>save(true)/* favoritos (estrela): estado de interface, como os recentes */,defaultChanged:()=>save(true)/* modelo padrão da sessão nova: estado de interface, nunca no config.json */
 });initEffortStrip({pick:level=>settings({level})});
+/* Conversa de motor antigo (#release OpenCode): o painel no lugar do composer leva a uma sessão nova. */ $('#legacy-new-session')?.addEventListener('click',()=>newSession(null));
 const conversationLibrary=initConversationLibrary({resume:async row=>{
  if(S.busy||S.connecting||S.switching){toast(t('session.waitResume'));return false;}
  try{
@@ -256,11 +267,11 @@ async function exportSession(){try{const r=await window.desk.exportChat();if(r?.
 /* Ajustes do Pi: abre as Configurações no campo do caminho do Pi (o motivo da
    falha costuma estar ali). A coluna do tutor e o passo "Tutor" da primeira
    abertura (#64) usam o mesmo. */
-const openPiSettings=async()=>{try{await openSettings({section:'pastas',focus:'#cfg-pi'});}catch(err){toast(err.message);}};
+const openPiSettings=async()=>{try{await openSettings({section:'pastas',focus:S.detected?.pi?'#cfg-pi':'#cfg-vault'});}catch(err){toast(err.message);}};
 initTutorState({
  newSession:()=>newSession().catch(()=>{}),
  openLog:async()=>{try{await window.desk.openLog();}catch(err){toast(err.message);}},
- openPiSettings,
+ openPiSettings,openReleaseNotes:()=>openReleaseNotes().catch(err=>toast(err.message)),
  /* Claude Code fora da faixa (#51): o Sobre, já na confirmação do comando que o atualiza. */
  updateClaude:()=>openAbout({ask:'claude'}).catch(err=>toast(err.message)),
  openAbout:()=>openAbout().catch(err=>toast(err.message))
@@ -322,7 +333,8 @@ const studyBackup=initBackupPanel(document,{
  abrirPasta:directory=>window.desk.backupOpenFolder(directory),enviarGit:()=>window.desk.backupGitPush()
 },{confirmar:text=>window.confirm(text)});
 window.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.shiftKey&&['f','n'].includes(event.key.toLowerCase())&&document.querySelector('dialog[open]'))event.preventDefault();},true);
-Object.assign(menuHandlers,studyToolHandlers({search:()=>openStudySearch(),reviewToday:()=>{selectTab('review');document.querySelector('#review-today')?.scrollIntoView({block:'start'});},notes:()=>openPdfNotes(),stats:()=>{initStudyStats({state:S});openStudyStats();},backup:()=>studyBackup.abrirBackup(),share:()=>studyBackup.abrirCompartilhar(),tutorPdf:()=>openTutorPdfDialog()}));
+async function openStudyStatsPanel(){const module=await studyStatsModule.load();module.openStudyStats();}
+Object.assign(menuHandlers,studyToolHandlers({search:()=>openStudySearch(),reviewToday:()=>{selectTab('review');document.querySelector('#review-today')?.scrollIntoView({block:'start'});},notes:()=>openPdfNotes(),stats:()=>openStudyStatsPanel(),backup:()=>studyBackup.abrirBackup(),share:()=>studyBackup.abrirCompartilhar(),tutorPdf:()=>openTutorPdfDialog()}));
 /* Conferir tem duas redações no mesmo botão: a inteira e a curta. A caixa
    estreita (container query de `#composer-box`) troca uma pela outra; a oculta
    sai do nome acessível, então o leitor de tela ouve só a que está à vista. */
@@ -332,9 +344,9 @@ initFreeModels();
 /* Rótulos que a Mesa escreve com ícone: refeitos na troca de idioma (#41). */
 function paintComposerLabels(){
  labelBtn($('#stop'),'square',t('composer.stop'));
- labelBtn($('#send'),'arrowUp',t('composer.send'));
+ labelBtn($('#send'),'arrowUp');
  labelBtn($('#include-refs'),'columns',t('composer.refs'));
- labelBtn($('#attach'),'paperclip',t('composer.attach'));
+ labelBtn($('#attach'),'paperclip',t('composer.attach'));labelBtn($('#context-edit'),'pencil',t('composer.editLabel'));
  labelBtn($('#quote-btn'),'textQuote',t('quote.button'));
 }
 paintComposerLabels();
@@ -363,7 +375,7 @@ let layoutSettings=null;
 const layoutSettingsReady=(async()=>{
  try{
   const module=await import('./layout-settings.mjs');
-  module.mountLayoutSettings?.($('#cfg-layout'));
+  module.mountLayoutSettings?.($('#cfg-layout'), {onPrinted:i=>{const panel=S.panels?.[i];if(!panel)return;const open=!!panel.printedOpen;panel.togglePrinted();toast(t(open?'settings.layout.printedClosed':'settings.layout.printedOpen',{n:i+1}));}});
   layoutSettings=module;
   return module;
  }catch{
@@ -410,12 +422,12 @@ function readSettingsForm(){
 /* `section`/`focus` levam o diálogo a um campo (o "Ajustes do Pi" do tutor abre
    em Pastas e programas com o campo do Pi focado); sem eles abre em Matérias. */
 async function openSettings({section='',focus=''}={}){
- const info=await window.desk.getConfig();
+ const [settings,info]=await Promise.all([settingsModule.load(),window.desk.getConfig()]);
  S.appConfig={...S.appConfig,...info.config,platform:info.platform};
  await fillSettingsForm(info.config||{});
  settingsBaseline=JSON.stringify(readSettingsForm());
- prepareSettings({section});
- setSettingsFooter({busy:!!S.busy,dirty:false});
+ settings.prepareSettings({section});
+ settings.setSettingsFooter({busy:!!S.busy,dirty:false});
  /* Dica do campo Claude: o caminho detectado quando o host manda um; senão o
     placeholder padrão continua. Nada de login/credencial na UI. */
  const claudeField=$('#cfg-claude');
@@ -424,19 +436,18 @@ async function openSettings({section='',focus=''}={}){
  if(focus){const field=$(focus);field?.scrollIntoView?.({block:'center'});field?.focus();}
 }
 $('#cfg-vault-browse').onclick=async()=>{const folder=await window.desk.pickFolder();if(folder)$('#cfg-vault').value=folder;};
-$('#cfg-pi-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-pi').value=file;};
+/* #83: o caminho do Pi, do Claude Code e do Xournal++ sai do diálogo do main (`pickExecutable`);
+   o campo só mostra o que o main devolveu, e Limpar volta ao automático. O `save-config` recusa o resto. */
+const pickExecutableInto=(kind,id)=>async()=>{const file=await window.desk.pickExecutable(kind);if(file){$(id).value=file;syncSettingsFooter();}};
+$('#cfg-pi-browse').onclick=pickExecutableInto('pi','#cfg-pi');
 $('#cfg-pi-detect').onclick=async()=>{const found=await window.desk.detectPi();if(found){$('#cfg-pi').value=found;toast(t('settings.pi.found')); }else toast(t('settings.pi.missing'));};
-$('#cfg-xournal-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-xournal').value=file;};
-$('#cfg-claude-browse').onclick=async()=>{const file=await window.desk.pickFile();if(file)$('#cfg-claude').value=file;};
+$('#cfg-xournal-browse').onclick=pickExecutableInto('xournal','#cfg-xournal');
+$('#cfg-claude-browse').onclick=pickExecutableInto('claude','#cfg-claude');
+for(const id of ['#cfg-pi','#cfg-claude','#cfg-xournal'])$(`${id}-clear`).onclick=()=>{$(id).value='';syncSettingsFooter();};
 $('#cfg-add-course').onclick=()=>appendCourseRow();
-/* Cor de acento: vale na hora e fica lembrada, sem esperar o Salvar (nem some
-   ao cancelar) — é estado de interface, como o tema na busca de comandos. */
-wireAccentPicker($('#accent-mode'),{current:()=>S.currentAccent,choose:id=>{applyAccent(id);save(true);}});
-/* Tema: vale na hora e fica lembrado, como o acento — Cancelar/Esc não o
-   desfazem (é estado de interface, fora do `config.json`). */
-$('#theme-mode')?.addEventListener('change',e=>{
- applyTheme(e.currentTarget.value);save(true);
-});
+/* Cor de acento e tema (#9): valem na hora e ficam lembrados,
+   sem esperar o Salvar (nem somem ao cancelar) — estado de interface. */
+initAppearanceSettings();
 /* Idioma da interface e do tutor (#41): valem na hora e ficam lembrados, como o
    tema — Cancelar/Esc não os desfazem (estado de interface, fora do
    `config.json`). O tutor lê o idioma ao conectar: com o tutor ocioso a Mesa o
@@ -479,7 +490,6 @@ window.addEventListener(LANGUAGE_EVENT,()=>{
  relabelTutorColumn();relabelCalculator(); relabelGuide(); renderHelpVersion(S.deskVersion); renderAboutLead(S.deskVersion);
  for(const panel of S.panels)panel.paintPrinted();
 });
-initSettings();
 $('#components-refresh').onclick=()=>refreshAbout(true);
 $('#about-credits-toggle').onclick=()=>{
  const box=$('#about-credits'),open=box.hidden;
@@ -538,13 +548,14 @@ async function saveSettings(){
  if(settingsSaving)return;
  settingsSaving=true;
  try{
+  const settings=await settingsModule.load();
   showSaveError('');
   /* Erro de matéria impede o Salvar: o aviso fica ao lado do campo e o
      diálogo vai para a seção dele (o núcleo decide; ver `settings.mjs`). */
-  if(!validateSettings())return;
+  if(!settings.validateSettings())return;
   if(!settingsDirty()){$('#settings-dialog').close('ok');return;}
   syncSettingsFooter();
-  if(saveBlockedNow())return;
+  if(settings.saveBlockedNow())return;
   const data=await window.desk.saveConfig(readSettingsForm());
   $('#settings-dialog').close('ok');
   const ready=await adoptSavedConfig(data);
@@ -576,14 +587,35 @@ $('#settings-form').addEventListener('submit',e=>{
  if(e.submitter?.id==='settings-save'||e.submitter?.value==='ok'){saveSettings();return;}
  $('#settings-dialog').close('cancel');
 });
-$('#prompt').addEventListener('input',save);
+$('#prompt').addEventListener('input',()=>{save();paintComposerSend();});
+/* Foco no campo: liga o tutor se ele ainda não está, e no OpenCode adianta o
+   texto dos PDFs citados. Não manda mensagem e não gasta resposta do modelo.
+   Só o primeiro foco desde que a Mesa abriu liga: quem encerrou a sessão de
+   propósito não vê o tutor voltar por clicar no campo. */
+let focusConnectUsed=false;
+$('#prompt').addEventListener('focus',()=>{
+ const first=!focusConnectUsed;focusConnectUsed=true;
+ if(first&&!S.connected&&!S.connecting&&!isFirstRun()&&S.link?.state!=='error')connect().catch(()=>{});
+ if(S.engine==='opencode')window.desk.tutorWarm?.(refs()).catch(()=>{});
+});
+paintComposerSend();
 slash.init();
 mentions.init();
 /* O tutor pediu o GeoGebra com a aba fechada (#53): abre como se o aluno clicasse; o host espera o applet. */
 window.desk.onGgbOpen?.(()=>selectTab('geogebra'));
+/* Link externo do applet (#81): o main manda o pedido e espera o diálogo da
+   Mesa; sem `Abrir`, o navegador não abre. */
+window.desk.onLinkConfirm?.((data)=>{
+ const id=typeof data?.id==='string'?data.id:'';
+ const url=typeof data?.url==='string'?data.url:'';
+ if(!id||!url)return;
+ const answer=ok=>window.desk.linkConfirmRespond?.({id,ok});
+ Promise.resolve().then(()=>confirmOpenLink(url)).then(answer).catch(()=>answer(false));
+});
 /* Chat lateral: eventos do lateral assinados uma vez (a área de apoio não tem
    barra de abas; ver `support.mjs`). */
 initSidechat();
+installComposerAlign({root:document.documentElement,composer:$('#composer'),calculator:$('#calculator'),column:$('#sidebar')});
 /* Aba Livre (sessão avulsa): módulo próprio que escuta `desk-workspace`/
    `desk-chrome`; montado antes do `window.desk.init()` do rodapé para pegar o
    primeiro estado sem perder evento. */
@@ -671,7 +703,7 @@ function paletteAvailableActions(){
  /* Tudo que saiu da tela principal (menus Estudar e Ajustes, Caderno,
     GeoGebra, tema e densidade) se acha aqui pelo nome. Itens desligados no
     `config.json` ficam de fora, como nos menus. */
- command('study-stats',t('study.stats'),'graph',{run:()=>{initStudyStats({state:S});openStudyStats();}});
+ command('study-stats',t('study.stats'),'graph',{run:()=>openStudyStatsPanel()});
  command('study-backup',t('study.backup'),'download',{run:()=>studyBackup.abrirBackup()});
  command('study-share',t('study.share'),'upload',{run:()=>studyBackup.abrirCompartilhar()});
  command('tutor-pdf',t('study.tutorPdf'),'sparkles',{run:()=>openTutorPdfDialog()});
@@ -688,7 +720,7 @@ function paletteAvailableActions(){
  command('geogebra-open','GeoGebra','graph',{disabled:busy,reason:waitReply,run:()=>selectTab('geogebra')});
  command('help',t('menu.help'),'help',{run:()=>openHelp()});
  command('shortcuts',t('menu.shortcuts'),'keyboard',{run:()=>openShortcuts()});
- command('about',t('menu.about'),'help',{run:()=>openAbout()});
+ command('about',t('menu.about'),'help',{run:()=>openAbout()});command('release-notes',t('menu.releaseNotes'),'sparkles',{run:()=>openReleaseNotes()});
  for(const theme of ['light','dark','auto']){
   const label=t(`palette.theme.${theme}`);
   command(`theme-${theme}`,label,theme==='light'?'sun':theme==='dark'?'moon':'contrast',{search:t('palette.theme.search',{label}),check:S.currentTheme===theme,run:()=>{applyTheme(theme);save(true);toast(`${label}.`);}});
@@ -699,8 +731,8 @@ function paletteAvailableActions(){
  }
  command('density',t('palette.density'),'unfold',{kbd:paletteKey('density','⌘⇧D'),search:t('palette.density.search'),run:()=>toggleDensityMode()});
  command('settings',t('menu.settings'),'settings',{kbd:paletteKey('settings','⌘,'),run:()=>openSettings()});
- command('new-session',t('header.newSession'),'plus',{search:t('palette.newSession.search'),disabled:busy,reason:waitReply,run:()=>newSession('pi')});
- command('new-session-claude',t('palette.newSessionClaude'),'plus',{search:t('palette.newSessionClaude.search'),disabled:busy,reason:waitReply,run:()=>newSession('claude')});command('new-session-opencode',t('palette.newSessionOpenCode'),'plus',{search:t('palette.newSessionOpenCode.search'),disabled:busy,reason:waitReply,run:()=>newSession('opencode')});
+ command('new-session',t('header.newSession'),'plus',{search:t('palette.newSession.search'),disabled:busy,reason:waitReply,run:()=>newSession()});
+ const shown=visibleEngines();if(shown.includes('claude'))command('new-session-claude',t('palette.newSessionClaude'),'plus',{search:t('palette.newSessionClaude.search'),disabled:busy,reason:waitReply,run:()=>newSession('claude')});if(shown.includes('opencode'))command('new-session-opencode',t('palette.newSessionOpenCode'),'plus',{search:t('palette.newSessionOpenCode.search'),disabled:busy,reason:waitReply,run:()=>newSession('opencode')});
  command('export-chat',t('palette.exportSession'),'download',{search:t('palette.exportSession.search'),run:()=>exportSession()});
  command('session-library',t('palette.sessionLibrary'),'search',{search:t('palette.sessionLibrary.search'),run:()=>conversationLibrary.open().catch(error=>toast(error.message))});
  command('chat-toggle',t(chatCollapsed?'palette.tutor.show':'palette.tutor.hide'),'columns',{kbd:paletteKey('chat-toggle','⌘\\'),run:()=>toggleChat()});
@@ -751,15 +783,15 @@ syncPaletteField();
    do GeoGebra focado, quando o keydown do renderer não chega. */
 window.desk.onMenuPalette?.(()=>{if(!document.querySelector('dialog[open]'))openCommandPalette();});
 try{
- const data=await window.desk.init();
+ const data=await window.desk.init(),firstRunReady=firstRunBoot.prepare(data);
+ /* A primeira abertura entra ANTES dos leitores: a aba Livre pinta no
+    `loadCourse` e, sem isto, a tela chegava depois dela (corrida que os testes
+    de janela viam como clique interceptado). */
+ await firstRunReady;await syncFirstRun(data,{createCourse:createFirstCourse,openPiSettings});
  await layoutPresetsUi.refresh();
  setTabsCourses(localizeFreeCourse(data.courses));
  await loadCourse(data);
  renderTabsView();renderMenus();updateReviewBadge();
- /* Sem configuração, ou com a pasta de dados válida e nenhuma matéria, a
-    pessoa cai direto no app (folha "Lista 0 — Montar a mesa"); o tutor só liga
-    quando ela chama (tickets #21 e #24). */
- await syncFirstRun(data,{createCourse:createFirstCourse,openPiSettings});
  if(!isFirstRun()&&engineReady(data))connect().catch(()=>{});
- showTutorState();
+ showTutorState();await showPendingReleaseNotes(data,{firstRun:isFirstRun()});
 }catch(e){toast(e.message);showTutorState();}

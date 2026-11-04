@@ -15,6 +15,7 @@ import {spawn} from 'node:child_process';
 import path from 'node:path';
 import {descendants,killRows,killTree} from './proc-tree.mjs';
 import {appendTimingRow,slowest,SUITE_TIMES_FILE,LAUNCH_TIMES_FILE} from './suite-tempos.mjs';
+import {ensureElectronBinary} from '../scripts/electron-binary.mjs';
 
 export const SKIPPED=77;
 
@@ -67,6 +68,8 @@ export function runFile(dir,file,{block='',timeout=600000,grace=5000,env={}}={})
 }
 
 export async function runSuite({label,dir,files,jobs,block='',timeout=600000,verbose=false}){
+ /* Um download antes de N Electrons em paralelo (Electron 45, relatório do Mac). */
+ ensureElectronBinary({electronDir:path.join(dir,'..','node_modules','electron')});
  const started=Date.now();
  const run=new Date(started).toISOString();
  const results=[];

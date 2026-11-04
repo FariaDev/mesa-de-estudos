@@ -19,11 +19,18 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 
 const desk = path.resolve(import.meta.dirname, '..');
 const require = createRequire(path.join(desk, 'package.json'));
 const prompts = require('./src/agents/desk-prompts.cjs');
+const {mesaExtensionPaths} = require('./src/agents/mesa-tool-catalog.cjs');
 const {buildStudyContext} = require('./studycontext.cjs');
+/* Ponte de mentira comum às medições do Pi e do OpenCode: só o formato que os
+   registros conferem, sem abrir porta nem chamar ninguém. */
+const FAKE_GRANT = {url: 'http://127.0.0.1:9/activity', token: 'medicao'};
+const FAKE_CARD_GRANT = {url: 'http://127.0.0.1:9/activity', token: 'medicao'};
 
 /* `deskDir` aponta para outra cópia do desk (o "antes" que
    `prompts-leitura.mjs` extrai do git); as dependências vêm sempre deste. */
@@ -49,18 +56,51 @@ export function templateProfile(deskDir = desk) {
 }
 const profile = templateProfile();
 
-/* ---------- Claude: o que o SDK recebe ---------- */
+/* ---------- Claude: o que o SDK recebe ----------
+   A lista sai do MESMO servidor MCP que a sessão monta (`createStudyToolsServer`),
+   pelo protocolo MCP em memória: uma ferramenta nova entra no medidor sozinha
+   (auditoria M5). Sem rede, login ou modelo. */
 export async function claudeTools(deskDir = desk) {
-  const {z} = await import('zod');
-  const {createTutorPdfTool} = fromDesk(deskDir, 'src/agents/tutor-pdf.cjs');
-  const {createActivityTool, createPreviewTool} = fromDesk(deskDir, 'src/agents/activity-tools.cjs');
+  const {createStudyToolsServer} = fromDesk(deskDir, 'src/agents/study-tools.cjs');
   const noop = async () => ({});
-  const defs = [await createTutorPdfTool(noop), await createActivityTool(noop), await createPreviewTool(noop)];
-  return defs.map((def) => ({
-    name: `mcp__mesa__${def.name}`,
-    description: def.description,
-    input_schema: z.toJSONSchema(z.object(def.inputSchema), {io: 'input', unrepresentable: 'any'}),
-  }));
+  const server = await createStudyToolsServer({
+    createMaterial: noop, createActivity: noop, previewActivity: noop, viewFigure: noop,
+    geogebra: {run: noop, state: noop, screenshot: noop}, readPdf: noop, searchMaterial: noop, proposeReview: noop,
+    listMaterials: noop, saveNote: noop, showCard: noop,
+  });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  const client = new Client({name: 'mesa-measure', version: '1.0.0'});
+  await server.instance.connect(b);
+  await client.connect(a);
+  try {
+    const listed = (await client.listTools()).tools;
+    return listed.map((tool) => ({name: `mcp__mesa__${tool.name}`, description: tool.description, input_schema: tool.inputSchema}));
+  } finally {
+    await client.close();
+    await server.instance.close();
+  }
+}
+
+/* ---------- OpenCode: o que o MCP `mesa` registra ---------- */
+/**
+ * Ferramentas do MCP `mesa` no OpenCode, principal e chat lateral (`pdfOnly`).
+ * @param {string} [deskDir]
+ * @returns {Promise<{main: object[], side: object[]}|null>} `null` num `desk` anterior ao #57
+ * @example (await openCodeTools()).main.map((tool) => tool.name) // ['geogebra', ...]
+ */
+export async function openCodeTools(deskDir = desk) {
+  const file = path.join(deskDir, 'src', 'extensions', 'mesa-mcp', 'tools.mjs');
+  if (!fs.existsSync(file)) return null;
+  const {mesaTools} = await import(pathToFileURL(file).href);
+  const env = {
+    LEARNING_DESK_GGB_BRIDGE: path.join(os.tmpdir(), 'mesa-measure-ggb.json'),
+    LEARNING_DESK_ACTIVITY_BRIDGE: JSON.stringify(FAKE_GRANT),
+    LEARNING_DESK_CARD_BRIDGE: JSON.stringify(FAKE_CARD_GRANT),
+    LEARNING_DESK_MATERIAL_BRIDGE: JSON.stringify({url: 'http://127.0.0.1:9/pdf', token: 'medicao'}),
+    LEARNING_DESK_TUTOR_LANGUAGE: 'pt-BR',
+  };
+  const shape = (tool) => ({name: tool.name, description: tool.description, input_schema: tool.inputSchema});
+  return {main: mesaTools(env).map(shape), side: mesaTools({...env, LEARNING_DESK_PDF_ONLY: '1'}).map(shape)};
 }
 
 /* ---------- Pi: o SDK instalado monta o prompt e as ferramentas ---------- */
@@ -80,13 +120,18 @@ export async function piRequest({materialTools, deskDir = desk}) {
   fs.mkdirSync(agentDir);
   const saved = {...process.env};
   process.env.PI_CODING_AGENT_DIR = agentDir;
-  process.env.LEARNING_DESK_ACTIVITY_BRIDGE = materialTools ? JSON.stringify({url: 'http://127.0.0.1:9/activity', token: 'x'}) : '';
-  process.env.LEARNING_DESK_MATERIAL_BRIDGE = materialTools ? JSON.stringify({url: 'http://127.0.0.1:9/pdf', token: 'x'}) : '';
+  /* A concessão de atividade existe nas duas sessões reais (o lateral lê PDF). */
+  process.env.LEARNING_DESK_ACTIVITY_BRIDGE = JSON.stringify(FAKE_GRANT);
+  process.env.LEARNING_DESK_MATERIAL_BRIDGE = materialTools ? JSON.stringify({url: 'http://127.0.0.1:9/pdf', token: 'medicao'}) : '';
+  process.env.LEARNING_DESK_CARD_BRIDGE = JSON.stringify(FAKE_CARD_GRANT);
+  /* O GeoGebra registra só com a ponte; o arquivo nem precisa existir (M5). */
+  process.env.LEARNING_DESK_GGB_BRIDGE = materialTools ? path.join(root, 'ggb-bridge.json') : '';
+  process.env.LEARNING_DESK_TUTOR_LANGUAGE = 'pt-BR';
   try {
     const sdk = await import(pathToFileURL(path.join(pkg, 'dist', 'index.js')));
     const {buildSystemPromptSections} = await import(pathToFileURL(path.join(pkg, 'dist', 'core', 'system-prompt.js')));
     const settingsManager = sdk.SettingsManager.create(root, agentDir);
-    const extensions = materialTools ? ['tutor-pdf', 'mesa-activity', 'mesa-figure'].map((name) => path.join(deskDir, 'src', 'extensions', name)) : [];
+    const extensions = mesaExtensionPaths(deskDir, {material: materialTools});
     const resourceLoader = new sdk.DefaultResourceLoader({
       cwd: root, agentDir, settingsManager, noExtensions: true, noSkills: true, noPromptTemplates: true, noProjectContext: true,
       appendSystemPrompt: [fromDesk(deskDir, 'src/agents/desk-prompts.cjs').piPrompt({materialTools})], additionalExtensionPaths: extensions,
@@ -100,7 +145,7 @@ export async function piRequest({materialTools, deskDir = desk}) {
     session.dispose?.();
     return {version: JSON.parse(fs.readFileSync(path.join(pkg, 'package.json'), 'utf8')).version, sections, tools};
   } finally {
-    for (const key of ['PI_CODING_AGENT_DIR', 'LEARNING_DESK_ACTIVITY_BRIDGE', 'LEARNING_DESK_MATERIAL_BRIDGE']) {
+    for (const key of ['PI_CODING_AGENT_DIR', 'LEARNING_DESK_ACTIVITY_BRIDGE', 'LEARNING_DESK_MATERIAL_BRIDGE', 'LEARNING_DESK_CARD_BRIDGE', 'LEARNING_DESK_GGB_BRIDGE', 'LEARNING_DESK_TUTOR_LANGUAGE']) {
       if (key in saved) process.env[key] = saved[key];
       else delete process.env[key];
     }
@@ -159,7 +204,7 @@ const sum = (items) => items.reduce((acc, item) => ({chars: acc.chars + item.cha
 const toolSize = (tool) => size(JSON.stringify(tool));
 
 export async function measure() {
-  const out = {claude: {}, pi: {}, results: {}, context: {}};
+  const out = {claude: {}, pi: {}, opencode: {}, results: {}, context: {}};
   const tools = await claudeTools();
   out.claude.tools = Object.fromEntries(tools.map((tool) => [tool.name, toolSize(tool)]));
   out.claude.toolsTotal = sum(Object.values(out.claude.tools));
@@ -168,6 +213,19 @@ export async function measure() {
   out.claude.systemSidechat = size(prompts.claudePrompt({profile}));
   out.claude.prefixCourse = sum([out.claude.systemCourse, out.claude.toolsTotal]);
   out.claude.toolPrompts = size(prompts.mainSessionPrompt());
+
+  const openCode = await openCodeTools();
+  if (openCode) {
+    out.opencode.tools = Object.fromEntries(openCode.main.map((tool) => [tool.name, toolSize(tool)]));
+    out.opencode.toolsTotal = sum(Object.values(out.opencode.tools));
+    out.opencode.sideTools = Object.fromEntries(openCode.side.map((tool) => [tool.name, toolSize(tool)]));
+    out.opencode.sideToolsTotal = sum(Object.values(out.opencode.sideTools));
+    out.opencode.systemCourse = size(prompts.openCodePrompt({profile}));
+    out.opencode.systemFree = size(prompts.openCodePrompt({review: false}));
+    out.opencode.systemSidechat = size(prompts.openCodePrompt({sidechat: true}));
+    out.opencode.prefixCourse = sum([out.opencode.systemCourse, out.opencode.toolsTotal]);
+    out.opencode.prefixSidechat = sum([out.opencode.systemSidechat, out.opencode.sideToolsTotal]);
+  } else out.opencode = null;
 
   const pi = await piRequest({materialTools: true});
   if (pi) {
@@ -180,7 +238,12 @@ export async function measure() {
     out.pi.prefix = sum([out.pi.system, out.pi.mesaTools, out.pi.builtinTools]);
     out.pi.mesaPart = sum([out.pi.sections.addendum, out.pi.mesaTools]);
     const side = await piRequest({materialTools: false});
-    out.pi.sidechatAddendum = side ? side.sections.addendum && size(side.sections.addendum) : null;
+    if (side) {
+      out.pi.sidechatAddendum = side.sections.addendum && size(side.sections.addendum);
+      out.pi.sideTools = Object.fromEntries(side.tools.filter((tool) => tool.name.startsWith('mesa_')).map((tool) => [tool.name, toolSize(tool)]));
+      out.pi.sideToolsTotal = sum(Object.values(out.pi.sideTools));
+      out.pi.sidePrefix = sum([out.pi.sidechatAddendum || {chars: 0, tokens: 0}, out.pi.sideToolsTotal]);
+    } else out.pi.sidechatAddendum = null;
   } else out.pi = null;
 
   out.results = Object.fromEntries(Object.entries(await toolResults()).map(([name, text]) => [name, size(text)]));
@@ -206,7 +269,19 @@ function markdown(data) {
     lines.push(row('**Pi — prefixo (sistema + ferramentas, sem o perfil do usuário)**', data.pi.prefix));
     lines.push(row('Pi — parte da Mesa (adendo + ferramentas mesa_*)', data.pi.mesaPart));
     lines.push(row('Pi — adendo do chat lateral', data.pi.sidechatAddendum));
+    for (const [name, value] of Object.entries(data.pi.sideTools || {})) lines.push(row(`Pi — ferramenta do chat lateral ${name}`, value));
+    lines.push(row('Pi — prefixo do chat lateral (adendo + ferramenta Mesa)', data.pi.sidePrefix));
   } else lines.push('| Pi | não instalado | — |');
+  if (data.opencode) {
+    for (const [name, value] of Object.entries(data.opencode.tools)) lines.push(row(`**OpenCode** — ferramenta ${name}`, value));
+    lines.push(row('OpenCode — ferramentas da sessão principal', data.opencode.toolsTotal));
+    for (const [name, value] of Object.entries(data.opencode.sideTools)) lines.push(row(`OpenCode — ferramenta do chat lateral ${name}`, value));
+    lines.push(row('OpenCode — sistema, matéria (base + perfil)', data.opencode.systemCourse));
+    lines.push(row('OpenCode — sistema, aba Livre', data.opencode.systemFree));
+    lines.push(row('OpenCode — sistema, chat lateral', data.opencode.systemSidechat));
+    lines.push(row('**OpenCode — prefixo da Mesa, matéria (sistema + ferramentas)**', data.opencode.prefixCourse));
+    lines.push(row('OpenCode — prefixo do chat lateral (sistema + ler_pdf)', data.opencode.prefixSidechat));
+  } else lines.push('| OpenCode | não medido | — |');
   for (const [name, value] of Object.entries(data.results)) lines.push(row(`Resultado: ${name}`, value));
   for (const [name, value] of Object.entries(data.context)) lines.push(row(name, value));
   return lines.join('\n');

@@ -1,8 +1,14 @@
 const {spawn}=require('node:child_process');
+const crypto=require('node:crypto');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {needsCmdShell,spawnPlan}=require('./src/win-cmd-spawn.cjs');
 const {EventEmitter}=require('node:events');
 const {spawnEnv,missingPiMessage}=require('./pi.cjs');
 const {message}=require('./src/i18n.mjs');
 const {causeArg}=require('./src/error-detail.mjs');
+const {killProcessTree,waitForExit}=require('./src/proc-tree.cjs');
 const {createTurnIdentity}=require('./src/turn-identity.cjs');
 const rpcstate=require('./src/generated/rpcstate.core.js').default;
 const {toNat}=require('./src/bend-nat.mjs');
@@ -22,6 +28,15 @@ function frameSplit(joined){
 
 const {PI_DESK_PROMPT:DESK_PROMPT}=require('./src/agents/desk-prompts.cjs');
 
+/* O prompt padrão tem quebras de linha, que o cmd.exe não carrega num
+   argumento: com o `pi.cmd` do Windows ele vai por arquivo, como o do tutor. */
+function defaultPromptArg(pi){
+ if(!needsCmdShell(pi))return DESK_PROMPT;
+ const file=path.join(os.tmpdir(),`mesa-pi-desk-prompt-${crypto.createHash('sha256').update(DESK_PROMPT).digest('hex').slice(0,12)}.md`);
+ if(!fs.existsSync(file))fs.writeFileSync(file,DESK_PROMPT);
+ return file;
+}
+
 /* Erro que PROVA que o pedido não chegou a ser entregue ao stdin do Pi.
    O contrato com `send.cjs` é este campo: com `notSent`, a falha é recusa (nada
    foi escrito, o bilhete volta na próxima abertura); sem ele, o pedido pode ter
@@ -34,6 +49,17 @@ function notSent(message){
  return err;
 }
 
+/* Fecha o processo e espera o 'exit' (CI windows-latest). No Windows o Pi chega como
+   `pi.cmd`: matar só o `cmd.exe` deixaria o `node.exe` neto vivo segurando o
+   cwd e os arquivos da sessão. O corte da árvore é `taskkill /T /F`
+   (`src/proc-tree.cjs`); no POSIX o filho é o processo real. */
+function stopChild(child){
+ if(!child)return Promise.resolve(true);
+ child.removeAllListeners('exit');
+ killProcessTree(child);
+ return waitForExit(child);
+}
+
 class PiBridge extends EventEmitter {
  /**
   * @param {{cwd?: string, session?: string, pi?: string, extraArgs?: string[], env?: NodeJS.ProcessEnv, promptFile?: string}} [options]
@@ -41,7 +67,7 @@ class PiBridge extends EventEmitter {
  constructor({cwd,session,pi='',extraArgs=[],env,promptFile=''}={}){
   super();
   Object.assign(this,{cwd,session,pi,extraArgs,env,promptFile});
-  this.pending=new Map();this.seq=0;this.stopped=false;this.runActive=false;this.settledEpoch=0;
+  this.pending=new Map();this.seq=0;this.stopped=false;this.runActive=false;this.settledEpoch=0;this.stopPending=null;
   /* Identidade de execução (N1): o RPC do Pi não manda `runId`; a ponte deriva
      a corrida dos cercamentos (`agent_start`/`agent_settled`) e aposenta os
      ids conhecidos no fechamento — ver `src/turn-identity.cjs`. */
@@ -57,7 +83,7 @@ class PiBridge extends EventEmitter {
   switch(out.act.$){
    case 'ActKill':this.breakConnection(ctx.err);return;
    case 'ActExit':this.child=null;this.fail(ctx.err);return;
-   case 'ActStop':{this.stopped=true;const child=this.child;this.child=null;if(child){child.removeAllListeners('exit');try{child.kill();}catch{}}this.fail(Error('stopped'));return;}
+   case 'ActStop':{this.stopped=true;const child=this.child;this.child=null;this.stopPending=stopChild(child);this.fail(Error('stopped'));return;}
    case 'ActResolve':case 'ActRefuse':{const p=this.pending.get(ctx.id);if(!p)return;clearTimeout(p.timer);this.pending.delete(ctx.id);
    if(out.act.$==='ActResolve'&&['prompt','steer','follow_up'].includes(p.type)){
     this.runActive=rpcstate.runAfterAcceptance(this.runActive,ctx.data?.disposition==='started',p.settledEpoch===this.settledEpoch);
@@ -70,14 +96,19 @@ class PiBridge extends EventEmitter {
   const out=rpcstate.onStart(!!this.child,!!this.pi,this.stopped,toNat(this.pending.size),toNat(this.seq));
   this.seq=Number(out.seq);
   if(out.act.$==='ActNone')return;
-  this.stopped=false;
+  this.stopped=false;this.stopPending=null;
   if(out.act.$==='ActFail'){
    this.fail(Error(missingPiMessage()));
    return;
   }
   const env=this.env||spawnEnv(this.pi);
-  const winShell=process.platform==='win32'&&/\.(cmd|bat)$/i.test(this.pi);
-  const child=spawn(this.pi,['--mode','rpc','--session',this.session,'--approve','--append-system-prompt',this.promptFile||DESK_PROMPT,...this.extraArgs],{cwd:this.cwd,env,stdio:['pipe','pipe','pipe'],windowsHide:true,shell:winShell});
+  const piArgs=['--mode','rpc','--session',this.session,'--approve','--append-system-prompt',this.promptFile||defaultPromptArg(this.pi),...this.extraArgs];
+  const launch=spawnPlan(this.pi,piArgs,{env});
+  /* `--approve` vem passado desde antes do #78 e não tem doc neste repo: não
+     afirmamos o que ele aprova no Pi (não conferido, Pi ausente). O tutor só
+     recebe as ferramentas da Mesa (`--no-builtin-tools` + `--tools`), então
+     não há permissão de arquivo para a flag abrir. */
+  const child=spawn(launch.file,launch.args,{cwd:this.cwd,env,stdio:['pipe','pipe','pipe'],windowsHide:true,...launch.options});
   this.child=child;
   /* Processo NOVO neste mesmo bridge (start/reconexão depois de queda): o
      ledger do processo anterior morre com ele e a corrida aberta se encerra.
@@ -106,7 +137,7 @@ class PiBridge extends EventEmitter {
   child.stdin.on('error',e=>{this.apply(rpcstate.onError(this.child===child,...this.facts()),{err:e});});
   child.on('error',e=>{this.apply(rpcstate.onError(this.child===child,...this.facts()),{err:e});});child.on('exit',(code,signal)=>{if(this.child!==child)return;this.apply(rpcstate.onExit(true,...this.facts()),{err:Error(message('tutor.error.stopped',{code:signal||code}))});});
  }
- breakConnection(e){const child=this.child;this.child=null;if(child){child.removeAllListeners('exit');try{child.kill();}catch{}}this.fail(e);}
+ breakConnection(e){const child=this.child;this.child=null;if(child){child.removeAllListeners('exit');killProcessTree(child);}this.fail(e);}
  fail(e){
   this.runActive=false;this.settledEpoch++;
   const err=Error(missingPiMessage(e));
@@ -151,6 +182,9 @@ class PiBridge extends EventEmitter {
     `facts()`: com o BigInt do bend 2.0.27 o booleano `stopped` entrava calado
     como `pending` e o tamanho da fila virava o `seq`, que voltava a 0 e podia
     repetir id depois de religar. O `nat_in` do 2.0.37 recusou (#49). */
- stop(){this.apply(rpcstate.onStop(!!this.child,toNat(this.pending.size),toNat(this.seq)));}
+ stop(){
+  this.apply(rpcstate.onStop(!!this.child,toNat(this.pending.size),toNat(this.seq)));
+  return this.stopPending||Promise.resolve(true);
+ }
 }
 module.exports={PiBridge,DESK_PROMPT,frameSplit,notSent};

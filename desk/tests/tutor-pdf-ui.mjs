@@ -13,7 +13,7 @@ const markdown='# Teorema de Pitágoras\n\nEm um triângulo retângulo:\n\n$$a^2
 await withArtifacts('tutor-pdf-ui',async ctx=>{
  const runtime=ctx.runtime=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-tutor-pdf-ui-')));
  const demo=path.join(runtime,'pi-tutor-demo.mjs');
- const source=fakePiSource(),marker="else if(/quiz/i.test(studentText(e.message)))emitQuiz(e.message);";assert.ok(source.includes(marker));
+ const source=fakePiSource(),marker="else if(/quiz/i.test(studentText(e.message)))void emitQuiz(e.message);";assert.ok(source.includes(marker));
  const branch=`else if(String(e.message).includes('Prepare um PDF na Mesa')){
  streaming=true;emit({type:'agent_start'});
  (async()=>{

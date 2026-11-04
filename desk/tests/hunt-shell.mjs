@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {artifactDir,pickTheme,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,sendEnabled,statusOnline,moreClick,fillStudyTitle} from './helpers.mjs';
+import {artifactDir,pickTheme,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,sendEnabled,statusOnline,moreClick,fillStudyTitle,insideHidden} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
 const readDesk=runtime=>{try{return JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));}catch{return null;}};
 
@@ -101,8 +101,12 @@ const only=title=>!filter||title.toLowerCase().includes(filter.toLowerCase());
 /* O Encerrar por hoje saiu do composer e é item do menu Estudar (núcleo
    `core/tabsview.bend`): abre o menu quando preciso e clica no item. */
 async function openEndDay(page){
+ /* `[hidden]`, e não `isHidden()`: na saída animada (#63) o popover ainda
+    "aparece" para o Playwright por --t-fast, e o helper antigo pulava o clique
+    no gatilho e ia clicar num item que sumia no meio. */
  const pop=page.locator('#chat-more-pop');
- if(await pop.isHidden())await page.locator('#chat-more').click();
+ if(await insideHidden(pop))await page.locator('#chat-more').click();
+ await pop.waitFor({state:'visible',timeout:5000});
  await page.locator('#chat-more-pop #end-day').click();
 }
 
@@ -173,7 +177,7 @@ if(only('menus')){
    await page.evaluate(()=>window.dispatchEvent(new Event('desk-chrome')));
    const open=await page.evaluate(()=>document.querySelector('#settings-menu').classList.contains('open'));
    assert.equal(open,true,'re-render não deve fechar o menu aberto');
-   assert.deepEqual(await page.locator('#settings-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['settings','help','shortcuts','about'],'itens re-renderizados');
+   assert.deepEqual(await page.locator('#settings-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['settings','help','shortcuts','release-notes','about'],'itens re-renderizados');
    await page.keyboard.press('Escape');
    await pickTheme(page,'light');
    assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');
@@ -606,7 +610,9 @@ if(only('encerrar')){
    assert.equal(await p2.locator('#tutor-state .ts-lead').textContent(),'Da última vez você parou em Lista 2 · 7b: travei na 3');
    assert.equal(await p2.locator('#tutor-state .ts-fine').textContent(),'Próximo passo: seguir para a 4');
    assert.equal(await p2.locator('#prompt').inputValue(),'','o registro não escreve nada sozinho no composer');
-   /* Sai da página 2 antes de retomar: é o Retomar que tem de voltar com ela. */
+   /* Sai da página 2 antes de retomar: é o Retomar que tem de voltar com ela.
+      O campo de página só aparece no pager (#90); abre pelo "1 / 3". */
+   await p2.locator('.pdf-panel').first().locator('.pager-current').click();
    await p2.locator('.pdf-panel').first().locator('.page-number').fill('1');
    await p2.locator('.pdf-panel').first().locator('.page-number').press('Enter');
    await p2.waitForFunction(()=>document.querySelector('.page-number')?.value==='1');
@@ -708,7 +714,7 @@ if(only('keys')){
    await page.keyboard.press('ControlOrMeta+j');
    await page.waitForFunction(()=>!document.querySelector('#keys-dialog .keys-row[data-action="pdf-find"]').classList.contains('recording'));
    assert.match(await page.locator('#keys-status').textContent(),/agora é/);
-   assert.equal(await page.locator('#keys-dialog .keys-row[data-action="pdf-find"] .keys-kbd').textContent(),'⌘J');
+   assert.equal(await page.locator('#keys-dialog .keys-row[data-action="pdf-find"] .keys-kbd').textContent(),await page.evaluate(()=>window.mesaKeys.format('Mod+J')));
   });
 
   await s.step('o remap vale de verdade: ⌘J abre a busca e ⌘F fica engolido',async()=>{
@@ -734,10 +740,10 @@ if(only('keys')){
    const over=await page.evaluate(()=>JSON.parse(localStorage.getItem('mesa.keys')||'{}'));
    assert.equal(over.overrides?.['pdf-find'],'Mod+j');
    assert.equal(await page.locator('#keys-reset-all').isDisabled(),false);
-   assert.equal(await page.locator('#keys-dialog .keys-row[data-action="pdf-find"] .keys-kbd').textContent(),'⌘J');
+   assert.equal(await page.locator('#keys-dialog .keys-row[data-action="pdf-find"] .keys-kbd').textContent(),await page.evaluate(()=>window.mesaKeys.format('Mod+J')));
    await page.locator('#keys-dialog .keys-row[data-action="pdf-find"] .keys-reset').click();
    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('mesa.keys')||'{}').overrides?.['pdf-find']===undefined);
-   assert.equal(await page.locator('#keys-dialog .keys-row[data-action="pdf-find"] .keys-kbd').textContent(),'⌘F');
+   assert.equal(await page.locator('#keys-dialog .keys-row[data-action="pdf-find"] .keys-kbd').textContent(),await page.evaluate(()=>window.mesaKeys.format('Mod+F')));
   });
 
   await s.step('fechar e reabrir o editor mostra o mesmo estado',async()=>{
@@ -794,20 +800,13 @@ if(only('tabs')){
    assert.match(await page.title(),/p\. 1/,'título leva a página do 1º leitor');
   });
 
-  await s.step('quiz pendente: troca recusada na hora e o card sobrevive',async()=>{
+  await s.step('cartão pendente não bloqueia a troca e não vaza para a outra matéria',async()=>{
    await page.locator('#prompt').fill('quiz durante a troca');
    await page.locator('#send').click();
    await page.waitForSelector('.message.quiz .quiz-option',{timeout:15000});
    await sendEnabled(page,{timeout:15000});
-   // o fake fica esperando a resposta (sem agent_end) com o busy já solto: o
-   // quiz pendente é "não ocioso" e a troca tem de ser recusada na hora
-   await page.keyboard.press('ControlOrMeta+3');
-   await toastWait(page,'responda antes de trocar de matéria',{timeout:5000});
-   assert.equal(await page.locator('#course-tabs button[data-id="A"]').evaluate(el=>el.classList.contains('active')),true,'a matéria não troca com o quiz pendente');
-   assert.ok(await page.locator('.message.quiz .quiz-option').count()>=1,'o card do quiz continua na tela (o Pi segue esperando)');
-   // responde para soltar o turno; aí a troca é permitida
-   await page.locator('.message.quiz .quiz-option').first().click();
-   await sendEnabled(page,{timeout:30000});
+   /* O cartão é da conversa, não do turno: o aluno pode trocar de matéria com
+      ele aberto; a matéria nova não herda o cartão da anterior. */
    await page.keyboard.press('ControlOrMeta+3');
    await page.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="B"]')?.classList.contains('active'),undefined,{timeout:60000});
    await statusOnline(page,{timeout:30000});
@@ -965,8 +964,8 @@ if(only('flags')){
    await page.waitForFunction(()=>document.querySelector('.pdf-panel .pdf-document')?.children.length>0,undefined,{timeout:30000});
    const summary=await page.locator('#context-summary').textContent();
    assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'true');
-   assert.match(summary,/Limites\.pdf p\.1/,'com a flag desligada as referências do 1º painel continuam no contexto');
-   assert.match(summary,/Formul\.pdf p\.1/,'o 2º painel também entra com a flag desligada');
+   assert.match(summary,/Limites\.pdf p\.\s?1/,'com a flag desligada as referências dos dois painéis continuam no contexto');
+   assert.match(summary,/Formul\.pdf p\.\s?1/,'os dois painéis aparecem cada um na sua pílula');
    assert.doesNotMatch(summary,/Enunciado|Lista/,'sem studyContext o título de estudo não entra');
   });
 

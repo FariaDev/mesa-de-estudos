@@ -472,5 +472,24 @@ law review_draft_edited:
 law review_empty_title:
   {N.emptyTitle() == M.msg("review.empty.title") : String}
 
-law review_empty_lead:
-  {N.emptyLead() == M.msg("review.empty.lead") : String}
+law review_empty_body:
+  {N.emptyBody() == M.msg("review.empty.body") : String}
+
+# A proposta do tutor só entra com aprovação do aluno (aprovada ou editada).
+law review_proposal_approved:
+  {N.proposalEnters("approved") == True{} : Bool}
+
+law review_proposal_edited:
+  {N.proposalEnters("edited") == True{} : Bool}
+
+law review_proposal_discarded:
+  {N.proposalEnters("discarded") == False{} : Bool}
+
+law review_proposal_busy:
+  {N.proposalEnters("busy") == False{} : Bool}
+
+law review_proposal_pending:
+  {N.proposalEnters("pending") == False{} : Bool}
+
+law review_proposal_other:
+  {N.proposalEnters("nope") == False{} : Bool}

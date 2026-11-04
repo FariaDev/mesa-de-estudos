@@ -1,0 +1,138 @@
+name: Testes
+
+# O repositório é privado: minuto de Windows conta 2x e de macOS 10x na cota
+# do GitHub. PR e push na main rodam Ubuntu + Windows; o macOS (onde o autor
+# testa à mão todo dia) só no disparo manual. Quando o desenvolvimento for para
+# o público `mesa-de-estudos`, os três sistemas podem rodar em todo PR.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: unit (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
+    defaults:
+      run:
+        working-directory: desk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: npm
+          cache-dependency-path: desk/package-lock.json
+
+      - name: Dependências do Electron (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libasound2t64 libpango-1.0-0 libcairo2 libxtst6
+
+      - name: npm ci
+        run: npm ci
+
+      # O binário do Electron pode não vir no `npm ci` (download sob demanda);
+      # baixa agora para os testes não correrem contra o download.
+      - name: Binário do Electron
+        run: node node_modules/electron/install.js
+
+      - name: Sandbox do Electron (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      - name: Identidade do Git para os testes de backup
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@mesa.local"
+
+      - name: Testes de unidade (Linux, sob xvfb)
+        if: runner.os == 'Linux'
+        env:
+          MESA_GATE_CACHE: '0'
+        run: xvfb-run -a npm test
+
+      - name: Testes de unidade (macOS e Windows)
+        if: runner.os != 'Linux'
+        env:
+          MESA_GATE_CACHE: '0'
+        run: npm test
+
+  bend:
+    name: bend (toolchain fixada)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+
+      - name: Cache da toolchain do Bend
+        id: toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bend
+            ~/.bun
+          key: bend-${{ runner.os }}-${{ hashFiles('core/toolchain.json') }}
+
+      - name: Instala bun e bend fixados
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUN_VERSION="$(node -p "require('./core/toolchain.json').bun")"
+          BEND_COMMIT="$(node -p "require('./core/toolchain.json').bend.source.match(/@([0-9a-f]+)/)[1]")"
+          curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}"
+          git clone --quiet https://github.com/bendlang/bend /tmp/bend
+          git -C /tmp/bend checkout --quiet "$BEND_COMMIT"
+          mkdir -p "$HOME/.bend/versions/$BEND_COMMIT"
+          cp -R /tmp/bend/bend2 /tmp/bend/guide "$HOME/.bend/versions/$BEND_COMMIT/"
+          ln -sfn "$HOME/.bend/versions/$BEND_COMMIT" "$HOME/.bend/current"
+          mkdir -p "$HOME/.bend/bin"
+          printf '#!/bin/sh\nexec "${BUN_BIN:-$HOME/.bun/bin/bun}" "$HOME/.bend/current/bend2/main.ts" "$@"\n' > "$HOME/.bend/bin/bend"
+          chmod +x "$HOME/.bend/bin/bend"
+
+      - name: Confere a toolchain fixada
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.bend/bin:$HOME/.bun/bin:$PATH"
+          bend version
+          bun --version
+
+      - name: npm ci
+        working-directory: desk
+        run: npm ci
+
+      - name: Portão estrito do núcleo
+        working-directory: desk
+        shell: bash
+        env:
+          MESA_REQUIRE_BEND: '1'
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.bend/bin:$HOME/.bun/bin:$PATH"
+          npm run verify:bend

@@ -17,7 +17,7 @@ test('painel em inglês: view, seções e rótulos não trazem português', () =
   try {
     const view = buildBackupPanelView({section: 'compartilhar', course: {name: '', hasCourse: false}});
     assert.equal(view.title, 'Backup and share');
-    assert.equal(view.status.lastAt, 'no backup yet');
+    assert.equal(view.status.lastAt, 'No backup yet');
     const rendered = renderBackupPanelView(view);
     const everything = `${rendered.nav} ${rendered.sections}`.replace(/data-bkp-[a-z-]+="[^"]*"/g, '');
     assert.doesNotMatch(everything, PORTUGUESE);

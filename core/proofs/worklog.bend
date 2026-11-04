@@ -11,6 +11,9 @@ def Laws.worklog_tool_reference():
 def Laws.worklog_tool_search():
   {==}
 
+def Laws.worklog_tool_material():
+  {==}
+
 def Laws.worklog_tool_fetch():
   {==}
 
@@ -50,6 +53,8 @@ def Laws.worklog_close_running(s, now):
               {==}
             case L.Search{}:
               {==}
+            case L.Material{}:
+              {==}
             case L.Reference{}:
               {==}
             case L.Fetch{}:
@@ -75,6 +80,8 @@ def Laws.worklog_finish_running(s, now):
             case L.Thinking{}:
               {==}
             case L.Search{}:
+              {==}
+            case L.Material{}:
               {==}
             case L.Reference{}:
               {==}
@@ -107,6 +114,8 @@ def Laws.worklog_close_each(xs, now):
                 case L.Thinking{}:
                   Laws.worklog_close_each(t, now)
                 case L.Search{}:
+                  Laws.worklog_close_each(t, now)
+                case L.Material{}:
                   Laws.worklog_close_each(t, now)
                 case L.Reference{}:
                   Laws.worklog_close_each(t, now)

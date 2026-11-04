@@ -71,6 +71,8 @@ import ./proofs/composerbox.bend as ComposerBox
 import ./proofs/chatlibraryview.bend as ChatLibraryView
 import ./proofs/studysearch.bend as StudySearch
 import ./proofs/studyannotations.bend as StudyAnnotations
+import ./proofs/tutornotes.bend as TutorNotes
+import ./proofs/quizcard.bend as QuizCard
 import ./proofs/studystats.bend as StudyStats
 import ./proofs/reviewschedule.bend as ReviewSchedule
 import ./proofs/guideview.bend as GuideView

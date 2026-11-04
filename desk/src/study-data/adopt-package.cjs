@@ -45,15 +45,13 @@ function adoptPackage({runtime,result,writeConfiguration}){
   for(const entry of result.record?.conversations||[]){
    const source=path.resolve(result.destination,entry.file);
    if(!source.startsWith(path.resolve(result.conversationsDir)+path.sep))throw Error(message('err.pkg.sessionOutside',{received:describeReceived(entry.file)}));
-   if(entry.engine==='claude'){
+   /* Só transcrição (#79): a sessão do Pi já chegou da importação como
+      transcrição Claude. Nenhum JSONL do autor vira sessão viva aqui. */
+   if(entry.engine==='claude'||entry.engine==='opencode'){
     const record=JSON.parse(fs.readFileSync(source,'utf8'));
-    const file=conversations.createClaudeConversation({runtime,courseId:result.courseId});created.push(file);
+    const file=conversations.createClaudeConversation({runtime,courseId:result.courseId,engine:entry.engine});created.push(file);
     conversations.updateClaudeConversation(file,{messages:record.messages||[],preview:String(record.preview||'Sessão importada').slice(0,160)},{runtime});
     sessions.push({path:file,started:Date.now(),preview:record.preview||'Sessão importada'});
-   }else if(entry.engine==='pi'){
-    let at=Date.now(),file=path.join(runtime,`pi-${at}.jsonl`);while(fs.existsSync(file))file=path.join(runtime,`pi-${++at}.jsonl`);
-    fs.copyFileSync(source,file,fs.constants.COPYFILE_EXCL);created.push(file);
-    sessions.push({path:file,started:at,preview:'Sessão importada'});
    }
   }
   writeConfiguration();

@@ -109,7 +109,9 @@ await withArtifacts('lateral-corridas',async ctx=>{
  assert.equal(live.draft,'B','o estado do rascunho é B, não vazio');
  await page.waitForTimeout(650); // espera fixa: debounce de 500 ms do rascunho — conta os saves depois que ele dispara
  const saves=await page.evaluate(()=>window.__sc.saves.map(save=>save.draft));
- assert.equal(saves[0],'','o clique limpou o rascunho A no backend');
+ /* O debounce de 500 ms pode gravar o A antes do clique (máquina lenta); o
+    contrato é o clique gravar o vazio e o A não voltar depois do B. */
+ assert.ok(saves.includes(''),'o clique limpou o rascunho A no backend');
  assert.equal(saves.at(-1),'B','o rascunho B foi persistido (A não ressuscita)');
  assert.equal(await page.locator('#sidechat-messages .sidechat-msg.user').count(),1,'a fala A aparece uma única vez');
  assert.equal(await page.locator('#sidechat-messages .sidechat-msg.assistant').count(),1,'a resposta aparece uma única vez');

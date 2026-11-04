@@ -10,10 +10,13 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -34,6 +37,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -41,8 +45,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -61,7 +65,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $view_attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
@@ -132,7 +136,7 @@ function $view_attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $view_attrGet_choose(_av_0, $$view_attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $view_attrGet(_attrs_0, _name_0) {
@@ -183,7 +187,7 @@ function $view_boolStr(_on_0) {
   }
 }
 function $view_attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$view_boolStr(_on_0) };
 }
 function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -194,7 +198,7 @@ function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $view_classAppend(_acc_0, _name_0) {
-  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $view_classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -207,7 +211,7 @@ function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $view_classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $view_classValue_go($0, $1) {
@@ -223,7 +227,7 @@ function $view_classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$view_classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -233,7 +237,7 @@ function $view_classValue(_xs_0) {
   return $view_classValue_go(_xs_0, "");
 }
 function $view_classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$view_classValue(_xs_0) };
 }
 function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -276,96 +280,93 @@ function $goesNothing() {
 function $goesRefsOff() {
   return $msg_msg("goes.refsOff");
 }
-function $goesSeparator() {
-  return " · ";
-}
 function $refsSeparator() {
   return ", ";
 }
 function $present(_text_0) {
-  return $Bool_not($String_eq(_text_0, ""));
+  return $Bool_not($$String_eq(_text_0, ""));
 }
 function $partNode(_text_0) {
   return $view_viewText(_text_0);
 }
+function $pillAttrs(_cls_0, _label_0) {
+  return { $: "Con", head: $$view_attrClass("goes-pill " + _cls_0), tail: { $: "Con", head: $$view_attrTitle(_label_0), tail: { $: "Con", head: $$view_attrAria("label", _label_0), tail: { $: "Nil" } } } };
+}
+function $pill(_cls_0, _label_0, _kids_0) {
+  return $view_viewEl("span", $$pillAttrs(_cls_0, _label_0), _kids_0);
+}
+function $nameSpan(_text_0) {
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("goes-pill-name"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_text_0), tail: { $: "Nil" } });
+}
+function $pageSpan(_page_0) {
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("goes-pill-page"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_page_0), tail: { $: "Nil" } });
+}
+function $textPill(_text_0) {
+  return $pill("goes-rest", _text_0, { $: "Con", head: $$nameSpan(_text_0), tail: { $: "Nil" } });
+}
+function $coursePill(_course_0) {
+  return $pill("goes-course", _course_0, { $: "Con", head: $$nameSpan(_course_0), tail: { $: "Nil" } });
+}
+function $refLabel(_ref_0) {
+  const _name_0 = _ref_0["name"];
+  const _page_0 = _ref_0["page"];
+  const _x_0 = " " + _page_0;
+  return _name_0 + _x_0;
+}
+function $refName(_ref_0) {
+  const _name_0 = _ref_0["name"];
+  return _name_0;
+}
+function $refPage(_ref_0) {
+  const _page_0 = _ref_0["page"];
+  return _page_0;
+}
+function $refPill(_ref_0) {
+  const _x_0 = $$refPage(_ref_0);
+  return $pill("goes-rest", $$refLabel(_ref_0), { $: "Con", head: $$nameSpan($$refName(_ref_0)), tail: { $: "Con", head: $$pageSpan(" " + _x_0), tail: { $: "Nil" } } });
+}
 function $keepPart(_keep_0, _text_0) {
   if (_keep_0) {
-    return { $: "Con", head: $partNode(_text_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$textPill(_text_0), tail: { $: "Nil" } };
   } else {
     return { $: "Nil" };
   }
 }
 function $partIf(_on_0, _text_0) {
-  return $keepPart($Bool_and(_on_0, $present(_text_0)), _text_0);
+  return $keepPart($$Bool_and(_on_0, $$present(_text_0)), _text_0);
+}
+function $refsParts_go(_refs_0) {
+  if (_refs_0.$ === "Nil") {
+    return { $: "Nil" };
+  } else {
+    const _h_0 = _refs_0["head"];
+    const _t_0 = _refs_0["tail"];
+    return { $: "Con", head: $$refPill(_h_0), tail: $$refsParts_go(_t_0) };
+  }
 }
 function $refsParts(_refsOn_0, _refs_0) {
   if (_refsOn_0) {
-    if (_refs_0.$ === "Nil") {
-      return { $: "Nil" };
-    } else {
-      const _h_0 = _refs_0["head"];
-      const _t_0 = _refs_0["tail"];
-      return { $: "Con", head: $partNode($String_join({ $: "Con", head: _h_0, tail: _t_0 }, $refsSeparator())), tail: { $: "Nil" } };
-    }
+    return $refsParts_go(_refs_0);
   } else {
-    return { $: "Con", head: $partNode($goesRefsOff()), tail: { $: "Nil" } };
+    return { $: "Con", head: $$textPill($$goesRefsOff()), tail: { $: "Nil" } };
   }
-}
-function $interleave_tail(_parts_0) {
-  if (_parts_0.$ === "Nil") {
-    return { $: "Nil" };
-  } else {
-    const _h_0 = _parts_0["head"];
-    const _t_0 = _parts_0["tail"];
-    return { $: "Con", head: $partNode($goesSeparator()), tail: { $: "Con", head: _h_0, tail: $interleave_tail(_t_0) } };
-  }
-}
-function $interleave(_parts_0) {
-  if (_parts_0.$ === "Nil") {
-    return { $: "Nil" };
-  } else {
-    const _h_0 = _parts_0["head"];
-    const _t_0 = _parts_0["tail"];
-    return { $: "Con", head: _h_0, tail: $interleave_tail(_t_0) };
-  }
-}
-function $goesSpan(_cls_0, _kids_0) {
-  return $view_viewEl("span", { $: "Con", head: $view_attrClass(_cls_0), tail: { $: "Nil" } }, _kids_0);
 }
 function $goesSpanText(_cls_0, _text_0) {
-  return $goesSpan(_cls_0, { $: "Con", head: $partNode(_text_0), tail: { $: "Nil" } });
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass(_cls_0), tail: { $: "Nil" } }, { $: "Con", head: $$partNode(_text_0), tail: { $: "Nil" } });
 }
 function $afterCourseParts(_study_0, _title_0, _xopp_0, _refsOn_0, _refs_0) {
-  return $List_append($List_append($partIf(_study_0, _title_0), $partIf(_study_0, _xopp_0)), $refsParts(_refsOn_0, _refs_0));
-}
-function $restNodes(_parts_0) {
-  if (_parts_0.$ === "Nil") {
-    return { $: "Nil" };
-  } else {
-    const _h_0 = _parts_0["head"];
-    const _t_0 = _parts_0["tail"];
-    return { $: "Con", head: $goesSpan("goes-rest", $interleave({ $: "Con", head: _h_0, tail: _t_0 })), tail: { $: "Nil" } };
-  }
-}
-function $restAfterCourse(_parts_0) {
-  if (_parts_0.$ === "Nil") {
-    return { $: "Nil" };
-  } else {
-    const _h_0 = _parts_0["head"];
-    const _t_0 = _parts_0["tail"];
-    return { $: "Con", head: $goesSpanText("goes-sep", $goesSeparator()), tail: $restNodes({ $: "Con", head: _h_0, tail: _t_0 }) };
-  }
+  return $List_append($$List_append($$partIf(_study_0, _title_0), $$partIf(_study_0, _xopp_0)), $$refsParts(_refsOn_0, _refs_0));
 }
 function $goesWithCourse(_course_0, _parts_0) {
-  return $List_append({ $: "Con", head: $goesSpanText("goes-lead", $goesPrefix()), tail: { $: "Con", head: $goesSpanText("goes-course", _course_0), tail: { $: "Nil" } } }, $restAfterCourse(_parts_0));
+  return $List_append({ $: "Con", head: $$goesSpanText("goes-lead", $$goesPrefix()), tail: { $: "Con", head: $$coursePill(_course_0), tail: { $: "Nil" } } }, _parts_0);
 }
 function $goesWithoutCourse(_parts_0) {
   if (_parts_0.$ === "Nil") {
-    return { $: "Con", head: $partNode($goesNothing()), tail: { $: "Nil" } };
+    return { $: "Con", head: $$partNode($$goesNothing()), tail: { $: "Nil" } };
   } else {
-    const _h_0 = _parts_0["head"];
-    const _t_0 = _parts_0["tail"];
-    return { $: "Con", head: $goesSpanText("goes-lead", $goesPrefix()), tail: $restNodes({ $: "Con", head: _h_0, tail: _t_0 }) };
+    const __0 = _parts_0["head"];
+    const __1 = _parts_0["tail"];
+    return { $: "Con", head: $$goesSpanText("goes-lead", $$goesPrefix()), tail: { $: "Con", head: __0, tail: __1 } };
   }
 }
 function $goesTreeFrom(_hasCourse_0, _course_0, _rest_0) {
@@ -376,7 +377,7 @@ function $goesTreeFrom(_hasCourse_0, _course_0, _rest_0) {
   }
 }
 function $goesTree(_study_0, _course_0, _title_0, _xopp_0, _refsOn_0, _refs_0) {
-  return $goesTreeFrom($Bool_and(_study_0, $present(_course_0)), _course_0, $afterCourseParts(_study_0, _title_0, _xopp_0, _refsOn_0, _refs_0));
+  return $goesTreeFrom($$Bool_and(_study_0, $$present(_course_0)), _course_0, $$afterCourseParts(_study_0, _title_0, _xopp_0, _refsOn_0, _refs_0));
 }
 function $noteRefsOff() {
   return $msg_msg("goes.note.off");
@@ -386,19 +387,31 @@ function $noteRefsNone() {
 }
 function $noteRefsListed(_list_0, _capture_0) {
   if (_capture_0) {
-    return $msg_msg1("goes.note.listedCapture", "list", _list_0);
+    return $msg_msg("goes.note.listedCapture");
   } else {
-    return $msg_msg1("goes.note.listed", "list", _list_0);
+    return $msg_msg("goes.note.listed");
   }
+}
+function $refLabels_go(_refs_0) {
+  if (_refs_0.$ === "Nil") {
+    return { $: "Nil" };
+  } else {
+    const _h_0 = _refs_0["head"];
+    const _t_0 = _refs_0["tail"];
+    return { $: "Con", head: $$refLabel(_h_0), tail: $$refLabels_go(_t_0) };
+  }
+}
+function $refLabels(_refs_0) {
+  return $refLabels_go(_refs_0);
 }
 function $refsNote(_refsOn_0, _refs_0, _capture_0) {
   if (_refsOn_0) {
     if (_refs_0.$ === "Nil") {
       return $noteRefsNone();
     } else {
-      const _h_0 = _refs_0["head"];
-      const _t_0 = _refs_0["tail"];
-      return $noteRefsListed($String_join({ $: "Con", head: _h_0, tail: _t_0 }, $refsSeparator()), _capture_0);
+      const __0 = _refs_0["head"];
+      const __1 = _refs_0["tail"];
+      return $noteRefsListed($$String_join($$refLabels({ $: "Con", head: __0, tail: __1 }), $$refsSeparator()), _capture_0);
     }
   } else {
     return $noteRefsOff();
@@ -408,26 +421,22 @@ function $hiddenIf(_hidden_0) {
   return $view_attrWhen(_hidden_0, { $: "ViewAttr", name: "hidden", value: "" });
 }
 function $sendButton(_busy_0) {
-  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("send"), tail: { $: "Con", head: $view_attrClass("primary"), tail: { $: "Nil" } } }, tail: { $: "Con", head: $hiddenIf(_busy_0), tail: { $: "Nil" } } }), { $: "Nil" });
+  return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("send"), tail: { $: "Con", head: $$view_attrClass("primary"), tail: { $: "Nil" } } }, tail: { $: "Con", head: $$hiddenIf(_busy_0), tail: { $: "Nil" } } }), { $: "Nil" });
 }
 function $stopButton(_busy_0) {
-  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("stop"), tail: { $: "Nil" } }, tail: { $: "Con", head: $hiddenIf($Bool_not(_busy_0)), tail: { $: "Nil" } } }), { $: "Nil" });
+  return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("stop"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$hiddenIf($$Bool_not(_busy_0)), tail: { $: "Nil" } } }), { $: "Nil" });
 }
 function $actionIds() {
-  return { $: "Con", head: "attach", tail: { $: "Con", head: "include-refs", tail: { $: "Con", head: "check", tail: { $: "Con", head: "model-indicator", tail: { $: "Con", head: "stop", tail: { $: "Con", head: "send", tail: { $: "Nil" } } } } } } };
+  return { $: "Con", head: "attach", tail: { $: "Con", head: "include-refs", tail: { $: "Con", head: "model-indicator", tail: { $: "Con", head: "stop", tail: { $: "Con", head: "send", tail: { $: "Nil" } } } } } };
 }
-function $rowFit(_fullFits_0, _compactFits_0, _modelFits_0) {
+function $rowFit(_fullFits_0, _modelFits_0) {
   if (_fullFits_0) {
     return "";
   } else {
-    if (_compactFits_0) {
-      return "compact";
+    if (_modelFits_0) {
+      return "model";
     } else {
-      if (_modelFits_0) {
-        return "model";
-      } else {
-        return "icon";
-      }
+      return "icon";
     }
   }
 }
@@ -440,52 +449,11 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -493,7 +461,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -502,7 +470,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -518,7 +486,7 @@ function $view_viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
+    return { $: "Con", head: $$view_viewText(_h_0), tail: $$view_viewMap_0(_t_0) };
   }
 }
 function $view_viewMapI_go_0(_xs_0, _i_0) {
@@ -527,7 +495,7 @@ function $view_viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$view_asTextI(_i_0, _h_0), tail: $$view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $Bool_not(_b_0) {
@@ -550,15 +518,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_eq(_c_0) {
   if (_c_0.$ === "EQ") {
@@ -569,6 +572,11 @@ function $Cmp_is_eq(_c_0) {
 }
 function $String_order(_a_0, _b_0) {
   return $String_order_go(_a_0, _b_0, { $: "EQ" });
+}
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
 }
 function $String_order_go($0, $1, $2) {
   for (;; ) {
@@ -588,6 +596,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -597,13 +606,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -613,74 +621,127 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$view_attrGet_go = $view_attrGet_go;
+var $$String_eq = $String_eq;
+var $$view_boolStr = $view_boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$view_classNext_on = $view_classNext_on;
+var $$view_classValue = $view_classValue;
+var $$view_attrClass = $view_attrClass;
+var $$view_attrTitle = $view_attrTitle;
+var $$view_attrAria = $view_attrAria;
+var $$pillAttrs = $pillAttrs;
+var $$view_viewText = $view_viewText;
+var $$nameSpan = $nameSpan;
+var $$refLabel = $refLabel;
+var $$refName = $refName;
+var $$refPage = $refPage;
+var $$pageSpan = $pageSpan;
+var $$textPill = $textPill;
+var $$present = $present;
+var $$Bool_and = $Bool_and;
+var $$refPill = $refPill;
+var $$refsParts_go = $refsParts_go;
+var $$goesRefsOff = $goesRefsOff;
+var $$partNode = $partNode;
+var $$partIf = $partIf;
+var $$List_append = $List_append;
+var $$refsParts = $refsParts;
+var $$goesPrefix = $goesPrefix;
+var $$goesSpanText = $goesSpanText;
+var $$coursePill = $coursePill;
+var $$goesNothing = $goesNothing;
+var $$afterCourseParts = $afterCourseParts;
+var $$refLabels_go = $refLabels_go;
+var $$refLabels = $refLabels;
+var $$refsSeparator = $refsSeparator;
+var $$view_attrId = $view_attrId;
+var $$hiddenIf = $hiddenIf;
+var $$view_attrJoin = $view_attrJoin;
+var $$Bool_not = $Bool_not;
+var $$String_order = $String_order;
+var $$List_concat = $List_concat;
+var $$view_viewMap_0 = $view_viewMap_0;
+var $$view_asTextI = $view_asTextI;
+var $$view_viewMapI_go_0 = $view_viewMapI_go_0;
+var $$String_join_go = $String_join_go;
+var $$Char_is_eq = $Char_is_eq;
 var composerbox_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
-  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
-  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
-  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
-  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
-  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
-  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
-  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
-  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
-  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
-  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
-  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
-  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
-  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
-  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
-  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
-  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
-  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
-  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
-  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
-  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
-  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
-  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
-  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
-  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
-  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
-  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
-  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
-  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
-  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
-  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
-  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
-  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
-  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
-  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
-  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
-  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
-  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
-  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
-  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
-  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
-  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "view:attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view:classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view:viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view:viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view:viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view:tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view:attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view:kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view:textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view:isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view:attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view:attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view:attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view:attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view:attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view:attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view:attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view:attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view:attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view:attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view:attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view:attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view:attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view:attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view:boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view:attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view:classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view:classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view:classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view:classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view:classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view:classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view:classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view:viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view:viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view:viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view:viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view:viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view:asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view:viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view:viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
   goesPrefix: run_lib(() => str_out(run_loop($goesPrefix())), 0),
   goesNothing: run_lib(() => str_out(run_loop($goesNothing())), 0),
   goesRefsOff: run_lib(() => str_out(run_loop($goesRefsOff())), 0),
-  goesSeparator: run_lib(() => str_out(run_loop($goesSeparator())), 0),
   refsSeparator: run_lib(() => str_out(run_loop($refsSeparator())), 0),
   present: run_lib((a0) => run_loop($present(str_in(a0))), 1),
   partNode: run_lib((a0) => run_loop($partNode(str_in(a0))), 1),
+  pillAttrs: run_lib((a0, a1) => run_loop($pillAttrs(str_in(a0), str_in(a1))), 2),
+  pill: run_lib((a0, a1, a2) => run_loop($pill(str_in(a0), str_in(a1), a2)), 3),
+  nameSpan: run_lib((a0) => run_loop($nameSpan(str_in(a0))), 1),
+  pageSpan: run_lib((a0) => run_loop($pageSpan(str_in(a0))), 1),
+  textPill: run_lib((a0) => run_loop($textPill(str_in(a0))), 1),
+  coursePill: run_lib((a0) => run_loop($coursePill(str_in(a0))), 1),
+  refLabel: run_lib((a0) => str_out(run_loop($refLabel(a0))), 1),
+  refName: run_lib((a0) => str_out(run_loop($refName(a0))), 1),
+  refPage: run_lib((a0) => str_out(run_loop($refPage(a0))), 1),
+  refPill: run_lib((a0) => run_loop($refPill(a0)), 1),
   keepPart: run_lib((a0, a1) => run_loop($keepPart(a0, str_in(a1))), 2),
   partIf: run_lib((a0, a1) => run_loop($partIf(a0, str_in(a1))), 2),
+  "refsParts.go": run_lib((a0) => run_loop($refsParts_go(a0)), 1),
   refsParts: run_lib((a0, a1) => run_loop($refsParts(a0, a1)), 2),
-  "interleave.tail": run_lib((a0) => run_loop($interleave_tail(a0)), 1),
-  interleave: run_lib((a0) => run_loop($interleave(a0)), 1),
-  goesSpan: run_lib((a0, a1) => run_loop($goesSpan(str_in(a0), a1)), 2),
   goesSpanText: run_lib((a0, a1) => run_loop($goesSpanText(str_in(a0), str_in(a1))), 2),
   afterCourseParts: run_lib((a0, a1, a2, a3, a4) => run_loop($afterCourseParts(a0, str_in(a1), str_in(a2), a3, a4)), 5),
-  restNodes: run_lib((a0) => run_loop($restNodes(a0)), 1),
-  restAfterCourse: run_lib((a0) => run_loop($restAfterCourse(a0)), 1),
   goesWithCourse: run_lib((a0, a1) => run_loop($goesWithCourse(str_in(a0), a1)), 2),
   goesWithoutCourse: run_lib((a0) => run_loop($goesWithoutCourse(a0)), 1),
   goesTreeFrom: run_lib((a0, a1, a2) => run_loop($goesTreeFrom(a0, str_in(a1), a2)), 3),
@@ -688,12 +749,14 @@ var composerbox_default = {
   noteRefsOff: run_lib(() => str_out(run_loop($noteRefsOff())), 0),
   noteRefsNone: run_lib(() => str_out(run_loop($noteRefsNone())), 0),
   noteRefsListed: run_lib((a0, a1) => str_out(run_loop($noteRefsListed(str_in(a0), a1))), 2),
+  "refLabels.go": run_lib((a0) => run_loop($refLabels_go(a0)), 1),
+  refLabels: run_lib((a0) => run_loop($refLabels(a0)), 1),
   refsNote: run_lib((a0, a1, a2) => str_out(run_loop($refsNote(a0, a1, a2))), 3),
   hiddenIf: run_lib((a0) => run_loop($hiddenIf(a0)), 1),
   sendButton: run_lib((a0) => run_loop($sendButton(a0)), 1),
   stopButton: run_lib((a0) => run_loop($stopButton(a0)), 1),
   actionIds: run_lib(() => run_loop($actionIds()), 0),
-  rowFit: run_lib((a0, a1, a2) => str_out(run_loop($rowFit(a0, a1, a2))), 3)
+  rowFit: run_lib((a0, a1) => str_out(run_loop($rowFit(a0, a1))), 2)
 };
 export {
   composerbox_default as default

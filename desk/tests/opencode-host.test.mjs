@@ -54,17 +54,164 @@ test('a tabela de política: data, fonte, valores conhecidos e padrão só com r
   assert.ok(Object.hasOwn(policyTable.excluded, 'jev-1.13-free'), 'jev-1.13-free fica fora, com o motivo na tabela');
 });
 
-test('o cofre guarda cifrado, recusa sem cofre e nunca devolve texto em claro no arquivo', () => {
+test('o cofre guarda cifrado, recusa sem cofre e nunca devolve texto em claro no arquivo', async () => {
   const dir = temp();
   const store = createKeyStore({dir, cipher: fakeCipher});
-  store.save(KEY);
-  assert.equal(store.load(), KEY);
+  await store.save(KEY);
+  assert.equal(await store.load(), KEY);
   assert.ok(!fs.readFileSync(store.file).includes(Buffer.from(KEY)), 'o arquivo do cofre não pode conter a chave em claro');
   process.env.FAKE_CIPHER_OFF = '1';
   try {
-    assert.throws(() => store.save(KEY), ptMatches(/cofre do sistema não está disponível/));
-    assert.equal(store.load(), '', 'sem cofre a chave guardada não é lida');
+    await assert.rejects(() => store.save(KEY), ptMatches(/cofre do sistema não está disponível/));
+    assert.equal(await store.load(), '', 'sem cofre a chave guardada não é lida');
   } finally { delete process.env.FAKE_CIPHER_OFF; }
+});
+
+/* O Electron 45 ainda grava o blob pela API síncrona antiga: ao ler, a chave
+   não pode se perder e o arquivo passa a valer para a API assíncrona. */
+test('blob da API síncrona antiga é decifrado e regravado no formato assíncrono', async () => {
+  const dir = temp();
+  const store = createKeyStore({dir, cipher: fakeCipher});
+  fs.mkdirSync(dir, {recursive: true});
+  fs.writeFileSync(store.file, fakeCipher.encryptLegacy(KEY), {mode: 0o600});
+  assert.equal(await store.load(), KEY);
+  const rewritten = fs.readFileSync(store.file);
+  const plain = await fakeCipher.decrypt(rewritten);
+  assert.equal(plain.result, KEY, 'o arquivo migrado é lido pela API assíncrona');
+  assert.equal(await createKeyStore({dir, cipher: fakeCipher}).load(), KEY, 'depois da migração não depende mais da API antiga');
+});
+
+test('shouldReEncrypt regrava a chave com a API assíncrona', async () => {
+  const xor = (buffer) => Buffer.from(buffer.map((byte) => byte ^ 0x5a));
+  const opened = Buffer.from('novo:');
+  let decrypts = 0;
+  let encrypts = 0;
+  const cipher = {
+    available: async () => true,
+    encrypt: async (plain) => { encrypts += 1; return Buffer.concat([opened, xor(Buffer.from(plain, 'utf8'))]); },
+    decrypt: async (blob) => {
+      decrypts += 1;
+      const raw = blob.subarray(0, opened.length).equals(opened) ? blob.subarray(opened.length) : blob;
+      return {result: xor(raw).toString('utf8'), shouldReEncrypt: decrypts === 1};
+    },
+  };
+  const dir = temp();
+  const store = createKeyStore({dir, cipher});
+  fs.mkdirSync(dir, {recursive: true});
+  fs.writeFileSync(store.file, xor(Buffer.from(KEY, 'utf8')), {mode: 0o600});
+  assert.equal(await store.load(), KEY);
+  assert.equal(encrypts, 1, 'veio shouldReEncrypt: a chave foi regravada uma vez');
+  assert.ok(fs.readFileSync(store.file).subarray(0, opened.length).equals(opened), 'o arquivo novo sai da API assíncrona');
+  const reopened = createKeyStore({dir, cipher});
+  assert.equal(await reopened.load(), KEY);
+  assert.equal(encrypts, 1, 'sem shouldReEncrypt na segunda vez, não regrava de novo');
+});
+
+test('a segunda leitura do cofre não decifra de novo; sem cofre não devolve a memória', async () => {
+  const xor = (buffer) => Buffer.from(buffer.map((byte) => byte ^ 0x5a));
+  let decrypts = 0;
+  const cipher = {
+    available: async () => process.env.FAKE_CIPHER_OFF !== '1',
+    encrypt: async (plain) => xor(Buffer.from(plain, 'utf8')),
+    decrypt: async (blob) => {
+      decrypts += 1;
+      return {result: xor(blob).toString('utf8'), shouldReEncrypt: false};
+    },
+  };
+  const dir = temp();
+  const store = createKeyStore({dir, cipher});
+  await store.save(KEY);
+  assert.equal(await store.load(), KEY);
+  assert.equal(decrypts, 0, 'salvar já deixa a chave na memória do processo');
+  const reopened = createKeyStore({dir, cipher});
+  assert.equal(await reopened.load(), KEY);
+  assert.equal(await reopened.load(), KEY);
+  assert.equal(decrypts, 1);
+  process.env.FAKE_CIPHER_OFF = '1';
+  try { assert.equal(await reopened.load(), '', 'cofre desligado não entrega a chave que já estava em memória'); }
+  finally { delete process.env.FAKE_CIPHER_OFF; }
+  assert.equal(await reopened.load(), KEY);
+  assert.equal(decrypts, 2, 'ligar o cofre de novo relê o arquivo, não a memória antiga');
+  reopened.clear();
+  assert.equal(await reopened.load(), '');
+  assert.equal(await store.load(), '', 'o outro cofre também vê que o arquivo saiu');
+  const next = 'sk-nova-chave-do-zen-1234567890';
+  await reopened.save(next);
+  assert.equal(await store.load(), next, 'chave nova no arquivo vence a memória do outro cofre');
+});
+
+/* A promessa compartilhada (`pending`) impede duas decifragens do mesmo blob
+   quando status e conexão pedem a chave ao mesmo tempo. */
+test('duas leituras concorrentes do cofre decifram uma vez só', async () => {
+  const xor = (buffer) => Buffer.from(buffer.map((byte) => byte ^ 0x5a));
+  let decrypts = 0;
+  const cipher = {
+    available: async () => true,
+    encrypt: async (plain) => xor(Buffer.from(plain, 'utf8')),
+    decrypt: async (blob) => {
+      decrypts += 1;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return {result: xor(blob).toString('utf8'), shouldReEncrypt: false};
+    },
+  };
+  const dir = temp();
+  await createKeyStore({dir, cipher}).save(KEY);
+  const reopened = createKeyStore({dir, cipher});
+  assert.deepEqual(await Promise.all([reopened.load(), reopened.load()]), [KEY, KEY]);
+  assert.equal(decrypts, 1);
+});
+
+/* Apagar a chave enquanto o cofre decifra (ou regrava) o blob não pode
+   ressuscitá-la: a regravação da migração e do shouldReEncrypt respeita o clear. */
+test('clear durante a leitura não regrava a chave apagada', async () => {
+  const xor = (buffer) => Buffer.from(buffer.map((byte) => byte ^ 0x5a));
+  for (const mode of ['legacy', 'reencrypt']) {
+    let release, started;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const decrypting = new Promise((resolve) => { started = resolve; });
+    const cipher = {
+      available: async () => true,
+      encrypt: async (plain) => xor(Buffer.from(plain, 'utf8')),
+      decrypt: async (blob) => {
+        started();
+        await gate;
+        if (mode === 'legacy') throw new Error('blob da API antiga');
+        return {result: xor(blob).toString('utf8'), shouldReEncrypt: true};
+      },
+      decryptSync: (blob) => xor(blob).toString('utf8'),
+    };
+    const dir = temp();
+    await createKeyStore({dir, cipher}).save(KEY);
+    const reopened = createKeyStore({dir, cipher});
+    const reading = reopened.load();
+    await decrypting;
+    reopened.clear();
+    release();
+    assert.equal(await reading, '', `${mode}: a leitura em voo não devolve a chave apagada`);
+    assert.equal(reopened.has(), false, `${mode}: o arquivo continua apagado`);
+    assert.equal(await reopened.load(), '', `${mode}: e a próxima leitura também não acha nada`);
+  }
+});
+
+/* Electron 45: a API assíncrona é a nova; no Linux sem chaveiro o backend
+   `basic_text` não protege nada e continua valendo como indisponível. */
+test('o cofre do Electron: API assíncrona e basic_text vale como indisponível', async () => {
+  const {electronCipher} = require('../opencode-key-store.cjs');
+  const safeStorage = (backend) => ({
+    isAsyncEncryptionAvailable: async () => true,
+    getSelectedStorageBackend: () => backend,
+    encryptStringAsync: async (plain) => Buffer.from(`cifrado:${plain}`, 'utf8'),
+    decryptStringAsync: async (blob) => ({result: String(blob).replace(/^cifrado:/, ''), shouldReEncrypt: false}),
+    decryptString: (blob) => String(blob).replace(/^legado:/, ''),
+  });
+  const secure = electronCipher(safeStorage('gnome_libsecret'));
+  assert.equal(await secure.available(), true);
+  assert.deepEqual(await secure.decrypt(Buffer.from('cifrado:sk-1')), {result: 'sk-1', shouldReEncrypt: false});
+  assert.equal(secure.decryptSync(Buffer.from('legado:sk-1')), 'sk-1');
+  assert.equal(await electronCipher(safeStorage('basic_text')).available(), false, 'basic_text não protege nada');
+  assert.equal(await electronCipher({...safeStorage('gnome_libsecret'), isAsyncEncryptionAvailable: async () => false}).available(), false);
+  const future = electronCipher({...safeStorage('gnome_libsecret'), decryptString: undefined});
+  assert.equal(future.decryptSync, undefined, 'sem API síncrona (Electron 46), não inventa a ponte');
 });
 
 test('área de transferência: só é lida no peek; o que não é chave nunca vira candidato', async () => {
@@ -106,7 +253,7 @@ test('aceitar a chave testa só a lista de modelos, guarda, liga o tutor de novo
   assert.equal(seen.relinks, 1);
   assert.ok(console_.requests.length >= 1);
   for (const request of console_.requests) assert.deepEqual([request.method, request.path], ['GET', '/inference/v1/models'], 'só a lista de modelos, nunca inferência');
-  assert.deepEqual(host.keyEnv(), {OPENCODE_API_KEY: KEY});
+  assert.deepEqual(await host.keyEnv(), {OPENCODE_API_KEY: KEY});
   const everything = JSON.stringify([result, seen.logs, seen.patches]) + fs.readdirSync(runtime).join();
   assert.ok(!everything.includes(KEY), 'a chave não aparece em resposta, log, estado nem nome de arquivo');
   await close();
@@ -137,7 +284,7 @@ test('arquivo do OpenCode: o status só diz que existe e onde; a chave só é li
   const h = await harness({homeDir});
   const status = await h.call('opencode-status');
   assert.equal(status.authFile.exists, true);
-  assert.equal(status.authFile.display, '~/.local/share/opencode/auth.json');
+  assert.equal(status.authFile.display, path.join('~', '.local', 'share', 'opencode', 'auth.json'));
   const unreadable = await h.call('opencode-auth-file-use');
   assert.deepEqual([unreadable.ok, unreadable.outcome], [false, 'authFile']);
   fs.writeFileSync(path.join(authDir, 'auth.json'), JSON.stringify({opencode: {type: 'api', key: KEY}}));
@@ -189,7 +336,7 @@ test('o modelo escolhido é lembrado e o Pi nasce com ele; grátis lembrado não
   await h.call('opencode-paid-ack');
   assert.equal((await h.call('opencode-status')).paidConfirmed, true);
   await h.call('opencode-key-remove');
-  assert.deepEqual(h.host.keyEnv(), {});
+  assert.deepEqual(await h.host.keyEnv(), {});
   assert.equal((await h.call('opencode-status')).saved, false);
   await h.close();
 });
@@ -210,8 +357,8 @@ test('o grátis do OpenRouter ganha a marca e a política desconhecida; pago e p
   const [suffix, zero, auto, ...rest] = h.host.annotate(models);
   for (const free of [suffix, zero]) {
     assert.equal(free.free.is, true, free.id);
-    assert.equal(free.free.tail.length, 2, `${free.id}: marca e política, sem aviso de saída`);
-    assert.ok(free.free.tail[0].includes('freeModels.badge') && free.free.tail[1].includes('freeModels.policy.unknown'), `${free.id}: marca e "sem informação de privacidade" (${free.free.tail})`);
+    assert.equal(free.free.tail.length, 1, `${free.id}: política, sem selo e sem aviso de saída`);
+    assert.ok(free.free.tail[0].includes('freeModels.policy.unknown'), `${free.id}: "sem informação de privacidade" (${free.free.tail})`);
   }
   assert.equal(auto.free, undefined, 'o roteador automático nunca é grátis');
   assert.deepEqual(rest, [paid, noPrice], 'pago e preço ausente passam intactos');

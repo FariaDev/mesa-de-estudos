@@ -17,7 +17,7 @@ await withArtifacts('mesa-claude-activity',async ctx=>{
  await page.locator('#prompt').fill('Explorar a aceleração.');await page.locator('#send').click();
  const slot=page.locator('.activity-slot[data-activity-call="toolu_activity_local"]');
  await slot.locator('.activity-card[data-state="ready"]').waitFor({timeout:15000});
- const iframe=page.frames().find(f=>f.url().startsWith('mesa-activity://artifact/'));
+ const iframe=page.frames().find(f=>f.url().startsWith('mesa-activity://act-'));
  assert.equal(await iframe.locator('#s').textContent(),'6 m');
  await iframe.locator('#a').evaluate(el=>{el.value='4';el.dispatchEvent(new Event('input',{bubbles:true}));});
  assert.equal(await iframe.locator('#s').textContent(),'8 m');

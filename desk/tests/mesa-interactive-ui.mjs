@@ -21,7 +21,7 @@ await withArtifacts('mesa-interactive-integrated',async ctx=>{
  const slot=page.locator('.activity-slot[data-activity-call="integrated-call-1"]');
  try{await slot.locator('.activity-card[data-state="ready"]').waitFor({timeout:12000});}
  catch(error){console.error('Activity facts',await page.evaluate(async()=>({slots:[...document.querySelectorAll('.activity-slot')].map(el=>({status:el.dataset.status,text:el.textContent,state:el.querySelector('.activity-card')?.dataset.state})),scope:await window.desk.activityScope(),messages:document.querySelector('#messages').textContent,frames:[...document.querySelectorAll('.activity-iframe')].map(el=>el.src)})),errors);throw error;}
- const frame=page.frames().find(f=>f.url().startsWith('mesa-activity://artifact/'));assert.ok(frame);
+ const frame=page.frames().find(f=>f.url().startsWith('mesa-activity://act-'));assert.ok(frame);
  assert.deepEqual(await frame.evaluate(()=>({node:typeof require,desk:typeof window.desk,rtc:typeof RTCPeerConnection})),{node:'undefined',desk:'undefined',rtc:'undefined'});
  assert.equal(await frame.locator('#s').textContent(),'15 m');
  await frame.locator('#a').evaluate(el=>{el.value='4';el.dispatchEvent(new Event('input',{bubbles:true}));});
@@ -53,7 +53,7 @@ await withArtifacts('mesa-interactive-integrated',async ctx=>{
  assert.equal(await page.locator('.activity-iframe').count(),0,'restoring history does not execute old scripts');
  await page.locator('.activity-slot [data-act="open"]').click();
  await page.waitForSelector('.activity-card[data-state="ready"]');
- const reopened=page.frames().find(f=>f.url().startsWith('mesa-activity://artifact/'));
+ const reopened=page.frames().find(f=>f.url().startsWith('mesa-activity://act-'));
  try{await reopened.waitForFunction(()=>document.querySelector('#a').value==='4',{},{timeout:8000});}
  catch(error){console.error('Restored facts',await reopened.evaluate(()=>({slider:document.querySelector('#a')?.value,runtime:mesa.getState()})),await page.evaluate(async()=>{const {items}=await window.desk.activityList();return window.desk.activityStateGet(items[0]);}));throw error;}
  await page.evaluate(()=>{window.__activityFrame=document.querySelector('.activity-iframe');});
@@ -70,11 +70,11 @@ await withArtifacts('mesa-interactive-integrated',async ctx=>{
  await restoredSlot.locator('[data-act="stop"]').click();
  await restoredSlot.locator('[data-act="open"]').click();
  await restoredSlot.locator('.activity-card[data-state="ready"]').waitFor();
- const resumed=page.frames().find(f=>f.url().startsWith('mesa-activity://artifact/'));
+ const resumed=page.frames().find(f=>f.url().startsWith('mesa-activity://act-'));
  await resumed.waitForFunction(()=>document.querySelector('#a').value==='4',undefined,{timeout:8000});
  await send('Crie uma atividade com katex.');
  await page.waitForSelector('.activity-slot[data-activity-call="integrated-call-2"] .activity-card[data-state="ready"]');
- const math=page.frames().find(f=>f.url().startsWith('mesa-activity://artifact/')&&f!==resumed);
+ const math=page.frames().find(f=>f.url().startsWith('mesa-activity://act-')&&f!==resumed);
  assert.ok(await math.locator('.katex').count()>0,'packaged KaTeX works offline in real activity origin');
  await page.waitForFunction(()=>!document.querySelector('#send').disabled);
  await send('Crie uma atividade loop.');

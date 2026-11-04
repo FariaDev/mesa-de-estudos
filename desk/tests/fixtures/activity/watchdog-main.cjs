@@ -1,9 +1,11 @@
 'use strict';
 
-/* Fixture da prova do watchdog com processo compartilhado: 3 atividades no
-   mesmo OOPIF (mesmo esquema), uma delas com laço; Parar deve permitir o kill
-   quando TODOS os frames vivos do pid estiverem confirmados travados, e uma
-   montagem nova deve carregar no processo seguinte. Nada de app pessoal. */
+/* Fixture da prova do watchdog: um site (e um processo) por REVISÃO (#89),
+   então o laço trava só o próprio frame e as outras revisões/atividades
+   respondem. Depois do Parar, o watchdog mata só o processo destacado. A cena
+   compartilhada monta a MESMA revisão duas vezes (mesmo host) para provar que
+   o isolamento é por revisão, não por card. Um host de 78 caracteres prova o
+   teto id+versão no Chromium (#89). Nada de app pessoal. */
 
 const {app, BrowserWindow, protocol, session, ipcMain} = require('electron');
 const path = require('node:path');
@@ -49,13 +51,37 @@ app.whenReady().then(async () => {
     activityRuntime.remember(item, spec);
     urls[name] = activityArtifactUrl(item.id, item.version, 'system');
   }
+  /* Duas revisões da MESMA atividade (#89): a v1 entra em laço real e a v2
+     fica saudável; hosts (e processos) distintos. */
+  const revLoop = await store.publish({conversationId, generation: 1, toolCallId: 'wd-rev-loop', spec: specs.loop});
+  activityRuntime.remember(revLoop, specs.loop);
+  const revHealthy = await store.publish({conversationId, generation: 1, toolCallId: 'wd-rev-healthy', activityId: revLoop.id, spec: specs['healthy-b']});
+  activityRuntime.remember(revHealthy, specs['healthy-b']);
+  urls['rev-loop'] = activityArtifactUrl(revLoop.id, revLoop.version, 'system');
+  urls['rev-healthy'] = activityArtifactUrl(revHealthy.id, revHealthy.version, 'system');
   let nextCounter = 0;
-  const publishNext = async () => {
+  const publishWith = async (spec) => {
     nextCounter += 1;
-    const spec = {title: `nova ${nextCounter}`, objective: 'n', alternativeMarkdown: 'n', html: '<p>n</p>', css: '', katex: false, js: nextJs};
     const item = await store.publish({conversationId, generation: 1, toolCallId: `wd-next-${nextCounter}`, spec});
     activityRuntime.remember(item, spec);
     return activityArtifactUrl(item.id, item.version, 'system');
+  };
+  const publishNext = async () => {
+    const spec = {title: `nova ${nextCounter + 1}`, objective: 'n', alternativeMarkdown: 'n', html: '<p>n</p>', css: '', katex: false, js: nextJs};
+    return publishWith(spec);
+  };
+  /* Host no teto por construção (#89): id máximo do store + `--v` + 7 dígitos
+     = 78. O Chromium precisa carregar esse host no esquema (justificativa). */
+  const publishLongHost = () => {
+    const id = `act-${'a'.repeat(64)}`;
+    const spec = {...specs['healthy-b'], title: 'host longo'};
+    activityRuntime.remember({id, version: 1000000}, spec);
+    return activityArtifactUrl(id, 1000000, 'system');
+  };
+  /* Laço numa atividade NOVA (site e processo próprios) para o Parar rápido. */
+  const publishLoop = async () => {
+    const spec = {...specs.loop, title: `laço rápido ${nextCounter + 1}`};
+    return publishWith(spec);
   };
 
   win = new BrowserWindow({show: false, width: 1000, height: 760, webPreferences: {preload: path.join(__dirname, 'watchdog-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false}});
@@ -68,76 +94,14 @@ ipcMain.handle('wd-ping', (event) => { try { return event.sender === win.webCont
     try { main = win.webContents.mainFrame; } catch (error) { return [{error: 'mainFrame:' + String((error && error.message) || error)}]; }
     if (!main) return [{error: 'mainFrame:null'}];
     try {
-      return main.framesInSubtree.map((frame) => ({url: String(frame.url || ''), osPid: frame.osProcessId, name: frame.name || ''}));
+      return main.framesInSubtree.map((frame) => ({url: String(frame.url || ''), osPid: frame.osProcessId}));
     } catch (error) { return [{error: 'framesInSubtree:' + String((error && error.message) || error)}]; }
   };
   const metrics = () => {
     try { return require('electron').app.getAppMetrics().map((m) => ({pid: m.pid, type: m.type, cpu: Math.round((m.cpu && m.cpu.percentCPUUsage) || 0), creationTime: m.creationTime})); } catch { return []; }
   };
-  /* Injeção de falha da cena R6 P2: enumeração tem de ser completa ou o kill
-     é recusado; nunca pode ser lida como "não há outros frames". */
-  const faults = {executeJavaScript: null, executeJavaScriptPatched: false, getAllWebContents: null, stallNeedles: []};
-  const frameProto = () => Object.getPrototypeOf(win.webContents.mainFrame);
-  const activityFrames = () => [...win.webContents.mainFrame.framesInSubtree];
-  const activityPid = () => {
-    try {
-      const pids = [...new Set(activityFrames().filter((frame) => { try { return String(frame.url || '').startsWith('mesa-activity://'); } catch (error) { return false; } }).map((frame) => { try { return frame.osProcessId; } catch (error) { return 0; } }))];
-      return pids.length === 1 ? pids[0] : 0;
-    } catch (error) { return 0; }
-  };
-  const inject = (kind, needle) => {
-    const electron = require('electron');
-    if (kind === 'stall') {
-      if (needle && !faults.stallNeedles.includes(needle)) faults.stallNeedles.push(needle);
-      if (!faults.executeJavaScriptPatched) {
-        const original = frameProto().executeJavaScript;
-        faults.executeJavaScript = original;
-        frameProto().executeJavaScript = function (...args) {
-          let url;
-          try { url = String(this.url || ''); } catch (error) { url = ''; }
-          for (const candidate of faults.stallNeedles) {
-            if (url.includes(candidate)) throw new Error('injected per-frame stall');
-          }
-          return original.apply(this, args);
-        };
-        faults.executeJavaScriptPatched = true;
-      }
-      return true;
-    }
-    if (kind === 'getAllWebContents') {
-      if (!faults.getAllWebContents) faults.getAllWebContents = electron.webContents.getAllWebContents;
-      electron.webContents.getAllWebContents = function () { throw new Error('injected getAllWebContents failure'); };
-      return true;
-    }
-    if (kind === 'framesInSubtree') {
-      Object.defineProperty(win.webContents.mainFrame, 'framesInSubtree', {configurable: true, get() { throw new Error('injected framesInSubtree failure'); }});
-      return true;
-    }
-    if (kind === 'osProcessId') {
-      let frame;
-      try { frame = activityFrames().find((candidate) => { try { return needle && String(candidate.url || '').includes(needle); } catch (error) { return false; } }); } catch (error) { frame = null; }
-      Object.defineProperty(frame || win.webContents.mainFrame, 'osProcessId', {configurable: true, get() { throw new Error('injected osProcessId failure'); }});
-      return true;
-    }
-    return false;
-  };
-  const heal = (kind) => {
-    const electron = require('electron');
-    if (!kind || kind === 'stall') {
-      if (faults.executeJavaScriptPatched) { frameProto().executeJavaScript = faults.executeJavaScript; faults.executeJavaScript = null; faults.executeJavaScriptPatched = false; faults.stallNeedles = []; }
-    }
-    if (!kind || kind === 'getAllWebContents') {
-      if (faults.getAllWebContents) { electron.webContents.getAllWebContents = faults.getAllWebContents; faults.getAllWebContents = null; }
-    }
-    if (!kind || kind === 'framesInSubtree') {
-      try { delete win.webContents.mainFrame.framesInSubtree; } catch (error) { /* já sarado */ }
-    }
-    if (!kind || kind === 'osProcessId') {
-      try {
-        for (const frame of activityFrames()) { try { delete frame.osProcessId; } catch (error) { /* já sarado */ } }
-      } catch (error) { /* árvore momentaneamente ilegível */ }
-    }
-    return true;
+  const activityFrames = () => {
+    try { return [...win.webContents.mainFrame.framesInSubtree]; } catch (error) { return []; }
   };
   global.__wd = {
     urls: () => ({...urls}),
@@ -151,13 +115,24 @@ ipcMain.handle('wd-ping', (event) => { try { return event.sender === win.webCont
       const second = await win.webContents.executeJavaScript('window.__beat');
       return second - first;
     },
+    /* Responde só se a thread daquele frame estiver livre (o laço no próprio
+       processo não pode contaminar a leitura — #88). */
+    probe: async (needle) => {
+      const frame = activityFrames().find((candidate) => {
+        try { return String(candidate.url || '').includes(needle); } catch (error) { return false; }
+      });
+      if (!frame) return 'missing';
+      return Promise.race([
+        frame.executeJavaScript('1', false).then(() => 'ok').catch(() => 'error'),
+        sleep(1500).then(() => 'timeout'),
+      ]);
+    },
     frames: frameInfo,
     metrics,
     watchdog: () => watchdogLog.slice(),
     publishNext,
-    inject,
-    heal,
-    activityPid,
+    publishLoop,
+    publishLongHost,
     pidOf: (needle) => {
       const frame = frameInfo().find((entry) => entry.url.includes(needle));
       return frame ? frame.osPid : 0;

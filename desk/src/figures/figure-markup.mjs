@@ -34,6 +34,25 @@ export function blankLineWarning(source) {
 }
 
 /**
+ * `<text>` com quebra de linha e sem `<tspan>`: o SVG desenha tudo numa linha,
+ * ou corta no Markdown se a quebra deixou uma linha em branco.
+ * @param {string} source
+ * @returns {string} o aviso, ou '' se cada texto é uma linha ou usa tspan
+ * @example stackedTextWarning('<svg><text>a\\nb</text></svg>') // inclui 'sem tspan'
+ */
+export function stackedTextWarning(source) {
+  const broken = [];
+  for (const match of source.matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/gi)) {
+    const body = match[1];
+    if (!/[\r\n]/.test(body) || /<tspan\b/i.test(body)) continue;
+    const label = body.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    broken.push(label || 'texto');
+  }
+  if (!broken.length) return '';
+  return `o rótulo "${broken[0]}" tem mais de uma linha sem tspan: o SVG não quebra a linha. Use um tspan por linha.`;
+}
+
+/**
  * O que estava na entrada e não está na saída, contando as repetições.
  * @param {string[]} before nomes (elementos como `<nome>`, atributos como `@nome`) do que o tutor escreveu
  * @param {string[]} after os do que sobrou

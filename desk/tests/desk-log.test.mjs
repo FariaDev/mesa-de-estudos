@@ -47,6 +47,15 @@ test('nada que pareça segredo chega ao log, nem na frase nem nos campos', () =>
   assert.equal(entry.header, '[oculto]');
 });
 
+test('segredo com prefixo no nome (NOME_API_KEY=, MY_TOKEN=) também sai do log', () => {
+  /* Valores de 4+ caracteres: o mínimo de 4 é do padrão, para não mascarar "token: 10". */
+  assert.equal(redactSecrets('OPENCODE_API_KEY=abcd1234'), 'OPENCODE_API_KEY=[oculto]');
+  assert.equal(redactSecrets('MY_TOKEN=abcd1234'), 'MY_TOKEN=[oculto]');
+  assert.equal(redactSecrets('api_key=abcd1234'), 'api_key=[oculto]');
+  assert.equal(redactSecrets('token=abcd1234'), 'token=[oculto]');
+  assert.equal(redactSecrets('o tutor usou 3 tokens e 12 segundos'), 'o tutor usou 3 tokens e 12 segundos');
+});
+
 test('parseLogLine lê o formato novo, o antigo {t, src, line} e texto solto', () => {
   assert.deepEqual(parseLogLine('{"ts":"2026-10-19T14:03:22.120Z","level":"error","area":"pi","msg":"caiu","code":7}'),
     {ts: '2026-10-19T14:03:22.120Z', level: 'error', area: 'pi', msg: 'caiu', code: 7});

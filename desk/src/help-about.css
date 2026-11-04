@@ -14,8 +14,8 @@
 #help-dialog [hidden]{display:none!important}
 .guide-side{display:flex;flex-direction:column;min-height:0;padding:18px 14px 14px;background:var(--surface-2,var(--code));border-right:1px solid var(--border)}
 .guide-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:14px}
-/* O trio pequeno em cima do título: três de 40px. */
-.guide-mascote{display:flex;align-items:flex-end;gap:2px;height:44px;flex:none;margin:-6px 0 0 -4px}
+/* A luminária em cima do título; o seletor composto vence o tamanho de `.brand-icon`. */
+.guide-head .guide-lamp{width:44px;height:44px;flex:none;border-radius:0}
 .guide-head-text{display:flex;flex-direction:column;min-width:0}
 /* O título do guia é a exceção do padrão de diálogos (15px): STIX de 22px, pedido da #64. */
 .guide-title{margin:0;font:600 22px/1.1 var(--serif,serif);color:var(--fg-strong,var(--fg))}
@@ -26,7 +26,7 @@
 .guide-search input{width:100%;height:30px;box-sizing:border-box;margin:0;padding:0 10px 0 30px}
 .guide-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 .guide-nav{display:flex;flex-direction:column;gap:2px;min-height:0;overflow:auto}
-.guide-nav-item{height:34px;flex:none;justify-content:flex-start;gap:10px;padding:0 10px;border:0;border-radius:var(--r-md);background:transparent;box-shadow:none;color:var(--fg);text-align:left;font-size:var(--fs-md)}
+.guide-nav-item{height:34px;flex:none;justify-content:flex-start;gap:10px;padding:0 10px;border:0;border-radius:var(--r-sm);background:transparent;box-shadow:none;color:var(--fg);text-align:left;font-size:var(--fs-md)}
 .guide-nav-item:hover{background:var(--hover)}
 .guide-nav-item[aria-current="page"]{background:var(--surface);color:var(--fg-strong,var(--fg));font-weight:600}
 .guide-nav-icon{width:16px;height:16px;flex:none;fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -45,8 +45,10 @@
 .guide-section-title:focus-visible{outline:2px solid var(--accent-text);outline-offset:4px;border-radius:4px}
 .guide-lead{margin:0;max-width:620px;font-size:var(--fs-xl);color:var(--muted)}
 .guide-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0;padding:0;list-style:none}
-.guide-card{position:relative;display:flex;flex-direction:column;gap:6px;padding:16px;overflow:hidden;border-radius:var(--r-xl);background:var(--code);line-height:1.5;color:var(--fg)}
-.guide-card strong{font:600 18px/1.25 var(--serif,serif);color:var(--fg-strong,var(--fg))}
+.guide-card{position:relative;display:flex;flex-direction:column;gap:6px;padding:16px;overflow:hidden;border-radius:var(--r-lg);background:var(--code);line-height:1.5;color:var(--fg)}
+.guide-card>strong{font:600 18px/1.25 var(--serif,serif);color:var(--fg-strong,var(--fg))}
+/* O negrito dentro do texto do cartão fica no corpo: só o título vai em serifa. */
+.guide-card>span strong{font-weight:600;color:var(--fg-strong,var(--fg))}
 .guide-num{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent-fill);color:var(--accent-fg);font-size:var(--fs-sm);font-weight:700}
 /* O número grande e apagado no canto do cartão. */
 .guide-card::after{content:attr(data-n);position:absolute;right:10px;top:-6px;font:600 64px/1 var(--serif,serif);color:var(--fg);opacity:.06;pointer-events:none}
@@ -58,7 +60,7 @@
 .guide-topic strong{font-weight:600}
 .guide-topic code{padding:1px 5px;border-radius:4px;background:var(--code);font-size:var(--fs-sm);white-space:nowrap}
 .guide-topic kbd,.guide-card kbd{white-space:nowrap}
-.guide-hit-section{grid-column:1;grid-row:2;align-self:start;justify-self:start;height:20px;padding:0 8px;border:0;border-radius:10px;background:var(--code);box-shadow:none;color:var(--muted);font-size:var(--fs-xs)}
+.guide-hit-section{grid-column:1;grid-row:2;align-self:start;justify-self:start;height:20px;padding:0 8px;border:0;border-radius:var(--r-xs);background:var(--code);box-shadow:none;color:var(--muted);font-size:var(--fs-xs)}
 .guide-hit-section:hover{color:var(--fg)}
 .guide-keygroups{display:flex;flex-direction:column;gap:22px}
 .guide-keygroup{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px;align-content:start}
@@ -90,9 +92,9 @@
 #about-dialog[open]{display:flex;flex-direction:column}
 #about-dialog form{display:flex;flex-direction:column;min-height:0;max-height:min(640px,92vh);padding:0;margin:0}
 .about-head{display:flex;align-items:center;gap:14px;padding:20px 20px 16px;flex:none}
-/* A marca é a G1 do acento, como a do cabeçalho (#70): `applyAccent` troca o
+/* A marca é o ícone do app no acento, como a do cabeçalho (#70, #100):
    arquivo pela classe `.brand-icon`; o seletor composto vence o tamanho dela. */
-.about-head .about-mark{flex:none;width:44px;height:44px;border-radius:11px}
+.about-head .about-mark{flex:none;width:44px;height:44px;border-radius:var(--r-lg)}
 .about-id{flex:1;min-width:0}
 .about-name{margin:0;font:500 24px/1.2 var(--serif);color:var(--fg-strong)}
 .about-lead{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted)}
@@ -107,7 +109,7 @@
 .update-muted{color:var(--muted)}
 .about-update button:not(.icon-btn){height:30px;padding:0 10px;border:0;background:transparent;box-shadow:none;color:var(--accent-text)}
 .about-update button:not(.icon-btn):hover{text-decoration:underline}
-.about-update button.primary{background:var(--accent-fill);color:var(--accent-fg);border-radius:8px}
+.about-update button.primary{background:var(--accent-fill);color:var(--accent-fg);border-radius:var(--r-sm)}
 .about-update button.primary:hover{text-decoration:none;filter:brightness(1.06)}
 .about-update button.primary[disabled]{opacity:.55}
 .about-update .icon-btn{width:30px;height:30px;color:var(--muted)}
@@ -156,17 +158,17 @@
 .component-update[disabled]{opacity:.55;cursor:not-allowed}
 .component-update[disabled]:hover{text-decoration:none}
 /* Confirmação e saída do "Atualizar": ocupa a largura da linha, embaixo. */
-.component-run{flex-basis:100%;min-width:0;display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--code)}
+.component-run{flex-basis:100%;min-width:0;display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--code)}
 .run-line{margin:0;font-size:var(--fs-sm);color:var(--fg)}
 .run-command{font-family:var(--font-mono);font-size:var(--fs-xs);padding:2px 6px;border-radius:4px;background:var(--selected);overflow-wrap:anywhere}
 .run-warn{margin:0;font-size:var(--fs-xs);line-height:1.45;color:var(--warn-text)}
 .run-result{font-weight:600;color:var(--fg-strong)}
 .component-run[data-phase="failed"] .run-result{color:var(--warn-text)}
-.run-output{margin:0;max-height:140px;overflow:auto;padding:8px;border-radius:6px;background:var(--bg);color:var(--muted);font:var(--fs-xs)/1.5 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.run-output{margin:0;max-height:140px;overflow:auto;padding:8px;border-radius:var(--r-md);background:var(--bg);color:var(--muted);font:var(--fs-xs)/1.5 var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere}
 .run-actions{display:flex;justify-content:flex-end;gap:8px}
 .run-actions button{height:30px;padding:0 12px}
 .run-cancel,.run-close{border:0;background:transparent;box-shadow:none;color:var(--accent-text)}
-.run-confirm{border-radius:8px}
+.run-confirm{border-radius:var(--r-sm)}
 .about-credits{margin-top:8px;padding-top:4px;border-top:1px solid var(--border)}
 .about-credits h3{margin:12px 0 8px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
 .about-credits ul{margin:0;padding-left:18px;font-size:var(--fs-sm);line-height:1.6;color:var(--muted)}

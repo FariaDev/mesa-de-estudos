@@ -133,12 +133,15 @@ function conversationEntries(runtime, courseId) {
   } catch {
     claudeNames = [];
   }
+  /* Descritores nativos: `claude-` e `opencode-` (#75). O OpenCode ficava fora
+     do pacote e do backup, inclusive os chats laterais dele. */
   for (const name of claudeNames) {
-    if (!/^claude-.*\.json$/.test(name)) continue;
+    const engine = /^(claude|opencode)-.*\.json$/.exec(name)?.[1];
+    if (!engine) continue;
     const record = readJson(path.join(conversationsDir, name));
     if (!isPlainObject(record)) continue;
     if (courseId && record.courseId !== courseId) continue;
-    out.push({source: path.join(conversationsDir, name), kind: 'conversations', rel: `claude/${name}`, engine: 'claude'});
+    out.push({source: path.join(conversationsDir, name), kind: 'conversations', rel: `${engine}/${name}`, engine});
   }
   return out;
 }

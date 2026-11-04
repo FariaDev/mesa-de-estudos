@@ -1,24 +1,10 @@
-/* Perguntas estruturadas do Claude Code (AskUserQuestion), aviso nativo de
-   limite de uso e avisos de atividade (retry/recusa/fallback): a parte pura que
-   o renderer da Mesa interpreta antes de tocar no DOM. Sem DOM, timers ou rede
-   (só `i18n.mjs`, puro): os textos saem como mensagens marcadas, que o chat
-   traduz ao exibir (#41) — o `tests/claude-questions.test.mjs` importa direto e o `chat.mjs`
-   aplica em `#pi-dialog`/faixa de atividade.
-
-   Contrato canônico (adaptador → serviço → renderer) do pedido de pergunta:
-     extension_ui_request {
-       id, method:'question', title, message,
-       questions:[{id, header, question, options:[{label, description}], multiSelect}]
-     }
-   Resposta do renderer (o host encaminha para `adapter.respond`):
-     {id, answers: {[questionText]: string | string[]}}
-   O texto EXATO da pergunta é a chave; escolha única responde string,
-   multiSelect responde lista; o texto livre ("Outra resposta") responde string
-   e vence as opções marcadas. TODA pergunta precisa de ao menos uma resposta —
-   o adaptador recusa faltantes (CLAUDE_QUESTION_ANSWERS_MISSING) e nunca
-   responde pela metade. `questionSubmitAction` decide o submit do formulário:
-   só o botão Responder (`value='ok'`) exige respostas completas; o Cancelar
-   submete igual e precisa fechar SEMPRE, mesmo sem nenhuma resposta.
+/* Aviso nativo de limite de uso e avisos de atividade (retry/recusa/fallback):
+   a parte pura que o renderer da Mesa interpreta antes de tocar no DOM. Sem
+   DOM, timers ou rede (só `i18n.mjs`, puro): os textos saem como mensagens
+   marcadas, que o chat traduz ao exibir (#41) — o
+   `tests/claude-questions.test.mjs` importa direto e o `chat.mjs` aplica na
+   faixa de atividade. O caminho nativo de pergunta (AskUserQuestion) saiu na
+   #92; pergunta agora é cartão do host.
 
    Limite de uso (eventos `warning` do adaptador → `desk_warn` no renderer): o
    serviço repassa `code`, `rateLimit` e `detail`; sem eles o aviso continua só
@@ -43,11 +29,6 @@
 
 import {message} from './i18n.mjs';
 
-export const MAX_QUESTIONS = 16;
-export const MAX_OPTIONS = 32;
-export const MAX_TEXT_CHARS = 4000;
-export const MAX_ANSWER_CHARS = 4000;
-
 export const RATE_LIMIT_CODES = Object.freeze({
   blocked: 'CLAUDE_RATE_LIMITED',
   warning: 'CLAUDE_RATE_LIMIT_WARNING',
@@ -68,106 +49,6 @@ const activityFallback = (kind) => message(`claude.activity.${kind}`);
 
 const LIMIT_PRIORITY = Object.freeze({blocked: 3, overage: 2, warning: 1});
 
-const textOf = (value) => (typeof value === 'string' ? value : '');
-const withinTextLimit = (value) => value.length <= MAX_TEXT_CHARS;
-
-/* Normaliza o pedido vindo do IPC. Estrito de propósito: pergunta/opção que não
-   dá para renderizar fielmente derruba o pedido INTEIRO (`ok:false`) em vez de
-   responder só parte — o chat cancela o pedido nesse caso. Strings válidas são
-   preservadas exatamente como chegaram (sem trim; o adaptador já normalizou). */
-export function questionRequest(raw) {
-  const source = Array.isArray(raw)
-    ? raw
-    : (raw && typeof raw === 'object' && Array.isArray(raw.questions) ? raw.questions : null);
-  if (!source || source.length === 0) return {ok: false, reason: 'empty', questions: []};
-  if (source.length > MAX_QUESTIONS) return {ok: false, reason: 'bounded', questions: []};
-  const questions = [];
-  for (const value of source) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {ok: false, reason: 'invalid', questions: []};
-    const question = textOf(value.question);
-    if (!question.trim()) return {ok: false, reason: 'invalid', questions: []};
-    if (!withinTextLimit(question)) return {ok: false, reason: 'bounded', questions: []};
-    const header = textOf(value.header) || message('claude.question.header', {n: questions.length + 1});
-    if (!withinTextLimit(header)) return {ok: false, reason: 'bounded', questions: []};
-    const rawOptions = Array.isArray(value.options) ? value.options : [];
-    if (rawOptions.length > MAX_OPTIONS) return {ok: false, reason: 'bounded', questions: []};
-    const options = [];
-    for (const option of rawOptions) {
-      if (!option || typeof option !== 'object' || Array.isArray(option)) return {ok: false, reason: 'invalid', questions: []};
-      const label = textOf(option.label);
-      if (!label.trim()) return {ok: false, reason: 'invalid', questions: []};
-      if (!withinTextLimit(label)) return {ok: false, reason: 'bounded', questions: []};
-      const description = textOf(option.description);
-      if (!withinTextLimit(description)) return {ok: false, reason: 'bounded', questions: []};
-      options.push({label, description});
-    }
-    questions.push({header, question, options, multiSelect: value.multiSelect === true});
-  }
-  return {ok: true, reason: null, questions};
-}
-
-/* O texto da pergunta é chave de objeto e pode ser `__proto__`/`constructor`.
-   Atribuição simples em `__proto__` cai no setter do protótipo e a resposta
-   some; `defineProperty` cria uma propriedade PRÓPRIA, enumerável e de valor,
-   preservando o formato de objeto simples que o IPC e os testes esperam. */
-function setAnswer(answers, question, value) {
-  Object.defineProperty(answers, question, {value, enumerable: true, writable: true, configurable: true});
-}
-
-/* Monta as respostas a partir do rascunho do formulário. `picks[i]` é o estado
-   da pergunta i: `selected` (rótulos marcados) e `text` (texto livre). Texto
-   livre vence opções; seleção fora das opções é ignorada; pergunta sem resposta
-   vira erro com índice — o chat foca o primeiro erro e não fecha o diálogo. */
-export function compileQuestionAnswers(questions, picks) {
-  const list = Array.isArray(questions) ? questions : [];
-  const answers = {};
-  const errors = [];
-  list.forEach((question, index) => {
-    const pick = Array.isArray(picks) && picks[index] && typeof picks[index] === 'object' ? picks[index] : {};
-    const labels = new Set((Array.isArray(question.options) ? question.options : []).map((option) => option.label));
-    const selected = [...new Set((Array.isArray(pick.selected) ? pick.selected : []).filter((value) => typeof value === 'string' && labels.has(value)))];
-    const text = typeof pick.text === 'string' ? pick.text.trim() : '';
-    if (text.length > MAX_ANSWER_CHARS) {
-      errors.push({index, code: 'long', message: message('claude.question.tooLong')});
-      return;
-    }
-    if (text) {
-      setAnswer(answers, question.question, text);
-      return;
-    }
-    if (question.multiSelect) {
-      if (!selected.length) {
-        errors.push({index, code: 'missing', message: message('claude.question.pickOneOrMore')});
-        return;
-      }
-      setAnswer(answers, question.question, selected);
-      return;
-    }
-    if (selected.length > 1) {
-      errors.push({index, code: 'multiple', message: message('claude.question.pickOnlyOne')});
-      return;
-    }
-    if (!selected.length) {
-      errors.push({index, code: 'missing', message: message('claude.question.pickOne')});
-      return;
-    }
-    setAnswer(answers, question.question, selected[0]);
-  });
-  const ok = list.length > 0 && errors.length === 0;
-  return {ok, answers: ok ? answers : null, errors};
-}
-
-/* Decide o que um submit do formulário de perguntas significa. O botão
-   Responder submete com `value='ok'`; o Cancelar (`value='cancel'`) submete
-   pelo mesmo evento e NÃO pode exigir resposta — devolve `cancel` e o casco
-   fecha com `returnValue='cancel'`. Sem botão identificado (`requestSubmit()`
-   direto), vale o caminho exigente, igual ao Responder. */
-export function questionSubmitAction(questions, picks, submitterValue) {
-  if (submitterValue != null && submitterValue !== 'ok') return {action: 'cancel', answers: null, errors: []};
-  const compiled = compileQuestionAnswers(questions, picks);
-  if (compiled.ok) return {action: 'answers', answers: compiled.answers, errors: []};
-  return {action: 'invalid', answers: null, errors: compiled.errors};
-}
 
 /* Identidade estável de um reset de janela: número nativo em SEGUNDOS e ISO
    apontando o mesmo instante têm o mesmo token; texto não parseável fica como

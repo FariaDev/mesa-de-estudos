@@ -111,7 +111,6 @@ async function readRuntimeAccent(runtime){
  const readAccent=()=>{try{return JSON.parse(fs.readFileSync(file,'utf8')).accent||null;}catch{return null;}};
  return pollUntil(readAccent,accent=>!!accent,{timeout:3000,interval:100,what:'o acento em desk.json',onTimeout:'return'});
 }
-
 await withArtifacts('cor-de-acento',async ctx=>{
  const runtime=ctx.runtime=newRuntime('cor-de-acento'),course=seedCourse(runtime,'Test');
  fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdf('Exercise',6));
@@ -165,16 +164,11 @@ await withArtifacts('cor-de-acento',async ctx=>{
    const lines=[['#update-notice','borderTopColor','borda do aviso de atualização'],
     ['#accent-fixture-drop','borderTopColor','dica de soltar PDF no leitor'],
     ['#accent-fixture-bar','backgroundColor','barra das Estatísticas']];
-   const paperInk=await page.evaluate(()=>{const i=document.createElement('i');i.style.cssText='position:fixed;color:var(--accent-paper)';document.body.append(i);const c=getComputedStyle(i).color;i.remove();return c;});
    for(const [selector,prop,what] of lines){
     const value=await style(page,selector,prop);
-    if(selector==='#accent-fixture-drop'){
-     /* A dica cobre a folha branca nos dois temas (#26): leva o tom de acento
-        sobre papel, e é a folha, não a superfície do tema, que ela precisa ler. */
-     assert.equal(value,paperInk,`${label}: ${what} usa o acento sobre papel`);
-     assert.ok(contrast(rgb(value),[255,255,255])>=3,`${label}: ${what} legível sobre o papel (${contrast(rgb(value),[255,255,255]).toFixed(2)})`);
-     continue;
-    }
+    /* A sobreposição do arraste segue o tema desde a #100: texto e borda no
+       --accent-text, fundo opaco de --surface com um toque do acento. O
+       contraste real sobre esse fundo é medido em reader-empty-ui.mjs. */
     sameColor(value,TEXT[theme][accent],`${label}: ${what}`);
     assert.ok(contrast(rgb(value),surface)>=3,`${label}: ${what} legível sobre a superfície (${contrast(rgb(value),surface).toFixed(2)})`);
    }
@@ -195,8 +189,21 @@ await withArtifacts('cor-de-acento',async ctx=>{
   }
  }
 
- /* Vale na hora: sem Salvar, e continua valendo ao cancelar. */
+ /* #101: as escolhas de mascote e ícone saíram; a marca segue só o acento. */
  await setTheme(page,'light');
+ await pick(page,'blue');
+ assert.equal(await page.locator('#mascot-mode').count(),0,'sem seletor de mascote');
+ assert.equal(await page.locator('#app-icon-mode').count(),0,'sem seletor de ícone');
+ for(const accent of ACCENTS){
+  await pick(page,accent);
+  assert.equal(await page.locator('.brand-icon').first().getAttribute('src'),`assets/app-icon/lamp-${accent}-128.png`,`a marca segue ${accent}`);
+ }
+ const saved=JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));
+ assert.equal('mascot' in saved,false,'o desk.json não grava mais mascote');
+ assert.equal('appIcon' in saved,false,'nem ícone');
+ await pick(page,'blue');
+
+ /* Vale na hora: sem Salvar, e continua valendo ao cancelar. */
  await pick(page,'blue');
  const before=await style(page,'#settings-save','backgroundColor');
  await pick(page,'orange');
@@ -242,6 +249,7 @@ await withArtifacts('cor-de-acento',async ctx=>{
  assert.equal(await accentOf(page),'pink','a escolha persiste entre aberturas');
  await openAppearance(page);
  assert.equal(await page.locator('#accent-mode [data-accent="pink"]').getAttribute('aria-checked'),'true','a opção salva volta marcada');
+ assert.equal(await page.locator('.brand-icon').first().getAttribute('src'),'assets/app-icon/lamp-pink-128.png','a marca persistida segue o acento');
  await page.keyboard.press('Escape');
 
  assert.deepEqual(errors,[]);

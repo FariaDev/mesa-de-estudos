@@ -205,6 +205,23 @@ test('índice legado (hash do caminho absoluto, sem portableId) é encontrado ap
   }
 });
 
+test('índice legado do Windows (barra invertida) é achado depois da relocação', async () => {
+  const root = tempRuntime('legacy-win');
+  try {
+    const target = path.join(root, 'target');
+    fs.mkdirSync(target);
+    const legacyPath = 'C:\\Curso\\pi-legacy.jsonl';
+    const dir = path.join(target, 'activities', crypto.createHash('sha256').update(legacyPath).digest('hex').slice(0, 24));
+    fs.mkdirSync(dir, {recursive: true});
+    const item = {id: 'act-legacy01', version: 1, hash: specHash(SPEC), conversationId: legacyPath, generation: 0, toolCallId: 'call-1', callRef: '', kind: 'activity', title: SPEC.title, objective: SPEC.objective, createdAt: Date.now(), bytes: canonicalSpec(SPEC).length};
+    fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({schema: 1, conversationId: legacyPath, items: [item]}));
+    const store = createActivityStore({runtime: target});
+    assert.equal(store.list({conversationId: path.join(target, 'pi-legacy.jsonl')}).length, 1);
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
+});
+
 test('limite de itens por conversa recusa nova publicação sem apagar antigas', async () => {
   const runtime = tempRuntime('limit');
   try {

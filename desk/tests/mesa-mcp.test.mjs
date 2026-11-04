@@ -61,7 +61,17 @@ test('GeoGebra: mesmo guia do Pi, esquema igual aos campos, captura vira imagem 
   assert.match((await tool.call({action: 'run', command: 'f(x)=x^2', continuar: true})).content[0].text, /f\(x\) = x²/);
   assert.deepEqual(calls[0], {file: '/runtime/ggb-bridge.json', action: 'run', params: {command: 'f(x)=x^2', continuar: true}});
   assert.deepEqual((await tool.call({action: 'screenshot'})).content[0], {type: 'image', data: 'iVBOR', mimeType: 'image/png'});
-  assert.equal((await tool.call({action: 'state'})).content[0].text, guide.unavailableText(guide.bridgeClosed));
+  const closed = await tool.call({action: 'state'});
+  assert.equal(closed.content[0].text, guide.unavailableText(guide.bridgeClosed));
+  assert.equal(closed.isError, true, 'B1: ponte fechada é erro do protocolo');
+});
+
+test('B1: comando recusado pelo GeoGebra no OpenCode continua resultado normal', async () => {
+  const fakeGeogebra = async () => ({ok: false, error: 'sintaxe inválida', state: {objects: '', count: 0}});
+  const tool = geogebraTool({bridgeFile: '/runtime/ggb-bridge.json', language: 'pt-BR', call: fakeGeogebra});
+  const refused = await tool.call({action: 'run', command: 'x='});
+  assert.match(refused.content[0].text, /O GeoGebra recusou o comando: sintaxe inválida/);
+  assert.notEqual(refused.isError, true);
 });
 
 test('quadro: criar manda um callRef próprio e nunca o do modelo; prévia devolve o print', async () => {
@@ -76,11 +86,23 @@ test('quadro: criar manda um callRef próprio e nunca o do modelo; prévia devol
   assert.equal((await preview.call({html: '<p>oi</p>'})).content[0].type, 'image');
 });
 
+test('A3: previaId atravessa o cliente e casa o hash do SSE sem reenviar o conteúdo', async () => {
+  const sent = [];
+  const [, create] = activityTools({grant: GRANT, create: async (grant, spec, options) => { sent.push({spec, options}); return {id: 'act_1', version: 1, title: spec.title}; }});
+  const args = {title: 'Derivada', objective: 'ver', alternativeMarkdown: 'texto', previaId: 'prv-0123456789ab'};
+  await create.call(args);
+  assert.equal(sent[0].spec.previaId, 'prv-0123456789ab');
+  assert.equal('html' in sent[0].spec, false, 'o conteúdo não volta pelo fio');
+  const sse = pickPayload({...args, callRef: 'opencode-x'}).paramsHash;
+  const bridge = pickPayload({...sent[0].spec, toolCallId: 'call_1'}).paramsHash;
+  assert.equal(sse, bridge, 'o livro de chamadas casa o previaId com o SSE');
+});
+
 test('sem ponte no ambiente a ferramenta não existe', () => {
-  assert.deepEqual(mesaTools({}).map((tool) => tool.name), []);
+  assert.deepEqual(mesaTools({}).map((tool) => tool.name), ['calcular']);
   assert.deepEqual(mesaTools({LEARNING_DESK_GGB_BRIDGE: '/r/ggb.json', LEARNING_DESK_ACTIVITY_BRIDGE: JSON.stringify(GRANT)}).map((tool) => tool.name),
-    ['geogebra', 'previsualizar_atividade', 'criar_atividade', 'ver_figura', 'ler_pdf']);
-  assert.deepEqual(mesaTools({LEARNING_DESK_ACTIVITY_BRIDGE: 'torto'}).map((tool) => tool.name), []);
+    ['calcular', 'geogebra', 'previsualizar_atividade', 'criar_atividade', 'ver_figura', 'propor_revisao', 'ler_pdf', 'buscar_material', 'listar_materiais']);
+  assert.deepEqual(mesaTools({LEARNING_DESK_ACTIVITY_BRIDGE: 'torto'}).map((tool) => tool.name), ['calcular']);
 });
 
 test('livro de chamadas: o hash do SSE casa com o da ponte, nos dois sentidos, e cada id vale uma vez', async () => {
@@ -114,5 +136,5 @@ test('ponta a ponta por stdio: o servidor sobe e lista as ferramentas da Mesa', 
   await listed;
   child.kill();
   assert.equal(answers[0].result.serverInfo.name, 'mesa');
-  assert.deepEqual(answers[1].result.tools.map((tool) => tool.name), ['geogebra', 'previsualizar_atividade', 'criar_atividade', 'ver_figura', 'ler_pdf']);
+  assert.deepEqual(answers[1].result.tools.map((tool) => tool.name), ['calcular', 'geogebra', 'previsualizar_atividade', 'criar_atividade', 'ver_figura', 'propor_revisao', 'ler_pdf', 'buscar_material', 'listar_materiais']);
 });

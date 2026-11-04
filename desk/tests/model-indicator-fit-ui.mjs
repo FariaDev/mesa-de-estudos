@@ -16,7 +16,7 @@ import {
 import {layoutStable} from './waits.mjs';
 
 const out=screenshotDirectory('model-indicator-fit');
-const LADDER=['','compact','model','icon'];
+const LADDER=['','model','icon'];
 const LONG={provider:'openrouter',id:'deepseek/deepseek-v4.1-flash',full:'DeepSeek: DeepSeek V4.1 Flash',short:'DeepSeek V4.1 Flash'};
 
 /* Na página: o degrau atual e, para cada degrau mais folgado, se ele vazaria
@@ -24,7 +24,7 @@ const LONG={provider:'openrouter',id:'deepseek/deepseek-v4.1-flash',full:'DeepSe
 const ladderProbe=page=>page.evaluate(ladder=>{
  const row=document.querySelector('#composer-box .composer-actions'),button=document.querySelector('#model-indicator');
  const model=button.querySelector('.mi-model'),text=button.querySelector('.mi-text');
- /* Nos degraus "" e "compact" o nome vai inteiro (até o teto); no "model", até o piso. */
+ /* No degrau "" o nome vai inteiro (até o teto); no "model", até o piso. */
  const floor=Number.parseFloat(getComputedStyle(button).getPropertyValue('--mi-model-floor'))||0;
  const leastOf=step=>step==='model'?floor:Infinity;
  const capOf=()=>Number.parseFloat(getComputedStyle(model).maxWidth)||Infinity;

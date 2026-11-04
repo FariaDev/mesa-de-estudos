@@ -1,8 +1,9 @@
 'use strict';
 
-/* Zip mínimo (leitura + escrita) do domínio estudo/backup, SÓ com builtins.
-   É o mesmo caminho que o updater já usa (parser próprio + `inflateRaw`),
-   com três diferenças que o compartilhamento de matéria exige:
+/* Zip mínimo (leitura + escrita), SÓ com builtins. É o leitor de zip do app
+   inteiro: o updater lê a codeload com ele desde o #82 (antes tinha parser
+   próprio, sem CRC nem teto de inflate), e o domínio estudo/backup o usa para o
+   pacote de matéria. Três garantias valem para qualquer origem:
 
      1. CRC-32 de cada entrada é CONFERIDO na leitura — zip corrompido não
         vira conteúdo em disco;
@@ -12,9 +13,9 @@
      3. path traversal/symlink/absoluto/`..` são recusados em `assertSafePath`
         ANTES de qualquer escrita, e `writeZip` nunca cria entrada perigosa.
 
-   Não mexe no updater: a cópia de leitura é independente de propósito (o
-   updater valida a própria codeload e tem a lista explícita dele). Nada de
-   dependência nova — `zlib` é builtin. */
+   Nada de dependência nova — `zlib` é builtin. A lista explícita do updater
+   (updater-files.cjs) continua por cima: o que pode ser substituído é decisão
+   dele, não deste leitor. */
 
 const zlib = require('node:zlib');
 const {message: uiMsg} = require('../i18n.mjs');
@@ -180,9 +181,13 @@ function readZip(buffer, options = {}) {
     let data;
     if (method === 0) data = Buffer.from(raw);
     else if (method === 8) {
+      /* O teto é o `size` declarado + 1: o inflate para no primeiro byte a mais,
+         sem alocar a expansão inteira (revisão de segurança: um zip de 2 MB que
+         declarava 200 MB chegou a 4 GB de memória antes da conferência de tamanho). */
       try {
-        data = zlib.inflateRawSync(raw);
+        data = zlib.inflateRawSync(raw, {maxOutputLength: size + 1});
       } catch (error) {
+        if (error && error.code === 'ERR_BUFFER_TOO_LARGE') throw new ZipError(uiMsg('err.zip.badSize', {name: norm}));
         throw new ZipError(uiMsg('err.zip.inflate', {name: norm, detail: causeArg(error)}));
       }
     } else {

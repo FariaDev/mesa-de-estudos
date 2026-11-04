@@ -7,7 +7,10 @@ import path from 'node:path';
 import {spawn, execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
+import {studyCoreSkipReason} from './study-core-build.mjs';
 import {tempDir, cleanup, write} from './study-backup-fixtures.mjs';
+
+const coreSkip = studyCoreSkipReason();
 
 const require = createRequire(import.meta.url);
 const backup = require('../src/study-data/backup.cjs');
@@ -114,7 +117,7 @@ test('falha do Git em backup automático preserva snapshot local e registra erro
  } finally {cleanup(runtime,root,gitRoot);}
 });
 
-test('cache de núcleo publicado por dois processos contém somente artefatos completos', async () => {
+test('cache de núcleo publicado por dois processos contém somente artefatos completos', coreSkip ? {skip: coreSkip} : {}, async () => {
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-core-cache-race-'));
  const helper=pathToFileURL(path.join(import.meta.dirname,'study-core-build.mjs')).href;
  const code=`import {buildStudyCores} from ${JSON.stringify(helper)}; const built=buildStudyCores({entries:['studystats.bend'],cacheRoot:${JSON.stringify(root)}}); await import('node:url').then(async({pathToFileURL})=>{const core=await import(pathToFileURL(built.corePath('studystats')).href); if(!core.default) throw Error('artefato incompleto');}); console.log(built.dir);`;

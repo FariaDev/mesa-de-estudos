@@ -164,7 +164,7 @@ law caps_send_claude_imagem_ocupado:
 law caps_opencode_estrutural:
   {A.opencodeCaps() == A.Caps{
     True{}, True{}, True{}, True{}, False{}, False{}, False{},
-    False{}, True{}, True{}, True{}, True{}
+    True{}, True{}, True{}, True{}, True{}
   } : A.Caps}
 
 law caps_opencode_catalogo_ausente:
@@ -182,12 +182,10 @@ law caps_opencode_esforco_com_metadado:
 law caps_opencode_modelo_sem_catalogo:
   {A.controlVisible(A.opencodeCaps(), A.ControlModelSelection{}) == False{} : Bool}
 
-law caps_opencode_auto_compactacao:
-  {A.controlVisible(A.opencodeControlCaps(True{}, True{}), A.ControlAutoCompaction{}) == False{} : Bool}
-
-# O rascunho não foi portado: continua fechado mesmo com o catálogo.
+# Rascunho de revisão no OpenCode (#93): consulta temporária, sem MCP e sem
+# ferramenta; visível com e sem catálogo de modelos.
 law caps_opencode_rascunho:
-  {A.controlVisible(A.opencodeControlCaps(True{}, True{}), A.ControlReviewDraft{}) == False{} : Bool}
+  {A.controlVisible(A.opencodeControlCaps(True{}, True{}), A.ControlReviewDraft{}) == True{} : Bool}
 
 # Ferramentas e medidor não dependem do catálogo de modelos.
 law caps_opencode_comandos_catalogo:

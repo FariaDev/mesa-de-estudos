@@ -7,7 +7,10 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 function run_loop(r) {
   while (r !== null && typeof r === "object" && r.$ === "$JMP") {
@@ -19,6 +22,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $emitUnless(_stopped_0) {
   if (_stopped_0) {
     return false;
@@ -30,16 +34,16 @@ function $keep(_alive_0, _stopped_0, _pending_0, _seq_0) {
   return { $: "RpcOut", alive: _alive_0, stopped: _stopped_0, pending: _pending_0, seq: _seq_0, act: { $: "ActNone" }, emit: false };
 }
 function $downKill(_stopped_0, _seq_0) {
-  return { $: "RpcOut", alive: false, stopped: _stopped_0, pending: 0, seq: _seq_0, act: { $: "ActKill" }, emit: $emitUnless(_stopped_0) };
+  return { $: "RpcOut", alive: false, stopped: _stopped_0, pending: 0, seq: _seq_0, act: { $: "ActKill" }, emit: $$emitUnless(_stopped_0) };
 }
 function $downExit(_stopped_0, _seq_0) {
-  return { $: "RpcOut", alive: false, stopped: _stopped_0, pending: 0, seq: _seq_0, act: { $: "ActExit" }, emit: $emitUnless(_stopped_0) };
+  return { $: "RpcOut", alive: false, stopped: _stopped_0, pending: 0, seq: _seq_0, act: { $: "ActExit" }, emit: $$emitUnless(_stopped_0) };
 }
 function $downStop(_seq_0) {
   return { $: "RpcOut", alive: false, stopped: true, pending: 0, seq: _seq_0, act: { $: "ActStop" }, emit: false };
 }
 function $pred(_n_0) {
-  if (_n_0 === 0) {
+  if (_n_0 == 0) {
     return 0;
   } else {
     const _p_0 = _n_0 - 1;
@@ -81,7 +85,7 @@ function $onRequest(_alive_0, _stopped_0, _pending_0, _seq_0) {
   }
 }
 function $onReply_known(_alive_0, _stopped_0, _pending_0, _seq_0, _success_0) {
-  return { $: "RpcOut", alive: _alive_0, stopped: _stopped_0, pending: $pred(_pending_0), seq: _seq_0, act: $settle(_success_0), emit: false };
+  return { $: "RpcOut", alive: _alive_0, stopped: _stopped_0, pending: $$pred(_pending_0), seq: _seq_0, act: $$settle(_success_0), emit: false };
 }
 function $onReply(_known_0, _alive_0, _stopped_0, _pending_0, _seq_0, _success_0) {
   if (!_known_0) {
@@ -108,7 +112,7 @@ function $onTimeout(_known_0, _alive_0, _stopped_0, _pending_0, _seq_0) {
   if (!_known_0) {
     return $keep(_alive_0, _stopped_0, _pending_0, _seq_0);
   } else {
-    return { $: "RpcOut", alive: _alive_0, stopped: _stopped_0, pending: $pred(_pending_0), seq: _seq_0, act: { $: "ActRefuse" }, emit: false };
+    return { $: "RpcOut", alive: _alive_0, stopped: _stopped_0, pending: $$pred(_pending_0), seq: _seq_0, act: { $: "ActRefuse" }, emit: false };
   }
 }
 function $onError(_isCurrent_0, _alive_0, _stopped_0, _pending_0, _seq_0) {
@@ -181,7 +185,7 @@ function $runAfterEvent(_active_0, _starts_0, _settled_0) {
   }
 }
 function $runAfterAcceptance(_active_0, _accepted_0, _sameSettlement_0) {
-  const _x_0 = $Bool_and(_accepted_0, _sameSettlement_0);
+  const _x_0 = $$Bool_and(_accepted_0, _sameSettlement_0);
   return _active_0 || _x_0;
 }
 function $runBusy(_active_0, _streaming_0, _compacting_0, _queued_0) {
@@ -196,6 +200,10 @@ function $Bool_and(_a_0, _b_0) {
     return _b_0;
   }
 }
+var $$emitUnless = $emitUnless;
+var $$pred = $pred;
+var $$settle = $settle;
+var $$Bool_and = $Bool_and;
 var rpcstate_default = {
   emitUnless: run_lib((a0) => run_loop($emitUnless(a0)), 1),
   keep: run_lib((a0, a1, a2, a3) => run_loop($keep(a0, a1, nat_in(a2), nat_in(a3))), 4),

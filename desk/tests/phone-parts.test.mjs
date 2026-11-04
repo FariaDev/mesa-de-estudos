@@ -68,6 +68,33 @@ test('a rede local vem antes; VPN, ponte, contêiner e link-local ficam fora', (
   assert.deepEqual(lanCandidates({}), []);
 });
 
+test('IPv4 público nunca vira endereço do servidor, nem no adaptador de Wi-Fi', () => {
+  /* Revisão de segurança: o servidor escuta no endereço escolhido, e um IP
+     público ali o expõe. 172.32/12 não é RFC 1918, e CGNAT e link-local também não. */
+  const v4 = (address) => ({family: 'IPv4', address, internal: false});
+  assert.deepEqual(lanCandidates({
+    en0: [v4('8.8.8.8')],
+    wlan0: [v4('172.32.0.1')],
+    'Wi-Fi': [v4('100.64.0.9')],
+    eth0: [v4('169.254.1.1')],
+    enp3s0: [v4('179.12.4.7')],
+  }), []);
+  assert.deepEqual(lanCandidates({en0: [v4('8.8.8.8'), v4('172.16.0.5')]}), [{name: 'en0', address: '172.16.0.5'}]);
+});
+
+test('hotspot do celular cai na faixa privada: Android, iPhone e Windows', () => {
+  const v4 = (address) => ({family: 'IPv4', address, internal: false});
+  assert.deepEqual(lanCandidates({
+    'Wi-Fi': [v4('192.168.137.1')],
+    'Ethernet 2': [v4('192.168.43.1')],
+    wlan0: [v4('172.20.10.2')],
+  }), [
+    {name: 'Ethernet 2', address: '192.168.43.1'},
+    {name: 'Wi-Fi', address: '192.168.137.1'},
+    {name: 'wlan0', address: '172.20.10.2'},
+  ]);
+});
+
 test('o artefato do núcleo responde como as leis', () => {
   assert.deepEqual(core.step({$: 'PhoneReceived', count: 2}, {$: 'EvStop'}), {$: 'PhoneStopped', count: 2});
   assert.equal(core.door(true, false, {$: 'PageRoute'}).$, 'DoorClosed');

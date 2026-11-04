@@ -6,13 +6,13 @@
    fixo com Cancelar/Salvar. Recuo interno de 16px nas três partes; o item da
    seção corrente usa o papel de seleção (`--selected`, cinza neutro), nunca o
    acento. O diálogo cabe em 900×650: só o corpo rola. */
-#settings-dialog{width:min(780px,94vw);max-width:none;height:min(540px,90vh);max-height:90vh;padding:0;overflow:hidden;border-radius:var(--r-3xl)}
+#settings-dialog{width:min(780px,94vw);max-width:none;height:min(540px,90vh);max-height:90vh;padding:0;overflow:hidden;border-radius:var(--r-xl)}
 #settings-dialog[open]{display:flex;flex-direction:column}
 #settings-dialog form{display:grid;grid-template-columns:164px minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;flex:1;min-height:0;max-height:none;padding:0}
 .settings-nav{grid-column:1;grid-row:1;display:flex;flex-direction:column;gap:var(--space-4);min-height:0;overflow:auto;padding:var(--space-6);background:var(--side);border-right:1px solid var(--border)}
 .settings-nav h2{margin:0;font-size:var(--fs-xl);font-weight:600;color:var(--fg-strong)}
 .settings-tabs{display:flex;flex-direction:column;gap:var(--space-0)}
-.settings-tab{display:flex;align-items:center;justify-content:flex-start;width:100%;height:auto;min-height:30px;padding:6px var(--space-4);border:0;border-radius:var(--r-md);background:transparent;box-shadow:none;color:var(--muted);font-size:var(--fs-md);line-height:1.3;text-align:left;cursor:pointer}
+.settings-tab{display:flex;align-items:center;justify-content:flex-start;width:100%;height:auto;min-height:30px;padding:6px var(--space-4);border:0;border-radius:var(--r-sm);background:transparent;box-shadow:none;color:var(--muted);font-size:var(--fs-md);line-height:1.3;text-align:left;cursor:pointer}
 .settings-tab:hover{background:var(--hover);color:var(--fg)}
 /* Peso 500 no item marcado: com 600 "Recursos da mesa" passava a quebrar em
    duas linhas só ao ser escolhido, e a lista pulava. */
@@ -20,7 +20,7 @@
 #settings-dialog .settings-body{grid-column:2;grid-row:1;display:block;min-height:0;max-height:none;overflow:auto;padding:var(--space-6);border-top:0;background:var(--surface)}
 #settings-dialog .settings-body .help-lead{margin:0 0 var(--space-6)}
 #settings-dialog .settings-actions{grid-column:1/-1;grid-row:2;display:flex;align-items:center;gap:var(--space-3);margin:0;padding:0 var(--space-6);min-height:52px;border-top:1px solid var(--border);background:var(--surface)}
-#settings-dialog .settings-actions button{height:30px;padding:0 var(--space-5);border-radius:var(--r-md);font-weight:600}
+#settings-dialog .settings-actions button{height:30px;padding:0 var(--space-5);border-radius:var(--r-sm);font-weight:600}
 .settings-hint{margin-right:auto;font-size:var(--fs-sm);color:var(--faint)}
 /* Respondendo com mudança pendente (#42): a frase do rodapé é o motivo do
    Salvar desligado, então sobe para --muted. O erro de salvar ocupa o lugar
@@ -31,6 +31,7 @@
 .settings-error[hidden]{display:none}
 #settings-form .set-sec{display:flex;flex-direction:column;margin:0;padding:0;border:0}
 .set-head{margin:0 0 var(--space-6)}
+.set-head .set-link{margin-top:var(--space-2)}
 .set-head h3{margin:0;font-size:var(--fs-xl);font-weight:600;letter-spacing:0;text-transform:none;color:var(--fg-strong)}
 .set-head p{margin:var(--space-1) 0 0;font-size:var(--fs-md);line-height:1.5;color:var(--muted)}
 .set-link{align-self:flex-start;height:auto;padding:0;border:0;background:transparent;box-shadow:none;color:var(--accent-text);font-size:var(--fs-sm);cursor:pointer}
@@ -41,6 +42,7 @@
 #settings-form .set-sec label{margin-bottom:var(--space-4)}
 #settings-form .set-sec label:last-child{margin-bottom:0}
 #settings-form .set-sec .fine{margin:0 0 var(--space-3)}
+#settings-form #tutor-language-note{margin-bottom:var(--space-5)}
 #settings-form .set-sec>label:not(.set-check){display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2)}
 #settings-form .set-sec>label:not(.set-check) input[type="text"]{align-self:stretch}
 #settings-form .set-sec>label:not(.set-check) .path-row{align-self:stretch}
@@ -93,14 +95,14 @@
 #settings-form #cfg-layout .cfg-layout-panel>label,#settings-form #cfg-layout .cfg-layout-prefer-title{display:block;margin:0 0 var(--space-2);font-size:var(--fs-sm-half);color:var(--muted)}
 #settings-form #cfg-layout .cfg-layout-panel>.fine,#settings-form #cfg-layout .cfg-layout-prefer>.fine{margin:var(--space-1) 0 var(--space-6)}
 #settings-form #cfg-layout .cfg-layout-panel>.fine:last-child{margin-bottom:0}
-#cfg-layout .cfg-layout-prefer{display:flex;flex-direction:column}
+#cfg-layout .cfg-layout-prefer{display:flex;flex-direction:column;margin-top:var(--space-6)}
 #cfg-layout .cfg-layout-prefer-list{display:flex;flex-direction:column;gap:var(--space-2)}
 #cfg-layout .cfg-layout-prefer-row{margin:0;align-items:center}
 #cfg-layout .cfg-layout-prefer-remove{width:var(--ctl);height:var(--ctl);flex:none;padding:0;border:0;background:transparent;box-shadow:none;font-size:18px;font-weight:400;line-height:1;color:var(--muted)}
 #cfg-layout .cfg-layout-prefer-remove:hover{background:var(--hover);color:var(--danger-text)}
 #settings-dialog #cfg-layout .cfg-layout-prefer-add{
  display:inline-flex;align-items:center;align-self:flex-start;gap:var(--space-3);height:30px;margin:var(--space-2) 0 0 calc(-1 * var(--space-4));padding:0 var(--space-4);
- border:0;border-radius:var(--r-md);background:transparent;box-shadow:none;color:var(--accent-text);font-size:var(--fs-md);font-weight:500;
+ border:0;border-radius:var(--r-sm);background:transparent;box-shadow:none;color:var(--accent-text);font-size:var(--fs-md);font-weight:500;
 }
 #settings-dialog #cfg-layout .cfg-layout-prefer-add::before{content:"+" / "";font-size:var(--fs-xl);font-weight:400;line-height:1}
 #settings-dialog #cfg-layout .cfg-layout-prefer-add:hover{background:var(--hover)}

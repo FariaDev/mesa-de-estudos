@@ -19,8 +19,11 @@ const {appendLog}=require('./updater-core.cjs');
    partes do updater e o `src/i18n.mjs`. A #41 trouxe o i18n e a cópia seguia
    levando só o pi.cjs: o worker morria antes do handshake (#43 fase 2).
    O `src/error-detail.mjs` (#43 fase 3) tira caminho pessoal das causas, e o
-   `src/log-entry.mjs` dá o formato da linha do `desk.log`. */
-const WORKER_FILES=['pi.cjs','src/i18n.mjs','src/error-detail.mjs','src/log-entry.mjs','updater-core.cjs','updater-check.cjs','updater-files.cjs','updater-worker.cjs'];
+   `src/log-entry.mjs` dá o formato da linha do `desk.log`. O zipkit (#82) é o
+   leitor de zip do `updater-files.cjs`, e o catálogo `pt-BR.json` traduz o erro
+   dele: sem os dois na cópia o worker morre antes do handshake, do mesmo jeito.
+   O `updater-signature.cjs` (#80) confere o manifesto e o zip assinados. */
+const WORKER_FILES=['pi.cjs','src/i18n.mjs','src/error-detail.mjs','src/log-entry.mjs','src/study-data/zipkit.cjs','src/locales/pt-BR.json','updater-core.cjs','updater-check.cjs','updater-files.cjs','updater-signature.cjs','updater-worker.cjs'];
 
 /**
  * Monta em `dir` a cópia do updater que o worker executa, com os módulos que ela requer.

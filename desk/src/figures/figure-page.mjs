@@ -1,5 +1,6 @@
 import {markup} from '../markdown.mjs';
-import {figureMarkdown, blankLineWarning, removedNames} from './figure-markup.mjs';
+import {figureMarkdown, blankLineWarning, removedNames, stackedTextWarning} from './figure-markup.mjs';
+import {overlapReport} from './svg-overlap.mjs';
 
 /* Página da ferramenta "ver o que desenhei" (#60). Recebe a figura do main
    (`executeJavaScript`), passa pelo markup do chat e devolve o que apareceu, os
@@ -35,6 +36,9 @@ window.mesaFigure = {
     const warnings = [...root.querySelectorAll('.plot-warning')].map(warningText);
     const blank = kind === 'svg' ? blankLineWarning(source) : '';
     if (blank) warnings.push(blank);
+    const stacked = kind === 'svg' ? stackedTextWarning(source) : '';
+    if (stacked) warnings.push(stacked);
+    for (const note of [...root.querySelectorAll('svg')].flatMap((svg) => overlapReport(svg))) warnings.push(note);
     const removed = kind === 'svg' ? removedNames(namesOf(source), namesOf(root.innerHTML)) : [];
     return {
       plots,

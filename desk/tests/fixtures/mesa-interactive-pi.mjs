@@ -13,7 +13,7 @@ const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const NET=process.env.FAKE_PI_NET_URL||'http://127.0.0.1:9/';
 const netHtml=()=>`<p>rede</p><img src="${NET}img.png"><link rel="prefetch" href="${NET}prefetch"><audio src="${NET}audio.mp3"></audio>`;
 const netCss=()=>`p{background:url("${NET}css.png")}@import url("${NET}import.css");`;
-const netJs=()=>`const U=${JSON.stringify(NET)};const tries=[];const note=(n,ok)=>{tries.push(n);(ok?console.log:console.error)(n+(ok?" passou":" bloqueado"));};fetch(U+"fetch").then(()=>note("fetch",true),()=>note("fetch",false));try{const x=new XMLHttpRequest();x.open("GET",U+"xhr");x.onload=()=>note("xhr",true);x.onerror=()=>note("xhr",false);x.send();}catch(e){note("xhr",false);}try{const w=new WebSocket(U.replace("http","ws")+"ws");w.onopen=()=>note("ws",true);w.onerror=()=>note("ws",false);}catch(e){note("ws",false);}try{navigator.sendBeacon(U+"beacon","x")?note("beacon-enfileirado",false):note("beacon",false);}catch(e){note("beacon",false);}const s=document.createElement("script");s.onload=()=>note("script",true);s.onerror=()=>note("script",false);try{s.src=U+"script.js";document.head.append(s);}catch(e){note("script",false);}const i=new Image();i.onload=()=>note("img",true);i.onerror=()=>note("img",false);i.src=U+"new-image.png";try{new EventSource(U+"sse").onerror=()=>note("sse",false);}catch(e){note("sse",false);}mesa.ready();`;
+const netJs=()=>`const U=${JSON.stringify(NET)};const tries=[];const note=(n,ok)=>{tries.push(n);console.log(n+(ok?" passou":" bloqueado"));};fetch(U+"fetch").then(()=>note("fetch",true),()=>note("fetch",false));try{const x=new XMLHttpRequest();x.open("GET",U+"xhr");x.onload=()=>note("xhr",true);x.onerror=()=>note("xhr",false);x.send();}catch(e){note("xhr",false);}try{const w=new WebSocket(U.replace("http","ws")+"ws");w.onopen=()=>note("ws",true);w.onerror=()=>note("ws",false);}catch(e){note("ws",false);}try{navigator.sendBeacon(U+"beacon","x")?note("beacon-enfileirado",false):note("beacon",false);}catch(e){note("beacon",false);}const s=document.createElement("script");s.onload=()=>note("script",true);s.onerror=()=>note("script",false);try{s.src=U+"script.js";document.head.append(s);}catch(e){note("script",false);}const i=new Image();i.onload=()=>note("img",true);i.onerror=()=>note("img",false);i.src=U+"new-image.png";try{new EventSource(U+"sse").onerror=()=>note("sse",false);}catch(e){note("sse",false);}mesa.ready();`;
 /* PNG liso 320×220 (azul), gerado só para a figura de imagem da #52. */
 const FIGURE_PNG='iVBORw0KGgoAAAANSUhEUgAAAUAAAADcCAIAAACOIe9xAAAB5UlEQVR42u3TAQkAAAzDsPm5tYu7xOsYBKKg0MweUCoSgIEBAwMGBgMDBgYMDBgYDAwYGDAwGBgwMGBgwMBgYMDAgIEBA4OBAQMDBgYDAwYGDAwYGAwMGBgwMGBgMDBgYMDAYGDAwICBAQODgQEDAwYGA6sABgYMDBgYDAwYGDAwYGAwMGBgwMBgYMDAgIEBA4OBAQMDBgYMDAYGDAwYGAwMGBgwMGBgMDBgYMDAgIHBwICBAQODgQEDAwYGDAwGBgwMGBgMDBgYMDBgYDAwYGDAwICBwcCAgQEDg4EBAwMGBgwMBgYMDBgYMDAYGDAwYGAwMGBgwMCAgcHAgIEBAwMGBgMDBgYMDAYGDAwYGDAwGBgwMGBgMDBgYMDAgIHBwICBAQMDBgYDAwYGDAwGBgwMGBgwMBgYMDBgYMDAYGDAwICBwcCAgQEDAwYGAwMGBgwMBlYBDAwYGDAwGBgwMGBgwMBgYMDAgIHBwICBAQMDBgYDAwYGDAwYGAwMGBgwMBgYMDBgYMDAYGDAwICBAQODgQEDAwYGAwMGBgwMGBgMDBgYMDAYGDAwYGDAwGBgwMCAgQEDg4EBAwMGBgMDBgYMDBgYDAwYGDAwYGAwMGBgwMBgYMDAgIEBA4OBAQMDBgYMDM0eawVZkonOoQQAAAAASUVORK5CYII=';
 function specFor(text){
@@ -40,6 +40,8 @@ function specFor(text){
  }
  /* Hunt de rede (#42): o quadro tenta sair por todos os canais para um servidor local de prova. */
  if(text.includes('rede'))return {...base,kind:'visualizacao',title:'Tentativas de rede',html:netHtml(),css:netCss(),js:netJs()};
+ /* #81: um link https dentro da atividade; o clique tem que passar pelo diálogo de confirmação. */
+ if(text.includes('com link'))return {...base,kind:'visualizacao',title:'Ver resposta',html:'<p><a id="ver" href="https://exemplo.com/ver/resposta?caso=1">Ver resposta no site</a></p>',js:'mesa.ready();'};
  if(text.includes('katex'))return {...base,title:'Matemática offline',html:'<div id="math"></div>',js:'katex.render("x^2+1",document.querySelector("#math"));mesa.ready();',katex:true};
  if(text.includes('loop'))return {...base,title:'Laço sintético',html:'<p>Laço isolado</p>',js:'mesa.ready();setTimeout(()=>{for(;;){}},200);'};
  return base;
@@ -55,6 +57,12 @@ async function preview(e){
   :{...specFor('grafico'),theme:'claro'};
  let out;
  try{out=await previewActivity(bridge,wanted);}catch(error){out={error:error.message};}
+ /* A3: a prévia devolve um id; o mesmo "tutor" publica com ele, sem reenviar
+    o conteúdo. O teste de janela lê o resultado e o store. */
+ if(out&&out.previaId&&e.message.includes('publica')){
+  try{out.publicado=await createActivity(bridge,{title:'Publicado da prévia',objective:'Conferir o conteúdo',alternativeMarkdown:'Texto alternativo',previaId:out.previaId},{toolCallId:'previa-publicada'});}
+  catch(error){out.publishError=error.message;}
+ }
  if(process.env.FAKE_PI_PREVIEW_OUT)fs.writeFileSync(process.env.FAKE_PI_PREVIEW_OUT,JSON.stringify(out));
  streaming=false;emit({type:'agent_end'});emit({type:'agent_settled'});
 }

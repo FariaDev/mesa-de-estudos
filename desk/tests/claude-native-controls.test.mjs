@@ -15,9 +15,9 @@
  *   - rate_limit_event rejected → allowed emite UMA transição RESUMED por janela.
  */
 import test from 'node:test';
+import './keep-loop-alive.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {join} from 'node:path';
 import {ptText} from './pt-text.mjs';
 import * as fx from './claude-fixtures.mjs';
 
@@ -377,7 +377,7 @@ test('níveis de esforço seguem o modelo escolhido', async () => {
   assert.equal(lastQuery(sdk).setModelCalls.at(-1), 'lite');
 });
 
-test('troca não passa com turno, permissão pendente ou entrega incerta (Bend)', async () => {
+test('troca não passa com turno ou entrega incerta (Bend)', async () => {
   {
     const {adapter, sdk} = makeAdapter();
     await adapter.connect();
@@ -394,19 +394,6 @@ test('troca não passa com turno, permissão pendente ou entrega incerta (Bend)'
     await promise;
     query.emit(fx.resultMessage({userMessageUuid: fx.UUID.a}));
     await fx.waitFor(() => adapter.snapshot().busy === false, 2000, 'encerra');
-  }
-  {
-    const {adapter, sdk} = makeAdapter();
-    await adapter.connect();
-    await initialize(adapter);
-    const q = sdk.state.queries[0];
-    const pending = q.options.canUseTool('Read', {file_path: join(process.cwd(), 'controle.pdf')}, {requestId: 'perm-1', signal: new AbortController().signal});
-    await assert.rejects(
-      () => adapter.setControls({model: 'sonnet'}),
-      (error) => expectReason(error, 'CLAUDE_CONTROLS_BUSY', controls.SWITCH_REASONS.PERMISSION),
-    );
-    adapter.respond({id: 'perm-1', confirmed: false});
-    await pending;
   }
   {
     const recorder = fx.persistRecorder({failStatuses: ['settled']});
@@ -646,27 +633,23 @@ test('portão concorda com canChangeControls do Bend em todas as combinações',
   const {adapter} = makeAdapter();
   for (const busy of [false, true]) {
     for (const hasTurn of [false, true]) {
-      for (const permissionPending of [false, true]) {
-        for (const uncertain of [false, true]) {
-          adapter._busy = busy;
-          adapter._turn = hasTurn ? {finalized: false} : null;
-          adapter._permissions.clear();
-          if (permissionPending) adapter._permissions.set('x', {});
-          adapter._deliveryUncertain = uncertain;
-          const allowed = deliveryCore.canChangeControls(busy, hasTurn, permissionPending, uncertain);
-          const gate = adapter._controlsGate();
-          assert.equal(gate.allowed, allowed, `Bend ${JSON.stringify({busy, hasTurn, permissionPending, uncertain})}`);
-          if (!allowed) {
-            const decision = controls.canSwitchSelection({busy, hasTurn, pendingPermission: permissionPending, uncertain});
-            assert.equal(gate.reason, decision.reason);
-          }
+      for (const uncertain of [false, true]) {
+        const permissionPending = false;
+        adapter._busy = busy;
+        adapter._turn = hasTurn ? {finalized: false} : null;
+        adapter._deliveryUncertain = uncertain;
+        const allowed = deliveryCore.canChangeControls(busy, hasTurn, permissionPending, uncertain);
+        const gate = adapter._controlsGate();
+        assert.equal(gate.allowed, allowed, `Bend ${JSON.stringify({busy, hasTurn, permissionPending, uncertain})}`);
+        if (!allowed) {
+          const decision = controls.canSwitchSelection({busy, hasTurn, pendingPermission: permissionPending, uncertain});
+          assert.equal(gate.reason, decision.reason);
         }
       }
     }
   }
   adapter._busy = false;
   adapter._turn = null;
-  adapter._permissions.clear();
   adapter._deliveryUncertain = false;
 });
 

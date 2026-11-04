@@ -12,9 +12,8 @@ import {createMascote} from './mascote.mjs';
 
    Desde a #64 (docs/design/setup-guia-r1/Guia.dc.html) a busca não filtra a
    lateral: mostra numa lista só os tópicos que casam, de todas as seções, cada
-   um com a seção de onde veio (o botão leva até ela). A lateral ganha ícones e
-   o trio ∫ Σ ∇ (`mascote.mjs`): a ∫ lê quando há resultado e o ∇ pensa quando
-   não há. */
+   um com a seção de onde veio (o botão leva até ela). A lateral ganha ícones, e o ∇ pensando
+   (`mascote.mjs`) aparece quando a busca não acha nada. */
 
 const $ = (selector) => document.querySelector(selector);
 const Nil = {$: 'Nil'};
@@ -34,7 +33,7 @@ const SECTION_ICONS = {
   atalhos: 'M3 7h18v10H3zM7 11h.01M11 11h.01M15 11h.01M8 14h8',
 };
 
-const state = {section: 'comecar', query: '', bound: false, trio: [], emptyMascote: null};
+const state = {section: 'comecar', query: '', bound: false, emptyMascote: null};
 
 const root = () => $('#help-dialog');
 const sections = () => [...root().querySelectorAll('section[data-section]')];
@@ -123,18 +122,11 @@ export function paintGuide() {
   if (query) paintSearch(hits, state.query.trim());
   else paintSection(current);
   const none = !!query && hits.length === 0;
+  if (none) mountEmptyMascote();
   $('#guide-results').hidden = !query || none;
   $('#guide-empty').hidden = !none;
   $('#guide-lead').hidden = !$('#guide-lead').textContent;
   dialog.dataset.guideSection = query ? 'busca' : current;
-  paintTrio(!!query && !none, none);
-}
-
-/* A ∫ lê junto quando a busca acha; o ∇ pensa quando não acha. */
-function paintTrio(reading, none) {
-  const [integral, , nabla] = state.trio;
-  integral?.set({reading});
-  nabla?.set({mood: none ? 'pensando' : 'normal'});
 }
 
 /* Vai para uma seção: o foco segue o título (leitor de tela e teclado
@@ -158,21 +150,18 @@ const guideHandlers = {
   },
 };
 
-/* As mascotes do guia são decorativas: nem acenam nem cochilam. O trio fica
-   pequeno no topo da lateral; o ∇ grande só aparece na busca vazia. */
-function mountMascotes() {
-  state.trio = ['integral', 'sigma', 'nabla'].map((personagem) => createMascote({personagem, tamanho: 40, interativa: false}));
-  $('#guide-mascote').replaceChildren(...state.trio.map((mascote) => mascote.el));
+/* O ∇ da busca vazia é decorativo: não acena nem cochila (#101 voltou ao
+   personagem fixo de antes da #100). */
+function mountEmptyMascote() {
+  if (state.emptyMascote) return;
   state.emptyMascote = createMascote({personagem: 'nabla', humor: 'pensando', tamanho: 120, interativa: false});
   $('#guide-empty-mascote').replaceChildren(state.emptyMascote.el);
-  root().addEventListener('mousemove', (event) => { for (const mascote of state.trio) mascote.lookAt(event); });
-  root().addEventListener('mouseleave', () => { for (const mascote of state.trio) mascote.look(0, 0); });
 }
 
 function bind() {
   if (state.bound) return;
   state.bound = true;
-  if ($('#guide-mascote')) mountMascotes();
+  if ($('#guide-empty-mascote')) mountEmptyMascote();
   applyIcons(root().querySelector('.guide-search'), icon);
   $('#guide-search').addEventListener('input', (event) => {
     state.query = event.target.value;
@@ -184,11 +173,13 @@ function bind() {
   });
 }
 
-/* A abertura limpa a busca e mantém a seção em que a leitura parou. */
-export function openGuide() {
+/* A abertura limpa a busca e vai para a seção pedida (ou mantém a última).
+   Seção desconhecida cai na primeira pelo `guideCurrent` do núcleo. */
+export function openGuide(section = '') {
   if (!root()) return;
   bind();
   state.query = '';
+  if (section) state.section = String(section);
   $('#guide-search').value = '';
   paintGuide();
 }

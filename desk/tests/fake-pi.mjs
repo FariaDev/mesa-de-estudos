@@ -51,6 +51,7 @@ let stateFailArmed=false;
    processo com o pedido em voo (a Mesa precisa recusar o envio sem perder a
    fila). Fora desse modo nada muda. */
 const QUEUE_LOG=process.env.FAKE_PI_QUEUE_LOG||'';
+const RPC_LOG=process.env.FAKE_PI_RPC_LOG||'';
 const QUEUE_HOLD=Number(process.env.FAKE_PI_QUEUE_HOLD_MS)||1200;
 let streaming=false,holdTimer=0;
 function queueRecord(e){
@@ -124,6 +125,22 @@ function messages(){
  if(!session||!fs.existsSync(session))return [];
  return fs.readFileSync(session,'utf8').split('\n').filter(Boolean).flatMap(line=>{try{return [JSON.parse(line).message].filter(Boolean);}catch{return [];}});
 }
+/* Turno longo do item 15: pensamento recolhido + ferramenta + texto que passa
+   da vista, com uma imagem opcional que termina de carregar depois do texto. */
+function emitLongTurn(){
+ const image=process.env.FAKE_PI_LONG_IMAGE?`\n\n![Figura de teste](${process.env.FAKE_PI_LONG_IMAGE})`:'';
+ const body=Array.from({length:60},(_,i)=>`Parágrafo ${i+1}: a resposta longa continua para provar que a conversa acompanha o fim do turno.`).join('\n\n')+image;
+ const thought='Vou montar uma resposta longa com uma ferramenta no meio.';
+ emit({type:'message_start',message:{role:'assistant'}});
+ emit({type:'message_update',assistantMessageEvent:{type:'thinking_start'}});
+ emit({type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:thought}});
+ emit({type:'message_update',assistantMessageEvent:{type:'thinking_end',content:thought}});
+ emit({type:'message_end',message:{role:'assistant',content:[{type:'thinking',thinking:thought}]}});
+ emit({type:'tool_execution_start',toolCallId:'long-tool',toolName:'web_search',args:{query:'resposta longa'}});
+ emit({type:'tool_execution_end',toolCallId:'long-tool',toolName:'web_search',result:{content:[{type:'text',text:'resultado de teste'}]},isError:false});
+ setTimeout(()=>emitText(body),Number(process.env.FAKE_PI_LONG_HOLD_MS)||0);
+}
+
 function emitWorklog(){
  emit({type:'message_start',message:{role:'assistant'}});
  emit({type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:'Vou considerar '}});
@@ -148,7 +165,7 @@ function emitWorklog(){
   fs.appendFileSync(session,lines.map(line=>JSON.stringify(line)).join('\n')+'\n');
  }
 }
-let pendingQuiz=null;let autoCompaction=true;
+let autoCompaction=true;
 /* Só o texto do aluno decide a resposta do fake: o `pi-prompt` real acrescenta, depois dele,
    o bloco de menções e o `[Contexto da Mesa]`, que carregam caminhos (pastas como
    `quizzical-…` na worktree) e não são fala do aluno. */
@@ -165,35 +182,33 @@ function quizSpec(text){
  if(/quiz multi/i.test(text))return {multi:true,question:'Quais afirmações são verdadeiras para \\(x^2\\)?',options:[{label:'A soma dá \\(2\\)',value:'sum'},{label:'O produto dá \\(1\\)',value:'product'},{label:'A derivada é \\(0\\)',value:'derivative'}],correct:['sum','product'],explanation:'Soma e produto conferem para \\(x^2 \\ge 0\\).'};
  return {multi:false,question:'Quanto vale \\(2+2\\)?',options:[{label:'\\(3\\)',value:'three'},{label:'\\(4\\)',value:'four'},{label:'\\(5\\)',value:'five'}],correct:'four',explanation:'Pela definição: \\(2+2=4\\).'};
 }
-function emitQuiz(text){
+async function emitQuiz(text){
  const spec=quizSpec(text),toolCallId='call_quiz_'+Date.now();
- const options=spec.options.map((option,index)=>({...option,index:index+1}));
  const toolArgs={question:spec.question,details:'Pergunta de teste',options:spec.options,multiSelect:spec.multi,correctAnswer:spec.correct,explanation:spec.explanation};
- emit({type:'tool_execution_start',toolCallId,toolName:'quiz',args:toolArgs});
- emit({type:'tool_execution_update',toolCallId,toolName:'quiz',args:toolArgs,partialResult:{content:[{type:'text',text:'Awaiting user response...'}],details:{options:options.map(option=>({index:option.index,label:option.label}))}}});
- emit({type:'extension_ui_request',id:'ui-'+toolCallId,method:'select',title:`${spec.multi?'Quiz (múltipla escolha)':'Quiz'} · ${spec.question}`,options:[...spec.options.map(option=>option.label),'Não sei']});
- pendingQuiz={toolCallId,uiId:'ui-'+toolCallId,spec,options};
-}
-function gradeQuiz(response){
- const {toolCallId,spec,options}=pendingQuiz;pendingQuiz=null;
- const byLabel=new Map(options.map(option=>[option.label,option]));
- const raw=response.cancelled?'':String(response.value??'');
- let labels=[];
- if(!response.cancelled){
-  if(spec.multi&&raw.trim().startsWith('[')){try{labels=JSON.parse(raw).map(String);}catch{labels=[];}}
-  else labels=[raw];
+ /* O caminho Claude/OpenCode declara a ferramenta em `toolcall_end` antes de
+    executá-la; o fake reproduz a ordem com este interruptor. */
+ if(process.env.FAKE_PI_QUIZ_TOOLCALL==='1'){
+  emit({type:'message_start',message:{role:'assistant'}});
+  emit({type:'message_update',assistantMessageEvent:{type:'toolcall_end',contentIndex:1,toolCall:{id:toolCallId,name:'mesa_quiz',arguments:toolArgs}}});
  }
- labels=labels.filter(label=>byLabel.has(label));
- const dontKnow=!response.cancelled&&(raw==='Não sei'||(spec.multi&&labels.length>0&&labels.every(label=>label==='Não sei')));
- const realLabels=dontKnow?[]:labels.filter(label=>label!=='Não sei');
- const answers=realLabels.map(label=>{const option=byLabel.get(label);return {label:option.label,value:option.value,index:option.index};}).sort((a,b)=>a.index-b.index);
- const correctLabels=Array.isArray(spec.correct)?spec.correct:[spec.correct];
- const correctIndices=options.filter(option=>correctLabels.includes(option.value)).map(option=>option.index);
- const selected=answers.map(answer=>answer.index);
- const correct=!dontKnow&&selected.length===correctIndices.length&&selected.every((value,index)=>value===correctIndices[index]);
- const details={status:response.cancelled?'cancelled':'answered',question:spec.question,mode:spec.multi?'multi-select':'single-select',answers,dontKnow,correct,correctIndices,options:options.map(option=>({index:option.index,label:option.label})),explanation:spec.explanation};
- emit({type:'tool_execution_end',toolCallId,toolName:'quiz',result:{content:[{type:'text',text:'User answered the test quiz.'}],details},isError:false});
- emitText(details.correct?'Boa! Resposta correta.':(details.dontKnow?'Sem problema; vamos revisar esse ponto.':'Quase: reveja a resolução com calma.'));
+ emit({type:'tool_execution_start',toolCallId,toolName:'mesa_quiz',args:toolArgs});
+ let bridge=null;
+ try{bridge=JSON.parse(process.env.LEARNING_DESK_CARD_BRIDGE||'');}catch{/* sem ponte: o cartão não aparece */}
+ if(!bridge||typeof bridge.url!=='string'||typeof bridge.token!=='string'){
+  emit({type:'tool_execution_end',toolCallId,toolName:'mesa_quiz',result:{content:[{type:'text',text:'sem ponte de cartão'}]},isError:true});
+  emitText('Não consegui mostrar o cartão.');
+  return;
+ }
+ try{
+  const response=await fetch(String(bridge.url).replace(/\/activity$/,'/card'),{method:'POST',headers:{'content-type':'application/json','x-mesa-token':bridge.token},body:JSON.stringify({kind:'quiz',args:toolArgs})});
+  if(!response.ok)throw Error(`HTTP ${response.status}`);
+ }catch(error){
+  emit({type:'tool_execution_end',toolCallId,toolName:'mesa_quiz',result:{content:[{type:'text',text:String(error.message||error)}]},isError:true});
+  emitText(`Não consegui mostrar o cartão: ${error.message||error}`);
+  return;
+ }
+ emit({type:'tool_execution_end',toolCallId,toolName:'mesa_quiz',result:{content:[{type:'text',text:'Mostrado ao aluno.'}]},isError:false});
+ emitText('Deixei o cartão; responda por lá.');
 }
 function abortMidStream(){
  emit({type:'message_start',message:{role:'assistant'}});
@@ -220,7 +235,7 @@ function stallMidStream(){
 }
 process.stdin.setEncoding('utf8');let buffer='';
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\n'))>=0){const raw=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!raw.trim())continue;const e=JSON.parse(raw);
- if(e.type==='extension_ui_response'){if(pendingQuiz&&e.id===pendingQuiz.uiId)gradeQuiz(e);continue;}
+ if(RPC_LOG){try{fs.appendFileSync(RPC_LOG,`${e.type}\n`);}catch{}}
  if(e.type==='get_commands')reply(e,{commands:[{name:'help',description:'Mostrar os comandos',argumentHint:'[assunto]'}]});
  else if(e.type==='get_state'){
   const failFile=process.env.FAKE_PI_STATE_FAILURE_FILE;
@@ -262,7 +277,9 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
   else if(chaosArmed('desk-error'))deskErrorMidStream();
   else if(chaosArmed('stall'))stallMidStream();
   else if(/falha do provedor/i.test(studentText(e.message)))providerErrorTurn();
-  else if(/quiz/i.test(studentText(e.message)))emitQuiz(e.message);
+  else if(/^\[Resultado do cartão:/.test(studentText(e.message)))emitText('Recebi o resultado do cartão.');
+  else if(/quiz/i.test(studentText(e.message)))void emitQuiz(e.message);
+  else if(/resposta longa/i.test(studentText(e.message)))emitLongTurn();
   else if(/pensar profundo/i.test(studentText(e.message)))emitWorklog();
   else if(/teorema/i.test(studentText(e.message)))emitText('A identidade de Pitágoras: $a^2 + b^2 = c^2$ vale em triângulos retângulos.\n\n$$E = mc^2$$');
 }

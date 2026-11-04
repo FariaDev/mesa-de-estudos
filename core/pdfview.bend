@@ -36,12 +36,6 @@ type NavChrome is Data:
 def placeholderText() -> String:
   M.msg("pdf.placeholder")
 
-def footLoadingText() -> String:
-  M.msg("pdf.loading")
-
-def footErrorText() -> String:
-  M.msg("pdf.openFailed")
-
 def pageTotalDash() -> String:
   "/ —"
 
@@ -95,11 +89,6 @@ def pageTotalText(n: Nat) -> String:
 def zoomLabelText(pct: Nat) -> String:
   Nat.show(pct) ++ "%"
 
-# O modo de leitura (hoje só a rolagem contínua) mora na frase do catálogo: um
-# núcleo não monta texto com outra mensagem dentro (#41).
-def footReadyText(page: Nat, total: Nat, file: String) -> String:
-  M.msg3("pdf.foot.ready", "page", Nat.show(page), "total", Nat.show(total), "file", file)
-
 # Contador: fatos já resolvidos pelo find.bend (Hidden / Shown / All).
 # hidden=True some; senão shown=True → índice/total; senão só o total.
 def findCountChrome.shown(shown: Bool, index: Nat, total: Nat) -> CountChrome:
@@ -152,33 +141,6 @@ def pageTotal(n: Nat) -> V.ViewNode:
 
 def zoomLabel(pct: Nat) -> V.ViewNode:
   V.viewText(zoomLabelText(pct))
-
-def footLoading() -> V.ViewNode:
-  V.viewText(footLoadingText())
-
-def footError() -> V.ViewNode:
-  V.viewText(footErrorText())
-
-def footReady(page: Nat, total: Nat, file: String) -> V.ViewNode:
-  V.viewText(footReadyText(page, total, file))
-
-# Rodapé com o número impresso ao lado da página física. Sem rótulo (PDF sem
-# numeração e sem ajuste, ou página de front matter) o texto é o de sempre —
-# e nada muda para quem já lia o rodapé. O nó é um span com title: o nome do
-# arquivo pode encurtar por ellipsis, mas o texto completo fica no tooltip.
-def footReadyTextLabeled.if(page: Nat, total: Nat, file: String, label: String, empty: Bool) -> String:
-  match empty:
-    case True{}:
-      footReadyText(page, total, file)
-    case False{}:
-      M.msg4("pdf.foot.readyLabeled", "page", Nat.show(page), "total", Nat.show(total), "label", label, "file", file)
-
-def footReadyTextLabeled(page: Nat, total: Nat, file: String, +label: String) -> String:
-  footReadyTextLabeled.if(page, total, file, label, String.is_empty(label))
-
-def footReadyLabeled(page: Nat, total: Nat, file: String, label: String) -> V.ViewNode:
-  +text = footReadyTextLabeled(page, total, file, label)
-  V.viewEl("span", [V.attrTitle(text)], Con{V.viewText(text), Nil{}})
 
 def findCountLabel(c: CountChrome) -> V.ViewNode:
   match c:

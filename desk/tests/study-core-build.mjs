@@ -7,15 +7,17 @@
    os testes apontam `MESA_STUDYSTATS_CORE` / `MESA_REVIEWSCHEDULE_CORE` para o
    artefato. Nada em `desk/src/generated` é tocado.
 
-   Sem bun ou sem bend, o teste que precisa do núcleo falha com a instrução de
-   instalação — não há fallback silencioso para uma regra duplicada em JS. */
+   Sem bun ou sem bend, o teste que precisa do núcleo aparece como PULADO com
+   o motivo (`studyCoreSkipReason`) — não há fallback silencioso para uma regra
+   duplicada em JS, e o `npm test` continua valendo numa máquina sem Bend. */
 
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync} from 'node:fs';
-import {homedir, tmpdir} from 'node:os';
+import {tmpdir} from 'node:os';
 import {basename, dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {detectToolchain} from '../../core/toolchain.mjs';
 
 const TESTS = dirname(fileURLToPath(import.meta.url));
 const DESK = dirname(TESTS);
@@ -41,25 +43,20 @@ if (!result.success) {
 }
 `;
 
-export function bunBinary() {
-  for (const candidate of [process.env.BUN_BIN, join(homedir(), '.bun', 'bin', 'bun'), 'bun'].filter(Boolean)) {
-    const probe = spawnSync(candidate, ['--version'], {encoding: 'utf8'});
-    if (!probe.error && probe.status === 0) return candidate;
-  }
-  return '';
-}
-
-export function bendPlugin() {
-  const file = join(process.env.BEND_HOME || join(homedir(), '.bend'), 'current', 'bend2', 'main.ts');
-  return existsSync(file) ? file : '';
-}
-
 export function requireToolchain() {
-  const bun = bunBinary();
-  if (!bun) throw new Error('bun não encontrado (instale em ~/.bun/bin/bun ou aponte BUN_BIN)');
-  const plugin = bendPlugin();
-  if (!plugin) throw new Error('bend não encontrado (~/.bend/current/bend2/main.ts)');
-  return {bun, plugin};
+  const toolchain = detectToolchain();
+  if (!toolchain.bun) throw new Error('bun não encontrado (instale em ~/.bun/bin/bun ou aponte BUN_BIN)');
+  if (!toolchain.plugin) throw new Error('bend não encontrado (~/.bend/current/bend2/main.ts)');
+  return {bun: toolchain.bun.bin, plugin: toolchain.plugin};
+}
+
+/* Motivo do pulo quando a toolchain do Bend não está nesta máquina, ou ''.
+   Os testes de host usam no `{skip: ...}` do node:test para a rodada continuar
+   (e dizer por quê) em vez de reprovar por falta de bun/bend. */
+export function studyCoreSkipReason() {
+  const toolchain = detectToolchain();
+  if (toolchain.present) return '';
+  return `toolchain do Bend ausente (${toolchain.missing.join('; ')})`;
 }
 
 /* Compila os módulos pedidos (padrão: os dois novos) para um diretório com

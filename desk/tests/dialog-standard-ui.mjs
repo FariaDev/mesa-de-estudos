@@ -1,5 +1,5 @@
 /* Padrão dos diálogos, medido na janela (teste à mão de 2026-10-13).
-   Todo <dialog> da Mesa segue as mesmas medidas: raio 16px; título de 15px
+   Todo <dialog> da Mesa segue as mesmas medidas: raio 12px; título de 15px
    (menos o do Guia, 22px em serifa desde a #64);
    fechar no cabeçalho é um × de 28px sem borda; botões de rodapé, campos e
    seletores com 30px; rodapé com filete tem 52px e encosta na base. Ninguém
@@ -73,7 +73,7 @@ await withArtifacts('dialog-standard-ui',async ctx=>{
   for(const id of expected)assert.ok(ids.includes(id),`${theme}: ${id} entrou na medição`);
   for(const row of rows){
    const tag=`${theme} ${row.id}`;
-   assert.equal(row.radius,'16px',`${tag}: raio 16px`);
+   assert.equal(row.radius,'12px',`${tag}: raio 12px`);
    for(const size of row.titles)assert.equal(size,'15px',`${tag}: título de 15px`);
    for(const close of row.close){
     assert.deepEqual([close.w,close.h,close.bordered],[28,28,false],`${tag}: fechar do cabeçalho é × de 28px sem borda (${JSON.stringify(close)})`);

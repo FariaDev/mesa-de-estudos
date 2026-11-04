@@ -65,14 +65,16 @@ const DEFAULT_COMMANDS = [{name: 'init', description: 'guided AGENTS.md setup'},
 /**
  * Sobe o servidor falso numa porta efêmera.
  * @param {{password?: string, models?: object[], commands?: object[], reply?: (text: string) => string,
- *   promptStatus?: number, dropAfterAccept?: boolean, ask?: boolean, tool?: {name: string, input: object, output: string}, mcpCall?: {name: string, input: object},
- *   tokens?: object, failTurn?: 'free-tier', log?: (entry: object) => void}} [options]
+ *   promptStatus?: number, dropAfterAccept?: boolean, ask?: boolean, permission?: {action: string, resources?: string[], metadata?: object},
+ *   permissionEvent?: 'asked'|'v2', permissionReply?: 'decision'|'reply',
+ *   tool?: {name: string, input: object, output: string}, mcpCall?: {name: string, input: object},
+ *   tokens?: object, failTurn?: 'free-tier', turnDelayMs?: number, log?: (entry: object) => void}} [options]
  * @example const serve = await createFakeOpencodeServe({password: 'p'}); // serve.url, serve.requests, serve.close()
  */
 export async function createFakeOpencodeServe(options = {}) {
   const {password = '', models = DEFAULT_MODELS, commands = DEFAULT_COMMANDS, reply = (text) => `Resposta do OpenCode falso: ${text.slice(-40)}`,
     log = () => {}} = options;
-  const state = {promptStatus: options.promptStatus || 200, dropAfterAccept: !!options.dropAfterAccept, ask: !!options.ask, tool: options.tool || null, mcpCall: options.mcpCall || null, failTurn: options.failTurn || '', tokens: options.tokens || {input: 900, output: 100, reasoning: 0, cache: {read: 0, write: 0}}};
+  const state = {promptStatus: options.promptStatus || 200, instructionsStatus: options.instructionsStatus || 0, instructionMaxBytes: options.instructionMaxBytes || 0, dropAfterAccept: !!options.dropAfterAccept, ask: !!options.ask, permission: options.permission || null, permissionEvent: options.permissionEvent || 'asked', permissionReply: options.permissionReply || 'decision', tool: options.tool || null, mcpCall: options.mcpCall || null, mcpStatus: options.mcpStatus || 'connected', failTurn: options.failTurn || '', pageSize: options.pageSize || 0, turnDelay: options.turnDelayMs ?? 10, tokens: options.tokens || {input: 900, output: 100, reasoning: 0, cache: {read: 0, write: 0}}};
   const requests = [];
   const sessions = new Map();
   const mcp = new Map();
@@ -91,7 +93,7 @@ export async function createFakeOpencodeServe(options = {}) {
     emit('session.text.delta', {sessionID: session.id, assistantMessageID: assistantID, delta: answer.slice(0, 8)});
     emit('session.text.ended', {sessionID: session.id, assistantMessageID: assistantID, text: answer});
     const content = [...(toolPart ? [toolPart] : []), {type: 'text', text: answer}];
-    session.messages.push({id: assistantID, type: 'assistant', content, tokens: state.tokens, model: session.model || {id: models[0]?.id, providerID: 'opencode'}});
+    session.messages.push({id: assistantID, type: 'assistant', content, time: {created: Date.now()}, tokens: state.tokens, model: session.model || {id: models[0]?.id, providerID: 'opencode'}});
     emit('session.execution.succeeded', {sessionID: session.id});
   }
 
@@ -122,9 +124,9 @@ export async function createFakeOpencodeServe(options = {}) {
 
   function runTurn(session, text) {
     const assistantID = `msg_a${Math.random().toString(36).slice(2, 10)}`;
-    if (state.mcpCall) { setTimeout(() => mcpTurn(session, text, assistantID), 10); return; }
+    if (state.mcpCall) { setTimeout(() => mcpTurn(session, text, assistantID), state.turnDelay); return; }
     if (state.dropAfterAccept) { setTimeout(() => { for (const res of streams) res.destroy(); }, 15); return; }
-    if (state.failTurn === 'free-tier') { setTimeout(() => failFreeTier(session, assistantID), 10); return; }
+    if (state.failTurn === 'free-tier') { setTimeout(() => failFreeTier(session, assistantID), state.turnDelay); return; }
     let toolPart = null;
     if (state.tool) {
       const callID = `call_${Math.random().toString(36).slice(2, 8)}`;
@@ -134,29 +136,47 @@ export async function createFakeOpencodeServe(options = {}) {
       emit('session.tool.success', {sessionID: session.id, id: callID, content: output});
       toolPart = {type: 'tool', id: callID, name: state.tool.name, state: {status: 'completed', input: state.tool.input, content: output, structured: {}}, time: {created: Date.now(), completed: Date.now()}};
     }
+    if (state.permission) {
+      const id = `per_${Math.random().toString(36).slice(2, 8)}`;
+      pendingAsk.set(id, () => finishTurn(session, text, assistantID, toolPart));
+      emit(state.permissionEvent === 'v2' ? 'permission.v2.asked' : 'permission.asked', {sessionID: session.id, id, ...state.permission});
+      return;
+    }
     if (state.ask) {
       const id = `per_${Math.random().toString(36).slice(2, 8)}`;
       pendingAsk.set(id, () => finishTurn(session, text, assistantID, toolPart));
-      emit('permission.asked', {sessionID: session.id, id, action: 'read', resources: ['/tmp/x.pdf']});
+      emit('permission.asked', {sessionID: session.id, id, action: 'read', resources: ['/fora/x.pdf']});
       return;
     }
-    setTimeout(() => finishTurn(session, text, assistantID, toolPart), 10);
+    setTimeout(() => finishTurn(session, text, assistantID, toolPart), state.turnDelay);
   }
 
   function sessionRoute(req, res, body, session, tail) {
     if (req.method === 'GET' && tail === '') return json(res, 200, {data: {id: session.id, model: session.model}});
-    if (req.method === 'DELETE' && tail === '') { sessions.delete(session.id); return json(res, 204); }
+    /* O 2.2.4 real só encontra a sessão com `?location[directory]=…`; sem a
+       query o DELETE responde 404 e a sessão fica (#93). O fake cobra o mesmo
+       contrato para o teste provar a chamada certa. */
+    if (req.method === 'DELETE' && tail.startsWith('?')) {
+      const location = new URLSearchParams(tail.slice(1)).get('location[directory]');
+      if (!location) return json(res, 404, {_tag: 'SessionNotFound'});
+      sessions.delete(session.id);
+      return json(res, 204);
+    }
     if (req.method === 'PATCH' && tail === '') return json(res, 204);
     if (req.method === 'POST' && tail === '/model') { session.model = body?.model; return json(res, 204); }
     if (req.method === 'GET' && tail.startsWith('/message')) {
       const list = tail.includes('order=desc') ? [...session.messages].reverse() : session.messages;
-      return json(res, 200, {data: list, cursor: {previous: null, next: null}});
+      if (!state.pageSize) return json(res, 200, {data: list, cursor: {previous: null, next: null}});
+      /* Paginado como o servidor real: o cursor aqui é só o índice. */
+      const start = Number(new URLSearchParams(tail.split('?')[1] || '').get('cursor') || 0);
+      const end = start + state.pageSize;
+      return json(res, 200, {data: list.slice(start, end), cursor: {previous: null, next: end < list.length ? String(end) : null}});
     }
     if (req.method === 'POST' && tail === '/interrupt') { emit('session.execution.interrupted', {sessionID: session.id}); return json(res, 204); }
     if (req.method === 'POST' && tail === '/prompt') {
       if (state.promptStatus !== 200) return json(res, state.promptStatus, {_tag: 'Refused'});
       const id = String(body?.id || `msg_${Date.now()}`);
-      session.messages.push({id, type: 'user', text: String(body?.text || '')});
+      session.messages.push({id, type: 'user', text: String(body?.text || ''), time: {created: Date.now()}});
       json(res, 200, {data: {type: 'user', id, sessionID: session.id, delivery: body?.delivery || 'queue'}});
       runTurn(session, String(body?.text || ''));
       return;
@@ -178,18 +198,57 @@ export async function createFakeOpencodeServe(options = {}) {
     }
     const permission = /^\/permission\/([^/]+)\/reply$/.exec(tail);
     if (req.method === 'POST' && permission) {
+      /* O 1.19.5 (v2) só entende `reply`; o 2.0.32 usa `decision`. */
+      if (state.permissionReply === 'reply' && typeof body?.reply !== 'string') return json(res, 400, {_tag: 'InvalidRequestError'});
       const resume = pendingAsk.get(decodeURIComponent(permission[1]));
       if (!resume) return json(res, 404, {_tag: 'NotFound'});
       pendingAsk.delete(decodeURIComponent(permission[1]));
       json(res, 204);
-      if (body?.decision === 'reject') emit('session.execution.failed', {sessionID: session.id, error: {message: 'rejected'}});
+      if ((body?.decision || body?.reply) === 'reject') emit('session.execution.failed', {sessionID: session.id, error: {message: 'rejected'}});
       else resume();
       return;
     }
     json(res, 404, {_tag: 'RouteNotFound'});
   }
 
+  function instructionValue(body) {
+    if (typeof body?.value === 'string') return body.value;
+    if (body?.value && typeof body.value.text === 'string') return body.value.text;
+    return '';
+  }
+
+  /* Canal experimental de instruções (v2). `instructionsStatus` simula o binário
+     2.0.32, que não tem a rota. */
+  function instructionsRoute(req, res, body) {
+    const match = /^\/api\/experimental\/session\/([^/]+)\/instructions\/entries(?:\/([^/?]+))?$/.exec(String(req.url || '').split('?')[0]);
+    if (!match) return false;
+    if (state.instructionsStatus) { json(res, state.instructionsStatus, {_tag: 'RouteNotFound'}); return true; }
+    const session = sessions.get(decodeURIComponent(match[1]));
+    if (!session) { json(res, 404, {_tag: 'SessionNotFoundError'}); return true; }
+    if (!session.instructions) session.instructions = new Map();
+    const key = match[2] ? decodeURIComponent(match[2]) : '';
+    if (req.method === 'GET' && !key) {
+      json(res, 200, {data: [...session.instructions].map(([entryKey, value]) => ({key: entryKey, value}))});
+      return true;
+    }
+    if (req.method === 'PUT' && key) {
+      const value = instructionValue(body);
+      const bytes = Buffer.byteLength(value);
+      if (state.instructionMaxBytes && bytes > state.instructionMaxBytes) {
+        json(res, 413, {_tag: 'InstructionEntryValueTooLargeError', actualBytes: bytes, maxBytes: state.instructionMaxBytes});
+        return true;
+      }
+      session.instructions.set(key, value);
+      json(res, 204);
+      return true;
+    }
+    if (req.method === 'DELETE' && key) { session.instructions.delete(key); json(res, 204); return true; }
+    json(res, 404, {_tag: 'RouteNotFound'});
+    return true;
+  }
+
   function route(req, res, body) {
+    if (instructionsRoute(req, res, body)) return;
     const url = String(req.url || '');
     if (req.method === 'GET' && url === '/api/event') {
       res.writeHead(200, {'content-type': 'text/event-stream', 'cache-control': 'no-cache'});
@@ -202,12 +261,12 @@ export async function createFakeOpencodeServe(options = {}) {
     const bare = url.split('?')[0];
     if (req.method === 'GET' && bare === '/api/model') return json(res, 200, {location: {directory: process.cwd()}, data: models});
     if (req.method === 'GET' && bare === '/api/command') return json(res, 200, {location: {directory: process.cwd()}, data: commands});
-    if (req.method === 'GET' && url.startsWith('/api/mcp')) return json(res, 200, {data: [...mcp.keys()].map((name) => ({name, status: 'connected'}))});
+    if (req.method === 'GET' && url.startsWith('/api/mcp')) return json(res, 200, {data: [...mcp.keys()].map((name) => ({name, status: {status: state.mcpStatus}}))});
     const mcpPut = /^\/api\/experimental\/mcp\/([^/?]+)/.exec(url);
     if (req.method === 'PUT' && mcpPut) { mcp.set(decodeURIComponent(mcpPut[1]), body?.config); return json(res, 200, {data: {}}); }
     if (req.method === 'POST' && url === '/api/session') {
       const id = String(body?.id || `ses_${Math.random().toString(36).slice(2)}`);
-      if (!sessions.has(id)) sessions.set(id, {id, model: body?.model || null, location: body?.location || null, permissions: body?.permissions || null, messages: []});
+      if (!sessions.has(id)) sessions.set(id, {id, model: body?.model || null, location: body?.location || null, permissions: body?.permissions || null, messages: [], instructions: new Map()});
       return json(res, 200, {data: {id, model: sessions.get(id).model}});
     }
     const session = /^\/api\/session\/([^/?]+)(.*)$/.exec(url);
@@ -280,6 +339,8 @@ async function runAsBinary(argv) {
   const logFile = process.env.FAKE_OPENCODE_LOG || '';
   const write = (entry) => { if (logFile) fs.appendFileSync(logFile, JSON.stringify(entry) + '\n'); };
   write({start: true, argv, cwd: process.cwd(), keyPresent: !!process.env.OPENCODE_API_KEY, serverPasswordInherited: 'OPENCODE_SERVER_PASSWORD' in process.env});
+  /* O host exige o sinal de carga do plugin da jaula (#89); o servidor falso
+     faz o papel do plugin para os testes de janela não rodarem sem jaula. */
   const serve = await createFakeOpencodeServe({password: process.env.OPENCODE_PASSWORD || '', log: write,
     ask: process.env.FAKE_OPENCODE_ASK === '1', mcpCall: process.env.FAKE_OPENCODE_MCP_CALL ? JSON.parse(process.env.FAKE_OPENCODE_MCP_CALL) : null, failTurn: process.env.FAKE_OPENCODE_FAIL === 'free-tier' ? 'free-tier' : undefined, promptStatus: Number(process.env.FAKE_OPENCODE_PROMPT_STATUS || 200)});
   process.stdout.write(`server listening on ${serve.url}\n`);

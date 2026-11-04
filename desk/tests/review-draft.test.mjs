@@ -4,7 +4,7 @@ import {EventEmitter} from 'node:events';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
 import {ptText} from './pt-text.mjs';
-const {draftContext,parseDraft,generateReviewDraft}=require('../review-draft.cjs');
+const {draftContext,parseDraft,generateReviewDraft,draftPiArgs}=require('../review-draft.cjs');
 const core=require('../src/generated/review.core.js').default;
 const ref={name:'PDF',path:'/local/lista.pdf',page:2};
 const result={question:'Limite lateral',attempt:'Dividi por x',difficulty:'Sinal pela direita'};
@@ -44,4 +44,10 @@ test('draft waits for settled across end/compaction and uses the final authorita
  await new Promise(resolve=>setImmediate(resolve));assert.equal(b.stopped,0,'end cannot settle the draft');
  b.emit('event',{type:'message_end',message:{role:'assistant',content:[{type:'text',text:JSON.stringify(result)}]}});
  b.emit('event',{type:'agent_settled'});assert.deepEqual(await p,{...result,ref});
+});
+test('rascunho sobe o Pi sem ferramenta nenhuma, nem MCP (#78)',()=>{
+ const args=draftPiArgs({provider:'p',id:'m'});
+ for(const flag of ['--no-tools','--no-mcp','--no-extensions'])assert.ok(args.includes(flag),flag);
+ assert.deepEqual(args.slice(-4),['--provider','p','--model','m']);
+ assert.ok(!draftPiArgs({}).includes('--provider'));
 });

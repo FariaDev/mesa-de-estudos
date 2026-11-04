@@ -53,6 +53,20 @@ export function engineReady(data) {
 }
 
 /**
+ * Existe outro motor instalado além do motor da conversa? É o caso de trocar
+ * de sessão ao chamar o tutor quando o motor dela sumiu: sem nenhum outro, a
+ * chamada continua e mostra o erro do motor que falta (#93).
+ * @param {{engine?: unknown, detectedPi?: unknown, detectedClaude?: unknown, detectedOpenCode?: unknown}|null|undefined} data
+ * @returns {boolean}
+ * @example otherEngineDetected({engine: 'pi', detectedOpenCode: '/bin/opencode'}) // true
+ */
+export function otherEngineDetected(data) {
+  if (!data) return false;
+  const found = {pi: !!data.detectedPi, claude: !!data.detectedClaude, opencode: !!data.detectedOpenCode};
+  return Object.entries(found).some(([engine, ready]) => ready && engine !== data.engine);
+}
+
+/**
  * Esforço mostrado quando o motor não disse: "Padrão" nos nativos, `off` no Pi.
  * @param {unknown} engine
  * @returns {string}

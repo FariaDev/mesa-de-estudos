@@ -1,6 +1,7 @@
 /* Leitores puros do OpenCode v2.0.32: blocos SSE, query, comandos slash e o
  * rastreador de compactação. Sem rede: o SSE é texto e os eventos entram à mão. */
 import test from 'node:test';
+import './keep-loop-alive.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 

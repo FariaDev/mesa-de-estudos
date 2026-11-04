@@ -8,7 +8,7 @@ import {parseMessage} from './i18n.mjs';
    fica no log da Mesa). Quando a frase seguinte é uma instrução do motor
    ("Pi não encontrado. Rode npm run setup."), ela vem junto: é o que a pessoa
    precisa fazer (#23). Frase de contexto ("A sessão foi preservada…") não entra.
-   O núcleo apara e corta o que passar do teto. */
+   O núcleo só apara; a coluna quebra em linhas em vez de cortar. */
 const INSTRUCTION=/^(?:Rode|Indique|Instale|Reinstale|Atualize|Abra|Verifique|Confira|Escolha|Aponte|Configure|Defina|Reinicie|Use)\b/;
 /** @param {string} text */
 const sentenceEnd=text=>text.search(/[.!?](?=\s+\p{Lu})/u);

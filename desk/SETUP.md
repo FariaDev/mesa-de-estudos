@@ -2,13 +2,14 @@
 
 Instruções para um agente (ou para você) deixar a mesa rodando num computador novo, inclusive Windows.
 
-A Mesa é um app Electron local: dois leitores de PDF, calculadora e Pi na mesma janela. O Xournal++ continua separado. Não precisa do vault Obsidian original.
+A Mesa é um app Electron local: dois leitores de PDF, calculadora e tutor na mesma janela. O Xournal++ continua separado. Não precisa do vault Obsidian original.
 
 ## Requisitos
 
-1. Node 22.19 ou mais novo (exigência do Pi).
+1. Node **20 ou mais novo** para instalar a partir do código (`npm ci`, `npm run setup`, `npm start`). O app em si e o servidor MCP do tutor rodam no Node embutido do Electron (`ELECTRON_RUN_AS_NODE`); a versão instalada no sistema não é usada em tempo de estudo.
 2. Uma pasta com os PDFs da matéria (enunciados, formulário, o que for).
-3. Pi **0.99.1 ou mais novo**. Os perfis usam `builtin:mcp`, `builtin:codemode` e `builtin:tool-search` explicitamente.
+3. **OpenCode 2.2.4** (a Mesa baixa e instala na primeira abertura, com integridade conferida) ou [Claude Code](https://code.claude.com/) (`~/.local/bin/claude`). A Mesa detecta o Claude Code que já existir; sem nenhum, a primeira abertura oferece o OpenCode.
+4. **Pi 0.99.1 ou mais novo (opcional)**, só para quem já o usa. O `npm run setup` não instala o Pi; a Mesa continua usando o Pi que já estiver no `PATH`, em `desk/.pi-local/` ou indicado nas Configurações. Os perfis usam `builtin:mcp`, `builtin:codemode` e `builtin:tool-search` explicitamente.
 
 ### Migrar um Pi com pi-mcp-adapter
 
@@ -37,7 +38,7 @@ npm run doctor
 npm start
 ```
 
-`npm run setup` instala as dependências se faltarem, tenta colocar o Pi localmente em `desk/.pi-local/` (`@earendil-works/pi-coding-agent`, com fallback para `@mariozechner/pi-coding-agent` — a pasta do Pi tem `package.json` próprio, FORA da árvore npm da Mesa: o `package.json`/`package-lock.json` versionados do `desk/` continuam limpos e o update por git nunca encontra "trabalho local" inventado), compila a integração visual no macOS e copia um `TUTOR.md` / `LEARNER.md` mínimos para `desk/.runtime/starter`.
+`npm run setup` instala as dependências se faltarem, **detecta** Claude Code, OpenCode e Pi (sem instalar nem executar nenhum deles), compila a integração visual no macOS e copia um `TUTOR.md` / `LEARNER.md` mínimos para `desk/.runtime/starter`. No fim ele diz qual motor será o padrão. O OpenCode é instalado pela própria Mesa na primeira abertura: baixa o pacote fixado 2.2.4 do npm, confere a integridade SRI e copia o binário verificado para `~/.opencode/bin` (no Windows, `%USERPROFILE%\.opencode\bin\opencode.exe`), com troca atômica e sem mexer no PATH. Um `opencode` que já esteja rodando continua no arquivo antigo; se o destino for um link simbólico, a Mesa só substitui o alvo dentro da própria pasta. A tela mostra o comando de login com o caminho completo do binário. Quem já tem Pi continua com ele, e o Pi local antigo em `desk/.pi-local/` segue valendo.
 
 ### GeoGebra offline (opcional)
 
@@ -52,18 +53,18 @@ npm run geogebra:offline -- --remove
 
 Reabra a Mesa depois de baixar. Com o pacote, a sessão do applet não faz nenhum pedido de rede.
 
-`npm run doctor` fornece uma verificação reproduzível do executável do Pi, políticas `TUTOR.md`/`LEARNER.md`, fontes das matérias, extensão visual e escrita do runtime. Corrija qualquer linha marcada com `✗` antes de estudar.
+`npm run doctor` fornece uma verificação reproduzível do motor do tutor, políticas `TUTOR.md`/`LEARNER.md`, fontes das matérias, extensão visual (quando aplicável) e escrita do runtime. Corrija qualquer linha marcada com `✗` antes de estudar.
 
 Na primeira abertura (sem configuração) a Mesa não mostra diálogo: ela já abre no app.
 
 1. Dê um nome à matéria no campo **Nome da matéria**, na barra de cima.
 2. Diga onde estão os PDFs: **Escolher a pasta…** na folha "Lista 0", ou solte PDFs (ou a pasta) em qualquer ponto do leitor. A Mesa só aponta para a pasta; não copia nem altera os arquivos.
 3. A pasta onde ficam as exportações e as instruções do tutor aparece na folha (por padrão `Documentos/Mesa de Estudos`); **Mudar** escolhe outra. Ela só é criada quando a matéria nasce e fica gravada no `config.json` deste computador.
-4. Na coluna do tutor, o Pi aparece como encontrado ou não (**Ajustes do Pi** leva ao caminho). **Chamar o tutor** liga a conexão; as credenciais do provedor são pedidas pelo próprio Pi e ficam nele, não na Mesa.
+4. Na coluna do tutor, a Mesa mostra os motores que achou (OpenCode e/ou Claude Code; o Pi, se já existir). **Chamar o tutor** liga o motor da conversa; as credenciais são pedidas pelo próprio motor e ficam nele, não na Mesa.
 
 Com nome e pasta a matéria é criada e a Mesa vai para ela, já com a caixa de mensagem liberada. Quem preferir só estudar um assunto avulso pode abrir a aba **Livre**.
 
-Depois disso, **Ajustes → Configurações** (⌘ ,) altera pastas, nomes das matérias e o caminho do Pi.
+Depois disso, **Ajustes → Configurações** (⌘ ,) altera pastas, nomes das matérias e o caminho do motor.
 
 Em **Configurações → Recursos da mesa**, escolha o nome e quais recursos aparecem. Encerrar por hoje também controla o "onde parei" da coluna do tutor; Lista/questão e rascunho `.xopp` são controlados juntos. As escolhas são aplicadas ao salvar.
 
@@ -73,11 +74,11 @@ Para personalizar rótulos dos PDFs, PDF que abre primeiro ou um só leitor, edi
 
 ## Windows
 
-PDFs, calculadora e o chat com o Pi funcionam. **Conferir Xournal++** captura a janela do Xournal++ (botão, Ctrl+Shift+C ou menu Estudar) com o PowerShell do próprio sistema — nada instalado. Prints colados com Ctrl+V também viram anexo. Precisa do Xournal++ aberto e com a janela restaurada.
+PDFs, calculadora e o chat com o tutor funcionam. **Conferir Xournal++** captura a janela do Xournal++ (botão, Ctrl+Shift+C ou menu Estudar) com o PowerShell do próprio sistema — nada instalado. Prints colados com Ctrl+V também viram anexo. Precisa do Xournal++ aberto e com a janela restaurada.
 
 ### Passos
 
-1. Node **22.19** ou mais novo (exigência do Pi).
+1. Node **20** ou mais novo para o setup a partir do código; o app e o MCP rodam no Node do Electron.
 2. No diretório `desk/`: `npm ci`, `npm run setup`, `npm start`.
 3. Xournal++ é opcional. Se instalado, indique o `xournalpp.exe` em **Configurações** — a Mesa procura em `C:\Program Files\Xournal++\bin` e `%LOCALAPPDATA%\Programs\Xournal++\bin`, e o campo fica visível mesmo sem caminho (para configurar).
 4. O bundle `Mesa de Estudos.app` é de macOS; no Windows use `npm start` (ou um atalho para ele). `npm run install-app` avisa isso e sai.
@@ -88,7 +89,7 @@ PDFs, calculadora e o chat com o Pi funcionam. **Conferir Xournal++** captura a 
 - [ ] Ícone da Mesa na janela e na barra de tarefas; fixar na barra, fechar e reabrir pelo botão fixado (inclusive em uma pasta com espaços no caminho).
 - [ ] Matérias/PDFs: abrir, busca com contagem, zoom/scroll, minimizar o leitor, girar 90° (a orientação volta ao reabrir).
 - [ ] Calculadora (expressões e histórico).
-- [ ] Conectar o Pi (as credenciais são pedidas pelo próprio Pi).
+- [ ] Conectar o tutor (OpenCode ou Claude Code).
 - [ ] Anexos: colar (Ctrl+V), arrastar para o chat e câmera do leitor; enviar com imagem.
 - [ ] GeoGebra: aba e "Print para o tutor".
 - [ ] Atalhos Ctrl (Ctrl+Enter envia, Ctrl+F busca, Ctrl+, Configurações) e ajuda com Ctrl em vez de ⌘.
@@ -120,11 +121,12 @@ Com Xcode, um certificado **Apple Development** também serve. `security find-id
 
 Sem certificado a Mesa funciona igual — basta reconceder a permissão em Ajustes → Privacidade e Segurança → Gravação de Tela depois de cada atualização.
 
-## Se o Pi não conectar
+## Se o tutor não conectar
 
-- Rode `npm run setup` de novo.
-- Confira o caminho em Configurações.
-- A primeira conexão pede login/API key do provedor configurado no Pi.
+- Rode `npm run doctor` e `npm run setup` de novo; os dois dizem qual motor foi achado.
+- Claude Code e OpenCode usam o executável já instalado; confira o caminho do Claude em Configurações → Pastas e programas.
+- A primeira conexão pede login/API key do provedor configurado no próprio motor.
+- Sem nenhum motor, a primeira abertura oferece a instalação do OpenCode e a coluna do tutor diz o que fazer.
 
 ## Atualizar a Mesa (por clique ou terminal)
 

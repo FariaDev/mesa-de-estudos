@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,tinyPdf,statusOnline,screenshotDirectory,setTheme} from './helpers.mjs';
 import {nextFrames} from './waits.mjs';
+import {primeHiddenFrames} from './frame-prime.mjs';
 
 /* Linguagem de movimento (#63, docs/design/movimento.md), na janela real e sem
    freezeMotion: popover e diálogo entram do ponto de partida e também saem
@@ -28,7 +29,7 @@ const closeAndRead=(page,trigger,pop)=>page.evaluate(([t,p])=>{
  return {hidden:el.hidden,display:getComputedStyle(el).display,running:el.getAnimations().map(a=>a.transitionProperty||a.animationName)};
 },[trigger,pop]);
 async function settle(page,selector){
- await page.waitForFunction(s=>[...document.querySelectorAll(s)].every(el=>el.getAnimations().every(a=>a.playState!=='running')),selector,{timeout:5000});
+ await page.waitForFunction(s=>[...document.querySelectorAll(s)].every(el=>el.getAnimations().every(a=>a.playState!=='running')),selector,{timeout:5000,polling:50});
 }
 
 /* Pausa as animações do elemento em cada fração e captura a região dele. */
@@ -59,7 +60,8 @@ async function popoverMoves(page,theme){
  assert.equal(closed.hidden,true,'o gatilho fecha o seletor');
  assert.notEqual(closed.display,'none','o seletor ainda está na tela durante a saída');
  assert.ok(closed.running.includes('opacity'),`a saída também anima (veio ${closed.running})`);
- await page.waitForFunction(()=>getComputedStyle(document.querySelector('#model-pop')).display==='none',undefined,{timeout:2000});
+ await primeHiddenFrames(page);
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('#model-pop')).display==='none',undefined,{timeout:2000,polling:50});
 }
 
 async function dialogMoves(page,theme){
@@ -71,21 +73,23 @@ async function dialogMoves(page,theme){
  assert.equal(running.open,false);
  assert.notEqual(running.display,'none','o diálogo fica na tela enquanto sai');
  assert.ok(running.running.includes('opacity'),`o diálogo sai animado (veio ${running.running})`);
- await page.waitForFunction(()=>getComputedStyle(document.querySelector('#settings-dialog')).display==='none',undefined,{timeout:2000});
+ await primeHiddenFrames(page);
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('#settings-dialog')).display==='none',undefined,{timeout:2000,polling:50});
 }
 
-/* Conferir acende o fundo do botão (flash) em vez de só apagar o ícone. */
+/* Conferir acende o fundo do Anexar (o botão visível; o item do menu fecha
+   antes da captura terminar), em vez de só apagar o ícone. */
 async function checkFlashes(page,theme){
  const flash=await page.evaluate(async()=>{
   const {playShutter}=await import('./src/icon-motion.mjs');
-  const button=document.querySelector('#check');
+  const button=document.querySelector('#attach');
   const before=getComputedStyle(button).backgroundColor;
   playShutter(button);
   return {before,during:getComputedStyle(button).backgroundColor,names:button.getAnimations().map(a=>a.animationName)};
  });
- assert.ok(flash.names.includes('motion-flash'),`o Conferir toca o flash (veio ${flash.names})`);
+ assert.ok(flash.names.includes('motion-flash'),`o Conferir toca o flash no Anexar (veio ${flash.names})`);
  assert.notEqual(flash.during,flash.before,'o fundo acende no começo do flash');
- await captureFrames(page,'#check',`conferir-flash-${theme}`);
+ await captureFrames(page,'#attach',`conferir-flash-${theme}`);
 }
 
 /* O medidor não anima largura: enche por scaleX a partir da variável que o núcleo emite. */

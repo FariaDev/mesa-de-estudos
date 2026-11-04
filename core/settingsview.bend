@@ -137,7 +137,8 @@ def navChildren(active: String) -> List<&2, V.ViewNode>:
 # O aviso do rodapé depende da seção: Aparência e avisos (tema, acento,
 # densidade e avisos de conclusão) aplica na hora e não passa pelo Salvar. Em
 # Pastas e programas só o programa de escrita do Conferir vale na hora (é
-# estado de interface, como o tema); os caminhos esperam o Salvar.
+# estado de interface, como o tema); os caminhos esperam o Salvar. Nas seções
+# de formulário o botão Salvar já diz o que faz: o rodapé fica vazio.
 def footerHint(+id: String) -> String:
   pickText(
     String.eq(activeSection(id), "avisos"),
@@ -145,7 +146,7 @@ def footerHint(+id: String) -> String:
     pickText(
       String.eq(activeSection(id), "pastas"),
       M.msg("settings.hint.paths"),
-      M.msg("settings.hint.save")
+      ""
     )
   )
 

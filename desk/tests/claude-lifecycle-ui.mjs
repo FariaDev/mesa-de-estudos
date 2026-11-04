@@ -19,19 +19,6 @@ await withArtifacts('claude-lifecycle',async ctx=>{
  const body=async text=>page.waitForFunction(t=>[...document.querySelectorAll('.message.assistant .body')].some(el=>el.textContent.includes(t)),text,{timeout:30000});
  await submit('[claude:no-echo]');await body('[claude:no-echo]');await sendEnabled(page);
  assert.equal(record().delivery.status,'settled','accepted result without UUID settles');
- await submit('[claude:question]');await page.waitForSelector('#pi-dialog[open][data-question="true"]');
- await page.locator('#dialog-ok').click();
- assert.equal(await page.locator('#pi-dialog').evaluate(el=>el.open),true,'missing answers keep dialog open');
- await page.locator('.cq-question[data-cq-index="0"] input[value="Detalhado"]').check();
- await page.locator('.cq-question[data-cq-index="1"] input[value="Álgebra"]').check();
- await page.locator('.cq-question[data-cq-index="1"] input[value="Gráfico"]').check();
- await page.locator('#dialog-ok').click();await body('Álgebra, Gráfico');await sendEnabled(page);
- await submit('[claude:question]');await page.waitForSelector('#pi-dialog[open][data-question="true"]');
- await page.locator('.cq-question[data-cq-index="0"] .cq-text-input').fill('Outro caminho');
- await page.locator('.cq-question[data-cq-index="1"] .cq-text-input').fill('Outra revisão');
- await page.locator('#dialog-ok').click();await body('Outro caminho');await sendEnabled(page);
- await submit('[claude:question]');await page.waitForSelector('#pi-dialog[open][data-question="true"]');
- await page.locator('#pi-dialog button[value="cancel"]').click();await body('Perguntas canceladas');await sendEnabled(page);
  await submit('[claude:rate-limit]');
  await page.waitForFunction(()=>/limite/i.test(document.querySelector('#activity').textContent),undefined,{timeout:30000});
  assert.equal(await page.locator('#status-dot').evaluate(el=>el.classList.contains('online')),true);
@@ -44,8 +31,8 @@ await withArtifacts('claude-lifecycle',async ctx=>{
  await submit('[claude:fallback]');await toastWait(page,'Troca de modelo artificial');
  await body('Fallback concluído');await sendEnabled(page);await statusOnline(page);
  await submit('[claude:multiple-rate]');
- await page.waitForFunction(()=>/\b7d\b/.test(document.querySelector('#activity').textContent));
- await page.waitForTimeout(700);
+ await page.waitForFunction(()=>/\b7d\b/.test(document.querySelector('#activity').textContent),undefined,{timeout:30000});
+ await page.waitForTimeout(1000);
  assert.match(await page.locator('#activity').textContent(),/\b7d\b/,'one released window cannot hide the other blocked window');
  await body('Janelas liberadas');await sendEnabled(page);
  for(const marker of ['context-error','blocking-limit']){
@@ -62,5 +49,5 @@ await withArtifacts('claude-lifecycle',async ctx=>{
  assert.ok(queries.length>=2,'query reopened after interruption');
  assert.equal(queries.at(-1).resume,id,'reopened query resumes same native session');
  assert.equal(queries.at(-1).newSession,null,'resume does not also specify a new session');
- console.log('CLAUDE LIFECYCLE UI PASSED: no-echo; structured single/multi/free/cancel questions; visible limits; interrupt-exit and native resume.');
+ console.log('CLAUDE LIFECYCLE UI PASSED: no-echo; visible limits; interrupt-exit and native resume.');
 });

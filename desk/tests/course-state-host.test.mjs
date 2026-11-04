@@ -19,7 +19,7 @@ function memoryGgbCache() {
   return {saved, persist: (id, value) => saved.set(id, value), read: id => saved.get(id) || '', remember: (id, value) => saved.set(id, value)};
 }
 
-function courseStateHost({courseStates = {}, live: liveOverrides = {}} = {}) {
+function courseStateHost({courseStates = {}, live: liveOverrides = {}, resumeSession = (file) => file} = {}) {
   const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-course-state-'));
   dirs.push(runtime);
   const live = {config: {courses: []}, courses: [{id: 'calc', name: 'Cálculo', path: path.join(runtime, 'calc')}, {id: 'fis', name: 'Física', path: ''}],
@@ -29,7 +29,7 @@ function courseStateHost({courseStates = {}, live: liveOverrides = {}} = {}) {
   const calls = [];
   const host = createCourseStateHost({live, runtime, FREE_ID: '__free__', stateFile: path.join(runtime, 'desk.json'), courseStates,
     allowed: new Set(), allowedXopp: new Set(), ggb: {resetRestored: () => calls.push('ggb-reset')}, ggbCache, appendLog: () => {},
-    previewFile: () => '', sessionInfo: () => ({}), conversationData: () => ({}), piBinary: () => '', freeSessionList: () => [],
+    previewFile: () => '', sessionInfo: () => ({}), conversationData: () => ({}), piBinary: () => '', newSessionPath: (courseId) => path.join(runtime, `pi-${courseId}.jsonl`), resumeSession, freeSessionList: () => [],
     persistFreeSession: () => calls.push('free-persist'), applyFreeCourse: () => calls.push('free-apply'), freeWorkspacePayload: () => null,
     captureAvailable: () => false, deskVersionLabel: () => 'v-teste'});
   return {host, live, runtime, courseStates, ggbCache, calls};
@@ -64,6 +64,24 @@ test('applyCourse troca para a matéria salva e Livre vai para o host da aba Liv
   assert.deepEqual(calls, ['ggb-reset', 'free-apply']);
   host.applyCourse('sumiu');
   assert.equal(live.courseId, '');
+});
+
+test('applyCourse passa a sessão salva pelo resumeSession: marcador Pi vazio não ressuscita (#93)', () => {
+  const calls = [];
+  const empty = path.join(os.tmpdir(), `mesa-pi-vazio-${process.pid}-${Date.now()}.jsonl`);
+  fs.writeFileSync(empty, '');
+  try {
+    const {host, live, runtime} = courseStateHost({courseStates: {fis: {session: empty}}, resumeSession: (file, courseId) => {
+      calls.push([file, courseId]);
+      return file ? path.join(runtime, 'opencode-novo.json') : path.join(runtime, `pi-${courseId}.jsonl`);
+    }});
+    host.applyCourse('fis');
+    assert.deepEqual(calls, [[empty, 'fis']], 'a troca de matéria usa a MESMA normalização da abertura');
+    assert.equal(live.session, path.join(runtime, 'opencode-novo.json'));
+    assert.equal(fs.readFileSync(empty, 'utf8'), '', 'o arquivo da sessão antiga nunca é tocado');
+  } finally {
+    fs.rmSync(empty, {force: true});
+  }
 });
 
 test('rememberPdfModel lembra o modelo por matéria e ignora modelo desconhecido', () => {

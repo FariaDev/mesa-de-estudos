@@ -24,6 +24,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const pendingCore = require('./src/generated/pending.core.js').default;
 const attachCore = require('./src/generated/attachments.core.js').default;
+const {normalizePdfFacts} = require('./src/chat-pdf.mjs');
 const {toNat, wholeNat} = require('./src/bend-nat.mjs');
 const {MAX_DRAFT} = require('./state-adapter.cjs');
 
@@ -129,9 +130,12 @@ function normalizeItem(raw, index) {
   const text = pendingCore.cutText(String(raw.text ?? ''), toNat(MAX_DRAFT));
   const refs = normalizeRefs(raw.refs);
   const images = normalizeImages(raw.images);
-  if (!pendingCore.keepItem(text, toNat(images.length))) return null;
+  /* PDF é referência (caminho/nome/páginas), não bytes: conta como anexo para a
+     mensagem só de PDF não virar item vazio na fila. */
+  const pdfs = normalizePdfFacts(raw.pdfs);
+  if (!pendingCore.keepItem(text, toNat(images.length + pdfs.length))) return null;
   const mentions = normalizeMentions(raw.mentions);
-  return mentions.length ? {id, text, refs, images, mentions} : {id, text, refs, images};
+  return mentions.length ? {id, text, refs, images, pdfs, mentions} : {id, text, refs, images, pdfs};
 }
 
 function normalizeItems(raw) {
@@ -146,7 +150,7 @@ function normalizeItems(raw) {
 
 function normalizeEntry(value) {
   const source = isPlainObject(value) ? value : {};
-  return {items: normalizeItems(source.items), attachments: normalizeImages(source.attachments), held: source.held === true};
+  return {items: normalizeItems(source.items), attachments: normalizeImages(source.attachments), pdfs: normalizePdfFacts(source.pdfs), held: source.held === true};
 }
 
 /* ---------- arquivo ---------- */
@@ -173,7 +177,7 @@ function readStore(runtime) {
   for (const [key, value] of Object.entries(raw)) {
     if (!key || key === '__proto__' || !isPlainObject(value)) continue;
     const entry = normalizeEntry(value);
-    if (entry.items.length || entry.attachments.length) out[key] = entry;
+    if (entry.items.length || entry.attachments.length || entry.pdfs.length) out[key] = entry;
   }
   return out;
 }
@@ -203,32 +207,40 @@ const fits = (entry) => !pendingCore.overStored(bytes(entry));
 /* A fila entra primeiro e é o que fica: ela só é cortada do FIM quando sozinha
    não cabe (o começo é o que está mais perto de ser enviado). A bandeja que já
    estava guardada perde as últimas imagens até caber — nunca encolhe a fila. */
-function fitQueue(items, attachments) {
+function fitQueue(items, attachments, pdfs) {
   const kept = items.slice();
   let dropped = 0;
-  while (kept.length && !fits({items: kept, attachments: []})) {
+  while (kept.length && !fits({items: kept, attachments: [], pdfs: []})) {
     kept.pop();
     dropped++;
   }
+  /* PDFs são referências pequenas: entram antes das imagens da bandeja. */
+  const refs = (Array.isArray(pdfs) ? pdfs : []).slice();
+  let pdfsDropped = false;
+  while (refs.length && !fits({items: kept, attachments: [], pdfs: refs})) {
+    refs.pop();
+    pdfsDropped = true;
+  }
   const tray = attachments.slice();
   let trayDropped = false;
-  while (tray.length && !fits({items: kept, attachments: tray})) {
+  while (tray.length && !fits({items: kept, attachments: tray, pdfs: refs})) {
     tray.pop();
     trayDropped = true;
   }
-  return {items: kept, attachments: tray, dropped, trayDropped};
+  return {items: kept, attachments: tray, pdfs: refs, dropped, trayDropped, pdfsDropped};
 }
 
 /* A bandeja não encolhe a fila: um anexo maior perde as últimas imagens até
    caber (e o que não caiu continua na sessão). */
-function fitTray(items, images) {
+function fitTray(items, images, pdfs) {
   const tray = images.slice();
+  const refs = (Array.isArray(pdfs) ? pdfs : []).slice();
   let trayDropped = false;
-  while (tray.length && !fits({items, attachments: tray})) {
+  while (tray.length && !fits({items, attachments: tray, pdfs: refs})) {
     tray.pop();
     trayDropped = true;
   }
-  return {items, attachments: tray, dropped: 0, trayDropped};
+  return {items, attachments: tray, pdfs: refs, dropped: 0, trayDropped, pdfsDropped: false};
 }
 
 /* Sessões gravadas por esta execução: o que veio de outra execução é
@@ -240,13 +252,13 @@ const touched = new Set();
 function commit(runtime, session, fitted, held) {
   const store = readStore(runtime);
   const previous = store[session];
-  const entry = {items: fitted.items, attachments: fitted.attachments, held: typeof held === 'boolean' ? held : !!previous?.held};
-  if (entry.items.length || entry.attachments.length) store[session] = entry;
+  const entry = {items: fitted.items, attachments: fitted.attachments, pdfs: fitted.pdfs, held: typeof held === 'boolean' ? held : !!previous?.held};
+  if (entry.items.length || entry.attachments.length || entry.pdfs.length) store[session] = entry;
   else delete store[session];
   pruneStore(store, session);
   writeStore(runtime, store);
   touched.add(session);
-  return {items: entry.items, attachments: entry.attachments, held: entry.held, dropped: fitted.dropped, trayDropped: fitted.trayDropped};
+  return {items: entry.items, attachments: entry.attachments, pdfs: entry.pdfs, held: entry.held, dropped: fitted.dropped, trayDropped: fitted.trayDropped, pdfsDropped: fitted.pdfsDropped};
 }
 
 /* O que está guardado para uma conversa (o renderer hidrata no boot e a cada
@@ -256,6 +268,7 @@ function readPending(runtime, session) {
   return {
     items: entry ? entry.items : [],
     attachments: entry ? entry.attachments : [],
+    pdfs: entry ? entry.pdfs : [],
     held: !!entry?.held,
     live: touched.has(session),
   };
@@ -264,13 +277,13 @@ function readPending(runtime, session) {
 /* Save da fila (a cada mudança: enfileirar, remover, editar, enviar). */
 function saveQueue(runtime, session, items, held) {
   const current = readPending(runtime, session);
-  return commit(runtime, session, fitQueue(normalizeItems(items), current.attachments), held);
+  return commit(runtime, session, fitQueue(normalizeItems(items), current.attachments, current.pdfs), held);
 }
 
 /* Save da bandeja do composer (anexar, remover, limpar). */
-function saveTray(runtime, session, images) {
+function saveTray(runtime, session, images, pdfs) {
   const current = readPending(runtime, session);
-  return commit(runtime, session, fitTray(current.items, normalizeImages(images)));
+  return commit(runtime, session, fitTray(current.items, normalizeImages(images), normalizePdfFacts(pdfs)));
 }
 
 module.exports = {readPending, saveQueue, saveTray, FILENAME, MAX_STORED_BYTES};

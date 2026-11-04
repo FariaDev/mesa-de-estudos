@@ -53,7 +53,7 @@ function openPackage(buffer, {limits = {}} = {}) {
     const payloadRel = safeRelPath(item.rel);
     if (!payloadRel) throw new PackageError(uiMsg('err.pkg.badRel', {path: String(item.rel)}));
     if (rel !== `payload/${item.kind}/${payloadRel}`) throw new PackageError(uiMsg('err.pkg.badRoute', {path: item.archivePath}));
-    if (item.kind === 'conversations' && item.engine !== 'pi' && item.engine !== 'claude') {
+    if (item.kind === 'conversations' && !['pi', 'claude', 'opencode'].includes(item.engine)) {
       throw new PackageError(uiMsg('err.pkg.noEngine', {path: item.archivePath}));
     }
     declared.add(rel);

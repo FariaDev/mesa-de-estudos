@@ -40,8 +40,8 @@ test('o servidor mesa anuncia o geogebra, permitido sem confirmação extra', as
   const service = fakeGeogebraService();
   const {adapter, options, client} = await connected(service);
   try {
-    assert.deepEqual(options.allowedTools, [GEOGEBRA_TOOL_NAME]);
-    assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name), ['geogebra']);
+    assert.deepEqual(options.allowedTools, ['mcp__mesa__*']);
+    assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name), ['calcular', 'geogebra']);
     assert.equal((await options.canUseTool(GEOGEBRA_TOOL_NAME, {action: 'state'}, {})).behavior, 'allow');
     const hook = options.hooks.PreToolUse[0].hooks[0];
     assert.deepEqual(await hook({tool_name: GEOGEBRA_TOOL_NAME, tool_input: {action: 'state'}}), {continue: true});
@@ -85,13 +85,27 @@ test('run sem comando não chama o serviço; state e screenshot chamam', async (
   }
 });
 
-test('falha do serviço vira uma frase com o motivo, sem derrubar a ferramenta', async () => {
+test('B1: falha do serviço vira uma frase com o motivo e isError, sem derrubar a ferramenta', async () => {
   const service = fakeGeogebraService();
   service.failWith = 'o applet GeoGebra não ficou pronto a tempo (ele precisa de internet)';
   const {adapter, client, call} = await connected(service);
   try {
     const reply = await call({action: 'run', command: 'a=1'});
     assert.match(reply.content[0].text, /GeoGebra indisponível \(o applet GeoGebra não ficou pronto a tempo \(ele precisa de internet\)\)/);
+    assert.equal(reply.isError, true, 'ponte fechada/applet sem resposta é erro do protocolo');
+  } finally {
+    adapter.close();
+    await client.close();
+  }
+});
+
+test('B1: comando recusado pelo GeoGebra continua resultado normal, sem isError', async () => {
+  const service = fakeGeogebraService();
+  service.results.run = {ok: false, error: 'sintaxe inválida', state: {objects: '', count: 0}};
+  const {adapter, client, call} = await connected(service);
+  try {
+    const reply = await call({action: 'run', command: 'x='});
+    assert.match(reply.content[0].text, /O GeoGebra recusou o comando: sintaxe inválida/);
     assert.notEqual(reply.isError, true);
   } finally {
     adapter.close();

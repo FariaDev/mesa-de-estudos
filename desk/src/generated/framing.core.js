@@ -10,10 +10,13 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -34,6 +37,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $prependLine(_h_0, _more_0) {
   const _lines_0 = _more_0["lines"];
   const _rest_0 = _more_0["rest"];
@@ -46,7 +50,7 @@ function $peel_go(_t_0, _h_0) {
   } else {
     const _h2_0 = _t_0["head"];
     const _t2_0 = _t_0["tail"];
-    return $prependLine(_h_0, $peel_go(_t2_0, _h2_0));
+    return $prependLine(_h_0, $$peel_go(_t2_0, _h2_0));
   }
 }
 function $peel(_xs_0) {
@@ -62,13 +66,13 @@ function $split_step(_h_0, _st_0, _cut_0) {
   const _cur_0 = _st_0["fst"];
   const _acc_0 = _st_0["snd"];
   if (_cut_0) {
-    return { $: "Tuple", fst: "", snd: { $: "Con", head: $String_reverse(_cur_0), tail: _acc_0 } };
+    return { $: "Tuple", fst: "", snd: { $: "Con", head: $$String_reverse(_cur_0), tail: _acc_0 } };
   } else {
     return { $: "Tuple", fst: _h_0 + _cur_0, snd: _acc_0 };
   }
 }
 function $split_fin(_cur_0, _acc_0) {
-  return { $: "Frame", lines: $List_reverse(_acc_0), rest: $String_reverse(_cur_0), overflow: false };
+  return { $: "Frame", lines: $$List_reverse(_acc_0), rest: $$String_reverse(_cur_0), overflow: false };
 }
 function $split_go($0, $1) {
   for (;; ) {
@@ -83,7 +87,7 @@ function $split_go($0, $1) {
         const _h_0 = _s_0.slice(0, char_len(_s_0));
         const _t_0 = _s_0.slice(char_len(_s_0));
         $0 = _t_0;
-        $1 = $split_step(_h_0, _st_0, $Char_is_eq(_h_0, `
+        $1 = $$split_step(_h_0, _st_0, $$Char_is_eq(_h_0, `
 `));
         continue;
       }
@@ -121,7 +125,7 @@ function $feed_over(_joined_0, _over_0) {
 }
 function $feed(_buffer_0, _chunk_0, _limit_0) {
   const _joined_0 = _buffer_0 + _chunk_0;
-  return $feed_over(_joined_0, $Nat_is_gt($strLength(_joined_0), _limit_0));
+  return $feed_over(_joined_0, $$Nat_is_gt($$strLength(_joined_0), _limit_0));
 }
 function $rejoin(_lines_0, _rest_0) {
   if (_lines_0.$ === "Nil") {
@@ -129,7 +133,7 @@ function $rejoin(_lines_0, _rest_0) {
   } else {
     const _h_0 = _lines_0["head"];
     const _t_0 = _lines_0["tail"];
-    const _x_0 = $rejoin(_t_0, _rest_0);
+    const _x_0 = $$rejoin(_t_0, _rest_0);
     const _x_1 = `
 ` + _x_0;
     return _h_0 + _x_1;
@@ -152,8 +156,8 @@ function $List_reverse(_xs_0) {
 }
 function $Char_is_eq(_a_0, _b_0) {
   const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
 }
 function $Nat_is_gt(_a_0, _b_0) {
   return $Cmp_is_gt(cmp_new(_a_0, _b_0));
@@ -199,6 +203,14 @@ function $Cmp_is_gt(_c_0) {
     return false;
   }
 }
+var $$peel_go = $peel_go;
+var $$String_reverse = $String_reverse;
+var $$List_reverse = $List_reverse;
+var $$Char_is_eq = $Char_is_eq;
+var $$split_step = $split_step;
+var $$strLength = $strLength;
+var $$Nat_is_gt = $Nat_is_gt;
+var $$rejoin = $rejoin;
 var framing_default = {
   prependLine: run_lib((a0, a1) => run_loop($prependLine(str_in(a0), a1)), 2),
   "peel.go": run_lib((a0, a1) => run_loop($peel_go(a0, str_in(a1))), 2),

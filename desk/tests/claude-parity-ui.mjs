@@ -38,6 +38,7 @@ await withArtifacts('claude-parity',async ctx=>{
 
  /* ---- rascunho de revisão: ponte descartável, sem ferramentas nem sessão gravada ---- */
  const promptsBefore=rows().length;
+ await page.locator('#messages .message.assistant').first().hover();
  await page.locator('#messages .message.assistant').first().getByRole('button',{name:'Guardar para revisar'}).click();
  await page.waitForFunction(()=>document.querySelector('#review-difficulty')?.value==='Dificuldade do rascunho (fixture).',undefined,{timeout:30000});
  assert.equal(await page.locator('#review-question').inputValue(),'Pergunta do rascunho (fixture).');

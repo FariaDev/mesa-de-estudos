@@ -70,7 +70,6 @@
 }
 .calc-seg button:hover,.pdf-seg button:hover{color:var(--fg)}
 .calc-seg button[aria-pressed="true"],.pdf-seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg-strong);box-shadow:0 0 0 1px var(--border)}
-.calc-hint{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-xs);color:var(--faint);font-family:var(--font-mono)}
 #calc-hist{margin-top:var(--space-2)}
 .calc-hist-head{display:flex;align-items:center;justify-content:space-between;min-height:24px}
 .calc-hist-head h3{margin:0;font-size:var(--fs-xs);font-weight:600;color:var(--muted)}

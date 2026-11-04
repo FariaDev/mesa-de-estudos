@@ -119,7 +119,7 @@ function stampId(now = new Date(), salt = crypto.randomBytes(3).toString('hex'))
 /* Nome que NUNCA entra, em qualquer profundidade. Comparação sem caixa e sem
    acento não é necessária: os nomes de credencial são ASCII. */
 const DENY_NAMES = new Set([
-  'auth.json', 'auth.json.bak', 'credentials', 'credentials.json', 'credential.json',
+  'auth.json', 'auth.json.bak', 'opencode-key.bin', 'ggb-bridge.json', 'credentials', 'credentials.json', 'credential.json',
   'token', 'token.json', 'tokens.json', 'secret', 'secrets.json', 'keychain',
   'session-env', 'shell-snapshots', 'file-history', 'mcp-cache.json',
   'mcp-npx-cache.json', 'models-store.json', 'search-keys.json', 'update.json',

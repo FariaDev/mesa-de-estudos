@@ -5,17 +5,17 @@ import {withArtifacts,launchDesk,newRuntime,seedCourse,tinyPdf,writeConfigJson,s
 import {settle} from './layout-measure.mjs';
 import {pollUntil} from './waits.mjs';
 
-/* Leitor sem material (ticket #12 da spec de redesenho): numa matéria sem PDFs
-   cada leitor mostra a folha branca "Lista 0" — título, nome da matéria e quatro
-   caminhos para pôr um material ali, com "Abrir PDF…", "Mostrar a pasta" e
-   "Pedir ao tutor" — e, abaixo, a área tracejada "Solte um PDF aqui". A barra
-   diz "Nenhum material". O leitor inteiro aceita soltar um PDF (também com um
+/* Leitor sem material (#90): numa matéria sem PDFs cada leitor mostra a folha
+   branca com a área tracejada "Solte um PDF aqui" e três atalhos pequenos
+   embaixo — "Abrir", "Pasta" e "Pedir ao tutor". A barra diz "Nenhum material". O leitor inteiro aceita soltar um PDF (também com um
    material já aberto); durante o arraste aparece "Solte para abrir em <rótulo>".
-   Soltar o que não é PDF avisa e não quebra. A folha é papel: branca com texto
-   escuro nos dois temas. Quando a matéria ganha um PDF, a folha dá lugar ao
-   material. Mede na janela real, nos dois temas, em 1440×900 e 900×650, com um
-   e com dois leitores. As imagens ficam numa pasta `leitor-vazio-…` de
-   desk/tests/artifacts para olho humano; não são asserção. */
+   Soltar o que não é PDF avisa e não quebra. A folha acompanha o tema, e a
+   sobreposição também: fundo opaco de --surface com um toque de --accent-text,
+   texto e borda no acento, legível sobre a folha do tema e sobre um PDF branco
+   aberto. Quando a matéria ganha um PDF, a folha dá lugar ao material. Mede na
+   janela real, nos dois temas, em 1440×900 e 900×650, com um e com dois
+   leitores. As imagens ficam numa pasta `leitor-vazio-…` de desk/tests/artifacts
+   para olho humano; não são asserção. */
 
 const SHOT_DIR=screenshotDirectory('leitor-vazio');
 const WIDE=[1440,900],MINIMUM=[900,650];
@@ -68,17 +68,21 @@ function sheets(page){
    if(!sheet)return out;
    const text=el=>el?el.textContent.replace(/\s+/g,' ').trim():'';
    const zone=sheet.querySelector('.sheet-drop');
+   const links=sheet.querySelector('.sheet-links');
    const colorOf=el=>rgb(getComputedStyle(el).color);
-   const textEls=[...sheet.querySelectorAll('h1,.sheet-course,.sheet-intro,.sheet-item,.sheet-item button,.sheet-drop strong,.sheet-drop small')].filter(shown);
+   const lookOf=el=>{const cs=getComputedStyle(el);return {fontFamily:cs.fontFamily,fontWeight:cs.fontWeight,fontSize:cs.fontSize};};
+   const textEls=[...sheet.querySelectorAll('.sheet-drop strong,.sheet-links button')].filter(shown);
+   const titleEl=sheet.querySelector('.sheet-drop strong');
+   const linkEls=[...sheet.querySelectorAll('.sheet-links button')];
    Object.assign(out,{
     sheet:rect(sheet),background:rgb(getComputedStyle(sheet).backgroundColor),
-    title:text(sheet.querySelector('h1')),course:text(sheet.querySelector('.sheet-course')),
-    intro:text(sheet.querySelector('.sheet-intro')),
-    courseStyle:(()=>{const cs=getComputedStyle(sheet.querySelector('.sheet-course'));return {italic:cs.fontStyle,align:cs.textAlign};})(),
-    titleStyle:(()=>{const cs=getComputedStyle(sheet.querySelector('h1'));return {size:cs.fontSize,align:cs.textAlign};})(),
-    items:[...sheet.querySelectorAll('.sheet-item')].map(el=>text(el)),
+    links:[...sheet.querySelectorAll('.sheet-links button')].map(el=>text(el)),
+    separators:[...sheet.querySelectorAll('.sheet-links .sheet-sep')].map(el=>({text:text(el),aria:el.getAttribute('aria-hidden'),...rect(el)})),
+    titleLook:titleEl?lookOf(titleEl):null,
+    linkLooks:linkEls.map(lookOf),
     actions:[...sheet.querySelectorAll('button')].map(el=>({text:text(el),...rect(el),color:colorOf(el)})),
     zone:zone?{text:text(zone),borderStyle:getComputedStyle(zone).borderTopStyle,...rect(zone)}:null,
+    linksBox:links?rect(links):null,
     colors:textEls.map(el=>({tag:el.tagName.toLowerCase(),text:text(el).slice(0,40),color:colorOf(el)})),
     overflowing:[...sheet.querySelectorAll('*')].filter(shown).filter(el=>{const r=el.getBoundingClientRect();const v=viewport.getBoundingClientRect();return r.right>v.right+.5||r.left<v.left-.5;}).map(el=>el.className||el.tagName),
     truncated:textEls.filter(el=>el.scrollWidth>el.clientWidth+1&&getComputedStyle(el).display!=='inline').map(el=>text(el).slice(0,30)),
@@ -96,36 +100,38 @@ function assertSheets(list,label,{readers}){
   assert.ok(s.hasSheet,`${tag}: a folha está no leitor`);
   assert.equal(s.placeholder,false,`${tag}: o texto antigo do leitor vazio saiu`);
   assert.equal(s.barMaterial,'Nenhum material',`${tag}: a barra diz "Nenhum material"`);
-  assert.equal(s.title,'Lista 0',`${tag}: título da folha`);
   /* #27 B3: sem material a barra é rótulo, "Nenhum material" e Mais opções. */
   /* O rótulo cede em leitor estreito (container query da barra), então só ele pode faltar. */
   assert.deepEqual(s.barKids.filter(k=>k!=='label'),['select','more'],`${tag}: a barra sem material só tem rótulo, "Nenhum material" e Mais opções (${s.barKids})`);
-  /* #27 B13: título centrado, subtítulo em itálico, texto do canvas. */
-  assert.equal(s.courseStyle.italic,'italic',`${tag}: o subtítulo é itálico`);
-  assert.equal(s.courseStyle.align,'center',`${tag}: o subtítulo é centrado`);
-  assert.equal(s.titleStyle.align,'center',`${tag}: o título é centrado`);
-  assert.match(s.intro,/^Esta folha fica no lugar do seu primeiro PDF\. Resolva qualquer um dos itens abaixo\.$/,`${tag}: a introdução diz o que a folha é`);
-  assert.match(s.items[2],/eles aparecem aqui sozinhos\./,`${tag}: o item 3 diz que os arquivos aparecem sozinhos`);
-  assert.ok(s.course.includes(COURSE),`${tag}: a folha diz o nome da matéria (${s.course})`);
-  assert.equal(s.items.length,4,`${tag}: quatro itens`);
-  assert.match(s.items[0],/Arraste um PDF/i,`${tag}: item 1 é arrastar um PDF`);
-  assert.match(s.items[1],/outro lugar/i,`${tag}: item 2 é abrir de outro lugar`);
-  assert.match(s.items[2],/pasta da mat[ée]ria/i,`${tag}: item 3 é a pasta da matéria`);
-  assert.match(s.items[3],/lista.*tutor/i,`${tag}: item 4 é pedir ao tutor`);
-  assert.deepEqual(s.actions.map(a=>a.text),['Abrir PDF…','Mostrar a pasta','Pedir ao tutor'],`${tag}: cada item com ação traz o seu atalho`);
-  for(const a of s.actions)assert.ok(a.width>=44&&a.height>=18,`${tag}: "${a.text}" é um alvo clicável (${a.width}×${a.height})`);
+  assert.deepEqual(s.links,['Abrir','Pasta','Pedir ao tutor'],`${tag}: três atalhos pequenos embaixo`);
+  assert.deepEqual(s.actions.map(a=>a.text),['Abrir','Pasta','Pedir ao tutor'],`${tag}: cada atalho traz a ação`);
+  /* #90: o vazio é interface, não página de PDF. Nada de serifa, título de
+     corpo e atalhos pequenos; o "·" separa os atalhos e não é lido em voz alta. */
+  const sans=s.titleLook?.fontFamily||'';
+  assert.doesNotMatch(sans,/STIX|Georgia|Times New Roman|Charter/i,`${tag}: "Solte um PDF aqui" não usa a serifa (${sans})`);
+  assert.match(sans,/system-ui|Segoe UI/i,`${tag}: "Solte um PDF aqui" usa a fonte da interface (${sans})`);
+  assert.ok(Number(s.titleLook.fontWeight)<=500,`${tag}: o título do vazio tem peso normal ou médio (${s.titleLook.fontWeight})`);
+  for(const look of s.linkLooks){
+   assert.doesNotMatch(look.fontFamily,/STIX|Georgia|Times New Roman|Charter/i,`${tag}: atalho não usa a serifa (${look.fontFamily})`);
+   assert.match(look.fontFamily,/system-ui|Segoe UI/i,`${tag}: atalho usa a fonte da interface (${look.fontFamily})`);
+   assert.equal(look.fontWeight,'400',`${tag}: atalho em peso normal (${look.fontWeight})`);
+   assert.equal(look.fontSize,'12px',`${tag}: atalho em 12px (${look.fontSize})`);
+  }
+  assert.deepEqual(s.separators.map(sep=>sep.text),['·','·'],`${tag}: os atalhos são separados por ·`);
+  assert.ok(s.separators.every(sep=>sep.aria==='true'),`${tag}: o · é decorativo para o leitor de tela`);
+  for(const a of s.actions)assert.ok(a.width>=24&&a.height>=18,`${tag}: "${a.text}" é um alvo clicável (${a.width}×${a.height})`);
   assert.ok(s.zone,`${tag}: há a área de soltar`);
   assert.match(s.zone.text,/Solte um PDF aqui/,`${tag}: a área diz "Solte um PDF aqui"`);
   assert.equal(s.zone.borderStyle,'dashed',`${tag}: a área é tracejada`);
-  assert.ok(s.zone.top>=s.actions[2].bottom-1,`${tag}: a área de soltar fica abaixo dos itens`);
-  /* A folha é papel: branca com texto escuro nos dois temas, página inteira. */
-  assert.deepEqual(s.background,[255,255,255],`${tag}: a folha é branca`);
+  assert.ok(s.linksBox&&s.linksBox.top>=s.zone.bottom-1,`${tag}: os atalhos ficam abaixo da área de soltar`);
+  /* A folha segue o tema: duas folhas brancas ofuscavam o tema escuro. */
+  const darkTheme=/escuro|dark/i.test(tag);
+  assert.equal(luminance(s.background)<.05,darkTheme,`${tag}: a folha acompanha o tema (rgb(${s.background}))`);
   assert.ok(Math.abs(s.sheet.width-s.viewport.width)<=18,`${tag}: a folha ocupa a largura do leitor (${s.sheet.width} de ${s.viewport.width})`);
   for(const c of s.colors){
-   assert.ok(luminance(c.color)<.25,`${tag}: texto escuro sobre a folha (${c.tag} "${c.text}" rgb(${c.color}))`);
-   assert.ok(contrast(c.color,[255,255,255])>=4.5,`${tag}: contraste legível (${c.tag} "${c.text}")`);
+   assert.ok(contrast(c.color,s.background)>=4.5,`${tag}: contraste legível (${c.tag} "${c.text}")`);
   }
-  for(const a of s.actions)assert.ok(contrast(a.color,[255,255,255])>=4.5,`${tag}: "${a.text}" legível sobre branco`);
+  for(const a of s.actions)assert.ok(contrast(a.color,s.background)>=4.5,`${tag}: "${a.text}" legível sobre a folha`);
   assert.deepEqual(s.overflowing,[],`${tag}: nada passa da borda do leitor`);
   assert.deepEqual(s.truncated,[],`${tag}: nada cortado`);
   assert.equal(s.hScroll,false,`${tag}: sem rolagem horizontal`);
@@ -179,21 +185,30 @@ await withArtifacts('leitor-vazio-dois',async ctx=>{
   for(const size of [WIDE,MINIMUM]){
    await setSize(ctx.app,page,size);
    for(const [i,label] of labels.entries()){
-    for(const spot of ['.reader-sheet .sheet-drop','.reader-sheet h1','.pdf-title']){
+    for(const spot of ['.reader-sheet .sheet-drop','.reader-sheet .sheet-drop strong','.pdf-title']){
      await reader(page,i).locator(spot).first().dispatchEvent('dragover',{dataTransfer:transfer});
      assert.ok(await overlay(page,i).isVisible(),`${tag} ${size.join('x')}: o arraste sobre ${spot} do leitor ${i+1} mostra a sobreposição`);
      assert.equal((await overlay(page,i).textContent()).trim(),`Solte para abrir em ${label}`,`${tag}: a sobreposição diz o rótulo do leitor ${i+1}`);
-     const look=await overlay(page,i).evaluate(el=>{const s=getComputedStyle(el);return {border:s.borderTopWidth,style:s.borderTopStyle,size:s.fontSize,color:s.color,bg:s.backgroundColor,accent:getComputedStyle(document.documentElement).getPropertyValue('--accent-paper').trim()};});
+     const look=await overlay(page,i).evaluate(el=>{
+      /* color-mix devolve oklab(); o canvas resolve qualquer cor para sRGB,
+         inclusive a composição do fundo, que precisa ser opaca. */
+      const pixel=value=>{const c=document.createElement('canvas');c.width=c.height=1;const g=c.getContext('2d',{willReadFrequently:true});g.fillStyle=value;g.fillRect(0,0,1,1);return [...g.getImageData(0,0,1,1).data];};
+      const s=getComputedStyle(el);
+      return {border:s.borderTopWidth,style:s.borderTopStyle,size:s.fontSize,
+       color:s.color,borderColor:s.borderTopColor,bg:s.backgroundColor,
+       colorRgb:pixel(s.color),bgRgba:pixel(s.backgroundColor),borderRgb:pixel(s.borderTopColor)};
+     });
      assert.equal(look.border,'1px',`${tag}: o contorno da sobreposição é de 1px (${look.border})`);
      assert.equal(look.size,'15px',`${tag}: o texto da sobreposição é 15px`);
-     const lum=c=>{const n=(c.match(/[\d.]+/g)||[]).slice(0,3).map(Number);return /^ok(lab|lch)/.test(c)?n[0]:(n[0]+n[1]+n[2])/765;};
-     assert.ok(lum(look.bg)>.85,`${tag}: a sobreposição é clara nos dois temas, como o papel (${look.bg})`);
-     assert.ok(lum(look.color)<.7,`${tag}: o texto leva o acento sobre branco (${look.color})`);
+     assert.deepEqual(look.borderRgb,look.colorRgb,`${tag}: a borda leva o mesmo acento do texto (${look.borderColor} e ${look.color})`);
+     assert.equal(look.bgRgba[3],255,`${tag}: o fundo da sobreposição é opaco (${look.bg})`);
+     const ratio=contrast(look.colorRgb,look.bgRgba);
+     assert.ok(ratio>=4.5,`${tag}: o acento sobre o fundo real da sobreposição passa AA nos dois temas (${ratio.toFixed(2)}:1 em ${look.bg})`);
      const other=1-i;
      assert.ok(await overlay(page,other).isHidden(),`${tag}: o outro leitor não mostra a sobreposição`);
      const box=await overlay(page,i).boundingBox(),stage=await reader(page,i).locator('.pdf-viewport').boundingBox();
      assert.ok(box.width>=stage.width*.85&&box.height>=stage.height*.85,`${tag}: a sobreposição cobre o leitor (${box.width}×${box.height} de ${stage.width}×${stage.height})`);
-     if(spot==='.reader-sheet h1')await shot(page,`arrasto-${tag}-${size.join('x')}-leitor-${i+1}.png`);
+     if(spot==='.reader-sheet .sheet-drop strong')await shot(page,`arrasto-${tag}-${size.join('x')}-leitor-${i+1}.png`);
      await reader(page,i).locator(spot).first().dispatchEvent('dragleave',{dataTransfer:transfer});
      assert.ok(await overlay(page,i).isHidden(),`${tag}: a sobreposição some ao sair do leitor`);
     }
@@ -254,12 +269,12 @@ await withArtifacts('leitor-vazio-acoes',async ctx=>{
  await setSize(ctx.app,page,WIDE);
  const sheet=reader(page,0).locator('.reader-sheet');
 
- /* Mostrar a pasta: abre a pasta da matéria no sistema. */
+ /* Pasta: abre a pasta da matéria no sistema. */
  await ctx.app.evaluate(({shell})=>{globalThis.__opened=[];shell.openPath=async target=>{globalThis.__opened.push(target);return '';};});
- await sheet.getByRole('button',{name:'Mostrar a pasta'}).click();
- await pollUntil(()=>ctx.app.evaluate(()=>globalThis.__opened.length),count=>count>=1,{what:'o openPath do atalho "Mostrar a pasta"',onTimeout:'return'});
+ await sheet.getByRole('button',{name:'Pasta'}).click();
+ await pollUntil(()=>ctx.app.evaluate(()=>globalThis.__opened.length),count=>count>=1,{what:'o openPath do atalho "Pasta"',onTimeout:'return'});
  const opened=await ctx.app.evaluate(()=>globalThis.__opened);
- assert.deepEqual(opened.map(p=>fs.realpathSync(p)),[fs.realpathSync(course)],'Mostrar a pasta abre a pasta da matéria');
+ assert.deepEqual(opened.map(p=>fs.realpathSync(p)),[fs.realpathSync(course)],'Pasta abre a pasta da matéria');
 
  /* Pedir ao tutor: abre o pedido de PDF já falando de lista de exercícios. */
  await sheet.getByRole('button',{name:'Pedir ao tutor'}).click();
@@ -274,7 +289,7 @@ await withArtifacts('leitor-vazio-acoes',async ctx=>{
  /* Abrir PDF…: o seletor de arquivos do sistema; o escolhido abre no leitor. */
  const chosen=path.join(runtime,'Escolhido.pdf');fs.writeFileSync(chosen,tinyPdf('Escolhido pagina 1'));
  await ctx.app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},chosen);
- await sheet.getByRole('button',{name:'Abrir PDF…'}).click();
+ await sheet.getByRole('button',{name:'Abrir',exact:true}).click();
  await reader(page,0).locator('canvas').first().waitFor({timeout:20000});
  assert.equal(await reader(page,0).locator('.reader-sheet').count(),0,'Abrir PDF…: a folha dá lugar ao material');
  assert.match(await reader(page,0).locator('.pdf-select option:checked').textContent(),/Escolhido/);
@@ -303,4 +318,47 @@ await withArtifacts('leitor-vazio-pasta',async ctx=>{
  assert.deepEqual(errors,[],'sem erros na página');
 });
 
-console.log('READER EMPTY UI PASSED: folha Lista 0, soltar PDF, sobreposição e ações, nos dois temas, 1440×900 e 900×650.');
+await withArtifacts('leitor-falha',async ctx=>{
+ const {page,errors,runtime}=await openDesk(ctx,'leitor-falha',{two:false});
+
+ /* PDF inválido: o leitor sai do carregamento e mostra o motivo no painel,
+    com uma saída, em vez de deixar o toast sozinho (#90). */
+ const broken=path.join(runtime,'Quebrado.pdf');fs.writeFileSync(broken,'isto não é um PDF');
+ await ctx.app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},broken);
+ await reader(page,0).locator('.reader-sheet .sheet-link').first().click();
+ await page.waitForSelector('.pdf-viewport .pdf-failed',{timeout:20000});
+ const failed=await reader(page,0).evaluate(panel=>{
+  const box=panel.querySelector('.pdf-failed');
+  return {text:box.querySelector('.pdf-failed-text').textContent,role:box.getAttribute('role'),retry:box.querySelector('.pdf-failed-open').textContent.trim(),aria:box.querySelector('.pdf-failed-open').getAttribute('aria-label'),sheet:!!panel.querySelector('.reader-sheet')};
+ });
+ assert.equal(failed.role,'alert','a falha é anunciada no painel');
+ assert.match(failed.text,/^Não foi possível abrir: /,'o painel diz o motivo da falha');
+ assert.ok([...failed.text].length<=80,`a mensagem cabe em 80 caracteres (${[...failed.text].length})`);
+ assert.equal(failed.retry,'Abrir outro','o painel oferece uma saída');
+ assert.equal(failed.aria,'Abrir outro PDF','a saída tem nome acessível');
+ assert.equal(failed.sheet,false,'a folha deu lugar à falha');
+ await shot(page,'falha-pdf-invalido.png');
+
+ /* Arquivo removido: o motivo continua curto e sem caminho pessoal. */
+ const removedPath=path.join(runtime,'Sumido.pdf');fs.writeFileSync(removedPath,tinyPdf('Sumido pagina 1'));
+ await ctx.app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},removedPath);
+ const opened=await page.evaluate(()=>window.desk.openPDF());
+ assert.equal(opened.path,removedPath,'o seletor devolve o PDF que será removido');
+ fs.unlinkSync(removedPath);
+ await page.evaluate(async file=>{const {S}=await import('./src/state.mjs');S.panels[0].load(file);},removedPath);
+ await page.waitForFunction(()=>{const el=document.querySelector('.pdf-viewport .pdf-failed-text');return el&&/ENOENT|no such file/i.test(el.textContent);},undefined,{timeout:10000});
+ const removed=await reader(page,0).locator('.pdf-failed-text').textContent();
+ assert.ok([...removed].length<=80,`o motivo do arquivo removido cabe em 80 caracteres (${[...removed].length})`);
+ assert.ok(!removed.includes(runtime),`o caminho pessoal não vaza (${removed})`);
+
+ /* "Abrir outro" recupera o leitor com um PDF válido. */
+ const good=path.join(runtime,'Bom.pdf');fs.writeFileSync(good,tinyPdf('Bom pagina 1'));
+ await ctx.app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},good);
+ await reader(page,0).locator('.pdf-failed-open').click();
+ await reader(page,0).locator('canvas').first().waitFor({timeout:20000});
+ assert.equal(await reader(page,0).locator('.pdf-failed').count(),0,'o leitor sai da falha e abre o PDF escolhido');
+ await shot(page,'falha-pdf-recuperado.png');
+ assert.deepEqual(errors,[],'sem erros na página');
+});
+
+console.log('READER EMPTY UI PASSED: zona de soltar, atalhos, arrasto e ações, nos dois temas, 1440×900 e 900×650.');

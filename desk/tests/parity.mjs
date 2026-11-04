@@ -17,17 +17,24 @@ if (!files.length) {
   process.exit(1);
 }
 
+/* Saída 77 é pulo (o verificador não tem o que comparar nesta máquina, como o
+   Pi ausente): não derruba a rodada e aparece no resumo. */
+const SKIP = 77;
 const failed = [];
+const skipped = [];
 for (const file of files) {
   const started = Date.now();
   const run = spawnSync(process.execPath, [path.join(here, file)], {cwd: app, stdio: 'inherit'});
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  if (run.status) failed.push(file);
-  console.log(`parity ${run.status ? 'FALHOU' : 'ok'} ${file} (${seconds}s)`);
+  const status = run.status === SKIP ? 'pulado' : run.status ? 'FALHOU' : 'ok';
+  if (status === 'pulado') skipped.push(file);
+  else if (run.status) failed.push(file);
+  console.log(`parity ${status} ${file} (${seconds}s)`);
 }
+if (skipped.length) console.log(`test:parity: ${skipped.length} pulado(s): ${skipped.join(', ')}`);
 
 if (failed.length) {
   console.error(`test:parity: ${failed.length} de ${files.length} falharam: ${failed.join(', ')}`);
   process.exit(1);
 }
-console.log(`test:parity: ${files.length} verificadores de paridade ok.`);
+console.log(`test:parity: ${files.length - skipped.length} verificadores de paridade ok.`);

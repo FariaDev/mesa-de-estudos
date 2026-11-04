@@ -25,9 +25,10 @@ await withArtifacts('subjects',async ctx=>{
  await p.waitForFunction(()=>document.querySelectorAll('.page-total').length===2&&[...document.querySelectorAll('.page-total')].every(e=>!e.textContent.includes('—')));assert.ok(await p.locator('#course-tabs button[role="tab"]:not(#review-tab)').count()>=4);
  let page3=false;
  for(let i=0;i<6&&!page3;i++){
+  await p.locator('.pager').first().click();
   await p.locator('.page-number').first().fill('3');
   await p.locator('.page-number').first().blur();
-  try{await p.waitForFunction(()=>document.querySelector('.pdf-foot').textContent.includes('Página 3'),{timeout:2000});page3=true;}catch{}
+  try{await p.waitForFunction(()=>document.querySelector('.pager-current').textContent.trim()==='3',{timeout:2000});page3=true;}catch{}
  }
  assert.ok(page3,'page-number change should survive the deferred re-render');
  await p.locator('#prompt').fill('rascunho de cálculo');

@@ -9,6 +9,7 @@ const {sanitizeNotices}=require('./tool-updates.cjs');
 const pdfPageCore=require('./src/generated/pdfpageview.core.js').default;
 const {toNat}=require('./src/bend-nat.mjs');
 const {normalizeRecents,normalizeFavorites}=require('./src/model-picker.mjs');
+const {normalizeModelDefault}=require('./src/model-default.mjs');
 
 /* Sanitização do desk.json (#43 fase 2: saiu do main.cjs sem mudar regra). */
 /* Estado lido é dado não confiável (arquivo editado à mão, versão antiga ou
@@ -95,6 +96,10 @@ function sanitizeState(value){
   modelRecents:normalizeRecents(source.modelRecents),
   /* Favoritos do seletor (estrela, acabamento da #59): por motor, mesmo lugar dos recentes. */
   modelFavorites:normalizeFavorites(source.modelFavorites),
+  /* Modelo e esforço da sessão nova (#release OpenCode): estado de interface, nunca no config.json. */
+  modelDefault:normalizeModelDefault(source.modelDefault),
+  /* Novidades: a última versão cuja janela já abriu (`src/release-notes.mjs`). */
+  releaseNotesSeen:asString(source.releaseNotesSeen).slice(0,24),
   courseStates:{}};
  const states=isPlainObject(source.courseStates)?source.courseStates:{};
  for(const [id,entry] of Object.entries(states)){if(id==='__proto__')continue;out.courseStates[id]=sanitizeCourseState(entry);}
@@ -115,5 +120,6 @@ function sanitizePdfPageOffsets(source){
 /* Recentes que o renderer manda no save-state: o formato é o de `model-picker.mjs`; o que não for par de texto cai. */
 const sanitizeModelRecents=normalizeRecents;
 const sanitizeModelFavorites=normalizeFavorites;
+const sanitizeModelDefault=normalizeModelDefault;
 
-module.exports={sanitizeModelRecents,sanitizeModelFavorites,isPlainObject,asString,asArray,asBounds,sanitizeRotation,sanitizePdfRotations,sanitizeFreeState,sanitizeCourseState,sanitizeState,sanitizePdfPageOffsets};
+module.exports={sanitizeModelRecents,sanitizeModelFavorites,sanitizeModelDefault,isPlainObject,asString,asArray,asBounds,sanitizeRotation,sanitizePdfRotations,sanitizeFreeState,sanitizeCourseState,sanitizeState,sanitizePdfPageOffsets};

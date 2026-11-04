@@ -40,29 +40,32 @@ repo (`cp -R bend2 guide`, abaixo) preserva o plugin, e a integração não muda
 foi assim o update para a 2.0.27, com os artefatos regenerados e as provas
 verdes sem tocar em nenhuma lei, e o para a 2.0.37 (#49), em que nenhuma lei
 mudou mas o `Nat` passou de BigInt para `number` na fronteira dos artefatos
-(casca em `desk/src/bend-nat.mjs`). Duas diferenças de CLI que o portão já sabe
+(casca em `desk/src/bend-nat.mjs`). O da 2.0.39 regenerou todos os artefatos
+(chamadas por alias `$$nome`; o que vem de módulo importado sai exportado como
+`módulo:nome`, antes `módulo.nome`) sem tocar em lei nem
+prova; só um teste lia um nome importado e foi ajustado. Duas diferenças de CLI que o portão já sabe
 ler: a versão fala pelo subcomando `bend version` (2.0.7 e anteriores: flag
 `--version`) e o CLI tem um *daily version check* (o único request que ele faz)
 que os portões daqui desligam com `BEND_NO_TELEMETRY=1`.
 
-Trocar de toolchain fixada (exemplo: a 2.0.37, o commit pinado `d2aeefc1`):
+Trocar de toolchain fixada (exemplo: a 2.0.39, o commit pinado `9e8d7b79`):
 
 ```sh
-git clone https://github.com/bendlang/bend && cd bend && git checkout d2aeefc1
-mkdir -p ~/.bend/versions/d2aeefc1
-cp -R bend2 guide ~/.bend/versions/d2aeefc1/
-ln -sfn ~/.bend/versions/d2aeefc1 ~/.bend/current
+git clone https://github.com/bendlang/bend && cd bend && git checkout 9e8d7b79
+mkdir -p ~/.bend/versions/9e8d7b79
+cp -R bend2 guide ~/.bend/versions/9e8d7b79/
+ln -sfn ~/.bend/versions/9e8d7b79 ~/.bend/current
 # o CLI é o próprio main.ts rodando com bun:
 printf '#!/bin/sh\nexec "${BUN_BIN:-$HOME/.bun/bin/bun}" "$HOME/.bend/current/bend2/main.ts" "$@"\n' > ~/.bend/bin/bend
 chmod +x ~/.bend/bin/bend
 ```
 
-Confira com `bend version` (tem de dizer `bend 2.0.37`) e `node core/verify.mjs`:
+Confira com `bend version` (tem de dizer `bend 2.0.39`) e `node core/verify.mjs`:
 o rebuild tem de sair byte a byte. Para aceitar a nova fixação, escreva
 `version`/`pluginSha256`/`source` à mão em `core/toolchain.json` (o `--pin`
 também aceita, mas a procedência é sempre escrita, nunca inventada). O diretório
-da toolchain anterior (`~/.bend/versions/63bee70b`, a 2.0.27) fica no disco para
-rollback: `ln -sfn ~/.bend/versions/63bee70b ~/.bend/current` e
+da toolchain anterior (`~/.bend/versions/d2aeefc1`, a 2.0.37) fica no disco para
+rollback: `ln -sfn ~/.bend/versions/d2aeefc1 ~/.bend/current` e
 `git restore core/toolchain.json desk/src/generated`. Uma toolchain fora do
 `~/.bend` também serve: `BEND_HOME`, `BEND_BIN` e o `PATH` apontam para ela (o
 `env.sh` de `~/.bend-toolchains/<commit>/` faz isso).
@@ -98,8 +101,8 @@ A revisão humana leve olha os enunciados e as fronteiras, não o JS gerado.
 
 ## Módulos
 
-Hoje o `PROOF.bend` importa 70 provas (70 arquivos de leis, 3.121 declarações
-`law`) e o build gera 68 saídas, todas em `desk/src/generated` (a Conversa e os
+Hoje o `PROOF.bend` importa 71 provas (69 arquivos de leis, 3.121 declarações
+`law`) e o build gera 69 saídas, todas em `desk/src/generated` (a Conversa e os
 14 módulos só dela saíram na #50; `claudeversion` entrou na #51; `overlay`, na #52;
 `ggbboard` e `toolmentions`, na #53; `freemodels`, na #44; `phonedrop`, na #36).
 
@@ -109,6 +112,12 @@ Hoje o `PROOF.bend` importa 70 provas (70 arquivos de leis, 3.121 declarações
   página e o envio abrem) e a foto (só JPEG/PNG/WebP, teto por arquivo e por
   sessão). O host compara o token, reconhece a imagem, tira o EXIF e conta os
   bytes; os textos são do catálogo.
+
+- **`tutornotes.bend`** — notas do tutor (#91): `noteTarget` devolve
+  `Notas/<título>.md` (ou `-2`, `-3`…) ou recusa. Título vazio, com `..`, com
+  separador ou acima do teto nunca gera caminho; o host faz o realpath, recusa
+  link, grava com `O_EXCL` e não sobrescreve. O tutor só escreve dentro da
+  matéria (ou do workspace da Livre); o invariante não depende do motor.
 
 - **`updatenotice.bend`** — avisos de atualização do Pi e do Claude Code: a
   decisão (linha do Sobre, ponto do ⚙, "mais nova que a testada", sem rede não

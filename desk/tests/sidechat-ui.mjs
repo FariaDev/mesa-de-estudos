@@ -83,6 +83,10 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  /* ---- 2. Chat lateral de verdade (abre, recebe stream, LaTeX) ---- */
  await openSidechatTab(page);
  assert.equal(await page.locator('#sidechat').getAttribute('data-state'),null,'o chat lateral abriu (sem estado de indisponível)');
+ assert.equal(await page.locator('#sidechat-send').getAttribute('class'),'','sem texto, a seta do lateral fica neutra');
+ await page.locator('#sidechat-prompt').fill('texto para acender');
+ assert.equal(await page.locator('#sidechat-send').getAttribute('class'),'primary','com texto, a seta do lateral acende');
+ await page.locator('#sidechat-prompt').fill('');
  await page.locator('#sidechat-prompt').fill('pergunta inicial');
  await pollUntil(()=>sidechatFiles(runtime),found=>found.descriptors.length>=1,{what:'o descritor do chat lateral no disco',onTimeout:'return'});
  let files=await sidechatFiles(runtime);
@@ -90,6 +94,7 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  await page.locator('#sidechat-prompt').fill('teorema do chat lateral');
  await page.locator('#sidechat-prompt').press('Enter');
  await page.waitForFunction(()=>[...document.querySelectorAll('#sidechat-messages .sidechat-msg.assistant .sidechat-body')].some(el=>el.textContent.includes('Pitágoras')),undefined,{timeout:30000});
+ assert.equal(await page.locator('#sidechat-send').getAttribute('class'),'','enviar esvazia o campo e a seta volta ao neutro');
  assert.ok(await page.locator('#sidechat-messages .sidechat-msg.assistant .katex').count()>0,'a resposta lateral renderizou LaTeX (KaTeX)');
  assert.ok(await page.locator('#sidechat-messages .sidechat-msg.user').count()>=1,'a mensagem do usuário aparece no canal lateral');
  assert.equal(await page.locator('#pi-dialog[open]').count(),0,'o lateral não usa o diálogo do principal');
@@ -262,13 +267,14 @@ await withArtifacts('lateral-pedido',async ctx=>{
  await openSidechatTab(page);
  await page.locator('#sidechat-prompt').fill('quiz de teste no lateral');
  await page.locator('#sidechat-prompt').press('Enter');
- await page.waitForSelector('#sidechat-messages .sidechat-request .sidechat-option',{timeout:30000});
- assert.equal(await page.locator('#pi-dialog[open]').count(),0,'a pergunta do lateral não abre o diálogo do principal');
- await page.locator('#sidechat-messages .sidechat-request .sidechat-option').filter({hasText:'4'}).click();
- await page.waitForFunction(()=>[...document.querySelectorAll('#sidechat-messages .sidechat-msg.assistant .sidechat-body')].some(el=>el.textContent.includes('Boa!')),undefined,{timeout:30000});
- assert.equal(await page.locator('#sidechat-messages .sidechat-request').count(),0,'o cartão do pedido some depois da resposta');
+ await page.waitForSelector('#sidechat-messages .quiz-card .quiz-option',{timeout:30000});
+ assert.equal(await page.locator('#pi-dialog[open]').count(),0,'o cartão do lateral não abre o diálogo do principal');
+ await page.locator('#sidechat-messages .quiz-card .quiz-option').filter({hasText:'4'}).click();
+ await page.locator('#sidechat-messages .quiz-card .quiz-conclude').click();
+ await page.waitForFunction(()=>[...document.querySelectorAll('#sidechat-messages .sidechat-msg.assistant .sidechat-body')].some(el=>el.textContent.includes('Recebi o resultado do cartão')),undefined,{timeout:30000});
+ assert.equal(await page.locator('#sidechat-messages .quiz-card .quiz-sent').count(),1,'o cartão do lateral fica marcado como enviado');
  assert.deepEqual(errors,[]);
- console.log('PASS: pergunta do lateral respondida no canal lateral');
+ console.log('PASS: cartão do lateral respondido e enviado no canal lateral');
 });
 
 await withArtifacts('apoio-um-leitor',async ctx=>{

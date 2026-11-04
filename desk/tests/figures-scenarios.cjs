@@ -58,6 +58,25 @@ async function scenarioSanitize({electron}) {
       pdfPlot: pdf(plot(fixtures.PLOT_PARABOLA)),
       chatBroken: chat(plot(fixtures.PLOT_BROKEN)),
       pdfBroken: pdf(plot(fixtures.PLOT_BROKEN)),
+      chatColor: chat(wrap(fixtures.COLORFUL_SVG)),
+      pdfColor: pdf(wrap(fixtures.COLORFUL_SVG)),
+      chatSvgFence: chat(fixtures.SVG_FENCE),
+      pdfSvgFence: pdf(fixtures.SVG_FENCE),
+      chatSvgFenceXml: chat(fixtures.SVG_FENCE_XML),
+      pdfSvgFenceXml: pdf(fixtures.SVG_FENCE_XML),
+      chatSvgFenceHtml: chat(fixtures.SVG_FENCE_HTML),
+      pdfSvgFenceHtml: pdf(fixtures.SVG_FENCE_HTML),
+      chatSvgFenceMalicious: chat(fixtures.SVG_FENCE_MALICIOUS),
+      pdfSvgFenceMalicious: pdf(fixtures.SVG_FENCE_MALICIOUS),
+      chatSvgFenceInvalid: chat(fixtures.SVG_FENCE_INVALID),
+      pdfSvgFenceInvalid: pdf(fixtures.SVG_FENCE_INVALID),
+      chatSvgFenceXmlInvalid: chat(fixtures.SVG_FENCE_XML_INVALID),
+      pdfSvgFenceXmlInvalid: pdf(fixtures.SVG_FENCE_XML_INVALID),
+      chatSvgFenceOver: chat(fixtures.SVG_FENCE_OVER),
+      pdfSvgFenceOver: pdf(fixtures.SVG_FENCE_OVER),
+      /* O segundo <svg> recomeça a série: o magenta volta a ser --plot-1, não --plot-2. */
+      chatSlots: chat('<svg viewBox="0 0 20 20"><circle cx="5" cy="5" r="4" fill="#2563eb"/></svg>\\n<svg viewBox="0 0 20 20"><circle cx="5" cy="5" r="4" fill="#ff00ff"/></svg>'),
+      chatAlpha: chat('<svg viewBox="0 0 20 20"><circle cx="5" cy="5" r="4" fill="rgba(37, 99, 235, 0.4)"/></svg>'),
     };`);
   return data;
 }
@@ -84,6 +103,7 @@ async function scenarioFigurePreview({electron, runtime}) {
     triangle: {kind: 'svg', source: fixtures.TRIANGLE_SVG, width: 360},
     malicious: {kind: 'svg', source: fixtures.MALICIOUS_SVG, width: 360},
     broken: {kind: 'plot', source: fixtures.PLOT_BROKEN, width: 420},
+    overlap: {kind: 'svg', source: fixtures.OVERLAP_SVG, width: 360},
   };
   const out = {ok: true, electron: Boolean(electron)};
   for (const [name, request] of Object.entries(cases)) {

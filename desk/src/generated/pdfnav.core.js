@@ -13,13 +13,16 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 var char_new = function char_new(c) {
   return c < 55296 || c >= 57344 && c <= 1114111 ? String.fromCodePoint(c) : String.fromCharCode(56320, c >>> 22, c >>> 11 & 2047, c & 2047);
 };
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -40,6 +43,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -47,8 +51,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -67,7 +71,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $view_attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
@@ -138,7 +142,7 @@ function $view_attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $view_attrGet_choose(_av_0, $$view_attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $view_attrGet(_attrs_0, _name_0) {
@@ -189,7 +193,7 @@ function $view_boolStr(_on_0) {
   }
 }
 function $view_attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$view_boolStr(_on_0) };
 }
 function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -200,7 +204,7 @@ function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $view_classAppend(_acc_0, _name_0) {
-  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $view_classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -213,7 +217,7 @@ function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $view_classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $view_classValue_go($0, $1) {
@@ -229,7 +233,7 @@ function $view_classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$view_classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -239,7 +243,7 @@ function $view_classValue(_xs_0) {
   return $view_classValue_go(_xs_0, "");
 }
 function $view_classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$view_classValue(_xs_0) };
 }
 function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -296,10 +300,10 @@ function $cutName_if(_text_0, _limit_0, _over_0) {
   }
 }
 function $cutName(_text_0, _limit_0) {
-  return $cutName_if(_text_0, _limit_0, $Nat_is_gt([...str_out(_text_0)].length, _limit_0));
+  return $cutName_if(_text_0, _limit_0, $$Nat_is_gt([...str_out(_text_0)].length, _limit_0));
 }
 function $fitName(_text_0) {
-  return $cutName($String_trim(_text_0), $maxName());
+  return $cutName($$String_trim(_text_0), $$maxName());
 }
 function $keepName_blank(_blank_0) {
   if (_blank_0) {
@@ -309,20 +313,20 @@ function $keepName_blank(_blank_0) {
   }
 }
 function $keepName(_name_0) {
-  return $keepName_blank($String_is_empty($String_trim(_name_0)));
+  return $keepName_blank($$String_is_empty($$String_trim(_name_0)));
 }
 function $pageLabel(_page_0) {
-  const _x_0 = $Nat_show(_page_0);
+  const _x_0 = $$Nat_show(_page_0);
   return "p. " + _x_0;
 }
 function $bookmarkLabel(_name_0) {
   return _name_0;
 }
 function $bookmarkTitle(_name_0, _page_0) {
-  return $msg_msg2("pdf.ref.title", "name", _name_0, "page", $Nat_show(_page_0));
+  return $msg_msg2("pdf.ref.title", "name", _name_0, "page", $$Nat_show(_page_0));
 }
 function $bookmarkAria(_name_0, _page_0) {
-  return $msg_msg2("pdf.nav.bookmarkAria", "name", _name_0, "page", $Nat_show(_page_0));
+  return $msg_msg2("pdf.nav.bookmarkAria", "name", _name_0, "page", $$Nat_show(_page_0));
 }
 function $removeLabel() {
   return $msg_msg("common.remove");
@@ -376,7 +380,7 @@ function $bookmarkNameLabel() {
   return $msg_msg("pdf.nav.nameLabel");
 }
 function $bookmarkDialogHint(_name_0, _page_0) {
-  const _x_0 = $pageLabel(_page_0);
+  const _x_0 = $$pageLabel(_page_0);
   const _x_1 = ", " + _x_0;
   return _name_0 + _x_1;
 }
@@ -397,10 +401,10 @@ function $pageFloor(_page_0) {
   return $pageFloor_if(_page_0, _page_0 < 1);
 }
 function $fitPath(_text_0) {
-  return $cutName($String_trim(_text_0), $maxPath());
+  return $cutName($$String_trim(_text_0), $$maxPath());
 }
 function $newBookmark(_name_0, _path_0, _page_0) {
-  return { $: "Bookmark", name: $fitName(_name_0), path: $fitPath(_path_0), page: $pageFloor(_page_0) };
+  return { $: "Bookmark", name: $$fitName(_name_0), path: $$fitPath(_path_0), page: $$pageFloor(_page_0) };
 }
 function $keepBookmark_path(_noPath_0) {
   if (_noPath_0) {
@@ -412,14 +416,14 @@ function $keepBookmark_path(_noPath_0) {
 function $keepBookmark(_bm_0) {
   const _name_0 = _bm_0["name"];
   const _path_0 = _bm_0["path"];
-  return $Bool_and($keepName_blank($String_is_empty($String_trim(_name_0))), $keepBookmark_path($String_is_empty($String_trim(_path_0))));
+  return $Bool_and($$keepName_blank($$String_is_empty($$String_trim(_name_0))), $$keepBookmark_path($$String_is_empty($$String_trim(_path_0))));
 }
 function $sameBookmark(_a_0, _b_0) {
   const _name_0 = _a_0["name"];
   const _path_0 = _a_0["path"];
   const _name2_0 = _b_0["name"];
   const _path2_0 = _b_0["path"];
-  return $Bool_and($String_eq(_name_0, _name2_0), $String_eq(_path_0, _path2_0));
+  return $Bool_and($$String_eq(_name_0, _name2_0), $$String_eq(_path_0, _path2_0));
 }
 function $dropSame_head(_h_0, _rest_0, _same_0) {
   if (_same_0) {
@@ -434,7 +438,7 @@ function $dropSame_go(_bs_0, _bm_0) {
   } else {
     const _h_0 = _bs_0["head"];
     const _t_0 = _bs_0["tail"];
-    return $dropSame_head(_h_0, $dropSame_go(_t_0, _bm_0), $sameBookmark(_h_0, _bm_0));
+    return $dropSame_head(_h_0, $$dropSame_go(_t_0, _bm_0), $$sameBookmark(_h_0, _bm_0));
   }
 }
 function $takeList_go(_xs_0, _n_0) {
@@ -443,31 +447,31 @@ function $takeList_go(_xs_0, _n_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return { $: "Nil" };
     } else {
       const _p_0 = _n_0 - 1;
-      return { $: "Con", head: _h_0, tail: $takeList_go(_t_0, _p_0) };
+      return { $: "Con", head: _h_0, tail: $$takeList_go(_t_0, _p_0) };
     }
   }
 }
 function $addBookmark(_bs_0, _bm_0) {
-  return $takeList_go({ $: "Con", head: _bm_0, tail: $dropSame_go(_bs_0, _bm_0) }, $maxBookmarks());
+  return $takeList_go({ $: "Con", head: _bm_0, tail: $$dropSame_go(_bs_0, _bm_0) }, $$maxBookmarks());
 }
 function $removeBookmark(_bs_0, _bm_0) {
   return $dropSame_go(_bs_0, _bm_0);
 }
 function $emptyBooks(_bs_0) {
-  return $Nat_is_eq($List_length(_bs_0), 0);
+  return $Nat_is_eq($$List_length(_bs_0), 0);
 }
 function $emptyOutline(_os_0) {
-  return $Nat_is_eq($List_length(_os_0), 0);
+  return $Nat_is_eq($$List_length(_os_0), 0);
 }
 function $bookmarkRow(_id_0, _bm_0, _currentPath_0) {
   const _name_0 = _bm_0["name"];
   const _path_0 = _bm_0["path"];
   const _page_0 = _bm_0["page"];
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("nav-row"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("nav-bookmark", true), tail: { $: "Con", head: $view_classOn("current", $String_eq(_path_0, _currentPath_0)), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_attrData("id", $Nat_show(_id_0)), tail: { $: "Con", head: $view_attrData("page", $Nat_show(_page_0)), tail: { $: "Con", head: $view_attrData("path", _path_0), tail: { $: "Con", head: $view_attrTitle($bookmarkTitle(_name_0, _page_0)), tail: { $: "Con", head: $view_attrAria("label", $bookmarkAria(_name_0, _page_0)), tail: { $: "Con", head: $view_attrOn("click", "OpenBookmark"), tail: { $: "Nil" } } } } } } } } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("nav-name"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($bookmarkLabel(_name_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("nav-page"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($pageLabel(_page_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("icon-btn", true), tail: { $: "Con", head: $view_classOn("nav-bookmark-remove", true), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_attrData("icon", "minus"), tail: { $: "Con", head: $view_attrData("id", $Nat_show(_id_0)), tail: { $: "Con", head: $view_attrTitle($removeTitle(_name_0)), tail: { $: "Con", head: $view_attrAria("label", $removeAria(_name_0)), tail: { $: "Con", head: $view_attrOn("click", "RemoveBookmark"), tail: { $: "Nil" } } } } } } } }, { $: "Nil" }), tail: { $: "Nil" } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("nav-row"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_classes({ $: "Con", head: $$view_classOn("nav-bookmark", true), tail: { $: "Con", head: $$view_classOn("current", $$String_eq(_path_0, _currentPath_0)), tail: { $: "Nil" } } }), tail: { $: "Con", head: $$view_attrData("id", $$Nat_show(_id_0)), tail: { $: "Con", head: $$view_attrData("page", $$Nat_show(_page_0)), tail: { $: "Con", head: $$view_attrData("path", _path_0), tail: { $: "Con", head: $$view_attrTitle($$bookmarkTitle(_name_0, _page_0)), tail: { $: "Con", head: $$view_attrAria("label", $$bookmarkAria(_name_0, _page_0)), tail: { $: "Con", head: $$view_attrOn("click", "OpenBookmark"), tail: { $: "Nil" } } } } } } } } }, { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("nav-name"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$bookmarkLabel(_name_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("nav-page"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$pageLabel(_page_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } } }), tail: { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_classes({ $: "Con", head: $$view_classOn("icon-btn", true), tail: { $: "Con", head: $$view_classOn("nav-bookmark-remove", true), tail: { $: "Nil" } } }), tail: { $: "Con", head: $$view_attrData("icon", "minus"), tail: { $: "Con", head: $$view_attrData("id", $$Nat_show(_id_0)), tail: { $: "Con", head: $$view_attrTitle($$removeTitle(_name_0)), tail: { $: "Con", head: $$view_attrAria("label", $$removeAria(_name_0)), tail: { $: "Con", head: $$view_attrOn("click", "RemoveBookmark"), tail: { $: "Nil" } } } } } } } }, { $: "Nil" }), tail: { $: "Nil" } } });
 }
 function $bookmarkRows_go(_bs_0, _currentPath_0, _i_0) {
   if (_bs_0.$ === "Nil") {
@@ -475,7 +479,7 @@ function $bookmarkRows_go(_bs_0, _currentPath_0, _i_0) {
   } else {
     const _h_0 = _bs_0["head"];
     const _t_0 = _bs_0["tail"];
-    return { $: "Con", head: $bookmarkRow(_i_0, _h_0, _currentPath_0), tail: $bookmarkRows_go(_t_0, _currentPath_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$bookmarkRow(_i_0, _h_0, _currentPath_0), tail: $$bookmarkRows_go(_t_0, _currentPath_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $bookmarkRows(_bs_0, _currentPath_0) {
@@ -489,34 +493,34 @@ function $clampDepth_if(_depth_0, _over_0) {
   }
 }
 function $clampDepth(_depth_0) {
-  return $clampDepth_if(_depth_0, $Nat_is_gt(_depth_0, $maxDepth()));
+  return $clampDepth_if(_depth_0, $$Nat_is_gt(_depth_0, $$maxDepth()));
 }
 function $outlineDepth(_depth_0) {
-  return $Nat_show($clampDepth(_depth_0));
+  return $Nat_show($$clampDepth(_depth_0));
 }
 function $outlineLabel(_title_0, _page_0) {
-  return $msg_msg2("pdf.nav.goTo", "page", $Nat_show(_page_0), "title", _title_0);
+  return $msg_msg2("pdf.nav.goTo", "page", $$Nat_show(_page_0), "title", _title_0);
 }
 function $outlineRow(_o_0) {
   const _title_0 = _o_0["title"];
   const _page_0 = _o_0["page"];
   const _depth_0 = _o_0["depth"];
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("nav-outline"), tail: { $: "Con", head: $view_attrData("depth", $outlineDepth(_depth_0)), tail: { $: "Con", head: $view_attrData("page", $Nat_show(_page_0)), tail: { $: "Con", head: $view_attrTitle($outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $view_attrAria("label", $outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $view_attrOn("click", "OpenOutline"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("nav-outline"), tail: { $: "Con", head: $$view_attrData("depth", $$outlineDepth(_depth_0)), tail: { $: "Con", head: $$view_attrData("page", $$Nat_show(_page_0)), tail: { $: "Con", head: $$view_attrTitle($$outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $$view_attrAria("label", $$outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $$view_attrOn("click", "OpenOutline"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $$view_viewText(_title_0), tail: { $: "Nil" } });
 }
 function $outlineRows(_os_0) {
   return $view_viewMap_1(_os_0);
 }
 function $navEmpty(_text_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("nav-empty"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } });
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("nav-empty"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_text_0), tail: { $: "Nil" } });
 }
 function $navSaveButton() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("nav-save"), tail: { $: "Con", head: $view_attrTitle($saveTitle()), tail: { $: "Con", head: $view_attrAria("label", $saveTitle()), tail: { $: "Con", head: $view_attrOn("click", "SaveBookmark"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $view_viewText($saveLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("nav-save"), tail: { $: "Con", head: $$view_attrTitle($$saveTitle()), tail: { $: "Con", head: $$view_attrAria("label", $$saveTitle()), tail: { $: "Con", head: $$view_attrOn("click", "SaveBookmark"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $$view_viewText($$saveLabel()), tail: { $: "Nil" } });
 }
 function $navSection(_title_0, _empty_0, _emptyText_0, _rows_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("nav-section"), tail: { $: "Nil" } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("h4", { $: "Nil" }, { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen(_empty_0, $navEmpty(_emptyText_0)), tail: { $: "Con", head: _rows_0, tail: { $: "Nil" } } } }));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("nav-section"), tail: { $: "Nil" } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$view_viewEl("h4", { $: "Nil" }, { $: "Con", head: $$view_viewText(_title_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_viewWhen(_empty_0, $$navEmpty(_emptyText_0)), tail: { $: "Con", head: _rows_0, tail: { $: "Nil" } } } }));
 }
 function $navPopover(_open_0, _bs_0, _os_0, _currentPath_0) {
-  return $view_viewEl("div", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("pdf-nav-pop", true), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_attrWhen($Bool_not(_open_0), $view_attr("hidden", "")), tail: { $: "Con", head: { $: "Con", head: $view_attrAria("label", $navButtonTitle()), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }), { $: "Con", head: $navSaveButton(), tail: { $: "Con", head: $navSection($favoritesTitle(), $emptyBooks(_bs_0), $favoritesEmpty(), $bookmarkRows(_bs_0, _currentPath_0)), tail: { $: "Con", head: $navSection($outlineTitle(), $emptyOutline(_os_0), $outlineEmpty(), $outlineRows(_os_0)), tail: { $: "Nil" } } } });
+  return $view_viewEl("div", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_classes({ $: "Con", head: $$view_classOn("pdf-nav-pop", true), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_attrWhen($$Bool_not(_open_0), $$view_attr("hidden", "")), tail: { $: "Con", head: { $: "Con", head: $$view_attrAria("label", $$navButtonTitle()), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }), { $: "Con", head: $$navSaveButton(), tail: { $: "Con", head: $$navSection($$favoritesTitle(), $$emptyBooks(_bs_0), $$favoritesEmpty(), $$bookmarkRows(_bs_0, _currentPath_0)), tail: { $: "Con", head: $$navSection($$outlineTitle(), $$emptyOutline(_os_0), $$outlineEmpty(), $$outlineRows(_os_0)), tail: { $: "Nil" } } } });
 }
 function $String_join(_xs_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -527,52 +531,11 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -580,7 +543,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -589,7 +552,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -605,7 +568,7 @@ function $view_viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
+    return { $: "Con", head: $$view_viewText(_h_0), tail: $$view_viewMap_0(_t_0) };
   }
 }
 function $view_viewMapI_go_0(_xs_0, _i_0) {
@@ -614,7 +577,7 @@ function $view_viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$view_asTextI(_i_0, _h_0), tail: $$view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $String_take(_s_0, _n_0) {
@@ -623,11 +586,11 @@ function $String_take(_s_0, _n_0) {
   } else {
     const _h_0 = _s_0.slice(0, char_len(_s_0));
     const _t_0 = _s_0.slice(char_len(_s_0));
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return "";
     } else {
       const _p_0 = _n_0 - 1;
-      return _h_0 + $String_take(_t_0, _p_0);
+      return _h_0 + $$String_take(_t_0, _p_0);
     }
   }
 }
@@ -635,11 +598,11 @@ function $Nat_is_gt(_a_0, _b_0) {
   return $Cmp_is_gt(cmp_new(_a_0, _b_0));
 }
 function $String_trim(_s_0) {
-  return $String_trim_end($String_trim_start(_s_0));
+  return $String_trim_end($$String_trim_start(_s_0));
 }
 function $Nat_show(_n_0) {
   const _m_0 = _n_0;
-  return $Nat_show_fin(_m_0, "", $Nat_show_put(nat_divmod(_m_0, 10)));
+  return $Nat_show_fin(_m_0, "", $$Nat_show_put(nat_divmod(_m_0, 10)));
 }
 function $Bool_and(_a_0, _b_0) {
   if (!_a_0) {
@@ -656,7 +619,7 @@ function $List_length(_xs_0) {
     return 0;
   } else {
     const _t_0 = _xs_0["tail"];
-    return nat_chk($List_length(_t_0) + 1);
+    return nat_chk($$List_length(_t_0) + 1);
   }
 }
 function $view_viewMap_1(_xs_0) {
@@ -665,7 +628,7 @@ function $view_viewMap_1(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $outlineRow(_h_0), tail: $view_viewMap_1(_t_0) };
+    return { $: "Con", head: $$outlineRow(_h_0), tail: $$view_viewMap_1(_t_0) };
   }
 }
 function $Bool_not(_b_0) {
@@ -681,15 +644,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_eq(_c_0) {
   if (_c_0.$ === "EQ") {
@@ -709,7 +707,7 @@ function $Cmp_is_gt(_c_0) {
   }
 }
 function $String_trim_end(_s_0) {
-  return $String_reverse($String_trim_start($String_reverse(_s_0)));
+  return $String_reverse($$String_trim_start($$String_reverse(_s_0)));
 }
 function $String_trim_start($0, $1, $2) {
   let $pc = 0;
@@ -724,7 +722,7 @@ function $String_trim_start($0, $1, $2) {
           const _t_0 = _s_0.slice(char_len(_s_0));
           $0 = _t_0;
           $1 = _h_0;
-          $2 = $Char_is_space(_h_0);
+          $2 = $$Char_is_space(_h_0);
           $pc = 1;
           continue;
         }
@@ -753,12 +751,11 @@ function $Nat_show_fin($0, $1, $2) {
         const _dq_0 = $2;
         const _d_0 = _dq_0["fst"];
         const _t_0 = _dq_0["snd"];
-        if (_t_0 === 0) {
+        if (_t_0 == 0) {
           return _d_0 + _acc_0;
         } else {
-          const _p_0 = _t_0 - 1;
           $0 = _g_0;
-          $1 = nat_chk(_p_0 + 1);
+          $1 = _t_0;
           $2 = _d_0 + _acc_0;
           $pc = 1;
           continue;
@@ -768,13 +765,13 @@ function $Nat_show_fin($0, $1, $2) {
         const _f_0 = $0;
         const _n_0 = $1;
         const _acc_0 = $2;
-        if (_f_0 === 0) {
+        if (_f_0 == 0) {
           return _acc_0;
         } else {
           const _g_0 = _f_0 - 1;
           $0 = _g_0;
           $1 = _acc_0;
-          $2 = $Nat_show_put(nat_divmod(_n_0, 10));
+          $2 = $$Nat_show_put(nat_divmod(_n_0, 10));
           $pc = 0;
           continue;
         }
@@ -786,6 +783,11 @@ function $Nat_show_put(_qr_0) {
   const _r_0 = _qr_0["snd"];
   const _x_0 = nat_chk(48 + _r_0);
   return { $: "Tuple", fst: char_new(_x_0 >>> 0), snd: _q_0 };
+}
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
 }
 function $String_order_go($0, $1, $2) {
   for (;; ) {
@@ -805,6 +807,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -814,13 +817,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -835,11 +837,9 @@ function $String_reverse(_s_0) {
 }
 function $Char_is_space(_c_0) {
   const _x_0 = char_code(_c_0);
-  const _x_1 = char_code(_c_0);
-  const _x_2 = char_code(_c_0);
-  const _x_3 = _x_0 === 32;
-  const _x_4 = $Bool_and(_x_1 >= 9, _x_2 <= 13);
-  return _x_3 || _x_4;
+  const _x_1 = _x_0 === 32;
+  const _x_2 = $$Bool_and(_x_0 >= 9, _x_0 <= 13);
+  return _x_1 || _x_2;
 }
 function $String_reverse_go($0, $1) {
   for (;; ) {
@@ -858,57 +858,139 @@ function $String_reverse_go($0, $1) {
     }
   }
 }
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$view_attrGet_go = $view_attrGet_go;
+var $$String_eq = $String_eq;
+var $$view_boolStr = $view_boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$view_classNext_on = $view_classNext_on;
+var $$view_classValue = $view_classValue;
+var $$Nat_is_gt = $Nat_is_gt;
+var $$String_trim = $String_trim;
+var $$maxName = $maxName;
+var $$Nat_show = $Nat_show;
+var $$pageLabel = $pageLabel;
+var $$maxPath = $maxPath;
+var $$fitName = $fitName;
+var $$fitPath = $fitPath;
+var $$pageFloor = $pageFloor;
+var $$keepName_blank = $keepName_blank;
+var $$keepBookmark_path = $keepBookmark_path;
+var $$dropSame_go = $dropSame_go;
+var $$sameBookmark = $sameBookmark;
+var $$takeList_go = $takeList_go;
+var $$maxBookmarks = $maxBookmarks;
+var $$List_length = $List_length;
+var $$view_attrClass = $view_attrClass;
+var $$view_attrType = $view_attrType;
+var $$view_classOn = $view_classOn;
+var $$view_classes = $view_classes;
+var $$view_attrData = $view_attrData;
+var $$bookmarkTitle = $bookmarkTitle;
+var $$view_attrTitle = $view_attrTitle;
+var $$bookmarkAria = $bookmarkAria;
+var $$view_attrAria = $view_attrAria;
+var $$view_attrOn = $view_attrOn;
+var $$bookmarkLabel = $bookmarkLabel;
+var $$view_viewText = $view_viewText;
+var $$view_viewEl = $view_viewEl;
+var $$removeTitle = $removeTitle;
+var $$removeAria = $removeAria;
+var $$bookmarkRow = $bookmarkRow;
+var $$bookmarkRows_go = $bookmarkRows_go;
+var $$maxDepth = $maxDepth;
+var $$clampDepth = $clampDepth;
+var $$outlineDepth = $outlineDepth;
+var $$outlineLabel = $outlineLabel;
+var $$saveTitle = $saveTitle;
+var $$saveLabel = $saveLabel;
+var $$navEmpty = $navEmpty;
+var $$view_viewWhen = $view_viewWhen;
+var $$view_viewJoin = $view_viewJoin;
+var $$Bool_not = $Bool_not;
+var $$view_attr = $view_attr;
+var $$view_attrWhen = $view_attrWhen;
+var $$navButtonTitle = $navButtonTitle;
+var $$view_attrJoin = $view_attrJoin;
+var $$navSaveButton = $navSaveButton;
+var $$favoritesTitle = $favoritesTitle;
+var $$emptyBooks = $emptyBooks;
+var $$favoritesEmpty = $favoritesEmpty;
+var $$bookmarkRows = $bookmarkRows;
+var $$navSection = $navSection;
+var $$outlineTitle = $outlineTitle;
+var $$emptyOutline = $emptyOutline;
+var $$outlineEmpty = $outlineEmpty;
+var $$outlineRows = $outlineRows;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
+var $$List_concat = $List_concat;
+var $$view_viewMap_0 = $view_viewMap_0;
+var $$view_asTextI = $view_asTextI;
+var $$view_viewMapI_go_0 = $view_viewMapI_go_0;
+var $$String_take = $String_take;
+var $$String_trim_start = $String_trim_start;
+var $$Nat_show_put = $Nat_show_put;
+var $$outlineRow = $outlineRow;
+var $$view_viewMap_1 = $view_viewMap_1;
+var $$String_join_go = $String_join_go;
+var $$Char_is_eq = $Char_is_eq;
+var $$String_reverse = $String_reverse;
+var $$Char_is_space = $Char_is_space;
+var $$Bool_and = $Bool_and;
 var pdfnav_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
-  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
-  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
-  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
-  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
-  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
-  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
-  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
-  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
-  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
-  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
-  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
-  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
-  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
-  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
-  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
-  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
-  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
-  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
-  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
-  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
-  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
-  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
-  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
-  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
-  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
-  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
-  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
-  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
-  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
-  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
-  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
-  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
-  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
-  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
-  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
-  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
-  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
-  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
-  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
-  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
-  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "view:attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view:classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view:viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view:viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view:viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view:tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view:attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view:kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view:textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view:isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view:attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view:attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view:attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view:attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view:attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view:attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view:attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view:attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view:attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view:attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view:attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view:attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view:attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view:attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view:boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view:attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view:classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view:classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view:classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view:classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view:classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view:classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view:classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view:viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view:viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view:viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view:viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view:viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view:asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view:viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view:viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
   maxName: run_lib(() => run_loop($maxName()), 0),
   maxPath: run_lib(() => run_loop($maxPath()), 0),
   maxBookmarks: run_lib(() => run_loop($maxBookmarks()), 0),

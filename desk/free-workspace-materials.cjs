@@ -149,7 +149,7 @@ async function saveMaterial(runtime, sessionId, {title, markdown, model, options
   assertOpen(record);
   if (record.materials.length >= maxMaterials()) fail('TOO_MANY', uiMsg('err.freews.tooMany'));
   if (typeof markdown !== 'string' || markdown.trim() === '') fail('EMPTY', uiMsg('err.freews.writeFirst'));
-  if (markdown.length > maxDraftChars()) fail('TOO_BIG', uiMsg('err.pdf.tooBig'));
+  if (markdown.length > maxDraftChars()) fail('TOO_BIG', uiMsg('err.pdf.tooBig', {received: markdown.length, max: maxDraftChars()}));
   const materialPdf = pdf || require('./material-pdf.cjs');
   const picked = typeof title === 'string' && title.trim() ? title : record.title;
   const stem = sanitizeStem(picked);

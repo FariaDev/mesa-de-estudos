@@ -13,13 +13,16 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 var char_new = function char_new(c) {
   return c < 55296 || c >= 57344 && c <= 1114111 ? String.fromCodePoint(c) : String.fromCharCode(56320, c >>> 22, c >>> 11 & 2047, c & 2047);
 };
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -40,6 +43,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -47,8 +51,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -67,7 +71,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $minChat() {
   return 300;
@@ -104,7 +108,7 @@ function $clamp_below(_value_0, _lo_0, _hi_0, _under_0) {
   if (_under_0) {
     return _lo_0;
   } else {
-    return $clamp_over(_value_0, _hi_0, $Nat_is_gt(_value_0, _hi_0));
+    return $clamp_over(_value_0, _hi_0, $$Nat_is_gt(_value_0, _hi_0));
   }
 }
 function $clamp(_value_0, _lo_0, _hi_0) {
@@ -118,19 +122,19 @@ function $cut_if(_text_0, _limit_0, _over_0) {
   }
 }
 function $cut(_text_0, _limit_0) {
-  return $cut_if(_text_0, _limit_0, $Nat_is_gt([...str_out(_text_0)].length, _limit_0));
+  return $cut_if(_text_0, _limit_0, $$Nat_is_gt([...str_out(_text_0)].length, _limit_0));
 }
 function $name(_raw_0) {
-  return $cut($String_trim(_raw_0), $maxName());
+  return $cut($$String_trim(_raw_0), $$maxName());
 }
 function $keepMinimized(_xs_0) {
   return $List_take(_xs_0, 2);
 }
 function $layout(_chatWidth_0, _calcHeight_0, _splitPct_0, _chatCollapsed_0, _calculatorCollapsed_0, _referenceVisible_0, _minimized_0) {
-  return { $: "LayoutView", chatWidth: $clamp(_chatWidth_0, $minChat(), $maxChat()), calcHeight: $clamp(_calcHeight_0, $minCalc(), $maxCalc()), splitPct: $clamp(_splitPct_0, $minSplit(), $maxSplit()), chatCollapsed: _chatCollapsed_0, calculatorCollapsed: _calculatorCollapsed_0, referenceVisible: _referenceVisible_0, minimized: $keepMinimized(_minimized_0) };
+  return { $: "LayoutView", chatWidth: $$clamp(_chatWidth_0, $$minChat(), $$maxChat()), calcHeight: $$clamp(_calcHeight_0, $$minCalc(), $$maxCalc()), splitPct: $$clamp(_splitPct_0, $$minSplit(), $$maxSplit()), chatCollapsed: _chatCollapsed_0, calculatorCollapsed: _calculatorCollapsed_0, referenceVisible: _referenceVisible_0, minimized: $$keepMinimized(_minimized_0) };
 }
 function $referenceShown(_two_0, _tabIsForm_0, _open_0) {
-  return $Bool_and(_two_0, $Bool_and(_tabIsForm_0, _open_0));
+  return $Bool_and(_two_0, $$Bool_and(_tabIsForm_0, _open_0));
 }
 function $refAction_whenShown(_visible_0) {
   if (_visible_0) {
@@ -161,7 +165,7 @@ function $referenceAction_two(_two_0, _shown_0, _visible_0) {
   }
 }
 function $referenceAction(_two_0, _tabIsForm_0, _open_0, _visible_0) {
-  return $referenceAction_two(_two_0, $referenceShown(_two_0, _tabIsForm_0, _open_0), _visible_0);
+  return $referenceAction_two(_two_0, $$referenceShown(_two_0, _tabIsForm_0, _open_0), _visible_0);
 }
 function $oneIf(_on_0) {
   if (_on_0) {
@@ -180,7 +184,7 @@ function $miniCount_go($0, $1) {
       } else {
         const _h_0 = _xs_0["head"];
         const _t_0 = _xs_0["tail"];
-        const _x_0 = $oneIf(_h_0);
+        const _x_0 = $$oneIf(_h_0);
         $0 = _t_0;
         $1 = nat_chk(_acc_0 + _x_0);
         continue;
@@ -200,17 +204,17 @@ function $facts(_l_0) {
   const _splitPct_0 = _l_0["splitPct"];
   const _chatCollapsed_0 = _l_0["chatCollapsed"];
   const _minimized_0 = _l_0["minimized"];
-  const _x_0 = $Nat_show($oneIf(_chatCollapsed_0));
-  const _x_1 = $Nat_show($miniCount(_minimized_0));
+  const _x_0 = $$Nat_show($$oneIf(_chatCollapsed_0));
+  const _x_1 = $$Nat_show($$miniCount(_minimized_0));
   const _x_2 = "/" + _x_0;
   const _x_3 = _x_1 + _x_2;
-  const _x_4 = $Nat_show($roundPercent(_splitPct_0));
+  const _x_4 = $$Nat_show($$roundPercent(_splitPct_0));
   const _x_5 = "/" + _x_3;
   const _x_6 = _x_4 + _x_5;
-  const _x_7 = $Nat_show(_calcHeight_0);
+  const _x_7 = $$Nat_show(_calcHeight_0);
   const _x_8 = "/" + _x_6;
   const _x_9 = _x_7 + _x_8;
-  const _x_10 = $Nat_show(_chatWidth_0);
+  const _x_10 = $$Nat_show(_chatWidth_0);
   const _x_11 = "/" + _x_9;
   return _x_10 + _x_11;
 }
@@ -233,15 +237,15 @@ function $compararLayout() {
   return { $: "LayoutView", chatWidth: 330, calcHeight: 220, splitPct: 500, chatCollapsed: true, calculatorCollapsed: false, referenceVisible: true, minimized: { $: "Con", head: false, tail: { $: "Con", head: false, tail: { $: "Nil" } } } };
 }
 function $isExercicios(_id_0) {
-  return $String_eq(_id_0, $exerciciosId());
+  return $String_eq(_id_0, $$exerciciosId());
 }
 function $isComparar(_id_0) {
-  return $String_eq(_id_0, $compararId());
+  return $String_eq(_id_0, $$compararId());
 }
 function $isBuiltin(_id_0) {
-  const _x_0 = $isExercicios(_id_0);
-  const _x_1 = $isComparar(_id_0);
-  const _x_2 = $String_eq(_id_0, $leituraId());
+  const _x_0 = $$isExercicios(_id_0);
+  const _x_1 = $$isComparar(_id_0);
+  const _x_2 = $$String_eq(_id_0, $$leituraId());
   const _x_3 = _x_0 || _x_1;
   return _x_2 || _x_3;
 }
@@ -260,24 +264,24 @@ function $builtinName_exec(_exec_0, _compare_0) {
   }
 }
 function $builtinName(_id_0) {
-  return $builtinName_exec($isExercicios(_id_0), $isComparar(_id_0));
+  return $builtinName_exec($$isExercicios(_id_0), $$isComparar(_id_0));
 }
 function $builtinLayout_compare(_compare_0) {
   if (_compare_0) {
-    return { $: "Some", value: $compararLayout() };
+    return { $: "Some", value: $$compararLayout() };
   } else {
-    return { $: "Some", value: $leituraLayout() };
+    return { $: "Some", value: $$leituraLayout() };
   }
 }
 function $builtinLayout_exec(_exec_0, _compare_0) {
   if (_exec_0) {
-    return { $: "Some", value: $exerciciosLayout() };
+    return { $: "Some", value: $$exerciciosLayout() };
   } else {
     return $builtinLayout_compare(_compare_0);
   }
 }
 function $builtinLayout(_id_0) {
-  return $builtinLayout_exec($isExercicios(_id_0), $isComparar(_id_0));
+  return $builtinLayout_exec($$isExercicios(_id_0), $$isComparar(_id_0));
 }
 function $String_join(_xs_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -288,49 +292,8 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $Nat_is_gt(_a_0, _b_0) {
   return $Cmp_is_gt(cmp_new(_a_0, _b_0));
@@ -341,16 +304,16 @@ function $String_take(_s_0, _n_0) {
   } else {
     const _h_0 = _s_0.slice(0, char_len(_s_0));
     const _t_0 = _s_0.slice(char_len(_s_0));
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return "";
     } else {
       const _p_0 = _n_0 - 1;
-      return _h_0 + $String_take(_t_0, _p_0);
+      return _h_0 + $$String_take(_t_0, _p_0);
     }
   }
 }
 function $String_trim(_s_0) {
-  return $String_trim_end($String_trim_start(_s_0));
+  return $String_trim_end($$String_trim_start(_s_0));
 }
 function $List_take(_xs_0, _n_0) {
   if (_xs_0.$ === "Nil") {
@@ -358,11 +321,11 @@ function $List_take(_xs_0, _n_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return { $: "Nil" };
     } else {
       const _p_0 = _n_0 - 1;
-      return { $: "Con", head: _h_0, tail: $List_take(_t_0, _p_0) };
+      return { $: "Con", head: _h_0, tail: $$List_take(_t_0, _p_0) };
     }
   }
 }
@@ -378,10 +341,10 @@ function $Nat_div(_a_0, _b_0) {
 }
 function $Nat_show(_n_0) {
   const _m_0 = _n_0;
-  return $Nat_show_fin(_m_0, "", $Nat_show_put(nat_divmod(_m_0, 10)));
+  return $Nat_show_fin(_m_0, "", $$Nat_show_put(nat_divmod(_m_0, 10)));
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $String_join_go(_xs_0, _h_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -389,15 +352,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_gt(_c_0) {
   if (_c_0.$ === "GT") {
@@ -407,7 +405,7 @@ function $Cmp_is_gt(_c_0) {
   }
 }
 function $String_trim_end(_s_0) {
-  return $String_reverse($String_trim_start($String_reverse(_s_0)));
+  return $String_reverse($$String_trim_start($$String_reverse(_s_0)));
 }
 function $String_trim_start($0, $1, $2) {
   let $pc = 0;
@@ -422,7 +420,7 @@ function $String_trim_start($0, $1, $2) {
           const _t_0 = _s_0.slice(char_len(_s_0));
           $0 = _t_0;
           $1 = _h_0;
-          $2 = $Char_is_space(_h_0);
+          $2 = $$Char_is_space(_h_0);
           $pc = 1;
           continue;
         }
@@ -455,12 +453,11 @@ function $Nat_show_fin($0, $1, $2) {
         const _dq_0 = $2;
         const _d_0 = _dq_0["fst"];
         const _t_0 = _dq_0["snd"];
-        if (_t_0 === 0) {
+        if (_t_0 == 0) {
           return _d_0 + _acc_0;
         } else {
-          const _p_0 = _t_0 - 1;
           $0 = _g_0;
-          $1 = nat_chk(_p_0 + 1);
+          $1 = _t_0;
           $2 = _d_0 + _acc_0;
           $pc = 1;
           continue;
@@ -470,13 +467,13 @@ function $Nat_show_fin($0, $1, $2) {
         const _f_0 = $0;
         const _n_0 = $1;
         const _acc_0 = $2;
-        if (_f_0 === 0) {
+        if (_f_0 == 0) {
           return _acc_0;
         } else {
           const _g_0 = _f_0 - 1;
           $0 = _g_0;
           $1 = _acc_0;
-          $2 = $Nat_show_put(nat_divmod(_n_0, 10));
+          $2 = $$Nat_show_put(nat_divmod(_n_0, 10));
           $pc = 0;
           continue;
         }
@@ -499,16 +496,19 @@ function $Cmp_is_eq(_c_0) {
 function $String_order(_a_0, _b_0) {
   return $String_order_go(_a_0, _b_0, { $: "EQ" });
 }
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
+}
 function $String_reverse(_s_0) {
   return $String_reverse_go(_s_0, "");
 }
 function $Char_is_space(_c_0) {
   const _x_0 = char_code(_c_0);
-  const _x_1 = char_code(_c_0);
-  const _x_2 = char_code(_c_0);
-  const _x_3 = _x_0 === 32;
-  const _x_4 = $Bool_and(_x_1 >= 9, _x_2 <= 13);
-  return _x_3 || _x_4;
+  const _x_1 = _x_0 === 32;
+  const _x_2 = $$Bool_and(_x_0 >= 9, _x_0 <= 13);
+  return _x_1 || _x_2;
 }
 function $String_order_go($0, $1, $2) {
   for (;; ) {
@@ -528,6 +528,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -537,13 +538,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -570,16 +570,54 @@ function $String_reverse_go($0, $1) {
     }
   }
 }
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$Nat_is_gt = $Nat_is_gt;
+var $$String_trim = $String_trim;
+var $$maxName = $maxName;
+var $$minChat = $minChat;
+var $$maxChat = $maxChat;
+var $$clamp = $clamp;
+var $$minCalc = $minCalc;
+var $$maxCalc = $maxCalc;
+var $$minSplit = $minSplit;
+var $$maxSplit = $maxSplit;
+var $$keepMinimized = $keepMinimized;
+var $$Bool_and = $Bool_and;
+var $$referenceShown = $referenceShown;
+var $$oneIf = $oneIf;
+var $$Nat_show = $Nat_show;
+var $$roundPercent = $roundPercent;
+var $$miniCount = $miniCount;
+var $$exerciciosId = $exerciciosId;
+var $$compararId = $compararId;
+var $$leituraId = $leituraId;
+var $$String_eq = $String_eq;
+var $$isExercicios = $isExercicios;
+var $$isComparar = $isComparar;
+var $$compararLayout = $compararLayout;
+var $$leituraLayout = $leituraLayout;
+var $$exerciciosLayout = $exerciciosLayout;
+var $$String_take = $String_take;
+var $$String_trim_start = $String_trim_start;
+var $$List_take = $List_take;
+var $$Nat_show_put = $Nat_show_put;
+var $$String_order = $String_order;
+var $$String_join_go = $String_join_go;
+var $$Char_is_eq = $Char_is_eq;
+var $$String_reverse = $String_reverse;
+var $$Char_is_space = $Char_is_space;
 var mesaqollayout_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
   minChat: run_lib(() => run_loop($minChat()), 0),
   maxChat: run_lib(() => run_loop($maxChat()), 0),
   minCalc: run_lib(() => run_loop($minCalc()), 0),

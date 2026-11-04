@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';import path from 'node:path';import fs from 'node:fs';
-import {captureFixtureEnv,screenshotDirectory,pickTheme,withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,sendEnabled,statusOnline,PLOT_PNG,menuLocator,tutorMore,sessionIds,openSessionById,openSessionList,closeSessionList,openTutorMore,fillStudyTitle,resizeWindow,pageWindow} from './helpers.mjs';
-import {layoutStable,pollUntil} from './waits.mjs';
+import {captureFixtureEnv,screenshotDirectory,pickTheme,withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,tinyPdf,tinyPdfPages,toastWait,sendEnabled,statusOnline,PLOT_PNG,menuLocator,tutorMore,sessionIds,openSessionById,openSessionList,closeSessionList,openTutorMore,fillStudyTitle,resizeWindow,pageWindow} from './helpers.mjs';
+import {layoutStable,nextFrames,pollUntil} from './waits.mjs';
 const deskJson=runtime=>{try{return JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));}catch{return null;}};
 
 await withArtifacts('smoke',async ctx=>{
  const runtime=ctx.runtime=newRuntime('basico');
- const plot=seedPlot(runtime,'Test');
+ const course=seedCourse(runtime,'Calculus I');
+ fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdfPages(3,'Limites e derivadas'));
+ fs.writeFileSync(path.join(course,'Formulario.pdf'),tinyPdfPages(2,'Formulario e apoio'));
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calculus I',name:'Cálculo I',path:course}]});
+ const plot=seedPlot(runtime,'Calculus I');
  const sessionFile=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:`Aqui está o gráfico:\n\n![curva de teste](file://${plot})`}]}}]);
  writeDeskJson(runtime,{session:sessionFile,courseId:'Calculus I'});
  const app=ctx.app=await launchDesk({runtime,env:captureFixtureEnv(runtime)});
@@ -19,8 +23,8 @@ await withArtifacts('smoke',async ctx=>{
  // a moldura do leitor e o documento vêm da view do Bend (core/pdfpageview.bend)
  const shell=await page.evaluate(()=>{const doc=document.querySelector('.pdf-panel .pdf-document'),pages=doc?[...doc.children]:[];return {titles:[...document.querySelectorAll('.pdf-panel > .pdf-title > strong')].map(el=>el.textContent),tools:[...document.querySelector('.pdf-panel > .pdf-title').children].map(el=>el.className.split(' ')[0]||el.tagName.toLowerCase()),menu:[...document.querySelector('.pdf-panel .pdf-more-pop').children].map(el=>el.className.split(' ')[0]),scaffold:document.querySelectorAll('.pdf-panel [data-icon]').length,cls:doc?doc.className:'',pageCls:pages[0]?pages[0].className:'',first:pages[0]?pages[0].dataset.page:'',style:pages[0]?pages[0].getAttribute('style'):'',count:pages.length};});
  assert.deepEqual(shell.titles,['Enunciado','Formulário & apoio'],'títulos dos leitores vêm da view do Bend');
- assert.deepEqual(shell.tools,['strong','pdf-select','back','prev','page-number','page-total','next','find-toggle','nav','more'],'barra única na ordem da view do Bend');
-assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rotate','printed-toggle','collapse'],'Mais opções na ordem da view do Bend (a numeração impressa o host encaixa antes de Recolher)');
+ assert.deepEqual(shell.tools,['strong','pdf-select','back','pager','page-number','find-toggle','more'],'barra única na ordem da view do Bend');
+assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','collapse'],'Mais opções na ordem da view do Bend');
  assert.equal(shell.scaffold,0,'o andaime data-icon sai do DOM');
  assert.equal(shell.cls,'pdf-document');assert.equal(shell.pageCls,'pdf-page');assert.equal(shell.first,'1');
  assert.match(shell.style,/^width:\d+(\.\d+)?px;height:\d+(\.\d+)?px$/,'a página é a âncora medida (style do Bend)');
@@ -28,7 +32,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  const anchors=await page.evaluate(()=>[...document.querySelector('.pdf-panel .pdf-document').children].map(el=>({page:el.dataset.page,style:el.getAttribute('style')})));
  assert.deepEqual(anchors.map(a=>a.page),anchors.map((_,i)=>String(i+1)),'âncoras das páginas em ordem (data-page)');
  assert.ok(anchors.every(a=>/^width:[\d.]+px;height:[\d.]+px$/.test(a.style)),'cada página guarda a caixa medida pelo host (style do Bend)');
- await page.locator('.pdf-panel').first().locator('.next').click();await page.waitForFunction(()=>document.querySelector('.page-number').value==='2');
+ await page.locator('.pdf-panel').first().locator('.pdf-viewport').click({position:{x:30,y:30}});await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('.page-number').value==='2');
  assert.match(await page.title(),/p\. 2/,'window title carries the open page');
  assert.equal(await page.locator('.page-number').nth(1).inputValue(),'1');
  await page.locator('#expression').fill('sqrt(16)+sin(pi/2)');await page.locator('#calc-form button').click();assert.equal(await page.locator('#result').textContent(),'5');
@@ -44,7 +48,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  assert.equal((await page.locator('#calc-bar .calc-unit').textContent()).trim(),'GRAUS','a linha recolhida mostra a unidade vigente');
  await page.locator('#calc-toggle').click();
  assert.equal(await page.locator('#calc-guide summary').textContent(),'Como usar','a guia vem da view do Bend');
- assert.equal(await page.locator('#calc-guide code').count(),32,'os códigos da guia vêm da view');
+ assert.equal(await page.locator('#calc-guide code').count(),22,'os códigos da guia vêm da view');
  assert.deepEqual(await page.locator('#calc-history button').evaluateAll(es=>es.map(el=>({text:el.getAttribute('aria-label'),expr:el.dataset.expr}))),[{text:'sin(30) = 0,5',expr:'sin(30)'},{text:'sqrt(16)+sin(pi/2) = 5',expr:'sqrt(16)+sin(pi/2)'}],'histórico do mais novo para o antigo, com o rótulo pronto');
  await page.locator('#calc-history button').last().click();
  await page.waitForFunction(()=>document.querySelector('#expression').value==='sqrt(16)+sin(pi/2)'&&document.activeElement===document.querySelector('#expression'),undefined,{timeout:5000});
@@ -75,7 +79,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  await page.locator('#calc-toggle').click();
  await page.locator('#calc-toggle').click();
  assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true,'o open da guia sobrevive ao render');
- assert.equal(await page.locator('#calc-guide code').count(),32,'os códigos continuam na árvore');
+ assert.equal(await page.locator('#calc-guide code').count(),22,'os códigos continuam na árvore');
  await page.locator('#calc-guide summary').click();
  // recíprocas (sec/csc/cot), inversas (asin/acos/atan) e ângulos exatos
  await page.locator('#expression').fill('sec(60)');await page.locator('#calc-form button').click();assert.equal(await page.locator('#result').textContent(),'2','sec(60) em GRAUS');
@@ -177,7 +181,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  await page.locator('#send').click();
  await page.waitForFunction(()=>document.querySelectorAll('.message.quiz').length===3);
  const dontKnow=page.locator('.message.quiz').nth(2);
- await dontKnow.locator('.quiz-option').last().click();
+ await dontKnow.locator('.quiz-dontknow').click();
  await page.waitForFunction(()=>document.querySelectorAll('.quiz-verdict').length===3&&document.querySelectorAll('.quiz-verdict')[2].textContent.includes('Não sei'));
  await page.waitForFunction(()=>!document.querySelector('#send').disabled);
  await page.locator('#prompt').fill('explique o teorema de Pitágoras');
@@ -190,6 +194,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  // o medidor mora no Mais opções do tutor (uso de contexto): o menu abre para lê-lo
  await page.waitForSelector('#ctx-meter:not([hidden])',{state:'attached'});
  await openTutorMore(page);
+ await page.locator('#more-context').click();
  assert.equal(await page.locator('#more-context-empty').isHidden(),true,'com medição, o "sem medição ainda" some');
  assert.match(await page.locator('#ctx-meter em').textContent(),/%$/);
  // o balão do medidor é a view do Bend (`core/statusview.bend` → ctxTip): texto e
@@ -219,6 +224,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  await page.evaluate(()=>document.querySelector('#ctx-meter').dispatchEvent(new MouseEvent('mouseleave')));
  await page.waitForFunction(()=>document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
  await page.keyboard.press('Escape');
+ await page.keyboard.press('Escape');
  await page.locator('#chat-more-pop').waitFor({state:'hidden',timeout:5000});
  const msgsBefore=await page.locator('#messages .message').count();
  await page.locator('#prompt').fill('/compact foque nos quizzes');
@@ -233,6 +239,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  await page.waitForFunction(prev=>{const t=document.querySelector('#toast');return document.querySelector('#auto-compact').getAttribute('aria-pressed')!==prev&&t&&!t.hidden&&t.textContent.includes('Compactação automática');},pressed0,{timeout:8000});
  await tutorMore(page,'#more-auto-compact').click(); // o menu fecha depois do toast: reabre pelo proxy
  await page.waitForFunction(prev=>document.querySelector('#auto-compact').getAttribute('aria-pressed')===prev,pressed0,{timeout:8000});
+ await page.keyboard.press('Escape');
  await page.keyboard.press('Escape');
  // cabeça do chat: ponto, medidor e compactação vêm da view do Bend
  // (`core/statusview.bend`); o medidor mantém os nós vivos (animação da barra)
@@ -250,7 +257,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  await resizeWindow(app,page,windowSize.width,windowSize.height);
  /* Com o leitor 40px mais alto, o resize acima deixa o Enunciado na página 3 (a rolagem
     segue o mesmo deslocamento); o que o roteiro adiante lê é a página 2 do clique em Próxima. */
- await page.locator('.page-number').first().fill('2');await page.locator('.page-number').first().press('Enter');
+ await page.locator('.pager').first().click();await page.locator('.page-number').first().fill('2');await page.locator('.page-number').first().press('Enter');
  await page.waitForFunction(()=>document.querySelector('.page-number').value==='2',undefined,{timeout:5000});
  // o cabeçalho do tutor mostra o título da sessão corrente; a lista da matéria marca a mesma sessão
  const sess=await page.evaluate(()=>{const t=document.querySelector('#session-title');return {aria:t.getAttribute('aria-label'),data:t.dataset.session,text:t.querySelector('.session-title-text').textContent.trim()};});
@@ -266,7 +273,8 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  const vocab=await page.evaluate(()=>{
   /* Nome de modelo vem do provedor (dado, não vocabulário): `#model-list` e o indicador de modelo; "Claude Code" na sessão nova é nome de motor. */
   /* Relatar um problema (#62) nomeia o programa `pi` do terminal, não o tutor. */
-  const skip=['#settings-dialog','#about-dialog','#triage-dialog','#new-session-claude','#model-list','#model-indicator','#model-pop'];
+  /* A primeira abertura (#93) diz que Codex e Grok exigem o Pi; é escolha de motor, como Configurações. */
+  const skip=['#setup','#settings-dialog','#about-dialog','#triage-dialog','#new-session-claude','#model-list','#model-indicator','#model-pop'];
   const allowed=[/Chat lateral/gi,/chat lateral/gi,/Pi \/ Claude Code/g];
   const found=[];
   const scrub=text=>allowed.reduce((out,re)=>out.replace(re,' '),text);
@@ -316,12 +324,16 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
   const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
  });
  await page.waitForSelector('#quote-btn:not([hidden])');
- await page.locator('#quote-btn').click();
+ /* Clique de DOM: no X11 o clique do Playwright recheca estabilidade/visibilidade
+    enquanto o botão flutua sobre a seleção e o timer de 120 ms pode escondê-lo. */
+ await page.evaluate(()=>document.querySelector('#quote-btn').click());
  await page.waitForFunction(()=>document.querySelector('#prompt').value.includes('$a^2 + b^2 = c^2$'));
  const quoted=await page.locator('#prompt').inputValue();
  assert.ok(quoted.startsWith('> '),'quote should be a Markdown blockquote');
  assert.match(quoted,/\$a\^2 \+ b\^2 = c\^2\$/, 'quote should keep the LaTeX source');
- /* O botão sai com fade (#63): espera a saída em vez de ler no mesmo instante. */
+ /* O botão sai com fade (#63): espera a saída em vez de ler no mesmo instante;
+    os quadros acordados deixam a transição de display terminar. */
+ await nextFrames(page,4);
  await page.locator('#quote-btn').waitFor({state:'hidden',timeout:2000});
  await page.locator('#prompt').fill(quoted.trim()+'\n\nPor que isso vale?');
  await page.locator('#send').click();
@@ -335,7 +347,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
   const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
  });
  await page.waitForSelector('#quote-btn:not([hidden])');
- await page.locator('#quote-btn').click();
+ await page.evaluate(()=>document.querySelector('#quote-btn').click());
  await page.waitForFunction(()=>document.querySelector('#prompt').value.trim()==='> $a^2 + b^2 = c^2$');
  await page.locator('#prompt').fill('');
  await page.evaluate(()=>{
@@ -345,7 +357,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
   const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
  });
  await page.waitForSelector('#quote-btn:not([hidden])');
- await page.locator('#quote-btn').click();
+ await page.evaluate(()=>document.querySelector('#quote-btn').click());
  await page.waitForFunction(()=>document.querySelector('#prompt').value.trim()==='> $$E = mc^2$$');
  await page.locator('#prompt').fill('');
  await page.setInputFiles('#attach-input',plot);
@@ -402,7 +414,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  await page.locator('#attachments .attachment-remove').click();
  await page.waitForFunction(()=>document.querySelector('#attachments').hidden);
  await fillStudyTitle(page,'Lista 2 · questão 7b');
- await page.waitForFunction(()=>document.querySelector('#context-summary').textContent.includes('Lista 2 · questão 7b')&&document.querySelector('#context-summary').textContent.includes('p.2'));
+ await page.waitForFunction(()=>document.querySelector('#context-summary').textContent.includes('Lista 2 · questão 7b')&&document.querySelector('#context-summary').textContent.includes('Limites.pdf')&&document.querySelector('#context-summary').textContent.includes('Formulario.pdf'));
  // flags padrão do `desk`: o botão de referências do composer é view do Bend
  assert.equal(await page.locator('#include-refs').isHidden(),false,'com a flag padrão o botão de referências fica visível');
  assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'true','o aria-pressed acompanha o fato do host');
@@ -420,8 +432,8 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  assert.match(saved,/"type":"image","data":"iVBOR/);
  assert.match(saved,/"mimeType":"image\/png"/);
  await page.locator('#study-menu .nav-trigger').click();
- const secondName=selects[1].split(/[/\\]/).at(-1);assert.match(await page.locator('#context-summary').textContent(),new RegExp(secondName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
- await page.locator('#reference-toggle').click();assert.equal(await page.locator('.pdf-panel').nth(1).isVisible(),false);assert.doesNotMatch(await page.locator('#context-summary').textContent(),new RegExp(secondName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));await page.locator('#reference-toggle').click();assert.match(await page.locator('#context-summary').textContent(),new RegExp(secondName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+ assert.match(await page.locator('#context-summary').textContent(),/Limites\.pdf p\.\s?\d+/,'a linha Vai junto nomeia cada material e a página');
+ await page.locator('#reference-toggle').click();assert.equal(await page.locator('.pdf-panel').nth(1).isVisible(),false);assert.match(await page.locator('#context-summary').textContent(),/Limites\.pdf p\.\d+/);await page.locator('#reference-toggle').click();assert.match(await page.locator('#context-summary').textContent(),/Limites\.pdf p\.\s?\d+/);assert.match(await page.locator('#context-summary').textContent(),/Formulario\.pdf p\.\s?\d+/);
  const continuous=await page.locator('.pdf-viewport').first().evaluate(el=>{const pages=el.querySelectorAll('.pdf-page');el.scrollTop=Math.max(0,pages[1].offsetTop-40);el.dispatchEvent(new Event('scroll'));return {pages:pages.length,top:el.scrollTop,second:pages[1].offsetTop};});
  assert.ok(continuous.pages>1&&continuous.top>0&&continuous.top<continuous.second,'PDF scroll should remain between pages');
  const divider=page.locator('.pdf-divider');
@@ -469,9 +481,9 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  await page.waitForFunction(()=>[...document.querySelectorAll('#toast .toast-item')].some(el=>el.textContent.includes('Resultado indefinido')),{timeout:5000});
  assert.equal(await page.locator('#toast .toast-item').count(),1,'o aviso novo substitui o anterior: um só na tela');
  assert.doesNotMatch(await page.locator('#toast').textContent(),/Use números/,'o anterior saiu');
- const closing=await page.waitForFunction(()=>{const cs=[...document.querySelectorAll('#toast .toast-item.closing')].map(el=>el.getAttribute('class'));return cs.length?[...new Set(cs)]:false;},undefined,{timeout:6000}).then(handle=>handle.jsonValue());
+ const closing=await page.waitForFunction(()=>{const cs=[...document.querySelectorAll('#toast .toast-item.closing')].map(el=>el.getAttribute('class'));return cs.length?[...new Set(cs)]:false;},undefined,{timeout:6000,polling:50}).then(handle=>handle.jsonValue());
  assert.deepEqual(closing,['toast-item closing out'],'a saída entra no fim, juntas, antes de sumir');
- await page.waitForFunction(()=>!document.querySelector('#toast .toast-item'),{timeout:8000});
+ await page.waitForFunction(()=>!document.querySelector('#toast .toast-item'),undefined,{timeout:8000,polling:50});
  // ⌘\ recolhe o chat; botão flutuante devolve
  await page.keyboard.press('ControlOrMeta+\\');
  await page.waitForFunction(()=>document.body.classList.contains('chat-collapsed'),{timeout:5000});
@@ -563,6 +575,9 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
   assert.deepEqual(await page.locator('#keys-dialog .keys-group > h3').evaluateAll(es=>es.map(el=>el.textContent)),['Estudar','Visualização','Ajuda','Arquivo','Tutor'],'as seções mantêm a ordem do catálogo');
   assert.equal(await page.locator('#keys-dialog .keys-row[data-action="check"]').getAttribute('data-key'),'check','cada linha tem key estável para foco');
   assert.equal(await page.locator('#keys-dialog .keys-row.is-fixed .keys-note').first().textContent(),'fixo','atalho fixo recebe a nota da view');
+  const fixedRow=page.locator('#keys-dialog .keys-row.is-fixed').first();
+  await fixedRow.focus();
+  assert.equal(await fixedRow.locator('.keys-note').first().evaluate(el=>getComputedStyle(el).opacity),'1','focar a linha fixa revela a nota');
   assert.equal(await page.locator('#keys-reset-all').isDisabled(),true,'sem overrides a ação global vem disabled como fato');
   await page.locator('#keys-dialog .keys-row[data-action="check"] .keys-rec').click();
   await page.waitForFunction(()=>document.querySelector('#keys-dialog .keys-row[data-action="check"]')?.classList.contains('recording'));
@@ -585,6 +600,7 @@ assert.deepEqual(shell.menu,['open','page-shot','more-zoom','fit','invert','rota
  if(process.platform==='darwin'){
   await app.evaluate(({ipcMain})=>{ipcMain.removeHandler('capture-ready');ipcMain.handle('capture-ready',async()=>({title:'Xournal++',dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='}));});
   const msgsBeforeCapture=await page.locator('#messages .message').count();
+  await page.locator('#attach').click();
   await page.locator('#check').click();
   await page.waitForFunction(()=>document.querySelectorAll('#attachments .attachment').length===1,undefined,{timeout:8000});
   await toastWait(page,'Captura do Xournal++ anexada');
@@ -650,12 +666,12 @@ await withArtifacts('flags',async ctx=>{
  assert.equal(deskRaw.desk.refsToggle,false);assert.equal(deskRaw.desk.endDay,false);assert.equal(deskRaw.desk.studyContext,false);
  // Enter num campo salva: o `<form method="dialog">` herdado ativava o "×"
  // (primeiro submit, `value=cancel`) e a edição era descartada como cancelamento
- await page.locator('#settings-tab-pastas').click();
- await page.locator('#cfg-pi').fill('/tmp/pi-do-enter');
- await page.locator('#cfg-pi').press('Enter');
+ await page.locator('#settings-tab-mesa').click();
+ await page.locator('#cfg-title').fill('Mesa do Enter');
+ await page.locator('#cfg-title').press('Enter');
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
  const cfgAfter=await page.evaluate(()=>window.desk.getConfig());
- assert.equal(cfgAfter.config.piPath,'/tmp/pi-do-enter','Enter num campo salva as Configurações');
+ assert.equal(cfgAfter.config.desk.title,'Mesa do Enter','Enter num campo salva as Configurações');
  assert.equal(cfgAfter.config.desk.endDay,false,'as flags do diálogo seguem no config salvo');
  console.log('FLAGS PASSED: refsToggle/endDay/studyContext/calculator/xournal hide their UI and survive the settings dialog.');
 });
@@ -690,8 +706,8 @@ await withArtifacts('tabs',async ctx=>{
  assert.equal(await page.locator('#new-tab').getAttribute('title'),'Nova matéria (abre as Configurações)','o "+" é o nó da view');
  assert.deepEqual(await page.locator('#study-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['study-search-open','study-review-today','study-notes-open','study-stats-open','study-backup-open','study-share-open','study-tutor-pdf','xournal','reference-toggle'],'itens do menu Estudar na ordem (o Encerrar mora no Mais opções do tutor)');
  assert.deepEqual(await page.locator('#new-session-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['new-session-default','new-session-claude','new-session-opencode'],'itens da sessão nova na ordem');
- assert.deepEqual(await page.locator('#chat-more-pop [role^="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['export-chat','end-day','more-auto-compact','more-compact-now','more-triage','chat-collapse'],'itens do Mais opções do tutor na ordem');
- assert.deepEqual(await page.locator('#settings-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['settings','help','shortcuts','about'],'itens do menu Ajustes na ordem');
+ assert.deepEqual(await page.locator('#chat-more-pop [role^="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['more-context','more-auto-compact','more-compact-now','end-day','export-chat','chat-collapse'],'itens do Mais opções do tutor na ordem');
+ assert.deepEqual(await page.locator('#settings-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['settings','help','shortcuts','release-notes','about'],'itens do menu Ajustes na ordem');
  assert.equal(await page.locator('#course-tabs [data-icon],#study-pop [data-icon],#settings-pop [data-icon],#new-session-pop [data-icon],#chat-more-pop [data-icon]').count(),0,'o andaime data-icon sai do DOM');
  assert.equal(await page.locator('#settings-trigger svg.icon').count(),1,'o botão Ajustes é um ícone');
  assert.equal(await page.locator('#theme-cycle').count(),0,'o ciclo de tema saiu da barra');
@@ -771,7 +787,8 @@ await withArtifacts('tabs',async ctx=>{
  await codeBlock.hover();
  await page.locator('.code-copy').first().click();
  await page.waitForFunction(()=>document.querySelector('.code-copy')?.classList.contains('ok'),{timeout:5000});
- assert.equal(await page.locator('.code-copy').first().textContent(),'copiado','code copy button confirms');
+ assert.equal(await page.locator('.code-copy').first().textContent(),'','code copy button confirms with the check icon, not text');
+ assert.equal(await page.locator('.code-copy').first().locator('svg.motion-copied').count(),1,'the check icon is visible after copying');
  await tutorMore(page,'#export-chat').click();
  await page.waitForFunction(()=>!document.querySelector('#toast').hidden&&document.querySelector('#toast').textContent.includes('exportada'),{timeout:15000});
  const exportDir=path.join(runtime,'Mesa de Estudos');
@@ -849,7 +866,8 @@ await withArtifacts('tabs',async ctx=>{
 // CHAOS: um runtime por cenário, cada modo do fake-pi dispara uma vez e a UI recupera.
 await withArtifacts('chaos-stream-abort',async ctx=>{
  const runtime=ctx.runtime=newRuntime('chaos-abort');
- seedCourse(runtime,'Chaos');
+ const course=seedCourse(runtime,'Chaos');
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Chaos',name:'Chaos',path:course}]});
  writeDeskJson(runtime,{courseId:'Chaos'});
  const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'stream-abort'}});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -874,7 +892,8 @@ await withArtifacts('chaos-stream-abort',async ctx=>{
 
 await withArtifacts('chaos-desk-error',async ctx=>{
  const runtime=ctx.runtime=newRuntime('chaos-desk');
- seedCourse(runtime,'Chaos');
+ const course=seedCourse(runtime,'Chaos');
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Chaos',name:'Chaos',path:course}]});
  writeDeskJson(runtime,{courseId:'Chaos'});
  const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'desk-error'}});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -897,7 +916,8 @@ await withArtifacts('chaos-desk-error',async ctx=>{
 
 await withArtifacts('chaos-rpc-timeout',async ctx=>{
  const runtime=ctx.runtime=newRuntime('chaos-timeout');
- seedCourse(runtime,'Chaos');
+ const course=seedCourse(runtime,'Chaos');
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Chaos',name:'Chaos',path:course}]});
  writeDeskJson(runtime,{courseId:'Chaos'});
  const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'rpc-timeout',FAKE_PI_TIMEOUT_MS:'21000'}});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -922,6 +942,8 @@ await withArtifacts('chaos-rpc-timeout',async ctx=>{
 
 await withArtifacts('codigo',async ctx=>{
  const runtime=ctx.runtime=newRuntime('codigo');
+ const course=seedCourse(runtime,'Codigo');
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Codigo',name:'Código',path:course}]});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
@@ -936,8 +958,9 @@ await withArtifacts('codigo',async ctx=>{
  const cores=await page.evaluate(()=>{const b=document.querySelector('pre code');const base=getComputedStyle(b).color;const t={};for(const s of b.querySelectorAll('[data-hl]'))t[s.dataset.hl]=t[s.dataset.hl]||getComputedStyle(s).color;return {base,t};});
  assert.ok(Object.values(cores.t).some(c=>c!==cores.base),'algum token tem cor própria');
  // a moldura do bloco (rótulo + cópia + pre) vem do core/talkview.bend; o realce segue no host
- const moldura=await page.evaluate(()=>{const block=document.querySelector('.codeblock');return{order:[...block.children].map(el=>el.tagName.toLowerCase()),lang:block.querySelector('.code-lang')?.textContent??'',copy:block.querySelector('.code-copy')?.textContent??''};});
- assert.deepEqual(moldura,{order:['span','button','pre'],lang:'JS',copy:'cópia'},'a moldura do bloco vem da view do Bend');
+ const moldura=await page.evaluate(()=>{const block=document.querySelector('.codeblock'),head=block.querySelector('.code-head');return{order:[...block.children].map(el=>el.tagName.toLowerCase()),headOrder:[...(head?.children??[])].map(el=>el.tagName.toLowerCase()),lang:block.querySelector('.code-lang')?.textContent??'',copy:block.querySelector('.code-copy')?.textContent??''};});
+ assert.deepEqual(moldura,{order:['div','pre'],headOrder:['span','button'],lang:'JS',copy:''},'a moldura do bloco vem da view do Bend (faixa de cabeçalho e código abaixo)');
+ assert.equal(await page.locator('.codeblock .code-copy svg.icon').count(),1,'o copiar é ícone, como o da mensagem');
  assert.deepEqual(errors,[]);
  console.log('código PASSED: o bloco preserva =>, > e && (sem entidade dupla) e tem cor por token.');
 });
@@ -969,7 +992,7 @@ await withArtifacts('worklog',async ctx=>{
  await work.locator('.work-head').click();
  await page.waitForFunction(()=>document.querySelector('.work[data-expanded=true] .work-step'));
  const labels=await work.locator('.step-label').allTextContents();
- assert.match(labels[0],/^Pensou por \d+s$/);
+ assert.equal(labels[0],'Pensou','o passo não repete a duração do cabeçalho');
  assert.match(labels[1],/^Procurou na web: «kojima xbox»$/);
  await work.locator('.step-toggle').first().click();
  await page.waitForFunction(()=>{const pre=document.querySelector('.work-step .step-text');return pre&&!pre.hidden&&pre.textContent.includes('Vou considerar');});
@@ -1036,7 +1059,11 @@ await withArtifacts('ipc-error-once',async ctx=>{
  const column=await page.evaluate(()=>({toasts:[...document.querySelectorAll('#toast .toast-item')].map(el=>el.textContent),state:document.querySelector('#tutor-state').textContent}));
  assert.equal(column.toasts.length,0,'a falha de conexão não gera aviso flutuante: a coluna já a escreve');
  assert.doesNotMatch(column.state,/Error invoking remote method/,'a coluna não vaza boilerplate do Electron');
- assert.equal((column.state.match(/O tutor fechou sem aviso|Tutor não encontrado/g)||[]).length,1,'a mensagem original aparece uma vez');
+ /* Título e detalhe são frases diferentes ("O tutor não atendeu." + "O tutor
+    fechou sem aviso." no Mac): cada uma aparece no máximo uma vez, e pelo menos
+    uma aparece. Contar as três juntas reprovava o Mac (relatório 2026-10-31). */
+ const phrases=['O tutor não atendeu','O tutor fechou sem aviso','Tutor não encontrado'].map(text=>column.state.split(text).length-1);
+ assert.ok(phrases.every(count=>count<=1)&&phrases.some(count=>count===1),`a mensagem original aparece uma vez: ${JSON.stringify(column.state)}`);
  assert.match(await page.locator('#status-dot').getAttribute('class'),/error/,'o ponto de conexão acusa o erro');
  assert.equal(await page.locator('#send').isEnabled(),true,'send continua habilitado depois da falha');
  assert.deepEqual(errors,[]);
@@ -1181,12 +1208,12 @@ await withArtifacts('fila-guardada',async ctx=>{
   const name=el=>el.id?`#${el.id}`:`.${el.className.split(' ')[0]}`;
   return {chat:[...document.querySelector('#composer').parentElement.children].filter(el=>['messages','tutor-state','activity','composer'].includes(el.id)).map(el=>`#${el.id}`),column:[...document.querySelector('#composer').children].filter(el=>!el.hidden&&el.tagName!=='INPUT').map(name),box:[...document.querySelector('#composer-box').children].filter(el=>!el.hidden).map(name)};
  });
- assert.deepEqual(order.column,['#goes-along','#composer-box'],'linha Vai junto e a caixa, nessa ordem');
+ assert.deepEqual(order.column,['#composer-box'],'a caixa única é a filha visível da coluna');
  assert.deepEqual(order.chat,['#messages','#tutor-state','#activity','#composer'],'o "onde parei" mora na coluna, entre as mensagens e a caixa');
- assert.deepEqual(order.box.slice(0,3),['.queue-strip','#attachments','#prompt'],'faixa da fila e bandeja moram dentro da caixa, acima do campo');
- assert.equal(await page.locator('.queue-label').textContent(),'Recuperadas','a fila guardada diz de onde veio');
+ assert.deepEqual(order.box.slice(0,3),['.queue-strip','#goes-along','#attachments'],'fila, pílula de contexto e bandeja moram dentro da caixa, acima do campo');
+ assert.equal(await page.locator('.queue-label').textContent(),'Recuperadas · 1','a fila guardada diz de onde veio, com a contagem');
  assert.equal(await page.locator('.queue-send-now').isVisible(),true,'Enviar agora no lugar do envio automático');
- assert.equal(await page.locator('.queue-clear').isVisible(),true);
+ assert.equal(await page.locator('.queue-clear').isVisible(),false,'com uma mensagem só, o × é quem descarta (Limpar só com 2+)');
  assert.equal(await page.locator('#attachments .attachment').count(),1,'a bandeja guardada volta com o boot');
  assert.equal(await page.locator('#tutor-state .ts-lead').textContent(),'Da última vez você parou em Lista 2 · 7b: travei na 3','a coluna diz onde a pessoa parou');
  assert.equal(await page.locator('#tutor-state .ts-fine').textContent(),'Próximo passo: seguir para a 4');

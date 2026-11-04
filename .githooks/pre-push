@@ -1,11 +1,21 @@
 #!/bin/sh
 # Portão de pre-push: sem CI, isto é o que impede `verify:bend` de ser só
-# disciplina. Roda o portão estrito (toolchain fixada, artefatos reproduzíveis
-# e provas com o mesmo bend) antes de qualquer push.
+# disciplina. Antes do portão estrito (toolchain fixada, artefatos
+# reproduzíveis e provas com o mesmo bend) vêm os passos de segundos — sintaxe,
+# tipos e lint dos arquivos do push (#86) —, para o erro bobo aparecer aqui e
+# não no CI.
 #
-# Ativar neste clone: git config core.hooksPath .githooks
+# Ligado pelo `npm run setup`; à mão: git config core.hooksPath .githooks
 # Emergência: git push --no-verify
 set -e
 root=$(git rev-parse --show-toplevel)
+if [ -d "$root/desk/node_modules" ]; then
+  cd "$root/desk"
+  npm run -s check
+  npm run -s typecheck
+  node scripts/lint-changed.mjs
+else
+  echo "pre-push: desk/node_modules não existe; pulando sintaxe, tipos e lint (rode npm ci em desk/)" >&2
+fi
 cd "$root"
 exec node core/verify.mjs

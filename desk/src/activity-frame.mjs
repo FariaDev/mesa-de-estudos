@@ -1,6 +1,7 @@
 import * as quadro from './activity-view.mjs';
 import {t} from './ui-text.mjs';
-import {ACTIVITY_SCHEME,HEIGHT_RESERVED,MAX_ATTEMPT_BYTES,MAX_STATE_BYTES,MAX_STATE_ENVELOPE_BYTES,buildActivityUrl,jsonSize,parseMessage,parseRpc} from './activity-messages.mjs';
+import {confirmOpenLink, openConfirmedLink} from './link-confirm.mjs';
+import {HEIGHT_RESERVED,MAX_ATTEMPT_BYTES,MAX_STATE_BYTES,MAX_STATE_ENVELOPE_BYTES,activityOriginAllowed,buildActivityUrl,jsonSize,parseMessage,parseRpc} from './activity-messages.mjs';
 
 /* Quadro de atividade — o iframe: estado salvo, mensagens com o quadro,
    montagem e o orçamento de quadros montados.
@@ -121,11 +122,14 @@ export function createActivityFrame(ctx) {
   }
   /* `ui/open-link` (#42): o quadro é offline; um link https que o aluno clicou
      abre no navegador do sistema, nunca dentro do quadro. Só clique de verdade
-     (o runtime confere `isTrusted`), com teto por montagem. */
+     (o runtime confere `isTrusted`), com teto por montagem. Antes de abrir, o
+     diálogo da Mesa mostra o destino (#81): o modelo escreveu a atividade. */
   function openLink(ctl, message) {
     ctl.links = (ctl.links || 0) + 1;
     if (ctl.links > 20) return;
-    if (typeof ctx.desk.openExternal === 'function') Promise.resolve(ctx.desk.openExternal(message.payload.url)).catch(() => {});
+    if (typeof ctx.desk.openExternal === 'function') {
+      openConfirmedLink(message.payload.url, {confirm: confirmOpenLink, open: (url) => ctx.desk.openExternal(url)}).catch(() => {});
+    }
     if (message.id !== null) postRaw(ctl, {jsonrpc: '2.0', id: message.id, result: {}});
   }
   function post(ctl, type, payload) {
@@ -145,8 +149,10 @@ export function createActivityFrame(ctx) {
       }
     }
     if (!ctl) return;
-    const origin = String(event.origin || '');
-    if (origin && origin !== 'null' && !origin.startsWith(`${ACTIVITY_SCHEME}:`)) return;
+    /* Sandbox sem `allow-same-origin` entrega origem opaca (`null`); fora
+       disso só a origem exata DESTA revisão (host = id + versão, #89), nunca
+       outra revisão da mesma atividade nem outro host do esquema. */
+    if (!activityOriginAllowed(event.origin, ctl.item)) return;
     const rpc = parseRpc(event.data);
     const message = rpc || parseMessage(event.data, ctl.item);
     if (!message) return;

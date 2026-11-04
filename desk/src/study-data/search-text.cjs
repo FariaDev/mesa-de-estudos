@@ -12,7 +12,7 @@ const core = require('../generated/studysearch.core.js').default;
 
 const INDEX_DIR = 'study-search';
 const INDEX_FILE = 'index.json';
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 2;
 const MAX_INDEX_BYTES = 24 * 1024 * 1024;
 const MAX_DOC_CHARS = 4000;
 const MAX_DOCS = 400;
@@ -130,6 +130,8 @@ const maxPerFile = () => Number(core.maxPerFile());
 const maxHits = () => Number(core.maxHits());
 const minQueryChars = () => Number(core.minQueryChars());
 const maxQueryChars = () => Number(core.maxQueryChars());
+const defaultLimit = () => Number(core.defaultLimit());
+const maxLimit = () => Number(core.maxLimit());
 function readJson(file) {
   try {
     const stats = fs.statSync(file);
@@ -158,4 +160,4 @@ function statOf(file) {
   }
 }
 
-module.exports = {INDEX_DIR, INDEX_FILE, INDEX_VERSION, MAX_INDEX_BYTES, MAX_DOC_CHARS, MAX_DOCS, MAX_PDF_PAGES, MAX_TITLE_CHARS, MAX_STATE_SESSIONS, FREE_COURSE_ID, FREE_ID_RE, PDF_RE, PI_SESSION_RE, NATIVE_DESCRIPTOR_RE, SIDECHAT_RE, CHAT_LIBRARY_FILE, CHAT_LIBRARY_MAX_BYTES, CHAT_LIBRARY_MAX_ITEMS, CHAT_ID_RE, CONTEXT_END, KNOWN_SOURCES, SRC_TAG, plain, text, whole, sha1, sha256, keyOf, materialKey, reviewKey, foldText, fold, snippetOf, findMatches, clampLimit, maxPerFile, maxHits, minQueryChars, maxQueryChars, readJson, readText, statOf};
+module.exports = {INDEX_DIR, INDEX_FILE, INDEX_VERSION, MAX_INDEX_BYTES, MAX_DOC_CHARS, MAX_DOCS, MAX_PDF_PAGES, MAX_TITLE_CHARS, MAX_STATE_SESSIONS, FREE_COURSE_ID, FREE_ID_RE, PDF_RE, PI_SESSION_RE, NATIVE_DESCRIPTOR_RE, SIDECHAT_RE, CHAT_LIBRARY_FILE, CHAT_LIBRARY_MAX_BYTES, CHAT_LIBRARY_MAX_ITEMS, CHAT_ID_RE, CONTEXT_END, KNOWN_SOURCES, SRC_TAG, plain, text, whole, sha1, sha256, keyOf, materialKey, reviewKey, foldText, fold, snippetOf, findMatches, clampLimit, maxPerFile, maxHits, minQueryChars, maxQueryChars, defaultLimit, maxLimit, readJson, readText, statOf};

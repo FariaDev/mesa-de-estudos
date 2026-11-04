@@ -78,7 +78,7 @@ await withArtifacts('review-notebook',async ctx=>{
    assert.equal(m.emptyTitle.font,'24px',`${tag}: título do vazio em 24px`);
    assert.match(m.emptyTitle.family,/^"?STIX Two Text/,`${tag}: título na STIX`);
    assert.equal((await page.locator('.review-empty-title').textContent()).trim(),'Nada guardado ainda');
-   assert.match((await page.locator('.review-empty').textContent()),/Guardar para revisar/);
+   assert.equal((await page.locator('.review-empty').textContent()).trim(),'Guarde uma resposta do tutor para rever depois.');
    assert.equal(await page.locator('.review-empty-sample').count(),1,`${tag}: miniatura da fileira de ações`);
    /* Centrado, sem vão: o bloco ocupa o meio da área, não o topo. */
    const centerX=(m.empty.left+m.empty.right)/2,viewX=(m.view.left+m.view.right)/2;
@@ -121,8 +121,8 @@ await withArtifacts('review-notebook',async ctx=>{
    assert.equal((await page.locator('.review-all-count').textContent()).trim(),'3');
    assert.deepEqual(await page.locator('.review-group-title').allTextContents(),['Vence hoje'],`${tag}: grupos`);
    assert.equal(m.rows.length,3);
-   /* Cartão: raio 12px, enunciado na STIX de 24px/500 (22px em coluna estreita), #61. */
-   assert.equal(m.card.radius,'12px',`${tag}: cartão com raio 12px`);
+   /* Cartão: raio 10px, enunciado na STIX de 24px/500 (22px em coluna estreita), #61. */
+   assert.equal(m.card.radius,'10px',`${tag}: cartão com raio 10px`);
    assert.match(m.question.family,/^"?STIX Two Text/,`${tag}: enunciado na STIX`);
    assert.ok(['24px','22px'].includes(m.question.font),`${tag}: enunciado em 24px (ou 22px estreito): ${m.question.font}`);
    assert.equal(m.question.weight,'500',`${tag}: enunciado no peso 500`);
@@ -134,8 +134,8 @@ await withArtifacts('review-notebook',async ctx=>{
    /* Uma ação preenchida só: Tentar de novo com o tutor. */
    const filled=m.actions.filter(a=>!/rgba\(0, 0, 0, 0\)|transparent/.test(a.bg));
    assert.equal(filled.length,1,`${tag}: uma ação preenchida (${filled.length})`);
-   assert.equal((await page.locator('.review-actions .primary').textContent()).trim(),'Tentar de novo com o tutor');
-   assert.deepEqual(await page.locator('.review-actions button').allTextContents(),['Tentar de novo com o tutor','Pedir um parecido','Editar','Remover']);
+   assert.equal((await page.locator('.review-actions .primary').textContent()).trim(),'Tentar de novo');
+   assert.deepEqual(await page.locator('.review-actions button').allTextContents(),['Tentar de novo','Pedir um parecido','Editar','Remover']);
    /* "Como foi?": quatro respostas de 56px, abaixo do cartão, cada uma diz quando volta. */
    assert.equal((await page.locator('.review-grades-title').textContent()).trim(),'Como foi?');
    assert.equal(m.grades.length,4,`${tag}: quatro respostas`);
@@ -144,7 +144,7 @@ await withArtifacts('review-notebook',async ctx=>{
     assert.ok(g.top>=m.card.bottom-0.5,`${tag}: respostas abaixo do cartão`);
    }
    assert.deepEqual(await page.locator('.review-grade-name').allTextContents(),['Errei','Difícil','Bom','Fácil']);
-   assert.deepEqual(await page.locator('.review-grade-when').allTextContents(),['volta amanhã','volta amanhã','volta amanhã','volta em 3 dias']);
+   assert.deepEqual(await page.locator('.review-grade-when').allTextContents(),['Volta amanhã','Volta amanhã','Volta amanhã','Volta em 3 dias']);
    /* Nada estoura: nem a janela, nem a coluna do item. */
    assert.equal(m.overflowX,0,`${tag}: sem rolagem horizontal`);
    assert.ok(m.main.scrollW<=m.main.clientW+1,`${tag}: coluna do item sem rolagem lateral`);

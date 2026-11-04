@@ -90,7 +90,11 @@ function buildPackage({
         originalName: path.basename(item.source),
         sha256: hash,
         bytes: data.length,
-        resume: item.engine === 'pi' ? 'pi-jsonl-portable' : 'exported-transcript',
+        /* Toda conversa do pacote vira transcrição (#79), inclusive a do Pi:
+           nenhuma retoma o provedor do autor. O manifesto diz isso sem
+           depender de a importação reler o descritor. */
+        resume: 'exported-transcript',
+        nativeResume: false,
       });
     }
   }
@@ -174,8 +178,10 @@ function previewImport({buffer, destination, now = new Date()}) {
       archivePath: entry.archivePath,
       engine: entry.engine || 'pi',
       originalName: entry.originalName || path.basename(entry.archivePath),
-      resume: entry.engine === 'claude' ? 'exported-transcript' : 'pi-jsonl-portable',
-      nativeResume: entry.engine !== 'claude',
+      /* Toda conversa vira transcrição (#79): Claude, OpenCode e Pi. A sessão
+         do provedor não existe do outro lado, e a do Pi não retoma. */
+      resume: 'exported-transcript',
+      nativeResume: false,
       bytes: Number(entry.bytes || 0),
     })),
     storeFeatures: byKind('store').map((entry) => entry.store).filter(Boolean),

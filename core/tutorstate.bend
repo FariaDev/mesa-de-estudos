@@ -40,9 +40,6 @@ import resume.bend as R
 
 # ---------- motivo ----------
 
-def maxReason() -> Nat:
-  160n
-
 def reasonFallback() -> String:
   M.msg("tutor.reason.fallback")
 
@@ -65,7 +62,7 @@ def exitReason() -> String:
   M.msg("tutor.reason.exit")
 
 def reasonLine.cut(+text: String) -> String:
-  reasonLine.pick(String.is_empty(String.trim(text)), R.cutLine(String.trim(text), maxReason()))
+  reasonLine.pick(String.is_empty(String.trim(text)), String.trim(text))
 
 # Mensagem do catálogo vai inteira (cortá-la partiria os argumentos); o resto é
 # o texto do motor, aparado e cortado em `maxReason()`.
@@ -83,7 +80,8 @@ def reasonLine.exit(isExit: Bool, +text: String) -> String:
     case False{}:
       reasonLine.plain(M.isMsg(text), text)
 
-# O motivo aparado e cortado em `maxReason()`; vazio cai na frase de reserva.
+# O motivo aparado, sem corte de caracteres (a tela quebra em linhas e o host
+# reduz a duas frases); vazio cai na frase de reserva.
 def reasonLine(+raw: String) -> String:
   reasonLine.exit(String.contains(raw, exitKey()), raw)
 
@@ -95,6 +93,15 @@ def piMissingKey() -> String:
 
 def piMissing(+reason: String) -> Bool:
   String.contains(reason, piMissingKey())
+
+# O OpenCode não está instalado (`err.opencode.notFound`): a tela não repete o
+# caminho nem a variável — o detalhe técnico fica no log —; a ação principal é
+# instalar pelas novidades. Chamar de novo não adianta antes de instalar.
+def opencodeMissingKey() -> String:
+  "err.opencode.notFound"
+
+def opencodeMissing(+reason: String) -> Bool:
+  String.contains(reason, opencodeMissingKey())
 
 # ---------- peças ----------
 
@@ -172,6 +179,22 @@ def failedActions(missing: Bool) -> List<&2, V.ViewNode>:
         button("state-pi", "ts-ghost", M.msg("tutor.piSettings"), M.msg("tutor.piSettingsTitle"), "OpenPiSettings")
       ]
 
+def opencodeActions() -> List<&2, V.ViewNode>:
+  [
+    button("state-opencode-install", "ts-primary", M.msg("tutor.opencode.install"), M.msg("tutor.opencode.installTitle"), "OpenReleaseNotes"),
+    button("state-log", "ts-secondary", M.msg("tutor.log"), M.msg("tutor.logTitle"), "OpenLog"),
+    button("state-pi", "ts-ghost", M.msg("tutor.piSettings"), M.msg("tutor.piSettingsTitle"), "OpenPiSettings")
+  ]
+
+def opencodeMissingView(+reason: String) -> V.ViewNode:
+  shell(
+    "error",
+    Nil{},
+    leadView(say(M.msg("tutor.failed.lead"))),
+    [fineView(reasonLine(reason))],
+    opencodeActions()
+  )
+
 def failedView(+reason: String) -> V.ViewNode:
   shell(
     "error",
@@ -207,10 +230,17 @@ def claudeFixView(+fix: String, reason: String) -> V.ViewNode:
     ]
   )
 
+def failedBody(missing: Bool, +reason: String) -> V.ViewNode:
+  match missing:
+    case True{}:
+      opencodeMissingView(reason)
+    case False{}:
+      failedView(reason)
+
 def errorView(noFix: Bool, +fix: String, +reason: String) -> V.ViewNode:
   match noFix:
     case True{}:
-      failedView(reason)
+      failedBody(opencodeMissing(reason), reason)
     case False{}:
       claudeFixView(fix, reason)
 

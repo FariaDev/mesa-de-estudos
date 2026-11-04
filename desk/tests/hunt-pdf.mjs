@@ -123,6 +123,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
  /* 45s (e não 30s): a suíte roda hunts em paralelo e o doc de 220 páginas
     atrasa a pintura sob carga — o timeout curto virava falso negativo. */
  const waitNum=(idx,value)=>page.waitForFunction(([i,v])=>document.querySelectorAll('.pdf-panel')[i]?.querySelector('.page-number')?.value===String(v),[idx,value],{timeout:45000});
+ const gotoPage=async(idx,value,expect=value)=>{await page.locator('.pdf-panel').nth(idx).locator('.pager').click();const input=page.locator('.pdf-panel').nth(idx).locator('.page-number');await input.fill(String(value));await input.press('Enter');await waitNum(idx,expect);};
  const waitCanvas=(idx,n)=>page.waitForFunction(([i,p])=>{const panel=document.querySelectorAll('.pdf-panel')[i];const el=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page===String(p));return !!el&&!!el.querySelector('canvas');},[idx,n],{timeout:45000});
  /* Página pintada NO LAYOUT DE AGORA. Quando o leitor muda de largura, o
     `render()` solta os canvases e recria as páginas; até repintar, ou a página
@@ -167,7 +168,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
   await waitCanvas(1,1);
   check('restaurar o leitor minimizado no boot repinta a página',true);
   check('restaurar o leitor minimizado mantém a página 1',(await num(1,'.page-number'))==='1');
-  check('rodapé do leitor restaurado fica pronto',(await field(1,'.pdf-foot').textContent()).includes('Página 1 de 3 · rolagem contínua · Formul.pdf'),(await field(1,'.pdf-foot').textContent()).trim());
+  check('pager do leitor restaurado fica pronto',(await field(1,'.pager').textContent()).replace(/\s+/g,'')==='1/3',(await field(1,'.pager').textContent()).trim());
 
   // nitidez: canvas com fator >= 2 (dpr ou 2), medido depois de o leitor 1
   // repintar na largura nova (restaurar o leitor 2 o estreitou)
@@ -175,17 +176,15 @@ await withArtifacts('hunt-pdf',async ctx=>{
   const crisp=await page.evaluate(()=>{const c=document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-page[data-page="200"] canvas');return c?{w:c.width,cw:c.clientWidth}:null;});
   check('canvas nítido: backing store >= 2x o CSS',!!crisp&&crisp.w>=crisp.cw*2-2,JSON.stringify(crisp));
 
-  // navegação: last/next/prev disabled e clamp do input
-  await field(0,'.page-number').fill('220');await field(0,'.page-number').press('Enter');await waitNum(0,220);
-  check('next desabilitado na última página',await field(0,'.next').isDisabled());
-  check('prev habilitado na última página',!(await field(0,'.prev').isDisabled()));
-  await field(0,'.page-number').fill('999');await field(0,'.page-number').press('Enter');await waitNum(0,220);
-  check('página acima do total clampa na última',true);
-  await field(0,'.page-number').fill('0');await field(0,'.page-number').press('Enter');await waitNum(0,1);
-  check('página 0 clampa na primeira',true);
+  // navegação: pager vira campo e o goto clampa nos extremos
+  await gotoPage(0,220);
+  check('pager mostra a última página',(await field(0,'.pager').textContent()).replace(/\s+/g,'')==='220/220',(await field(0,'.pager').textContent()).trim());
+  await gotoPage(0,999,220);
+  check('página acima do total clampa na última',(await num(0,'.page-number'))==='220');
+  await gotoPage(0,0,1);
+  check('página 0 clampa na primeira',(await num(0,'.page-number'))==='1');
   await waitCanvas(0,1);
-  check('prev desabilitado na primeira página',await field(0,'.prev').isDisabled());
-  check('next habilitado na primeira página',!(await field(0,'.next').isDisabled()));
+  check('pager mostra a primeira página',(await field(0,'.pager').textContent()).replace(/\s+/g,'')==='1/220',(await field(0,'.pager').textContent()).trim());
 
   // scroll até a página 100 e zoom durante o scroll (assenta o layout: um
   // render em voo ignora o scroll e o `scrollY` do host ficaria velho)
@@ -294,7 +293,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
   await field(0,'.pdf-find input').fill('integral comum');
   await field(0,'.pdf-find button').click();
   await page.evaluate(extraPath=>{setTimeout(()=>{const s=document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-select');s.value=extraPath;s.dispatchEvent(new Event('change',{bubbles:true}));},30);},extra);
-  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-foot')?.textContent.includes('Extra.pdf'),undefined,{timeout:30000});
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-select')?.title.includes('Extra.pdf'),undefined,{timeout:30000});
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelectorAll('.pdf-page').length===1,undefined,{timeout:30000});
   await page.waitForFunction(()=>{const b=document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-find button');return b&&!b.disabled&&b.textContent==='Buscar';},undefined,{timeout:30000});
   check('trocar de doc no meio da busca não deixa botão preso',true);
@@ -307,7 +306,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
   // explícitos antes de sair; Extra → Lista tem que voltar neles.
   await field(0,'.pdf-select').selectOption(lista);
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.page-total').textContent==='/ 220',undefined,{timeout:30000});
-  await field(0,'.page-number').fill('150');await field(0,'.page-number').press('Enter');await waitNum(0,150);
+  await gotoPage(0,150);
   await field(0,'.in').click();
   await settle();
   const memoPage=await num(0,'.page-number'),memoZoom=(await field(0,'.zoom-label').textContent()).trim();
@@ -328,7 +327,7 @@ await withArtifacts('hunt-pdf',async ctx=>{
   await field(0,'.pdf-find button').click();
   await waitFindText(0,'2/220');
   check('busca no doc grande: ciclo avança para a página 2',(await num(0,'.page-number'))==='2',(await num(0,'.page-number')));
-  await field(0,'.page-number').fill('200');await field(0,'.page-number').press('Enter');await waitNum(0,200);
+  await gotoPage(0,200);
   await waitFindText(0,'200/220');
   check('contador acompanha a página atual (200/220)',true);
   const hl0=await p0.locator('.pdf-hl').first().evaluate(el=>el.textContent);
@@ -344,10 +343,10 @@ await withArtifacts('hunt-pdf',async ctx=>{
   await field(0,'.pdf-find button').click();
   await waitFindText(0,'1/1');
   check('termo de ocorrência única vai para a página 200',(await num(0,'.page-number'))==='200',(await num(0,'.page-number')));
-  await field(0,'.page-number').fill('1');await field(0,'.page-number').press('Enter');await waitNum(0,1);
+  await gotoPage(0,1);
   await waitFindText(0,'1 ocorrência'); // plural do catálogo desde a #41 fase 2
   check('contador na página sem hit mostra o total',true);
-  await field(0,'.page-number').fill('200');await field(0,'.page-number').press('Enter');await waitNum(0,200);
+  await gotoPage(0,200);
 
   // divisor: limites de 20%/80% e passos de teclado
   const gridBox=await page.locator('#pdf-grid').boundingBox();

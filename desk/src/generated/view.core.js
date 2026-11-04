@@ -10,10 +10,13 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -34,6 +37,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
 }
@@ -103,7 +107,7 @@ function $attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $attrGet_choose(_av_0, $attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $attrGet_choose(_av_0, $$attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $attrGet(_attrs_0, _name_0) {
@@ -154,7 +158,7 @@ function $boolStr(_on_0) {
   }
 }
 function $attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$boolStr(_on_0) };
 }
 function $classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -165,7 +169,7 @@ function $classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $classAppend(_acc_0, _name_0) {
-  return $classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -178,7 +182,7 @@ function $classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $classValue_go($0, $1) {
@@ -194,7 +198,7 @@ function $classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -204,7 +208,7 @@ function $classValue(_xs_0) {
   return $classValue_go(_xs_0, "");
 }
 function $classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$classValue(_xs_0) };
 }
 function $viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -239,7 +243,7 @@ function $viewMapTextI(_xs_0) {
   return $viewMapTextI_go(_xs_0, 0);
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -247,7 +251,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -256,7 +260,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -272,7 +276,7 @@ function $viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $viewText(_h_0), tail: $viewMap_0(_t_0) };
+    return { $: "Con", head: $$viewText(_h_0), tail: $$viewMap_0(_t_0) };
   }
 }
 function $viewMapI_go_0(_xs_0, _i_0) {
@@ -281,7 +285,7 @@ function $viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $asTextI(_i_0, _h_0), tail: $viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$asTextI(_i_0, _h_0), tail: $$viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $Cmp_is_eq(_c_0) {
@@ -312,6 +316,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -321,13 +326,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -337,6 +341,19 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$attrGet_go = $attrGet_go;
+var $$String_eq = $String_eq;
+var $$boolStr = $boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$classNext_on = $classNext_on;
+var $$classValue = $classValue;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
+var $$List_concat = $List_concat;
+var $$viewText = $viewText;
+var $$viewMap_0 = $viewMap_0;
+var $$asTextI = $asTextI;
+var $$viewMapI_go_0 = $viewMapI_go_0;
 var view_default = {
   attr: run_lib((a0, a1) => run_loop($attr(str_in(a0), str_in(a1))), 2),
   classOn: run_lib((a0, a1) => run_loop($classOn(str_in(a0), a1)), 2),

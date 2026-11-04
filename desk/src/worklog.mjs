@@ -12,16 +12,19 @@
    núcleo é imutável e a ponte é o par toCore/toPlain + sync. */
 import core from './generated/worklog.core.js';
 import {contentParts,displayUserText} from '../text.mjs';
+import {attachedPdfs} from './chat-pdf.mjs';
+import {headlineElapsed,headBase} from './worklog-head.mjs';
 import {artifactPart,isActivityTool} from './timeline.mjs';
+import {cardToolKind} from './cards/toolnames.mjs';
 import {t} from './ui-text.mjs';
 import {wholeNat} from './bend-nat.mjs';
 
-export const STEP={THINKING:'thinking',SEARCH:'search',REFERENCE:'reference',FETCH:'fetch',TOOL:'tool',ERROR:'error'};
+export const STEP={THINKING:'thinking',SEARCH:'search',MATERIAL:'material',REFERENCE:'reference',FETCH:'fetch',TOOL:'tool',ERROR:'error'};
 
 /* ---------- ponte plain <-> núcleo ---------- */
 
-const KIND_TO_CORE={thinking:'Thinking',search:'Search',reference:'Reference',fetch:'Fetch',tool:'Tool',error:'ErrorKind'};
-const KIND_FROM_CORE={Thinking:STEP.THINKING,Search:STEP.SEARCH,Reference:STEP.REFERENCE,Fetch:STEP.FETCH,Tool:STEP.TOOL,Error:STEP.ERROR,ErrorKind:STEP.ERROR};
+const KIND_TO_CORE={thinking:'Thinking',search:'Search',material:'Material',reference:'Reference',fetch:'Fetch',tool:'Tool',error:'ErrorKind'};
+const KIND_FROM_CORE={Thinking:STEP.THINKING,Search:STEP.SEARCH,Material:STEP.MATERIAL,Reference:STEP.REFERENCE,Fetch:STEP.FETCH,Tool:STEP.TOOL,Error:STEP.ERROR,ErrorKind:STEP.ERROR};
 const STATUS_TO_CORE={running:'Running',done:'Done',stopped:'Stopped',error:'Failed'};
 const STATUS_FROM_CORE={Running:'running',Done:'done',Completed:'done',Stopped:'stopped',Failed:'error'};
 
@@ -268,6 +271,8 @@ function makeToolStep({id,name,args,now}){
   pageTitle:'',results:[],resultText:'',error:'',
  };
  if(kind===STEP.SEARCH||kind===STEP.REFERENCE)step.query=String(args?.query||'').trim();
+ /* `buscar_material` manda o termo em `consulta`, não em `query`. */
+ if(kind===STEP.MATERIAL)step.query=String(args?.consulta||args?.query||'').trim();
  if(kind===STEP.FETCH){step.url=String(args?.url||'').trim();step.domain=domainOf(step.url);}
  return step;
 }
@@ -275,7 +280,10 @@ function makeToolStep({id,name,args,now}){
 /* Resultado da ferramenta (evento ao vivo `tool_execution_end` ou a mensagem
    `toolResult` do JSONL): os dois têm content/details/isError no mesmo formato. */
 function applyResult(step,result,isError,now){
- step.endedAt=now||Date.now();
+ /* 0 é carimbo ausente, não o epoch. `Date.now()` no lugar dele, com início 0,
+    pintava "29888217m" (~57 anos) no histórico do OpenCode. */
+ const stamp=Number(now);
+ step.endedAt=Number.isFinite(stamp)&&stamp>0?stamp:(Number(step.startedAt)>0?Number(step.startedAt):0);
  step.status=isError?'error':'done';
  const details=result&&typeof result==='object'?(result.details||{}):{};
  if(Array.isArray(details.results)){
@@ -335,6 +343,7 @@ export function liveLabel(step){
  switch(step.kind){
   case STEP.THINKING:return t('work.live.thinking');
   case STEP.SEARCH:return step.query?t('work.live.search',{query:step.query}):t('work.live.searchNoQuery');
+  case STEP.MATERIAL:return step.query?t('work.live.material',{query:step.query}):t('work.live.materialNoQuery');
   case STEP.REFERENCE:return step.query?t('work.live.reference',{query:step.query}):t('work.live.referenceNoQuery');
   case STEP.FETCH:return step.domain?t('work.live.fetch',{domain:step.domain}):t('work.live.fetchNoDomain');
   case STEP.ERROR:return step.error||t('work.error');
@@ -343,10 +352,10 @@ export function liveLabel(step){
 }
 
 export function stepLabel(step){
- const duration=step.endedAt&&step.startedAt?formatDuration(step.endedAt-step.startedAt):'';
  switch(step.kind){
-  case STEP.THINKING:return duration?t('work.step.thought',{duration}):t('work.step.thoughtNoDuration');
+  case STEP.THINKING:return t('work.step.thoughtNoDuration');
   case STEP.SEARCH:return step.query?t('work.step.search',{query:step.query}):t('work.step.searchNoQuery');
+  case STEP.MATERIAL:return step.query?t('work.step.material',{query:step.query}):t('work.step.materialNoQuery');
   case STEP.REFERENCE:return step.query?t('work.step.reference',{query:step.query}):t('work.step.referenceNoQuery');
   case STEP.FETCH:return step.domain?t('work.step.fetch',{domain:step.domain}):t('work.step.fetchNoDomain');
   case STEP.ERROR:return t('work.error');
@@ -369,7 +378,7 @@ export function stepPreview(step){
 }
 
 export function countsLabel(steps){
- const counts=[[STEP.SEARCH,'work.counts.search'],[STEP.REFERENCE,'work.counts.reference'],[STEP.FETCH,'work.counts.page'],[STEP.TOOL,'work.counts.tool']];
+ const counts=[[STEP.SEARCH,'work.counts.search'],[STEP.MATERIAL,'work.counts.material'],[STEP.REFERENCE,'work.counts.reference'],[STEP.FETCH,'work.counts.page'],[STEP.TOOL,'work.counts.tool']];
  const parts=[];
  for(const [kind,key] of counts){
   const n=(steps||[]).filter(step=>step.kind===kind).length;
@@ -381,16 +390,8 @@ export function countsLabel(steps){
 export function headLine(log){
  const steps=log.steps||[];
  const toolish=steps.some(step=>step.kind!==STEP.THINKING&&step.kind!==STEP.ERROR);
- const ended=Number(log.endedAt)>0?Number(log.endedAt):Date.now();
- const startedRaw=Number(log.startedAt);
- const started=startedRaw>=0&&startedRaw<=ended?startedRaw:ended;
- const elapsed=Math.max(0,ended-started);
- const duration=formatDuration(elapsed);
- const base=log.reason==='stopped'
-  ?t('work.head.stopped',{duration})
-  :log.reason
-   ?t('work.head.interrupted',{duration})
-   :toolish?t('work.head.worked',{duration}):t('work.head.thought',{duration});
+ const elapsed=headlineElapsed(log);
+ const base=headBase(log,elapsed===null?'':formatDuration(elapsed),toolish);
  const counts=countsLabel(steps.filter(step=>step.status!=='running'));
  return counts?`${base} · ${counts}`:base;
 }
@@ -422,11 +423,11 @@ export function historyTurns(messages){
  let turn=null;
  let currentWork=null;
  const flush=()=>{
-  if(turn&&(turn.steps.length||turn.text.trim()||turn.userText||turn.userImages.length||turn.assistantImages.length))turns.push(turn);
+  if(turn&&(turn.steps.length||turn.text.trim()||turn.userText||turn.userImages.length||turn.userPdfs.length||turn.assistantImages.length))turns.push(turn);
   turn=null;
   currentWork=null;
  };
- const emptyTurn=at=>({startedAt:at,endedAt:0,steps:[],parts:[],text:'',userText:'',userImages:[],assistantImages:[],userTime:0,time:0});
+ const emptyTurn=at=>({startedAt:at,endedAt:0,steps:[],parts:[],text:'',userText:'',userImages:[],userPdfs:[],assistantImages:[],userTime:0,time:0});
  const pushStep=step=>{
   if(!currentWork){currentWork={type:'work',startedAt:0,endedAt:0,steps:[]};turn.parts.push(currentWork);}
   if(!currentWork.steps.length)currentWork.startedAt=step.startedAt;
@@ -440,7 +441,7 @@ export function historyTurns(messages){
   if(message.role==='user'){
    flush();
    const {text,images}=contentParts(message);
-   turn={...emptyTurn(stampOf(message)),userText:displayUserText(text),userImages:images,userTime:stampOf(message)};
+   turn={...emptyTurn(stampOf(message)),userText:displayUserText(text),userImages:images,userPdfs:attachedPdfs(text),userTime:stampOf(message)};
    continue;
   }
   if(message.role==='assistant'){
@@ -454,6 +455,10 @@ export function historyTurns(messages){
      const text=String(part.thinking??part.text??'').trim();
      if(text)pushStep({id:`pensar-${turn.steps.length+1}`,kind:STEP.THINKING,status:'done',startedAt:at,endedAt:0,text});
     }else if(part.type==='toolCall'){
+     /* Ferramenta de cartão não é trabalho: os argumentos carregam a resposta
+        certa e a explicação. O cartão em si vem do `card-store`, não do
+        histórico. */
+     if(cardToolKind(part.name))continue;
      const step=makeToolStep({id:part.id,name:part.name,args:part.arguments,now:at});
      const result=results.get(part.id);
      if(result)applyResult(step,result,result.isError,stampOf(result));

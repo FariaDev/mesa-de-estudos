@@ -4,8 +4,9 @@
    Prova, de ponta a ponta: o item "Sessão nova com OpenCode" cria a conversa
    no motor certo; o tutor liga pelo servidor que a Mesa é dona (127.0.0.1,
    senha só no ambiente, registro no ledger do runtime); a sessão nasce com a
-   pasta da conversa e as permissões de estudo; o MCP `mesa` vai sem chave; as
-   instruções da Mesa vão só no primeiro prompt; a resposta aparece, o medidor
+   pasta da conversa e sem permissões de ferramenta (o config desliga as
+   nativas); o MCP `mesa` vai sem chave; as
+   instruções da Mesa vão no canal da sessão, não na fala; a resposta aparece, o medidor
    de contexto tem número, o `/` lista os comandos do servidor, a compactação
    manual fecha; ao sair, o servidor é encerrado e o ledger esvazia. */
 import assert from 'node:assert/strict';
@@ -50,7 +51,7 @@ await withArtifacts('opencode-motor',async ctx=>{
  assert.equal(start.serverPasswordInherited,false,'a senha herdada do shell não passa');
 
  step(2);
- /* 2. Primeiro envio: sessão com a pasta da conversa e as permissões de estudo; MCP sem chave; instruções só no primeiro prompt. */
+ /* 2. Primeiro envio: sessão com a pasta da conversa e sem permissões de ferramenta; MCP sem chave; instruções no canal da sessão. */
  await submit('Oi, tutor');await body('Resposta do OpenCode falso');await sendEnabled(page);
  await submit('Segunda pergunta');await body('Segunda pergunta');await sendEnabled(page);
  const record=conversations.readClaudeConversation(first,{runtime});
@@ -63,15 +64,16 @@ await withArtifacts('opencode-motor',async ctx=>{
  assert.match(record.nativeSessionId,/^ses_/);
  assert.ok(requests.some(entry=>entry.url===`/api/session/${record.nativeSessionId}/prompt`),'o prompt vai à sessão que o servidor cunhou');
  assert.ok(created.body.location.directory.endsWith(path.join('opencode-workspaces',record.id)),`a pasta da própria conversa: ${created.body.location.directory}`);
- assert.deepEqual(created.body.permissions.map(rule=>[rule.action,rule.effect]),[['edit','deny'],['shell','deny'],['subagent','deny'],['browser','deny']]);
+ assert.equal(created.body.permissions,undefined,'a sessão não leva permissões de ferramenta (#91)');
  const mcp=requests.find(entry=>entry.method==='PUT'&&entry.url.startsWith('/api/experimental/mcp/mesa'));
  assert.equal(mcp.body.config.type,'local');
  assert.equal(mcp.body.config.environment.ELECTRON_RUN_AS_NODE,'1');
  assert.ok(!Object.keys(mcp.body.config.environment).some(name=>/KEY|PASSWORD/.test(name)),'o MCP não recebe chave nem senha');
  const prompts=requests.filter(entry=>entry.method==='POST'&&/\/prompt$/.test(entry.url)).map(entry=>String(entry.body.text||''));
  assert.equal(prompts.length,2);
- assert.match(prompts[0],/tutor da Mesa de Estudos/,'as instruções da Mesa vão no primeiro prompt');
- assert.doesNotMatch(prompts[1],/tutor da Mesa de Estudos/,'e só no primeiro');
+ assert.ok(prompts.every(text=>!/tutor da Mesa de Estudos/.test(text)),'a fala do aluno não carrega o prompt');
+ const instruction=requests.find(entry=>entry.method==='PUT'&&/\/instructions\/entries\/mesa$/.test(String(entry.url)));
+ assert.match(String(instruction?.body?.value||''),/tutor da Mesa de Estudos/,'as instruções vão no canal da sessão');
  assert.equal(await page.locator('.message.user').filter({hasText:'tutor da Mesa de Estudos'}).count(),0,'as instruções não aparecem na conversa');
 
  step(3);
@@ -81,6 +83,7 @@ await withArtifacts('opencode-motor',async ctx=>{
  await page.waitForFunction(()=>document.body.textContent.includes('/review'),undefined,{timeout:15000});
  await page.locator('#prompt').fill('');
  await openTutorMore(page);
+ await page.locator('#more-context').click();
  await page.locator('#more-compact-now').click();
  await pollUntil(()=>readLog(serveLog).some(entry=>entry.method==='POST'&&/\/compact$/.test(String(entry.url))),ok=>ok,{what:'o pedido de compactação',timeout:15000});
  await sendEnabled(page,{timeout:30000});
@@ -99,10 +102,10 @@ await withArtifacts('opencode-motor',async ctx=>{
 
  /* 4b. Chat lateral com o OpenCode (#74): responde pelo mesmo servidor, num ses_ próprio. */
  await page.locator('#sidechat-toggle').click();
- await page.waitForFunction(()=>{const prompt=document.querySelector('#sidechat-prompt');return prompt&&!prompt.disabled;},undefined,{timeout:20000});
+ await pollUntil(()=>page.evaluate(async()=>{const mod=await import('./src/sidechat.mjs');return mod.sidechatState().id||'';}),id=>id!=='',{what:'a sessão do chat lateral',timeout:20000});
  assert.equal((await page.locator('#sidechat-engine').textContent()).trim(),'OpenCode','o lateral diz o motor');
  await page.locator('#sidechat-prompt').fill('pergunta lateral');
- await page.locator('#sidechat-prompt').press('Enter');
+ await page.locator('#sidechat-send').click();
  await page.waitForFunction(()=>[...document.querySelectorAll('#sidechat-messages .sidechat-msg.assistant')].some(el=>el.textContent.includes('Resposta do OpenCode falso')),undefined,{timeout:30000});
  const withSide=readLog(serveLog).map(entry=>/^\/api\/session\/([^/]+)\/prompt$/.exec(String(entry.url||''))?.[1]).filter(Boolean);
  assert.equal(new Set(withSide).size,3,'o lateral tem o seu ses_');

@@ -13,13 +13,16 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 var char_new = function char_new(c) {
   return c < 55296 || c >= 57344 && c <= 1114111 ? String.fromCodePoint(c) : String.fromCharCode(56320, c >>> 22, c >>> 11 & 2047, c & 2047);
 };
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -40,6 +43,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -47,8 +51,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -67,7 +71,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $view_attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
@@ -138,7 +142,7 @@ function $view_attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $view_attrGet_choose(_av_0, $$view_attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $view_attrGet(_attrs_0, _name_0) {
@@ -189,7 +193,7 @@ function $view_boolStr(_on_0) {
   }
 }
 function $view_attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$view_boolStr(_on_0) };
 }
 function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -200,7 +204,7 @@ function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $view_classAppend(_acc_0, _name_0) {
-  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $view_classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -213,7 +217,7 @@ function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $view_classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $view_classValue_go($0, $1) {
@@ -229,7 +233,7 @@ function $view_classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$view_classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -239,7 +243,7 @@ function $view_classValue(_xs_0) {
   return $view_classValue_go(_xs_0, "");
 }
 function $view_classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$view_classValue(_xs_0) };
 }
 function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -296,10 +300,10 @@ function $pdfnav_cutName_if(_text_0, _limit_0, _over_0) {
   }
 }
 function $pdfnav_cutName(_text_0, _limit_0) {
-  return $pdfnav_cutName_if(_text_0, _limit_0, $Nat_is_gt([...str_out(_text_0)].length, _limit_0));
+  return $pdfnav_cutName_if(_text_0, _limit_0, $$Nat_is_gt([...str_out(_text_0)].length, _limit_0));
 }
 function $pdfnav_fitName(_text_0) {
-  return $pdfnav_cutName($String_trim(_text_0), $pdfnav_maxName());
+  return $pdfnav_cutName($$String_trim(_text_0), $$pdfnav_maxName());
 }
 function $pdfnav_keepName_blank(_blank_0) {
   if (_blank_0) {
@@ -309,20 +313,20 @@ function $pdfnav_keepName_blank(_blank_0) {
   }
 }
 function $pdfnav_keepName(_name_0) {
-  return $pdfnav_keepName_blank($String_is_empty($String_trim(_name_0)));
+  return $pdfnav_keepName_blank($$String_is_empty($$String_trim(_name_0)));
 }
 function $pdfnav_pageLabel(_page_0) {
-  const _x_0 = $Nat_show(_page_0);
+  const _x_0 = $$Nat_show(_page_0);
   return "p. " + _x_0;
 }
 function $pdfnav_bookmarkLabel(_name_0) {
   return _name_0;
 }
 function $pdfnav_bookmarkTitle(_name_0, _page_0) {
-  return $msg_msg2("pdf.ref.title", "name", _name_0, "page", $Nat_show(_page_0));
+  return $msg_msg2("pdf.ref.title", "name", _name_0, "page", $$Nat_show(_page_0));
 }
 function $pdfnav_bookmarkAria(_name_0, _page_0) {
-  return $msg_msg2("pdf.nav.bookmarkAria", "name", _name_0, "page", $Nat_show(_page_0));
+  return $msg_msg2("pdf.nav.bookmarkAria", "name", _name_0, "page", $$Nat_show(_page_0));
 }
 function $pdfnav_removeLabel() {
   return $msg_msg("common.remove");
@@ -376,7 +380,7 @@ function $pdfnav_bookmarkNameLabel() {
   return $msg_msg("pdf.nav.nameLabel");
 }
 function $pdfnav_bookmarkDialogHint(_name_0, _page_0) {
-  const _x_0 = $pdfnav_pageLabel(_page_0);
+  const _x_0 = $$pdfnav_pageLabel(_page_0);
   const _x_1 = ", " + _x_0;
   return _name_0 + _x_1;
 }
@@ -397,10 +401,10 @@ function $pdfnav_pageFloor(_page_0) {
   return $pdfnav_pageFloor_if(_page_0, _page_0 < 1);
 }
 function $pdfnav_fitPath(_text_0) {
-  return $pdfnav_cutName($String_trim(_text_0), $pdfnav_maxPath());
+  return $pdfnav_cutName($$String_trim(_text_0), $$pdfnav_maxPath());
 }
 function $pdfnav_newBookmark(_name_0, _path_0, _page_0) {
-  return { $: "Bookmark", name: $pdfnav_fitName(_name_0), path: $pdfnav_fitPath(_path_0), page: $pdfnav_pageFloor(_page_0) };
+  return { $: "Bookmark", name: $$pdfnav_fitName(_name_0), path: $$pdfnav_fitPath(_path_0), page: $$pdfnav_pageFloor(_page_0) };
 }
 function $pdfnav_keepBookmark_path(_noPath_0) {
   if (_noPath_0) {
@@ -412,14 +416,14 @@ function $pdfnav_keepBookmark_path(_noPath_0) {
 function $pdfnav_keepBookmark(_bm_0) {
   const _name_0 = _bm_0["name"];
   const _path_0 = _bm_0["path"];
-  return $Bool_and($pdfnav_keepName_blank($String_is_empty($String_trim(_name_0))), $pdfnav_keepBookmark_path($String_is_empty($String_trim(_path_0))));
+  return $Bool_and($$pdfnav_keepName_blank($$String_is_empty($$String_trim(_name_0))), $$pdfnav_keepBookmark_path($$String_is_empty($$String_trim(_path_0))));
 }
 function $pdfnav_sameBookmark(_a_0, _b_0) {
   const _name_0 = _a_0["name"];
   const _path_0 = _a_0["path"];
   const _name2_0 = _b_0["name"];
   const _path2_0 = _b_0["path"];
-  return $Bool_and($String_eq(_name_0, _name2_0), $String_eq(_path_0, _path2_0));
+  return $Bool_and($$String_eq(_name_0, _name2_0), $$String_eq(_path_0, _path2_0));
 }
 function $pdfnav_dropSame_head(_h_0, _rest_0, _same_0) {
   if (_same_0) {
@@ -434,7 +438,7 @@ function $pdfnav_dropSame_go(_bs_0, _bm_0) {
   } else {
     const _h_0 = _bs_0["head"];
     const _t_0 = _bs_0["tail"];
-    return $pdfnav_dropSame_head(_h_0, $pdfnav_dropSame_go(_t_0, _bm_0), $pdfnav_sameBookmark(_h_0, _bm_0));
+    return $pdfnav_dropSame_head(_h_0, $$pdfnav_dropSame_go(_t_0, _bm_0), $$pdfnav_sameBookmark(_h_0, _bm_0));
   }
 }
 function $pdfnav_takeList_go(_xs_0, _n_0) {
@@ -443,31 +447,31 @@ function $pdfnav_takeList_go(_xs_0, _n_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return { $: "Nil" };
     } else {
       const _p_0 = _n_0 - 1;
-      return { $: "Con", head: _h_0, tail: $pdfnav_takeList_go(_t_0, _p_0) };
+      return { $: "Con", head: _h_0, tail: $$pdfnav_takeList_go(_t_0, _p_0) };
     }
   }
 }
 function $pdfnav_addBookmark(_bs_0, _bm_0) {
-  return $pdfnav_takeList_go({ $: "Con", head: _bm_0, tail: $pdfnav_dropSame_go(_bs_0, _bm_0) }, $pdfnav_maxBookmarks());
+  return $pdfnav_takeList_go({ $: "Con", head: _bm_0, tail: $$pdfnav_dropSame_go(_bs_0, _bm_0) }, $$pdfnav_maxBookmarks());
 }
 function $pdfnav_removeBookmark(_bs_0, _bm_0) {
   return $pdfnav_dropSame_go(_bs_0, _bm_0);
 }
 function $pdfnav_emptyBooks(_bs_0) {
-  return $Nat_is_eq($List_length(_bs_0), 0);
+  return $Nat_is_eq($$List_length(_bs_0), 0);
 }
 function $pdfnav_emptyOutline(_os_0) {
-  return $Nat_is_eq($List_length(_os_0), 0);
+  return $Nat_is_eq($$List_length(_os_0), 0);
 }
 function $pdfnav_bookmarkRow(_id_0, _bm_0, _currentPath_0) {
   const _name_0 = _bm_0["name"];
   const _path_0 = _bm_0["path"];
   const _page_0 = _bm_0["page"];
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("nav-row"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("nav-bookmark", true), tail: { $: "Con", head: $view_classOn("current", $String_eq(_path_0, _currentPath_0)), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_attrData("id", $Nat_show(_id_0)), tail: { $: "Con", head: $view_attrData("page", $Nat_show(_page_0)), tail: { $: "Con", head: $view_attrData("path", _path_0), tail: { $: "Con", head: $view_attrTitle($pdfnav_bookmarkTitle(_name_0, _page_0)), tail: { $: "Con", head: $view_attrAria("label", $pdfnav_bookmarkAria(_name_0, _page_0)), tail: { $: "Con", head: $view_attrOn("click", "OpenBookmark"), tail: { $: "Nil" } } } } } } } } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("nav-name"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($pdfnav_bookmarkLabel(_name_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("nav-page"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($pdfnav_pageLabel(_page_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("icon-btn", true), tail: { $: "Con", head: $view_classOn("nav-bookmark-remove", true), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_attrData("icon", "minus"), tail: { $: "Con", head: $view_attrData("id", $Nat_show(_id_0)), tail: { $: "Con", head: $view_attrTitle($pdfnav_removeTitle(_name_0)), tail: { $: "Con", head: $view_attrAria("label", $pdfnav_removeAria(_name_0)), tail: { $: "Con", head: $view_attrOn("click", "RemoveBookmark"), tail: { $: "Nil" } } } } } } } }, { $: "Nil" }), tail: { $: "Nil" } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("nav-row"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_classes({ $: "Con", head: $$view_classOn("nav-bookmark", true), tail: { $: "Con", head: $$view_classOn("current", $$String_eq(_path_0, _currentPath_0)), tail: { $: "Nil" } } }), tail: { $: "Con", head: $$view_attrData("id", $$Nat_show(_id_0)), tail: { $: "Con", head: $$view_attrData("page", $$Nat_show(_page_0)), tail: { $: "Con", head: $$view_attrData("path", _path_0), tail: { $: "Con", head: $$view_attrTitle($$pdfnav_bookmarkTitle(_name_0, _page_0)), tail: { $: "Con", head: $$view_attrAria("label", $$pdfnav_bookmarkAria(_name_0, _page_0)), tail: { $: "Con", head: $$view_attrOn("click", "OpenBookmark"), tail: { $: "Nil" } } } } } } } } }, { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("nav-name"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$pdfnav_bookmarkLabel(_name_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("nav-page"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$pdfnav_pageLabel(_page_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } } }), tail: { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_classes({ $: "Con", head: $$view_classOn("icon-btn", true), tail: { $: "Con", head: $$view_classOn("nav-bookmark-remove", true), tail: { $: "Nil" } } }), tail: { $: "Con", head: $$view_attrData("icon", "minus"), tail: { $: "Con", head: $$view_attrData("id", $$Nat_show(_id_0)), tail: { $: "Con", head: $$view_attrTitle($$pdfnav_removeTitle(_name_0)), tail: { $: "Con", head: $$view_attrAria("label", $$pdfnav_removeAria(_name_0)), tail: { $: "Con", head: $$view_attrOn("click", "RemoveBookmark"), tail: { $: "Nil" } } } } } } } }, { $: "Nil" }), tail: { $: "Nil" } } });
 }
 function $pdfnav_bookmarkRows_go(_bs_0, _currentPath_0, _i_0) {
   if (_bs_0.$ === "Nil") {
@@ -475,7 +479,7 @@ function $pdfnav_bookmarkRows_go(_bs_0, _currentPath_0, _i_0) {
   } else {
     const _h_0 = _bs_0["head"];
     const _t_0 = _bs_0["tail"];
-    return { $: "Con", head: $pdfnav_bookmarkRow(_i_0, _h_0, _currentPath_0), tail: $pdfnav_bookmarkRows_go(_t_0, _currentPath_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$pdfnav_bookmarkRow(_i_0, _h_0, _currentPath_0), tail: $$pdfnav_bookmarkRows_go(_t_0, _currentPath_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $pdfnav_bookmarkRows(_bs_0, _currentPath_0) {
@@ -489,34 +493,34 @@ function $pdfnav_clampDepth_if(_depth_0, _over_0) {
   }
 }
 function $pdfnav_clampDepth(_depth_0) {
-  return $pdfnav_clampDepth_if(_depth_0, $Nat_is_gt(_depth_0, $pdfnav_maxDepth()));
+  return $pdfnav_clampDepth_if(_depth_0, $$Nat_is_gt(_depth_0, $$pdfnav_maxDepth()));
 }
 function $pdfnav_outlineDepth(_depth_0) {
-  return $Nat_show($pdfnav_clampDepth(_depth_0));
+  return $Nat_show($$pdfnav_clampDepth(_depth_0));
 }
 function $pdfnav_outlineLabel(_title_0, _page_0) {
-  return $msg_msg2("pdf.nav.goTo", "page", $Nat_show(_page_0), "title", _title_0);
+  return $msg_msg2("pdf.nav.goTo", "page", $$Nat_show(_page_0), "title", _title_0);
 }
 function $pdfnav_outlineRow(_o_0) {
   const _title_0 = _o_0["title"];
   const _page_0 = _o_0["page"];
   const _depth_0 = _o_0["depth"];
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("nav-outline"), tail: { $: "Con", head: $view_attrData("depth", $pdfnav_outlineDepth(_depth_0)), tail: { $: "Con", head: $view_attrData("page", $Nat_show(_page_0)), tail: { $: "Con", head: $view_attrTitle($pdfnav_outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $view_attrAria("label", $pdfnav_outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $view_attrOn("click", "OpenOutline"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("nav-outline"), tail: { $: "Con", head: $$view_attrData("depth", $$pdfnav_outlineDepth(_depth_0)), tail: { $: "Con", head: $$view_attrData("page", $$Nat_show(_page_0)), tail: { $: "Con", head: $$view_attrTitle($$pdfnav_outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $$view_attrAria("label", $$pdfnav_outlineLabel(_title_0, _page_0)), tail: { $: "Con", head: $$view_attrOn("click", "OpenOutline"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $$view_viewText(_title_0), tail: { $: "Nil" } });
 }
 function $pdfnav_outlineRows(_os_0) {
   return $view_viewMap_1(_os_0);
 }
 function $pdfnav_navEmpty(_text_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("nav-empty"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } });
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("nav-empty"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_text_0), tail: { $: "Nil" } });
 }
 function $pdfnav_navSaveButton() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("nav-save"), tail: { $: "Con", head: $view_attrTitle($pdfnav_saveTitle()), tail: { $: "Con", head: $view_attrAria("label", $pdfnav_saveTitle()), tail: { $: "Con", head: $view_attrOn("click", "SaveBookmark"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $view_viewText($pdfnav_saveLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("nav-save"), tail: { $: "Con", head: $$view_attrTitle($$pdfnav_saveTitle()), tail: { $: "Con", head: $$view_attrAria("label", $$pdfnav_saveTitle()), tail: { $: "Con", head: $$view_attrOn("click", "SaveBookmark"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $$view_viewText($$pdfnav_saveLabel()), tail: { $: "Nil" } });
 }
 function $pdfnav_navSection(_title_0, _empty_0, _emptyText_0, _rows_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("nav-section"), tail: { $: "Nil" } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("h4", { $: "Nil" }, { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen(_empty_0, $pdfnav_navEmpty(_emptyText_0)), tail: { $: "Con", head: _rows_0, tail: { $: "Nil" } } } }));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("nav-section"), tail: { $: "Nil" } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$view_viewEl("h4", { $: "Nil" }, { $: "Con", head: $$view_viewText(_title_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_viewWhen(_empty_0, $$pdfnav_navEmpty(_emptyText_0)), tail: { $: "Con", head: _rows_0, tail: { $: "Nil" } } } }));
 }
 function $pdfnav_navPopover(_open_0, _bs_0, _os_0, _currentPath_0) {
-  return $view_viewEl("div", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("pdf-nav-pop", true), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_attrWhen($Bool_not(_open_0), $view_attr("hidden", "")), tail: { $: "Con", head: { $: "Con", head: $view_attrAria("label", $pdfnav_navButtonTitle()), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }), { $: "Con", head: $pdfnav_navSaveButton(), tail: { $: "Con", head: $pdfnav_navSection($pdfnav_favoritesTitle(), $pdfnav_emptyBooks(_bs_0), $pdfnav_favoritesEmpty(), $pdfnav_bookmarkRows(_bs_0, _currentPath_0)), tail: { $: "Con", head: $pdfnav_navSection($pdfnav_outlineTitle(), $pdfnav_emptyOutline(_os_0), $pdfnav_outlineEmpty(), $pdfnav_outlineRows(_os_0)), tail: { $: "Nil" } } } });
+  return $view_viewEl("div", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_classes({ $: "Con", head: $$view_classOn("pdf-nav-pop", true), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_attrWhen($$Bool_not(_open_0), $$view_attr("hidden", "")), tail: { $: "Con", head: { $: "Con", head: $$view_attrAria("label", $$pdfnav_navButtonTitle()), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }), { $: "Con", head: $$pdfnav_navSaveButton(), tail: { $: "Con", head: $$pdfnav_navSection($$pdfnav_favoritesTitle(), $$pdfnav_emptyBooks(_bs_0), $$pdfnav_favoritesEmpty(), $$pdfnav_bookmarkRows(_bs_0, _currentPath_0)), tail: { $: "Con", head: $$pdfnav_navSection($$pdfnav_outlineTitle(), $$pdfnav_emptyOutline(_os_0), $$pdfnav_outlineEmpty(), $$pdfnav_outlineRows(_os_0)), tail: { $: "Nil" } } } });
 }
 function $updatenotice_isVer(_v_0) {
   if (_v_0.$ === "NoVer") {
@@ -527,9 +531,9 @@ function $updatenotice_isVer(_v_0) {
 }
 function $updatenotice_tripleNewer(_am_0, _an_0, _ap_0, _bm_0, _bn_0, _bp_0) {
   const _x_0 = _an_0 > _bn_0;
-  const _x_1 = $Bool_and(_an_0 === _bn_0, _ap_0 > _bp_0);
+  const _x_1 = $$Bool_and(_an_0 === _bn_0, _ap_0 > _bp_0);
   const _x_2 = _am_0 > _bm_0;
-  const _x_3 = $Bool_and(_am_0 === _bm_0, _x_0 || _x_1);
+  const _x_3 = $$Bool_and(_am_0 === _bm_0, _x_0 || _x_1);
   return _x_2 || _x_3;
 }
 function $updatenotice_verNewer(_a_0, _b_0) {
@@ -557,43 +561,43 @@ function $updatenotice_verPick(_c_0, _a_0, _b_0) {
   }
 }
 function $updatenotice_verMax(_a_0, _b_0) {
-  const _x_0 = $Bool_not($updatenotice_isVer(_a_0));
-  const _x_1 = $updatenotice_verNewer(_b_0, _a_0);
+  const _x_0 = $$Bool_not($$updatenotice_isVer(_a_0));
+  const _x_1 = $$updatenotice_verNewer(_b_0, _a_0);
   return $updatenotice_verPick(_x_0 || _x_1, _b_0, _a_0);
 }
 function $updatenotice_emptyMemory() {
   return { $: "Memory", seen: { $: "NoVer" }, ignored: { $: "NoVer" }, remindDay: 0 };
 }
 function $updatenotice_ignoredCovers(_latest_0, _ignored_0) {
-  return $Bool_and($updatenotice_isVer(_ignored_0), $Bool_not($updatenotice_verNewer(_latest_0, _ignored_0)));
+  return $Bool_and($$updatenotice_isVer(_ignored_0), $$Bool_not($$updatenotice_verNewer(_latest_0, _ignored_0)));
 }
 function $updatenotice_newerThanSeen(_latest_0, _seen_0) {
-  const _x_0 = $Bool_not($updatenotice_isVer(_seen_0));
-  const _x_1 = $updatenotice_verNewer(_latest_0, _seen_0);
+  const _x_0 = $$Bool_not($$updatenotice_isVer(_seen_0));
+  const _x_1 = $$updatenotice_verNewer(_latest_0, _seen_0);
   return _x_0 || _x_1;
 }
 function $updatenotice_targetVersion(_available_0, _latest_0, _installed_0) {
   return $updatenotice_verPick(_available_0, _latest_0, _installed_0);
 }
 function $updatenotice_noticeFrom(_available_0, _unreachable_0, _quiet_0, _newer_0, _ahead_0) {
-  return { $: "Notice", available: _available_0, unreachable: _unreachable_0, showLine: $Bool_and(_available_0, $Bool_not(_quiet_0)), showDot: $Bool_and($Bool_and(_available_0, $Bool_not(_quiet_0)), _newer_0), ahead: _ahead_0 };
+  return { $: "Notice", available: _available_0, unreachable: _unreachable_0, showLine: $$Bool_and(_available_0, $$Bool_not(_quiet_0)), showDot: $$Bool_and($$Bool_and(_available_0, $$Bool_not(_quiet_0)), _newer_0), ahead: _ahead_0 };
 }
 function $updatenotice_noticeOf(_installed_0, _latest_0, _tested_0, _m_0, _today_0) {
   const _seen_0 = _m_0["seen"];
   const _ignored_0 = _m_0["ignored"];
   const _remindDay_0 = _m_0["remindDay"];
-  const _x_0 = $updatenotice_ignoredCovers(_latest_0, _ignored_0);
+  const _x_0 = $$updatenotice_ignoredCovers(_latest_0, _ignored_0);
   const _x_1 = _today_0 < _remindDay_0;
-  return $updatenotice_noticeFrom($updatenotice_verNewer(_latest_0, _installed_0), $Bool_not($updatenotice_isVer(_latest_0)), _x_0 || _x_1, $updatenotice_newerThanSeen(_latest_0, _seen_0), $updatenotice_verNewer($updatenotice_targetVersion($updatenotice_verNewer(_latest_0, _installed_0), _latest_0, _installed_0), _tested_0));
+  return $updatenotice_noticeFrom($$updatenotice_verNewer(_latest_0, _installed_0), $$Bool_not($$updatenotice_isVer(_latest_0)), _x_0 || _x_1, $$updatenotice_newerThanSeen(_latest_0, _seen_0), $$updatenotice_verNewer($$updatenotice_targetVersion($$updatenotice_verNewer(_latest_0, _installed_0), _latest_0, _installed_0), _tested_0));
 }
 function $updatenotice_seenAfterOpen(_seen_0, _latest_0, _available_0) {
-  return $updatenotice_verPick(_available_0, $updatenotice_verMax(_seen_0, _latest_0), _seen_0);
+  return $updatenotice_verPick(_available_0, $$updatenotice_verMax(_seen_0, _latest_0), _seen_0);
 }
 function $updatenotice_afterOpen(_m_0, _installed_0, _latest_0) {
   const _seen_0 = _m_0["seen"];
   const _ignored_0 = _m_0["ignored"];
   const _remindDay_0 = _m_0["remindDay"];
-  return { $: "Memory", seen: $updatenotice_seenAfterOpen(_seen_0, _latest_0, $updatenotice_verNewer(_latest_0, _installed_0)), ignored: _ignored_0, remindDay: _remindDay_0 };
+  return { $: "Memory", seen: $$updatenotice_seenAfterOpen(_seen_0, _latest_0, $$updatenotice_verNewer(_latest_0, _installed_0)), ignored: _ignored_0, remindDay: _remindDay_0 };
 }
 function $updatenotice_afterPostpone(_m_0, _today_0) {
   const _ignored_0 = _m_0["ignored"];
@@ -603,7 +607,7 @@ function $updatenotice_afterIgnore(_m_0, _latest_0) {
   const _seen_0 = _m_0["seen"];
   const _ignored_0 = _m_0["ignored"];
   const _remindDay_0 = _m_0["remindDay"];
-  return { $: "Memory", seen: _seen_0, ignored: $updatenotice_verMax(_ignored_0, _latest_0), remindDay: _remindDay_0 };
+  return { $: "Memory", seen: _seen_0, ignored: $$updatenotice_verMax(_ignored_0, _latest_0), remindDay: _remindDay_0 };
 }
 function $updatenotice_noticeText(_name_0, _version_0) {
   return $msg_msg2("update.noticeAvailable", "name", _name_0, "version", _version_0);
@@ -682,7 +686,7 @@ function $updatenotice_doneSentence_known(_name_0, _before_0, _after_0, _relinke
   }
 }
 function $updatenotice_doneSentence_ok(_name_0, _beforeV_0, _afterV_0, _before_0, _after_0, _relinked_0) {
-  return $updatenotice_doneSentence_known(_name_0, _before_0, _after_0, _relinked_0, $updatenotice_isVer(_afterV_0), $updatenotice_verNewer(_afterV_0, _beforeV_0));
+  return $updatenotice_doneSentence_known(_name_0, _before_0, _after_0, _relinked_0, $$updatenotice_isVer(_afterV_0), $$updatenotice_verNewer(_afterV_0, _beforeV_0));
 }
 function $updatenotice_doneSentence(_name_0, _ok_0, _beforeV_0, _afterV_0, _before_0, _after_0, _relinked_0) {
   if (_ok_0) {
@@ -692,16 +696,16 @@ function $updatenotice_doneSentence(_name_0, _ok_0, _beforeV_0, _afterV_0, _befo
   }
 }
 function $updatenotice_noticeIcon() {
-  return $view_viewEl("span", { $: "Con", head: $view_attrClass("update-icon"), tail: { $: "Con", head: $view_attrData("state", "new"), tail: { $: "Con", head: $view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText("↑"), tail: { $: "Nil" } });
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("update-icon"), tail: { $: "Con", head: $$view_attrData("state", "new"), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText("↑"), tail: { $: "Nil" } });
 }
 function $updatenotice_noticeButton(_id_0, _handler_0, _label_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("notice-btn"), tail: { $: "Con", head: $view_attrData("id", _id_0), tail: { $: "Con", head: $view_attrOn("click", _handler_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("notice-btn"), tail: { $: "Con", head: $$view_attrData("id", _id_0), tail: { $: "Con", head: $$view_attrOn("click", _handler_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } });
 }
 function $updatenotice_noticeLineText(_name_0, _version_0, _ahead_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("update-text"), tail: { $: "Nil" } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("update-main"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($updatenotice_noticeText(_name_0, _version_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen(_ahead_0, $view_viewEl("span", { $: "Con", head: $view_attrClass("update-muted"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(" · "), tail: { $: "Con", head: $view_viewText($updatenotice_aheadText()), tail: { $: "Nil" } } })), tail: { $: "Nil" } } }));
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("update-text"), tail: { $: "Nil" } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("update-main"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$updatenotice_noticeText(_name_0, _version_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_viewWhen(_ahead_0, $$view_viewEl("span", { $: "Con", head: $$view_attrClass("update-muted"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(" · "), tail: { $: "Con", head: $$view_viewText($$updatenotice_aheadText()), tail: { $: "Nil" } } })), tail: { $: "Nil" } } }));
 }
 function $updatenotice_noticeLineBody(_id_0, _name_0, _version_0, _ahead_0, _leading_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("about-notice"), tail: { $: "Con", head: $view_attrData("id", _id_0), tail: { $: "Nil" } } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $updatenotice_noticeIcon(), tail: { $: "Con", head: $updatenotice_noticeLineText(_name_0, _version_0, _ahead_0), tail: { $: "Nil" } } }, tail: { $: "Con", head: _leading_0, tail: { $: "Con", head: { $: "Con", head: $updatenotice_noticeButton(_id_0, "PostponeNotice", $updatenotice_remindLabel()), tail: { $: "Con", head: $updatenotice_noticeButton(_id_0, "IgnoreNotice", $updatenotice_ignoreLabel()), tail: { $: "Nil" } } }, tail: { $: "Nil" } } } }));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("about-notice"), tail: { $: "Con", head: $$view_attrData("id", _id_0), tail: { $: "Nil" } } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$updatenotice_noticeIcon(), tail: { $: "Con", head: $$updatenotice_noticeLineText(_name_0, _version_0, _ahead_0), tail: { $: "Nil" } } }, tail: { $: "Con", head: _leading_0, tail: { $: "Con", head: { $: "Con", head: $$updatenotice_noticeButton(_id_0, "PostponeNotice", $$updatenotice_remindLabel()), tail: { $: "Con", head: $$updatenotice_noticeButton(_id_0, "IgnoreNotice", $$updatenotice_ignoreLabel()), tail: { $: "Nil" } } }, tail: { $: "Nil" } } } }));
 }
 function $updatenotice_noticeLineNode(_l_0) {
   const _id_0 = _l_0["id"];
@@ -716,7 +720,7 @@ function $updatenotice_noticeLines(_ls_0) {
   } else {
     const _h_0 = _ls_0["head"];
     const _t_0 = _ls_0["tail"];
-    return { $: "Con", head: $updatenotice_noticeLineNode(_h_0), tail: $updatenotice_noticeLines(_t_0) };
+    return { $: "Con", head: $$updatenotice_noticeLineNode(_h_0), tail: $$updatenotice_noticeLines(_t_0) };
   }
 }
 function $updatenotice_showsNotice(_s_0) {
@@ -727,13 +731,13 @@ function $updatenotice_showsNotice(_s_0) {
   }
 }
 function $updatenotice_seesLine(_s_0, _lineVisible_0) {
-  return $Bool_and($updatenotice_showsNotice(_s_0), _lineVisible_0);
+  return $Bool_and($$updatenotice_showsNotice(_s_0), _lineVisible_0);
 }
 function $updatenotice_seeAboutLabel() {
   return $msg_msg("update.seeAbout");
 }
 function $updatenotice_seeAboutButton(_id_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("notice-btn"), tail: { $: "Con", head: $view_attrData("id", _id_0), tail: { $: "Con", head: $view_attrOn("click", "OpenAboutFromNotice"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($updatenotice_seeAboutLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("notice-btn"), tail: { $: "Con", head: $$view_attrData("id", _id_0), tail: { $: "Con", head: $$view_attrOn("click", "OpenAboutFromNotice"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$updatenotice_seeAboutLabel()), tail: { $: "Nil" } });
 }
 function $updatenotice_noticeLineFor(_s_0, _l_0) {
   if (_s_0.$ === "About") {
@@ -743,7 +747,7 @@ function $updatenotice_noticeLineFor(_s_0, _l_0) {
     const _name_0 = _l_0["name"];
     const _version_0 = _l_0["version"];
     const _ahead_0 = _l_0["ahead"];
-    return $updatenotice_noticeLineBody(_id_0, _name_0, _version_0, _ahead_0, { $: "Con", head: $updatenotice_seeAboutButton(_id_0), tail: { $: "Nil" } });
+    return $updatenotice_noticeLineBody(_id_0, _name_0, _version_0, _ahead_0, { $: "Con", head: $$updatenotice_seeAboutButton(_id_0), tail: { $: "Nil" } });
   }
 }
 function $updatenotice_noticeLinesFor(_s_0, _ls_0) {
@@ -752,7 +756,7 @@ function $updatenotice_noticeLinesFor(_s_0, _ls_0) {
   } else {
     const _h_0 = _ls_0["head"];
     const _t_0 = _ls_0["tail"];
-    return { $: "Con", head: $updatenotice_noticeLineFor(_s_0, _h_0), tail: $updatenotice_noticeLinesFor(_s_0, _t_0) };
+    return { $: "Con", head: $$updatenotice_noticeLineFor(_s_0, _h_0), tail: $$updatenotice_noticeLinesFor(_s_0, _t_0) };
   }
 }
 function $updatenotice_hasAction(_a_0) {
@@ -769,43 +773,43 @@ function $updatenotice_hasAction(_a_0) {
   }
 }
 function $updatenotice_localButton() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrId("update-pi"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("component-update"), tail: { $: "Con", head: $view_attrOn("click", "UpdatePi"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($msg_msg("update.pi")), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-pi"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update"), tail: { $: "Con", head: $$view_attrOn("click", "UpdatePi"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$msg_msg("update.pi")), tail: { $: "Nil" } });
 }
 function $updatenotice_askButton(_command_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $view_attrData("command", _command_0), tail: { $: "Con", head: $view_attrOn("click", "AskUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($updatenotice_updateLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $$view_attrData("command", _command_0), tail: { $: "Con", head: $$view_attrOn("click", "AskUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$updatenotice_updateLabel()), tail: { $: "Nil" } });
 }
 function $updatenotice_waitNodes() {
-  return { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $view_attr("disabled", ""), tail: { $: "Con", head: $view_attr("title", $updatenotice_waitHint()), tail: { $: "Con", head: $view_attrAria("describedby", "tool-wait-hint"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $view_viewText($updatenotice_updateLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("small", { $: "Con", head: $view_attrClass("component-wait"), tail: { $: "Con", head: $view_attrId("tool-wait-hint"), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText($updatenotice_waitShort()), tail: { $: "Nil" } }), tail: { $: "Nil" } } };
+  return { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $$view_attr("disabled", ""), tail: { $: "Con", head: $$view_attr("title", $$updatenotice_waitHint()), tail: { $: "Con", head: $$view_attrAria("describedby", "tool-wait-hint"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $$view_viewText($$updatenotice_updateLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("small", { $: "Con", head: $$view_attrClass("component-wait"), tail: { $: "Con", head: $$view_attrId("tool-wait-hint"), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText($$updatenotice_waitShort()), tail: { $: "Nil" } }), tail: { $: "Nil" } } };
 }
 function $updatenotice_copyButton(_command_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("component-update tool-copy"), tail: { $: "Con", head: $view_attrData("command", _command_0), tail: { $: "Con", head: $view_attrAria("label", $msg_msg1("update.copyAria", "command", _command_0)), tail: { $: "Con", head: $view_attrOn("click", "CopyCommand"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $view_viewText($updatenotice_copyLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-copy"), tail: { $: "Con", head: $$view_attrData("command", _command_0), tail: { $: "Con", head: $$view_attrAria("label", $$msg_msg1("update.copyAria", "command", _command_0)), tail: { $: "Con", head: $$view_attrOn("click", "CopyCommand"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $$view_viewText($$updatenotice_copyLabel()), tail: { $: "Nil" } });
 }
 function $updatenotice_actionNodes(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return { $: "Nil" };
   } else if (_a_0.$ === "ToolLocal") {
-    return { $: "Con", head: $updatenotice_localButton(), tail: { $: "Nil" } };
+    return { $: "Con", head: $$updatenotice_localButton(), tail: { $: "Nil" } };
   } else if (_a_0.$ === "ToolAsk") {
     const _command_0 = _a_0["command"];
-    return { $: "Con", head: $updatenotice_askButton(_command_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$updatenotice_askButton(_command_0), tail: { $: "Nil" } };
   } else if (_a_0.$ === "ToolWait") {
     return $updatenotice_waitNodes();
   } else {
     const _command_1 = _a_0["command"];
-    return { $: "Con", head: $updatenotice_copyButton(_command_1), tail: { $: "Nil" } };
+    return { $: "Con", head: $$updatenotice_copyButton(_command_1), tail: { $: "Nil" } };
   }
 }
 function $updatenotice_commandNode(_command_0) {
-  return $view_viewEl("code", { $: "Con", head: $view_attrClass("run-command"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_command_0), tail: { $: "Nil" } });
+  return $view_viewEl("code", { $: "Con", head: $$view_attrClass("run-command"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_command_0), tail: { $: "Nil" } });
 }
 function $updatenotice_runLine(_label_0, _command_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("run-line"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Con", head: $updatenotice_commandNode(_command_0), tail: { $: "Nil" } } });
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("run-line"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Con", head: $$updatenotice_commandNode(_command_0), tail: { $: "Nil" } } });
 }
 function $updatenotice_outputNode(_output_0) {
-  return $view_viewWhen($Bool_not($String_is_empty(_output_0)), $view_viewEl("pre", { $: "Con", head: $view_attrClass("run-output"), tail: { $: "Con", head: $view_attr("tabindex", "0"), tail: { $: "Con", head: $view_attr("role", "log"), tail: { $: "Con", head: $view_attrAria("label", $msg_msg("update.outputAria")), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText(_output_0), tail: { $: "Nil" } }));
+  return $view_viewWhen($$Bool_not($$String_is_empty(_output_0)), $$view_viewEl("pre", { $: "Con", head: $$view_attrClass("run-output"), tail: { $: "Con", head: $$view_attr("tabindex", "0"), tail: { $: "Con", head: $$view_attr("role", "log"), tail: { $: "Con", head: $$view_attrAria("label", $$msg_msg("update.outputAria")), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText(_output_0), tail: { $: "Nil" } }));
 }
 function $updatenotice_runButton(_label_0, _handler_0, _cls_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass(_cls_0), tail: { $: "Con", head: $view_attrOn("click", _handler_0), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass(_cls_0), tail: { $: "Con", head: $$view_attrOn("click", _handler_0), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } });
 }
 function $updatenotice_donePhase(_ok_0) {
   if (_ok_0) {
@@ -815,16 +819,16 @@ function $updatenotice_donePhase(_ok_0) {
   }
 }
 function $updatenotice_runPanel(_phase_0, _kids_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("component-run"), tail: { $: "Con", head: $view_attrData("phase", _phase_0), tail: { $: "Con", head: $view_attr("role", "group"), tail: { $: "Nil" } } } }, _kids_0);
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("component-run"), tail: { $: "Con", head: $$view_attrData("phase", _phase_0), tail: { $: "Con", head: $$view_attr("role", "group"), tail: { $: "Nil" } } } }, _kids_0);
 }
 function $updatenotice_confirmNodes(_command_0, _warning_0) {
-  return $updatenotice_runPanel("confirm", $view_viewJoin({ $: "Con", head: { $: "Con", head: $updatenotice_runLine($updatenotice_willRunText(), _command_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen($Bool_not($String_is_empty(_warning_0)), $view_viewEl("p", { $: "Con", head: $view_attrClass("run-warn"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_warning_0), tail: { $: "Nil" } })), tail: { $: "Con", head: { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("run-actions"), tail: { $: "Nil" } }, { $: "Con", head: $updatenotice_runButton($updatenotice_cancelLabel(), "CancelRun", "run-cancel"), tail: { $: "Con", head: $updatenotice_runButton($updatenotice_updateLabel(), "ConfirmRun", "primary run-confirm"), tail: { $: "Nil" } } }), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }));
+  return $updatenotice_runPanel("confirm", $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$updatenotice_runLine($$updatenotice_willRunText(), _command_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_viewWhen($$Bool_not($$String_is_empty(_warning_0)), $$view_viewEl("p", { $: "Con", head: $$view_attrClass("run-warn"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_warning_0), tail: { $: "Nil" } })), tail: { $: "Con", head: { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("run-actions"), tail: { $: "Nil" } }, { $: "Con", head: $$updatenotice_runButton($$updatenotice_cancelLabel(), "CancelRun", "run-cancel"), tail: { $: "Con", head: $$updatenotice_runButton($$updatenotice_updateLabel(), "ConfirmRun", "primary run-confirm"), tail: { $: "Nil" } } }), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }));
 }
 function $updatenotice_busyNodes(_command_0, _output_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("component-run"), tail: { $: "Con", head: $view_attrData("phase", "busy"), tail: { $: "Con", head: $view_attr("role", "group"), tail: { $: "Con", head: $view_attrAria("live", "polite"), tail: { $: "Nil" } } } } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $updatenotice_runLine($updatenotice_runningText(), _command_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $updatenotice_outputNode(_output_0), tail: { $: "Nil" } } }));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("component-run"), tail: { $: "Con", head: $$view_attrData("phase", "busy"), tail: { $: "Con", head: $$view_attr("role", "group"), tail: { $: "Con", head: $$view_attrAria("live", "polite"), tail: { $: "Nil" } } } } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$updatenotice_runLine($$updatenotice_runningText(), _command_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $$updatenotice_outputNode(_output_0), tail: { $: "Nil" } } }));
 }
 function $updatenotice_doneNodes(_ok_0, _sentence_0, _output_0) {
-  return $updatenotice_runPanel($updatenotice_donePhase(_ok_0), $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("run-line run-result"), tail: { $: "Con", head: $view_attr("role", "status"), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText(_sentence_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $updatenotice_outputNode(_output_0), tail: { $: "Con", head: { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("run-actions"), tail: { $: "Nil" } }, { $: "Con", head: $updatenotice_runButton($updatenotice_closeLabel(), "CloseRun", "run-close"), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }));
+  return $updatenotice_runPanel($$updatenotice_donePhase(_ok_0), $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$view_viewEl("p", { $: "Con", head: $$view_attrClass("run-line run-result"), tail: { $: "Con", head: $$view_attr("role", "status"), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText(_sentence_0), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Con", head: $$updatenotice_outputNode(_output_0), tail: { $: "Con", head: { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("run-actions"), tail: { $: "Nil" } }, { $: "Con", head: $$updatenotice_runButton($$updatenotice_closeLabel(), "CloseRun", "run-close"), tail: { $: "Nil" } }), tail: { $: "Nil" } }, tail: { $: "Nil" } } } }));
 }
 function $updatenotice_runNodes(_r_0) {
   if (_r_0.$ === "RunNone") {
@@ -832,16 +836,16 @@ function $updatenotice_runNodes(_r_0) {
   } else if (_r_0.$ === "RunConfirm") {
     const _command_0 = _r_0["command"];
     const _warning_0 = _r_0["warning"];
-    return { $: "Con", head: $updatenotice_confirmNodes(_command_0, _warning_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$updatenotice_confirmNodes(_command_0, _warning_0), tail: { $: "Nil" } };
   } else if (_r_0.$ === "RunBusy") {
     const _command_1 = _r_0["command"];
     const _output_0 = _r_0["output"];
-    return { $: "Con", head: $updatenotice_busyNodes(_command_1, _output_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$updatenotice_busyNodes(_command_1, _output_0), tail: { $: "Nil" } };
   } else {
     const _ok_0 = _r_0["ok"];
     const _sentence_0 = _r_0["sentence"];
     const _output_1 = _r_0["output"];
-    return { $: "Con", head: $updatenotice_doneNodes(_ok_0, _sentence_0, _output_1), tail: { $: "Nil" } };
+    return { $: "Con", head: $$updatenotice_doneNodes(_ok_0, _sentence_0, _output_1), tail: { $: "Nil" } };
   }
 }
 function $dialogsview_textOr_if(_raw_0, _fallback_0, _empty_0) {
@@ -852,7 +856,7 @@ function $dialogsview_textOr_if(_raw_0, _fallback_0, _empty_0) {
   }
 }
 function $dialogsview_textOr(_raw_0, _fallback_0) {
-  return $dialogsview_textOr_if(_raw_0, _fallback_0, $String_is_empty(_raw_0));
+  return $dialogsview_textOr_if(_raw_0, _fallback_0, $$String_is_empty(_raw_0));
 }
 function $dialogsview_lastPartFrom(_m_0) {
   if (_m_0.$ === "None") {
@@ -863,34 +867,34 @@ function $dialogsview_lastPartFrom(_m_0) {
   }
 }
 function $dialogsview_lastPart(_xs_0) {
-  return $dialogsview_lastPartFrom($List_last(_xs_0));
+  return $dialogsview_lastPartFrom($$List_last(_xs_0));
 }
 function $dialogsview_fileBase(_path_0) {
-  return $dialogsview_lastPart($String_split($dialogsview_lastPart($String_split(_path_0, "/")), "\\"));
+  return $dialogsview_lastPart($$String_split($$dialogsview_lastPart($$String_split(_path_0, "/")), "\\"));
 }
 function $dialogsview_hintAttrs(_hint_0) {
-  return $view_attrWhen($Bool_not($String_is_empty(_hint_0)), { $: "ViewAttr", name: "placeholder", value: _hint_0 });
+  return $view_attrWhen($$Bool_not($$String_is_empty(_hint_0)), { $: "ViewAttr", name: "placeholder", value: _hint_0 });
 }
 function $dialogsview_valueAttr(_value_0) {
-  return $view_attrWhen($Bool_not($String_is_empty(_value_0)), { $: "ViewAttr", name: "value", value: _value_0 });
+  return $view_attrWhen($$Bool_not($$String_is_empty(_value_0)), { $: "ViewAttr", name: "value", value: _value_0 });
 }
 function $dialogsview_labelAria(_label_0) {
-  return $view_attrWhen($Bool_not($String_is_empty(_label_0)), $view_attrAria("label", _label_0));
+  return $view_attrWhen($$Bool_not($$String_is_empty(_label_0)), $$view_attrAria("label", _label_0));
 }
 function $dialogsview_textareaKids_if(_value_0, _empty_0) {
   if (_empty_0) {
     return { $: "Nil" };
   } else {
-    return { $: "Con", head: $view_viewText(_value_0), tail: { $: "Nil" } };
+    return { $: "Con", head: $$view_viewText(_value_0), tail: { $: "Nil" } };
   }
 }
 function $dialogsview_textareaKids(_value_0) {
-  return $dialogsview_textareaKids_if(_value_0, $String_is_empty(_value_0));
+  return $dialogsview_textareaKids_if(_value_0, $$String_is_empty(_value_0));
 }
 function $dialogsview_optionNode(_selected_0, _o_0) {
   const _label_0 = _o_0["label"];
   const _value_0 = _o_0["value"];
-  return $view_viewEl("option", $view_attrJoin({ $: "Con", head: { $: "Con", head: { $: "ViewAttr", name: "value", value: _value_0 }, tail: { $: "Nil" } }, tail: { $: "Con", head: $view_attrWhen($String_eq(_value_0, _selected_0), { $: "ViewAttr", name: "selected", value: "" }), tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } });
+  return $view_viewEl("option", $$view_attrJoin({ $: "Con", head: { $: "Con", head: { $: "ViewAttr", name: "value", value: _value_0 }, tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_attrWhen($$String_eq(_value_0, _selected_0), { $: "ViewAttr", name: "selected", value: "" }), tail: { $: "Nil" } } }), { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } });
 }
 function $dialogsview_optionNodes_go(_selected_0, _xs_0) {
   if (_xs_0.$ === "Nil") {
@@ -898,7 +902,7 @@ function $dialogsview_optionNodes_go(_selected_0, _xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $dialogsview_optionNode(_selected_0, _h_0), tail: $dialogsview_optionNodes_go(_selected_0, _t_0) };
+    return { $: "Con", head: $$dialogsview_optionNode(_selected_0, _h_0), tail: $$dialogsview_optionNodes_go(_selected_0, _t_0) };
   }
 }
 function $dialogsview_optionNodes(_selected_0, _xs_0) {
@@ -909,22 +913,22 @@ function $dialogsview_fieldControl(_f_0) {
     const _label_0 = _f_0["label"];
     const _value_0 = _f_0["value"];
     const _hint_0 = _f_0["hint"];
-    return $view_viewEl("input", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("dialog-value"), tail: { $: "Con", head: $view_attrType("text"), tail: { $: "Nil" } } }, tail: { $: "Con", head: $dialogsview_labelAria(_label_0), tail: { $: "Con", head: $dialogsview_valueAttr(_value_0), tail: { $: "Con", head: $dialogsview_hintAttrs(_hint_0), tail: { $: "Nil" } } } } }), { $: "Nil" });
+    return $view_viewEl("input", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("dialog-value"), tail: { $: "Con", head: $$view_attrType("text"), tail: { $: "Nil" } } }, tail: { $: "Con", head: $$dialogsview_labelAria(_label_0), tail: { $: "Con", head: $$dialogsview_valueAttr(_value_0), tail: { $: "Con", head: $$dialogsview_hintAttrs(_hint_0), tail: { $: "Nil" } } } } }), { $: "Nil" });
   } else if (_f_0.$ === "FieldEditor") {
     const _label_1 = _f_0["label"];
     const _value_1 = _f_0["value"];
     const _hint_1 = _f_0["hint"];
-    return $view_viewEl("textarea", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("dialog-value"), tail: { $: "Nil" } }, tail: { $: "Con", head: $dialogsview_labelAria(_label_1), tail: { $: "Con", head: $dialogsview_hintAttrs(_hint_1), tail: { $: "Nil" } } } }), $dialogsview_textareaKids(_value_1));
+    return $view_viewEl("textarea", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("dialog-value"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$dialogsview_labelAria(_label_1), tail: { $: "Con", head: $$dialogsview_hintAttrs(_hint_1), tail: { $: "Nil" } } } }), $$dialogsview_textareaKids(_value_1));
   } else if (_f_0.$ === "FieldPick") {
     const _label_2 = _f_0["label"];
     const _value_2 = _f_0["value"];
     const _options_0 = _f_0["options"];
-    return $view_viewEl("select", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("dialog-value"), tail: { $: "Nil" } }, tail: { $: "Con", head: $dialogsview_labelAria(_label_2), tail: { $: "Nil" } } }), $dialogsview_optionNodes(_value_2, _options_0));
+    return $view_viewEl("select", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("dialog-value"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$dialogsview_labelAria(_label_2), tail: { $: "Nil" } } }), $$dialogsview_optionNodes(_value_2, _options_0));
   } else {
     const _label_3 = _f_0["label"];
     const _value_3 = _f_0["value"];
     const _on_0 = _f_0["on"];
-    return $view_viewEl("label", { $: "Nil" }, { $: "Con", head: $view_viewEl("input", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrId("dialog-value"), tail: { $: "Con", head: $view_attrType("checkbox"), tail: { $: "Nil" } } }, tail: { $: "Con", head: $dialogsview_valueAttr(_value_3), tail: { $: "Con", head: $view_attrWhen(_on_0, { $: "ViewAttr", name: "checked", value: "" }), tail: { $: "Nil" } } } }), { $: "Nil" }), tail: { $: "Con", head: $view_viewText(_label_3), tail: { $: "Nil" } } });
+    return $view_viewEl("label", { $: "Nil" }, { $: "Con", head: $$view_viewEl("input", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("dialog-value"), tail: { $: "Con", head: $$view_attrType("checkbox"), tail: { $: "Nil" } } }, tail: { $: "Con", head: $$dialogsview_valueAttr(_value_3), tail: { $: "Con", head: $$view_attrWhen(_on_0, { $: "ViewAttr", name: "checked", value: "" }), tail: { $: "Nil" } } } }), { $: "Nil" }), tail: { $: "Con", head: $$view_viewText(_label_3), tail: { $: "Nil" } } });
   }
 }
 function $dialogsview_piFields(_fs_0) {
@@ -933,20 +937,20 @@ function $dialogsview_piFields(_fs_0) {
   } else {
     const _h_0 = _fs_0["head"];
     const _t_0 = _fs_0["tail"];
-    return { $: "Con", head: $dialogsview_fieldControl(_h_0), tail: $dialogsview_piFields(_t_0) };
+    return { $: "Con", head: $$dialogsview_fieldControl(_h_0), tail: $$dialogsview_piFields(_t_0) };
   }
 }
 function $dialogsview_piTitle(_raw_0) {
-  return $dialogsview_textOr(_raw_0, $msg_msg("dialog.tutor"));
+  return $dialogsview_textOr(_raw_0, $$msg_msg("dialog.tutor"));
 }
 function $dialogsview_piMessage(_raw_0) {
   return _raw_0;
 }
 function $dialogsview_dialogOkLabel(_raw_0) {
-  return $dialogsview_textOr(_raw_0, $msg_msg("dialog.continue"));
+  return $dialogsview_textOr(_raw_0, $$msg_msg("dialog.continue"));
 }
 function $dialogsview_piOkNode(_label_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrId("dialog-ok"), tail: { $: "Con", head: $view_attr("value", "ok"), tail: { $: "Con", head: $view_attrClass("primary"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText($dialogsview_dialogOkLabel(_label_0)), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrId("dialog-ok"), tail: { $: "Con", head: $$view_attr("value", "ok"), tail: { $: "Con", head: $$view_attrClass("primary"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText($$dialogsview_dialogOkLabel(_label_0)), tail: { $: "Nil" } });
 }
 function $dialogsview_endDayTitle() {
   return $msg_msg("dialogs.endDay.title");
@@ -967,31 +971,31 @@ function $dialogsview_endDaySaveLabel() {
   return $msg_msg("dialogs.endDay.save");
 }
 function $dialogsview_endDayField(_id_0, _label_0, _value_0) {
-  return $view_viewEl("label", { $: "Nil" }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Con", head: $view_viewEl("textarea", { $: "Con", head: $view_attrId(_id_0), tail: { $: "Con", head: $view_attr("rows", "2"), tail: { $: "Con", head: $view_attr("required", ""), tail: { $: "Nil" } } } }, $dialogsview_textareaKids(_value_0)), tail: { $: "Nil" } } });
+  return $view_viewEl("label", { $: "Nil" }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Con", head: $$view_viewEl("textarea", { $: "Con", head: $$view_attrId(_id_0), tail: { $: "Con", head: $$view_attr("rows", "2"), tail: { $: "Con", head: $$view_attr("required", ""), tail: { $: "Nil" } } } }, $$dialogsview_textareaKids(_value_0)), tail: { $: "Nil" } } });
 }
 function $dialogsview_endDayActions() {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("dialog-actions"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attr("value", "cancel"), tail: { $: "Con", head: $view_attr("formnovalidate", ""), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText($dialogsview_endDayCancelLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrId("end-day-save"), tail: { $: "Con", head: $view_attr("value", "ok"), tail: { $: "Con", head: $view_attrClass("primary"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText($dialogsview_endDaySaveLabel()), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("dialog-actions"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attr("value", "cancel"), tail: { $: "Con", head: $$view_attr("formnovalidate", ""), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText($$dialogsview_endDayCancelLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrId("end-day-save"), tail: { $: "Con", head: $$view_attr("value", "ok"), tail: { $: "Con", head: $$view_attrClass("primary"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText($$dialogsview_endDaySaveLabel()), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
 }
 function $dialogsview_endDayChildren(_whereText_0, _nextText_0) {
-  return { $: "Con", head: $view_viewEl("h2", { $: "Nil" }, { $: "Con", head: $view_viewText($dialogsview_endDayTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("help-lead"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($dialogsview_endDayLead()), tail: { $: "Nil" } }), tail: { $: "Con", head: $dialogsview_endDayField("end-where", $dialogsview_endDayWhereLabel(), _whereText_0), tail: { $: "Con", head: $dialogsview_endDayField("end-next", $dialogsview_endDayNextLabel(), _nextText_0), tail: { $: "Con", head: $dialogsview_endDayActions(), tail: { $: "Nil" } } } } } };
+  return { $: "Con", head: $$view_viewEl("h2", { $: "Nil" }, { $: "Con", head: $$view_viewText($$dialogsview_endDayTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("p", { $: "Con", head: $$view_attrClass("help-lead"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$dialogsview_endDayLead()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$dialogsview_endDayField("end-where", $$dialogsview_endDayWhereLabel(), _whereText_0), tail: { $: "Con", head: $$dialogsview_endDayField("end-next", $$dialogsview_endDayNextLabel(), _nextText_0), tail: { $: "Con", head: $$dialogsview_endDayActions(), tail: { $: "Nil" } } } } } };
 }
 function $dialogsview_bookmarkNameInput(_value_0) {
-  return $view_viewEl("input", { $: "Con", head: $view_attrId("bookmark-name"), tail: { $: "Con", head: $view_attrType("text"), tail: { $: "Con", head: $view_attr("value", _value_0), tail: { $: "Con", head: $view_attr("required", ""), tail: { $: "Nil" } } } } }, { $: "Nil" });
+  return $view_viewEl("input", { $: "Con", head: $$view_attrId("bookmark-name"), tail: { $: "Con", head: $$view_attrType("text"), tail: { $: "Con", head: $$view_attr("value", _value_0), tail: { $: "Con", head: $$view_attr("required", ""), tail: { $: "Nil" } } } } }, { $: "Nil" });
 }
 function $dialogsview_bookmarkActions() {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("dialog-actions"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attr("value", "cancel"), tail: { $: "Con", head: $view_attr("formnovalidate", ""), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText($pdfnav_bookmarkCancelLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrId("bookmark-save"), tail: { $: "Con", head: $view_attr("value", "ok"), tail: { $: "Con", head: $view_attrClass("primary"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText($pdfnav_bookmarkSaveLabel()), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("dialog-actions"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attr("value", "cancel"), tail: { $: "Con", head: $$view_attr("formnovalidate", ""), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText($$pdfnav_bookmarkCancelLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrId("bookmark-save"), tail: { $: "Con", head: $$view_attr("value", "ok"), tail: { $: "Con", head: $$view_attrClass("primary"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText($$pdfnav_bookmarkSaveLabel()), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
 }
 function $dialogsview_bookmarkChildren(_name_0, _hint_0) {
-  return { $: "Con", head: $view_viewEl("h2", { $: "Nil" }, { $: "Con", head: $view_viewText($pdfnav_bookmarkDialogTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("help-lead"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_hint_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("label", { $: "Nil" }, { $: "Con", head: $view_viewText($pdfnav_bookmarkNameLabel()), tail: { $: "Con", head: $dialogsview_bookmarkNameInput(_name_0), tail: { $: "Nil" } } }), tail: { $: "Con", head: $dialogsview_bookmarkActions(), tail: { $: "Nil" } } } } };
+  return { $: "Con", head: $$view_viewEl("h2", { $: "Nil" }, { $: "Con", head: $$view_viewText($$pdfnav_bookmarkDialogTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("p", { $: "Con", head: $$view_attrClass("help-lead"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_hint_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("label", { $: "Nil" }, { $: "Con", head: $$view_viewText($$pdfnav_bookmarkNameLabel()), tail: { $: "Con", head: $$dialogsview_bookmarkNameInput(_name_0), tail: { $: "Nil" } } }), tail: { $: "Con", head: $$dialogsview_bookmarkActions(), tail: { $: "Nil" } } } } };
 }
 function $dialogsview_imageFallback() {
   return $msg_msg("dialogs.image.fallback");
 }
 function $dialogsview_imageTitle(_file_0) {
-  return $dialogsview_textOr($dialogsview_fileBase(_file_0), $dialogsview_imageFallback());
+  return $dialogsview_textOr($$dialogsview_fileBase(_file_0), $$dialogsview_imageFallback());
 }
 function $dialogsview_imageTitleNode(_file_0) {
-  return $view_viewText($dialogsview_imageTitle(_file_0));
+  return $view_viewText($$dialogsview_imageTitle(_file_0));
 }
 function $dialogsview_imageCopyLabel() {
   return $msg_msg("common.copy");
@@ -1000,7 +1004,7 @@ function $dialogsview_imageOpenLabel() {
   return $msg_msg("dialogs.image.openPreview");
 }
 function $dialogsview_imageActions(_hasFile_0) {
-  return { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrId("image-copy"), tail: { $: "Con", head: $view_attrOn("click", "ImageCopy"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText($dialogsview_imageCopyLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrId("image-open"), tail: { $: "Con", head: $view_attrOn("click", "ImageOpen"), tail: { $: "Nil" } } } }, tail: { $: "Con", head: $view_attrWhen($Bool_not(_hasFile_0), { $: "ViewAttr", name: "hidden", value: "" }), tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($dialogsview_imageOpenLabel()), tail: { $: "Nil" } }), tail: { $: "Nil" } } };
+  return { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrId("image-copy"), tail: { $: "Con", head: $$view_attrOn("click", "ImageCopy"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText($$dialogsview_imageCopyLabel()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrId("image-open"), tail: { $: "Con", head: $$view_attrOn("click", "ImageOpen"), tail: { $: "Nil" } } } }, tail: { $: "Con", head: $$view_attrWhen($$Bool_not(_hasFile_0), { $: "ViewAttr", name: "hidden", value: "" }), tail: { $: "Nil" } } }), { $: "Con", head: $$view_viewText($$dialogsview_imageOpenLabel()), tail: { $: "Nil" } }), tail: { $: "Nil" } } };
 }
 function $dialogsview_helpVersion_if(_version_0, _missing_0) {
   if (_missing_0) {
@@ -1010,10 +1014,10 @@ function $dialogsview_helpVersion_if(_version_0, _missing_0) {
   }
 }
 function $dialogsview_helpVersion(_version_0) {
-  return $dialogsview_helpVersion_if(_version_0, $String_is_empty(_version_0));
+  return $dialogsview_helpVersion_if(_version_0, $$String_is_empty(_version_0));
 }
 function $dialogsview_helpVersionNode(_version_0) {
-  return $view_viewText($dialogsview_helpVersion(_version_0));
+  return $view_viewText($$dialogsview_helpVersion(_version_0));
 }
 function $dialogsview_helpFlags(_studyContext_0, _endDay_0, _refsToggle_0, _conferir_0) {
   return { $: "HelpFlags", studyContext: _studyContext_0, endDay: _endDay_0, refsToggle: _refsToggle_0, conferir: _conferir_0 };
@@ -1023,7 +1027,7 @@ function $dialogsview_helpChrome(_version_0, _flags_0) {
   const _endDay_0 = _flags_0["endDay"];
   const _refsToggle_0 = _flags_0["refsToggle"];
   const _conferir_0 = _flags_0["conferir"];
-  return { $: "HelpChrome", version: $dialogsview_helpVersion(_version_0), studyHidden: $Bool_not(_studyContext_0), endDayHidden: $Bool_not(_endDay_0), refsHidden: $Bool_not(_refsToggle_0), conferirHidden: $Bool_not(_conferir_0) };
+  return { $: "HelpChrome", version: $$dialogsview_helpVersion(_version_0), studyHidden: $$Bool_not(_studyContext_0), endDayHidden: $$Bool_not(_endDay_0), refsHidden: $$Bool_not(_refsToggle_0), conferirHidden: $$Bool_not(_conferir_0) };
 }
 function $dialogsview_aboutLead_if(_version_0, _missing_0) {
   if (_missing_0) {
@@ -1033,10 +1037,10 @@ function $dialogsview_aboutLead_if(_version_0, _missing_0) {
   }
 }
 function $dialogsview_aboutLead(_version_0) {
-  return $dialogsview_aboutLead_if(_version_0, $String_is_empty(_version_0));
+  return $dialogsview_aboutLead_if(_version_0, $$String_is_empty(_version_0));
 }
 function $dialogsview_aboutLeadNode(_version_0) {
-  return $view_viewText($dialogsview_aboutLead(_version_0));
+  return $view_viewText($$dialogsview_aboutLead(_version_0));
 }
 function $dialogsview_emptyCourse() {
   return { $: "SettingsCourse", id: "", name: "", path: "" };
@@ -1045,10 +1049,10 @@ function $dialogsview_courseRow(_course_0) {
   const _id_0 = _course_0["id"];
   const _name_0 = _course_0["name"];
   const _path_0 = _course_0["path"];
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("cfg-course"), tail: { $: "Con", head: $view_attrData("id", _id_0), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewEl("input", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrClass("cfg-name"), tail: { $: "Con", head: $view_attr("placeholder", $msg_msg("settings.course.nameColumn")), tail: { $: "Con", head: $view_attrAria("label", $msg_msg("settings.course.nameLabel")), tail: { $: "Nil" } } } }, tail: { $: "Con", head: $dialogsview_valueAttr(_name_0), tail: { $: "Nil" } } }), { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("input", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrClass("cfg-path"), tail: { $: "Con", head: $view_attr("placeholder", $msg_msg("settings.course.folderColumn")), tail: { $: "Con", head: $view_attr("spellcheck", "false"), tail: { $: "Con", head: $view_attrAria("label", $msg_msg("settings.course.folderLabel")), tail: { $: "Nil" } } } } }, tail: { $: "Con", head: $dialogsview_valueAttr(_path_0), tail: { $: "Nil" } } }), { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("cfg-browse"), tail: { $: "Con", head: $view_attrOn("click", "BrowseCourse"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText($msg_msg("settings.course.choose")), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("cfg-remove icon-btn"), tail: { $: "Con", head: $view_attrAria("label", $msg_msg("settings.course.remove")), tail: { $: "Con", head: $view_attrOn("click", "RemoveCourse"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText("×"), tail: { $: "Nil" } }), tail: { $: "Nil" } } } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("cfg-course"), tail: { $: "Con", head: $$view_attrData("id", _id_0), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewEl("input", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrClass("cfg-name"), tail: { $: "Con", head: $$view_attr("placeholder", $$msg_msg("settings.course.nameColumn")), tail: { $: "Con", head: $$view_attrAria("label", $$msg_msg("settings.course.nameLabel")), tail: { $: "Nil" } } } }, tail: { $: "Con", head: $$dialogsview_valueAttr(_name_0), tail: { $: "Nil" } } }), { $: "Nil" }), tail: { $: "Con", head: $$view_viewEl("input", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrClass("cfg-path"), tail: { $: "Con", head: $$view_attr("placeholder", $$msg_msg("settings.course.folderColumn")), tail: { $: "Con", head: $$view_attr("spellcheck", "false"), tail: { $: "Con", head: $$view_attrAria("label", $$msg_msg("settings.course.folderLabel")), tail: { $: "Nil" } } } } }, tail: { $: "Con", head: $$dialogsview_valueAttr(_path_0), tail: { $: "Nil" } } }), { $: "Nil" }), tail: { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("cfg-browse"), tail: { $: "Con", head: $$view_attrOn("click", "BrowseCourse"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText($$msg_msg("settings.course.choose")), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("cfg-remove icon-btn"), tail: { $: "Con", head: $$view_attrAria("label", $$msg_msg("settings.course.remove")), tail: { $: "Con", head: $$view_attrTitle($$msg_msg("settings.courses.removeNote")), tail: { $: "Con", head: $$view_attrOn("click", "RemoveCourse"), tail: { $: "Nil" } } } } } }, { $: "Con", head: $$view_viewText("×"), tail: { $: "Nil" } }), tail: { $: "Nil" } } } } });
 }
 function $dialogsview_courseHead() {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("cfg-course-head"), tail: { $: "Con", head: $view_attrAria("hidden", "true"), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewEl("span", { $: "Nil" }, { $: "Con", head: $view_viewText($msg_msg("settings.course.nameColumn")), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Nil" }, { $: "Con", head: $view_viewText($msg_msg("settings.course.folderColumn")), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("cfg-course-head"), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewEl("span", { $: "Nil" }, { $: "Con", head: $$view_viewText($$msg_msg("settings.course.nameColumn")), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Nil" }, { $: "Con", head: $$view_viewText($$msg_msg("settings.course.folderColumn")), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
 }
 function $dialogsview_courseRows_go(_cs_0) {
   if (_cs_0.$ === "Nil") {
@@ -1056,16 +1060,16 @@ function $dialogsview_courseRows_go(_cs_0) {
   } else {
     const _h_0 = _cs_0["head"];
     const _t_0 = _cs_0["tail"];
-    return { $: "Con", head: $dialogsview_courseRow(_h_0), tail: $dialogsview_courseRows_go(_t_0) };
+    return { $: "Con", head: $$dialogsview_courseRow(_h_0), tail: $$dialogsview_courseRows_go(_t_0) };
   }
 }
 function $dialogsview_courseRows(_cs_0) {
   if (_cs_0.$ === "Nil") {
-    return { $: "Con", head: $dialogsview_courseRow($dialogsview_emptyCourse()), tail: { $: "Nil" } };
+    return { $: "Con", head: $$dialogsview_courseRow($$dialogsview_emptyCourse()), tail: { $: "Nil" } };
   } else {
     const _h_0 = _cs_0["head"];
     const _t_0 = _cs_0["tail"];
-    return { $: "Con", head: $dialogsview_courseRow(_h_0), tail: $dialogsview_courseRows_go(_t_0) };
+    return { $: "Con", head: $$dialogsview_courseRow(_h_0), tail: $$dialogsview_courseRows_go(_t_0) };
   }
 }
 function $dialogsview_checkUpdateLabel() {
@@ -1088,7 +1092,7 @@ function $dialogsview_updateNoneRest_if(_current_0, _noChecked_0, _checked_0) {
   }
 }
 function $dialogsview_updateNoneRest(_current_0, _checked_0) {
-  return $dialogsview_updateNoneRest_if(_current_0, $String_is_empty(_checked_0), _checked_0);
+  return $dialogsview_updateNoneRest_if(_current_0, $$String_is_empty(_checked_0), _checked_0);
 }
 function $dialogsview_updateFailedText() {
   return $msg_msg("update.failed");
@@ -1122,7 +1126,7 @@ function $dialogsview_updateRecoveredText_if(_version_0, _reason_0, _emptyReason
   }
 }
 function $dialogsview_updateRecoveredText(_version_0, _reason_0) {
-  return $dialogsview_updateRecoveredText_if(_version_0, _reason_0, $String_is_empty(_reason_0));
+  return $dialogsview_updateRecoveredText_if(_version_0, _reason_0, $$String_is_empty(_reason_0));
 }
 function $dialogsview_updateIncompleteText_if(_version_0, _reason_0, _emptyReason_0) {
   if (_emptyReason_0) {
@@ -1132,70 +1136,70 @@ function $dialogsview_updateIncompleteText_if(_version_0, _reason_0, _emptyReaso
   }
 }
 function $dialogsview_updateIncompleteText(_version_0, _reason_0) {
-  return $dialogsview_updateIncompleteText_if(_version_0, _reason_0, $String_is_empty(_reason_0));
+  return $dialogsview_updateIncompleteText_if(_version_0, _reason_0, $$String_is_empty(_reason_0));
 }
 function $dialogsview_updateLogLabel() {
   return $msg_msg("update.log");
 }
 function $dialogsview_updateIcon(_kind_0, _glyph_0) {
-  return $view_viewEl("span", { $: "Con", head: $view_attrClass("update-icon"), tail: { $: "Con", head: $view_attrData("state", _kind_0), tail: { $: "Con", head: $view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText(_glyph_0), tail: { $: "Nil" } });
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("update-icon"), tail: { $: "Con", head: $$view_attrData("state", _kind_0), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText(_glyph_0), tail: { $: "Nil" } });
 }
 function $dialogsview_updateLineNode(_text_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("update-text"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("update-main"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_text_0), tail: { $: "Nil" } }), tail: { $: "Nil" } });
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("update-text"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("update-main"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_text_0), tail: { $: "Nil" } }), tail: { $: "Nil" } });
 }
 function $dialogsview_updateLine2(_main_0, _rest_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("update-text"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("update-main"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_main_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("update-muted"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(" "), tail: { $: "Con", head: $view_viewText(_rest_0), tail: { $: "Nil" } } }), tail: { $: "Nil" } } });
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("update-text"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("update-main"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_main_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("update-muted"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(" "), tail: { $: "Con", head: $$view_viewText(_rest_0), tail: { $: "Nil" } } }), tail: { $: "Nil" } } });
 }
 function $dialogsview_releaseNotesButton(_url_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrId("update-notes"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrOn("click", "OpenLink"), tail: { $: "Con", head: $view_attrData("url", _url_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($dialogsview_updateNotesLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-notes"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrOn("click", "OpenLink"), tail: { $: "Con", head: $$view_attrData("url", _url_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$dialogsview_updateNotesLabel()), tail: { $: "Nil" } });
 }
 function $dialogsview_updateLogButton() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrId("update-log"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrOn("click", "OpenLog"), tail: { $: "Nil" } } } }, { $: "Con", head: $view_viewText($dialogsview_updateLogLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-log"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrOn("click", "OpenLog"), tail: { $: "Nil" } } } }, { $: "Con", head: $$view_viewText($$dialogsview_updateLogLabel()), tail: { $: "Nil" } });
 }
 function $dialogsview_applyUpdateButton() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrId("update-apply"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("primary"), tail: { $: "Con", head: $view_attrOn("click", "ApplyUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($dialogsview_updateApplyLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-apply"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("primary"), tail: { $: "Con", head: $$view_attrOn("click", "ApplyUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$dialogsview_updateApplyLabel()), tail: { $: "Nil" } });
 }
 function $dialogsview_applyingUpdateButton() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrId("update-apply"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("primary"), tail: { $: "Con", head: $view_attrOn("click", "ApplyUpdate"), tail: { $: "Con", head: $view_attr("disabled", ""), tail: { $: "Nil" } } } } } }, { $: "Con", head: $view_viewText($dialogsview_updateApplyLabel()), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-apply"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("primary"), tail: { $: "Con", head: $$view_attrOn("click", "ApplyUpdate"), tail: { $: "Con", head: $$view_attr("disabled", ""), tail: { $: "Nil" } } } } } }, { $: "Con", head: $$view_viewText($$dialogsview_updateApplyLabel()), tail: { $: "Nil" } });
 }
 function $dialogsview_checkUpdateButton() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrId("update-check"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("icon-btn"), tail: { $: "Con", head: $view_attrAria("label", $dialogsview_checkUpdateLabel()), tail: { $: "Con", head: $view_attr("title", $dialogsview_checkUpdateLabel()), tail: { $: "Con", head: $view_attrOn("click", "CheckUpdate"), tail: { $: "Nil" } } } } } } }, { $: "Con", head: $view_viewText("↻"), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-check"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("icon-btn"), tail: { $: "Con", head: $$view_attrAria("label", $$dialogsview_checkUpdateLabel()), tail: { $: "Con", head: $$view_attr("title", $$dialogsview_checkUpdateLabel()), tail: { $: "Con", head: $$view_attrOn("click", "CheckUpdate"), tail: { $: "Nil" } } } } } } }, { $: "Con", head: $$view_viewText("↻"), tail: { $: "Nil" } });
 }
 function $dialogsview_updateReadyChildren(_version_0, _url_0) {
-  return $view_viewJoin({ $: "Con", head: { $: "Con", head: $dialogsview_updateIcon("new", "↑"), tail: { $: "Nil" } }, tail: { $: "Con", head: { $: "Con", head: $dialogsview_updateLineNode($dialogsview_updateReadyText(_version_0)), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen($Bool_not($String_is_empty(_url_0)), $dialogsview_releaseNotesButton(_url_0)), tail: { $: "Con", head: { $: "Con", head: $dialogsview_applyUpdateButton(), tail: { $: "Nil" } }, tail: { $: "Nil" } } } } });
+  return $view_viewJoin({ $: "Con", head: { $: "Con", head: $$dialogsview_updateIcon("new", "↑"), tail: { $: "Nil" } }, tail: { $: "Con", head: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateReadyText(_version_0)), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_viewWhen($$Bool_not($$String_is_empty(_url_0)), $$dialogsview_releaseNotesButton(_url_0)), tail: { $: "Con", head: { $: "Con", head: $$dialogsview_applyUpdateButton(), tail: { $: "Nil" } }, tail: { $: "Nil" } } } } });
 }
 function $dialogsview_updateNotesNode(_notes_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("update-notes"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_notes_0), tail: { $: "Nil" } });
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("update-notes"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_notes_0), tail: { $: "Nil" } });
 }
 function $dialogsview_aboutUpdateChildren(_s_0) {
   if (_s_0.$ === "UpdateIdle") {
-    return { $: "Con", head: $dialogsview_updateIcon("idle", "↻"), tail: { $: "Con", head: $dialogsview_updateLineNode($dialogsview_updateIdleText()), tail: { $: "Con", head: $dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
+    return { $: "Con", head: $$dialogsview_updateIcon("idle", "↻"), tail: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateIdleText()), tail: { $: "Con", head: $$dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateChecking") {
-    return { $: "Con", head: $dialogsview_updateIcon("busy", "…"), tail: { $: "Con", head: $dialogsview_updateLineNode($dialogsview_updateCheckingText()), tail: { $: "Nil" } } };
+    return { $: "Con", head: $$dialogsview_updateIcon("busy", "…"), tail: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateCheckingText()), tail: { $: "Nil" } } };
   } else if (_s_0.$ === "UpdateNone") {
     const _current_0 = _s_0["current"];
     const _checked_0 = _s_0["checked"];
-    return { $: "Con", head: $dialogsview_updateIcon("ok", "✓"), tail: { $: "Con", head: $dialogsview_updateLine2($dialogsview_updateNoneText(), $dialogsview_updateNoneRest(_current_0, _checked_0)), tail: { $: "Con", head: $dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
+    return { $: "Con", head: $$dialogsview_updateIcon("ok", "✓"), tail: { $: "Con", head: $$dialogsview_updateLine2($$dialogsview_updateNoneText(), $$dialogsview_updateNoneRest(_current_0, _checked_0)), tail: { $: "Con", head: $$dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateReady") {
     const _version_0 = _s_0["version"];
     const _notes_0 = _s_0["notes"];
     const _url_0 = _s_0["url"];
-    return $view_viewConcat($dialogsview_updateReadyChildren(_version_0, _url_0), $view_viewWhen($Bool_not($String_is_empty(_notes_0)), $dialogsview_updateNotesNode(_notes_0)));
+    return $view_viewConcat($$dialogsview_updateReadyChildren(_version_0, _url_0), $$view_viewWhen($$Bool_not($$String_is_empty(_notes_0)), $$dialogsview_updateNotesNode(_notes_0)));
   } else if (_s_0.$ === "UpdateFailed") {
-    return { $: "Con", head: $dialogsview_updateIcon("warn", "!"), tail: { $: "Con", head: $dialogsview_updateLine2($dialogsview_updateFailedText(), $dialogsview_updateFailedRest()), tail: { $: "Con", head: $dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
+    return { $: "Con", head: $$dialogsview_updateIcon("warn", "!"), tail: { $: "Con", head: $$dialogsview_updateLine2($$dialogsview_updateFailedText(), $$dialogsview_updateFailedRest()), tail: { $: "Con", head: $$dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateApplying") {
-    return { $: "Con", head: $dialogsview_updateIcon("busy", "…"), tail: { $: "Con", head: $dialogsview_updateLineNode($dialogsview_updateApplyingText()), tail: { $: "Con", head: $dialogsview_applyingUpdateButton(), tail: { $: "Nil" } } } };
+    return { $: "Con", head: $$dialogsview_updateIcon("busy", "…"), tail: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateApplyingText()), tail: { $: "Con", head: $$dialogsview_applyingUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateDone") {
     const _version_1 = _s_0["version"];
-    return { $: "Con", head: $dialogsview_updateIcon("ok", "✓"), tail: { $: "Con", head: $dialogsview_updateLineNode($dialogsview_updateDoneText(_version_1)), tail: { $: "Con", head: $dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
+    return { $: "Con", head: $$dialogsview_updateIcon("ok", "✓"), tail: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateDoneText(_version_1)), tail: { $: "Con", head: $$dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateRecovered") {
     const _version_2 = _s_0["version"];
     const _reason_0 = _s_0["reason"];
-    return { $: "Con", head: $dialogsview_updateIcon("warn", "!"), tail: { $: "Con", head: $dialogsview_updateLineNode($dialogsview_updateRecoveredText(_version_2, _reason_0)), tail: { $: "Con", head: $dialogsview_updateLogButton(), tail: { $: "Con", head: $dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } } };
+    return { $: "Con", head: $$dialogsview_updateIcon("warn", "!"), tail: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateRecoveredText(_version_2, _reason_0)), tail: { $: "Con", head: $$dialogsview_updateLogButton(), tail: { $: "Con", head: $$dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } } };
   } else {
     const _version_3 = _s_0["version"];
     const _reason_1 = _s_0["reason"];
-    return { $: "Con", head: $dialogsview_updateIcon("warn", "!"), tail: { $: "Con", head: $dialogsview_updateLineNode($dialogsview_updateIncompleteText(_version_3, _reason_1)), tail: { $: "Con", head: $dialogsview_updateLogButton(), tail: { $: "Con", head: $dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } } };
+    return { $: "Con", head: $$dialogsview_updateIcon("warn", "!"), tail: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateIncompleteText(_version_3, _reason_1)), tail: { $: "Con", head: $$dialogsview_updateLogButton(), tail: { $: "Con", head: $$dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } } };
   }
 }
 function $dialogsview_componentIds() {
@@ -1222,11 +1226,11 @@ function $dialogsview_componentVersionText(_version_0) {
   return $dialogsview_textOr(_version_0, "—");
 }
 function $dialogsview_componentLinkLabel(_label_0) {
-  return $dialogsview_textOr(_label_0, $msg_msg("component.openSite"));
+  return $dialogsview_textOr(_label_0, $$msg_msg("component.openSite"));
 }
 function $dialogsview_nodeTooOld(_major_0, _minor_0) {
   const _x_0 = _major_0 < 22;
-  const _x_1 = $Bool_and(_major_0 === 22, _minor_0 < 19);
+  const _x_1 = $$Bool_and(_major_0 === 22, _minor_0 < 19);
   return _x_0 || _x_1;
 }
 function $dialogsview_nodeWarnText() {
@@ -1234,19 +1238,19 @@ function $dialogsview_nodeWarnText() {
 }
 function $dialogsview_nodeState_if(_old_0) {
   if (_old_0) {
-    return { $: "CompWarn", note: $dialogsview_nodeWarnText() };
+    return { $: "CompWarn", note: $$dialogsview_nodeWarnText() };
   } else {
     return { $: "CompOk" };
   }
 }
 function $dialogsview_nodeState(_major_0, _minor_0) {
-  return $dialogsview_nodeState_if($dialogsview_nodeTooOld(_major_0, _minor_0));
+  return $dialogsview_nodeState_if($$dialogsview_nodeTooOld(_major_0, _minor_0));
 }
 function $dialogsview_updatePiButton() {
   return $updatenotice_localButton();
 }
 function $dialogsview_componentLinkButton(_url_0, _label_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrClass("component-link"), tail: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrOn("click", "OpenLink"), tail: { $: "Con", head: $view_attrData("url", _url_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $view_viewText($dialogsview_componentLinkLabel(_label_0)), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrClass("component-link"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrOn("click", "OpenLink"), tail: { $: "Con", head: $$view_attrData("url", _url_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$dialogsview_componentLinkLabel(_label_0)), tail: { $: "Nil" } });
 }
 function $dialogsview_componentDot(_s_0) {
   if (_s_0.$ === "CompOk") {
@@ -1307,13 +1311,13 @@ function $dialogsview_componentDescription_pick(_isPi_0, _isClaude_0, _isNode_0,
   }
 }
 function $dialogsview_componentDescription(_id_0) {
-  return $dialogsview_componentDescription_pick($String_eq(_id_0, "pi"), $String_eq(_id_0, "claude"), $String_eq(_id_0, "node"), $String_eq(_id_0, "xournal"));
+  return $dialogsview_componentDescription_pick($$String_eq(_id_0, "pi"), $$String_eq(_id_0, "claude"), $$String_eq(_id_0, "node"), $$String_eq(_id_0, "xournal"));
 }
 function $dialogsview_componentHintNode(_parts_0) {
-  return $view_viewEl("small", { $: "Con", head: $view_attrClass("component-hint"), tail: { $: "Nil" } }, _parts_0);
+  return $view_viewEl("small", { $: "Con", head: $$view_attrClass("component-hint"), tail: { $: "Nil" } }, _parts_0);
 }
 function $dialogsview_componentNote(_desc_0, _hint_0, _show_0) {
-  return $view_viewJoin({ $: "Con", head: $view_viewWhen($Bool_not($String_is_empty(_desc_0)), $view_viewText(_desc_0)), tail: { $: "Con", head: $view_viewWhen($Bool_and(_show_0, $Bool_and($Bool_not($String_is_empty(_desc_0)), $Bool_not($String_is_empty(_hint_0)))), $view_viewText(" ")), tail: { $: "Con", head: $view_viewWhen($Bool_and(_show_0, $Bool_not($String_is_empty(_hint_0))), $view_viewText(_hint_0)), tail: { $: "Nil" } } } });
+  return $view_viewJoin({ $: "Con", head: $$view_viewWhen($$Bool_not($$String_is_empty(_desc_0)), $$view_viewText(_desc_0)), tail: { $: "Con", head: $$view_viewWhen($$Bool_and(_show_0, $$Bool_and($$Bool_not($$String_is_empty(_desc_0)), $$Bool_not($$String_is_empty(_hint_0)))), $$view_viewText(" ")), tail: { $: "Con", head: $$view_viewWhen($$Bool_and(_show_0, $$Bool_not($$String_is_empty(_hint_0))), $$view_viewText(_hint_0)), tail: { $: "Nil" } } } });
 }
 function $dialogsview_componentNoteNodes(_parts_0) {
   if (_parts_0.$ === "Nil") {
@@ -1321,17 +1325,17 @@ function $dialogsview_componentNoteNodes(_parts_0) {
   } else {
     const _h_0 = _parts_0["head"];
     const _t_0 = _parts_0["tail"];
-    return { $: "Con", head: $dialogsview_componentHintNode({ $: "Con", head: _h_0, tail: _t_0 }), tail: { $: "Nil" } };
+    return { $: "Con", head: $$dialogsview_componentHintNode({ $: "Con", head: _h_0, tail: _t_0 }), tail: { $: "Nil" } };
   }
 }
 function $dialogsview_componentActions(_link_0, _label_0, _action_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("component-actions"), tail: { $: "Nil" } }, $view_viewJoin({ $: "Con", head: $view_viewWhen($Bool_not($String_is_empty(_link_0)), $dialogsview_componentLinkButton(_link_0, _label_0)), tail: { $: "Con", head: $updatenotice_actionNodes(_action_0), tail: { $: "Nil" } } }));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("component-actions"), tail: { $: "Nil" } }, $$view_viewJoin({ $: "Con", head: $$view_viewWhen($$Bool_not($$String_is_empty(_link_0)), $$dialogsview_componentLinkButton(_link_0, _label_0)), tail: { $: "Con", head: $$updatenotice_actionNodes(_action_0), tail: { $: "Nil" } } }));
 }
 function $dialogsview_componentAheadNode() {
-  return $view_viewEl("span", { $: "Con", head: $view_attrClass("component-ahead"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($updatenotice_aheadText()), tail: { $: "Nil" } });
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("component-ahead"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$updatenotice_aheadText()), tail: { $: "Nil" } });
 }
 function $dialogsview_componentHead(_label_0, _version_0, _state_0, _ahead_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("component-head"), tail: { $: "Nil" } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("component-name"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("component-version"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($dialogsview_componentVersionText(_version_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("component-dot"), tail: { $: "Con", head: $view_attrData("state", $dialogsview_componentDot(_state_0)), tail: { $: "Con", head: $view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Nil" }), tail: { $: "Con", head: $view_viewEl("span", { $: "Con", head: $view_attrClass("component-state"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($dialogsview_componentStateText(_state_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } } } } }, tail: { $: "Con", head: $view_viewWhen(_ahead_0, $dialogsview_componentAheadNode()), tail: { $: "Nil" } } }));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("component-head"), tail: { $: "Nil" } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("component-name"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("component-version"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$dialogsview_componentVersionText(_version_0)), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("component-dot"), tail: { $: "Con", head: $$view_attrData("state", $$dialogsview_componentDot(_state_0)), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } } }, { $: "Nil" }), tail: { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("component-state"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$dialogsview_componentStateText(_state_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } } } } }, tail: { $: "Con", head: $$view_viewWhen(_ahead_0, $$dialogsview_componentAheadNode()), tail: { $: "Nil" } } }));
 }
 function $dialogsview_componentRowNode(_r_0) {
   const _id_0 = _r_0["id"];
@@ -1344,9 +1348,9 @@ function $dialogsview_componentRowNode(_r_0) {
   const _action_0 = _r_0["action"];
   const _ahead_0 = _r_0["ahead"];
   const _run_0 = _r_0["run"];
-  const _x_0 = $Bool_not($String_is_empty(_link_0));
-  const _x_1 = $updatenotice_hasAction(_action_0);
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("component-row"), tail: { $: "Con", head: $view_attrData("id", _id_0), tail: { $: "Nil" } } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $view_viewEl("div", { $: "Con", head: $view_attrClass("component-main"), tail: { $: "Nil" } }, $view_viewJoin({ $: "Con", head: { $: "Con", head: $dialogsview_componentHead(_label_0, _version_0, _state_0, _ahead_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $dialogsview_componentNoteNodes($dialogsview_componentNote($dialogsview_componentDescription(_id_0), _hint_0, $dialogsview_componentShowsHint(_state_0))), tail: { $: "Nil" } } })), tail: { $: "Nil" } }, tail: { $: "Con", head: $view_viewWhen(_x_0 || _x_1, $dialogsview_componentActions(_link_0, _linkLabel_0, _action_0)), tail: { $: "Con", head: $updatenotice_runNodes(_run_0), tail: { $: "Nil" } } } }));
+  const _x_0 = $$Bool_not($$String_is_empty(_link_0));
+  const _x_1 = $$updatenotice_hasAction(_action_0);
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("component-row"), tail: { $: "Con", head: $$view_attrData("id", _id_0), tail: { $: "Nil" } } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("component-main"), tail: { $: "Nil" } }, $$view_viewJoin({ $: "Con", head: { $: "Con", head: $$dialogsview_componentHead(_label_0, _version_0, _state_0, _ahead_0), tail: { $: "Nil" } }, tail: { $: "Con", head: $$dialogsview_componentNoteNodes($$dialogsview_componentNote($$dialogsview_componentDescription(_id_0), _hint_0, $$dialogsview_componentShowsHint(_state_0))), tail: { $: "Nil" } } })), tail: { $: "Nil" } }, tail: { $: "Con", head: $$view_viewWhen(_x_0 || _x_1, $$dialogsview_componentActions(_link_0, _linkLabel_0, _action_0)), tail: { $: "Con", head: $$updatenotice_runNodes(_run_0), tail: { $: "Nil" } } } }));
 }
 function $dialogsview_componentRows_go(_rs_0) {
   if (_rs_0.$ === "Nil") {
@@ -1354,14 +1358,14 @@ function $dialogsview_componentRows_go(_rs_0) {
   } else {
     const _h_0 = _rs_0["head"];
     const _t_0 = _rs_0["tail"];
-    return { $: "Con", head: $dialogsview_componentRowNode(_h_0), tail: $dialogsview_componentRows_go(_t_0) };
+    return { $: "Con", head: $$dialogsview_componentRowNode(_h_0), tail: $$dialogsview_componentRows_go(_t_0) };
   }
 }
 function $dialogsview_componentRows(_rs_0) {
   return $dialogsview_componentRows_go(_rs_0);
 }
 function $dialogsview_courseList(_cs_0) {
-  return { $: "Con", head: $dialogsview_courseHead(), tail: $dialogsview_courseRows(_cs_0) };
+  return { $: "Con", head: $$dialogsview_courseHead(), tail: $$dialogsview_courseRows(_cs_0) };
 }
 function $kindSetup() {
   return "setup";
@@ -1384,7 +1388,7 @@ function $entry(_needsSetup_0, _hasCourses_0) {
   }
 }
 function $isBlank(_s_0) {
-  return $String_is_empty($String_trim(_s_0));
+  return $String_is_empty($$String_trim(_s_0));
 }
 function $missing_noName(_noFolder_0) {
   if (_noFolder_0) {
@@ -1408,10 +1412,10 @@ function $missing_pick(_noName_0, _noFolder_0) {
   }
 }
 function $missing(_name_0, _folder_0) {
-  return $missing_pick($isBlank(_name_0), $isBlank(_folder_0));
+  return $missing_pick($$isBlank(_name_0), $$isBlank(_folder_0));
 }
 function $canCreate(_name_0, _folder_0) {
-  return $String_eq($missing(_name_0, _folder_0), "");
+  return $String_eq($$missing(_name_0, _folder_0), "");
 }
 function $courseId_pick(_blank_0, _name_0, _folder_0) {
   if (_blank_0) {
@@ -1421,7 +1425,7 @@ function $courseId_pick(_blank_0, _name_0, _folder_0) {
   }
 }
 function $courseId(_name_0, _folder_0) {
-  return $courseId_pick($isBlank(_name_0), $String_trim(_name_0), $String_trim(_folder_0));
+  return $courseId_pick($$isBlank(_name_0), $$String_trim(_name_0), $$String_trim(_folder_0));
 }
 function $dataToConfirm_pick(_known_0, _dataFolder_0) {
   if (_known_0) {
@@ -1431,7 +1435,7 @@ function $dataToConfirm_pick(_known_0, _dataFolder_0) {
   }
 }
 function $dataToConfirm(_kind_0, _dataFolder_0) {
-  return $dataToConfirm_pick($String_eq(_kind_0, $kindEmpty()), _dataFolder_0);
+  return $dataToConfirm_pick($$String_eq(_kind_0, $$kindEmpty()), _dataFolder_0);
 }
 function $String_join(_xs_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -1442,52 +1446,11 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -1495,7 +1458,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -1504,7 +1467,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -1520,7 +1483,7 @@ function $view_viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
+    return { $: "Con", head: $$view_viewText(_h_0), tail: $$view_viewMap_0(_t_0) };
   }
 }
 function $view_viewMapI_go_0(_xs_0, _i_0) {
@@ -1529,7 +1492,7 @@ function $view_viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$view_asTextI(_i_0, _h_0), tail: $$view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $String_take(_s_0, _n_0) {
@@ -1538,11 +1501,11 @@ function $String_take(_s_0, _n_0) {
   } else {
     const _h_0 = _s_0.slice(0, char_len(_s_0));
     const _t_0 = _s_0.slice(char_len(_s_0));
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return "";
     } else {
       const _p_0 = _n_0 - 1;
-      return _h_0 + $String_take(_t_0, _p_0);
+      return _h_0 + $$String_take(_t_0, _p_0);
     }
   }
 }
@@ -1550,11 +1513,11 @@ function $Nat_is_gt(_a_0, _b_0) {
   return $Cmp_is_gt(cmp_new(_a_0, _b_0));
 }
 function $String_trim(_s_0) {
-  return $String_trim_end($String_trim_start(_s_0));
+  return $String_trim_end($$String_trim_start(_s_0));
 }
 function $Nat_show(_n_0) {
   const _m_0 = _n_0;
-  return $Nat_show_fin(_m_0, "", $Nat_show_put(nat_divmod(_m_0, 10)));
+  return $Nat_show_fin(_m_0, "", $$Nat_show_put(nat_divmod(_m_0, 10)));
 }
 function $Bool_and(_a_0, _b_0) {
   if (!_a_0) {
@@ -1571,7 +1534,7 @@ function $List_length(_xs_0) {
     return 0;
   } else {
     const _t_0 = _xs_0["tail"];
-    return nat_chk($List_length(_t_0) + 1);
+    return nat_chk($$List_length(_t_0) + 1);
   }
 }
 function $view_viewMap_1(_xs_0) {
@@ -1580,7 +1543,7 @@ function $view_viewMap_1(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $pdfnav_outlineRow(_h_0), tail: $view_viewMap_1(_t_0) };
+    return { $: "Con", head: $$pdfnav_outlineRow(_h_0), tail: $$view_viewMap_1(_t_0) };
   }
 }
 function $Bool_not(_b_0) {
@@ -1596,7 +1559,7 @@ function $List_last(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Some", value: $List_last_go(_t_0, _h_0) };
+    return { $: "Some", value: $$List_last_go(_t_0, _h_0) };
   }
 }
 function $String_split(_s_0, _sep_0) {
@@ -1605,7 +1568,7 @@ function $String_split(_s_0, _sep_0) {
   } else {
     const _h_0 = _s_0.slice(0, char_len(_s_0));
     const _t_0 = _s_0.slice(char_len(_s_0));
-    return $String_split_fin(_h_0, $String_split(_t_0, _sep_0), $Char_is_eq(_h_0, _sep_0));
+    return $String_split_fin(_h_0, $$String_split(_t_0, _sep_0), $$Char_is_eq(_h_0, _sep_0));
   }
 }
 function $String_join_go(_xs_0, _h_0, _sep_0) {
@@ -1614,15 +1577,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_eq(_c_0) {
   if (_c_0.$ === "EQ") {
@@ -1642,7 +1640,7 @@ function $Cmp_is_gt(_c_0) {
   }
 }
 function $String_trim_end(_s_0) {
-  return $String_reverse($String_trim_start($String_reverse(_s_0)));
+  return $String_reverse($$String_trim_start($$String_reverse(_s_0)));
 }
 function $String_trim_start($0, $1, $2) {
   let $pc = 0;
@@ -1657,7 +1655,7 @@ function $String_trim_start($0, $1, $2) {
           const _t_0 = _s_0.slice(char_len(_s_0));
           $0 = _t_0;
           $1 = _h_0;
-          $2 = $Char_is_space(_h_0);
+          $2 = $$Char_is_space(_h_0);
           $pc = 1;
           continue;
         }
@@ -1686,12 +1684,11 @@ function $Nat_show_fin($0, $1, $2) {
         const _dq_0 = $2;
         const _d_0 = _dq_0["fst"];
         const _t_0 = _dq_0["snd"];
-        if (_t_0 === 0) {
+        if (_t_0 == 0) {
           return _d_0 + _acc_0;
         } else {
-          const _p_0 = _t_0 - 1;
           $0 = _g_0;
-          $1 = nat_chk(_p_0 + 1);
+          $1 = _t_0;
           $2 = _d_0 + _acc_0;
           $pc = 1;
           continue;
@@ -1701,13 +1698,13 @@ function $Nat_show_fin($0, $1, $2) {
         const _f_0 = $0;
         const _n_0 = $1;
         const _acc_0 = $2;
-        if (_f_0 === 0) {
+        if (_f_0 == 0) {
           return _acc_0;
         } else {
           const _g_0 = _f_0 - 1;
           $0 = _g_0;
           $1 = _acc_0;
-          $2 = $Nat_show_put(nat_divmod(_n_0, 10));
+          $2 = $$Nat_show_put(nat_divmod(_n_0, 10));
           $pc = 0;
           continue;
         }
@@ -1744,6 +1741,11 @@ function $String_split_fin(_c_0, _r_0, _cut_0) {
     return { $: "Con", head: "", tail: _r_0 };
   }
 }
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
+}
 function $String_order_go($0, $1, $2) {
   for (;; ) {
     {
@@ -1762,6 +1764,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -1771,13 +1774,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -1792,11 +1794,9 @@ function $String_reverse(_s_0) {
 }
 function $Char_is_space(_c_0) {
   const _x_0 = char_code(_c_0);
-  const _x_1 = char_code(_c_0);
-  const _x_2 = char_code(_c_0);
-  const _x_3 = _x_0 === 32;
-  const _x_4 = $Bool_and(_x_1 >= 9, _x_2 <= 13);
-  return _x_3 || _x_4;
+  const _x_1 = _x_0 === 32;
+  const _x_2 = $$Bool_and(_x_0 >= 9, _x_0 <= 13);
+  return _x_1 || _x_2;
 }
 function $String_split_push(_c_0, _ps_0) {
   if (_ps_0.$ === "Nil") {
@@ -1824,290 +1824,503 @@ function $String_reverse_go($0, $1) {
     }
   }
 }
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$view_attrGet_go = $view_attrGet_go;
+var $$String_eq = $String_eq;
+var $$view_boolStr = $view_boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$view_classNext_on = $view_classNext_on;
+var $$view_classValue = $view_classValue;
+var $$Nat_is_gt = $Nat_is_gt;
+var $$String_trim = $String_trim;
+var $$pdfnav_maxName = $pdfnav_maxName;
+var $$Nat_show = $Nat_show;
+var $$pdfnav_pageLabel = $pdfnav_pageLabel;
+var $$pdfnav_maxPath = $pdfnav_maxPath;
+var $$pdfnav_fitName = $pdfnav_fitName;
+var $$pdfnav_fitPath = $pdfnav_fitPath;
+var $$pdfnav_pageFloor = $pdfnav_pageFloor;
+var $$pdfnav_keepName_blank = $pdfnav_keepName_blank;
+var $$pdfnav_keepBookmark_path = $pdfnav_keepBookmark_path;
+var $$pdfnav_dropSame_go = $pdfnav_dropSame_go;
+var $$pdfnav_sameBookmark = $pdfnav_sameBookmark;
+var $$pdfnav_takeList_go = $pdfnav_takeList_go;
+var $$pdfnav_maxBookmarks = $pdfnav_maxBookmarks;
+var $$List_length = $List_length;
+var $$view_attrClass = $view_attrClass;
+var $$view_attrType = $view_attrType;
+var $$view_classOn = $view_classOn;
+var $$view_classes = $view_classes;
+var $$view_attrData = $view_attrData;
+var $$pdfnav_bookmarkTitle = $pdfnav_bookmarkTitle;
+var $$view_attrTitle = $view_attrTitle;
+var $$pdfnav_bookmarkAria = $pdfnav_bookmarkAria;
+var $$view_attrAria = $view_attrAria;
+var $$view_attrOn = $view_attrOn;
+var $$pdfnav_bookmarkLabel = $pdfnav_bookmarkLabel;
+var $$view_viewText = $view_viewText;
+var $$view_viewEl = $view_viewEl;
+var $$pdfnav_removeTitle = $pdfnav_removeTitle;
+var $$pdfnav_removeAria = $pdfnav_removeAria;
+var $$pdfnav_bookmarkRow = $pdfnav_bookmarkRow;
+var $$pdfnav_bookmarkRows_go = $pdfnav_bookmarkRows_go;
+var $$pdfnav_maxDepth = $pdfnav_maxDepth;
+var $$pdfnav_clampDepth = $pdfnav_clampDepth;
+var $$pdfnav_outlineDepth = $pdfnav_outlineDepth;
+var $$pdfnav_outlineLabel = $pdfnav_outlineLabel;
+var $$pdfnav_saveTitle = $pdfnav_saveTitle;
+var $$pdfnav_saveLabel = $pdfnav_saveLabel;
+var $$pdfnav_navEmpty = $pdfnav_navEmpty;
+var $$view_viewWhen = $view_viewWhen;
+var $$view_viewJoin = $view_viewJoin;
+var $$Bool_not = $Bool_not;
+var $$view_attr = $view_attr;
+var $$view_attrWhen = $view_attrWhen;
+var $$pdfnav_navButtonTitle = $pdfnav_navButtonTitle;
+var $$view_attrJoin = $view_attrJoin;
+var $$pdfnav_navSaveButton = $pdfnav_navSaveButton;
+var $$pdfnav_favoritesTitle = $pdfnav_favoritesTitle;
+var $$pdfnav_emptyBooks = $pdfnav_emptyBooks;
+var $$pdfnav_favoritesEmpty = $pdfnav_favoritesEmpty;
+var $$pdfnav_bookmarkRows = $pdfnav_bookmarkRows;
+var $$pdfnav_navSection = $pdfnav_navSection;
+var $$pdfnav_outlineTitle = $pdfnav_outlineTitle;
+var $$pdfnav_emptyOutline = $pdfnav_emptyOutline;
+var $$pdfnav_outlineEmpty = $pdfnav_outlineEmpty;
+var $$pdfnav_outlineRows = $pdfnav_outlineRows;
+var $$Bool_and = $Bool_and;
+var $$updatenotice_isVer = $updatenotice_isVer;
+var $$updatenotice_verNewer = $updatenotice_verNewer;
+var $$updatenotice_ignoredCovers = $updatenotice_ignoredCovers;
+var $$updatenotice_newerThanSeen = $updatenotice_newerThanSeen;
+var $$updatenotice_targetVersion = $updatenotice_targetVersion;
+var $$updatenotice_verMax = $updatenotice_verMax;
+var $$updatenotice_seenAfterOpen = $updatenotice_seenAfterOpen;
+var $$updatenotice_noticeText = $updatenotice_noticeText;
+var $$updatenotice_aheadText = $updatenotice_aheadText;
+var $$updatenotice_noticeIcon = $updatenotice_noticeIcon;
+var $$updatenotice_noticeLineText = $updatenotice_noticeLineText;
+var $$updatenotice_remindLabel = $updatenotice_remindLabel;
+var $$updatenotice_noticeButton = $updatenotice_noticeButton;
+var $$updatenotice_ignoreLabel = $updatenotice_ignoreLabel;
+var $$updatenotice_noticeLineNode = $updatenotice_noticeLineNode;
+var $$updatenotice_noticeLines = $updatenotice_noticeLines;
+var $$updatenotice_showsNotice = $updatenotice_showsNotice;
+var $$updatenotice_seeAboutLabel = $updatenotice_seeAboutLabel;
+var $$updatenotice_seeAboutButton = $updatenotice_seeAboutButton;
+var $$updatenotice_noticeLineFor = $updatenotice_noticeLineFor;
+var $$updatenotice_noticeLinesFor = $updatenotice_noticeLinesFor;
+var $$view_attrId = $view_attrId;
+var $$msg_msg = $msg_msg;
+var $$updatenotice_updateLabel = $updatenotice_updateLabel;
+var $$updatenotice_waitHint = $updatenotice_waitHint;
+var $$updatenotice_waitShort = $updatenotice_waitShort;
+var $$msg_msg1 = $msg_msg1;
+var $$updatenotice_copyLabel = $updatenotice_copyLabel;
+var $$updatenotice_localButton = $updatenotice_localButton;
+var $$updatenotice_askButton = $updatenotice_askButton;
+var $$updatenotice_copyButton = $updatenotice_copyButton;
+var $$updatenotice_commandNode = $updatenotice_commandNode;
+var $$updatenotice_willRunText = $updatenotice_willRunText;
+var $$updatenotice_runLine = $updatenotice_runLine;
+var $$updatenotice_cancelLabel = $updatenotice_cancelLabel;
+var $$updatenotice_runButton = $updatenotice_runButton;
+var $$updatenotice_runningText = $updatenotice_runningText;
+var $$updatenotice_outputNode = $updatenotice_outputNode;
+var $$updatenotice_donePhase = $updatenotice_donePhase;
+var $$updatenotice_closeLabel = $updatenotice_closeLabel;
+var $$updatenotice_confirmNodes = $updatenotice_confirmNodes;
+var $$updatenotice_busyNodes = $updatenotice_busyNodes;
+var $$updatenotice_doneNodes = $updatenotice_doneNodes;
+var $$List_last = $List_last;
+var $$String_split = $String_split;
+var $$dialogsview_lastPart = $dialogsview_lastPart;
+var $$dialogsview_optionNode = $dialogsview_optionNode;
+var $$dialogsview_optionNodes_go = $dialogsview_optionNodes_go;
+var $$dialogsview_labelAria = $dialogsview_labelAria;
+var $$dialogsview_valueAttr = $dialogsview_valueAttr;
+var $$dialogsview_hintAttrs = $dialogsview_hintAttrs;
+var $$dialogsview_textareaKids = $dialogsview_textareaKids;
+var $$dialogsview_optionNodes = $dialogsview_optionNodes;
+var $$dialogsview_fieldControl = $dialogsview_fieldControl;
+var $$dialogsview_piFields = $dialogsview_piFields;
+var $$dialogsview_dialogOkLabel = $dialogsview_dialogOkLabel;
+var $$dialogsview_endDayCancelLabel = $dialogsview_endDayCancelLabel;
+var $$dialogsview_endDaySaveLabel = $dialogsview_endDaySaveLabel;
+var $$dialogsview_endDayTitle = $dialogsview_endDayTitle;
+var $$dialogsview_endDayLead = $dialogsview_endDayLead;
+var $$dialogsview_endDayWhereLabel = $dialogsview_endDayWhereLabel;
+var $$dialogsview_endDayField = $dialogsview_endDayField;
+var $$dialogsview_endDayNextLabel = $dialogsview_endDayNextLabel;
+var $$dialogsview_endDayActions = $dialogsview_endDayActions;
+var $$pdfnav_bookmarkCancelLabel = $pdfnav_bookmarkCancelLabel;
+var $$pdfnav_bookmarkSaveLabel = $pdfnav_bookmarkSaveLabel;
+var $$pdfnav_bookmarkDialogTitle = $pdfnav_bookmarkDialogTitle;
+var $$pdfnav_bookmarkNameLabel = $pdfnav_bookmarkNameLabel;
+var $$dialogsview_bookmarkNameInput = $dialogsview_bookmarkNameInput;
+var $$dialogsview_bookmarkActions = $dialogsview_bookmarkActions;
+var $$dialogsview_fileBase = $dialogsview_fileBase;
+var $$dialogsview_imageFallback = $dialogsview_imageFallback;
+var $$dialogsview_imageTitle = $dialogsview_imageTitle;
+var $$dialogsview_imageCopyLabel = $dialogsview_imageCopyLabel;
+var $$dialogsview_imageOpenLabel = $dialogsview_imageOpenLabel;
+var $$dialogsview_helpVersion = $dialogsview_helpVersion;
+var $$dialogsview_aboutLead = $dialogsview_aboutLead;
+var $$dialogsview_courseRow = $dialogsview_courseRow;
+var $$dialogsview_courseRows_go = $dialogsview_courseRows_go;
+var $$dialogsview_emptyCourse = $dialogsview_emptyCourse;
+var $$dialogsview_updateNotesLabel = $dialogsview_updateNotesLabel;
+var $$dialogsview_updateLogLabel = $dialogsview_updateLogLabel;
+var $$dialogsview_updateApplyLabel = $dialogsview_updateApplyLabel;
+var $$dialogsview_checkUpdateLabel = $dialogsview_checkUpdateLabel;
+var $$dialogsview_updateIcon = $dialogsview_updateIcon;
+var $$dialogsview_updateReadyText = $dialogsview_updateReadyText;
+var $$dialogsview_updateLineNode = $dialogsview_updateLineNode;
+var $$dialogsview_releaseNotesButton = $dialogsview_releaseNotesButton;
+var $$dialogsview_applyUpdateButton = $dialogsview_applyUpdateButton;
+var $$dialogsview_updateIdleText = $dialogsview_updateIdleText;
+var $$dialogsview_checkUpdateButton = $dialogsview_checkUpdateButton;
+var $$dialogsview_updateCheckingText = $dialogsview_updateCheckingText;
+var $$dialogsview_updateNoneText = $dialogsview_updateNoneText;
+var $$dialogsview_updateNoneRest = $dialogsview_updateNoneRest;
+var $$dialogsview_updateLine2 = $dialogsview_updateLine2;
+var $$dialogsview_updateReadyChildren = $dialogsview_updateReadyChildren;
+var $$dialogsview_updateNotesNode = $dialogsview_updateNotesNode;
+var $$dialogsview_updateFailedText = $dialogsview_updateFailedText;
+var $$dialogsview_updateFailedRest = $dialogsview_updateFailedRest;
+var $$dialogsview_updateApplyingText = $dialogsview_updateApplyingText;
+var $$dialogsview_applyingUpdateButton = $dialogsview_applyingUpdateButton;
+var $$dialogsview_updateDoneText = $dialogsview_updateDoneText;
+var $$dialogsview_updateRecoveredText = $dialogsview_updateRecoveredText;
+var $$dialogsview_updateLogButton = $dialogsview_updateLogButton;
+var $$dialogsview_updateIncompleteText = $dialogsview_updateIncompleteText;
+var $$dialogsview_nodeWarnText = $dialogsview_nodeWarnText;
+var $$dialogsview_nodeTooOld = $dialogsview_nodeTooOld;
+var $$dialogsview_componentLinkLabel = $dialogsview_componentLinkLabel;
+var $$dialogsview_componentHintNode = $dialogsview_componentHintNode;
+var $$dialogsview_componentLinkButton = $dialogsview_componentLinkButton;
+var $$updatenotice_actionNodes = $updatenotice_actionNodes;
+var $$dialogsview_componentVersionText = $dialogsview_componentVersionText;
+var $$dialogsview_componentDot = $dialogsview_componentDot;
+var $$dialogsview_componentStateText = $dialogsview_componentStateText;
+var $$dialogsview_componentAheadNode = $dialogsview_componentAheadNode;
+var $$dialogsview_componentHead = $dialogsview_componentHead;
+var $$dialogsview_componentDescription = $dialogsview_componentDescription;
+var $$dialogsview_componentShowsHint = $dialogsview_componentShowsHint;
+var $$dialogsview_componentNote = $dialogsview_componentNote;
+var $$dialogsview_componentNoteNodes = $dialogsview_componentNoteNodes;
+var $$updatenotice_hasAction = $updatenotice_hasAction;
+var $$dialogsview_componentActions = $dialogsview_componentActions;
+var $$updatenotice_runNodes = $updatenotice_runNodes;
+var $$dialogsview_componentRowNode = $dialogsview_componentRowNode;
+var $$dialogsview_componentRows_go = $dialogsview_componentRows_go;
+var $$dialogsview_courseHead = $dialogsview_courseHead;
+var $$dialogsview_courseRows = $dialogsview_courseRows;
+var $$isBlank = $isBlank;
+var $$missing = $missing;
+var $$kindEmpty = $kindEmpty;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
+var $$List_concat = $List_concat;
+var $$view_viewMap_0 = $view_viewMap_0;
+var $$view_asTextI = $view_asTextI;
+var $$view_viewMapI_go_0 = $view_viewMapI_go_0;
+var $$String_take = $String_take;
+var $$String_trim_start = $String_trim_start;
+var $$Nat_show_put = $Nat_show_put;
+var $$pdfnav_outlineRow = $pdfnav_outlineRow;
+var $$view_viewMap_1 = $view_viewMap_1;
+var $$List_last_go = $List_last_go;
+var $$Char_is_eq = $Char_is_eq;
+var $$String_join_go = $String_join_go;
+var $$String_reverse = $String_reverse;
+var $$Char_is_space = $Char_is_space;
 var firstrun_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
-  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
-  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
-  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
-  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
-  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
-  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
-  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
-  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
-  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
-  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
-  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
-  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
-  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
-  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
-  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
-  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
-  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
-  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
-  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
-  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
-  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
-  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
-  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
-  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
-  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
-  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
-  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
-  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
-  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
-  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
-  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
-  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
-  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
-  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
-  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
-  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
-  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
-  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
-  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
-  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
-  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
-  "pdfnav.maxName": run_lib(() => run_loop($pdfnav_maxName()), 0),
-  "pdfnav.maxPath": run_lib(() => run_loop($pdfnav_maxPath()), 0),
-  "pdfnav.maxBookmarks": run_lib(() => run_loop($pdfnav_maxBookmarks()), 0),
-  "pdfnav.maxOutline": run_lib(() => run_loop($pdfnav_maxOutline()), 0),
-  "pdfnav.maxDepth": run_lib(() => run_loop($pdfnav_maxDepth()), 0),
-  "pdfnav.cutName.if": run_lib((a0, a1, a2) => str_out(run_loop($pdfnav_cutName_if(str_in(a0), nat_in(a1), a2))), 3),
-  "pdfnav.cutName": run_lib((a0, a1) => str_out(run_loop($pdfnav_cutName(str_in(a0), nat_in(a1)))), 2),
-  "pdfnav.fitName": run_lib((a0) => str_out(run_loop($pdfnav_fitName(str_in(a0)))), 1),
-  "pdfnav.keepName.blank": run_lib((a0) => run_loop($pdfnav_keepName_blank(a0)), 1),
-  "pdfnav.keepName": run_lib((a0) => run_loop($pdfnav_keepName(str_in(a0))), 1),
-  "pdfnav.pageLabel": run_lib((a0) => str_out(run_loop($pdfnav_pageLabel(nat_in(a0)))), 1),
-  "pdfnav.bookmarkLabel": run_lib((a0) => str_out(run_loop($pdfnav_bookmarkLabel(str_in(a0)))), 1),
-  "pdfnav.bookmarkTitle": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkTitle(str_in(a0), nat_in(a1)))), 2),
-  "pdfnav.bookmarkAria": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkAria(str_in(a0), nat_in(a1)))), 2),
-  "pdfnav.removeLabel": run_lib(() => str_out(run_loop($pdfnav_removeLabel())), 0),
-  "pdfnav.removeTitle": run_lib((a0) => str_out(run_loop($pdfnav_removeTitle(str_in(a0)))), 1),
-  "pdfnav.removeAria": run_lib((a0) => str_out(run_loop($pdfnav_removeAria(str_in(a0)))), 1),
-  "pdfnav.saveLabel": run_lib(() => str_out(run_loop($pdfnav_saveLabel())), 0),
-  "pdfnav.saveTitle": run_lib(() => str_out(run_loop($pdfnav_saveTitle())), 0),
-  "pdfnav.favoritesTitle": run_lib(() => str_out(run_loop($pdfnav_favoritesTitle())), 0),
-  "pdfnav.favoritesEmpty": run_lib(() => str_out(run_loop($pdfnav_favoritesEmpty())), 0),
-  "pdfnav.outlineTitle": run_lib(() => str_out(run_loop($pdfnav_outlineTitle())), 0),
-  "pdfnav.outlineEmpty": run_lib(() => str_out(run_loop($pdfnav_outlineEmpty())), 0),
-  "pdfnav.navButtonLabel": run_lib(() => str_out(run_loop($pdfnav_navButtonLabel())), 0),
-  "pdfnav.navButtonTitle": run_lib(() => str_out(run_loop($pdfnav_navButtonTitle())), 0),
-  "pdfnav.navAria": run_lib((a0) => str_out(run_loop($pdfnav_navAria(str_in(a0)))), 1),
-  "pdfnav.navBackLabel": run_lib(() => str_out(run_loop($pdfnav_navBackLabel())), 0),
-  "pdfnav.navBackTitle": run_lib(() => str_out(run_loop($pdfnav_navBackTitle())), 0),
-  "pdfnav.navBackAria": run_lib((a0) => str_out(run_loop($pdfnav_navBackAria(str_in(a0)))), 1),
-  "pdfnav.bookmarkDialogTitle": run_lib(() => str_out(run_loop($pdfnav_bookmarkDialogTitle())), 0),
-  "pdfnav.bookmarkNameLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkNameLabel())), 0),
-  "pdfnav.bookmarkDialogHint": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkDialogHint(str_in(a0), nat_in(a1)))), 2),
-  "pdfnav.bookmarkSaveLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkSaveLabel())), 0),
-  "pdfnav.bookmarkCancelLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkCancelLabel())), 0),
-  "pdfnav.pageFloor.if": run_lib((a0, a1) => run_loop($pdfnav_pageFloor_if(nat_in(a0), a1)), 2),
-  "pdfnav.pageFloor": run_lib((a0) => run_loop($pdfnav_pageFloor(nat_in(a0))), 1),
-  "pdfnav.fitPath": run_lib((a0) => str_out(run_loop($pdfnav_fitPath(str_in(a0)))), 1),
-  "pdfnav.newBookmark": run_lib((a0, a1, a2) => run_loop($pdfnav_newBookmark(str_in(a0), str_in(a1), nat_in(a2))), 3),
-  "pdfnav.keepBookmark.path": run_lib((a0) => run_loop($pdfnav_keepBookmark_path(a0)), 1),
-  "pdfnav.keepBookmark": run_lib((a0) => run_loop($pdfnav_keepBookmark(a0)), 1),
-  "pdfnav.sameBookmark": run_lib((a0, a1) => run_loop($pdfnav_sameBookmark(a0, a1)), 2),
-  "pdfnav.dropSame.head": run_lib((a0, a1, a2) => run_loop($pdfnav_dropSame_head(a0, a1, a2)), 3),
-  "pdfnav.dropSame.go": run_lib((a0, a1) => run_loop($pdfnav_dropSame_go(a0, a1)), 2),
-  "pdfnav.takeList.go": run_lib((a0, a1) => run_loop($pdfnav_takeList_go(a0, nat_in(a1))), 2),
-  "pdfnav.addBookmark": run_lib((a0, a1) => run_loop($pdfnav_addBookmark(a0, a1)), 2),
-  "pdfnav.removeBookmark": run_lib((a0, a1) => run_loop($pdfnav_removeBookmark(a0, a1)), 2),
-  "pdfnav.emptyBooks": run_lib((a0) => run_loop($pdfnav_emptyBooks(a0)), 1),
-  "pdfnav.emptyOutline": run_lib((a0) => run_loop($pdfnav_emptyOutline(a0)), 1),
-  "pdfnav.bookmarkRow": run_lib((a0, a1, a2) => run_loop($pdfnav_bookmarkRow(nat_in(a0), a1, str_in(a2))), 3),
-  "pdfnav.bookmarkRows.go": run_lib((a0, a1, a2) => run_loop($pdfnav_bookmarkRows_go(a0, str_in(a1), nat_in(a2))), 3),
-  "pdfnav.bookmarkRows": run_lib((a0, a1) => run_loop($pdfnav_bookmarkRows(a0, str_in(a1))), 2),
-  "pdfnav.clampDepth.if": run_lib((a0, a1) => run_loop($pdfnav_clampDepth_if(nat_in(a0), a1)), 2),
-  "pdfnav.clampDepth": run_lib((a0) => run_loop($pdfnav_clampDepth(nat_in(a0))), 1),
-  "pdfnav.outlineDepth": run_lib((a0) => str_out(run_loop($pdfnav_outlineDepth(nat_in(a0)))), 1),
-  "pdfnav.outlineLabel": run_lib((a0, a1) => str_out(run_loop($pdfnav_outlineLabel(str_in(a0), nat_in(a1)))), 2),
-  "pdfnav.outlineRow": run_lib((a0) => run_loop($pdfnav_outlineRow(a0)), 1),
-  "pdfnav.outlineRows": run_lib((a0) => run_loop($pdfnav_outlineRows(a0)), 1),
-  "pdfnav.navEmpty": run_lib((a0) => run_loop($pdfnav_navEmpty(str_in(a0))), 1),
-  "pdfnav.navSaveButton": run_lib(() => run_loop($pdfnav_navSaveButton()), 0),
-  "pdfnav.navSection": run_lib((a0, a1, a2, a3) => run_loop($pdfnav_navSection(str_in(a0), a1, str_in(a2), a3)), 4),
-  "pdfnav.navPopover": run_lib((a0, a1, a2, a3) => run_loop($pdfnav_navPopover(a0, a1, a2, str_in(a3))), 4),
-  "updatenotice.isVer": run_lib((a0) => run_loop($updatenotice_isVer(a0)), 1),
-  "updatenotice.tripleNewer": run_lib((a0, a1, a2, a3, a4, a5) => run_loop($updatenotice_tripleNewer(a0, a1, a2, a3, a4, a5)), 6),
-  "updatenotice.verNewer": run_lib((a0, a1) => run_loop($updatenotice_verNewer(a0, a1)), 2),
-  "updatenotice.verPick": run_lib((a0, a1, a2) => run_loop($updatenotice_verPick(a0, a1, a2)), 3),
-  "updatenotice.verMax": run_lib((a0, a1) => run_loop($updatenotice_verMax(a0, a1)), 2),
-  "updatenotice.emptyMemory": run_lib(() => run_loop($updatenotice_emptyMemory()), 0),
-  "updatenotice.ignoredCovers": run_lib((a0, a1) => run_loop($updatenotice_ignoredCovers(a0, a1)), 2),
-  "updatenotice.newerThanSeen": run_lib((a0, a1) => run_loop($updatenotice_newerThanSeen(a0, a1)), 2),
-  "updatenotice.targetVersion": run_lib((a0, a1, a2) => run_loop($updatenotice_targetVersion(a0, a1, a2)), 3),
-  "updatenotice.noticeFrom": run_lib((a0, a1, a2, a3, a4) => run_loop($updatenotice_noticeFrom(a0, a1, a2, a3, a4)), 5),
-  "updatenotice.noticeOf": run_lib((a0, a1, a2, a3, a4) => run_loop($updatenotice_noticeOf(a0, a1, a2, a3, a4)), 5),
-  "updatenotice.seenAfterOpen": run_lib((a0, a1, a2) => run_loop($updatenotice_seenAfterOpen(a0, a1, a2)), 3),
-  "updatenotice.afterOpen": run_lib((a0, a1, a2) => run_loop($updatenotice_afterOpen(a0, a1, a2)), 3),
-  "updatenotice.afterPostpone": run_lib((a0, a1) => run_loop($updatenotice_afterPostpone(a0, a1)), 2),
-  "updatenotice.afterIgnore": run_lib((a0, a1) => run_loop($updatenotice_afterIgnore(a0, a1)), 2),
-  "updatenotice.noticeText": run_lib((a0, a1) => str_out(run_loop($updatenotice_noticeText(str_in(a0), str_in(a1)))), 2),
-  "updatenotice.aheadText": run_lib(() => str_out(run_loop($updatenotice_aheadText())), 0),
-  "updatenotice.offlineText": run_lib(() => str_out(run_loop($updatenotice_offlineText())), 0),
-  "updatenotice.remindLabel": run_lib(() => str_out(run_loop($updatenotice_remindLabel())), 0),
-  "updatenotice.ignoreLabel": run_lib(() => str_out(run_loop($updatenotice_ignoreLabel())), 0),
-  "updatenotice.updateLabel": run_lib(() => str_out(run_loop($updatenotice_updateLabel())), 0),
-  "updatenotice.copyLabel": run_lib(() => str_out(run_loop($updatenotice_copyLabel())), 0),
-  "updatenotice.cancelLabel": run_lib(() => str_out(run_loop($updatenotice_cancelLabel())), 0),
-  "updatenotice.closeLabel": run_lib(() => str_out(run_loop($updatenotice_closeLabel())), 0),
-  "updatenotice.waitHint": run_lib(() => str_out(run_loop($updatenotice_waitHint())), 0),
-  "updatenotice.waitShort": run_lib(() => str_out(run_loop($updatenotice_waitShort())), 0),
-  "updatenotice.settingsTitle": run_lib((a0) => str_out(run_loop($updatenotice_settingsTitle(a0))), 1),
-  "updatenotice.aheadWarning": run_lib((a0, a1) => str_out(run_loop($updatenotice_aheadWarning(str_in(a0), str_in(a1)))), 2),
-  "updatenotice.runningText": run_lib(() => str_out(run_loop($updatenotice_runningText())), 0),
-  "updatenotice.willRunText": run_lib(() => str_out(run_loop($updatenotice_willRunText())), 0),
-  "updatenotice.relinkedText": run_lib(() => str_out(run_loop($updatenotice_relinkedText())), 0),
-  "updatenotice.doneSentence.same": run_lib((a0, a1) => str_out(run_loop($updatenotice_doneSentence_same(str_in(a0), str_in(a1)))), 2),
-  "updatenotice.doneSentence.changed": run_lib((a0, a1, a2) => str_out(run_loop($updatenotice_doneSentence_changed(str_in(a0), str_in(a1), a2))), 3),
-  "updatenotice.doneSentence.improved": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($updatenotice_doneSentence_improved(str_in(a0), str_in(a1), str_in(a2), a3, a4))), 5),
-  "updatenotice.doneSentence.known": run_lib((a0, a1, a2, a3, a4, a5) => str_out(run_loop($updatenotice_doneSentence_known(str_in(a0), str_in(a1), str_in(a2), a3, a4, a5))), 6),
-  "updatenotice.doneSentence.ok": run_lib((a0, a1, a2, a3, a4, a5) => str_out(run_loop($updatenotice_doneSentence_ok(str_in(a0), a1, a2, str_in(a3), str_in(a4), a5))), 6),
-  "updatenotice.doneSentence": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($updatenotice_doneSentence(str_in(a0), a1, a2, a3, str_in(a4), str_in(a5), a6))), 7),
-  "updatenotice.noticeIcon": run_lib(() => run_loop($updatenotice_noticeIcon()), 0),
-  "updatenotice.noticeButton": run_lib((a0, a1, a2) => run_loop($updatenotice_noticeButton(str_in(a0), str_in(a1), str_in(a2))), 3),
-  "updatenotice.noticeLineText": run_lib((a0, a1, a2) => run_loop($updatenotice_noticeLineText(str_in(a0), str_in(a1), a2)), 3),
-  "updatenotice.noticeLineBody": run_lib((a0, a1, a2, a3, a4) => run_loop($updatenotice_noticeLineBody(str_in(a0), str_in(a1), str_in(a2), a3, a4)), 5),
-  "updatenotice.noticeLineNode": run_lib((a0) => run_loop($updatenotice_noticeLineNode(a0)), 1),
-  "updatenotice.noticeLines": run_lib((a0) => run_loop($updatenotice_noticeLines(a0)), 1),
-  "updatenotice.showsNotice": run_lib((a0) => run_loop($updatenotice_showsNotice(a0)), 1),
-  "updatenotice.seesLine": run_lib((a0, a1) => run_loop($updatenotice_seesLine(a0, a1)), 2),
-  "updatenotice.seeAboutLabel": run_lib(() => str_out(run_loop($updatenotice_seeAboutLabel())), 0),
-  "updatenotice.seeAboutButton": run_lib((a0) => run_loop($updatenotice_seeAboutButton(str_in(a0))), 1),
-  "updatenotice.noticeLineFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLineFor(a0, a1)), 2),
-  "updatenotice.noticeLinesFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLinesFor(a0, a1)), 2),
-  "updatenotice.hasAction": run_lib((a0) => run_loop($updatenotice_hasAction(a0)), 1),
-  "updatenotice.localButton": run_lib(() => run_loop($updatenotice_localButton()), 0),
-  "updatenotice.askButton": run_lib((a0) => run_loop($updatenotice_askButton(str_in(a0))), 1),
-  "updatenotice.waitNodes": run_lib(() => run_loop($updatenotice_waitNodes()), 0),
-  "updatenotice.copyButton": run_lib((a0) => run_loop($updatenotice_copyButton(str_in(a0))), 1),
-  "updatenotice.actionNodes": run_lib((a0) => run_loop($updatenotice_actionNodes(a0)), 1),
-  "updatenotice.commandNode": run_lib((a0) => run_loop($updatenotice_commandNode(str_in(a0))), 1),
-  "updatenotice.runLine": run_lib((a0, a1) => run_loop($updatenotice_runLine(str_in(a0), str_in(a1))), 2),
-  "updatenotice.outputNode": run_lib((a0) => run_loop($updatenotice_outputNode(str_in(a0))), 1),
-  "updatenotice.runButton": run_lib((a0, a1, a2) => run_loop($updatenotice_runButton(str_in(a0), str_in(a1), str_in(a2))), 3),
-  "updatenotice.donePhase": run_lib((a0) => str_out(run_loop($updatenotice_donePhase(a0))), 1),
-  "updatenotice.runPanel": run_lib((a0, a1) => run_loop($updatenotice_runPanel(str_in(a0), a1)), 2),
-  "updatenotice.confirmNodes": run_lib((a0, a1) => run_loop($updatenotice_confirmNodes(str_in(a0), str_in(a1))), 2),
-  "updatenotice.busyNodes": run_lib((a0, a1) => run_loop($updatenotice_busyNodes(str_in(a0), str_in(a1))), 2),
-  "updatenotice.doneNodes": run_lib((a0, a1, a2) => run_loop($updatenotice_doneNodes(a0, str_in(a1), str_in(a2))), 3),
-  "updatenotice.runNodes": run_lib((a0) => run_loop($updatenotice_runNodes(a0)), 1),
-  "dialogsview.textOr.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_textOr_if(str_in(a0), str_in(a1), a2))), 3),
-  "dialogsview.textOr": run_lib((a0, a1) => str_out(run_loop($dialogsview_textOr(str_in(a0), str_in(a1)))), 2),
-  "dialogsview.lastPartFrom": run_lib((a0) => str_out(run_loop($dialogsview_lastPartFrom(a0))), 1),
-  "dialogsview.lastPart": run_lib((a0) => str_out(run_loop($dialogsview_lastPart(a0))), 1),
-  "dialogsview.fileBase": run_lib((a0) => str_out(run_loop($dialogsview_fileBase(str_in(a0)))), 1),
-  "dialogsview.hintAttrs": run_lib((a0) => run_loop($dialogsview_hintAttrs(str_in(a0))), 1),
-  "dialogsview.valueAttr": run_lib((a0) => run_loop($dialogsview_valueAttr(str_in(a0))), 1),
-  "dialogsview.labelAria": run_lib((a0) => run_loop($dialogsview_labelAria(str_in(a0))), 1),
-  "dialogsview.textareaKids.if": run_lib((a0, a1) => run_loop($dialogsview_textareaKids_if(str_in(a0), a1)), 2),
-  "dialogsview.textareaKids": run_lib((a0) => run_loop($dialogsview_textareaKids(str_in(a0))), 1),
-  "dialogsview.optionNode": run_lib((a0, a1) => run_loop($dialogsview_optionNode(str_in(a0), a1)), 2),
-  "dialogsview.optionNodes.go": run_lib((a0, a1) => run_loop($dialogsview_optionNodes_go(str_in(a0), a1)), 2),
-  "dialogsview.optionNodes": run_lib((a0, a1) => run_loop($dialogsview_optionNodes(str_in(a0), a1)), 2),
-  "dialogsview.fieldControl": run_lib((a0) => run_loop($dialogsview_fieldControl(a0)), 1),
-  "dialogsview.piFields": run_lib((a0) => run_loop($dialogsview_piFields(a0)), 1),
-  "dialogsview.piTitle": run_lib((a0) => str_out(run_loop($dialogsview_piTitle(str_in(a0)))), 1),
-  "dialogsview.piMessage": run_lib((a0) => str_out(run_loop($dialogsview_piMessage(str_in(a0)))), 1),
-  "dialogsview.dialogOkLabel": run_lib((a0) => str_out(run_loop($dialogsview_dialogOkLabel(str_in(a0)))), 1),
-  "dialogsview.piOkNode": run_lib((a0) => run_loop($dialogsview_piOkNode(str_in(a0))), 1),
-  "dialogsview.endDayTitle": run_lib(() => str_out(run_loop($dialogsview_endDayTitle())), 0),
-  "dialogsview.endDayLead": run_lib(() => str_out(run_loop($dialogsview_endDayLead())), 0),
-  "dialogsview.endDayWhereLabel": run_lib(() => str_out(run_loop($dialogsview_endDayWhereLabel())), 0),
-  "dialogsview.endDayNextLabel": run_lib(() => str_out(run_loop($dialogsview_endDayNextLabel())), 0),
-  "dialogsview.endDayCancelLabel": run_lib(() => str_out(run_loop($dialogsview_endDayCancelLabel())), 0),
-  "dialogsview.endDaySaveLabel": run_lib(() => str_out(run_loop($dialogsview_endDaySaveLabel())), 0),
-  "dialogsview.endDayField": run_lib((a0, a1, a2) => run_loop($dialogsview_endDayField(str_in(a0), str_in(a1), str_in(a2))), 3),
-  "dialogsview.endDayActions": run_lib(() => run_loop($dialogsview_endDayActions()), 0),
-  "dialogsview.endDayChildren": run_lib((a0, a1) => run_loop($dialogsview_endDayChildren(str_in(a0), str_in(a1))), 2),
-  "dialogsview.bookmarkNameInput": run_lib((a0) => run_loop($dialogsview_bookmarkNameInput(str_in(a0))), 1),
-  "dialogsview.bookmarkActions": run_lib(() => run_loop($dialogsview_bookmarkActions()), 0),
-  "dialogsview.bookmarkChildren": run_lib((a0, a1) => run_loop($dialogsview_bookmarkChildren(str_in(a0), str_in(a1))), 2),
-  "dialogsview.imageFallback": run_lib(() => str_out(run_loop($dialogsview_imageFallback())), 0),
-  "dialogsview.imageTitle": run_lib((a0) => str_out(run_loop($dialogsview_imageTitle(str_in(a0)))), 1),
-  "dialogsview.imageTitleNode": run_lib((a0) => run_loop($dialogsview_imageTitleNode(str_in(a0))), 1),
-  "dialogsview.imageCopyLabel": run_lib(() => str_out(run_loop($dialogsview_imageCopyLabel())), 0),
-  "dialogsview.imageOpenLabel": run_lib(() => str_out(run_loop($dialogsview_imageOpenLabel())), 0),
-  "dialogsview.imageActions": run_lib((a0) => run_loop($dialogsview_imageActions(a0)), 1),
-  "dialogsview.helpVersion.if": run_lib((a0, a1) => str_out(run_loop($dialogsview_helpVersion_if(str_in(a0), a1))), 2),
-  "dialogsview.helpVersion": run_lib((a0) => str_out(run_loop($dialogsview_helpVersion(str_in(a0)))), 1),
-  "dialogsview.helpVersionNode": run_lib((a0) => run_loop($dialogsview_helpVersionNode(str_in(a0))), 1),
-  "dialogsview.helpFlags": run_lib((a0, a1, a2, a3) => run_loop($dialogsview_helpFlags(a0, a1, a2, a3)), 4),
-  "dialogsview.helpChrome": run_lib((a0, a1) => run_loop($dialogsview_helpChrome(str_in(a0), a1)), 2),
-  "dialogsview.aboutLead.if": run_lib((a0, a1) => str_out(run_loop($dialogsview_aboutLead_if(str_in(a0), a1))), 2),
-  "dialogsview.aboutLead": run_lib((a0) => str_out(run_loop($dialogsview_aboutLead(str_in(a0)))), 1),
-  "dialogsview.aboutLeadNode": run_lib((a0) => run_loop($dialogsview_aboutLeadNode(str_in(a0))), 1),
-  "dialogsview.emptyCourse": run_lib(() => run_loop($dialogsview_emptyCourse()), 0),
-  "dialogsview.courseRow": run_lib((a0) => run_loop($dialogsview_courseRow(a0)), 1),
-  "dialogsview.courseHead": run_lib(() => run_loop($dialogsview_courseHead()), 0),
-  "dialogsview.courseRows.go": run_lib((a0) => run_loop($dialogsview_courseRows_go(a0)), 1),
-  "dialogsview.courseRows": run_lib((a0) => run_loop($dialogsview_courseRows(a0)), 1),
-  "dialogsview.checkUpdateLabel": run_lib(() => str_out(run_loop($dialogsview_checkUpdateLabel())), 0),
-  "dialogsview.updateIdleText": run_lib(() => str_out(run_loop($dialogsview_updateIdleText())), 0),
-  "dialogsview.updateCheckingText": run_lib(() => str_out(run_loop($dialogsview_updateCheckingText())), 0),
-  "dialogsview.updateNoneText": run_lib(() => str_out(run_loop($dialogsview_updateNoneText())), 0),
-  "dialogsview.updateNoneRest.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_updateNoneRest_if(str_in(a0), a1, str_in(a2)))), 3),
-  "dialogsview.updateNoneRest": run_lib((a0, a1) => str_out(run_loop($dialogsview_updateNoneRest(str_in(a0), str_in(a1)))), 2),
-  "dialogsview.updateFailedText": run_lib(() => str_out(run_loop($dialogsview_updateFailedText())), 0),
-  "dialogsview.updateFailedRest": run_lib(() => str_out(run_loop($dialogsview_updateFailedRest())), 0),
-  "dialogsview.updateReadyText": run_lib((a0) => str_out(run_loop($dialogsview_updateReadyText(str_in(a0)))), 1),
-  "dialogsview.updateNotesLabel": run_lib(() => str_out(run_loop($dialogsview_updateNotesLabel())), 0),
-  "dialogsview.updateApplyLabel": run_lib(() => str_out(run_loop($dialogsview_updateApplyLabel())), 0),
-  "dialogsview.updatePiLabel": run_lib(() => str_out(run_loop($dialogsview_updatePiLabel())), 0),
-  "dialogsview.updateApplyingText": run_lib(() => str_out(run_loop($dialogsview_updateApplyingText())), 0),
-  "dialogsview.updateDoneText": run_lib((a0) => str_out(run_loop($dialogsview_updateDoneText(str_in(a0)))), 1),
-  "dialogsview.updateRecoveredText.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_updateRecoveredText_if(str_in(a0), str_in(a1), a2))), 3),
-  "dialogsview.updateRecoveredText": run_lib((a0, a1) => str_out(run_loop($dialogsview_updateRecoveredText(str_in(a0), str_in(a1)))), 2),
-  "dialogsview.updateIncompleteText.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_updateIncompleteText_if(str_in(a0), str_in(a1), a2))), 3),
-  "dialogsview.updateIncompleteText": run_lib((a0, a1) => str_out(run_loop($dialogsview_updateIncompleteText(str_in(a0), str_in(a1)))), 2),
-  "dialogsview.updateLogLabel": run_lib(() => str_out(run_loop($dialogsview_updateLogLabel())), 0),
-  "dialogsview.updateIcon": run_lib((a0, a1) => run_loop($dialogsview_updateIcon(str_in(a0), str_in(a1))), 2),
-  "dialogsview.updateLineNode": run_lib((a0) => run_loop($dialogsview_updateLineNode(str_in(a0))), 1),
-  "dialogsview.updateLine2": run_lib((a0, a1) => run_loop($dialogsview_updateLine2(str_in(a0), str_in(a1))), 2),
-  "dialogsview.releaseNotesButton": run_lib((a0) => run_loop($dialogsview_releaseNotesButton(str_in(a0))), 1),
-  "dialogsview.updateLogButton": run_lib(() => run_loop($dialogsview_updateLogButton()), 0),
-  "dialogsview.applyUpdateButton": run_lib(() => run_loop($dialogsview_applyUpdateButton()), 0),
-  "dialogsview.applyingUpdateButton": run_lib(() => run_loop($dialogsview_applyingUpdateButton()), 0),
-  "dialogsview.checkUpdateButton": run_lib(() => run_loop($dialogsview_checkUpdateButton()), 0),
-  "dialogsview.updateReadyChildren": run_lib((a0, a1) => run_loop($dialogsview_updateReadyChildren(str_in(a0), str_in(a1))), 2),
-  "dialogsview.updateNotesNode": run_lib((a0) => run_loop($dialogsview_updateNotesNode(str_in(a0))), 1),
-  "dialogsview.aboutUpdateChildren": run_lib((a0) => run_loop($dialogsview_aboutUpdateChildren(a0)), 1),
-  "dialogsview.componentIds": run_lib(() => run_loop($dialogsview_componentIds()), 0),
-  "dialogsview.componentStateText": run_lib((a0) => str_out(run_loop($dialogsview_componentStateText(a0))), 1),
-  "dialogsview.componentVersionText": run_lib((a0) => str_out(run_loop($dialogsview_componentVersionText(str_in(a0)))), 1),
-  "dialogsview.componentLinkLabel": run_lib((a0) => str_out(run_loop($dialogsview_componentLinkLabel(str_in(a0)))), 1),
-  "dialogsview.nodeTooOld": run_lib((a0, a1) => run_loop($dialogsview_nodeTooOld(a0, a1)), 2),
-  "dialogsview.nodeWarnText": run_lib(() => str_out(run_loop($dialogsview_nodeWarnText())), 0),
-  "dialogsview.nodeState.if": run_lib((a0) => run_loop($dialogsview_nodeState_if(a0)), 1),
-  "dialogsview.nodeState": run_lib((a0, a1) => run_loop($dialogsview_nodeState(a0, a1)), 2),
-  "dialogsview.updatePiButton": run_lib(() => run_loop($dialogsview_updatePiButton()), 0),
-  "dialogsview.componentLinkButton": run_lib((a0, a1) => run_loop($dialogsview_componentLinkButton(str_in(a0), str_in(a1))), 2),
-  "dialogsview.componentDot": run_lib((a0) => str_out(run_loop($dialogsview_componentDot(a0))), 1),
-  "dialogsview.componentShowsHint": run_lib((a0) => run_loop($dialogsview_componentShowsHint(a0)), 1),
-  "dialogsview.componentDescription.xournal": run_lib((a0) => str_out(run_loop($dialogsview_componentDescription_xournal(a0))), 1),
-  "dialogsview.componentDescription.node": run_lib((a0, a1) => str_out(run_loop($dialogsview_componentDescription_node(a0, a1))), 2),
-  "dialogsview.componentDescription.claude": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_componentDescription_claude(a0, a1, a2))), 3),
-  "dialogsview.componentDescription.pick": run_lib((a0, a1, a2, a3) => str_out(run_loop($dialogsview_componentDescription_pick(a0, a1, a2, a3))), 4),
-  "dialogsview.componentDescription": run_lib((a0) => str_out(run_loop($dialogsview_componentDescription(str_in(a0)))), 1),
-  "dialogsview.componentHintNode": run_lib((a0) => run_loop($dialogsview_componentHintNode(a0)), 1),
-  "dialogsview.componentNote": run_lib((a0, a1, a2) => run_loop($dialogsview_componentNote(str_in(a0), str_in(a1), a2)), 3),
-  "dialogsview.componentNoteNodes": run_lib((a0) => run_loop($dialogsview_componentNoteNodes(a0)), 1),
-  "dialogsview.componentActions": run_lib((a0, a1, a2) => run_loop($dialogsview_componentActions(str_in(a0), str_in(a1), a2)), 3),
-  "dialogsview.componentAheadNode": run_lib(() => run_loop($dialogsview_componentAheadNode()), 0),
-  "dialogsview.componentHead": run_lib((a0, a1, a2, a3) => run_loop($dialogsview_componentHead(str_in(a0), str_in(a1), a2, a3)), 4),
-  "dialogsview.componentRowNode": run_lib((a0) => run_loop($dialogsview_componentRowNode(a0)), 1),
-  "dialogsview.componentRows.go": run_lib((a0) => run_loop($dialogsview_componentRows_go(a0)), 1),
-  "dialogsview.componentRows": run_lib((a0) => run_loop($dialogsview_componentRows(a0)), 1),
-  "dialogsview.courseList": run_lib((a0) => run_loop($dialogsview_courseList(a0)), 1),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "view:attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view:classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view:viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view:viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view:viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view:tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view:attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view:kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view:textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view:isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view:attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view:attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view:attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view:attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view:attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view:attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view:attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view:attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view:attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view:attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view:attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view:attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view:attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view:attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view:boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view:attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view:classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view:classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view:classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view:classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view:classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view:classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view:classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view:viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view:viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view:viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view:viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view:viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view:asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view:viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view:viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
+  "pdfnav:maxName": run_lib(() => run_loop($pdfnav_maxName()), 0),
+  "pdfnav:maxPath": run_lib(() => run_loop($pdfnav_maxPath()), 0),
+  "pdfnav:maxBookmarks": run_lib(() => run_loop($pdfnav_maxBookmarks()), 0),
+  "pdfnav:maxOutline": run_lib(() => run_loop($pdfnav_maxOutline()), 0),
+  "pdfnav:maxDepth": run_lib(() => run_loop($pdfnav_maxDepth()), 0),
+  "pdfnav:cutName.if": run_lib((a0, a1, a2) => str_out(run_loop($pdfnav_cutName_if(str_in(a0), nat_in(a1), a2))), 3),
+  "pdfnav:cutName": run_lib((a0, a1) => str_out(run_loop($pdfnav_cutName(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav:fitName": run_lib((a0) => str_out(run_loop($pdfnav_fitName(str_in(a0)))), 1),
+  "pdfnav:keepName.blank": run_lib((a0) => run_loop($pdfnav_keepName_blank(a0)), 1),
+  "pdfnav:keepName": run_lib((a0) => run_loop($pdfnav_keepName(str_in(a0))), 1),
+  "pdfnav:pageLabel": run_lib((a0) => str_out(run_loop($pdfnav_pageLabel(nat_in(a0)))), 1),
+  "pdfnav:bookmarkLabel": run_lib((a0) => str_out(run_loop($pdfnav_bookmarkLabel(str_in(a0)))), 1),
+  "pdfnav:bookmarkTitle": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkTitle(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav:bookmarkAria": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkAria(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav:removeLabel": run_lib(() => str_out(run_loop($pdfnav_removeLabel())), 0),
+  "pdfnav:removeTitle": run_lib((a0) => str_out(run_loop($pdfnav_removeTitle(str_in(a0)))), 1),
+  "pdfnav:removeAria": run_lib((a0) => str_out(run_loop($pdfnav_removeAria(str_in(a0)))), 1),
+  "pdfnav:saveLabel": run_lib(() => str_out(run_loop($pdfnav_saveLabel())), 0),
+  "pdfnav:saveTitle": run_lib(() => str_out(run_loop($pdfnav_saveTitle())), 0),
+  "pdfnav:favoritesTitle": run_lib(() => str_out(run_loop($pdfnav_favoritesTitle())), 0),
+  "pdfnav:favoritesEmpty": run_lib(() => str_out(run_loop($pdfnav_favoritesEmpty())), 0),
+  "pdfnav:outlineTitle": run_lib(() => str_out(run_loop($pdfnav_outlineTitle())), 0),
+  "pdfnav:outlineEmpty": run_lib(() => str_out(run_loop($pdfnav_outlineEmpty())), 0),
+  "pdfnav:navButtonLabel": run_lib(() => str_out(run_loop($pdfnav_navButtonLabel())), 0),
+  "pdfnav:navButtonTitle": run_lib(() => str_out(run_loop($pdfnav_navButtonTitle())), 0),
+  "pdfnav:navAria": run_lib((a0) => str_out(run_loop($pdfnav_navAria(str_in(a0)))), 1),
+  "pdfnav:navBackLabel": run_lib(() => str_out(run_loop($pdfnav_navBackLabel())), 0),
+  "pdfnav:navBackTitle": run_lib(() => str_out(run_loop($pdfnav_navBackTitle())), 0),
+  "pdfnav:navBackAria": run_lib((a0) => str_out(run_loop($pdfnav_navBackAria(str_in(a0)))), 1),
+  "pdfnav:bookmarkDialogTitle": run_lib(() => str_out(run_loop($pdfnav_bookmarkDialogTitle())), 0),
+  "pdfnav:bookmarkNameLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkNameLabel())), 0),
+  "pdfnav:bookmarkDialogHint": run_lib((a0, a1) => str_out(run_loop($pdfnav_bookmarkDialogHint(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav:bookmarkSaveLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkSaveLabel())), 0),
+  "pdfnav:bookmarkCancelLabel": run_lib(() => str_out(run_loop($pdfnav_bookmarkCancelLabel())), 0),
+  "pdfnav:pageFloor.if": run_lib((a0, a1) => run_loop($pdfnav_pageFloor_if(nat_in(a0), a1)), 2),
+  "pdfnav:pageFloor": run_lib((a0) => run_loop($pdfnav_pageFloor(nat_in(a0))), 1),
+  "pdfnav:fitPath": run_lib((a0) => str_out(run_loop($pdfnav_fitPath(str_in(a0)))), 1),
+  "pdfnav:newBookmark": run_lib((a0, a1, a2) => run_loop($pdfnav_newBookmark(str_in(a0), str_in(a1), nat_in(a2))), 3),
+  "pdfnav:keepBookmark.path": run_lib((a0) => run_loop($pdfnav_keepBookmark_path(a0)), 1),
+  "pdfnav:keepBookmark": run_lib((a0) => run_loop($pdfnav_keepBookmark(a0)), 1),
+  "pdfnav:sameBookmark": run_lib((a0, a1) => run_loop($pdfnav_sameBookmark(a0, a1)), 2),
+  "pdfnav:dropSame.head": run_lib((a0, a1, a2) => run_loop($pdfnav_dropSame_head(a0, a1, a2)), 3),
+  "pdfnav:dropSame.go": run_lib((a0, a1) => run_loop($pdfnav_dropSame_go(a0, a1)), 2),
+  "pdfnav:takeList.go": run_lib((a0, a1) => run_loop($pdfnav_takeList_go(a0, nat_in(a1))), 2),
+  "pdfnav:addBookmark": run_lib((a0, a1) => run_loop($pdfnav_addBookmark(a0, a1)), 2),
+  "pdfnav:removeBookmark": run_lib((a0, a1) => run_loop($pdfnav_removeBookmark(a0, a1)), 2),
+  "pdfnav:emptyBooks": run_lib((a0) => run_loop($pdfnav_emptyBooks(a0)), 1),
+  "pdfnav:emptyOutline": run_lib((a0) => run_loop($pdfnav_emptyOutline(a0)), 1),
+  "pdfnav:bookmarkRow": run_lib((a0, a1, a2) => run_loop($pdfnav_bookmarkRow(nat_in(a0), a1, str_in(a2))), 3),
+  "pdfnav:bookmarkRows.go": run_lib((a0, a1, a2) => run_loop($pdfnav_bookmarkRows_go(a0, str_in(a1), nat_in(a2))), 3),
+  "pdfnav:bookmarkRows": run_lib((a0, a1) => run_loop($pdfnav_bookmarkRows(a0, str_in(a1))), 2),
+  "pdfnav:clampDepth.if": run_lib((a0, a1) => run_loop($pdfnav_clampDepth_if(nat_in(a0), a1)), 2),
+  "pdfnav:clampDepth": run_lib((a0) => run_loop($pdfnav_clampDepth(nat_in(a0))), 1),
+  "pdfnav:outlineDepth": run_lib((a0) => str_out(run_loop($pdfnav_outlineDepth(nat_in(a0)))), 1),
+  "pdfnav:outlineLabel": run_lib((a0, a1) => str_out(run_loop($pdfnav_outlineLabel(str_in(a0), nat_in(a1)))), 2),
+  "pdfnav:outlineRow": run_lib((a0) => run_loop($pdfnav_outlineRow(a0)), 1),
+  "pdfnav:outlineRows": run_lib((a0) => run_loop($pdfnav_outlineRows(a0)), 1),
+  "pdfnav:navEmpty": run_lib((a0) => run_loop($pdfnav_navEmpty(str_in(a0))), 1),
+  "pdfnav:navSaveButton": run_lib(() => run_loop($pdfnav_navSaveButton()), 0),
+  "pdfnav:navSection": run_lib((a0, a1, a2, a3) => run_loop($pdfnav_navSection(str_in(a0), a1, str_in(a2), a3)), 4),
+  "pdfnav:navPopover": run_lib((a0, a1, a2, a3) => run_loop($pdfnav_navPopover(a0, a1, a2, str_in(a3))), 4),
+  "updatenotice:isVer": run_lib((a0) => run_loop($updatenotice_isVer(a0)), 1),
+  "updatenotice:tripleNewer": run_lib((a0, a1, a2, a3, a4, a5) => run_loop($updatenotice_tripleNewer(a0, a1, a2, a3, a4, a5)), 6),
+  "updatenotice:verNewer": run_lib((a0, a1) => run_loop($updatenotice_verNewer(a0, a1)), 2),
+  "updatenotice:verPick": run_lib((a0, a1, a2) => run_loop($updatenotice_verPick(a0, a1, a2)), 3),
+  "updatenotice:verMax": run_lib((a0, a1) => run_loop($updatenotice_verMax(a0, a1)), 2),
+  "updatenotice:emptyMemory": run_lib(() => run_loop($updatenotice_emptyMemory()), 0),
+  "updatenotice:ignoredCovers": run_lib((a0, a1) => run_loop($updatenotice_ignoredCovers(a0, a1)), 2),
+  "updatenotice:newerThanSeen": run_lib((a0, a1) => run_loop($updatenotice_newerThanSeen(a0, a1)), 2),
+  "updatenotice:targetVersion": run_lib((a0, a1, a2) => run_loop($updatenotice_targetVersion(a0, a1, a2)), 3),
+  "updatenotice:noticeFrom": run_lib((a0, a1, a2, a3, a4) => run_loop($updatenotice_noticeFrom(a0, a1, a2, a3, a4)), 5),
+  "updatenotice:noticeOf": run_lib((a0, a1, a2, a3, a4) => run_loop($updatenotice_noticeOf(a0, a1, a2, a3, a4)), 5),
+  "updatenotice:seenAfterOpen": run_lib((a0, a1, a2) => run_loop($updatenotice_seenAfterOpen(a0, a1, a2)), 3),
+  "updatenotice:afterOpen": run_lib((a0, a1, a2) => run_loop($updatenotice_afterOpen(a0, a1, a2)), 3),
+  "updatenotice:afterPostpone": run_lib((a0, a1) => run_loop($updatenotice_afterPostpone(a0, a1)), 2),
+  "updatenotice:afterIgnore": run_lib((a0, a1) => run_loop($updatenotice_afterIgnore(a0, a1)), 2),
+  "updatenotice:noticeText": run_lib((a0, a1) => str_out(run_loop($updatenotice_noticeText(str_in(a0), str_in(a1)))), 2),
+  "updatenotice:aheadText": run_lib(() => str_out(run_loop($updatenotice_aheadText())), 0),
+  "updatenotice:offlineText": run_lib(() => str_out(run_loop($updatenotice_offlineText())), 0),
+  "updatenotice:remindLabel": run_lib(() => str_out(run_loop($updatenotice_remindLabel())), 0),
+  "updatenotice:ignoreLabel": run_lib(() => str_out(run_loop($updatenotice_ignoreLabel())), 0),
+  "updatenotice:updateLabel": run_lib(() => str_out(run_loop($updatenotice_updateLabel())), 0),
+  "updatenotice:copyLabel": run_lib(() => str_out(run_loop($updatenotice_copyLabel())), 0),
+  "updatenotice:cancelLabel": run_lib(() => str_out(run_loop($updatenotice_cancelLabel())), 0),
+  "updatenotice:closeLabel": run_lib(() => str_out(run_loop($updatenotice_closeLabel())), 0),
+  "updatenotice:waitHint": run_lib(() => str_out(run_loop($updatenotice_waitHint())), 0),
+  "updatenotice:waitShort": run_lib(() => str_out(run_loop($updatenotice_waitShort())), 0),
+  "updatenotice:settingsTitle": run_lib((a0) => str_out(run_loop($updatenotice_settingsTitle(a0))), 1),
+  "updatenotice:aheadWarning": run_lib((a0, a1) => str_out(run_loop($updatenotice_aheadWarning(str_in(a0), str_in(a1)))), 2),
+  "updatenotice:runningText": run_lib(() => str_out(run_loop($updatenotice_runningText())), 0),
+  "updatenotice:willRunText": run_lib(() => str_out(run_loop($updatenotice_willRunText())), 0),
+  "updatenotice:relinkedText": run_lib(() => str_out(run_loop($updatenotice_relinkedText())), 0),
+  "updatenotice:doneSentence.same": run_lib((a0, a1) => str_out(run_loop($updatenotice_doneSentence_same(str_in(a0), str_in(a1)))), 2),
+  "updatenotice:doneSentence.changed": run_lib((a0, a1, a2) => str_out(run_loop($updatenotice_doneSentence_changed(str_in(a0), str_in(a1), a2))), 3),
+  "updatenotice:doneSentence.improved": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($updatenotice_doneSentence_improved(str_in(a0), str_in(a1), str_in(a2), a3, a4))), 5),
+  "updatenotice:doneSentence.known": run_lib((a0, a1, a2, a3, a4, a5) => str_out(run_loop($updatenotice_doneSentence_known(str_in(a0), str_in(a1), str_in(a2), a3, a4, a5))), 6),
+  "updatenotice:doneSentence.ok": run_lib((a0, a1, a2, a3, a4, a5) => str_out(run_loop($updatenotice_doneSentence_ok(str_in(a0), a1, a2, str_in(a3), str_in(a4), a5))), 6),
+  "updatenotice:doneSentence": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($updatenotice_doneSentence(str_in(a0), a1, a2, a3, str_in(a4), str_in(a5), a6))), 7),
+  "updatenotice:noticeIcon": run_lib(() => run_loop($updatenotice_noticeIcon()), 0),
+  "updatenotice:noticeButton": run_lib((a0, a1, a2) => run_loop($updatenotice_noticeButton(str_in(a0), str_in(a1), str_in(a2))), 3),
+  "updatenotice:noticeLineText": run_lib((a0, a1, a2) => run_loop($updatenotice_noticeLineText(str_in(a0), str_in(a1), a2)), 3),
+  "updatenotice:noticeLineBody": run_lib((a0, a1, a2, a3, a4) => run_loop($updatenotice_noticeLineBody(str_in(a0), str_in(a1), str_in(a2), a3, a4)), 5),
+  "updatenotice:noticeLineNode": run_lib((a0) => run_loop($updatenotice_noticeLineNode(a0)), 1),
+  "updatenotice:noticeLines": run_lib((a0) => run_loop($updatenotice_noticeLines(a0)), 1),
+  "updatenotice:showsNotice": run_lib((a0) => run_loop($updatenotice_showsNotice(a0)), 1),
+  "updatenotice:seesLine": run_lib((a0, a1) => run_loop($updatenotice_seesLine(a0, a1)), 2),
+  "updatenotice:seeAboutLabel": run_lib(() => str_out(run_loop($updatenotice_seeAboutLabel())), 0),
+  "updatenotice:seeAboutButton": run_lib((a0) => run_loop($updatenotice_seeAboutButton(str_in(a0))), 1),
+  "updatenotice:noticeLineFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLineFor(a0, a1)), 2),
+  "updatenotice:noticeLinesFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLinesFor(a0, a1)), 2),
+  "updatenotice:hasAction": run_lib((a0) => run_loop($updatenotice_hasAction(a0)), 1),
+  "updatenotice:localButton": run_lib(() => run_loop($updatenotice_localButton()), 0),
+  "updatenotice:askButton": run_lib((a0) => run_loop($updatenotice_askButton(str_in(a0))), 1),
+  "updatenotice:waitNodes": run_lib(() => run_loop($updatenotice_waitNodes()), 0),
+  "updatenotice:copyButton": run_lib((a0) => run_loop($updatenotice_copyButton(str_in(a0))), 1),
+  "updatenotice:actionNodes": run_lib((a0) => run_loop($updatenotice_actionNodes(a0)), 1),
+  "updatenotice:commandNode": run_lib((a0) => run_loop($updatenotice_commandNode(str_in(a0))), 1),
+  "updatenotice:runLine": run_lib((a0, a1) => run_loop($updatenotice_runLine(str_in(a0), str_in(a1))), 2),
+  "updatenotice:outputNode": run_lib((a0) => run_loop($updatenotice_outputNode(str_in(a0))), 1),
+  "updatenotice:runButton": run_lib((a0, a1, a2) => run_loop($updatenotice_runButton(str_in(a0), str_in(a1), str_in(a2))), 3),
+  "updatenotice:donePhase": run_lib((a0) => str_out(run_loop($updatenotice_donePhase(a0))), 1),
+  "updatenotice:runPanel": run_lib((a0, a1) => run_loop($updatenotice_runPanel(str_in(a0), a1)), 2),
+  "updatenotice:confirmNodes": run_lib((a0, a1) => run_loop($updatenotice_confirmNodes(str_in(a0), str_in(a1))), 2),
+  "updatenotice:busyNodes": run_lib((a0, a1) => run_loop($updatenotice_busyNodes(str_in(a0), str_in(a1))), 2),
+  "updatenotice:doneNodes": run_lib((a0, a1, a2) => run_loop($updatenotice_doneNodes(a0, str_in(a1), str_in(a2))), 3),
+  "updatenotice:runNodes": run_lib((a0) => run_loop($updatenotice_runNodes(a0)), 1),
+  "dialogsview:textOr.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_textOr_if(str_in(a0), str_in(a1), a2))), 3),
+  "dialogsview:textOr": run_lib((a0, a1) => str_out(run_loop($dialogsview_textOr(str_in(a0), str_in(a1)))), 2),
+  "dialogsview:lastPartFrom": run_lib((a0) => str_out(run_loop($dialogsview_lastPartFrom(a0))), 1),
+  "dialogsview:lastPart": run_lib((a0) => str_out(run_loop($dialogsview_lastPart(a0))), 1),
+  "dialogsview:fileBase": run_lib((a0) => str_out(run_loop($dialogsview_fileBase(str_in(a0)))), 1),
+  "dialogsview:hintAttrs": run_lib((a0) => run_loop($dialogsview_hintAttrs(str_in(a0))), 1),
+  "dialogsview:valueAttr": run_lib((a0) => run_loop($dialogsview_valueAttr(str_in(a0))), 1),
+  "dialogsview:labelAria": run_lib((a0) => run_loop($dialogsview_labelAria(str_in(a0))), 1),
+  "dialogsview:textareaKids.if": run_lib((a0, a1) => run_loop($dialogsview_textareaKids_if(str_in(a0), a1)), 2),
+  "dialogsview:textareaKids": run_lib((a0) => run_loop($dialogsview_textareaKids(str_in(a0))), 1),
+  "dialogsview:optionNode": run_lib((a0, a1) => run_loop($dialogsview_optionNode(str_in(a0), a1)), 2),
+  "dialogsview:optionNodes.go": run_lib((a0, a1) => run_loop($dialogsview_optionNodes_go(str_in(a0), a1)), 2),
+  "dialogsview:optionNodes": run_lib((a0, a1) => run_loop($dialogsview_optionNodes(str_in(a0), a1)), 2),
+  "dialogsview:fieldControl": run_lib((a0) => run_loop($dialogsview_fieldControl(a0)), 1),
+  "dialogsview:piFields": run_lib((a0) => run_loop($dialogsview_piFields(a0)), 1),
+  "dialogsview:piTitle": run_lib((a0) => str_out(run_loop($dialogsview_piTitle(str_in(a0)))), 1),
+  "dialogsview:piMessage": run_lib((a0) => str_out(run_loop($dialogsview_piMessage(str_in(a0)))), 1),
+  "dialogsview:dialogOkLabel": run_lib((a0) => str_out(run_loop($dialogsview_dialogOkLabel(str_in(a0)))), 1),
+  "dialogsview:piOkNode": run_lib((a0) => run_loop($dialogsview_piOkNode(str_in(a0))), 1),
+  "dialogsview:endDayTitle": run_lib(() => str_out(run_loop($dialogsview_endDayTitle())), 0),
+  "dialogsview:endDayLead": run_lib(() => str_out(run_loop($dialogsview_endDayLead())), 0),
+  "dialogsview:endDayWhereLabel": run_lib(() => str_out(run_loop($dialogsview_endDayWhereLabel())), 0),
+  "dialogsview:endDayNextLabel": run_lib(() => str_out(run_loop($dialogsview_endDayNextLabel())), 0),
+  "dialogsview:endDayCancelLabel": run_lib(() => str_out(run_loop($dialogsview_endDayCancelLabel())), 0),
+  "dialogsview:endDaySaveLabel": run_lib(() => str_out(run_loop($dialogsview_endDaySaveLabel())), 0),
+  "dialogsview:endDayField": run_lib((a0, a1, a2) => run_loop($dialogsview_endDayField(str_in(a0), str_in(a1), str_in(a2))), 3),
+  "dialogsview:endDayActions": run_lib(() => run_loop($dialogsview_endDayActions()), 0),
+  "dialogsview:endDayChildren": run_lib((a0, a1) => run_loop($dialogsview_endDayChildren(str_in(a0), str_in(a1))), 2),
+  "dialogsview:bookmarkNameInput": run_lib((a0) => run_loop($dialogsview_bookmarkNameInput(str_in(a0))), 1),
+  "dialogsview:bookmarkActions": run_lib(() => run_loop($dialogsview_bookmarkActions()), 0),
+  "dialogsview:bookmarkChildren": run_lib((a0, a1) => run_loop($dialogsview_bookmarkChildren(str_in(a0), str_in(a1))), 2),
+  "dialogsview:imageFallback": run_lib(() => str_out(run_loop($dialogsview_imageFallback())), 0),
+  "dialogsview:imageTitle": run_lib((a0) => str_out(run_loop($dialogsview_imageTitle(str_in(a0)))), 1),
+  "dialogsview:imageTitleNode": run_lib((a0) => run_loop($dialogsview_imageTitleNode(str_in(a0))), 1),
+  "dialogsview:imageCopyLabel": run_lib(() => str_out(run_loop($dialogsview_imageCopyLabel())), 0),
+  "dialogsview:imageOpenLabel": run_lib(() => str_out(run_loop($dialogsview_imageOpenLabel())), 0),
+  "dialogsview:imageActions": run_lib((a0) => run_loop($dialogsview_imageActions(a0)), 1),
+  "dialogsview:helpVersion.if": run_lib((a0, a1) => str_out(run_loop($dialogsview_helpVersion_if(str_in(a0), a1))), 2),
+  "dialogsview:helpVersion": run_lib((a0) => str_out(run_loop($dialogsview_helpVersion(str_in(a0)))), 1),
+  "dialogsview:helpVersionNode": run_lib((a0) => run_loop($dialogsview_helpVersionNode(str_in(a0))), 1),
+  "dialogsview:helpFlags": run_lib((a0, a1, a2, a3) => run_loop($dialogsview_helpFlags(a0, a1, a2, a3)), 4),
+  "dialogsview:helpChrome": run_lib((a0, a1) => run_loop($dialogsview_helpChrome(str_in(a0), a1)), 2),
+  "dialogsview:aboutLead.if": run_lib((a0, a1) => str_out(run_loop($dialogsview_aboutLead_if(str_in(a0), a1))), 2),
+  "dialogsview:aboutLead": run_lib((a0) => str_out(run_loop($dialogsview_aboutLead(str_in(a0)))), 1),
+  "dialogsview:aboutLeadNode": run_lib((a0) => run_loop($dialogsview_aboutLeadNode(str_in(a0))), 1),
+  "dialogsview:emptyCourse": run_lib(() => run_loop($dialogsview_emptyCourse()), 0),
+  "dialogsview:courseRow": run_lib((a0) => run_loop($dialogsview_courseRow(a0)), 1),
+  "dialogsview:courseHead": run_lib(() => run_loop($dialogsview_courseHead()), 0),
+  "dialogsview:courseRows.go": run_lib((a0) => run_loop($dialogsview_courseRows_go(a0)), 1),
+  "dialogsview:courseRows": run_lib((a0) => run_loop($dialogsview_courseRows(a0)), 1),
+  "dialogsview:checkUpdateLabel": run_lib(() => str_out(run_loop($dialogsview_checkUpdateLabel())), 0),
+  "dialogsview:updateIdleText": run_lib(() => str_out(run_loop($dialogsview_updateIdleText())), 0),
+  "dialogsview:updateCheckingText": run_lib(() => str_out(run_loop($dialogsview_updateCheckingText())), 0),
+  "dialogsview:updateNoneText": run_lib(() => str_out(run_loop($dialogsview_updateNoneText())), 0),
+  "dialogsview:updateNoneRest.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_updateNoneRest_if(str_in(a0), a1, str_in(a2)))), 3),
+  "dialogsview:updateNoneRest": run_lib((a0, a1) => str_out(run_loop($dialogsview_updateNoneRest(str_in(a0), str_in(a1)))), 2),
+  "dialogsview:updateFailedText": run_lib(() => str_out(run_loop($dialogsview_updateFailedText())), 0),
+  "dialogsview:updateFailedRest": run_lib(() => str_out(run_loop($dialogsview_updateFailedRest())), 0),
+  "dialogsview:updateReadyText": run_lib((a0) => str_out(run_loop($dialogsview_updateReadyText(str_in(a0)))), 1),
+  "dialogsview:updateNotesLabel": run_lib(() => str_out(run_loop($dialogsview_updateNotesLabel())), 0),
+  "dialogsview:updateApplyLabel": run_lib(() => str_out(run_loop($dialogsview_updateApplyLabel())), 0),
+  "dialogsview:updatePiLabel": run_lib(() => str_out(run_loop($dialogsview_updatePiLabel())), 0),
+  "dialogsview:updateApplyingText": run_lib(() => str_out(run_loop($dialogsview_updateApplyingText())), 0),
+  "dialogsview:updateDoneText": run_lib((a0) => str_out(run_loop($dialogsview_updateDoneText(str_in(a0)))), 1),
+  "dialogsview:updateRecoveredText.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_updateRecoveredText_if(str_in(a0), str_in(a1), a2))), 3),
+  "dialogsview:updateRecoveredText": run_lib((a0, a1) => str_out(run_loop($dialogsview_updateRecoveredText(str_in(a0), str_in(a1)))), 2),
+  "dialogsview:updateIncompleteText.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_updateIncompleteText_if(str_in(a0), str_in(a1), a2))), 3),
+  "dialogsview:updateIncompleteText": run_lib((a0, a1) => str_out(run_loop($dialogsview_updateIncompleteText(str_in(a0), str_in(a1)))), 2),
+  "dialogsview:updateLogLabel": run_lib(() => str_out(run_loop($dialogsview_updateLogLabel())), 0),
+  "dialogsview:updateIcon": run_lib((a0, a1) => run_loop($dialogsview_updateIcon(str_in(a0), str_in(a1))), 2),
+  "dialogsview:updateLineNode": run_lib((a0) => run_loop($dialogsview_updateLineNode(str_in(a0))), 1),
+  "dialogsview:updateLine2": run_lib((a0, a1) => run_loop($dialogsview_updateLine2(str_in(a0), str_in(a1))), 2),
+  "dialogsview:releaseNotesButton": run_lib((a0) => run_loop($dialogsview_releaseNotesButton(str_in(a0))), 1),
+  "dialogsview:updateLogButton": run_lib(() => run_loop($dialogsview_updateLogButton()), 0),
+  "dialogsview:applyUpdateButton": run_lib(() => run_loop($dialogsview_applyUpdateButton()), 0),
+  "dialogsview:applyingUpdateButton": run_lib(() => run_loop($dialogsview_applyingUpdateButton()), 0),
+  "dialogsview:checkUpdateButton": run_lib(() => run_loop($dialogsview_checkUpdateButton()), 0),
+  "dialogsview:updateReadyChildren": run_lib((a0, a1) => run_loop($dialogsview_updateReadyChildren(str_in(a0), str_in(a1))), 2),
+  "dialogsview:updateNotesNode": run_lib((a0) => run_loop($dialogsview_updateNotesNode(str_in(a0))), 1),
+  "dialogsview:aboutUpdateChildren": run_lib((a0) => run_loop($dialogsview_aboutUpdateChildren(a0)), 1),
+  "dialogsview:componentIds": run_lib(() => run_loop($dialogsview_componentIds()), 0),
+  "dialogsview:componentStateText": run_lib((a0) => str_out(run_loop($dialogsview_componentStateText(a0))), 1),
+  "dialogsview:componentVersionText": run_lib((a0) => str_out(run_loop($dialogsview_componentVersionText(str_in(a0)))), 1),
+  "dialogsview:componentLinkLabel": run_lib((a0) => str_out(run_loop($dialogsview_componentLinkLabel(str_in(a0)))), 1),
+  "dialogsview:nodeTooOld": run_lib((a0, a1) => run_loop($dialogsview_nodeTooOld(a0, a1)), 2),
+  "dialogsview:nodeWarnText": run_lib(() => str_out(run_loop($dialogsview_nodeWarnText())), 0),
+  "dialogsview:nodeState.if": run_lib((a0) => run_loop($dialogsview_nodeState_if(a0)), 1),
+  "dialogsview:nodeState": run_lib((a0, a1) => run_loop($dialogsview_nodeState(a0, a1)), 2),
+  "dialogsview:updatePiButton": run_lib(() => run_loop($dialogsview_updatePiButton()), 0),
+  "dialogsview:componentLinkButton": run_lib((a0, a1) => run_loop($dialogsview_componentLinkButton(str_in(a0), str_in(a1))), 2),
+  "dialogsview:componentDot": run_lib((a0) => str_out(run_loop($dialogsview_componentDot(a0))), 1),
+  "dialogsview:componentShowsHint": run_lib((a0) => run_loop($dialogsview_componentShowsHint(a0)), 1),
+  "dialogsview:componentDescription.xournal": run_lib((a0) => str_out(run_loop($dialogsview_componentDescription_xournal(a0))), 1),
+  "dialogsview:componentDescription.node": run_lib((a0, a1) => str_out(run_loop($dialogsview_componentDescription_node(a0, a1))), 2),
+  "dialogsview:componentDescription.claude": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_componentDescription_claude(a0, a1, a2))), 3),
+  "dialogsview:componentDescription.pick": run_lib((a0, a1, a2, a3) => str_out(run_loop($dialogsview_componentDescription_pick(a0, a1, a2, a3))), 4),
+  "dialogsview:componentDescription": run_lib((a0) => str_out(run_loop($dialogsview_componentDescription(str_in(a0)))), 1),
+  "dialogsview:componentHintNode": run_lib((a0) => run_loop($dialogsview_componentHintNode(a0)), 1),
+  "dialogsview:componentNote": run_lib((a0, a1, a2) => run_loop($dialogsview_componentNote(str_in(a0), str_in(a1), a2)), 3),
+  "dialogsview:componentNoteNodes": run_lib((a0) => run_loop($dialogsview_componentNoteNodes(a0)), 1),
+  "dialogsview:componentActions": run_lib((a0, a1, a2) => run_loop($dialogsview_componentActions(str_in(a0), str_in(a1), a2)), 3),
+  "dialogsview:componentAheadNode": run_lib(() => run_loop($dialogsview_componentAheadNode()), 0),
+  "dialogsview:componentHead": run_lib((a0, a1, a2, a3) => run_loop($dialogsview_componentHead(str_in(a0), str_in(a1), a2, a3)), 4),
+  "dialogsview:componentRowNode": run_lib((a0) => run_loop($dialogsview_componentRowNode(a0)), 1),
+  "dialogsview:componentRows.go": run_lib((a0) => run_loop($dialogsview_componentRows_go(a0)), 1),
+  "dialogsview:componentRows": run_lib((a0) => run_loop($dialogsview_componentRows(a0)), 1),
+  "dialogsview:courseList": run_lib((a0) => run_loop($dialogsview_courseList(a0)), 1),
   kindSetup: run_lib(() => str_out(run_loop($kindSetup())), 0),
   kindEmpty: run_lib(() => str_out(run_loop($kindEmpty())), 0),
   "entry.noCourses": run_lib((a0) => str_out(run_loop($entry_noCourses(a0))), 1),

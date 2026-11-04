@@ -1,10 +1,13 @@
 import * as quadro from './activity-view.mjs';
+import {ACTIVITY_SCHEME, activityHost} from './activity-host.mjs';
 
 /* Quadro de atividade — limites do estado e da altura, URL do artefato e
    leitura das mensagens do iframe (JSON-RPC do MCP Apps e o protocolo da
    Mesa). Saiu de activity.mjs na #43 fase 2. */
 
-const ACTIVITY_SCHEME = 'mesa-activity';
+/* Um site por REVISÃO (#89): o host carrega id e versão
+   (`act-<id>--v<versão>`), então duas revisões da mesma atividade ganham
+   processos distintos e um laço numa não derruba a outra. */
 /* Tetos do estado (alinhados ao store/preload): values ≤ 16 KiB, attempt ≤ 4 KiB
    e envelope completo ≤ 21 KiB. */
 const MAX_STATE_BYTES = 16384;
@@ -18,7 +21,32 @@ const READY_TIMEOUT_MS = 8000;
 function buildActivityUrl(item, theme = 'system', accent = '') {
   const safe = theme === 'dark' || theme === 'light' ? theme : 'system';
   const tone = accent ? `&accent=${quadro.accentOf(accent)}` : '';
-  return `${ACTIVITY_SCHEME}://artifact/${item.id}/${item.version}/index.html?theme=${safe}${tone}`;
+  return `${ACTIVITY_SCHEME}://${activityHost(item.id, item.version)}/index.html?theme=${safe}${tone}`;
+}
+/**
+ * Origem exata do artefato desta revisão (host = id + versão, #89).
+ * @param {{id: string, version: number}} item atividade publicada ou prévia
+ * @returns {string}
+ * @example activityOrigin({id:'act-abc12345',version:2}) // 'mesa-activity://act-abc12345--v2'
+ */
+function activityOrigin(item) {
+  return `${ACTIVITY_SCHEME}://${activityHost(item.id, item.version)}`;
+}
+/**
+ * A origem do `postMessage` pode entrar? O sandbox sem `allow-same-origin`
+ * entrega origem opaca (`null`) e alguns Chromium não preenchem a origem
+ * (vazia); fora disso só a origem exata DESTA revisão (host = id + versão,
+ * #89), nunca outra revisão da mesma atividade nem outro host do esquema.
+ * @param {string} origin `event.origin`
+ * @param {{id: string, version: number}} item atividade publicada ou prévia
+ * @returns {boolean}
+ * @example activityOriginAllowed('null',{id:'act-abc12345',version:2}) // true
+ * @example activityOriginAllowed('mesa-activity://act-abc12345--v1',{id:'act-abc12345',version:2}) // false
+ */
+function activityOriginAllowed(origin, item) {
+  const value = String(origin || '');
+  if (!value || value === 'null') return true;
+  return value === activityOrigin(item);
 }
 /* Mensagens JSON-RPC do quadro no protocolo MCP Apps (#42). Só três métodos
    valem: o tamanho, o pedido de abrir link (https) e o log; o resto é
@@ -79,4 +107,4 @@ function parseMessage(data, item) {
   return {type, payload};
 }
 
-export {ACTIVITY_SCHEME,MAX_STATE_BYTES,MAX_ATTEMPT_BYTES,MAX_STATE_ENVELOPE_BYTES,HEIGHT_MIN,HEIGHT_MAX,HEIGHT_RESERVED,READY_TIMEOUT_MS,buildActivityUrl,parseRpc,parseMessage,jsonSize};
+export {ACTIVITY_SCHEME,MAX_STATE_BYTES,MAX_ATTEMPT_BYTES,MAX_STATE_ENVELOPE_BYTES,HEIGHT_MIN,HEIGHT_MAX,HEIGHT_RESERVED,READY_TIMEOUT_MS,activityOrigin,activityOriginAllowed,buildActivityUrl,parseRpc,parseMessage,jsonSize};

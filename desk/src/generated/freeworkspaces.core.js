@@ -13,13 +13,16 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 var char_new = function char_new(c) {
   return c < 55296 || c >= 57344 && c <= 1114111 ? String.fromCodePoint(c) : String.fromCharCode(56320, c >>> 22, c >>> 11 & 2047, c & 2047);
 };
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -40,6 +43,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $maxTitle() {
   return 120;
 }
@@ -72,13 +76,13 @@ function $cut_if(_text_0, _limit_0, _over_0) {
   }
 }
 function $cut(_text_0, _limit_0) {
-  return $cut_if(_text_0, _limit_0, $Nat_is_gt([...str_out(_text_0)].length, _limit_0));
+  return $cut_if(_text_0, _limit_0, $$Nat_is_gt([...str_out(_text_0)].length, _limit_0));
 }
 function $fitTitle(_text_0) {
-  return $cut($String_trim(_text_0), $maxTitle());
+  return $cut($$String_trim(_text_0), $$maxTitle());
 }
 function $fitName(_text_0) {
-  return $cut($String_trim(_text_0), $maxName());
+  return $cut($$String_trim(_text_0), $$maxName());
 }
 function $fitTitleOr_if(_text_0, _blank_0) {
   if (_blank_0) {
@@ -88,26 +92,26 @@ function $fitTitleOr_if(_text_0, _blank_0) {
   }
 }
 function $fitTitleOr(_text_0) {
-  return $fitTitleOr_if($String_trim(_text_0), $String_is_empty($String_trim(_text_0)));
+  return $fitTitleOr_if($$String_trim(_text_0), $$String_is_empty($$String_trim(_text_0)));
 }
 function $isFreeCourseId(_id_0) {
-  return $String_eq(_id_0, $freeCourseId());
+  return $String_eq(_id_0, $$freeCourseId());
 }
 function $isPromoted(_promotedCourseId_0) {
-  return $Bool_not($String_is_empty($String_trim(_promotedCourseId_0)));
+  return $Bool_not($$String_is_empty($$String_trim(_promotedCourseId_0)));
 }
 function $numberedName_if(_stem_0, _ext_0, _base_0, _n_0) {
   if (_base_0) {
     return _stem_0 + _ext_0;
   } else {
-    const _x_0 = $Nat_show(_n_0);
+    const _x_0 = $$Nat_show(_n_0);
     const _x_1 = _x_0 + _ext_0;
     const _x_2 = "-" + _x_1;
     return _stem_0 + _x_2;
   }
 }
 function $candidateName(_stem_0, _ext_0, _n_0) {
-  if (_n_0 === 0) {
+  if (_n_0 == 0) {
     return $numberedName_if(_stem_0, _ext_0, true, 0);
   } else {
     const _p_0 = _n_0 - 1;
@@ -123,11 +127,11 @@ function $String_take(_s_0, _n_0) {
   } else {
     const _h_0 = _s_0.slice(0, char_len(_s_0));
     const _t_0 = _s_0.slice(char_len(_s_0));
-    if (_n_0 === 0) {
+    if (_n_0 == 0) {
       return "";
     } else {
       const _p_0 = _n_0 - 1;
-      return _h_0 + $String_take(_t_0, _p_0);
+      return _h_0 + $$String_take(_t_0, _p_0);
     }
   }
 }
@@ -135,7 +139,7 @@ function $Nat_is_gt(_a_0, _b_0) {
   return $Cmp_is_gt(cmp_new(_a_0, _b_0));
 }
 function $String_trim(_s_0) {
-  return $String_trim_end($String_trim_start(_s_0));
+  return $String_trim_end($$String_trim_start(_s_0));
 }
 function $String_is_empty(_s_0) {
   if (_s_0 === "") {
@@ -145,7 +149,7 @@ function $String_is_empty(_s_0) {
   }
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $Bool_not(_b_0) {
   if (!_b_0) {
@@ -156,7 +160,7 @@ function $Bool_not(_b_0) {
 }
 function $Nat_show(_n_0) {
   const _m_0 = _n_0;
-  return $Nat_show_fin(_m_0, "", $Nat_show_put(nat_divmod(_m_0, 10)));
+  return $Nat_show_fin(_m_0, "", $$Nat_show_put(nat_divmod(_m_0, 10)));
 }
 function $Cmp_is_gt(_c_0) {
   if (_c_0.$ === "GT") {
@@ -166,7 +170,7 @@ function $Cmp_is_gt(_c_0) {
   }
 }
 function $String_trim_end(_s_0) {
-  return $String_reverse($String_trim_start($String_reverse(_s_0)));
+  return $String_reverse($$String_trim_start($$String_reverse(_s_0)));
 }
 function $String_trim_start($0, $1, $2) {
   let $pc = 0;
@@ -181,7 +185,7 @@ function $String_trim_start($0, $1, $2) {
           const _t_0 = _s_0.slice(char_len(_s_0));
           $0 = _t_0;
           $1 = _h_0;
-          $2 = $Char_is_space(_h_0);
+          $2 = $$Char_is_space(_h_0);
           $pc = 1;
           continue;
         }
@@ -220,12 +224,11 @@ function $Nat_show_fin($0, $1, $2) {
         const _dq_0 = $2;
         const _d_0 = _dq_0["fst"];
         const _t_0 = _dq_0["snd"];
-        if (_t_0 === 0) {
+        if (_t_0 == 0) {
           return _d_0 + _acc_0;
         } else {
-          const _p_0 = _t_0 - 1;
           $0 = _g_0;
-          $1 = nat_chk(_p_0 + 1);
+          $1 = _t_0;
           $2 = _d_0 + _acc_0;
           $pc = 1;
           continue;
@@ -235,13 +238,13 @@ function $Nat_show_fin($0, $1, $2) {
         const _f_0 = $0;
         const _n_0 = $1;
         const _acc_0 = $2;
-        if (_f_0 === 0) {
+        if (_f_0 == 0) {
           return _acc_0;
         } else {
           const _g_0 = _f_0 - 1;
           $0 = _g_0;
           $1 = _acc_0;
-          $2 = $Nat_show_put(nat_divmod(_n_0, 10));
+          $2 = $$Nat_show_put(nat_divmod(_n_0, 10));
           $pc = 0;
           continue;
         }
@@ -259,11 +262,9 @@ function $String_reverse(_s_0) {
 }
 function $Char_is_space(_c_0) {
   const _x_0 = char_code(_c_0);
-  const _x_1 = char_code(_c_0);
-  const _x_2 = char_code(_c_0);
-  const _x_3 = _x_0 === 32;
-  const _x_4 = $Bool_and(_x_1 >= 9, _x_2 <= 13);
-  return _x_3 || _x_4;
+  const _x_1 = _x_0 === 32;
+  const _x_2 = $$Bool_and(_x_0 >= 9, _x_0 <= 13);
+  return _x_1 || _x_2;
 }
 function $String_order_go($0, $1, $2) {
   for (;; ) {
@@ -283,6 +284,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -292,13 +294,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -332,6 +333,20 @@ function $Bool_and(_a_0, _b_0) {
     return _b_0;
   }
 }
+var $$Nat_is_gt = $Nat_is_gt;
+var $$String_trim = $String_trim;
+var $$maxTitle = $maxTitle;
+var $$maxName = $maxName;
+var $$String_is_empty = $String_is_empty;
+var $$freeCourseId = $freeCourseId;
+var $$Nat_show = $Nat_show;
+var $$String_take = $String_take;
+var $$String_trim_start = $String_trim_start;
+var $$String_order = $String_order;
+var $$Nat_show_put = $Nat_show_put;
+var $$String_reverse = $String_reverse;
+var $$Char_is_space = $Char_is_space;
+var $$Bool_and = $Bool_and;
 var freeworkspaces_default = {
   maxTitle: run_lib(() => run_loop($maxTitle()), 0),
   maxName: run_lib(() => run_loop($maxName()), 0),

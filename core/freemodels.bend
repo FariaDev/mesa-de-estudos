@@ -292,12 +292,12 @@ def optionTailLeft(left: Bool, base: List<&2, String>) -> List<&2, String>:
 def optionTailFree(free: Bool, +policy: String, left: Bool) -> List<&2, String>:
   match free:
     case True{}:
-      optionTailLeft(left, [M.msg("freeModels.badge"), policyMsg(policy)])
+      optionTailLeft(left, [policyMsg(policy)])
     case False{}:
       Nil{}
 
-# O que vai depois do nome no seletor: a marca Grátis, a política e, se for o
-# caso, o aviso de que pode ter saído do plano. Pago: nada.
+# O que vai depois do nome no seletor: a política e, se for o caso, o aviso de
+# que pode ter saído do plano. Pago: nada. O selo "Grátis" saiu do seletor (#93).
 def optionTail(free: Bool, +policy: String, left: Bool) -> List<&2, String>:
   optionTailFree(free, policy, left)
 

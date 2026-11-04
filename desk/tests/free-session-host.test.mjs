@@ -20,7 +20,7 @@ function setup() {
     languageHost: {t: () => 'Nova conversa'}};
   let resets = 0;
   const host = createFreeSessionHost({live, runtime, FREE_ID: free.freeCourseId(), ggb: {resetRestored: () => { resets++; }},
-    engine: () => 'pi', previewFile: () => ''});
+    engine: () => 'pi', defaultEngine: () => 'pi', previewFile: () => ''});
   return {runtime, live, host, resets: () => resets};
 }
 

@@ -37,9 +37,6 @@ def attrOf(n: V.ViewNode, name: String) -> Maybe<&2, String>:
 
 # ---------- motivo ----------
 
-law tutorstate_reason_cap:
-  {T.maxReason() == 160n : Nat}
-
 law tutorstate_reason_vazio:
   {T.reasonLine("") == M.msg("tutor.reason.fallback") : String}
 
@@ -48,6 +45,10 @@ law tutorstate_reason_so_espaco:
 
 law tutorstate_reason_apara:
   {T.reasonLine("  Pi não encontrado.  ") == "Pi não encontrado." : String}
+
+# O motivo comprido não é cortado: a coluna quebra em linhas.
+law tutorstate_reason_longo_intacto:
+  {T.reasonLine("motivo longo sem fim.") == "motivo longo sem fim." : String}
 
 # ---------- escolha do estado ----------
 
@@ -265,6 +266,29 @@ law tutorstate_pi_ausente_chamar_secundario:
 
 law tutorstate_pi_ausente_tres_acoes:
   {List.length(&2, V.ViewNode, V.kidsOf(kidAt(T.failedView(M.msg("tutor.error.piMissing")), 1n))) == 3n : Nat}
+
+# OpenCode ausente: o caminho e a variável ficam no log; a tela só diz que não
+# está instalado e leva a instalar. Chamar de novo some; log e ajustes ficam
+# secundários.
+law tutorstate_opencode_ausente_marca:
+  {T.opencodeMissing(M.msg("err.opencode.notFound")) == True{} : Bool}
+
+law tutorstate_opencode_presente_nao_marca:
+  {T.opencodeMissing(M.msg1("err.opencode.stopped", "code", "7")) == False{} : Bool}
+
+law tutorstate_opencode_ausente_instalar_principal:
+  {at(V.kidsOf(kidAt(T.opencodeMissingView(M.msg("err.opencode.notFound")), 1n)), 0n)
+    == T.button("state-opencode-install", "ts-primary", M.msg("tutor.opencode.install"), M.msg("tutor.opencode.installTitle"), "OpenReleaseNotes") : V.ViewNode}
+
+law tutorstate_opencode_ausente_sem_chamar:
+  {List.length(&2, V.ViewNode, V.kidsOf(kidAt(T.opencodeMissingView(M.msg("err.opencode.notFound")), 1n))) == 3n : Nat}
+
+law tutorstate_opencode_ausente_log_secundario:
+  {at(V.kidsOf(kidAt(T.opencodeMissingView(M.msg("err.opencode.notFound")), 1n)), 1n)
+    == T.button("state-log", "ts-secondary", M.msg("tutor.log"), M.msg("tutor.logTitle"), "OpenLog") : V.ViewNode}
+
+law tutorstate_opencode_ausente_escolhe_view:
+  {V.tagOf(T.errorView(True{}, "", M.msg("err.opencode.notFound"))) == "div" : String}
 
 # ---------- texto da caixa por estado (#27) ----------
 

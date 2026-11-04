@@ -36,7 +36,10 @@ class OpenCodeControls {
     this.catalog = [];
   }
 
-  /** O catálogo em cache; só relê quando a leitura anterior veio vazia. @returns {Promise<CatalogModel[]>} */
+  /**
+   * O catálogo em cache; só relê quando a leitura anterior veio vazia.
+   * @returns {Promise<CatalogModel[]>}
+   */
   async load() {
     if (this.catalog.length) return this.catalog;
     try {

@@ -1,6 +1,6 @@
 # 1. Bend só para invariantes de domínio
 
-**Status:** aceita pelo usuário em 2026-10-17 (#56).
+**Status:** substituída pelo [ADR 0003](0003-bend-pelo-que-a-lei-prova.md) em 2026-11-01. Aceita pelo usuário em 2026-10-17 (#56).
 
 ## Contexto
 

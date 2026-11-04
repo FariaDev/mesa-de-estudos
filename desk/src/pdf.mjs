@@ -1,5 +1,6 @@
 import {bindPointerDrag} from './pointer-drag.mjs';
-import * as pdfjs from '../node_modules/pdfjs-dist/build/pdf.mjs';
+import {loadPdfjs} from './pdfjs-loader.mjs';
+import {nearestPageIndex} from './pdf-scroll.mjs';
 import {icon} from '../icons.mjs';
 import {$,S,toast,save,updateContextSummary,updateWindowTitle,layoutSnapshot,loadCourse} from './state.mjs';
 import {addAttachments,hideQuoteButton,MAX_ATTACH,MAX_ATTACH_BYTES} from './chat.mjs';
@@ -11,10 +12,10 @@ import {applyIcons,build,renderInto,renderChildren} from './view-host.mjs';
 import {navBack,toggleNav} from './nav.mjs';
 import {offsetFacts,offsetFromRecord,labelsList,readDocLabels} from './pdf-labels.mjs';
 import {bindPdfDrop,isPdfFile} from './pdf-drop.mjs';
-import {text as uiText} from './ui-text.mjs';
+import {text as uiText,t as uiT} from './ui-text.mjs';
 import {message as uiMessage} from './i18n.mjs';
 import {roundNat, toNat} from './bend-nat.mjs';
-pdfjs.GlobalWorkerOptions.workerSrc=new URL('../node_modules/pdfjs-dist/build/pdf.worker.mjs',import.meta.url).href;
+import {causeArg} from './error-detail.mjs';
 // Dobra de acento que preserva o comprimento da string (índices continuam válidos
 // para o destaque): minúsculas + acentos pt-BR → letra base.
 const FOLD_MAP={á:'a',à:'a',â:'a',ã:'a',ä:'a',å:'a',é:'e',è:'e',ê:'e',ë:'e',í:'i',ì:'i',î:'i',ï:'i',ó:'o',ò:'o',ô:'o',õ:'o',ö:'o',ú:'u',ù:'u',û:'u',ü:'u',ç:'c',ñ:'n',ý:'y',ÿ:'y'};
@@ -36,7 +37,9 @@ async function cachedPdf(file){
  if(pdfCache.has(file))return pdfCache.get(file);
  if(pdfInflight.has(file))return pdfInflight.get(file);
  const job=(async()=>{
-  const bytes=await window.desk.readPDF(file);
+  /* Os bytes e o pdf.js sobem juntos: o IPC de leitura e a avaliação do módulo
+     não dependem um do outro, e a página só nasce depois dos dois. */
+  const [bytes,pdfjs]=await Promise.all([window.desk.readPDF(file),loadPdfjs()]);
   // JBIG2/JPEG 2000 e perfis ICC precisam dos decodificadores locais. Sem
   // wasmUrl o PDF.js pode concluir a página omitindo partes da imagem.
   const loading=pdfjs.getDocument({data:bytes,standardFontDataUrl:new URL('../node_modules/pdfjs-dist/standard_fonts/',import.meta.url).href,cMapUrl:new URL('../node_modules/pdfjs-dist/cmaps/',import.meta.url).href,cMapPacked:true,wasmUrl:new URL('../node_modules/pdfjs-dist/wasm/',import.meta.url).href});
@@ -146,9 +149,15 @@ const PDF_MAX_RETAINED_CANVASES=12;
 const PDF_MAX_RETAINED_PIXELS=40*1024*1024;
 export class PdfPanel {
  constructor(index,label){
-  Object.assign(this,{index,label,page:1,zoom:1,scrollX:0,scrollY:0,invert:false,minimized:false,findOpen:false,loading:false,path:null,doc:null,rotation:0,renderTasks:new Map(),pageEls:[],version:0,_renderSeq:0,docMemo:new Map(),findTerm:'',findPages:[],findTotal:0,textDoc:null,textPages:null,pageLabels:[],pageOffset:null,printedOpen:false,dropHint:null,printedRow:null,printedToggle:null,_dropping:false,_dropOver:false,_drop:null});
+  Object.assign(this,{index,label,page:1,zoom:1,scrollX:0,scrollY:0,invert:false,minimized:false,findOpen:false,loading:false,path:null,doc:null,rotation:0,renderTasks:new Map(),pageEls:[],version:0,_renderSeq:0,docMemo:new Map(),findTerm:'',findPages:[],findTotal:0,textDoc:null,textPages:null,pageLabels:[],pageOffset:null,printedOpen:false,dropHint:null,printedRow:null,_dropping:false,_dropOver:false,_drop:null});
   this.handlers={
-   OpenDoc:e=>this.load(e.currentTarget.value),
+   // A última opção do seletor é "Abrir PDF…": ela abre o arquivo e devolve a
+   // seleção ao documento atual (o `<select>` não fica preso na sentinela).
+   OpenDoc:e=>{
+    const select=e.currentTarget;
+    if(select.value==='__open__'){select.value=this.path||'';this.openFile();return;}
+    this.load(select.value);
+   },
    OpenFile:()=>this.openFile(),
    // Atalhos da folha "Lista 0" do leitor sem material.
    RevealFolder:()=>this.revealFolder(),
@@ -166,7 +175,8 @@ export class PdfPanel {
    NavBack:()=>navBack(this),
    // Popover de favoritos/sumário (o corpo é do nav.mjs).
    ToggleNav:()=>toggleNav(this),
-   GotoPage:e=>this.goto(Number(e.currentTarget.value)),
+   OpenPager:()=>this.openPager(),
+   GotoPage:e=>{this.goto(Number(e.currentTarget.value));this.closePager();},
    ZoomOut:()=>this.nudgeZoom(-.2),
    ZoomIn:()=>this.nudgeZoom(.2),
    Fit:()=>this.fitWidth(),
@@ -183,19 +193,14 @@ export class PdfPanel {
   // O contrato antigo já nascia com `aria-pressed="false"` no botão de inverter
   // (o `load` e o `toggleInvert` continuam atualizando o mesmo atributo).
   this.q('.invert').setAttribute('aria-pressed',String(!!this.invert));
+  this.failReason='';
   this.paintViewport();
   renderInto(this.q('.page-total'),pdfView.pageTotalEmpty());
   renderInto(this.q('.zoom-label'),pdfView.zoomLabel(100));
   this.populate();
-  /* Controles que o núcleo desenha e o painel monta fora das regiões pinadas
-     pelo contrato (`pdfpageview.test`): o botão da numeração impressa entra no
-     menu "Mais opções", antes do recolher (que continua o último), e a linha
-     entra entre a barra e o palco. A área alvo do PDF solto cobre o palco. */
-  this.printedToggle=build(pdfPage.printedToggleBtn(this.label,this.printedOpen),this.handlers);
-  iconize(this.printedToggle);
-  this.q('.collapse').before(this.printedToggle);
-  /* Escolher uma ação do menu o fecha (o zoom − e + ficam, para ajustar de
-     novo); o foco volta para o botão que abriu, não se perde no <body>. */
+  /* A linha da numeração impressa entra entre a barra e o palco (o botão que
+     a abre mora em Configurações → Leitores). A área alvo do PDF solto cobre o
+     palco. */
   this.q('.pdf-more-pop').addEventListener('click',event=>{
    const button=event.target.closest?.('button');
    if(!button||button.matches('.in,.out'))return;
@@ -206,6 +211,21 @@ export class PdfPanel {
   this.printedRow=build(pdfPage.printedRow(this.label,this.printedOpen),this.handlers);
   iconize(this.printedRow);
   this.q('.pdf-stage').before(this.printedRow);
+  const pagerInput=this.q('.page-number');
+  pagerInput.addEventListener('blur',()=>this.closePager());
+  pagerInput.addEventListener('keydown',event=>{
+   if(event.key==='Enter'){
+    event.preventDefault();
+    this.goto(Number(pagerInput.value));
+    this.closePager();
+    this.q('.pager')?.focus();
+    return;
+   }
+   if(event.key!=='Escape')return;
+   event.preventDefault();
+   this.closePager();
+   this.q('.pager')?.focus();
+  });
   this.dropHint=build(pdfPage.dropHint(this.label),{});
   this.q('.pdf-stage').append(this.dropHint);
   this._drop=bindPdfDrop(this.el,{onActive:on=>this.setDropActive(on),onDrop:file=>this.dropPDF(file)});
@@ -224,6 +244,7 @@ export class PdfPanel {
     na aba Livre (e sem matéria) segue o vazio da própria aba. */
  readerState(){
   if(this.loading)return{$:'PdfLoading'};
+  if(this.failReason)return{$:'PdfFailed',reason:this.failReason};
   if(this.doc)return{$:'PdfReady'};
   return hasCourseSheet()?{$:'PdfSheet',course:String(S.activeCourseName||'')}:{$:'PdfEmpty'};
  }
@@ -232,7 +253,7 @@ export class PdfPanel {
   const state=this.readerState();
   /* Sem material (folha ou vazio) a barra fica só com o rótulo, "Nenhum material"
      e Mais opções: página, busca e favoritos não têm onde agir (#27 B3). */
-  this.el.toggleAttribute('data-no-material',state.$==='PdfSheet'||state.$==='PdfEmpty');
+  this.el.toggleAttribute('data-no-material',state.$==='PdfSheet'||state.$==='PdfEmpty'||state.$==='PdfFailed');
   const out=pdfPage.viewport(state,{$:'Nil'});
   if(out.$!=='Some')return;
   const box=this.q('.pdf-viewport');
@@ -324,8 +345,21 @@ export class PdfPanel {
  togglePrinted(){
   this.printedOpen=!this.printedOpen;
   if(this.printedRow)this.printedRow.hidden=!this.printedOpen;
-  if(this.printedToggle)this.printedToggle.setAttribute('aria-expanded',String(this.printedOpen));
   if(this.printedOpen){this.paintPrinted();this.q('.printed-input')?.focus();}
+ }
+ /* O pager "1 / 3" vira o campo de página ao clique: o botão some, o campo
+    aparece com a página atual selecionada. Enter/blur/Esc devolvem o botão. */
+ openPager(){
+  const button=this.q('.pager'),input=this.q('.page-number');
+  if(!button||!input||!this.doc)return;
+  input.value=pdfView.pageNumberValue(toNat(this.page));
+  button.hidden=true;input.hidden=false;
+  input.focus();input.select();
+ }
+ closePager(){
+  const button=this.q('.pager'),input=this.q('.page-number');
+  if(!button||!input||input.hidden)return;
+  input.hidden=true;button.hidden=false;
  }
  // O alvo é SEMPRE a página física; o rótulo/impressa só escolhe o alvo.
  goPrinted(event){
@@ -421,8 +455,8 @@ export class PdfPanel {
    if(out.data){await loadCourse(out.data);return;}
    if(!out.path)return;
    if(!S.library.some(p=>p.path===out.path)){S.library.push({name:out.name||name,path:out.path});S.panels.forEach(p=>p.populate());}
-   await this.load(out.path);
-   toast(pdfPage.dropOpenedText(String(out.name||name),this.label));
+   const opened=await this.load(out.path);
+   if(opened)toast(pdfPage.dropOpenedText(String(out.name||name),this.label));
   }catch(e){
    if(current())toast(e?.message||pdfPage.dropInvalidText());
   }finally{
@@ -533,7 +567,20 @@ export class PdfPanel {
    (0 incluído) > mapa por caminho. O mapa é compartilhado entre leitores; o
    snapshot é de cada painel — com o mesmo PDF nos dois, cada um volta na sua
    orientação. O mapa só decide quando o snapshot é legado (sem o campo). */
-const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation');this.loading=true;this.path=path;this.page=Math.max(1,use.page||1);this.zoom=use.zoom||1;this.rotation=normalizeRotation(memo?memo.rotation:explicitRotation?settings.rotation:(pdfRotations.get(path)??0));this.scrollX=use.scrollX||0;this.scrollY=use.scrollY||0;/* Página escura (#42) é do leitor, não do documento: trocar de material mantém; só a restauração do estado (que traz `invert`) a define. */this.invert=Object.prototype.hasOwnProperty.call(settings,'invert')?!!settings.invert:!!this.invert;this.findTerm='';this.findPages=[];this.findTotal=0;this.q('.pdf-select').value=path;this.titleSelect();this.updateFindCount();this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintRotationBtn();this.paintPrinted();this.paintViewport();this.loadPageOffset(path,id);renderInto(this.q('.pdf-foot'),pdfView.footLoading());try{const {doc}=await cachedPdf(path);if(id!==this.version)return;this.doc=doc;this.page=Math.max(1,Math.min(doc.numPages,this.page));this.capturePageLabels(doc,id);await this.render();this.loading=false;updateWindowTitle();save();}catch(e){this.loading=false;renderInto(this.q('.pdf-foot'),pdfView.footError());toast(e.message);}}
+const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation');this.loading=true;this.failReason='';this.path=path;this.page=Math.max(1,use.page||1);this.zoom=use.zoom||1;this.rotation=normalizeRotation(memo?memo.rotation:explicitRotation?settings.rotation:(pdfRotations.get(path)??0));this.scrollX=use.scrollX||0;this.scrollY=use.scrollY||0;/* Página escura (#42) é do leitor, não do documento: trocar de material mantém; só a restauração do estado (que traz `invert`) a define. */this.invert=Object.prototype.hasOwnProperty.call(settings,'invert')?!!settings.invert:!!this.invert;this.findTerm='';this.findPages=[];this.findTotal=0;this.q('.pdf-select').value=path;this.titleSelect();this.updateFindCount();this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintRotationBtn();this.paintPrinted();this.paintViewport();this.loadPageOffset(path,id);try{const {doc}=await cachedPdf(path);if(id!==this.version)return false;this.doc=doc;this.failReason='';this.page=Math.max(1,Math.min(doc.numPages,this.page));this.capturePageLabels(doc,id);await this.render();this.loading=false;updateWindowTitle();save();return true;}catch(e){
+   /* Falha ao ler/abrir: o leitor sai do estado de carregamento e mostra o
+      motivo no próprio painel (#90). A base só trocava o rodapé; sem ele, o
+      toast sozinho deixava o miolo em "carregando" para sempre. */
+   if(id!==this.version)return false;
+   this.loading=false;
+   this.doc=null;
+   this.failReason=causeArg(e)||uiT('pdf.view.failedUnknown');
+   this.paintViewport();
+   this.paintPrinted();
+   updateWindowTitle();
+   toast(e?.message||uiMessage('pdf.view.failed',{reason:this.failReason}));
+   return false;
+  }}
  // Sumário do documento (pdf.js `getOutline` com o destino resolvido): lista
  // de `{title, page, depth}` com a página 1-based. Cache por doc — o teto de 40
  // linhas é o `maxOutline()` do núcleo. Papelão sem `/Outlines` devolve [].
@@ -561,20 +608,22 @@ const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation')
  cancelRenders(){for(const task of this.renderTasks.values())try{task.cancel();}catch{}this.renderTasks.clear();}
  updatePageUI(force=false){
   if(!this.doc)return;
-  const page=toNat(this.page),total=toNat(this.doc.numPages),file=this.path.split(/[/\\]/).at(-1)||'';
+  const page=toNat(this.page),total=toNat(this.doc.numPages);
   const pageInput=this.q('.page-number');
   /* Um render atrasado (janela/ResizeObserver) não sobrescreve a página que o
      usuário está digitando: o valor fica até o Enter/blur confirmar; aí o
      `goto` (force) alinha o campo com a página real. */
   if(force||document.activeElement!==pageInput)pageInput.value=pdfView.pageNumberValue(page);
   pageInput.max=pdfView.pageNumberMax(total);
+  /* O campo e o pager dizem onde o leitor está ("Página 2 de 5"), não só o
+     nome do material (#90). O build do núcleo nasce no 1/1; aqui vem o real. */
+  const pageAria=uiText(pdfPage.pageAria(page,total));
+  pageInput.setAttribute('aria-label',pageAria);
+  this.q('.pager').setAttribute('aria-label',pageAria);
+  this.q('.pager-current').textContent=pdfView.pageNumberValue(page);
   renderInto(this.q('.page-total'),pdfView.pageTotal(total));
   renderInto(this.q('.zoom-label'),pdfView.zoomLabel(roundNat(this.zoom*100)));
-  renderInto(this.q('.pdf-foot'),pdfView.footReadyLabeled(page,total,file,this.printedLabelText(this.page)));
   this.paintPrinted();
-  const nav=pdfView.navChrome(true,this.page<=1,this.page>=this.doc.numPages);
-  this.q('.prev').disabled=nav.prevDisabled;
-  this.q('.next').disabled=nav.nextDisabled;
   this.updateFindCount();updateContextSummary();updateWindowTitle();
  }
  updateFindCount(){
@@ -598,7 +647,7 @@ const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation')
    renderChildren(span,pdfPage.hlSegments(text,lower,term),{});
   }
  }
- updateCurrentPage(){if(!this.pageEls.length||!this.el.isConnected)return;const box=this.q('.pdf-viewport');const center=box.scrollTop+box.clientHeight/2;let nearest=0,distance=Infinity;for(let i=0;i<this.pageEls.length;i++){const el=this.pageEls[i];const d=Math.abs(el.offsetTop+el.offsetHeight/2-center);if(d<distance){distance=d;nearest=i;}}const page=nearest+1;if(page!==this.page){this.page=page;this.updatePageUI(true);}}
+ updateCurrentPage(){if(!this.pageEls.length||!this.el.isConnected)return;const box=this.q('.pdf-viewport');const center=box.scrollTop+box.clientHeight/2;const page=nearestPageIndex(this.pageEls,center)+1;if(page!==this.page){this.page=page;this.updatePageUI(true);}}
  // Mede todas as páginas de uma vez. A rotação efetiva é nativa do PDF mais a
  // volta do usuário: entra na base (fit), no viewport final e na chave de
  // render — o PDF.js cuida da geometria; nada de `transform` CSS na página.
@@ -662,7 +711,7 @@ const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation')
    this.renderTasks.set(n,task);await task.promise;if(this.renderTasks.get(n)===task)this.renderTasks.delete(n);
    if(stale())return;
    let layer=null;
-   try{layer=document.createElement('div');layer.className='textLayer';layer.style.setProperty('--total-scale-factor',String(viewport.scale));const tl=new pdfjs.TextLayer({textContentSource:await page.getTextContent(),container:layer,viewport});await tl.render();if(!layer.querySelector('span'))layer=null;}catch{layer=null;}
+   try{const pdfjs=await loadPdfjs();layer=document.createElement('div');layer.className='textLayer';layer.style.setProperty('--total-scale-factor',String(viewport.scale));const tl=new pdfjs.TextLayer({textContentSource:await page.getTextContent(),container:layer,viewport});await tl.render();if(!layer.querySelector('span'))layer=null;}catch{layer=null;}
    if(stale())return;
    const previous=el.querySelector(':scope > canvas');
    if(previous){previous.width=0;previous.height=0;}

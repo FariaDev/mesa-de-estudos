@@ -11,14 +11,13 @@
  * Contrato congelado:
  *   const a = new ClaudeAdapter({conversationId, sessionId, resume, cwd,
  *     claudePath, systemPrompt, env, queryFactory, sdkLoader, persistDelivery,
- *     timeoutMs, toolPolicy, permissionTtlMs, selection, persistSelection,
+ *     timeoutMs, permissionTtlMs, selection, persistSelection,
  *     controlsTimeoutMs, priorMessages});
  *   a.on('event', e => ...);                       // eventos canônicos
  *   await a.connect();                             // sem chamada de modelo
  *   await a.initializeControls();                  // AÇÃO EXPLÍCITA: cria/reusa
  *                                                  // a Query sem prompt, lê o
  *                                                  // catálogo e restaura a escolha
- *   a.setToolPolicy(policy);                       // troca a política sem turno
  *   await a.setControls({model, effort}, {persistSelection}); // só ocioso
  *   a.controlsSnapshot();                          // seletor/estados seguros
  *   await a.send({id, text, images});              // aceite = replay/correlação
@@ -26,8 +25,6 @@
  *   await a.commands(); await a.command({id, name, text});
  *   await a.compact({customInstructions});         // fim = compact_result
  *   a.sessionUsage();                              // medidor ou null
- *   a.respond({id, confirmed, cancelled});         // permissões concretas
- *   a.respond({id, answers});                      // pergunta (AskUserQuestion)
  *   await a.cancel();                              // interrupt; busy até result
  *   await a.history();                             // getSessionMessages oficial
  *   a.close();                                     // encerra só a própria Query
@@ -79,13 +76,12 @@
  * pública da CLI) para o eco de aceite; `result.user_message_uuid` (e o array
  * `user_message_uuids`, quando existir) é o fallback de correlação.
  *
- * Segurança de ferramentas (v0): base só Read/Glob/Grep; Bash/Edit/Write/
- * Agent/Task/MCP herdado desabilitados; `settingSources: []`,
- * `strictMcpConfig: true`, sem MCP herdado; em Livre, somente a ferramenta
- * nativa `mcp__mesa__criar_pdf` pode salvar um novo material. Hook PreToolUse com realpath
- * aplica `toolPolicy` (readPaths/readRoots) inclusive em chamadas
- * auto-aprovadas; Glob/Grep não escapam a raiz por symlink; `canUseTool` nunca
- * devolve `updatedPermissions`.
+ * Ferramentas (#91): o tutor não recebe Read, Glob, Grep, Bash, Edit,
+ * MultiEdit, Write, Agent, Task nem rede; nenhuma ferramenta nativa é exposta.
+ * `allowedTools` pré-aprova `mcp__mesa__*`; `canUseTool` nega qualquer nativa
+ * (a pergunta nativa saiu na #92) e o MCP `mesa` em processo entrega as
+ * ferramentas de estudo. O hook PreToolUse só reserva o `callRef` da atividade;
+ * `settingSources: []` e `strictMcpConfig: true`.
  *
  * Liquidação (rodada 3, política pura em `claude-turn-policy.cjs`): um
  * `result` sem eco só encerra o turno ÚNICO com aceite persistido, não
@@ -104,14 +100,6 @@
  * limitada, com evicção de DOM explicitamente adiada. Incerteza de entrega
  * hidratada (`deliveryUncertain`) é PEGAJOSA: envio, `initializeControls` e
  * `setControls` recusam antes de consulta/nativo/disco até um adaptador novo.
- *
- * Perguntas (AskUserQuestion, APIs do SDK pinado 0.3.301): a ferramenta entra
- * em `tools` (sai de `disallowedTools`) mas NÃO concede escrita/Bash/MCP: o
- * `canUseTool` emite `permission_request {method:'question', questions}` e só
- * devolve allow com respostas ESTRUTURADAS validadas (`respond({id, answers})`),
- * com `updatedInput {questions, answers}` (multiSelect vira "A, B"). Cancelar,
- * abort (AbortSignal do SDK) ou vencer o prazo nega com
- * `permission_cancelled {id, reason}`; ID vencido nunca concede allow.
  *
  * Limite de uso: `rate_limit_event` de PRIMEIRO NÍVEL (o SDK 0.3.301 declara
  * esse tipo fora de `system`; o subtipo em `system` fica como leitura legada
@@ -139,8 +127,8 @@ const {createActivityCallGate}=require('./activity-call-gate.cjs');
 /* Política pura de liquidação do turno (correlação, fim de consulta, falhas
    nativas, retry e recusa): o adaptador mede os fatos e aplica o veredito. */
 const turnPolicy = require('./claude-turn-policy.cjs');
-const {ADAPTER_VERSION, CLAUDE_CLIENT_APP, DEFAULT_TIMEOUT_MS, DEFAULT_PERMISSION_TTL_MS, MAX_PERMISSION_TTL_MS, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TEXT_BYTES, MAX_CONTENT_BYTES, MAX_TOOL_RESULT_CHARS, MAX_TOOL_DETAILS_CHARS, MAX_HISTORY_MESSAGES, MAX_HISTORY_BYTES, MAX_HISTORY_PAGES, MAX_RATE_LIMIT_NOTICES, MAX_RATE_LIMIT_WAIT_MS, DEFAULT_CONTROLS_TIMEOUT_MS, MAX_CONTROLS_TIMEOUT_MS, CONTROLS_STATES, ALLOWED_IMAGE_TYPES, ALLOWED_TOOLS, SDK_TOOLS, DISALLOWED_TOOLS, RATE_LIMIT_WINDOWS, ASSISTANT_ERROR_CODES, CAPABILITIES, MODEL_INFO, EVENT_TYPES, DELIVERY_STATUSES, ClaudeAdapterError, MessageQueue} = require('./claude-adapter-contract.cjs');
-const {isUuid, errorText, asAdapterError, normalizeSelectionInput, canonicalPath, isInside, normalizeToolPolicy, extractPathFromInput, validateImage, prepareMessage, normalizeUserQuestions, validateQuestionAnswers} = require('./claude-adapter-input.cjs');
+const {ADAPTER_VERSION, CLAUDE_CLIENT_APP, DEFAULT_TIMEOUT_MS, MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TEXT_BYTES, MAX_CONTENT_BYTES, MAX_TOOL_RESULT_CHARS, MAX_TOOL_DETAILS_CHARS, MAX_HISTORY_MESSAGES, MAX_HISTORY_BYTES, MAX_HISTORY_PAGES, MAX_RATE_LIMIT_NOTICES, MAX_RATE_LIMIT_WAIT_MS, DEFAULT_CONTROLS_TIMEOUT_MS, MAX_CONTROLS_TIMEOUT_MS, CONTROLS_STATES, ALLOWED_IMAGE_TYPES, ALLOWED_TOOLS, SDK_TOOLS, DISALLOWED_TOOLS, RATE_LIMIT_WINDOWS, ASSISTANT_ERROR_CODES, CAPABILITIES, MODEL_INFO, EVENT_TYPES, DELIVERY_STATUSES, ClaudeAdapterError, MessageQueue} = require('./claude-adapter-contract.cjs');
+const {isUuid, errorText, asAdapterError, normalizeSelectionInput, validateImage, prepareMessage} = require('./claude-adapter-input.cjs');
 const {normalizeAssistantBlocks, summarizeToolResult, normalizeHistory, normalizeUsage, normalizePriorMessages, mergePriorHistory} = require('./claude-adapter-history.cjs');
 const {ClaudeAdapterRateLimit, rateLimitReset, formatWaitMs} = require('./claude-adapter-rate-limit.cjs');
 const {installPrototypeMethods} = require('../prototype-mixins.cjs');
@@ -148,7 +136,7 @@ const {ClaudeAdapterControls} = require('./claude-adapter-controls.cjs');
 const {ClaudeAdapterTurns} = require('./claude-adapter-turns.cjs');
 const {ClaudeAdapterQuery} = require('./claude-adapter-query.cjs');
 const {ClaudeAdapterStream} = require('./claude-adapter-stream.cjs');
-const {ClaudeAdapterPermissions} = require('./claude-adapter-permissions.cjs');
+const {ClaudeAdapterGate} = require('./claude-adapter-gate.cjs');
 const {ClaudeAdapterSteer} = require('./claude-adapter-steer.cjs');
 const {ClaudeAdapterCommands} = require('./claude-adapter-commands.cjs');
 const {ClaudeAdapterMeter} = require('./claude-adapter-meter.cjs');
@@ -169,9 +157,7 @@ class ClaudeAdapter extends EventEmitter {
       sdkLoader = null,
       persistDelivery = null,
       timeoutMs = DEFAULT_TIMEOUT_MS,
-      toolPolicy = null,
       detectClaude = null,
-      permissionTtlMs = DEFAULT_PERMISSION_TTL_MS,
       selection = null,
       persistSelection = null,
       controlsTimeoutMs = DEFAULT_CONTROLS_TIMEOUT_MS,
@@ -184,6 +170,7 @@ class ClaudeAdapter extends EventEmitter {
       previewActivity = null,
       viewFigure = null,
       geogebra = null,
+      readPdf = null, searchMaterial = null, listMaterials = null, saveNote = null, proposeReview = null, showCard = null,
       tutorLanguage = null,
       priorMessages = null,
       importedPrefixLength = 0,
@@ -220,6 +207,14 @@ class ClaudeAdapter extends EventEmitter {
     this._previewActivity = this._createActivity && typeof previewActivity === 'function' ? previewActivity : null;
     /* Ver a figura (#60): o print do SVG ou da cerca `plot`; não grava nada. */
     this._viewFigure = typeof viewFigure === 'function' ? viewFigure : null;
+    /* Ler PDF no processo: o Read nativo pede poppler. O rascunho (`noTools`) não recebe. */
+    this._readPdf = typeof readPdf === 'function' ? readPdf : null;
+    this._searchMaterial = typeof searchMaterial === 'function' ? searchMaterial : null;
+    this._listMaterials = typeof listMaterials === 'function' ? listMaterials : null; this._saveNote = typeof saveNote === 'function' ? saveNote : null;
+    /* Cartões `quiz`/`perguntar` (#92): o host registra e a ferramenta volta. */
+    this._showCard = typeof showCard === 'function' ? showCard : null;
+    /* Card de revisão: abre o diálogo; o núcleo só grava com o aluno. */
+    this._proposeReview = typeof proposeReview === 'function' ? proposeReview : null;
     this._activityCallGate = this._createActivity ? createActivityCallGate({
       current:()=>({conversationId:this._conversationId,generation:this._generation,runId:this._runId,
         active:!this._closed&&!this._cancelRequested&&!!this._turn&&!this._turn.finalized}),
@@ -227,10 +222,6 @@ class ClaudeAdapter extends EventEmitter {
     }) : null;
     this._persistDelivery = typeof persistDelivery === 'function' ? persistDelivery : null;
     this._timeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
-    this._permissionTtlMs = Number.isFinite(permissionTtlMs) && permissionTtlMs > 0
-      ? Math.min(Math.floor(permissionTtlMs), MAX_PERMISSION_TTL_MS)
-      : 0;
-    this._toolPolicy = normalizeToolPolicy(toolPolicy, this._cwd);
     this._detectClaude = typeof detectClaude === 'function' ? detectClaude : environment.detectClaude;
     /* SDK/Query simulados pulam a detecção, a menos que o host injete o
        detector de propósito (o teste de janela prova a escolha do executável
@@ -246,7 +237,6 @@ class ClaudeAdapter extends EventEmitter {
        sem sessão salva em ~/.claude/projects. */
     this._noTools = noTools === true;
     this._persistSession = persistSession !== false;
-
     this._connected = false;
     this._closed = false;
     this._busy = false;
@@ -263,7 +253,6 @@ class ClaudeAdapter extends EventEmitter {
     this._initEmitted = false;
     this._version = null;
     this._model = null;
-    this._permissions = new Map();
     this._rateLimitNotices = new Map();
     this._rejectedWindows = new Map();
     this._turn = null;
@@ -376,21 +365,6 @@ class ClaudeAdapter extends EventEmitter {
     }
     this._connected = true;
     return this.snapshot();
-  }
-
-  /* Troca a política de caminhos (ex.: PDF ativo muda por prompt). Sempre
-     canonicaliza; recusa com turno em andamento ou permissão pendente para
-     não mudar a regra no meio de uma decisão já apresentada. */
-
-  setToolPolicy(policy) {
-    if (this._closed) {
-      throw new ClaudeAdapterError('CLAUDE_CLOSED', uiMsg('err.claude.closedPolicy'), null, true);
-    }
-    if (this._busy || this._turn || this._permissions.size) {
-      throw new ClaudeAdapterError('CLAUDE_BUSY', uiMsg('err.claude.busyPolicy'), null, true);
-    }
-    this._toolPolicy = normalizeToolPolicy(policy, this._cwd);
-    return {readPaths: [...this._toolPolicy.readPaths], readRoots: [...this._toolPolicy.readRoots]};
   }
 
   /* ---------------- modelo/esforço (controles nativos) ----------------
@@ -537,12 +511,11 @@ class ClaudeAdapter extends EventEmitter {
     return turn.history;
   }
 
-  /* Interrompe o turno. Permissões/perguntas pendentes são negadas aqui;
+  /* Interrompe o turno. Permissões pendentes são negadas aqui;
      busy continua até `result`/fim de consulta/close (nada é inferido). */
 
   async cancel() {
     this._cancelRequested = true;
-    this._invalidatePermissions('Cancelado pelo usuário', this._turn, 'user');
     const query = this._query;
     if (!query || !this._busy) return {cancelled: false, requested: true};
     try {
@@ -551,47 +524,6 @@ class ClaudeAdapter extends EventEmitter {
       this._emit('warning', {message: `não deu para interromper a consulta (${errorText(error)})`, code: 'CLAUDE_INTERRUPT_FAILED'});
     }
     return {cancelled: true, requested: true};
-  }
-
-  /* Resposta de permissão/pergunta. `allow` de confirmação só com
-     confirmed === true; pergunta exige `answers` estruturadas e validadas
-     (nunca `confirmed` sozinho). Nunca aplica `updatedPermissions`/sugestões
-     globais. ID vencido/desconhecido não aceita nada. */
-
-  respond(input = {}) {
-    const id = input && typeof input.id === 'string' ? input.id : null;
-    const entry = id ? this._permissions.get(id) : null;
-    if (!entry) return {ok: false, id, code: 'CLAUDE_PERMISSION_UNKNOWN'};
-
-    if (input.cancelled === true) {
-      this._emit('permission_cancelled', {id, reason: 'user'});
-      entry.finish({behavior: 'deny', message: 'Cancelado pelo usuário'});
-      return {ok: true, id, cancelled: true};
-    }
-
-    if (entry.method === 'question') {
-      if (input.confirmed === false) {
-        entry.finish({behavior: 'deny', message: 'Recusado pelo usuário'});
-        return {ok: true, id, allowed: false};
-      }
-      if (input.answers === undefined || input.answers === null) {
-        return {ok: false, id, code: 'CLAUDE_QUESTION_ANSWERS_REQUIRED'};
-      }
-      const validation = validateQuestionAnswers(entry.questions, input.answers);
-      if (!validation.ok) return {ok: false, id, code: validation.code, detail: validation.detail};
-      const result = {behavior: 'allow', updatedInput: {questions: entry.rawQuestions, answers: validation.answers}};
-      if (entry.toolUseID) result.toolUseID = entry.toolUseID;
-      entry.finish(result);
-      return {ok: true, id, allowed: true, answers: validation.answers};
-    }
-
-    if (input.confirmed !== true) {
-      entry.finish({behavior: 'deny', message: 'Recusado pelo usuário'});
-      return {ok: true, id, allowed: false};
-    }
-
-    entry.finish({behavior: 'allow'});
-    return {ok: true, id, allowed: true};
   }
 
   /* Histórico da PRÓPRIA sessão via API oficial; `options.sessionId` é ignorado
@@ -674,7 +606,6 @@ class ClaudeAdapter extends EventEmitter {
       this._runId = null;
       this._cancelRequested = false;
     }
-    this._invalidatePermissions('Conexão encerrada', turn, 'close');
     this._failOpenSteers('err.claude.steerQueryEnded');
     this._failOpenCompaction();
     const queue = this._queue;
@@ -731,7 +662,7 @@ class ClaudeAdapter extends EventEmitter {
 
 /* Cada responsabilidade mora no seu claude-adapter-*.cjs (#43 fase 2); o
    contrato público continua só neste arquivo. */
-installPrototypeMethods(ClaudeAdapter, [ClaudeAdapterControls, ClaudeAdapterTurns, ClaudeAdapterQuery, ClaudeAdapterRateLimit, ClaudeAdapterStream, ClaudeAdapterPermissions, ClaudeAdapterSteer, ClaudeAdapterCommands, ClaudeAdapterMeter]);
+installPrototypeMethods(ClaudeAdapter, [ClaudeAdapterControls, ClaudeAdapterTurns, ClaudeAdapterQuery, ClaudeAdapterRateLimit, ClaudeAdapterStream, ClaudeAdapterGate, ClaudeAdapterSteer, ClaudeAdapterCommands, ClaudeAdapterMeter]);
 
 module.exports = {
   ClaudeAdapter,
@@ -759,8 +690,6 @@ module.exports = {
     MAX_HISTORY_MESSAGES,
     MAX_HISTORY_BYTES,
     DEFAULT_TIMEOUT_MS,
-    DEFAULT_PERMISSION_TTL_MS,
-    MAX_PERMISSION_TTL_MS,
     MAX_RATE_LIMIT_NOTICES,
     MAX_RATE_LIMIT_WAIT_MS,
     DEFAULT_CONTROLS_TIMEOUT_MS,
@@ -774,14 +703,8 @@ module.exports = {
   normalizeUsage,
   normalizePriorMessages,
   mergePriorHistory,
-  normalizeUserQuestions,
-  validateQuestionAnswers,
   summarizeToolResult,
   formatWaitMs,
   rateLimitReset,
-  canonicalPath,
-  normalizeToolPolicy,
-  extractPathFromInput,
-  isInside,
   isUuid,
 };

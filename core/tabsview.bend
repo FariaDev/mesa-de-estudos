@@ -315,6 +315,9 @@ def shortcutsItem() -> V.ViewNode:
 def settingsItem() -> V.ViewNode:
   menuItem("settings", M.msg("menu.settings"), "settings", "OpenSettings", Nil{})
 
+def releaseNotesItem() -> V.ViewNode:
+  menuItem("release-notes", M.msg("menu.releaseNotes"), "sparkles", "OpenReleaseNotes", Nil{})
+
 def aboutItem() -> V.ViewNode:
   menuItem("about", M.msg("menu.about"), "help", "OpenAbout", Nil{})
 
@@ -335,7 +338,7 @@ def studyItems(f: MenuFacts) -> List<&2, V.ViewNode>:
 
 # Filhos do `#settings-pop` (o botão Ajustes, no lugar do antigo menu "Mesa").
 def settingsItems() -> List<&2, V.ViewNode>:
-  [settingsItem(), helpItem(), shortcutsItem(), aboutItem()]
+  [settingsItem(), helpItem(), shortcutsItem(), releaseNotesItem(), aboutItem()]
 
 # ---------- seletor único (janela estreita) ----------
 

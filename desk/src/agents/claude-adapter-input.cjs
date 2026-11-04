@@ -1,11 +1,8 @@
 'use strict';
 
 /* Entrada do ClaudeAdapter, sem I/O de rede: ids, erros, escolha de controles,
-   política de caminhos, imagens e mensagem do aluno, e perguntas do
-   AskUserQuestion. Saiu do claude-adapter.cjs na #43 fase 2. */
+   imagens e mensagem do aluno. Saiu do claude-adapter.cjs na #43 fase 2. */
 
-const fs = require('node:fs');
-const path = require('node:path');
 const {message: uiMsg} = require('../i18n.mjs');
 const {invalidValue} = require('../error-detail.mjs');
 const {MAX_IMAGES, MAX_IMAGE_BYTES, MAX_TEXT_BYTES, MAX_CONTENT_BYTES, MAX_SELECTION_ID, ALLOWED_IMAGE_TYPES, ClaudeAdapterError} = require('./claude-adapter-contract.cjs');
@@ -41,51 +38,6 @@ function normalizeSelectionInput(selection) {
     out.effort = selection.effort.trim().slice(0, MAX_SELECTION_ID);
   }
   return out;
-}
-
-function realpathBestEffort(value) {
-  try {
-    return typeof fs.realpathSync.native === 'function'
-      ? fs.realpathSync.native(value)
-      : fs.realpathSync(value);
-  } catch {
-    const parent = path.dirname(value);
-    if (!parent || parent === value) return value;
-    return path.join(realpathBestEffort(parent), path.basename(value));
-  }
-}
-
-function canonicalPath(target, cwd) {
-  return realpathBestEffort(path.resolve(cwd || process.cwd(), String(target)));
-}
-
-function isInside(child, root) {
-  if (child === root) return true;
-  return typeof child === 'string' && typeof root === 'string' && child.startsWith(root + path.sep);
-}
-
-/* Canonicaliza a política (construtor E setToolPolicy) para que trocar o PDF
-   por prompt não reabra caminhos antigos: cada chamada re-resolve readPaths e
-   readRoots. `readRoots` vazio cai para o cwd controlado. */
-function normalizeToolPolicy(policy, cwd) {
-  const readPaths = [];
-  const readRoots = [];
-  const push = (list, value) => {
-    if (typeof value === 'string' && value) list.push(realpathBestEffort(path.resolve(cwd || process.cwd(), value)));
-  };
-  for (const file of policy?.readPaths || []) push(readPaths, file);
-  for (const root of policy?.readRoots || []) push(readRoots, root);
-  if (!readRoots.length && cwd) readRoots.push(realpathBestEffort(cwd));
-  return {readPaths, readRoots};
-}
-
-function extractPathFromInput(toolName, input) {
-  if (!input || typeof input !== 'object') return null;
-  if (toolName === 'Read') return typeof input.file_path === 'string' ? input.file_path : null;
-  if (toolName === 'Glob' || toolName === 'Grep') {
-    return typeof input.path === 'string' && input.path ? input.path : null;
-  }
-  return null;
 }
 
 function validateImage(image, index) {
@@ -139,91 +91,12 @@ function prepareMessage({text, images} = {}) {
   return {blocks, bytes: totalBytes};
 }
 
-function normalizeUserQuestions(input) {
-  if (!Array.isArray(input)) return [];
-  const out = [];
-  input.forEach((value, index) => {
-    if (!value || typeof value !== 'object') return;
-    // The CLI looks up answers by its original question text, including spaces.
-    const question = typeof value.question === 'string' ? value.question : '';
-    if (!question.trim()) return;
-    const header = typeof value.header === 'string' && value.header.trim()
-      ? value.header.trim()
-      : `Pergunta ${index + 1}`;
-    const options = [];
-    for (const option of Array.isArray(value.options) ? value.options : []) {
-      if (!option || typeof option !== 'object') continue;
-      const label = typeof option.label === 'string' ? option.label.trim() : '';
-      if (!label) continue;
-      const normalized = {label, description: typeof option.description === 'string' ? option.description.trim() : ''};
-      if (typeof option.preview === 'string' && option.preview) normalized.preview = option.preview;
-      options.push(normalized);
-    }
-    out.push({id: question, header, question, options, multiSelect: value.multiSelect === true});
-  });
-  return out;
-}
-
-/* Respostas estruturadas: chave = texto exato da pergunta; valor string (ou
-   lista de strings para multiSelect, juntada com ", " como o CLI espera).
-   "Other" é texto livre, então NÃO se exige que a resposta seja uma opção —
-   exige-se forma válida, pergunta conhecida e nenhuma pergunta sem resposta. */
-function validateQuestionAnswers(questions, answers) {
-  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
-    return {ok: false, code: 'CLAUDE_QUESTION_ANSWERS_INVALID', detail: {reason: 'answers precisa ser objeto'}};
-  }
-  for (const key of Object.keys(answers)) {
-    if (!questions.some((question) => question.question === key)) {
-      return {ok: false, code: 'CLAUDE_QUESTION_ANSWERS_UNKNOWN', detail: {question: key}};
-    }
-  }
-  const normalized = {};
-  for (const question of questions) {
-    if (!Object.prototype.hasOwnProperty.call(answers, question.question)) {
-      return {ok: false, code: 'CLAUDE_QUESTION_ANSWERS_MISSING', detail: {question: question.question}};
-    }
-    const raw = answers[question.question];
-    if (Array.isArray(raw) && !question.multiSelect && raw.length > 1) {
-      return {ok: false, code: 'CLAUDE_QUESTION_ANSWER_INVALID', detail: {question: question.question, reason: 'escolha única com múltiplas respostas'}};
-    }
-    const values = Array.isArray(raw) ? raw : [raw];
-    const texts = [];
-    for (const value of values) {
-      if (typeof value !== 'string' || !value.trim()) {
-        return {ok: false, code: 'CLAUDE_QUESTION_ANSWER_INVALID', detail: {question: question.question, reason: 'resposta vazia ou não textual'}};
-      }
-      texts.push(value.trim());
-    }
-    if (!texts.length) {
-      return {ok: false, code: 'CLAUDE_QUESTION_ANSWER_INVALID', detail: {question: question.question, reason: 'resposta vazia'}};
-    }
-    /* Chave EXATA (inclusive '__proto__'/'constructor'): defineProperty cria
-       propriedade PRÓPRIA enumerável — atribuição dispararia o setter de
-       protótipo e perderia a resposta. O valor segue string juntada com ", ",
-       no formato nativo. */
-    Object.defineProperty(normalized, question.question, {
-      value: texts.join(', '),
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    });
-  }
-  return {ok: true, answers: normalized};
-}
-
 module.exports = {
   UUID_RE,
   isUuid,
   errorText,
   asAdapterError,
   normalizeSelectionInput,
-  realpathBestEffort,
-  canonicalPath,
-  isInside,
-  normalizeToolPolicy,
-  extractPathFromInput,
   validateImage,
   prepareMessage,
-  normalizeUserQuestions,
-  validateQuestionAnswers,
 };

@@ -28,8 +28,8 @@
  * texto do usuário escolhe o roteiro por marcador:
  *
  *   [claude:image]             responde citando quantas imagens recebeu
- *   [claude:permission-allow]  chama options.canUseTool('Read',...) e segue
- *   [claude:permission-deny]   idem, negado
+ *   [claude:permission-allow]  chama options.canUseTool('Read', arquivo no cwd) e segue
+ *   [claude:permission-deny]   chama Read em /etc/hosts, que a política nega na hora
  *   [claude:stall]             fica "pensando" até interrupt()/close()
  *   [claude:error]             termina com result de erro
  *   [claude:multi]             deltas fragmentados (texto quebrado em pedaços)
@@ -295,9 +295,9 @@ export function query({prompt,options={}}={}){
    return;
   }
 
-  /* Permissão: pede ao host (canUseTool) quando ele oferece; sem host, o
-     marcador decide. `Read` é ferramenta permitida pela ponte; o caminho fica
-     dentro do cwd da conversa para a política de caminhos aprovar. */
+  /* Leitura: pede ao host (canUseTool) quando ele oferece; sem host, o
+     marcador decide. O allow lê um .txt no cwd (a política aprova na hora).
+     O deny lê /etc/hosts, fora da política, e também não abre diálogo. */
   let permissionText='';
   if(marker==='retry'){
    yield {type:'system',subtype:'api_retry',session_id:sessionId,uuid:uuid(),attempt:2,max_retries:4,retry_delay_ms:500,error_status:529};
@@ -311,7 +311,7 @@ export function query({prompt,options={}}={}){
    for(const rateLimitType of ['five_hour','seven_day'])yield {type:'rate_limit_event',session_id:sessionId,uuid:uuid(),rate_limit_info:{status:'rejected',rateLimitType,resetsAt:Math.floor(Date.now()/1000)+60}};
    await sleep(600);
    yield {type:'rate_limit_event',session_id:sessionId,uuid:uuid(),rate_limit_info:{status:'allowed',rateLimitType:'five_hour'}};
-   trace('rate-release',{type:'five_hour'});await sleep(800);
+   trace('rate-release',{type:'five_hour'});await sleep(2500);
    yield {type:'rate_limit_event',session_id:sessionId,uuid:uuid(),rate_limit_info:{status:'allowed',rateLimitType:'seven_day'}};
    permissionText='Janelas liberadas (fixture).';
   }
@@ -334,7 +334,7 @@ export function query({prompt,options={}}={}){
   if(marker==='permission-allow'||marker==='permission-deny'){
    let answer=null;
    if(typeof options.canUseTool==='function'){
-    const target=path.join(String(options.cwd||process.cwd()),'fixture-read.txt');
+    const target=marker==='permission-deny'?'/etc/hosts':path.join(String(options.cwd||process.cwd()),'fixture-read.txt');
     try{
      answer=await options.canUseTool('Read',{file_path:target},{
       signal:state.abort.signal,

@@ -16,7 +16,7 @@ header{
 .header-actions{display:flex;gap:var(--space-1);align-items:center;flex:none}
 .header-actions > button,.nav-trigger{
  border-color:transparent;background:transparent;color:var(--fg);font-size:var(--fs-sm);height:28px;
- border-radius:var(--r-md);box-shadow:none;white-space:nowrap;
+ border-radius:var(--r-sm);box-shadow:none;white-space:nowrap;
 }
 .header-actions button:hover,.nav-trigger:hover{background:var(--hover)}
 .header-actions button:active,.nav-trigger:active{background:var(--active)}
@@ -29,7 +29,7 @@ header{
 #course-tabs::-webkit-scrollbar{display:none}
 #course-tabs button{
  height:28px;flex:0 0 auto;font-size:var(--fs-sm);padding:0 var(--space-4);border:0;background:transparent;
- color:var(--muted);border-radius:var(--r-md);white-space:nowrap;box-shadow:none;
+ color:var(--muted);border-radius:var(--r-sm);white-space:nowrap;box-shadow:none;
 }
 #course-tabs button:hover{background:var(--hover);color:var(--fg)}
 #course-tabs button.active,#course-tabs button.active:hover{background:var(--selected);color:var(--fg-strong);font-weight:600}
@@ -63,6 +63,11 @@ header.tabs-compact #course-tabs button[role=tab]:not(#review-tab):not(.ggb-tab)
  display:flex;align-items:center;gap:var(--space-3);
  background:var(--surface);flex-shrink:0;
 }
+/* `display:flex` do id vence o `[hidden]{display:none}` do navegador: sem esta
+   regra a barra ficava na tela (invisível pela motion, mas ocupando espaço e
+   recebendo clique/foco) depois de sair do GeoGebra. A saída animada continua
+   porque `motion.css` transiciona `display` com `allow-discrete`. */
+#ggb-bar[hidden]{display:none}
 #ggb-bar strong{font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong)}
 #ggb-bar button{font-size:var(--fs-xs);padding:var(--space-1) var(--space-3)}
 #ggb-bar small{font-size:var(--fs-2xs);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
@@ -81,7 +86,7 @@ header.tabs-compact #course-tabs button[role=tab]:not(#review-tab):not(.ggb-tab)
 .nav-menu{position:relative}
 .nav-pop{
  display:none;position:absolute;right:0;top:calc(100% - 2px);min-width:188px;
- background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);
+ background:var(--raised);border:1px solid var(--border-strong);border-radius:var(--r-md);
  padding:var(--space-1);z-index:8;flex-direction:column;gap:var(--space-hairline);
  box-shadow:var(--shadow-pop);
 }
@@ -93,7 +98,7 @@ header.tabs-compact #course-tabs button[role=tab]:not(#review-tab):not(.ggb-tab)
 .nav-pop button{
  /* Mesmo item dos menus do tutor e do leitor (`.more-item`): 28px, recuo 6px. */
  width:100%;justify-content:flex-start;border:0;background:transparent;height:var(--ctl);padding:0 var(--space-2);font-size:var(--fs-sm);
- border-radius:var(--r-md);box-shadow:none;color:var(--fg);
+ border-radius:var(--r-sm);box-shadow:none;color:var(--fg);
 }
 .nav-pop button:hover{background:var(--hover)}
 .nav-pop button:active{background:var(--active)}
@@ -107,10 +112,10 @@ header.tabs-compact #course-tabs button[role=tab]:not(#review-tab):not(.ggb-tab)
    "modelo · esforço" (ou o estado do tutor). É fantasma como os vizinhos da
    fileira. Em caixa estreita a fileira cede em degraus (`data-fit` da
    fileira, decidido pelo `core/composerbox.bend#rowFit` sobre o que o host
-   mediu): "compact" deixa Referências e Conferir só com o ícone; "model" tira também o
-   esforço; "icon" deixa só o ícone e o ponto (o nome acessível segue
-   completo). O popover (`#model-pop`) abre para cima, ancorado nele, e guarda
-   o seletor de modelo e a faixa de esforço (`model-picker.css`). */
+   mediu): "model" tira também o esforço; "icon" deixa só o ícone e o ponto (o
+   nome acessível segue completo). O popover (`#model-pop`) abre para cima,
+   ancorado nele, e guarda o seletor de modelo e a faixa de esforço
+   (`model-picker.css`). */
 /* Ajustes do indicador: ele encolhe (o nome do modelo ganha reticências) até
    o piso `--mi-model-floor` antes de virar ícone. Sem borda e com o canto dos
    outros botões da fileira (2026-10-21: a pílula com borda destoava do clipe e
@@ -141,10 +146,6 @@ header.tabs-compact #course-tabs button[role=tab]:not(#review-tab):not(.ggb-tab)
 .model-indicator .mi-model{flex:0 1 auto;min-width:0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .model-indicator .mi-level{flex:none;white-space:pre;color:var(--faint)}
 .model-indicator[data-state="off"] .mi-text{color:var(--faint)}
-.composer-actions:is([data-fit="compact"],[data-fit="model"],[data-fit="icon"]) #include-refs{width:var(--ctl);padding:0}
-.composer-actions:is([data-fit="compact"],[data-fit="model"],[data-fit="icon"]) #include-refs span{display:none}
-.composer-actions:is([data-fit="compact"],[data-fit="model"],[data-fit="icon"]) #check{width:var(--ctl);padding:0;justify-content:center}
-.composer-actions:is([data-fit="compact"],[data-fit="model"],[data-fit="icon"]) #check :is(.label-full,.label-short){display:none}
 .composer-actions:is([data-fit="model"],[data-fit="icon"]) .model-indicator .mi-level{display:none}
 .composer-actions[data-fit="icon"] .model-indicator :is(.mi-text,.mi-caret){display:none}
 .composer-actions[data-fit="icon"] .model-indicator .mi-icon{display:inline-flex}

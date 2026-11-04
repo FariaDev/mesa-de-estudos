@@ -1,15 +1,16 @@
 // @ts-check
 /* A lista do seletor de modelo (#59), a parte pura: agrupar por provedor,
-   pôr os recentes no topo e os grátis num grupo próprio, filtrar pela busca e
-   andar pelo índice ativo. Nada aqui toca o DOM nem o idioma: o desenho da lista
-   é de `model-picker-ui.mjs`, e o texto das linhas chega por `label`.
-   É interface, então fica em JS com teste, não em Bend (ADR 0001). */
+   pôr os recentes no topo, filtrar pela busca e andar pelo índice ativo. Os
+   modelos grátis do Zen continuam no catálogo, mas sem grupo nem selo próprio:
+   a Mesa não faz propaganda deles (#93). Nada aqui toca o DOM nem o idioma: o
+   desenho da lista é de `model-picker-ui.mjs`, e o texto das linhas chega por
+   `label`. É interface, então fica em JS com teste, não em Bend (ADR 0001). */
 
 /** @typedef {{name?: string, id: string, provider: string, free?: {is?: boolean, tail?: string[]}, contextWindow?: number, input?: string[], reasoning?: boolean, cost?: {input?: number, output?: number}}} CatalogModel */
 /** @typedef {{context: number, vision: boolean, reasoning: boolean, price: null | {input: number, output: number}}} ModelFacts o que o catálogo diz do modelo, para a segunda linha */
 /** @typedef {{key: string, provider: string, id: string, name: string, vendor: string, short: string, providerName: string, free: boolean, zenPaid: boolean, favorite: boolean, notes: string[], facts: ModelFacts}} PickerItem */
 /** @typedef {{vendor: string, items: PickerItem[]}} PickerSection subgrupo por fabricante de um provedor grande */
-/** @typedef {{kind: 'favorite' | 'recent' | 'free' | 'provider' | 'flat', provider: string, title: string, items: PickerItem[], sections?: PickerSection[]}} PickerGroup */
+/** @typedef {{kind: 'favorite' | 'recent' | 'provider' | 'flat', provider: string, title: string, items: PickerItem[], sections?: PickerSection[]}} PickerGroup */
 /** @typedef {Record<string, Array<[string, string]>>} ModelPairs pares `[provedor, id]` por motor */
 /** @typedef {ModelPairs} ModelRecents recentes por motor, do mais novo ao mais velho */
 /** @typedef {ModelPairs} ModelFavorites favoritos por motor, na ordem em que foram marcados */
@@ -27,6 +28,7 @@ export const FAVORITE_LIMIT = 50;
    aparece cru (`providerName`). */
 const PROVIDER_NAMES = Object.freeze({
   anthropic: 'Anthropic',
+  'claude-agent': 'Claude',
   openai: 'OpenAI',
   'openai-codex': 'OpenAI Codex',
   google: 'Google',
@@ -56,6 +58,24 @@ const PROVIDER_NAMES = Object.freeze({
  */
 export function providerName(id) {
   return Object.hasOwn(PROVIDER_NAMES, id) ? PROVIDER_NAMES[/** @type {keyof typeof PROVIDER_NAMES} */ (id)] : id;
+}
+
+/* O nome que separa as duas assinaturas do OpenCode sem repetir o mesmo logo
+   sem explicação: a dica do trilho e o nome acessível usam esta forma longa; o
+   subtítulo da linha usa `providerName` + a nota ("· assinatura"/"· por uso"). */
+const PROVIDER_ACCESSIBLE = Object.freeze({
+  'opencode-go': 'OpenCode Go (assinatura)',
+  opencode: 'OpenCode Zen (por uso)',
+});
+
+/**
+ * O nome acessível do provedor, com a assinatura do OpenCode quando houver.
+ * `providerAccessibleName('opencode-go')` → `'OpenCode Go (assinatura)'`
+ * @param {string} id
+ * @returns {string}
+ */
+export function providerAccessibleName(id) {
+  return Object.hasOwn(PROVIDER_ACCESSIBLE, id) ? PROVIDER_ACCESSIBLE[/** @type {keyof typeof PROVIDER_ACCESSIBLE} */ (id)] : providerName(id);
 }
 
 /* "Fabricante: Modelo" é o formato dos nomes do OpenRouter. O prefixo tem de
@@ -108,9 +128,8 @@ export function foldSearch(value) {
 }
 
 /**
- * A linha da lista a partir de um modelo do catálogo. O primeiro item da cauda
- * do grátis é a marca "Grátis", que o título do grupo já diz; sobram a política
- * de dados e o aviso "pode ter saído".
+ * A linha da lista a partir de um modelo do catálogo. A cauda do grátis traz a
+ * política de dados e o aviso "pode ter saído" (o selo "Grátis" saiu, #93).
  * @param {CatalogModel} model
  * @param {(raw: string) => string} label nome já no idioma da tela
  * @returns {PickerItem}
@@ -118,6 +137,9 @@ export function foldSearch(value) {
 function itemOf(model, label) {
   const free = model.free?.is === true;
   const tail = Array.isArray(model.free?.tail) ? model.free.tail : [];
+  /* O grátis do Zen não leva propaganda; a assinatura do Go e o uso pago do
+     Zen entram como nota, para o subtítulo dizer qual OpenCode é. */
+  const plan = model.provider === 'opencode-go' ? ['assinatura'] : model.provider === 'opencode' && !free ? ['por uso'] : [];
   const name = label(model.name || model.id);
   const {vendor, model: short} = splitVendor(name);
   return {
@@ -131,7 +153,7 @@ function itemOf(model, label) {
     free,
     zenPaid: model.provider === 'opencode' && model.free?.is === false,
     favorite: false,
-    notes: free ? tail.slice(1) : [],
+    notes: free ? tail : plan,
     facts: factsOf(model, free),
   };
 }
@@ -208,8 +230,18 @@ function livePairs(items, pairs, limit) {
 }
 
 /**
- * Os grupos da lista, na ordem em que aparecem: Favoritos, Recentes, Grátis e
- * um por provedor (por nome, A–Z; dentro dele, a ordem do catálogo). O Claude
+ * Diz se o catálogo só tem modelos grátis: aí o seletor ensina a configurar
+ * um provider no OpenCode, em vez de anunciar o Zen. `onlyFreeCatalog([{free:{is:true}}])` → `true`
+ * @param {CatalogModel[]} catalog
+ * @returns {boolean}
+ */
+export function onlyFreeCatalog(catalog) {
+  return catalog.length > 0 && catalog.every((model) => model.free?.is === true);
+}
+
+/**
+ * Os grupos da lista, na ordem em que aparecem: Favoritos, Recentes e um por
+ * provedor (por nome, A–Z; dentro dele, a ordem do catálogo). O Claude
  * usa uma lista só, sem grupos, recentes nem favoritos. Com busca, Favoritos e
  * Recentes saem (as linhas já estão nos outros grupos) e grupos sem resultado
  * somem. Toda linha de um modelo favorito leva `favorite: true`, para a estrela.
@@ -227,11 +259,10 @@ export function groupModels(catalog, {engine = 'pi', query = '', recents = [], f
   const searching = query.trim() !== '';
   const favorite = searching ? [] : livePairs(all, favorites, FAVORITE_LIMIT);
   if (favorite.length) groups.push({kind: 'favorite', provider: '', title: '', items: favorite});
-  const recent = searching ? [] : livePairs(all, recents, RECENT_LIMIT);
+  /* Recentes não repetem um modelo que já está em Favoritos (#release OpenCode). */
+  const recent = searching ? [] : livePairs(all, recents.filter(([provider, id]) => !starred.has(modelKey(provider, id))), RECENT_LIMIT);
   if (recent.length) groups.push({kind: 'recent', provider: '', title: '', items: recent});
-  const free = shown.filter((item) => item.free).sort(byName);
-  if (free.length) groups.push({kind: 'free', provider: '', title: '', items: free});
-  groups.push(...providerGroups(shown.filter((item) => !item.free)));
+  groups.push(...providerGroups(shown));
   return groups;
 }
 
@@ -289,7 +320,7 @@ export function sectionsOf(rows) {
  * As entradas do trilho de provedores ao lado da lista (como o seletor do T3
  * Code): uma por grupo, para pular até ele. Lista plana (Claude) ou um grupo só
  * não precisam de trilho. O desenho escolhe o ícone: o logo do `provider`, ou a
- * estrela, o relógio e a faísca de Favoritos, Recentes e Grátis.
+ * estrela e o relógio de Favoritos e Recentes.
  * `railEntries(groupModels(catalog, {engine: 'pi'}))` → `[{group: 0, kind: 'provider', title: 'xAI', provider: 'xai'}]`
  * @param {PickerGroup[]} groups
  * @returns {Array<{group: number, kind: PickerGroup['kind'], title: string, provider: string}>}

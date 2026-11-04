@@ -7,6 +7,7 @@
    bloco e decide se ele vai. Puro: sem DOM, IPC ou relógio; o `previousKey`
    entra como argumento e o main guarda. */
 const core = require('./src/generated/studycontext.core.js').default;
+const {pdfAttachmentsBlock} = require('./src/chat-pdf.mjs');
 const {createI18n, MESSAGE_MARK, isLanguage, FALLBACK_LANGUAGE} = require('./src/i18n.mjs');
 const ptBR = require('./src/locales/pt-BR.json');
 const en = require('./src/locales/en.json');
@@ -147,4 +148,17 @@ function buildStudyContext({course, study, refs, capture, previousKey, language}
   return {text, key, changed: text !== ''};
 }
 
-module.exports = {buildStudyContext, formatRef, formatRefs, normalizeRefs, contextKey};
+/**
+ * Bloco dos PDFs anexados à mensagem. O tutor recebe o caminho, o total de
+ * páginas e o nome da ferramenta do motor — não o conteúdo. Fica fora do
+ * núcleo de estudo: o PDF não está aberto no leitor e não muda com o exercício.
+ * @param {{pdfs?: unknown, language?: string, tool?: string}} [options]
+ * @returns {string} bloco vazio quando não há PDF
+ * @example buildPdfAttachments({pdfs:[{name:'A.pdf',path:'/c/A.pdf',pages:12}],language:'pt-BR',tool:'mesa_ler_pdf'})
+ */
+function buildPdfAttachments({pdfs, language, tool} = {}) {
+  const i18n = translatorFor(isLanguage(language) ? language : FALLBACK_LANGUAGE);
+  return pdfAttachmentsBlock(pdfs, (key, args) => i18n.t(key, args), tool);
+}
+
+module.exports = {buildStudyContext, buildPdfAttachments, formatRef, formatRefs, normalizeRefs, contextKey};

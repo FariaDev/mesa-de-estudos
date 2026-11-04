@@ -63,6 +63,7 @@ await withArtifacts('free-study-ui',async ctx=>{
    session:over.session||'pi-livre-1.jsonl',
    sessions:over.sessions||[{label:'Livre 1',path:'pi-livre-1.jsonl'}],
    captureAvailable:false,detectedPi:'',platform:'darwin',deskVersion:'0.0.0-test',
+   engine:over.engine||'pi',
   });
   window.__dispatchWorkspace=data=>window.dispatchEvent(new CustomEvent('desk-workspace',{detail:data}));
   /* loadCourse publica o workspace; nenhuma emissão manual substitui a
@@ -90,6 +91,18 @@ await withArtifacts('free-study-ui',async ctx=>{
  assert.match(await page.locator('#free-materials option').first().textContent(),/Nenhum material/);
  assert.equal(await page.locator('#references').evaluate(el=>el.classList.contains('free-empty')),true,'sem PDF a sessão entra no vazio');
  assert.equal(await page.locator('#free-empty').isVisible(),true,'texto orientado visível');
+ /* Vazio em linha (#90, polimento): pergunta e os três caminhos, sem cartões. */
+ const startRow=await page.evaluate(()=>{
+  const row=document.querySelector('.free-start-actions');
+  const buttons=[...row.querySelectorAll('button')];
+  return {ids:buttons.map(button=>button.id),tops:buttons.map(button=>Math.round(button.getBoundingClientRect().top)),
+   cards:row.querySelectorAll('div').length,titles:row.querySelectorAll('strong').length,wrap:getComputedStyle(row).flexWrap};
+ });
+ assert.deepEqual(startRow.ids,['free-empty-open','free-empty-tutor','free-empty-promote'],'os três caminhos do vazio, nesta ordem');
+ assert.equal(startRow.cards,0,'o vazio não tem cartões');
+ assert.equal(startRow.titles,0,'o vazio não tem títulos de cartão');
+ assert.equal(startRow.wrap,'wrap','a linha de botões quebra em largura estreita');
+ assert.equal(new Set(startRow.tops).size,1,'em 1440 os três botões ficam na mesma linha');
  assert.equal(await page.locator('#pdf-grid').isHidden(),true,'leitores escondidos no vazio');
  assert.equal(await page.locator('#support-restore').isHidden(),true,'sem faixa de reabrir no vazio');
  assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.pdf-panel .pdf-select')].filter(select=>select.value).length),0,'a sessão livre recomeça sem PDF');
@@ -480,6 +493,21 @@ await withArtifacts('free-study-ui',async ctx=>{
  assertInside('diálogo Gerar PDF',dialogFit,dialogFit.width,dialogFit.height);
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>!document.querySelector('#free-pdf-dialog').open);
+
+ /* ---------- OpenCode também oferece criar_pdf: o botão não fica travado ---------- */
+ await page.evaluate(()=>window.__applyWorkspace(window.__freePayload({engine:'opencode',state:{},workspace:{title:'Sessão sintética'}})));
+ await page.waitForFunction(()=>!document.querySelector('#free-tutor-pdf').disabled);
+ assert.doesNotMatch(await page.locator('#free-tutor-pdf').getAttribute('title'),/não cria PDF/,'o OpenCode habilita o PDF do tutor sem a dica antiga');
+ assert.equal(await page.locator('#free-empty-tutor').isDisabled(),false,'o vazio da Livre também fica habilitado');
+ await freeMenuClick(page,'#free-tutor-pdf');
+ await page.waitForSelector('#tutor-pdf-dialog[open]');
+ await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>!document.querySelector('#tutor-pdf-dialog').open);
+
+ /* ---------- título padrão: o campo mostra, o cabeçalho não repete ---------- */
+ await page.evaluate(()=>window.__applyWorkspace(window.__freePayload({workspace:{title:'Sessão livre'},session:'pi-livre-padrao.jsonl',sessions:[{label:'Sessão livre',path:'pi-livre-padrao.jsonl'}]})));
+ await page.waitForFunction(()=>document.querySelector('#free-title')?.value==='Sessão livre');
+ assert.equal(await page.locator('#session-title .session-title-text').textContent(),'Sessão','o cabeçalho não repete "Sessão livre" do campo');
 
  assert.deepEqual(errors,[],'nenhum erro de página durante o fluxo');
 });

@@ -1,3 +1,5 @@
+import {primeHiddenFrames} from './frame-prime.mjs';
+
 /* Esperas por condição dos testes de janela e hunts (#48).
 
    `page.waitForTimeout` só fica onde o próprio tempo é o que se testa
@@ -34,23 +36,32 @@ export async function pollUntil(read,accept,{timeout=10000,interval=50,what='a c
 
 /** O retângulo de `selector` ficou igual por `frames` quadros seguidos.
  *  Sem o elemento, espera ele aparecer (até o `timeout`). */
-export async function layoutStable(page,selector,{frames=4,timeout=5000}={}){
+export async function layoutStable(page,selector,{frames=4,timeout=5000,position=true}={}){
+ await primeHiddenFrames(page);
  await page.evaluate(sel=>{(window.__layoutStable??={})[sel]=null;},selector);
- await page.waitForFunction(([sel,needed])=>{
-  const el=document.querySelector(sel);
-  if(!el)return false;
-  const box=el.getBoundingClientRect();
-  const key=[box.x,box.y,box.width,box.height].map(n=>Math.round(n*10)).join(',');
-  const memory=(window.__layoutStable??={});
-  const seen=memory[sel];
-  memory[sel]=seen&&seen.key===key?{key,count:seen.count+1}:{key,count:1};
-  return memory[sel].count>=needed;
- },[selector,frames],{polling:'raf',timeout});
+ try{
+  await page.waitForFunction(([sel,needed,position])=>{
+   const el=document.querySelector(sel);
+   if(!el)return false;
+   const box=el.getBoundingClientRect();
+   const key=(position?[box.x,box.y,box.width,box.height]:[box.width,box.height]).map(n=>Math.round(n*10)).join(',');
+   const memory=(window.__layoutStable??={});
+   const seen=memory[sel];
+   memory[sel]=seen&&seen.key===key?{key,count:seen.count+1,recent:seen.recent}:{key,count:1,recent:[...(seen?.recent||[]),key].slice(-8)};
+   return memory[sel].count>=needed;
+  },[selector,frames,position],{polling:'raf',timeout});
+ }catch(error){
+  /* Erro com o que foi visto: "não parou" sem os retângulos não diz se o
+     layout oscila, se o elemento some ou se o quadro parou de chegar. */
+  const seen=await page.evaluate(sel=>window.__layoutStable?.[sel]?.recent||null,selector).catch(()=>null);
+  throw Error(`o layout de ${selector} não parou em ${timeout} ms; últimos retângulos: ${JSON.stringify(seen)} (${error.message})`);
+ }
 }
 
 /** Dois quadros pintados: o renderer teve a chance de aplicar a mudança que o
  *  teste acabou de causar (valor digitado, classe trocada) antes da leitura. */
-export function nextFrames(page,count=2){
+export async function nextFrames(page,count=2){
+ await primeHiddenFrames(page);
  return page.evaluate(n=>new Promise(done=>{
   const step=left=>left<=0?done():requestAnimationFrame(()=>step(left-1));
   step(n);
@@ -62,6 +73,7 @@ export function nextFrames(page,count=2){
  *  (~250 ms com o padrão, mais que o debounce de render do leitor).
  *  await field(0,'.in').click();await pdfRenderIdle(page); */
 export async function pdfRenderIdle(page,{frames=15,timeout=20000}={}){
+ await primeHiddenFrames(page);
  await page.evaluate(()=>{window.__pdfRenderIdle=null;});
  await page.waitForFunction(needed=>{
   if(document.querySelector('.pdf-page[data-rendering]')){window.__pdfRenderIdle=null;return false;}

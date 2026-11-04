@@ -149,7 +149,7 @@ test('adaptador Claude libera só o gerador nativo e recusa um servidor antigo',
  try{
   await adapter._ensureQuery();
   const options=sdk.state.queries[0].options;
-  assert.deepEqual(Object.keys(options.mcpServers),['mesa']);assert.deepEqual(options.allowedTools,[TOOL_NAME]);
+  assert.deepEqual(Object.keys(options.mcpServers),['mesa']);assert.deepEqual(options.allowedTools,['mcp__mesa__*']);
   assert.equal((await options.canUseTool(TOOL_NAME,payload,{})).behavior,'allow');
   assert.equal((await options.canUseTool('mcp__other__write',payload,{})).behavior,'deny');
   client=await mcpClient(options.mcpServers.mesa);

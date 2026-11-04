@@ -101,7 +101,7 @@ function panelOfNode(node){
  return (S.panels||[]).find(p=>p.el===el)||null;
 }
 
-function navButtonOf(panel){return panel?.el?.querySelector?.('.pdf-title button.nav')||null;}
+function navButtonOf(panel){return panel?.el?.querySelector?.('.pdf-more-pop button.nav')||null;}
 function popoverOf(panel){return panel?.el?.querySelector?.('.pdf-nav-pop')||null;}
 
 /* Rótulo do botão do livro (pedido 5): o texto canônico é do núcleo
@@ -248,7 +248,7 @@ document.addEventListener('click',event=>{
    leitor (o curso novo carrega os arquivos dele pelo mesmo select). */
 document.addEventListener('click',event=>{
  const target=event.target;
- if(target?.closest?.('.pdf-nav-pop')||target?.closest?.('.pdf-title button.nav'))return;
+ if(target?.closest?.('.pdf-nav-pop')||target?.closest?.('.pdf-more-pop button.nav'))return;
  /* Clique dentro de um diálogo modal (o do favorito, que nasce do popover)
     não é clique "fora": o popover de onde ele veio continua aberto. */
  if(target?.closest?.('dialog'))return;

@@ -347,8 +347,8 @@ test('painel: formatação e view model são puros e em português', () => {
   assert.match(html.nav, /data-bkp-nav="restaurar"/);
   assert.match(html.nav, /data-bkp-nav="compartilhar"/);
   assert.match(html.sections, /Pasta de backup/);
-  assert.match(html.sections, /Backup automático quando a mesa está parada/);
-  assert.match(html.sections, /Também versionar no Git/);
+  assert.match(html.sections, /Backup automático/);
+  assert.match(html.sections, /Versionar no Git/);
   assert.match(html.sections, /Fazer backup agora/);
   assert.match(html.sections, /Restaurar uma versão/);
   assert.match(html.sections, /Compartilhar matéria/);

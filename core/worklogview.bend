@@ -30,7 +30,6 @@ type StepRow is Data:
     open: Bool,
     hasDetail: Bool,
     label: String,
-    time: String,
     preview: String,
     text: String,
     links: +List<LinkRow>
@@ -53,6 +52,8 @@ def kindName(kind: L.StepKind) -> String:
       "thinking"
     case L.Search{}:
       "search"
+    case L.Material{}:
+      "material"
     case L.Reference{}:
       "reference"
     case L.Fetch{}:
@@ -202,7 +203,6 @@ def workStep.go(
   +open: Bool,
   +hasDetail: Bool,
   label: String,
-  time: String,
   +preview: String,
   +text: String,
   +links: +List<LinkRow>
@@ -224,10 +224,7 @@ def workStep.go(
             V.viewEl(
               "div",
               [V.attrClass("step-line")],
-              [
-                V.viewEl("span", [V.attrClass("step-label")], [V.viewText(label)]),
-                V.viewEl("span", [V.attrClass("step-time")], [V.viewText(time)])
-              ]
+              [V.viewEl("span", [V.attrClass("step-label")], [V.viewText(label)])]
             ),
             V.viewEl("div", classHidden("step-preview", previewHidden(expandedOn, String.is_empty(preview))), [V.viewText(preview)]),
             V.viewEl(
@@ -247,8 +244,8 @@ def workStep.go(
 
 def workStep(step: StepRow) -> V.ViewNode:
   match step:
-    case StepRow{id, kind, status, open, hasDetail, label, time, preview, text, links}:
-      workStep.go(id, kind, status, open, hasDetail, label, time, preview, text, links)
+    case StepRow{id, kind, status, open, hasDetail, label, preview, text, links}:
+      workStep.go(id, kind, status, open, hasDetail, label, preview, text, links)
 
 def stepKids(xs: +List<StepRow>) -> List<&2, V.ViewNode>:
   match xs:

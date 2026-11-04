@@ -21,6 +21,7 @@ import {testEnv} from './electron-env.mjs';
 import {closeApp} from './proc-tree.mjs';
 import {tinyPdf} from './helpers.mjs';
 import {ptText} from './pt-text.mjs';
+import {fakeCommand} from './fake-executable.mjs';
 
 const require = createRequire(import.meta.url);
 const store = require('../free-workspaces.cjs');
@@ -55,7 +56,7 @@ function makeRuntime(tag, {course = true} = {}) {
     `await import(${JSON.stringify(pathToFileURL(FAKE_PI).href)});`,
     '',
   ].join('\n'));
-  fs.chmodSync(piWrap, 0o755);
+  const piCommand = fakeCommand(piWrap, runtime);
   const claudeStub = path.join(runtime, 'claude-stub');
   fs.writeFileSync(claudeStub, 'stub');
   const configFile = path.join(runtime, 'config.json');
@@ -67,7 +68,7 @@ function makeRuntime(tag, {course = true} = {}) {
     claudePath: claudeStub,
   }, null, 2) + '\n');
   fs.writeFileSync(deskFile, JSON.stringify({courseId: course ? 'Synthetic' : '', courseStates: {}}));
-  return {runtime, courseDir, piWrap, cwdLog, claudeStub, configFile, deskFile, claudeLog: path.join(runtime, 'claude-system.log')};
+  return {runtime, courseDir, piWrap, piCommand, cwdLog, claudeStub, configFile, deskFile, claudeLog: path.join(runtime, 'claude-system.log')};
 }
 
 function launch(fx) {
@@ -76,7 +77,7 @@ function launch(fx) {
     cwd: DESK,
     env: testEnv({
       LEARNING_DESK_RUNTIME: fx.runtime,
-      LEARNING_DESK_PI: fx.piWrap,
+      LEARNING_DESK_PI: fx.piCommand,
       LEARNING_DESK_CLAUDE_SDK_FACTORY: CLAUDE_SPY,
       FAKE_CLAUDE_STORE: path.join(fx.runtime, 'claude-store'),
       FAKE_CLAUDE_SYSTEM_LOG: fx.claudeLog,

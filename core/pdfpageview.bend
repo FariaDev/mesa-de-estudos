@@ -18,10 +18,10 @@ import readersheet.bend as RS
 # Contrato do smoke (tags/classes/attrs 1:1 com o Electron):
 #   section.pdf-panel > .pdf-title (UMA linha: strong, select.pdf-select, .back,
 #   .prev, .page-number, .page-total, .next, .find-toggle, .nav, .more) +
-#   .pdf-stage (.pdf-viewport + .pdf-foot) + form.pdf-find + .pdf-more-pop
-#   (.open, .page-shot, .more-zoom[.out, .zoom-label, .in], .fit, .invert,
-#   .rotate, .collapse; o host põe .printed-toggle antes do .collapse) +
-#   button.pdf-restore (a faixa do leitor recolhido)
+#   .pdf-stage (.pdf-viewport) + form.pdf-find + .pdf-more-pop
+#   (.page-shot, .more-zoom[.out, .zoom-label, .in, .fit], .invert,
+#   .rotate, .nav, .collapse) + button.pdf-restore (a faixa do leitor
+#   recolhido)
 #   .pdf-viewport > .pdf-document > .pdf-page[data-page][style]
 #   .textLayer span > i.pdf-hl (destaque da busca)
 #
@@ -47,7 +47,7 @@ type PdfReader is Data:
   PdfEmpty{}
   PdfSheet{course: String}
   PdfLoading{}
-  PdfFailed{}
+  PdfFailed{reason: String}
   PdfReady{}
 
 # A cabeça do painel como o host a conhece (fatos já resolvidos). `rotation`
@@ -78,7 +78,7 @@ def findPlaceholder() -> String:
 def findButtonLabel() -> String:
   M.msg("common.search")
 
-def openTitle() -> String:
+def openOptionLabel() -> String:
   M.msg("pdf.view.open")
 
 def findTitle() -> String:
@@ -86,12 +86,6 @@ def findTitle() -> String:
 
 def shotTitle() -> String:
   M.msg("pdf.view.shot")
-
-def prevAria() -> String:
-  M.msg("pdf.view.prev")
-
-def nextAria() -> String:
-  M.msg("pdf.view.next")
 
 def outAria() -> String:
   M.msg("pdf.view.zoomOut")
@@ -118,14 +112,13 @@ def dividerAria() -> String:
 def documentAria(label: String) -> String:
   M.msg1("pdf.view.docAria", "label", label)
 
-def openAria(label: String) -> String:
-  M.msg1("pdf.view.openAria", "label", label)
-
 def findAria(label: String) -> String:
   M.msg1("pdf.view.findAria", "label", label)
 
-def pageAria(label: String) -> String:
-  M.msg1("pdf.view.pageAria", "label", label)
+# O pager e o campo de página dizem a posição real ("Página 2 de 5"): quem usa
+# leitor de tela não fica com "Página de Enunciado" sem saber onde está (#90).
+def pageAria(page: Nat, total: Nat) -> String:
+  M.msg2("pdf.view.pageAria", "page", Nat.show(page), "total", Nat.show(total))
 
 def moreTitle() -> String:
   M.msg("pdf.view.more")
@@ -147,6 +140,27 @@ def invertMenuLabel() -> String:
 
 def printedMenuLabel() -> String:
   M.msg("pdf.view.printedMenu")
+
+def bookmarksLabel() -> String:
+  M.msg("pdf.view.bookmarks")
+
+# Erro de abertura no próprio painel (#90): mensagem curta com o motivo e uma
+# saída. O motivo é cortado a 56 caracteres para a frase caber em 80 nos dois
+# idiomas (o prefixo em pt-BR mede 24).
+def failOpenText() -> String:
+  M.msg("pdf.view.failedOpen")
+
+def failOpenAria() -> String:
+  M.msg("pdf.view.failedOpenAria")
+
+def failReason(reason: String) -> String:
+  String.take(String.trim(reason), 56n)
+
+def failText(reason: String) -> String:
+  M.msg1("pdf.view.failed", "reason", failReason(reason))
+
+def fitShortLabel() -> String:
+  M.msg("pdf.view.fitShort")
 
 # ---------- rotação do leitor (ciclo de 90° por documento) ----------
 
@@ -582,6 +596,11 @@ def optionNode(option: PdfOption, +path: String) -> V.ViewNode:
 def optionEmpty() -> V.ViewNode:
   V.viewEl("option", [V.ViewAttr{"value", ""}], optionKids(emptyOptionLabel()))
 
+# "Abrir PDF…" é a última opção do seletor: o host intercepta o valor sentinela,
+# abre o seletor de arquivos e devolve a seleção ao documento atual.
+def optionOpen() -> V.ViewNode:
+  V.viewEl("option", [V.ViewAttr{"value", "__open__"}], optionKids(openOptionLabel()))
+
 def optionNodes.go(+options: List<&2, PdfOption>, +path: String) -> List<&2, V.ViewNode>:
   match options:
     case Nil{}:
@@ -590,17 +609,17 @@ def optionNodes.go(+options: List<&2, PdfOption>, +path: String) -> List<&2, V.V
       Con{optionNode(h, path), optionNodes.go(t, path)}
 
 def optionNodes(+options: List<&2, PdfOption>, +path: String) -> List<&2, V.ViewNode>:
-  Con{optionEmpty(), optionNodes.go(options, path)}
+  List.append(&2, V.ViewNode, Con{optionEmpty(), optionNodes.go(options, path)}, Con{optionOpen(), Nil{}})
 
 def selectNode(label: String, options: +List<PdfOption>, +path: String) -> V.ViewNode:
   V.viewEl("select", [V.attrClass("pdf-select"), V.attrAria("label", documentAria(label)), V.attrOn("change", "OpenDoc")], optionNodes(options, path))
 
 # ---------- barra única do leitor (botões de ícone com andaime `data-icon`) ----------
-# Uma linha de 40px por leitor: rótulo, material, voltar (escondido), página
-# anterior / número / total / próxima, busca, favoritos+sumário e "Mais opções".
-# O que não cabe na linha mora no menu `.pdf-more-pop` (zoom, ajustar, inverter,
-# girar, capturar, abrir outro PDF, numeração impressa, recolher) — mesmos
-# nomes de classe e mesmos handlers de antes, só mudaram de lugar.
+# Uma linha de 40px por leitor: rótulo, material, voltar (escondido), o pager
+# "1 / 3" (vira campo ao clicar), busca e "Mais opções". O que não cabe na
+# linha mora no menu `.pdf-more-pop` (capturar, zoom com ajustar à largura,
+# página escura, girar, marcadores e recolher) — mesmos nomes de classe e
+# mesmos handlers de antes, só mudaram de lugar.
 
 def iconBtnAttrs(cls: String, iconName: String, aria: String) -> List<&2, V.ViewAttr>:
   [V.attrClass(String.append(cls, " icon-btn")), V.attrAria("label", aria), V.attrData("icon", iconName)]
@@ -612,12 +631,6 @@ def itemAttrs(cls: String, iconName: String, aria: String) -> List<&2, V.ViewAtt
 
 def iconBtn(cls: String, iconName: String, aria: String, handler: String) -> V.ViewNode:
   V.viewEl("button", V.attrConcat(iconBtnAttrs(cls, iconName, aria), [V.attrOn("click", handler)]), Nil{})
-
-def openBtn(label: String) -> V.ViewNode:
-  V.viewEl("button", V.attrJoin([
-    itemAttrs("open", "plus", openAria(label)),
-    [V.attrTitle(openTitle()), V.attrOn("click", "OpenFile")]
-  ]), [V.viewText(openTitle())])
 
 def findToggleBtn(label: String, open: Bool) -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
@@ -653,16 +666,17 @@ def navBackTitle() -> String:
 def navBackAria(label: String) -> String:
   N.navBackAria(label)
 
-# O botão que abre o popover de favoritos/sumário: o corpo do popover é do host
-# (`core/pdfnav.bend` desenha o esqueleto e as linhas).
+# O item que abre o popover de marcadores/sumário: o corpo do popover é do host
+# (`core/pdfnav.bend` desenha o esqueleto e as linhas). Fica no menu "Mais" e
+# fecha o menu ao abrir o popover.
 def navBtn(label: String) -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
-    iconBtnAttrs("nav", "bookmark", N.navAria(label)),
+    itemAttrs("nav", "bookmark", N.navAria(label)),
     [ V.attrTitle(N.navButtonTitle())
     , V.attrBool("aria-expanded", False{})
     , V.attrOn("click", "ToggleNav")
     ]
-  ]), Nil{})
+  ]), [V.viewText(bookmarksLabel())])
 
 # Nasce escondido: o host mostra quando há o que voltar naquele leitor.
 def backBtn(label: String) -> V.ViewNode:
@@ -691,15 +705,27 @@ def rotateBtn(label: String, +rotation: Nat) -> V.ViewNode:
     [V.attrTitle(rotateTitle(rotation)), V.attrOn("click", "Rotate")]
   ]), [V.viewText(M.msg("pdf.view.rotate"))])
 
-def pageInput(label: String) -> V.ViewNode:
+def pageInput() -> V.ViewNode:
   V.viewEl("input", [
     V.attrClass("page-number"),
     V.ViewAttr{"type", "number"},
     V.ViewAttr{"min", "1"},
     V.ViewAttr{"value", "1"},
-    V.attrAria("label", pageAria(label)),
-    V.attrOn("change", "GotoPage")
+    V.attrAria("label", pageAria(1n, 1n)),
+    V.attrOn("change", "GotoPage"),
+    V.attr("hidden", "")
   ], Nil{})
+
+# O pager da barra: "1 / 3" num botão. Ao clicar, o host troca o botão pelo
+# campo de página escondido ao lado; Enter/blur confirmam e voltam ao botão.
+def pagerBtn() -> V.ViewNode:
+  V.viewEl("button", [
+    V.attrType("button"), V.attrClass("pager"), V.attrAria("label", pageAria(1n, 1n)),
+    V.attrOn("click", "OpenPager")
+  ], [
+    V.viewEl("span", [V.attrClass("pager-current")], Nil{}),
+    V.viewEl("span", [V.attrClass("page-total")], Nil{})
+  ])
 
 def titleBar(shell: PdfShell) -> V.ViewNode:
   match shell:
@@ -708,12 +734,9 @@ def titleBar(shell: PdfShell) -> V.ViewNode:
         V.viewEl("strong", Nil{}, [V.viewText(label)]),
         selectNode(label, options, path),
         backBtn(label),
-        iconBtn("prev", "chevronLeft", prevAria(), "Prev"),
-        pageInput(label),
-        V.viewEl("span", [V.attrClass("page-total")], Nil{}),
-        iconBtn("next", "chevronRight", nextAria(), "Next"),
+        pagerBtn(),
+        pageInput(),
         findToggleBtn(label, findOpen),
-        navBtn(label),
         moreBtn(label)
       ])
 
@@ -721,9 +744,9 @@ def titleBar(shell: PdfShell) -> V.ViewNode:
 
 def fitBtn() -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
-    itemAttrs("fit", "unfold", fitTitle()),
+    [V.attrType("button"), V.attrClass("fit more-zoom-fit"), V.attrAria("label", fitTitle())],
     [V.attrTitle(fitTitle()), V.attrOn("click", "Fit")]
-  ]), [V.viewText(fitTitle())])
+  ]), [V.viewText(fitShortLabel())])
 
 def invertBtn() -> V.ViewNode:
   V.viewEl("button", V.attrJoin([
@@ -739,7 +762,8 @@ def zoomRow() -> V.ViewNode:
     V.viewEl("span", [V.attrClass("more-zoom-ctl")], [
       iconBtn("out", "minus", outAria(), "ZoomOut"),
       V.viewEl("span", [V.attrClass("zoom-label")], Nil{}),
-      iconBtn("in", "plus", inAria(), "ZoomIn")
+      iconBtn("in", "plus", inAria(), "ZoomIn"),
+      fitBtn()
     ])
   ])
 
@@ -750,12 +774,11 @@ def moreMenu(+label: String, +rotation: Nat, +minimized: Bool) -> V.ViewNode:
     V.attrAria("label", moreAria(label)),
     V.attr("hidden", "")
   ], [
-    openBtn(label),
     shotBtn(label),
     zoomRow(),
-    fitBtn(),
     invertBtn(),
     rotateBtn(label, rotation),
+    navBtn(label),
     collapseBtn(minimized)
   ])
 
@@ -776,8 +799,7 @@ def restoreBtn(+label: String) -> V.ViewNode:
 
 def stage() -> V.ViewNode:
   V.viewEl("div", [V.attrClass("pdf-stage")], [
-    V.viewEl("div", [V.attrClass("pdf-viewport")], Nil{}),
-    V.viewEl("div", [V.attrClass("pdf-foot")], Nil{})
+    V.viewEl("div", [V.attrClass("pdf-viewport")], Nil{})
   ])
 
 def findForm(label: String) -> V.ViewNode:
@@ -835,9 +857,19 @@ def pageNodes(+boxes: List<&2, PdfPageBox>) -> List<&2, V.ViewNode>:
 def docFrame(+boxes: List<&2, PdfPageBox>) -> V.ViewNode:
   V.viewEl("div", [V.attrClass("pdf-document")], pageNodes(boxes))
 
-# O que o miolo do leitor mostra para cada estado. Carregando/erro devolvem
-# None: o rodapé (`pdfview`) já diz o estado e o miolo não é mexido — o mesmo
-# comportamento do Electron (o documento anterior fica até o novo render).
+# O que o miolo do leitor mostra para cada estado. Carregando devolve None: o
+# documento anterior fica até o novo render, como no Electron. O erro ocupa o
+# miolo: quem leu o toast e ficou com o painel em carregando ganha o motivo e
+# uma saída ("Abrir outro") no próprio leitor (#90).
+def failPanel(reason: String) -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("pdf-failed"), V.attr("role", "alert")], [
+    V.viewEl("p", [V.attrClass("pdf-failed-text")], [V.viewText(failText(reason))]),
+    V.viewEl("button", [
+      V.attrType("button"), V.attrClass("pdf-failed-open"),
+      V.attrAria("label", failOpenAria()), V.attrOn("click", "OpenFile")
+    ], [V.viewText(failOpenText())])
+  ])
+
 def viewport(state: PdfReader, boxes: +List<&2, PdfPageBox>) -> Maybe<&2, V.ViewNode>:
   match state:
     case PdfEmpty{}:
@@ -848,8 +880,8 @@ def viewport(state: PdfReader, boxes: +List<&2, PdfPageBox>) -> Maybe<&2, V.View
       Some{docFrame(boxes)}
     case PdfLoading{}:
       None{}
-    case PdfFailed{}:
-      None{}
+    case PdfFailed{reason}:
+      Some{failPanel(reason)}
 
 # ---------- destaques da busca (`.pdf-hl`) ----------
 # O host dobra (`foldSearch`, mesma largura) e garante `text`/`folded` do mesmo
@@ -979,12 +1011,6 @@ def printedRow(+label: String, open: Bool) -> V.ViewNode:
     printedStatusNode(),
     printedOffsetEditor(label)
   ])
-
-def printedToggleBtn(label: String, open: Bool) -> V.ViewNode:
-  V.viewEl("button", V.attrJoin([
-    itemAttrs("printed-toggle", "scan", printedToggleAria(label)),
-    [V.attrTitle(printedToggleTitle()), V.attrBool("aria-expanded", open), V.attrOn("click", "TogglePrinted")]
-  ]), [V.viewText(printedMenuLabel())])
 
 # Área alvo do PDF solto: o host mostra por cima do palco durante o arrasto.
 def dropHint(label: String) -> V.ViewNode:

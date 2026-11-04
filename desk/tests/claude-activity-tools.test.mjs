@@ -17,11 +17,11 @@ test('SDK MCP anuncia PDF e atividade; hook injeta ID nativo sem confirmação e
  try{
   await adapter._ensureQuery();
   const options=sdk.state.queries[0].options;
-  assert.deepEqual(options.allowedTools,['mcp__mesa__criar_pdf',ACTIVITY_TOOL_NAME]);
+  assert.deepEqual(options.allowedTools,['mcp__mesa__*']);
   const [a,b]=InMemoryTransport.createLinkedPair();
   client=new Client({name:'mesa-activity-contract',version:'1'});
   await options.mcpServers.mesa.instance.connect(b);await client.connect(a);
-  assert.deepEqual((await client.listTools()).tools.map(t=>t.name),['criar_pdf','criar_atividade']);
+  assert.deepEqual((await client.listTools()).tools.map(t=>t.name),['calcular','criar_pdf','criar_atividade']);
   const invoke=args=>client.callTool({name:'criar_atividade',arguments:args});
   assert.equal((await invoke({...spec,callRef:'invented'})).isError,true);
   adapter._turn={finalized:false};adapter._runId='synthetic-turn';

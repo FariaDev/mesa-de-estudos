@@ -130,14 +130,13 @@ function scanRecord(record, needle, {limit, selection}) {
   const perFile = maxPerFile();
   const strict = record.source === 'nota' || record.source === 'caderno';
   const allowedScope = (courseId) => docCourseAllowed(courseId, selection, strict);
-  const titleField = record.title || '';
-  const topicField = record.topic || '';
-  const recordTitleHit = !!titleField && allowedScope(record.courseId) && fold(titleField).includes(needle);
-  const recordTopicHit = !recordTitleHit && !!topicField && allowedScope(record.courseId) && fold(topicField).includes(needle);
-  if (recordTitleHit || recordTopicHit) {
-    const field = recordTitleHit ? titleField : topicField;
-    const at = fold(field).indexOf(needle);
-    out.push(matchOf(record, {i: -1, role: '', text: field, title: titleField, when: record.when}, {
+  const titleFields = [...new Set([record.title, ...(Array.isArray(record.aliases) ? record.aliases : [])].filter(Boolean))];
+  const titleHit = allowedScope(record.courseId) ? titleFields.map((field) => ({field, at: fold(field).indexOf(needle)})).find((hit) => hit.at >= 0) : null;
+  const topicHit = allowedScope(record.courseId) && !!record.topic && fold(record.topic).includes(needle);
+  if (titleHit || topicHit) {
+    const field = titleHit ? titleHit.field : record.topic;
+    const at = titleHit ? titleHit.at : fold(field).indexOf(needle);
+    out.push(matchOf(record, {i: -1, role: '', text: field, title: record.title || field, when: record.when}, {
       snippet: snippetOf(field, at, at + needle.length),
       rank: core.best(true, false, false),
       count: 1,
@@ -182,6 +181,8 @@ function matchOf(record, doc, match) {
     role: doc.role || '',
     page: Math.max(0, whole(doc.page)),
     fileName: record.materialName || (record.file && !record.file.startsWith('course:') ? path.basename(record.file) : ''),
+    /* Caminho real só para PDF: o tutor abre a página com `ler_pdf`. */
+    path: record.kind === 'pdf' ? record.file : '',
     when: whole(doc.when) || whole(record.when) || 0,
     snippet: match.snippet,
     rank: match.rank,
@@ -225,7 +226,7 @@ async function search(runtime, options = {}) {
     hits: [],
     truncated: false,
     skipped: {large: 0, errors: 0, files: 0},
-    index: {reused: 0, added: 0, removed: 0, total: 0},
+    index: {reused: 0, added: 0, removed: 0, total: 0, incomplete: false},
     ms: 0,
   };
   if (query.length < minQueryChars()) {
@@ -238,9 +239,12 @@ async function search(runtime, options = {}) {
   const index = options.fresh ? {version: INDEX_VERSION, files: {}, updatedAt: 0} : loadIndex(runtime);
   const records = [];
   let dirty = false;
+  let stoppedByBudget = false;
   const deadline = startedAt + Number(core.timeBudgetMs());
   let inspected = 0;
   for (const candidate of candidates) {
+    /* A Livre do tutor vê só os materiais da própria sessão; a UI vê todas. */
+    if (options.scope?.freeSessionId && candidate.scope === 'free' && candidate.sessionId !== text(options.scope.freeSessionId, 200)) continue;
     if (inspected >= Number(core.maxFiles())) {
       result.truncated = true;
       break;
@@ -278,6 +282,7 @@ async function search(runtime, options = {}) {
     }
     if (clock() > deadline) {
       result.truncated = true;
+      stoppedByBudget = true;
       break;
     }
     try {
@@ -292,6 +297,7 @@ async function search(runtime, options = {}) {
         courseId: candidate.courseId || '',
         courseName: candidate.courseName || '',
         title: text(extracted.title, MAX_TITLE_CHARS),
+        aliases: Array.isArray(extracted.aliases) ? extracted.aliases.map((value) => text(value, MAX_TITLE_CHARS)).filter(Boolean).slice(0, 4) : [],
         topic: text(extracted.topic, 80),
         favorite: extracted.favorite === true,
         chatId: CHAT_ID_RE.test(String(extracted.chatId || '')) ? extracted.chatId : '',
@@ -343,6 +349,8 @@ async function search(runtime, options = {}) {
     dirty = true;
   }
   result.index.total = Object.keys(index.files).length;
+  /* O tutor avisa "índice montando" quando o orçamento cortou a indexação. */
+  result.index.incomplete = stoppedByBudget;
   if (dirty) {
     pruneIndex(index);
     try {

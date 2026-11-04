@@ -62,6 +62,7 @@ const SELECTORS = {
   '#command-palette:not([hidden])': 'palette',
   '#course-menu.open, #study-menu.open, #settings-menu.open': 'menu',
   '#context-pop:not([hidden])': 'contextpop',
+  '#attach-pop:not([hidden])': 'attachpop',
   '#phone-pop:not([hidden])': 'phonepop',
   '#check-note:not([hidden])': 'checknote',
   '#free-more-pop:not([hidden])': 'freemore',
@@ -130,6 +131,14 @@ test('os menus do cabeçalho do tutor abertos contam como popover (Esc fecha e n
     assert.equal(facts.popover, true, key);
     assert.equal(stopsTutor(decideEscape(facts)), false, key);
   }
+});
+
+/* #90: o menu Anexar fecha no Esc sem cancelar o turno. */
+test('o menu Anexar aberto conta como popover (Esc fecha e não cancela o turno)', () => {
+  const facts = collectEscapeFacts(fakeDoc(['attachpop']), {busy: true, panels: []});
+  assert.equal(facts.popover, true);
+  assert.equal(decideEscape(facts), 'popover');
+  assert.equal(stopsTutor(decideEscape(facts)), false);
 });
 
 /* Regressão da #36: o popover da Foto do celular fecha no Esc sem cancelar o turno. */

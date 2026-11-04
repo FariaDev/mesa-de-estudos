@@ -19,11 +19,14 @@ const MAX_MSG = 4000;
 const MAX_FIELD_TEXT = 400;
 const MAX_FIELDS = 12;
 const RESERVED = new Set(['ts', 'level', 'area', 'msg']);
-/* `sk-…` (Anthropic/OpenAI), `Bearer …` e `chave=valor` de nomes de segredo. */
+/* `sk-…` (Anthropic/OpenAI), `Bearer …` e `chave=valor` de nomes de segredo.
+   O nome não pode vir colado em letra (`(?<![A-Za-z])`, não `\b`): `\b` não
+   separa `_` de letra, então `OPENCODE_API_KEY=` e `MY_TOKEN=` escapavam
+   (revisão de segurança). */
 const SECRET_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{16,}/g,
   /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi,
-  /\b(api[_-]?key|token|password|senha|secret)(["']?\s*[:=]\s*["']?)[^\s"',;&]{4,}/gi,
+  /(?<![A-Za-z])(api[_-]?key|token|password|senha|secret)(["']?\s*[:=]\s*["']?)[^\s"',;&]{4,}/gi,
 ];
 
 /**

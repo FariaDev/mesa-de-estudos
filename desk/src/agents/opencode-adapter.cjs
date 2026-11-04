@@ -20,42 +20,50 @@
    INCERTEZA e nunca é reenviado sozinho. Queda do SSE com turno em voo também
    vira incerteza.
 
-   O `serve` não tem campo de system prompt: as instruções da Mesa entram no
-   PRIMEIRO prompt (só no fio) e saem do histórico na leitura. */
+   As instruções da Mesa vão no canal da sessão
+   (`PUT …/instructions/entries/mesa`). O `serve` 2.0.32 não tem essa rota:
+   aí o prompt vai marcado no envio e sai de TODA mensagem de usuário na leitura
+   — não só da primeira, e mesmo se o texto do prompt tiver mudado. */
 
 const {EventEmitter} = require('node:events');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const deliveryCore = require('../generated/agentdelivery.core.js').default;
-const {createOpenCodeClient, isRefusal, wireItem} = require('./opencode-http.cjs');
+const {createOpenCodeClient, wireItem} = require('./opencode-http.cjs');
 const {OpenCodeEventReader} = require('./opencode-events.cjs');
 const {CompactionTracker, runCompaction} = require('./opencode-compaction.cjs');
 const {listCommands} = require('./opencode-commands.cjs');
 const {OpenCodeControls} = require('./opencode-controls.cjs');
-const {messageList, normalizeHistory} = require('./opencode-history.cjs');
+const {allMessages, messageList, normalizeHistory} = require('./opencode-history.cjs');
+const {publishSessionInstructions} = require('./opencode-instructions.cjs');
+const {markTutorPrompt, visibleHistory} = require('./tutor-prompt-text.mjs');
 const {contextUsage} = require('./opencode-usage.cjs');
 const {WIRE_SESSION_RE, wireMessageId} = require('./opencode-ids.cjs');
 const {materializeImages} = require('./opencode-images.cjs');
+const {PROMPT_TIMEOUT_MS, admitTurn, failure, inboxUser} = require('./opencode-delivery.cjs');
+const {readOpenCodeVersion, oldOpenCode} = require('./opencode-version.cjs');
 const {message} = require('../i18n.mjs');
-
-const PROMPT_TIMEOUT_MS = 120000;
-/* Estudo, não oficina: o tutor lê e conversa, não mexe no computador. */
-const STUDY_PERMISSIONS = Object.freeze(['edit', 'shell', 'subagent', 'browser'].map((action) => Object.freeze({action, resource: '*', effect: 'deny'})));
-
 /**
  * @typedef {import('./opencode-serve-owner.cjs').ServeLease} ServeLease
  * @typedef {import('./opencode-http.cjs').OpenCodeClient} OpenCodeClient
  * @typedef {{conversationId?: string, sessionId: string, acquire: () => Promise<ServeLease>, directory: string,
  *   resume?: boolean, systemPrompt?: string, onSessionId?: (id: string) => unknown, sessionTitle?: string, selection?: unknown, fetch?: typeof globalThis.fetch,
  *   persistDelivery?: (patch: {id: string, status: string}) => unknown, log?: (area: string, line: string) => void,
- *   mcpConfig?: () => Record<string, unknown>|null, compactTimeoutMs?: number}} OpenCodeAdapterOptions
+ *   mcpConfig?: () => Record<string, unknown>|null, compactTimeoutMs?: number,
+ *   readVersion?: (binary: string) => Promise<string>, deleteSessionOnStop?: boolean}} OpenCodeAdapterOptions
  */
 
-/** @param {string} key @param {Record<string, string|number>} args @param {Record<string, unknown>} flags */
-const failure = (key, args, flags) => Object.assign(Error(message(key, args)), flags);
-/** @param {unknown} payload */
-const inboxUser = (payload) => { const item = wireItem(payload); return item.type === 'user' || item.role === 'user'; };
+/** @param {unknown} value @returns {string} */
+function redactErrorDetail(value) {
+  return String(value || '').replace(/((?:api[_-]?key|authorization|bearer)["']?\s*[:=]\s*["']?)[^"',}\s]+/gi, '$1***').slice(0, 400);
+}
+
+/** @param {unknown} value @returns {string} */
+function stringStatus(value) {
+  if (!value || typeof value !== 'object') return '';
+  const status = /** @type {{status?: unknown}} */ (value).status;
+  return typeof status === 'string' ? status : '';
+}
 
 class OpenCodeAdapter extends EventEmitter {
   /** @param {OpenCodeAdapterOptions} options */
@@ -67,7 +75,9 @@ class OpenCodeAdapter extends EventEmitter {
     /** @type {string} vazio até o servidor cunhar o `ses_` */
     this.sessionId = options.sessionId || '';
     this.log = options.log || (() => {});
-    this.systemSent = options.resume === true;
+    /** @type {''|'channel'|'prefix'|'none'} vazio até o `bind` publicar o prompt */
+    this.instructionMode = '';
+    this.prefixArmed = false;
     /** @type {ServeLease|null} */
     this.lease = null;
     /** @type {OpenCodeClient|null} */
@@ -115,15 +125,39 @@ class OpenCodeAdapter extends EventEmitter {
 
   async bind() {
     const lease = await this.options.acquire();
+    /* O turno usa a API v2 do `serve`: o 1.19.5 estável recusa todo pedido com
+       400 Missing key ["prompt"] e nem expõe o MCP `mesa`. Isso vem de antes
+       da #91; versão ilegível segue sem bloquear. */
+    const versionText = await (this.options.readVersion || readOpenCodeVersion)(lease.binary).catch(() => '');
+    const old = oldOpenCode(versionText);
+    if (old) throw failure('err.opencode.versionUnsupported', {version: old.text}, {notSent: true});
     if (this.lease && lease.baseUrl === this.lease.baseUrl && this.client) return;
     this.closeStream();
     this.lease = lease;
     this.client = createOpenCodeClient({baseUrl: lease.baseUrl, password: lease.password, fetch: this.options.fetch, log: this.log});
     this.commandCache = null;
-    await this.controls.load();
-    if (!this.controls.selectionAvailable()) this.emitEvent('warning', {code: 'OPENCODE_MODEL_UNAVAILABLE', message: message('opencode.controls.savedUnavailable')});
-    await this.admitSession();
-    await this.registerMcp();
+    /* O MCP é da pasta, não da sessão: sobe junto com o catálogo e o admit.
+       O SSE espera o ses_ — antes disso o evento de outra conversa no mesmo
+       servidor entraria neste leitor. As instruções precisam do ses_. */
+    const mcp = this.registerMcp();
+    try {
+      await this.controls.load();
+      /* O MCP é da pasta e a sessão nasce com as ferramentas que ele já
+         registrou: esperar aqui, ANTES do admit, evita o primeiro turno sem
+         `mesa_*` quando o handshake passa do retorno do PUT. */
+      await mcp;
+      if (!this.controls.selectionAvailable()) {
+        /* Sessão nova com padrão que sumiu do catálogo cai no "OpenCode
+           default" sem erro; conversa aberta avisa que a escolha salva não
+           existe mais. */
+        if (!this.options.resume) this.controls.selection = {model: null, effort: null};
+        else this.emitEvent('warning', {code: 'OPENCODE_MODEL_UNAVAILABLE', message: message('opencode.controls.savedUnavailable')});
+      }
+      await this.admitSession();
+    } finally {
+      await mcp;
+    }
+    await this.publishTutorPrompt();
     this.emitEvent('init', {executable: lease.binary, sessionId: this.sessionId});
     await this.ensureEvents();
   }
@@ -134,7 +168,7 @@ class OpenCodeAdapter extends EventEmitter {
     if (found) this.emitEvent('warning', {code: 'OPENCODE_SESSION_MISSING', message: message('opencode.session.missing')});
     const ref = this.controls.ref();
     const body = {...(this.sessionId ? {id: this.sessionId} : {}), title: this.options.sessionTitle || message('opencode.session.title'), location: {directory: this.options.directory},
-      permissions: STUDY_PERMISSIONS, ...(ref ? {model: ref} : {})};
+      ...(ref ? {model: ref} : {})};
     const created = await this.http().request('POST', '/api/session', {body});
     const id = String(wireItem(created.payload).id || '');
     if (created.ok && id && id === this.sessionId) return;
@@ -160,13 +194,57 @@ class OpenCodeAdapter extends EventEmitter {
     if (!response.ok) throw failure('err.opencode.modelRefused', {status: response.status, model: `${ref.providerID}/${ref.id}`}, {notSent: true, status: response.status});
   }
 
+  /* Canal de instruções. Falha (404 do binário antigo, 413, rede) não derruba
+     o estudo: o envio leva o prompt marcado e a leitura o tira. */
+  async publishTutorPrompt() {
+    const prompt = String(this.options.systemPrompt || '');
+    this.prefixArmed = false;
+    if (!prompt) { this.instructionMode = 'none'; return; }
+    const ok = await publishSessionInstructions(this.http().request, this.sessionId, prompt).catch(() => false);
+    this.instructionMode = ok ? 'channel' : 'prefix';
+  }
+
   /* As ferramentas da Mesa (GeoGebra, atividades) entram como MCP `mesa` na
      pasta da conversa. Falhar aqui não derruba o estudo: só avisa. */
   async registerMcp() {
     const config = this.options.mcpConfig?.() || null;
     if (!config) return;
     const response = await this.http().request('PUT', '/api/experimental/mcp/mesa', {body: {config}, query: this.location()}).catch((error) => ({ok: false, status: 0, error}));
-    if (!response.ok) this.emitEvent('warning', {code: 'OPENCODE_MCP_FAILED', message: message('opencode.mcp.failed', {status: response.status})});
+    if (!response.ok) {
+      this.emitEvent('warning', {code: 'OPENCODE_MCP_FAILED', message: message('opencode.mcp.failed', {status: response.status})});
+      return;
+    }
+    await this.waitMcpConnected();
+  }
+
+  /* O PUT só enfileira o MCP; no macOS o handshake pode terminar depois do
+     retorno. Sem esperar, a sessão nasce e o primeiro prompt vai sem as
+     ferramentas da Mesa (o modelo vê só `skill`). Espera o estado `connected`
+     por até 10 s; falha não derruba o estudo, só avisa. O `/api/mcp` real não
+     lista as ferramentas (2.2.4 e 2.2.5): esperar por elas gastava os 10 s em
+     toda conexão e dava um aviso falso (regressão da 596ecc4). */
+  async waitMcpConnected() {
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const status = await this.http().request('GET', '/api/mcp', {query: this.location()})
+        .then((reply) => {
+          const payload = /** @type {{data?: unknown}} */ (reply?.payload);
+          const items = Array.isArray(payload?.data) ? payload.data : [];
+          const mesa = items.find((item) => String(item?.name || '') === 'mesa');
+          return typeof mesa?.status === 'string' ? mesa.status : stringStatus(mesa?.status);
+        })
+        .catch(() => '');
+      if (status === 'connected' || status === 'ready') {
+        /* O status conecta antes de o catálogo de ferramentas da sessão
+           aparecer no primeiro prompt; um quadro de folga fecha essa janela. */
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        return true;
+      }
+      if (status === 'failed' || status === 'error') break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    this.emitEvent('warning', {code: 'OPENCODE_MCP_FAILED', message: message('opencode.mcp.failed', {status: 'timeout'})});
+    return false;
   }
 
   /* ---------- eventos ---------- */
@@ -177,6 +255,9 @@ class OpenCodeAdapter extends EventEmitter {
   }
 
   /** @param {string} type @param {Record<string, unknown>} payload */
+  receive(type, payload) { return this.fromReader(type, payload); }
+
+  /** @param {string} type @param {Record<string, unknown>} payload */
   fromReader(type, payload) {
     if (type.startsWith('compaction_')) {
       this.compactions.receive(type, payload);
@@ -185,8 +266,26 @@ class OpenCodeAdapter extends EventEmitter {
     }
     if (type === 'execution') return this.settleTurn({isError: payload.status === 'failed', cancelled: payload.status === 'interrupted'});
     if (type === 'idle') return this.settleTurn({});
+    if (type === 'permission_request') return void this.refusePermission(payload);
+    if (type === 'error' && payload.detail) this.log('opencode', `erro do provedor: ${redactErrorDetail(payload.detail)}`);
     this.emitEvent(type, payload);
     if (type === 'error') this.settleTurn({isError: true});
+  }
+
+  /* Pedido de permissão inesperado: o tutor não tem ferramenta nativa que
+     devesse pedir. A recusa é imediata e o aviso vai ao log/UI; nunca abre
+     diálogo nem aprova por engano. */
+  async refusePermission(request) {
+    const id = String(request?.id || '');
+    if (!id) return;
+    this.emitEvent('warning', {code: 'OPENCODE_PERMISSION_REFUSED', message: message('opencode.permission.refused')});
+    try {
+      const route = this.route(`/permission/${encodeURIComponent(id)}/reply`);
+      let response = await this.http().request('POST', route, {body: {decision: 'reject'}});
+      if (response.status === 400) response = await this.http().request('POST', route, {body: {reply: 'reject'}});
+    } catch (error) {
+      this.log('opencode', `pedido de permissão recusado sem resposta do servidor: ${error?.message || error}`);
+    }
   }
 
   /** @param {string} status @param {string} id */
@@ -239,42 +338,6 @@ class OpenCodeAdapter extends EventEmitter {
 
   /* ---------- entrega ---------- */
 
-  /**
-   * Manda um prompt ou comando e classifica a resposta pelo núcleo.
-   * @param {{id: string, route: string, body: Record<string, unknown>, accepts: (response: import('./opencode-http.cjs').OpenCodeResponse) => boolean, action: string, onRefused?: () => void}} admission
-   */
-  async admitTurn({id, route, body, accepts, action, onRefused}) {
-    if (!await this.ensureEvents()) throw failure('opencode.noEvents', {}, {notSent: true});
-    let response;
-    try {
-      response = await this.http().request('POST', route, {body, timeoutMs: PROMPT_TIMEOUT_MS});
-    } catch (error) {
-      await this.delivery('uncertain', id);
-      throw error;
-    }
-    const accepted = accepts(response);
-    const verdict = deliveryCore.outcome(accepted, !accepted && !isRefusal(response.status)).$;
-    if (verdict === 'DeliveryOutcome.Accepted') return this.openTurn(id, response);
-    if (verdict === 'DeliveryOutcome.Refused') {
-      onRefused?.();
-      await this.delivery('refused', id);
-      throw failure('err.opencode.refused', {action, status: response.status}, {notSent: true, status: response.status});
-    }
-    await this.delivery('uncertain', id);
-    throw failure('err.opencode.unconfirmed', {action, status: response.status}, {uncertain: true, notSent: false, status: response.status});
-  }
-
-  /** @param {string} id @param {import('./opencode-http.cjs').OpenCodeResponse} response */
-  async openTurn(id, response) {
-    const item = wireItem(response.payload);
-    this.runId = String(inboxUser(response.payload) ? item.id || id : id);
-    this.busy = true;
-    this.turn = {id};
-    await this.delivery('accepted', id);
-    this.emitEvent('turn_start', {id});
-    return {id, accepted: true};
-  }
-
   /** @param {unknown} images */
   files(images) {
     return materializeImages(images, {
@@ -290,15 +353,18 @@ class OpenCodeAdapter extends EventEmitter {
   async send(input) {
     const id = String(input.id || '');
     await this.connect();
+    /* Steer só é steer com turno em voo; ocioso, é um envio normal (o serviço
+       já decide assim, e o adaptador repete a regra para quem o chama direto). */
+    const steer = input.delivery === 'steer' && this.busy && Boolean(this.turn);
     let text = String(input.text || '');
-    const withSystem = Boolean(this.options.systemPrompt) && !this.systemSent;
-    if (withSystem) { this.systemSent = true; text = `${this.options.systemPrompt}\n\n${text}`; }
+    const marked = this.instructionMode === 'prefix' && !this.prefixArmed && Boolean(this.options.systemPrompt);
+    if (marked) { this.prefixArmed = true; text = markTutorPrompt(String(this.options.systemPrompt), text); }
     const files = this.files(input.images);
     const body = {id: wireMessageId(id), text, resume: true, ...(input.delivery === 'steer' ? {delivery: 'steer'} : {}), ...(files.length ? {files} : {})};
     /* Recusa comprovada desfaz a marca: a retentativa ainda leva as instruções. */
-    return this.admitTurn({id, route: this.route('/prompt'), body, action: 'opencode.action.prompt',
+    return admitTurn(this, {id, route: this.route('/prompt'), body, action: 'opencode.action.prompt', steer,
       accepts: (response) => response.status === 200 && inboxUser(response.payload),
-      onRefused: () => { if (withSystem) this.systemSent = false; }});
+      onRefused: () => { if (marked) this.prefixArmed = false; }});
   }
 
   /** @param {{id?: string, name: string, text?: string, images?: unknown[]}} input */
@@ -307,7 +373,7 @@ class OpenCodeAdapter extends EventEmitter {
     await this.connect();
     const files = this.files(input.images);
     const body = {name: String(input.name || '').replace(/^\/+/, ''), text: String(input.text || ''), ...(files.length ? {files} : {})};
-    return this.admitTurn({id, route: this.route('/command'), body, action: 'opencode.action.command',
+    return admitTurn(this, {id, route: this.route('/command'), body, action: 'opencode.action.command',
       accepts: (response) => response.status === 204 || (response.status === 200 && inboxUser(response.payload))});
   }
 
@@ -327,33 +393,14 @@ class OpenCodeAdapter extends EventEmitter {
     return {aborted: Boolean(response?.ok)};
   }
 
-  /** @param {{id?: string, decision?: string, confirmed?: boolean}} input */
-  async respond(input) {
-    const requestID = String(input?.id || '');
-    if (!requestID) throw failure('err.opencode.permissionId', {received: JSON.stringify(input?.id)}, {notSent: true});
-    const decision = ['once', 'always', 'reject'].includes(String(input.decision)) ? input.decision : (input.confirmed === true ? 'once' : 'reject');
-    const response = await this.http().request('POST', this.route(`/permission/${encodeURIComponent(requestID)}/reply`), {body: {decision}});
-    if (!response.ok) throw failure('err.opencode.permissionRefused', {status: response.status}, {notSent: true});
-    return {ok: true, decision};
-  }
-
   /* ---------- leitura ---------- */
 
   async history() {
     await this.connect();
-    const response = await this.http().request('GET', this.route('/message'));
-    const list = normalizeHistory(messageList(response.ok ? response.payload : null));
-    return this.stripSystemPrompt(list);
+    const list = normalizeHistory(await allMessages(this.http().request, this.route('/message')));
+    return visibleHistory(list, String(this.options.systemPrompt || ''));
   }
 
-  /** @param {Array<{role: string, content: Array<{type: string, text?: string}>}>} list */
-  stripSystemPrompt(list) {
-    const prefix = this.options.systemPrompt ? `${this.options.systemPrompt}\n\n` : '';
-    const first = list.find((item) => item.role === 'user');
-    const part = first?.content?.find((item) => item.type === 'text');
-    if (prefix && part?.text?.startsWith(prefix)) part.text = part.text.slice(prefix.length);
-    return list;
-  }
 
   async commands() {
     await this.connect();
@@ -385,6 +432,9 @@ class OpenCodeAdapter extends EventEmitter {
   }
 
   async initializeControls() {
+    /* Já ligado, com catálogo: não passa de novo pelo acquire (que relê a chave).
+       No meio do bind o catálogo pode existir antes do ses_: aí espera o bind. */
+    if (this.client && this.lease && !this.binding && this.controls.catalog.length) return this.controls.snapshot();
     await this.connect();
     await this.controls.load();
     return this.controls.snapshot();
@@ -402,20 +452,32 @@ class OpenCodeAdapter extends EventEmitter {
     return this.controls.snapshot();
   }
 
-  /* A política de ferramentas do Claude não se aplica: as regras de estudo
-     já vão na criação da sessão. */
-  setToolPolicy() {}
-
   cacheHistory() {}
 
   stop() {
+    const deletion = this.deleteTemporarySession();
     this.closeStream();
     this.compactions.abandon(this.compactions.current);
     this.turn = null;
     this.busy = false;
     if (this.tempDir) { try { fs.rmSync(this.tempDir, {recursive: true, force: true}); } catch { /* temporário já saiu */ } }
     this.tempDir = '';
+    return deletion;
+  }
+
+  /* Só o rascunho de revisão (#93) pede a sessão descartável: a conversa de
+     estudo continua no histórico da pessoa. O `DELETE` é do servidor da Mesa
+     e não apaga arquivo local nenhum. */
+  async deleteTemporarySession() {
+    if (this.options.deleteSessionOnStop !== true || !this.sessionId || !this.client) return;
+    const id = this.sessionId;
+    try {
+      /* O 2.2.4 só acha a sessão com a pasta na query: sem ela o DELETE dá 404
+         e a sessão fica (medido no binário real). */
+      const response = await this.client.request('DELETE', `/api/session/${encodeURIComponent(id)}`, {timeoutMs: 5000, query: this.location()});
+      if (!response.ok) this.log('opencode', `sessão temporária ${id} não apagada: HTTP ${response.status}`);
+    } catch (error) { this.log('opencode', `sessão temporária ${id} não apagada: ${error?.message || error}`); }
   }
 }
 
-module.exports = {OpenCodeAdapter, STUDY_PERMISSIONS, PROMPT_TIMEOUT_MS};
+module.exports = {OpenCodeAdapter, PROMPT_TIMEOUT_MS};

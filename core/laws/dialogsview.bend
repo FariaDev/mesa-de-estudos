@@ -319,6 +319,7 @@ law dlg_cfg_linha:
             V.attrType("button"),
             V.attrClass("cfg-remove icon-btn"),
             V.attrAria("label", M.msg("settings.course.remove")),
+            V.attrTitle(M.msg("settings.courses.removeNote")),
             V.ViewAttr{"on:click", "RemoveCourse"}
           ], Con{V.viewText("×"), Nil{}}),
           Nil{}
@@ -355,6 +356,7 @@ law dlg_cfg_linha_vazia:
             V.attrType("button"),
             V.attrClass("cfg-remove icon-btn"),
             V.attrAria("label", M.msg("settings.course.remove")),
+            V.attrTitle(M.msg("settings.courses.removeNote")),
             V.ViewAttr{"on:click", "RemoveCourse"}
           ], Con{V.viewText("×"), Nil{}}),
           Nil{}

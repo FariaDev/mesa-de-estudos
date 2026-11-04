@@ -156,7 +156,7 @@ test('runtime resolve realpath e recusa symlink/arquivo fora de conversations', 
     /* Cópia válida fora de runtime/conversations: com runtime não é lida. */
     const outside = join(runtime, 'fora');
     mkdirSync(outside, {recursive: true});
-    const moved = join(outside, file.slice(file.lastIndexOf('/') + 1));
+    const moved = join(outside, basename(file));
     renameSync(file, moved);
     assert.equal(conversations.readClaudeConversation(moved, {runtime}), null, 'fora de conversations não é descritor');
     assert.deepEqual(conversations.readClaudeConversation(moved), JSON.parse(readRaw(moved)), 'sem runtime o nome gerenciado basta');

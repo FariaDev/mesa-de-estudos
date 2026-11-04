@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
+import {makeSignedRelease} from './fake-update-release.mjs';
 
 /* D1 — git DE VERDADE (remoto bare temporário, sem rede): portão de clone
    limpo, `--ff-only` que recusa e a conferência da versão anunciada (A3).
@@ -39,7 +40,7 @@ function realRepo() {
 /* Segunda versão (0.4.1) empurrada por outro clone (o fluxo real de release).
    O lock NÃO muda aqui: um lock falso faria o `npm ci` real falhar — o caminho
    "lock mudou → npm ci" já é coberto pelos testes fakes (updateflow). */
-function pushNext(remote) {
+function pushNext(remote, tags = ['v0.4.1']) {
   const other = path.join(tmp(), 'outro-' + Math.random().toString(36).slice(2));
   git(['clone', remote, other], path.dirname(other));
   write(path.join(other, 'desk', 'package.json'), '{"version":"0.4.1"}');
@@ -48,17 +49,29 @@ function pushNext(remote) {
   git(['add', '-A'], other);
   git(['-c', 'user.email=teste@mesa', '-c', 'user.name=Teste', 'commit', '-m', 'v0.4.1'], other);
   git(['push', 'origin', 'HEAD'], other);
-  return other;
+  for (const tag of tags) {
+    git(['tag', tag], other);
+    git(['push', 'origin', tag], other);
+  }
+  return {other, commit: git(['rev-parse', 'HEAD'], other).trim()};
+}
+
+/* Manifesto assinado com a chave de teste para a tag real do clone (a tag é
+   buscada pelo próprio updater; o commit vem do remoto). */
+function signedFor(commit, version = '0.4.1') {
+  return makeSignedRelease({version, commit, zip: Buffer.from('zip')});
 }
 
 test('D1: update real com git — pull ff, versão CONFERIDA, sem npm ci sem lock novo', async () => {
   const {remote, work} = realRepo();
-  pushNext(remote);
+  const {commit} = pushNext(remote);
+  const release = signedFor(commit);
   const runtime = tmp();
   const reopens = [];
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
-    announcedVersion: '0.4.1', reopen: () => reopens.push('r'), waitPid: 0,
+    announcedVersion: '0.4.1', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+    reopen: () => reopens.push('r'), waitPid: 0,
   });
   assert.equal(result.ok, true, 'pull --ff-only de verdade aplica');
   assert.equal(result.diverged, false, 'a versão anunciada é a instalada');
@@ -68,13 +81,36 @@ test('D1: update real com git — pull ff, versão CONFERIDA, sem npm ci sem loc
   assert.equal(fs.existsSync(path.join(work, '.update-manifest.json')), false, 'modo git não grava manifesto de zip (o git gerencia)');
   assert.equal(read(path.join(work, 'desk', 'package-lock.json')), '{"lock":"antigo"}', 'lock igual → sem npm ci');
   assert.equal(reopens.length, 1);
-  assert.match(read(path.join(runtime, 'desk.log')), /git pull --ff-only ok \(branch de desenvolvimento do clone\)/);
+  assert.match(read(path.join(runtime, 'desk.log')), /git merge --ff-only v0\.4\.1 ok \(commit da Release\)/);
   assert.match(read(path.join(runtime, 'desk.log')), /v0\.4\.1 no lugar \(conferida no package\.json\)/);
+});
+
+/* #80: o main andou depois da tag (o normal entre releases). O update vai
+   até o commit ASSINADO da tag, não até a ponta da branch; antes, o `git pull`
+   deixava o HEAD fora do manifesto e toda atualização por git era recusada. */
+test('#80: main à frente da tag → o clone para no commit assinado da tag', async () => {
+  const {remote, work} = realRepo();
+  const {other, commit} = pushNext(remote);
+  write(path.join(other, 'desk', 'main.cjs'), 'main depois da tag');
+  git(['add', '-A'], other);
+  git(['-c', 'user.email=teste@mesa', '-c', 'user.name=Teste', 'commit', '-m', 'depois da tag'], other);
+  git(['push', 'origin', 'HEAD'], other);
+  const release = signedFor(commit);
+  const runtime = tmp();
+  const result = await updater.applyUpdate({
+    mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
+    announcedVersion: '0.4.1', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+    reopen: () => {}, waitPid: 0,
+  });
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(git(['rev-parse', 'HEAD'], work).trim(), commit, 'HEAD é o commit da tag');
+  assert.equal(read(path.join(work, 'desk', 'main.cjs')), 'main novo', 'o commit não assinado não entrou');
 });
 
 test('D1: clone com trabalho local (manifesto sujo, como o setup antigo fazia) é recusado SEM destruir nada', async () => {
   const {remote, work} = realRepo();
-  pushNext(remote);
+  const {commit} = pushNext(remote);
+  const release = signedFor(commit);
   /* Trabalho local no manifesto versionado — o estado que o setup antigo
      deixava (npm install do Pi dentro do desk). */
   write(path.join(work, 'desk', 'package.json'), '{"version":"0.4.0","nota":"edição local"}');
@@ -83,7 +119,8 @@ test('D1: clone com trabalho local (manifesto sujo, como o setup antigo fazia) �
   const reopens = [];
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
-    announcedVersion: '0.4.1', reopen: () => reopens.push('r'), waitPid: 0,
+    announcedVersion: '0.4.1', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+    reopen: () => reopens.push('r'), waitPid: 0,
   });
   assert.equal(result.ok, false);
   assert.match(result.reason, /trabalho local/);
@@ -97,6 +134,8 @@ test('D1: clone com trabalho local (manifesto sujo, como o setup antigo fazia) �
 
 test('D1: remoto divergiu (não é ff) → pull recusa, rollback volta a versão antiga de verdade', async () => {
   const {remote, work} = realRepo();
+  const {commit} = pushNext(remote);
+  const release = signedFor(commit);
   /* Histórico paralelo no remoto: o pull --ff-only NÃO pode avançar. */
   const other = path.join(tmp(), 'paralelo');
   git(['clone', remote, other], path.dirname(other));
@@ -112,7 +151,8 @@ test('D1: remoto divergiu (não é ff) → pull recusa, rollback volta a versão
   const reopens = [];
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
-    announcedVersion: '0.4.1', reopen: () => reopens.push('r'), waitPid: 0,
+    announcedVersion: '0.4.1', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+    reopen: () => reopens.push('r'), waitPid: 0,
   });
   assert.equal(result.ok, false, 'pull não-ff falha');
   assert.match(result.reason, /fast-forward/i, 'a recusa do --ff-only chega como motivo');
@@ -131,11 +171,13 @@ test('D1: remoto divergiu (não é ff) → pull recusa, rollback volta a versão
    tag. */
 test('D1/A3: versão anunciada divergente no modo git vira aviso, não sucesso da tag', async () => {
   const {remote, work} = realRepo();
-  pushNext(remote);
+  const {commit} = pushNext(remote, ['v0.4.1', 'v9.9.9']);
+  const release = signedFor(commit, '9.9.9');
   const runtime = tmp();
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
-    announcedVersion: '9.9.9', reopen: () => {}, waitPid: 0,
+    announcedVersion: '9.9.9', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+    reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, true, 'o pull em si funcionou');
   assert.equal(result.diverged, true, 'a divergência é declarada');
@@ -178,7 +220,8 @@ test('D1/A2: instalar o Pi local não suja package.json/lock do desk', async () 
 /* D2 de verdade: update real em cima da instalação com .pi-local. */
 test('D2: update real da Mesa (git) deixa o Pi local intacto e resolvível', async () => {
   const {remote, work} = realRepo();
-  pushNext(remote);
+  const {commit} = pushNext(remote);
+  const release = signedFor(commit);
   const piHome = ensurePiLocalHome(path.join(work, 'desk'));
   fs.mkdirSync(path.join(piHome, 'node_modules', '.bin'), {recursive: true});
   fs.writeFileSync(path.join(piHome, 'node_modules', '.bin', 'pi'), '#!/usr/bin/env node\n');
@@ -189,7 +232,8 @@ test('D2: update real da Mesa (git) deixa o Pi local intacto e resolvível', asy
   assert.equal(antes, path.join(piHome, 'node_modules', '.bin', 'pi'), 'resolve o Pi da instalação testada');
   const result = await updater.applyUpdate({
     mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
-    announcedVersion: '0.4.1', reopen: () => {}, waitPid: 0,
+    announcedVersion: '0.4.1', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+    reopen: () => {}, waitPid: 0,
   });
   assert.equal(result.ok, true);
   assert.equal(fs.existsSync(antes), true, 'o binário do Pi continua lá depois do update');

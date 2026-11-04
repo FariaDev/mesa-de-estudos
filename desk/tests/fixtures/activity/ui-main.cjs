@@ -100,7 +100,12 @@ app.whenReady().then(async () => {
   win.webContents.on('will-navigate', (event, url) => {
     if (url !== win.webContents.getURL()) event.preventDefault();
   });
-  activityRuntime.attachWindow(win);
+  /* Sem o watchdog neste harness: o Playwright trata o crash do OOPIF do
+     artefato como crash da PÁGINA inteira (o renderer principal segue vivo),
+     e o resto do roteiro não consegue mais falar com a janela. O kill do
+     processo travado é coberto por `hunt-activity-watchdog.mjs` e
+     `activity-process-guard.test.mjs`, com o runtime de verdade. */
+  activityRuntime.attachWindow(win, {watchdog: false});
   const navLog = [];
   win.webContents.on('will-frame-navigate', (event) => {
     if (event.isMainFrame) return;
@@ -109,6 +114,7 @@ app.whenReady().then(async () => {
 
   globalUi = {
     runtime,
+    watchdogEnabled: false,
     store,
     activityRuntime,
     bridge,

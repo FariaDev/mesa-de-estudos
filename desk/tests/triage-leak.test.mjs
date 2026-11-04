@@ -55,7 +55,7 @@ test('OpenCode e Pi só são consultados (versão e lista), nunca chamados para 
   assert.match(stdout,/opencode run --model opencode\/deepseek-v4\.1-flash-free '/,'DeepSeek Flash vem antes de MiniMax e do big-pickle');
   assert.match(stdout,/\npi --model xai\/grok-4 'Você está no repositório/,'o Pi usa o recente do seletor, no modo interativo');
   assert.match(stdout,/Modelo do Pi: xai\/grok-4, anthropic\/claude-sonnet-5-5\n/,'favorito grátis do Zen não entra');
-  assert.match(stdout,/Modelos grátis podem guardar o que recebem: não guarda nem treina\./);
+  assert.match(stdout,/Grátis pode guardar o que recebe: não guarda nem treina\./);
   assert.equal(fs.existsSync(profile.forbiddenLog),false,`chamada proibida: ${fs.existsSync(profile.forbiddenLog)?fs.readFileSync(profile.forbiddenLog,'utf8'):''}`);
  }finally{profile.cleanup();}
 });
@@ -65,7 +65,7 @@ test('sem OpenCode instalado, a saída do OpenCode some com explicação',{skip}
  try{
   const stdout=runTriage(profile.env);
   assert.doesNotMatch(stdout,/opencode run/);
-  assert.match(stdout,/O OpenCode não está instalado neste computador/);
+  assert.match(stdout,/OpenCode ausente neste computador/);
   assertNoLeak(everyForm(stdout),profile.secrets);
  }finally{profile.cleanup();}
 });
@@ -75,6 +75,6 @@ test('sem modelo grátis na lista viva, a saída do OpenCode some com explicaç�
  try{
   const stdout=runTriage(profile.env);
   assert.doesNotMatch(stdout,/opencode run/);
-  assert.match(stdout,/O OpenCode não oferece agora nenhum modelo grátis/);
+  assert.match(stdout,/O OpenCode não tem modelo grátis agora/);
  }finally{profile.cleanup();}
 });

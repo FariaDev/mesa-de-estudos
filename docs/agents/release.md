@@ -8,15 +8,76 @@ ou de mexer em `desk/updater.cjs`, `desk/update-host.cjs` ou
 ## Release (fluxo do updater por clique)
 
 O updater da Mesa (Sobre → Atualizar e reiniciar) só funciona a partir da
-v0.4.0 — a primeira versão que o contém. Para publicar `vX.Y.Z`:
+v0.4.0 — a primeira versão que o contém. Desde a #80 ele só aplica release
+assinada: a raiz de confiança é um par Ed25519 do autor. A chave **pública**
+fica commitada em `desk/update-signing-key.pub` (PEM SPKI); a **privada** mora
+fora do repositório, nunca é commitada nem impressa. Enquanto a pública for o
+marcador `PLACEHOLDER`, o app recusa toda atualização com o motivo.
+
+O updater confere o manifesto assinado (`mesa-manifest-vX.Y.Z.json` +
+`.sig` em base64) com `{version, commit, zipSha256, zipBytes}`:
+
+- **zip**: baixa o zip **publicado na Release** (`mesa-estudos-X.Y.Z.zip`, bytes
+  estáveis, gerado por `git archive`), confere `zipBytes` e SHA-256 contra o
+  manifesto e só então aplica;
+- **git/bundle**: confere que `git rev-parse vX.Y.Z^{commit}` é o `commit` do
+  manifesto e, depois do pull, exige `HEAD` nesse mesmo commit — branch à
+  frente da tag tem código não assinado e é recusada;
+- todo download tem teto (manifesto 64 KB, assinatura 8 KB, zip 64 MB) e o
+  stream é cancelado ao passar dele. Sem manifesto, assinatura inválida ou
+  hash/commit diferente, nada é aplicado — o rollback normal continua valendo.
+
+### Uma vez: gerar o par de chaves
+
+Na cópia do repositório, com a árvore limpa:
+
+```sh
+cd desk
+npm run update:keygen -- --private-key ~/mesa-update-signing.pem
+```
+
+- a privada é gravada no caminho informado (fora do repositório, modo 0600);
+  **guarde um backup** e nunca a copie para dentro do repositório;
+- a pública é escrita em `desk/update-signing-key.pub`; commite esse arquivo e
+  publique antes da primeira Release assinada;
+- `keygen` recusa sobrescrever chave existente sem `--force` — trocar a chave
+  obriga todo mundo a reinstalar, então não use `--force` por engano;
+- instalações por zip anteriores à versão que conhece `.pub` não recebem a
+  chave pelo updater antigo: atualize por git ou reinstale antes de depender do
+  update assinado.
+
+### Cada release `vX.Y.Z`
 
 1. snapshot no repositório público `FariaDev/mesa-de-estudos` e push na `main` dele.
+   Ficam fora do snapshot os caminhos de [`snapshot-fora.txt`](snapshot-fora.txt);
+   confira que o resultado não tem caminho pessoal, chave nem material de curso.
    O snapshot não tem `chat/`: o app Conversa foi aposentado na #50 e saiu do
    `main`, e o `verify:bend` só gera `desk/src/generated`, então a árvore pública
    fecha o portão sem `--no-verify` por causa do app irmão (o `--no-verify`
    segue sendo só a saída de emergência);
-2. tag `vX.Y.Z` no público;
-3. `gh release create vX.Y.Z --notes "…"` — o corpo da Release é o "o que mudou" mostrado no app.
+2. tag `vX.Y.Z` no público (a chave pública já tem de estar commitada nela);
+3. monte e assine os assets, na raiz dessa cópia:
+
+   ```sh
+   cd desk
+   npm run update:sign -- vX.Y.Z --private-key ~/mesa-update-signing.pem --out ../release-vX.Y.Z
+   npm run update:release:verify -- vX.Y.Z --dir ../release-vX.Y.Z
+   ```
+
+   O `sign` recusa se a pública ainda for `PLACEHOLDER` ou se a privada não
+   corresponder a ela. Ele gera `mesa-estudos-X.Y.Z.zip`,
+   `mesa-manifest-vX.Y.Z.json` e `mesa-manifest-vX.Y.Z.sig`;
+4. crie a Release e anexe **os três** assets:
+
+   ```sh
+   cd ..
+   gh release create vX.Y.Z --notes "…"
+   gh release upload vX.Y.Z release-vX.Y.Z/mesa-estudos-X.Y.Z.zip \
+     release-vX.Y.Z/mesa-manifest-vX.Y.Z.json release-vX.Y.Z/mesa-manifest-vX.Y.Z.sig
+   ```
+
+   O corpo da Release é o "o que mudou" mostrado no app. Reenvio usa
+   `--clobber`, mas o manifesto tem de ser reassinado se o zip mudar.
 
 **Antes do passo 1, confira a faixa testada do Claude Code** (#51). A Mesa usa
 sempre o Claude Code que a pessoa instalou e não leva binário de reserva: ela
@@ -39,21 +100,24 @@ Quem prefere terminal (ou recuperação) usa `npm run update` em `desk/`:
 checa, aplica (git/bundle/zip), roda `npm ci` só se o lock mudou, re-sincroniza
 o bundle no macOS e reabre. Comportamento real, por modo:
 
-- **zip** (instalação sem git): baixa a tag anunciada, valida a versão dentro
-  do zip ANTES de copiar e substitui só o que o manifesto da instalação
-  gerencia (`desk/.update-manifest.json`) — órfão gerenciado sai, arquivo
-  local fica. `--versao X.Y.Z` seleciona versão aqui.
+- **zip** (instalação sem git): baixa o zip **assinado da Release**, confere
+  `zipBytes`/SHA-256 contra o manifesto e valida a versão dentro do zip ANTES
+  de copiar; substitui só o que o manifesto da instalação gerencia
+  (`desk/.update-manifest.json`) — órfão gerenciado sai, arquivo local fica.
+  `--versao X.Y.Z` seleciona versão aqui.
 - **Instalação antiga com `chat/` no disco** (#50): o updater nunca apaga nem
   toca a pasta, em nenhum modo. No zip, `chat/` nunca esteve na lista gerenciada
   e uma entrada de manifesto que aponte para lá é recusada com aviso no log
-  (`tests/updateflow.test.mjs`). No git, o `git pull` remove os arquivos
+  (`tests/updateflow.test.mjs`). No git, o avanço da branch remove os arquivos
   rastreados de `chat/`, mas o que o git ignora (`chat/node_modules`,
   `chat/.runtime`, sessões) fica onde está; quem quiser a pasta de volta usa a
   tag local `conversa-final`.
-- **git/bundle** (clone): `git pull --ff-only` na branch de
-  DESENVOLVIMENTO — não baixa a tag; `--versao` não seleciona versão
-  (recusado com explicação) e a versão final é lida do `package.json`
-  (divergência da tag anunciada é aviso no log, nunca "vX no lugar").
+- **git/bundle** (clone): confere o commit da tag `vX.Y.Z` contra o manifesto
+  assinado e avança o clone só até esse commit com `git merge --ff-only`
+  (commits do `main` depois da tag não entram; clone já à frente da tag é
+  recusado); `--versao` não seleciona versão (recusado com
+  explicação) e a versão final é lida do `package.json` (divergência da tag
+  anunciada é aviso no log, nunca "vX no lugar").
 - Clone com **trabalho local** (arquivo rastreado modificado) é recusado antes
   de qualquer mutação — commit/stash e rode de novo. Nada é destruído.
 
@@ -65,3 +129,11 @@ falhar, o **backup é preservado** (caminho no log) e o Sobre mostra
 "recuperação incompleta". A atualização tem lock compartilhado entre
 Sobre/Atualizar Pi/CLI e handshake do worker (o app só fecha depois de o
 worker confirmar que subiu; sem Node do sistema, aborta com o app de pé).
+
+## Novidades da versão
+
+Depois de atualizar, a Mesa abre uma janela com as novidades (`desk/src/release-notes.mjs`,
+pintada por `desk/src/release-notes-ui.mjs`; reabre em ⚙ → Novidades). Antes de publicar uma
+versão com novidade, acrescente a entrada em `RELEASE_NOTES` com o número **exato** do
+`desk/package.json` e os textos em `pt-BR.json` e `en.json`. Versão sem entrada não abre janela.
+A entrada `1.1.0` é a mudança do Pi para o OpenCode: a release que a publica precisa ser a 1.1.0.

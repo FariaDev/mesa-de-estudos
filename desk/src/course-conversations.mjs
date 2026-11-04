@@ -1,5 +1,6 @@
 import * as queue from './queue.mjs';
 import {$,S,toast,toastFailure,connectionState,layoutSnapshot,fillSessions,sessionNameParts,applyStudy,connect,loadCourse} from './state.mjs';
+import {setLegacySession,visibleEngines} from './visible-engines-ui.mjs';
 import {resetAttachments,restoreAttachments,showHistory} from './chat.mjs';
 import {setResumeRecord} from './resume.mjs';
 import {t,formatDate} from './ui-text.mjs';
@@ -16,11 +17,13 @@ import {sessionEngine} from './engine-facts.mjs';
    motor criado e o `fillSessions` reajusta título/capacidades. */
 async function newSession(engine){
  if(S.busy||S.connecting||S.switching){toast(t('session.waitCalling'));return;}
- engine=sessionEngine(engine);
+ /* Sem motor pedido, o host escolhe o instalado (#93); um motor explícito
+    continua sendo a escolha do item de menu. */
+ if(engine!=null)engine=sessionEngine(engine);
  try{
   clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
   const data=await window.desk.newSession(engine);
-  S.connected=false;
+  S.connected=false;setLegacySession(false);
   if(data.workspace){$('#messages').replaceChildren();await loadCourse(data);}
   else fillSessions(data);
   connectionState('');
@@ -30,7 +33,7 @@ async function newSession(engine){
    $('#messages').replaceChildren();
    /* Cache do descritor antes do connect: offline/sem login, a conversa Claude
       continua visível (nada de cair para o Pi). */
-   if(Array.isArray(data.messages)&&data.messages.length)showHistory(data.messages);
+   if((Array.isArray(data.messages)&&data.messages.length)||data.cards?.length)showHistory(Array.isArray(data.messages)?data.messages:[],data.cards||[]);
    resetAttachments();
    queue.adopt(data.pending);
    restoreAttachments(data.pending);
@@ -50,7 +53,7 @@ async function openConversation(file){
  try{
   clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
   const data=await window.desk.openSession(file);
-  S.connected=false;
+  S.connected=false;setLegacySession(false);
   if(data.workspace){$('#messages').replaceChildren();await loadCourse(data);}
   else fillSessions(data);
   connectionState('');
@@ -58,9 +61,11 @@ async function openConversation(file){
    applyStudy(data.state?.study);
    $('#prompt').value=data.state?.draft||'';
    $('#messages').replaceChildren();
-   if(Array.isArray(data.messages)&&data.messages.length)showHistory(data.messages);
+   if((Array.isArray(data.messages)&&data.messages.length)||data.cards?.length)showHistory(Array.isArray(data.messages)?data.messages:[],data.cards||[]);
    resetAttachments();queue.adopt(data.pending);restoreAttachments(data.pending);setResumeRecord(data.resume);
   }
+  /* Motor antigo: histórico legível, sem connect e sem composer (#release OpenCode). */
+  if(!visibleEngines().includes(S.engine)){setLegacySession(true);return true;}
   await connect();
   return true;
  }catch(e){toastFailure(e);return false;}

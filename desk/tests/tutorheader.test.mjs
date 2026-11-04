@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {ptText} from './pt-text.mjs';
+import {ptText,enText} from './pt-text.mjs';
 import assert from 'node:assert/strict';
 import core from '../src/generated/tutorheader.core.js';
 
@@ -10,11 +10,28 @@ import core from '../src/generated/tutorheader.core.js';
 const nodes=(l)=>{const out=[];for(let c=l;c&&c.$==='Con';c=c.tail)out.push(c.head);return out;};
 const attrs=(node)=>{const out={};for(let a=node.attrs;a&&a.$==='Con';a=a.tail)if(!(a.head.name in out))out[a.head.name]=ptText(a.head.value);return out;};
 
+/* #90, polimento: dentro do grupo "Contexto" a linha de uso não repete o rótulo
+   do grupo — ela diz "Em uso" (en: "In use") e mostra a medição. */
+test('submenu de Contexto: a linha de uso não repete o rótulo do grupo',()=>{
+ const items=nodes(core.moreItems(true));
+ const trigger=nodes(items[0].kids)[0];
+ const menu=items[1];
+ const row=nodes(menu.kids)[0];
+ const rowLabel=nodes(nodes(row.kids)[0].kids)[0];
+ assert.equal(ptText(trigger.text),'Contexto','o gatilho nomeia o grupo');
+ assert.equal(ptText(attrs(menu)['aria-label']),'Contexto','o submenu tem o mesmo nome do grupo');
+ assert.equal(ptText(rowLabel.text),'Em uso','a linha interna diz o que a barra representa');
+ assert.equal(enText(rowLabel.text),'In use','e a tradução inglesa acompanha');
+ assert.notEqual(ptText(rowLabel.text),ptText(attrs(menu)['aria-label']),'nenhuma linha do grupo repete o rótulo do grupo');
+});
+
 test('mais opções: a flag endDay é o único motivo para o Encerrar por hoje sumir',()=>{
  const on=nodes(core.moreItems(true)),off=nodes(core.moreItems(false));
- assert.equal('hidden' in attrs(on[1]),false);
- assert.equal(attrs(off[1]).hidden,'');
- for(const index of [0,2,3,4,5])assert.equal('hidden' in attrs(off[index]),false,`item ${index} não some por flag`);
+ assert.equal(attrs(on[2]).hidden,undefined,'Encerrar visível com a flag ligada');
+ assert.equal(attrs(off[2]).hidden,'');
+ for(const index of [0,3,4])assert.equal('hidden' in attrs(off[index]),false,`item ${index} não some por flag`);
+ assert.equal(attrs(on[1]).id,'more-context-menu','o submenu de Contexto nasce fechado');
+ assert.equal(attrs(on[1]).hidden,'');
 });
 
 /* ---------- indicador de modelo e esforço (ticket #14) ---------- */

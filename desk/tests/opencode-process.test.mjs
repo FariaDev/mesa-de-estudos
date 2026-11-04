@@ -93,7 +93,7 @@ test('filho que sai antes de anunciar a porta rejeita e limpa o ledger', async (
 
 test('redact ignora segredo curto demais e candidatePaths começa pelo caminho do ambiente', () => {
   assert.equal(redact('abc abc', ['abc']), 'abc abc');
-  assert.equal(candidatePaths({envPath: '~/bin/oc', home: '/h', platform: 'darwin'})[0], '/h/bin/oc');
+  assert.equal(candidatePaths({envPath: '~/bin/oc', home: '/h', platform: 'darwin'})[0], path.resolve('/h', 'bin', 'oc'));
 });
 
 test('ponta a ponta com o fake-opencode: 401 sem senha, 200 com a senha gerada', {skip: process.platform === 'win32'}, async () => {

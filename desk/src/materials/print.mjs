@@ -62,7 +62,7 @@ if (window.materialPrint) {
     try {
       const markdown = String(payload?.markdown ?? '');
       const title = String(payload?.title ?? '').slice(0, 200);
-      if (markdown.length > MAX_CHARS) throw new Error(uiMsg('err.pdf.tooBig'));
+      if (markdown.length > MAX_CHARS) throw new Error(uiMsg('err.pdf.tooBig', {received: markdown.length, max: MAX_CHARS}));
       document.title = title || 'Mesa de Estudos';
       const context = String(payload?.context ?? '').slice(0, 200);
       const rendered = renderMaterialHtml({title, markdown, model: payload?.model, options: payload?.options, context});

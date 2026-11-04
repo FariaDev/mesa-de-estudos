@@ -10,16 +10,16 @@
    (`openIds`/`touched`), `atBottom`/`followBottom`, os fatos de `worklog.mjs`
    e os SVG de `icons.mjs` injetados por `innerHTML` em `fillIcons`. */
 import {icon} from '../icons.mjs';
-import {atBottom,followBottom} from './state.mjs';
+import {applyChatScroll,distanceFromEnd} from './state.mjs';
 import {build,patchTree,preserveFocus} from './view-host.mjs';
 import core from './generated/worklogview.core.js';
 import {t} from './ui-text.mjs';
 import {STEP,formatDuration,headLine,liveLabel,runningStep,stepDetail,stepLabel,stepPreview} from './worklog.mjs';
 import {VIEW_KIND_CORE,VIEW_STATUS_CORE} from './worklog-tags.mjs';
-import {mascoteMarkup} from './mascote.mjs';
+import {lampMarkMarkup} from './lamp-mark.mjs';
 
 const STEP_ICON={
- [STEP.THINKING]:'sparkles',[STEP.SEARCH]:'search',[STEP.REFERENCE]:'book',
+ [STEP.THINKING]:'sparkles',[STEP.SEARCH]:'search',[STEP.MATERIAL]:'book',[STEP.REFERENCE]:'book',
  [STEP.FETCH]:'globe',[STEP.TOOL]:'wrench',[STEP.ERROR]:'alert',
 };
 
@@ -35,12 +35,6 @@ function listOf(items){
  let out={$:'Nil'};
  for(let i=items.length-1;i>=0;i--)out={$:'Con',head:items[i],tail:out};
  return out;
-}
-
-function stepTime(step,now){
- if(step.kind===STEP.THINKING||step.kind===STEP.ERROR)return '';
- const end=step.status==='running'?now:(step.endedAt||step.startedAt);
- return formatDuration(end-step.startedAt);
 }
 
 function stepLinks(step){
@@ -76,7 +70,7 @@ export function workRowFrom(log,{live=false,expanded=true,note='',now=Date.now()
    kind:KIND_CORE[step.kind]||KIND_CORE.tool,
    status:STATUS_CORE[step.status]||STATUS_CORE.running,
    open,hasDetail,label:running?liveLabel(step):stepLabel(step),
-   time:stepTime(step,now),preview,text,links:listOf(links),
+   preview,text,links:listOf(links),
   };
  });
  return {$:'WorkRow',live:!!live,expanded:!!expanded,title,meta,steps:listOf(steps)};
@@ -96,13 +90,12 @@ function fillIcons(root,log,live){
  if(mark){
   if(live){
    const current=runningStep(log);
-   /* Pensando (ou ainda sem passo): a ∫ pequena, pensando, no lugar da faísca
-      (#61; a Folhinha saiu na #64). Busca, leitura e ferramenta seguem com o
-      ícone do passo. */
+   /* Pensando (ou ainda sem passo): a cúpula da luminária com a luz pulsando
+      (#101). Busca, leitura e ferramenta seguem com o ícone do passo. */
    const thinking=!current||current.kind===STEP.THINKING;
-   mark.dataset.mascot=thinking?'integral':'';
-   const name=thinking?'mascote-integral':STEP_ICON[current.kind]||'sparkles';
-   fillSlot(mark,name,thinking?mascoteMarkup({personagem:'integral',humor:'pensando',tamanho:20}):icon(name));
+   mark.dataset.lamp=thinking?'dome':'';
+   const name=thinking?'lamp-dome':STEP_ICON[current.kind]||'sparkles';
+   fillSlot(mark,name,thinking?lampMarkMarkup():icon(name));
   }else{
    const failed=!!log?.reason||(log?.steps||[]).some(step=>step.status==='error');
    fillSlot(mark,failed?'alert':'check',icon(failed?'alert':'check'));
@@ -149,30 +142,26 @@ export function createWorkLogView(){
 
  function paint(now=Date.now()){
   if(!log)return;
-  const stick=atBottom();
+  /* Fora do documento (lote de histórico) a medida forçaria layout à toa. */
+  const connected=root.isConnected;
+  const distance=connected?distanceFromEnd():0;
   const fresh=build(core.workLog(workRowFrom(log,{live,expanded,note,now,openIds})),handlers);
   fillIcons(fresh,log,live);
   preserveFocus(root,()=>patchTree(root,fresh,sameIconSlot));
-  followBottom(stick);
+  if(connected)applyChatScroll('stream',null,distance);
  }
 
  function stopTimer(){if(timer){clearInterval(timer);timer=0;}}
- /* O tick de 1s só mexe no relógio (meta do turno e tempo do passo running),
-    como o pré-rewrite fazia. Um `paint()` inteiro aqui trocaria os nós vivos
-    a cada segundo e derrubaria seleção/rolagem do detalhe aberto. */
+ /* O tick de 1s só mexe no relógio da cabeça; um `paint()` inteiro aqui
+    trocaria os nós vivos e derrubaria seleção/rolagem do detalhe aberto. O
+    passo não tem mais horário próprio (#90). */
  function tick(){
   if(!live||!root.isConnected){stopTimer();return;}
-  const stick=atBottom();
+  const distance=distanceFromEnd();
   const now=Date.now();
   const meta=root.querySelector('.work-meta');
   if(meta)meta.textContent=formatDuration(now-(log.startedAt||now));
-  for(const step of log.steps||[]){
-   if(step.status!=='running')continue;
-   const row=[...root.querySelectorAll('.work-step')].find(node=>node.dataset.key===String(step.id||''));
-   const time=row?.querySelector('.step-time');
-   if(time)time.textContent=stepTime(step,now);
-  }
-  followBottom(stick);
+  applyChatScroll('stream',null,distance);
  }
  function ensureTimer(){
   if(timer||!live)return;

@@ -21,12 +21,15 @@ function loadMainWithMockElectron(runtime){
  const emitFor=map=>(key,...args)=>{for(const fn of map.get(key)||[])fn(...args);};
  const win={
   isDestroyed:()=>true,setBackgroundColor(){},
-  webContents:{on:(name,fn)=>record(wcEvents,name,fn),getURL:()=>'',send(){},setWindowOpenHandler(){},session:{protocol:{handle(){}},webRequest:{onBeforeRequest(){}}}},
+  /* Existe só no Windows (main.cjs chama para a barra de tarefas); o fake
+     precisa da função para o boot não quebrar na plataforma do CI. */
+  setAppDetails(){},
+  webContents:{on:(name,fn)=>record(wcEvents,name,fn),getURL:()=>'',send(){},setWindowOpenHandler(){},session:{protocol:{handle(){}},webRequest:{onBeforeRequest(){}},setPermissionRequestHandler(){}}},
   contentView:{addChildView(){}},
   loadFile:async()=>{},on:(name,fn)=>record(winEvents,name,fn),getBounds:()=>({x:10,y:10,width:1200,height:800})
  };
  const app={
-  setName(){},setPath(){},getVersion:()=>'0.4.0',setAboutPanelOptions(){},
+  setName(){},setPath(){},getVersion:()=>'0.4.0',setAboutPanelOptions(){},setAppUserModelId(){},
   dock:{setIcon(){}},getPath:()=>path.join(runtime,'electron'),
   whenReady:()=>Promise.resolve(),requestSingleInstanceLock:()=>true,quit(){},
   on(name,cb){if(!listeners.has(name))listeners.set(name,[]);listeners.get(name).push(cb);}
@@ -43,7 +46,8 @@ function loadMainWithMockElectron(runtime){
     on:(name,fn)=>record(events,name,fn),
     emit:(name,...args)=>emitFor(events)(name,...args),
     loadFile:async()=>{},
-    executeJavaScript:async script=>{this.scripts.push(script);return null;}
+    executeJavaScript:async script=>{this.scripts.push(script);return null;},
+    session:{setPermissionRequestHandler(){}},setWindowOpenHandler(){},getURL:()=>''
    };
    ggbViews.push(this);
   }
@@ -98,7 +102,9 @@ test('desk.json round-trips through init/save-state/switch-course and ggbBase64 
   try{
    const init=await handlers.get('init')({});
    assert.equal(init.courseId,'A');
-   assert.equal(init.state.session,session,'session load path preserves the session file');
+   assert.equal(init.state.session,session,'o estado carregado ainda guarda o caminho antigo');
+   assert.match(init.session,/conversations[\\/]opencode-[^\\/]+\.json$/,'o release só OpenCode abre uma sessão nova no boot');
+   assert.notEqual(init.session,session,'a sessão Pi antiga não é reutilizada');
    assert.deepEqual(init.state.pdfs.map(p=>({path:p.path,page:p.page,zoom:p.zoom,scrollX:p.scrollX,scrollY:p.scrollY})),[{path:pdfA,page:2,zoom:1.4,scrollX:5,scrollY:7}],'pdf positions/zoom/scroll round-trip');
    assert.equal(init.state.pdfSplit,.62);
    assert.equal(init.state.theme,'dark');
@@ -127,9 +133,9 @@ test('desk.json round-trips through init/save-state/switch-course and ggbBase64 
    assert.deepEqual(desk.modelRecents,{pi:[['xai','grok-4']]},'os recentes do seletor (#59) guardam só pares de texto, por motor');
    assert.deepEqual(desk.modelFavorites,{pi:[['xai','grok-4-fast']]},'os favoritos do seletor guardam só pares de texto, por motor');
    assert.equal(desk.theme,'light');assert.equal(desk.chatWidth,420);assert.equal(desk.calcHeight,260);assert.equal(desk.pdfSplit,.62);
-   assert.equal(desk.session,session);assert.equal(desk.courseId,'A');
+   assert.equal(desk.session,init.session,'o save persiste a sessão OpenCode nova');assert.equal(desk.courseId,'A');
    assert.deepEqual(desk.courseStates.A.study,{title:'Lista 3 · q8',xopp},'course state carries the live study');
-   assert.deepEqual(desk.courseStates.A.sessionStudies[session],{title:'Lista 3 · q8',xopp},'per-session study round-trips');
+   assert.deepEqual(desk.courseStates.A.sessionStudies[init.session],{title:'Lista 3 · q8',xopp},'per-session study round-trips');
    assert.equal('ggbBase64' in desk,false,'desk.json no longer carries ggbBase64');
    assert.equal(desk.courseStates?.A?.ggbBase64,undefined,'courseStates no longer carry ggbBase64');
    assert.equal(fs.readFileSync(path.join(runtime,'ggb','A.b64'),'utf8').trim(),b64,'the snapshot file stays untouched');
@@ -175,7 +181,7 @@ test('fila e bandeja guardadas: pending-save/tray-save gravam por conversa e o p
   const {handlers,quit}=loadMainWithMockElectron(runtime);
   try{
    const init=await handlers.get('init')({});
-   assert.deepEqual(init.pending,{items:[],attachments:[],held:false,live:false},'sem nada guardado o payload vem vazio e não-live');
+   assert.deepEqual(init.pending,{items:[],attachments:[],pdfs:[],held:false,live:false},'sem nada guardado o payload vem vazio e não-live');
    fs.writeFileSync(init.session,'');
 
    const saved=await handlers.get('pending-save')({}, {items:[{id:'fila-1',text:'pendente',refs:[{path:pdfA,page:0}],images:[]},{text:'   ',refs:[],images:[]}],held:true});

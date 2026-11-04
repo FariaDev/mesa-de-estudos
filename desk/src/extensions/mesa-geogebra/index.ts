@@ -4,14 +4,15 @@ import {BRIDGE_CLOSED, callGeogebra} from './client.mjs';
 import {guideFor} from './guide.mjs';
 import {typeboxObject} from '../tool-fields.mjs';
 
-const text = (value: string) => ({content: [{type: 'text' as const, text: value}]});
+const text = (value: string, isError = false) => ({content: [{type: 'text' as const, text: value}], ...(isError ? {isError: true} : {})});
 
 /* Ferramenta `mesa_geogebra`: o mesmo guia e a mesma ponte do `geogebra` do Claude (#53).
    Só registra com a ponte da Mesa (LEARNING_DESK_GGB_BRIDGE), como as outras ferramentas da Mesa. */
 export default function mesaGeogebra(pi: ExtensionAPI) {
   const bridgeFile = typeof process.env.LEARNING_DESK_GGB_BRIDGE === 'string' ? process.env.LEARNING_DESK_GGB_BRIDGE.trim() : '';
   if (!bridgeFile) return;
-  /* O idioma do tutor chega pelo ambiente que a Mesa monta ao abrir o Pi. */
+  /* O idioma do tutor chega pelo ambiente e escolhe as frases de resultado;
+     descrição e campos são sempre em inglês. */
   const guide = guideFor(process.env.LEARNING_DESK_TUTOR_LANGUAGE);
   pi.registerTool({
     name: 'mesa_geogebra',
@@ -28,8 +29,10 @@ export default function mesaGeogebra(pi: ExtensionAPI) {
         }
         return text(params.action === 'run' ? guide.runText(data) : guide.stateText(data));
       } catch (error) {
+        /* B1: ponte fechada ou applet sem resposta vira isError; comando
+           recusado continua resultado normal (guide.runText). */
         const closed = (error as {code?: string})?.code === BRIDGE_CLOSED;
-        return text(guide.unavailableText(closed ? guide.bridgeClosed : String((error as Error)?.message || error)));
+        return text(guide.unavailableText(closed ? guide.bridgeClosed : String((error as Error)?.message || error)), true);
       }
     },
   });

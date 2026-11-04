@@ -69,18 +69,12 @@ test('navChrome desliga os dois sem doc; com doc ecoa os fatos', () => {
   assert.deepEqual(pdfView.navChrome(true, false, true), {$: 'NavChrome', prevDisabled: false, nextDisabled: true});
 });
 
-test('rótulos de página, zoom e rodapé 1:1 com o chrome antigo', () => {
+test('rótulos de página e zoom 1:1 com o chrome antigo', () => {
   assert.equal(ptText(pdfView.pageTotalDash()), '/ —');
   assert.equal(ptText(pdfView.pageTotalText(12)), '/ 12');
   assert.equal(pdfView.pageNumberValue(2), '2');
   assert.equal(pdfView.pageNumberMax(10), '10');
   assert.equal(pdfView.zoomLabelText(100), '100%');
-  assert.equal(ptText(pdfView.footLoadingText()), 'Carregando…');
-  assert.equal(ptText(pdfView.footErrorText()), 'Não foi possível abrir o PDF.');
-  assert.equal(
-    ptText(pdfView.footReadyText(2, 10, 'Limites.pdf')),
-    'Página 2 de 10 · rolagem contínua · Limites.pdf'
-  );
 });
 
 const countText = (chrome) => ({...chrome, text: ptText(chrome.text)});

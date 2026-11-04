@@ -34,8 +34,14 @@ test('layoutStable zera a memória do seletor e espera por quadros',async()=>{
  const page=new RecordingPage();
  await layoutStable(page,'#chat',{frames:6,timeout:1234});
  assert.equal(page.evaluated[0].arg,'#chat');
- assert.deepEqual(page.waited[0].arg,['#chat',6]);
+ assert.deepEqual(page.waited[0].arg,['#chat',6,true]);
  assert.deepEqual(page.waited[0].options,{polling:'raf',timeout:1234});
+});
+
+test('layoutStable sem posição mede só o tamanho (a conversa pode estar rolando)',async()=>{
+ const page=new RecordingPage();
+ await layoutStable(page,'#messages',{position:false});
+ assert.deepEqual(page.waited[0].arg,['#messages',4,false]);
 });
 
 test('nextFrames pede a quantidade de quadros à página',async()=>{

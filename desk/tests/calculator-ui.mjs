@@ -168,7 +168,8 @@ await withArtifacts('calculator',async ctx=>{
  await layoutStable(page,'#calculator');
  await assertFits(page,'com o "Como usar" aberto');
  assert.deepEqual(await page.locator('.calc-groups dt').allTextContents(),['Operações','Funções','Trigonometria','Constantes'],'o guia mostra os nomes em quatro grupos');
- assert.equal(await page.locator('.calc-tips li').count(),5,'e as dicas em lista');
+ assert.equal(await page.locator('.calc-tips').count(),0,'as dicas saíram do painel');
+ assert.equal(await page.locator('#calc-guide [data-open-guide="calc"]').isVisible(),true,'e o link leva ao guia');
  await reviewShot(page,out,'expandida-como-usar-claro-1440.png');
  await page.locator('#calc-guide summary').click();
  /* #42 (8): fechar o "Como usar" devolve o painel à altura de antes. */

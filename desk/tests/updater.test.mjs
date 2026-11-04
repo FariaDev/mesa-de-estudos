@@ -12,6 +12,7 @@ import {ptText} from './pt-text.mjs';
    protegidos. O aplicação em si (git/zip/rollback) fica em updateflow.test.mjs. */
 const require = createRequire(import.meta.url);
 const updater = require('../updater.cjs');
+const files = require('../updater-files.cjs');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-updater-test-'));
 
@@ -244,6 +245,57 @@ test('applyZip: confere a versão extraída e copia só a lista explícita', () 
   assert.throws(() => updater.applyZip(tiro, {rootDir, announcedVersion: '0.4.1'}), /suspeito/);
 });
 
+test('applyZip: CRC errado recusa o zip antes de qualquer escrita (#82)', () => {
+  /* O leitor próprio do updater não conferia o CRC: um byte trocado no zip ia
+     parar na instalação. Troca-se um byte do conteúdo guardado (store) e o CRC
+     gravado fica como estava. */
+  const rootDir = tmp();
+  fs.mkdirSync(path.join(rootDir, 'desk'), {recursive: true});
+  fs.writeFileSync(path.join(rootDir, 'desk', 'main.cjs'), 'antigo');
+  const zip = Buffer.from(makeZip({'x/desk/package.json': '{"version":"0.4.1"}', 'x/desk/main.cjs': 'novo'}));
+  zip.write('x', zip.indexOf('novo'));
+  assert.throws(() => updater.applyZip(zip, {rootDir, announcedVersion: '0.4.1'}), /zip corrompido \(CRC de x\/desk\/main\.cjs\)/);
+  assert.equal(fs.readFileSync(path.join(rootDir, 'desk', 'main.cjs'), 'utf8'), 'antigo', 'nada foi escrito');
+});
+
+test('applyZip: entrada que descomprime além do tamanho declarado é recusada (#82)', () => {
+  /* Sem teto no inflate, um zip pequeno que declara 10 bytes virava 1 MiB de
+     conteúdo antes de qualquer conferência. Os tamanhos declarados (cabeçalho
+     local e diretório central) são reescritos para 10. */
+  const rootDir = tmp();
+  const bomba = Buffer.from(makeZip({'x/desk/main.cjs': 'a'.repeat(1 << 20)}, {deflate: true}));
+  bomba.writeUInt32LE(10, 22);
+  bomba.writeUInt32LE(10, bomba.readUInt32LE(bomba.length - 22 + 16) + 24);
+  assert.throws(() => updater.applyZip(bomba, {rootDir, announcedVersion: '0.4.1'}), /zip corrompido \(tamanho de x\/desk\/main\.cjs\)/);
+  assert.equal(fs.existsSync(path.join(rootDir, 'desk', 'main.cjs')), false, 'nada foi escrito');
+});
+
+test('applyZip: tamanho declarado acima do teto de descompressão é recusado antes do inflate (#82)', () => {
+  /* O zipkit barra a entrada pelo `maxEntryBytes` (256 MiB) antes de inflar:
+     um zip de 16 bytes que declara 256 MiB + 1 não chega a alocar a expansão. */
+  const rootDir = tmp();
+  const zip = Buffer.from(makeZip({'x/desk/main.cjs': 'a'.repeat(16)}));
+  const tooBig = 256 * 1024 * 1024 + 1;
+  zip.writeUInt32LE(tooBig, 22);
+  zip.writeUInt32LE(tooBig, zip.readUInt32LE(zip.length - 22 + 16) + 24);
+  assert.throws(() => updater.applyZip(zip, {rootDir, announcedVersion: '0.4.1'}), /entrada grande demais: x\/desk\/main\.cjs/);
+  assert.equal(fs.existsSync(path.join(rootDir, 'desk', 'main.cjs')), false, 'nada foi escrito');
+});
+
+test('assertRealTarget: symlink num pai acima de pasta que ainda não existe é recusado', () => {
+  /* O alvo fundo em pasta nova não existe; antes, a checagem parava no ENOENT
+     do próprio alvo e o symlink `app` passava. O mkdir -p seguinte escreveria
+     em `outside/novo`, fora da raiz. */
+  const root = tmp();
+  const outside = tmp();
+  fs.symlinkSync(outside, path.join(root, 'app'), 'dir');
+  const abs = path.join(root, 'app', 'novo', 'arquivo.js');
+  assert.throws(() => files.assertRealTarget(root, abs, 'app/novo/arquivo.js'), /diretório pai é link simbólico/);
+  assert.equal(fs.existsSync(path.join(outside, 'novo')), false);
+  /* Sem symlink, o mesmo caminho novo segue livre. */
+  assert.doesNotThrow(() => files.assertRealTarget(root, path.join(root, 'livre', 'x.js'), 'livre/x.js'));
+});
+
 /* ---------- A4: worker com handshake, node resolvido e lock ---------- */
 
 test('A4/needsShell: shell só onde é inevitável (npm/npx no Windows)', () => {
@@ -257,7 +309,7 @@ test('A4/needsShell: shell só onde é inevitável (npm/npx no Windows)', () => 
     assert.equal(updater.needsShell('/tmp/com espaço/node'), false);
     assert.equal(updater.needsShell('xournalpp.exe'), false);
     Object.defineProperty(process, 'platform', {value: real, configurable: true});
-    assert.equal(updater.needsShell('npm'), false, 'fora do Windows nada precisa de shell');
+    assert.equal(updater.needsShell('npm'), process.platform === 'win32', 'fora do Windows nada precisa de shell');
   } finally {
     Object.defineProperty(process, 'platform', {value: real, configurable: true});
   }
@@ -265,9 +317,11 @@ test('A4/needsShell: shell só onde é inevitável (npm/npx no Windows)', () => 
 
 test('A4/resolveNode: acha o executável do node do sistema (e vazio sem candidato)', () => {
   const dir = tmp();
-  fs.writeFileSync(path.join(dir, 'node'), '#!/bin/sh\n');
-  fs.chmodSync(path.join(dir, 'node'), 0o755);
-  assert.equal(updater.resolveNode(process.env, dir, {dirs: [dir]}), path.join(dir, 'node'), 'o node de um PATH injetado é achado');
+  /* O resolvedor procura `node.exe`/`node.cmd` no Windows e `node` no POSIX. */
+  const name = process.platform === 'win32' ? 'node.exe' : 'node';
+  fs.writeFileSync(path.join(dir, name), '#!/bin/sh\n');
+  fs.chmodSync(path.join(dir, name), 0o755);
+  assert.equal(updater.resolveNode(process.env, dir, {dirs: [dir]}), path.join(dir, name), 'o node de um PATH injetado é achado');
   assert.equal(updater.resolveNode(process.env, dir, {dirs: [path.join(dir, 'vazio')]}), '', 'diretório sem node = vazio');
 });
 

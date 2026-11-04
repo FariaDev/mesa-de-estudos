@@ -9,7 +9,7 @@ de UI independente + testes próprios. O pai integra a IPC.
 
 | Arquivo | Papel |
 |---|---|
-| `desk/src/study-data/zipkit.cjs` | Zip (leitura+escrita) só com builtins: CRC conferido, limites de zip bomb, `..`/absoluto/symlink e nome repetido recusados antes de escrever. Não mexe no updater. |
+| `desk/src/study-data/zipkit.cjs` | Zip (leitura+escrita) só com builtins: CRC conferido, limites de zip bomb, `..`/absoluto/symlink e nome repetido recusados antes de escrever. Também é o leitor do updater (#82). |
 | `desk/src/study-data/backup.cjs` | Snapshot/versão com manifesto e SHA-256, status, listagem, retenção, agendador automático, prévia de restauração, staging + diário + rollback, recuperação de queda e relocação de caminhos do runtime. |
 | `desk/src/study-data/packages.cjs` | Arquivo portátil `.mesa-materia` (zip + manifesto): exportar matéria (inclui notas de página) e importar criando destino NOVO com id novo, referências remapeadas e descritor Claude VÁLIDO de transcrição. |
 | `desk/src/study-data/git-backup.cjs` | Destino Git opcional (repositório próprio, separado do app): commit de snapshot válido, push sem force, bundle, recuperação, runner com prazo/teto de saída e destino vazio/conferido por realpath. |
@@ -113,8 +113,10 @@ Conversa Claude NÃO é reaproveitada como sessão nativa: o import gera um
 descritor NOVO e válido pelo próprio `conversations.cjs` (id e arquivo uuid
 novos, `nativeSessionId` uuid novo, `nativeEstablished:false`, `delivery`
 removido, `importedFrom` guarda a origem) — `previewImport` e o registro marcam
-`resume:'exported-transcript'` e `nativeResume:false`. JSONL do Pi é preservado
-para retomada quando o provedor existir do outro lado. O import de um pacote
+`resume:'exported-transcript'` e `nativeResume:false`. Sessão do Pi (#79) também
+vira transcrição: o JSONL não entra como sessão viva (o `--session` recarregaria
+o histórico do autor como contexto nativo); as mensagens de texto dele viram um
+descritor Claude com `importedFrom` ausente e `origin:'pi'` no registro. O import de um pacote
 também não sobrescreve diretório criado por corrida: só remove o que ESTA
 importação criou.
 

@@ -49,7 +49,7 @@ await withArtifacts('activity-card-ui',async ctx=>{
  await page.locator('#prompt').fill('Crie uma atividade de movimento.');await page.locator('#send').click();
  const slot=page.locator('.activity-slot[data-activity-call="integrated-call-1"]');
  await slot.locator('.activity-card[data-state="ready"]').waitFor({timeout:12000});
- const frame=page.frames().find(f=>f.url().startsWith('mesa-activity://artifact/'));
+ const frame=page.frames().find(f=>f.url().startsWith('mesa-activity://act-'));
  const shots=screenshotDirectory('activity-card-ui');
  /* Espera o quadro reportar a altura do conteúdo (80ms de taxa + 160ms de debounce). */
  const settle=async()=>{await page.waitForFunction(()=>{const f=document.querySelector('.activity-frame'),c=document.querySelector('.activity-card');return f&&c&&f.getBoundingClientRect().height>0;});await layoutStable(page,'.activity-card');};

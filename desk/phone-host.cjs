@@ -34,6 +34,7 @@ const {sniffPhoto, cleanPhoto, MIME} = require('./phone-image.cjs');
 const {lanCandidates} = require('./phone-network.cjs');
 const {qrMatrix} = require('./phone-qr.cjs');
 const {phonePageHtml} = require('./phone-page.cjs');
+const {UPLOAD_LIMITS} = require('./phone-upload.cjs');
 
 /** @type {Record<string, import('./types/bend-core').PhoneImageKind>} */
 const KIND_FACT = {jpeg: {$: 'KindJpeg'}, png: {$: 'KindPng'}, webp: {$: 'KindWebp'}};
@@ -41,7 +42,18 @@ const KIND_FACT = {jpeg: {$: 'KindJpeg'}, png: {$: 'KindPng'}, webp: {$: 'KindWe
 const NOT_IMAGE = {$: 'KindNotImage'};
 const STATE_NAME = {PhoneOff: 'off', PhoneWaiting: 'waiting', PhoneReceived: 'received', PhoneStopped: 'stopped', PhoneExpired: 'expired', PhoneNetError: 'error'};
 const REASON = {PhotoGone: 'gone', PhotoWrongType: 'type', PhotoTooLarge: 'size', PhotoFull: 'full'};
-const BASE_HEADERS = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer'};
+/* Id de envio da página (`phone-upload.cjs`): o mesmo POST refeito depois de um
+   aborto não pode virar duas fotos. */
+const PHOTO_ID = /^[A-Za-z0-9_-]{8,64}$/;
+/* `Connection: close` em toda resposta: o celular não guarda o socket para o
+   próximo pedido. Depois de bloquear a tela, um socket keep-alive pode ter
+   morrido sem o navegador saber, e o POST da foto podia ficar pendurado nele
+   (#36). Com o socket fechado, o próximo envio abre conexão nova. */
+const BASE_HEADERS = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', Connection: 'close'};
+/* `requestTimeout` acima do teto do prazo da página (`UPLOAD_LIMITS.cap`): o
+   servidor não corta um envio que a página ainda considera vivo; quem aborta
+   primeiro é o celular. */
+const SERVER_TIMEOUTS = {headersTimeout: 15000, requestTimeout: 2 * UPLOAD_LIMITS.cap, keepAliveTimeout: 5000};
 
 /** Compara o segmento do caminho com o token em tempo constante. */
 function tokenMatches(candidate, token) {
@@ -118,7 +130,7 @@ function createPhoneHost(deps) {
   /** @type {import('./types/bend-core').PhoneFlow} */
   let flow = {$: 'PhoneOff'};
   let server = null, token = null, idle = null;
-  let session = {address: '', port: 0, photos: 0, total: 0, seen: false, candidates: []};
+  let session = {address: '', port: 0, photos: 0, total: 0, seen: false, candidates: [], photoIds: new Set()};
 
   const up = () => core.running(flow);
   const url = () => (token && session.port ? `http://${session.address}:${session.port}/${token}` : '');
@@ -157,6 +169,11 @@ function createPhoneHost(deps) {
 
   async function onPhoto(req, res) {
     const {bytes, overflow} = await readBody(req, core.maxFileBytes());
+    const rawId = req.headers['x-mesa-photo-id'];
+    const photoId = typeof rawId === 'string' && PHOTO_ID.test(rawId) ? rawId : '';
+    /* O celular refez um POST que já tinha chegado (o primeiro pode ter sido
+       emitido antes de o `fetch` abortar): responde OK sem emitir de novo. */
+    if (photoId && session.photoIds.has(photoId)) { reply(res, 200, {ok: true, count: core.received(flow)}); return; }
     /* Passou do teto: o tipo vem do começo do corpo (o resto foi escoado). */
     const kind = sniffPhoto(bytes);
     let cleaned = overflow && kind ? {bytes, orientation: 1} : null;
@@ -169,6 +186,7 @@ function createPhoneHost(deps) {
     session.photos += 1;
     session.total += bytes.length;
     send('phone-event', {photo: {bytes: cleaned.bytes, mimeType: MIME[kind], orientation: cleaned.orientation, name: t('phone.photoName', {n: session.photos})}});
+    if (photoId) session.photoIds.add(photoId);
     step('EvPhoto');
     reply(res, status, {ok: true, count: core.received(flow)});
   }
@@ -199,13 +217,11 @@ function createPhoneHost(deps) {
     close();
     const list = candidates();
     const wanted = list.find((item) => item.address === request?.address) || list[0];
-    session = {address: wanted?.address || '', port: 0, photos: 0, total: 0, seen: false, candidates: list};
+    session = {address: wanted?.address || '', port: 0, photos: 0, total: 0, seen: false, candidates: list, photoIds: new Set()};
     if (!wanted) { step('EvFail'); return Promise.resolve(snapshot()); }
     token = newToken();
     const fresh = http.createServer(onRequest);
-    fresh.headersTimeout = 15000;
-    fresh.requestTimeout = 120000;
-    fresh.keepAliveTimeout = 5000;
+    Object.assign(fresh, SERVER_TIMEOUTS);
     server = fresh;
     return new Promise((resolve) => {
       fresh.once('error', (error) => {
@@ -241,4 +257,4 @@ function createPhoneHost(deps) {
   return {start, stop, snapshot, register, url, running: up};
 }
 
-module.exports = {createPhoneHost, readRoute, tokenMatches};
+module.exports = {createPhoneHost, readRoute, tokenMatches, SERVER_TIMEOUTS};

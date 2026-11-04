@@ -39,8 +39,8 @@ test('resolvePi finds a configured binary and a PATH entry',()=>{
 
 test('missing Pi gets a setup message',()=>{
  const err=Object.assign(Error('spawn pi ENOENT'),{code:'ENOENT'});
- assert.match(ptText(missingPiMessage(err)),/npm run setup/);
- assert.match(ptText(missingPiMessage()),/npm run setup/);
+ assert.match(ptText(missingPiMessage(err)),/O tutor desta conversa \(Pi\) não está instalado/);
+ assert.match(ptText(missingPiMessage()),/O tutor desta conversa \(Pi\) não está instalado/);
  assert.equal(missingPiMessage(Error('Pi encerrou (1).')),'Pi encerrou (1).');
 });
 

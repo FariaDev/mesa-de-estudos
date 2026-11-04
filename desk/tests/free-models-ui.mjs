@@ -117,20 +117,20 @@ await withArtifacts('modelos-gratis',async ctx=>{
  const {page,fake,runtime,setClipboard,launchLog,serveLog,errors}=await boot(ctx,{homeDir:home,validKeys:[KEY_A,KEY_B],clipboard:'texto qualquer que não é chave'});
 
  step(1);
- /* 1. O convite da primeira abertura: ao lado de "Chamar o tutor". */
+ /* 1. A primeira abertura não convida aos grátis (#93): "Chamar o tutor" e
+    os Ajustes. O diálogo continua existindo e é aberto aqui direto do módulo,
+    porque o caminho de quem já tem chave nas Configurações segue igual. */
  await toTutorStep(ctx,page,runtime);
- const button=page.locator('#setup-tutor-actions #free-models');
- await button.waitFor({timeout:15000});
- assert.equal((await button.textContent()).trim(),'Usar modelos grátis');
- assert.equal(await button.getAttribute('class'),'','ação secundária, ao lado da principal');
+ assert.equal(await page.locator('#setup-tutor-actions #free-models').count(),0,'sem convite aos modelos grátis na primeira abertura');
  assert.equal(await page.locator('#setup-tutor-actions #connect').getAttribute('class'),'primary','"Chamar o tutor" continua lá, como principal');
- await button.click();
+ assert.equal((await page.locator('#setup-tutor-actions #state-pi').textContent()).trim(),'Ajustes do tutor','os Ajustes ficam ao lado');
+ await page.evaluate(async()=>{const mod=await import('./src/free-models.mjs');await mod.openFreeModelsFlow();});
  await page.waitForSelector('#free-models-dialog[open]');
 
  step(2);
  /* 2. O cartão avisa antes de abrir o site, em português. */
  const card=await dialogText(page);
- for(const part of ['conta no OpenCode','cartão','Grátis não cobram','recarga automática','só neste computador'])assert.ok(card.includes(part),`o cartão diz "${part}": ${card}`);
+ for(const part of ['conta no OpenCode','cartão','grátis não cobram','recarga automática','só neste computador'])assert.ok(card.includes(part),`o cartão diz "${part}": ${card}`);
  assert.equal(await page.locator('#free-models-authfile').isVisible(),false,'sem arquivo do OpenCode, sem atalho');
  assert.deepEqual(readLinks(runtime),[],'nada abre antes do clique');
  for(const theme of THEMES){
@@ -139,7 +139,7 @@ await withArtifacts('modelos-gratis',async ctx=>{
    await resizeWindow(ctx.app,page,width,height);
    await nextFrames(page,3);
    const got=await fits(page);
-   assert.deepEqual([got.inside,got.overflowX,got.footerLines,got.radius,got.title],[true,false,1,'16px','15px'],`${theme} ${width}×${height}: cartão cabe, rodapé numa linha (${JSON.stringify(got)})`);
+   assert.deepEqual([got.inside,got.overflowX,got.footerLines,got.radius,got.title],[true,false,1,'12px','15px'],`${theme} ${width}×${height}: cartão cabe, rodapé numa linha (${JSON.stringify(got)})`);
    await reviewShot(page,SHOT_DIR,`cartao-${theme}-${width}x${height}.png`);
   }
  }
@@ -181,7 +181,7 @@ await withArtifacts('modelos-gratis',async ctx=>{
  assert.equal((await page.locator('#free-models-masked').textContent()).trim(),'sk-••••4444');
  await page.locator('#free-models-clip-yes').click();
  await page.waitForSelector('#free-models-done:not(:empty)',{timeout:30000});
- assert.equal((await page.locator('#free-models-done').textContent()).trim(),'A chave foi guardada. Os modelos grátis do OpenCode Zen funcionam numa sessão OpenCode: comece uma para estudar com eles.');
+ assert.equal((await page.locator('#free-models-done').textContent()).trim(),'A chave foi guardada. Comece uma sessão OpenCode para estudar.');
  for(const request of fake.requests)assert.deepEqual([request.method,request.path],['GET','/inference/v1/models'],'só a lista de modelos; nenhuma inferência');
  assert.ok(fake.requests.some(request=>request.bearer&&request.valid),'a chave foi testada de verdade');
  assert.equal(await page.locator('#free-models-start').isVisible(),true,'o passo final convida para a sessão OpenCode');
@@ -203,16 +203,16 @@ await withArtifacts('modelos-gratis',async ctx=>{
  const fallback=page.locator('#model-list .model-row-default');
  assert.deepEqual([await fallback.getAttribute('aria-disabled'),await fallback.getAttribute('aria-selected'),(await fallback.innerText()).trim()],['true','true','Padrão do OpenCode'],'sem escolha, a linha do padrão do servidor (não escolhível)');
  assert.deepEqual(rows.map(row=>JSON.parse(row.key)[1]),['big-pickle',FREE_MODEL,'gpt-5.5'],'os grátis primeiro, por nome');
- assert.deepEqual(await page.locator('#model-list .model-group-title').allTextContents(),['Grátis','OpenCode Zen'],'os grátis num grupo próprio; o pago no do provedor');
+ assert.deepEqual(await page.locator('#model-list .model-group-title').allTextContents(),['OpenCode Zen'],'sem grupo nem destaque para os grátis (#93)');
  const by=id=>rows.find(row=>JSON.parse(row.key)[1]===id);
  assert.ok(by(FREE_MODEL).free&&by(FREE_MODEL).note.includes('Não guarda nem treina'),`grátis com a política: ${by(FREE_MODEL).note}`);
  assert.ok(by('big-pickle').note.includes('Pode usar para treinar'));
  /* No grupo do provedor a segunda linha traz os fatos do catálogo (ajustes do seletor): o pago mostra o preço, nunca uma política de grátis. */
  assert.ok(!by('gpt-5.5').free&&by('gpt-5.5').paid&&/US\$/.test(by('gpt-5.5').note)&&!/trein|guarda|privacidade/i.test(by('gpt-5.5').note),`pago: o preço, sem marca (${by('gpt-5.5').note})`);
- /* Acabamento da #59: o selo "Grátis" volta na linha, com a política no `title`; o pago segue sem selo. */
+ /* Sem selo "Grátis" na linha (#93): o grátis mostra a política no `title` como qualquer detalhe; o pago segue sem selo. */
  const badge=key=>page.locator(`#model-list [role="option"][data-key='${key}']`).first().evaluate(row=>[row.querySelector('.model-row-top .model-row-badge')?.textContent||'',row.title]);
  const [freeBadge,freeTitle]=await badge(by(FREE_MODEL).key);
- assert.equal(freeBadge,'Grátis');
+ assert.equal(freeBadge,'','sem selo de grátis');
  assert.match(freeTitle,/Não guarda nem treina/);
  const [paidBadge,paidTitle]=await badge(by('gpt-5.5').key);
  assert.equal(paidBadge,'','pago: sem selo');
@@ -263,9 +263,17 @@ await withArtifacts('modelos-gratis',async ctx=>{
  await pollUntil(()=>page.locator('#cfg-opencode-key').inputValue(),value=>value==='sk-••••4444',{what:'a chave mascarada'});
  assert.deepEqual(await page.locator('#cfg-opencode-key').evaluate(el=>[el.type,el.readOnly]),['text',true],'guardada: a máscara à vista, só leitura');
  assert.equal(await page.locator('#cfg-opencode-save').isVisible(),false);
- await page.locator('#cfg-avoid-charges summary').click();
- const avoid=await page.locator('#cfg-avoid-charges').innerText();
- for(const part of ['Como evitar cobrança','recarga automática','limite mensal','não segura a recarga automática','marca Grátis'])assert.ok(avoid.includes(part),`"Como evitar cobrança" diz "${part}": ${avoid}`);
+ /* As três regras saíram da tela e moram no guia; o link curto abre a seção certa. */
+ const avoidLink=page.locator('#cfg-free-models [data-open-guide="tutor"]');
+ assert.equal(await avoidLink.isVisible(),true,'"Como funciona" fica junto dos modelos grátis');
+ await avoidLink.click();
+ await page.waitForSelector('#help-dialog[open]');
+ await page.waitForFunction(()=>document.querySelector('#help-dialog').dataset.guideSection==='tutor');
+ const avoid=await page.locator('#help-dialog section[data-section="tutor"]').innerText();
+ for(const part of ['Modelos grátis','recarga automática','limite mensal','marca Grátis'])assert.ok(!avoid.includes(part),`o guia não anuncia grátis (#93): ${part}`);
+ assert.ok(avoid.includes('Modelo e esforço'),`o guia do tutor abriu: ${avoid}`);
+ await page.locator('#help-dialog button[value="cancel"]').first().click();
+ await page.waitForFunction(()=>!document.querySelector('#help-dialog').open);
  for(const theme of THEMES){
   await setTheme(page,theme);
   for(const [width,height] of SIZES){
@@ -290,11 +298,11 @@ await withArtifacts('modelos-gratis',async ctx=>{
  /* 11. Inglês: o bloco, o cartão e o seletor trocam de língua na hora. */
  await pickLanguage(page,'en');
  await page.waitForSelector('#cfg-free-models .set-group-label:has-text("Free models (OpenCode Zen)")');
- assert.ok((await page.locator('#cfg-avoid-charges').innerText()).includes('How to avoid charges'));
- assert.ok((await page.locator('#cfg-avoid-charges').innerText()).includes('does not hold back auto-reload'));
+ assert.equal(await page.locator('#cfg-free-models [data-open-guide="tutor"]').textContent(),'How it works','o link curto também troca de idioma');
+ assert.equal(await page.locator('#cfg-avoid-charges').count(),0,'as regras saíram da tela');
  const english=await page.locator('#model-list').evaluate(list=>[...list.querySelectorAll('.model-group-title,.model-row-default .model-row-name,.model-row-note')].map(node=>node.textContent));
  assert.ok(english.includes('OpenCode default'),`linha do padrão em inglês: ${english.join(' | ')}`);
- assert.ok(english.includes('Free')&&english.some(text=>text.includes('Does not store or train')),`seletor em inglês: ${english.join(' | ')}`);
+ assert.ok(english.includes('OpenCode Zen')&&english.some(text=>text.includes('Does not store or train')),`seletor em inglês: ${english.join(' | ')}`);
  await pickLanguage(page,'pt-BR');
  await page.waitForSelector('#cfg-free-models .set-group-label:has-text("Modelos gratuitos")');
 
@@ -316,7 +324,7 @@ await withArtifacts('modelos-gratis-arquivo',async ctx=>{
  fs.writeFileSync(path.join(authDir,'auth.json'),JSON.stringify({opencode:{type:'api',key:KEY_C}}));
  const {page,runtime}=await boot(ctx,{homeDir:home,validKeys:[KEY_C],clipboard:''});
  await toTutorStep(ctx,page,runtime);
- await page.locator('#setup-tutor-actions #free-models').click();
+ await page.evaluate(async()=>{const mod=await import('./src/free-models.mjs');await mod.openFreeModelsFlow();});
  await page.locator('#free-models-authfile').waitFor({state:'visible'});
  assert.ok((await page.locator('#free-models-authnote').textContent()).includes('~/.local/share/opencode/auth.json'),'diz qual arquivo vai ler');
  assert.equal(fs.existsSync(path.join(runtime,'opencode-key.bin')),false,'nada lido nem guardado antes do clique');

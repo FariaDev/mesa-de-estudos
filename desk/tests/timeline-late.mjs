@@ -129,9 +129,15 @@ async function runN1(ctx,{comInicio,falaCedo=false}={}){
  await page.locator('#prompt').fill(falaCedo?'rodada dois atrasada com fala cedo':(comInicio?'rodada dois atrasada':'rodada dois atrasada sem início'));
  await page.locator('#send').click();
  await page.waitForSelector('.activity-slot[data-activity-call="late-x2"]',{state:'attached',timeout:20000});
- await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Fala da rodada 2.')),undefined,{timeout:20000});
+ await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Fala da rodada 2.')),undefined,{timeout:20000,polling:50});
+ if(!comInicio){
+  /* O delta atrasado e a fala nova coexistem só até o `message_end`
+     autoritativo da rodada 2 (GAP*12): começa a esperar assim que a fala da 2
+     aparece, e não um tempo depois do marcador. */
+  await pollUntil(async()=>{const now=await snapshot(page);return now.texts;},texts=>texts.some(text=>text.includes('Fala da rodada 2.')&&text.includes('Fala atrasada da rodada 1.')),{timeout:GAP*4,interval:30,what:`${variacao}: o delta atrasado junto da fala da rodada 2`});
+ }
  await waitLateMarker(sessionFile);
- await page.waitForTimeout(GAP*2);// espera fixa: o atraso é do próprio tempo da fixture (GAP) — deixa o delta/message_end/tool_end atrasados chegarem
+ if(comInicio)await page.waitForTimeout(GAP*2);// espera fixa: o atraso é do próprio tempo da fixture (GAP) — deixa o delta/message_end/tool_end atrasados chegarem
  const during=await snapshot(page);
  const late1During=during.slots.find(slot=>slot.call==='late-x1');
  assert.equal(late1During?.status,'stopped','o resultado atrasado NÃO muda o slot da rodada 1 para done');
@@ -184,7 +190,7 @@ async function runN1(ctx,{comInicio,falaCedo=false}={}){
  /* Reload: a rodada 2 reabre com a mesma forma do vivo. */
  await page.reload();
  await statusOnline(page);
- await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Fala da rodada 2.')),undefined,{timeout:20000});
+ await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Fala da rodada 2.')),undefined,{timeout:20000,polling:50});
  await settleSnapshot(page);
  const reloaded=await snapshot(page);
  assert.deepEqual(reloaded.groups.at(-1),after.groups.at(-1),'reload: a ordem da última rodada coincide com o vivo');

@@ -59,6 +59,44 @@ export const PLOT_WAVES = [
 
 export const PLOT_BROKEN = 'x: de zero a dez\nfuncao: x^2';
 
+/* Azul e laranja literais, como o modelo manda quando ignora o token. */
+export const COLORFUL_SVG = [
+  '<svg viewBox="0 0 120 80">',
+  '<rect x="1" y="1" width="118" height="78" fill="#ffffff" stroke="#111111"/>',
+  '<circle cx="40" cy="40" r="16" fill="#2563eb" stroke="orange"/>',
+  '<circle cx="80" cy="40" r="16" fill="rgb(15, 123, 85)"/>',
+  '<text x="40" y="70" fill="black">a</text>',
+  '</svg>',
+].join('\n');
+
+/* Dois rótulos no mesmo ponto, em cima de uma reta. */
+export const OVERLAP_SVG = [
+  '<svg viewBox="0 0 200 80">',
+  '<line x1="10" y1="40" x2="190" y2="40" stroke="currentColor" stroke-width="2"/>',
+  '<text x="40" y="44" font-size="14" fill="currentColor">F paralela</text>',
+  '<text x="48" y="44" font-size="14" fill="currentColor">não entra em N</text>',
+  '</svg>',
+].join('\n');
+
+/* Cerca `svg` (#release OpenCode): o modelo escreveu o desenho como código, com
+   linha em branco no meio; a Mesa precisa desenhar igual ao SVG inline. */
+export const SVG_FENCE = [
+  '```svg',
+  '<svg viewBox="0 0 120 80" role="img" aria-label="Retângulo de exemplo">',
+  '',
+  '<rect x="10" y="10" width="100" height="60" fill="var(--plot-1)" stroke="currentColor"/>',
+  '<text x="60" y="45" text-anchor="middle" fill="currentColor">ok</text>',
+  '</svg>',
+  '```',
+].join('\n');
+
+export const SVG_FENCE_XML = ['```xml', ...TRIANGLE_SVG.split('\n'), '```'].join('\n');
+export const SVG_FENCE_HTML = ['```html', ...TRIANGLE_SVG.split('\n'), '```'].join('\n');
+export const SVG_FENCE_MALICIOUS = ['```svg', ...MALICIOUS_SVG.split('\n'), '```'].join('\n');
+export const SVG_FENCE_INVALID = ['```svg', '<rect x="1" y="1" width="10" height="10"/>', '```'].join('\n');
+export const SVG_FENCE_XML_INVALID = ['```xml', '<not-svg/>', '```'].join('\n');
+export const SVG_FENCE_OVER = ['```svg', `<svg viewBox="0 0 10 10">${'x'.repeat(8100)}</svg>`, '```'].join('\n');
+
 /* Lista de exercícios com dois plot e um SVG (o "pronto quando" da #60) e, no
    fim, uma cerca com erro para ver o aviso no PDF. */
 export const EXAMPLE_LIST = [

@@ -76,6 +76,21 @@ def Laws.composer_disabled_off():
 def Laws.composer_disabled_on():
   {==}
 
+def Laws.composer_steer_busy():
+  {==}
+
+def Laws.composer_steer_idle():
+  {==}
+
+def Laws.composer_steer_no_capability():
+  {==}
+
+def Laws.composer_steer_sending():
+  {==}
+
+def Laws.composer_steer_editing():
+  {==}
+
 def Laws.composer_banner_hidden():
   {==}
 
@@ -106,7 +121,16 @@ def Laws.composer_strip_closing_data():
 def Laws.composer_strip_open_data():
   {==}
 
-def Laws.composer_strip_actions_class():
+def Laws.composer_strip_head_class():
+  {==}
+
+def Laws.composer_head_label_class():
+  {==}
+
+def Laws.composer_head_actions_class():
+  {==}
+
+def Laws.composer_remove_class():
   {==}
 
 def Laws.composer_send_now_text():
@@ -128,6 +152,24 @@ def Laws.composer_item_sending_busy():
   {==}
 
 def Laws.composer_item_idle_busy():
+  {==}
+
+def Laws.composer_item_steer_class():
+  {==}
+
+def Laws.composer_item_steer_click():
+  {==}
+
+def Laws.composer_item_steer_aria():
+  {==}
+
+def Laws.composer_item_steer_text():
+  {==}
+
+def Laws.composer_item_steer_absent():
+  {==}
+
+def Laws.composer_item_steer_editing_absent():
   {==}
 
 def Laws.composer_banner_tag(visible, closing):

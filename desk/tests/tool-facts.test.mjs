@@ -65,7 +65,7 @@ test('claudeInstalledVersion: só `--version`, nunca auth status; sem reserva do
 
 test('executableIn: acha só nos diretórios dados; caminho com barra passa como está', () => {
   const fake = installFakeTools(tmp());
-  assert.equal(facts.executableIn('brew', {}, '/nada', [fake.bin]), path.join(fake.bin, 'brew'));
+  assert.equal(facts.executableIn('brew', {}, '/nada', [fake.bin]), fake.brewPath);
   assert.equal(facts.executableIn('brew', {}, '/nada', [path.join(fake.bin, 'vazio')]), '');
   assert.equal(facts.executableIn('/abs/claude', {}, '/nada', [fake.bin]), '/abs/claude');
   assert.equal(facts.executableIn('', {}, '/nada', [fake.bin]), '');

@@ -66,7 +66,7 @@ function ensureStyles() {
   style.textContent = `
 .study-stats-toggle{
  position:fixed; z-index:60; inset-block-end:18px; inset-inline-end:18px;
- padding:10px 16px; border-radius:999px; border:1px solid var(--border);
+ padding:10px 16px; border-radius:var(--r-sm); border:1px solid var(--border);
  background:var(--surface); color:var(--fg); font:600 var(--fs-sm) inherit;
  cursor:pointer;
 }
@@ -80,8 +80,8 @@ function ensureStyles() {
 .study-stats-close{flex:none; width:28px; height:28px; font-size:18px; line-height:1; border:0; background:transparent; box-shadow:none}
 .study-stats-controls{display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between}
 .study-stats-controls select{height:30px; padding-block:0; margin:0; width:auto; max-width:220px}
-.study-stats-segment{display:inline-flex; gap:2px; padding:2px; border:1px solid var(--border); border-radius:var(--r-md); background:var(--code)}
-.study-stats-segment button{height:26px; padding:0 12px; border:0; border-radius:calc(var(--r-md) - 2px); background:transparent; box-shadow:none; color:var(--muted); font-size:var(--fs-sm)}
+.study-stats-segment{display:inline-flex; gap:2px; padding:2px; border:1px solid var(--border); border-radius:var(--r-sm); background:var(--code)}
+.study-stats-segment button{height:26px; padding:0 12px; border:0; border-radius:var(--r-xs); background:transparent; box-shadow:none; color:var(--muted); font-size:var(--fs-sm)}
 .study-stats-segment button[aria-checked="true"]{background:var(--surface); color:var(--fg); font-weight:600; box-shadow:0 0 0 1px var(--border)}
 .study-stats-hero{display:flex; flex-direction:column; gap:4px}
 .study-stats-headline{margin:0; font:500 26px/1.2 var(--serif,Georgia,serif); letter-spacing:-.01em}

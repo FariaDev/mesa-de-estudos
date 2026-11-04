@@ -117,7 +117,8 @@ if(only('navegacao')){
   const page=await s.launch();
   const pages=()=>page.locator('.pdf-panel .page-number').first().inputValue();
   const backBtn=page.locator('.pdf-panel .pdf-title button.back').first();
-  const navBtn=page.locator('.pdf-panel .pdf-title button.nav').first();
+  const navBtn=page.locator('.pdf-panel .pdf-more-pop button.nav').first();
+  const openNav=async()=>{const panel=page.locator('.pdf-panel').first();await panel.locator('.more').click();await navBtn.click();};
 
   await s.step('o leitor sobe com o Voltar escondido e o Navegar fechado',async()=>{
    await page.waitForSelector('.pdf-panel canvas',{timeout:30000});
@@ -154,7 +155,7 @@ if(only('navegacao')){
   });
 
   await s.step('o popover abre com as notas de vazio (favoritos e sumário)',async()=>{
-   await navBtn.click();
+   await openNav();
    await page.waitForSelector('.pdf-nav-pop');
    // O corpo do popover é remontado depois do sumário (async): o `hidden` sai
    // no clique, mas o `aria-expanded` e o corpo só ficam prontos no fim do
@@ -162,7 +163,7 @@ if(only('navegacao')){
    // clicar num botão que acabou de ser substituído).
    await page.waitForFunction(()=>{
     const pop=document.querySelector('.pdf-nav-pop');
-    const btn=document.querySelector('.pdf-panel .pdf-title button.nav');
+    const btn=document.querySelector('.pdf-panel .pdf-more-pop button.nav');
     return !!pop&&!pop.hidden&&btn?.getAttribute('aria-expanded')==='true';
    },undefined,{timeout:10000});
    assert.equal(await navBtn.getAttribute('aria-expanded'),'true');
@@ -199,7 +200,7 @@ if(only('navegacao')){
   });
 
   await s.step('remover tira a linha e limpa o arquivo',async()=>{
-   await navBtn.click();
+   await openNav();
    await page.waitForFunction(()=>document.querySelector('.pdf-nav-pop')?.hidden===false,undefined,{timeout:5000});
    await page.locator('.pdf-nav-pop .nav-bookmark-remove').click();
    await page.waitForFunction(()=>!document.querySelector('.pdf-nav-pop .nav-bookmark'),undefined,{timeout:10000});
@@ -216,11 +217,11 @@ if(only('navegacao')){
   });
 
   await s.step('clique fora e Esc fecham o popover',async()=>{
-   await navBtn.click();
+   await openNav();
    await page.waitForFunction(()=>document.querySelector('.pdf-nav-pop')?.hidden===false);
    await page.mouse.click(5,400);
    await page.waitForFunction(()=>document.querySelector('.pdf-nav-pop')?.hidden===true);
-   await navBtn.click();
+   await openNav();
    await page.waitForFunction(()=>document.querySelector('.pdf-nav-pop')?.hidden===false);
    await page.keyboard.press('Escape');
    await page.waitForFunction(()=>document.querySelector('.pdf-nav-pop')?.hidden===true);
@@ -270,15 +271,16 @@ if(only('dois leitores')){
   const page=await s.launch();
   const panel=n=>page.locator('.pdf-panel').nth(n);
   const pages=n=>panel(n).locator('.page-number').inputValue();
-  const navBtn=n=>panel(n).locator('.pdf-title button.nav');
+  const navBtn=n=>panel(n).locator('.pdf-more-pop button.nav');
   const pop=n=>panel(n).locator('.pdf-nav-pop');
   const rows=n=>pop(n).locator('.nav-row');
   const names=n=>rows(n).locator('.nav-name').allTextContents();
   const bookmarksFile=()=>JSON.parse(fs.readFileSync(path.join(runtime,'bookmarks.json'),'utf8')).A;
+  const openNav=async n=>{await panel(n).locator('.more').click();await navBtn(n).click();};
   const popOpen=n=>page.waitForFunction(index=>{
    const root=document.querySelectorAll('.pdf-panel')[index];
    const box=root?.querySelector('.pdf-nav-pop');
-   const btn=root?.querySelector('.pdf-title button.nav');
+   const btn=root?.querySelector('.pdf-more-pop button.nav');
    return !!box&&!box.hidden&&btn?.getAttribute('aria-expanded')==='true';
   },n,{timeout:10000});
   /* O `#connect` do estado do tutor é re-renderizado enquanto o app sobe: o clique
@@ -332,7 +334,7 @@ if(only('dois leitores')){
   });
 
   await s.step('o favorito oculto fica fora da tela',async()=>{
-   await navBtn(1).click();
+   await openNav(1);
    await popOpen(1);
    assert.equal(await rows(1).count(),1,'favorito de PDF fora da biblioteca não entra na lista da tela');
    assert.deepEqual((await names(1)).map(s=>s.trim()),['Limites']);
@@ -368,7 +370,7 @@ if(only('dois leitores')){
   });
 
   await s.step('guardar no primeiro leitor usa o outro PDF e a página atual dele',async()=>{
-   await navBtn(0).click();
+   await openNav(0);
    await popOpen(0);
    await pop(0).locator('.nav-save').click();
    await page.waitForSelector('#bookmark-dialog[open]');

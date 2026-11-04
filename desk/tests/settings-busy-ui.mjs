@@ -12,21 +12,46 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
  withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,
- reviewShot,screenshotDirectory,setTheme,freezeMotion,resizeWindow,pageWindow
+ reviewShot,screenshotDirectory,setTheme,freezeMotion,resizeWindow
 } from './helpers.mjs';
-import {layoutStable,nextFrames} from './waits.mjs';
+import {nextFrames} from './waits.mjs';
+import {primeHiddenFrames} from './frame-prime.mjs';
 
 const out=screenshotDirectory('settings-busy');
 const BUSY_HINT='O tutor está respondendo. Dá para salvar quando ele terminar.';
 const size=(app,page,width,height)=>resizeWindow(app,page,width,height);
 
+/* O aviso se remove sozinho em ~3,2 s; sob carga, abrir o diálogo e capturar o
+   pixel pode passar disso. Para o teste de empilhamento, segura a saída e
+   solta quando a amostra terminou: aqui interessa a camada, não a duração. */
+const holdToasts=page=>page.evaluate(()=>{
+ const native=window.setTimeout.bind(window);
+ const held=[];
+ window.__releaseToasts=()=>{for(const run of held.splice(0))run();};
+ window.setTimeout=(fn,delay,...args)=>{
+  if(delay!==3200)return native(fn,delay,...args);
+  held.push(()=>fn(...args));
+  return 0;
+ };
+});
+const releaseToasts=page=>page.evaluate(()=>window.__releaseToasts?.());
+
 /* O aviso está pintado por cima de tudo onde aparece? Com um diálogo modal
    aberto, o resto da página é inerte e o teste de clique (`elementFromPoint`)
-   o pula mesmo quando está pintado em cima; a prova é o pixel. O host lê um
-   pixel do fundo do aviso (na margem, longe do texto) com `capturePage` e
-   compara com a cor do fundo do aviso. */
+   o pula mesmo quando está pintado em cima; a prova é o pixel. O host tira um
+   screenshot de 8×8 no fundo do aviso (na margem, longe do texto) e compara
+   com a cor do fundo do aviso. */
 const toastOnTop=async(app,page)=>{
- await layoutStable(page,'#toast .toast-item');
+ /* O aviso se remove em ~3,2 s: esperar o layout "parar" com rAF pode perder a
+    janela ou travar sob carga. O movimento já está congelado; basta o item
+    existir com tamanho antes de ler o pixel. */
+ await page.waitForFunction(()=>{
+  const item=document.querySelector('#toast .toast-item');
+  if(!item)return false;
+  const r=item.getBoundingClientRect();
+  return r.width>0&&r.height>0;
+ },undefined,{polling:100,timeout:5000});
+ await nextFrames(page,2);
  const at=await page.evaluate(()=>{
   const box=document.querySelector('#toast'),item=box.querySelector('.toast-item');
   if(!item)return null;
@@ -39,12 +64,15 @@ const toastOnTop=async(app,page)=>{
   return {x:Math.round(r.left+4),y:Math.round(r.top+r.height/2-4),bg:bg.slice(0,3),behind,open:box.matches(':popover-open')};
  });
  if(!at)return {item:false};
- const px=await (await pageWindow(app,page)).evaluate(async(win,{x,y})=>{
-  const image=await win.webContents.capturePage({x,y,width:8,height:8});
+ /* `capturePage` da janela escondida pode devolver o quadro anterior à entrada
+    do aviso; o screenshot do Playwright força um quadro novo. */
+ const shot=(await page.screenshot({clip:{x:at.x,y:at.y,width:8,height:8}})).toString('base64');
+ const px=await app.evaluate(({nativeImage},base64)=>{
+  const image=nativeImage.createFromBuffer(Buffer.from(base64,'base64'));
   const {width,height}=image.getSize(),bitmap=image.toBitmap();
   const i=(Math.floor(height/2)*width+Math.floor(width/2))*4;
   return [bitmap[i+2],bitmap[i+1],bitmap[i]];
- },{x:at.x,y:at.y});
+ },shot);
  const dist=c=>Math.max(...px.map((value,i)=>Math.abs(value-c[i])));
  const top=dist(at.bg)<=8&&dist(at.bg)<dist(at.behind);
  return {item:true,open:at.open,top,pixel:px,bg:at.bg,behind:at.behind.map(Math.round)};
@@ -62,6 +90,7 @@ await withArtifacts('settings-busy',async ctx=>{
  await size(ctx.app,page,1440,900);
  await statusOnline(page);
  await freezeMotion(page);
+ await primeHiddenFrames(page);
 
  const openSettings=async()=>{
   await page.keyboard.press('ControlOrMeta+,');
@@ -174,6 +203,7 @@ await withArtifacts('settings-busy',async ctx=>{
  await setTheme(page,'light');
 
  /* ---------- 5. nenhum aviso atrás de diálogo aberto ---------- */
+ await holdToasts(page);
  for(const [width,height] of [[1440,900],[900,650]]){
   await size(ctx.app,page,width,height);
   for(const theme of ['light','dark']){
@@ -188,6 +218,8 @@ await withArtifacts('settings-busy',async ctx=>{
    assert.equal(top.open,true,`${tag}: o aviso está na camada superior`);
    assert.equal(top.top,true,`${tag}: o aviso aparece por cima do diálogo (${JSON.stringify(top)})`);
    await reviewShot(page,out,`aviso-sobre-dialogo-${theme}-${width}x${height}.png`);
+   await releaseToasts(page);
+   await page.waitForFunction(()=>!document.querySelector('#toast .toast-item'),undefined,{timeout:8000});
    await page.locator('#settings-dialog button[value="cancel"]').last().click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
    /* já estava na tela quando o diálogo abriu */
@@ -199,6 +231,7 @@ await withArtifacts('settings-busy',async ctx=>{
    assert.equal(top.top,true,`${tag}: o aviso de antes volta para cima do diálogo que abriu depois (${JSON.stringify(top)})`);
    await page.locator('#settings-dialog button[value="cancel"]').last().click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
+   await releaseToasts(page);
    await page.waitForFunction(()=>!document.querySelector('#toast .toast-item'),undefined,{timeout:8000});
    assert.equal(await page.evaluate(()=>document.querySelector('#toast').matches(':popover-open')),false,`${tag}: sem aviso, a camada some`);
   }

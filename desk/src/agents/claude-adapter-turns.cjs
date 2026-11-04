@@ -189,7 +189,6 @@ class ClaudeAdapterTurns {
     if (turn.finalized) return;
     turn.finalized = true;
     this._clearTimer(turn);
-    this._invalidatePermissions('Rodada terminou', turn, 'turn_end');
     let uncertain;
 
     if (outcome === 'settled') {

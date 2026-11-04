@@ -12,7 +12,8 @@ import {syntheticJpeg, withExif, syntheticPng, syntheticWebp, GPS_MARK, COMMENT_
    127.0.0.1 (o endereço forçado do modo de teste), e um cliente HTTP do teste
    no papel do celular. Cada teste diz qual regra de segurança prova. */
 const require = createRequire(import.meta.url);
-const {createPhoneHost, readRoute} = require('../phone-host.cjs');
+const {createPhoneHost, readRoute, SERVER_TIMEOUTS} = require('../phone-host.cjs');
+const {createPhotoUploader, UPLOAD_LIMITS} = require('../phone-upload.cjs');
 const {cleanPhoto, sniffPhoto} = require('../phone-image.cjs');
 const core = require('../src/generated/phonedrop.core.js').default;
 const {phoneCastCss} = require('../phone-cast.cjs');
@@ -43,10 +44,10 @@ function harness({language = 'pt-BR', castCss} = {}) {
 }
 
 /* Pedido cru (o `fetch` normaliza caminhos como `/../`; o celular falso não). */
-function request(url, {method = 'GET', path, body, headers = {}} = {}) {
+function request(url, {method = 'GET', path, body, headers = {}, agent = false} = {}) {
   const target = new URL(url);
   return new Promise((resolve, reject) => {
-    const req = http.request({host: target.hostname, port: target.port, method, path: path ?? target.pathname, headers, agent: false}, (res) => {
+    const req = http.request({host: target.hostname, port: target.port, method, path: path ?? target.pathname, headers, agent}, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => resolve({status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks).toString('utf8')}));
@@ -76,6 +77,7 @@ test('com o token a página abre, no idioma da Mesa, sem nada de fora', async ()
     assert.match(page.body, /<html lang="en">/);
     assert.match(page.body, /Take photo/);
     assert.match(page.body, /capture="environment"/);
+    assert.match(page.body, /X-Mesa-Photo-Id/, 'a página manda o id do envio junto com a foto');
     assert.match(page.headers['content-security-policy'], /default-src 'none'/);
     assert.equal(page.headers['cache-control'], 'no-store');
     assert.doesNotMatch(page.body, /https?:\/\//, 'a página não carrega nada de outro endereço');
@@ -154,6 +156,24 @@ test('com o token a foto entra, uma por pedido, e o estado conta', async () => {
     assert.deepEqual(photos().map((photo) => photo.name), ['foto do celular 1', 'foto do celular 2']);
     assert.equal(events.at(-1).status.state, 'received');
     assert.equal(events.at(-1).status.count, 2);
+  } finally { host.stop(); }
+});
+
+test('regressão #36: o mesmo id postado duas vezes emite uma foto só e responde ok nas duas', async () => {
+  const {host, photos, events} = harness();
+  const {url} = await host.start();
+  try {
+    const path = `${new URL(url).pathname}/photo`;
+    const id = 'foto-abc123456789';
+    const headers = {'Content-Type': 'image/jpeg', 'X-Mesa-Photo-Id': id};
+    const first = await request(url, {method: 'POST', path, body: syntheticJpeg(), headers});
+    const again = await request(url, {method: 'POST', path, body: syntheticJpeg(), headers});
+    assert.equal(first.status, 201);
+    assert.equal(again.status, 200);
+    assert.deepEqual(JSON.parse(again.body), {ok: true, count: 1});
+    assert.equal(photos().length, 1, 'a foto que já tinha chegado não é emitida de novo');
+    assert.equal(events.filter((event) => event.photo).length, 1, 'um `phone-event` de foto');
+    assert.equal(events.at(-1).status.count, 1, 'a conta da sessão não sobe de novo');
   } finally { host.stop(); }
 });
 
@@ -278,4 +298,70 @@ test('readRoute: só GET /<token> e POST /<token>/photo têm forma', () => {
   assert.deepEqual(readRoute({method: 'GET', url: '/abd'}, token), {route: {$: 'PageRoute'}, token: false});
   assert.deepEqual(readRoute({method: 'GET', url: '/abc/x/y'}, token), {route: {$: 'OtherRoute'}, token: true});
   assert.deepEqual(readRoute({method: 'GET', url: '/abc'}, null), {route: {$: 'PageRoute'}, token: false});
+});
+
+/* #36, depois de bloquear a tela: o navegador não pode reaproveitar um socket
+   keep-alive que já morreu. Por isso toda resposta vem com `Connection: close`. */
+test('toda resposta fecha a conexão: o celular não reaproveita socket depois de bloquear a tela', async () => {
+  const {host} = harness();
+  const {url} = await host.start();
+  const agent = new http.Agent({keepAlive: true});
+  try {
+    const page = await request(url, {agent});
+    const sent = await request(url, {agent, method: 'POST', path: `${new URL(url).pathname}/photo`, body: syntheticJpeg(), headers: {'Content-Type': 'image/jpeg'}});
+    assert.equal(page.headers.connection, 'close', 'o cliente pediu keep-alive e a resposta fecha mesmo assim');
+    assert.equal(sent.headers.connection, 'close');
+  } finally { agent.destroy(); host.stop(); }
+});
+
+/* O servidor não pode cortar um envio que a página ainda considera vivo: o
+   `requestTimeout` fica acima do teto do prazo da página, e o celular aborta antes. */
+test('os timeouts do servidor ficam acima do prazo da página', () => {
+  assert.ok(SERVER_TIMEOUTS.requestTimeout > UPLOAD_LIMITS.cap, 'o servidor espera mais que o teto do envio');
+  assert.ok(SERVER_TIMEOUTS.headersTimeout < SERVER_TIMEOUTS.requestTimeout);
+});
+
+/* Regressão #36 no transporte de verdade: o primeiro envio nunca termina (o
+   corpo para no meio, como um celular que dormiu no envio). A fila aborta no
+   prazo e refaz pelo fetch; a Mesa recebe só a foto que chegou, uma vez.
+
+   O prazo é do teste, não do relógio de parede: com 50 ms reais, sob a carga da
+   suíte inteira o reenvio (um POST local legítimo) também vencia o prazo e a
+   fila caía em `offline`. Aqui o aborto dispara quando o corpo travado começa a
+   ser lido; o reenvio não corre contra o relógio. O prazo curto de verdade é
+   coberto por `phone-upload.test.mjs` com relógio falso. */
+test('regressão #36: envio pendurado no servidor de verdade é abortado no prazo e refeito', async () => {
+  const {host, photos} = harness();
+  const {url} = await host.start();
+  const sends = [];
+  const deadlines = [];
+  let bodyPulled;
+  const pulled = new Promise((resolve) => { bodyPulled = resolve; });
+  const post = async (file, signal) => {
+    const stalled = sends.length === 0;
+    sends.push({signal});
+    const body = stalled ? new ReadableStream({pull: () => { bodyPulled(); return new Promise(() => {}); }}) : file;
+    const reply = await fetch(`${new URL(url).origin}${new URL(url).pathname}/photo`, {method: 'POST', body, signal, duplex: 'half', headers: {'Content-Type': 'image/jpeg'}});
+    return {ok: reply.ok, status: reply.status, reason: reply.ok ? '' : (await reply.json()).reason};
+  };
+  const events = [];
+  const uploader = createPhotoUploader({
+    post, newController: () => new AbortController(),
+    setTimer: (run, ms) => { deadlines.push({run, ms, cleared: false}); return deadlines.at(-1); },
+    clearTimer: (deadline) => { deadline.cleared = true; },
+    limits: {base: 50, perMb: 0, cap: 50},
+    on: {added() {}, sent: () => events.push('photo'), dropped: () => events.push('dropped'), phase: (name) => events.push(name)},
+  });
+  try {
+    const sending = uploader.enqueue([new Blob([syntheticJpeg()])]);
+    await pulled;
+    assert.deepEqual(deadlines.map((deadline) => deadline.ms), [50], 'o envio pendurado ganhou o prazo da fila');
+    deadlines[0].run();
+    await sending;
+    assert.equal(sends[0].signal.aborted, true, 'o primeiro envio foi abortado no prazo');
+    assert.equal(sends.length, 2, 'uma tentativa a mais');
+    assert.deepEqual(events, ['sending', 'photo', 'sent']);
+    assert.equal(photos().length, 1, 'a Mesa recebe a foto uma vez');
+    assert.ok(deadlines.every((deadline) => deadline.cleared), 'nenhum prazo fica pendurado depois da fila');
+  } finally { host.stop(); }
 });

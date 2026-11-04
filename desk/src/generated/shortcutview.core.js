@@ -10,10 +10,13 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -34,6 +37,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $msg_mark() {
   return "";
 }
@@ -41,8 +45,8 @@ function $msg_sep() {
   return "";
 }
 function $msg_pack(_parts_0) {
-  const _x_0 = $msg_mark();
-  const _x_1 = $String_join(_parts_0, $msg_sep());
+  const _x_0 = $$msg_mark();
+  const _x_1 = $$String_join(_parts_0, $$msg_sep());
   return _x_0 + _x_1;
 }
 function $msg_msg(_key_0) {
@@ -61,7 +65,7 @@ function $msg_msg4(_key_0, _n1_0, _v1_0, _n2_0, _v2_0, _n3_0, _v3_0, _n4_0, _v4_
   return $msg_pack({ $: "Con", head: _key_0, tail: { $: "Con", head: _n1_0, tail: { $: "Con", head: _v1_0, tail: { $: "Con", head: _n2_0, tail: { $: "Con", head: _v2_0, tail: { $: "Con", head: _n3_0, tail: { $: "Con", head: _v3_0, tail: { $: "Con", head: _n4_0, tail: { $: "Con", head: _v4_0, tail: { $: "Nil" } } } } } } } } } });
 }
 function $msg_isMsg(_s_0) {
-  return $String_starts_with(_s_0, $msg_mark());
+  return $String_starts_with(_s_0, $$msg_mark());
 }
 function $view_attr(_name_0, _value_0) {
   return { $: "ViewAttr", name: _name_0, value: _value_0 };
@@ -132,7 +136,7 @@ function $view_attrGet_go(_attrs_0, _name_0) {
     const _an_0 = _t_0["name"];
     const _av_0 = _t_0["value"];
     const _t_1 = _attrs_0["tail"];
-    return $view_attrGet_choose(_av_0, $view_attrGet_go(_t_1, _name_0), $String_eq(_an_0, _name_0));
+    return $view_attrGet_choose(_av_0, $$view_attrGet_go(_t_1, _name_0), $$String_eq(_an_0, _name_0));
   }
 }
 function $view_attrGet(_attrs_0, _name_0) {
@@ -183,7 +187,7 @@ function $view_boolStr(_on_0) {
   }
 }
 function $view_attrBool(_name_0, _on_0) {
-  return { $: "ViewAttr", name: _name_0, value: $view_boolStr(_on_0) };
+  return { $: "ViewAttr", name: _name_0, value: $$view_boolStr(_on_0) };
 }
 function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   if (_empty_0) {
@@ -194,7 +198,7 @@ function $view_classAppend_empty(_acc_0, _name_0, _empty_0) {
   }
 }
 function $view_classAppend(_acc_0, _name_0) {
-  return $view_classAppend_empty(_acc_0, _name_0, $String_is_empty(_acc_0));
+  return $view_classAppend_empty(_acc_0, _name_0, $$String_is_empty(_acc_0));
 }
 function $view_classNext_emptyName(_name_0, _acc_0, _emptyName_0) {
   if (_emptyName_0) {
@@ -207,7 +211,7 @@ function $view_classNext_on(_name_0, _on_0, _acc_0) {
   if (!_on_0) {
     return _acc_0;
   } else {
-    return $view_classNext_emptyName(_name_0, _acc_0, $String_is_empty(_name_0));
+    return $view_classNext_emptyName(_name_0, _acc_0, $$String_is_empty(_name_0));
   }
 }
 function $view_classValue_go($0, $1) {
@@ -223,7 +227,7 @@ function $view_classValue_go($0, $1) {
         const _on_0 = _t_0["on"];
         const _t_1 = _xs_0["tail"];
         $0 = _t_1;
-        $1 = $view_classNext_on(_name_0, _on_0, _acc_0);
+        $1 = $$view_classNext_on(_name_0, _on_0, _acc_0);
         continue;
       }
     }
@@ -233,7 +237,7 @@ function $view_classValue(_xs_0) {
   return $view_classValue_go(_xs_0, "");
 }
 function $view_classes(_xs_0) {
-  return { $: "ViewAttr", name: "class", value: $view_classValue(_xs_0) };
+  return { $: "ViewAttr", name: "class", value: $$view_classValue(_xs_0) };
 }
 function $view_viewWhen(_cond_0, _node_0) {
   if (_cond_0) {
@@ -284,13 +288,13 @@ function $skTextOr_if(_raw_0, _fallback_0, _empty_0) {
   }
 }
 function $skTextOr(_raw_0, _fallback_0) {
-  return $skTextOr_if(_raw_0, _fallback_0, $String_is_empty(_raw_0));
+  return $skTextOr_if(_raw_0, _fallback_0, $$String_is_empty(_raw_0));
 }
 function $skKbdText(_effective_0, _recording_0) {
   if (_recording_0) {
     return $msg_msg("keys.recording");
   } else {
-    return $skTextOr(_effective_0, $msg_msg("keys.none"));
+    return $skTextOr(_effective_0, $$msg_msg("keys.none"));
   }
 }
 function $skKbdEmpty(_effective_0, _recording_0) {
@@ -311,17 +315,17 @@ function $skKbdAria(_label_0, _effective_0, _recording_0) {
   if (_recording_0) {
     return $msg_msg1("keys.recordingAria", "action", _label_0);
   } else {
-    return $skKbdAria_if(_effective_0, $String_is_empty(_effective_0));
+    return $skKbdAria_if(_effective_0, $$String_is_empty(_effective_0));
   }
 }
 function $skLabelNode(_id_0, _label_0) {
-  return $view_viewEl("span", { $: "Con", head: $view_attrClass("keys-label"), tail: { $: "Con", head: $view_attrId("keys-label-" + _id_0), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText(_label_0), tail: { $: "Nil" } });
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("keys-label"), tail: { $: "Con", head: $$view_attrId("keys-label-" + _id_0), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText(_label_0), tail: { $: "Nil" } });
 }
 function $skKbdNode(_label_0, _effective_0, _recording_0) {
-  return $view_viewEl("kbd", { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("keys-kbd", true), tail: { $: "Con", head: $view_classOn("empty", $skKbdEmpty(_effective_0, _recording_0)), tail: { $: "Nil" } } }), tail: { $: "Con", head: $view_attrAria("label", $skKbdAria(_label_0, _effective_0, _recording_0)), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewText($skKbdText(_effective_0, _recording_0)), tail: { $: "Nil" } });
+  return $view_viewEl("kbd", { $: "Con", head: $$view_classes({ $: "Con", head: $$view_classOn("keys-kbd", true), tail: { $: "Con", head: $$view_classOn("empty", $$skKbdEmpty(_effective_0, _recording_0)), tail: { $: "Nil" } } }), tail: { $: "Con", head: $$view_attrAria("label", $$skKbdAria(_label_0, _effective_0, _recording_0)), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText($$skKbdText(_effective_0, _recording_0)), tail: { $: "Nil" } });
 }
 function $skNoteNode(_note_0) {
-  return $view_viewEl("span", { $: "Con", head: $view_attrClass("keys-note"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($skTextOr(_note_0, $msg_msg("keys.fixed"))), tail: { $: "Nil" } });
+  return $view_viewEl("span", { $: "Con", head: $$view_attrClass("keys-note"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$skTextOr(_note_0, $$msg_msg("keys.fixed"))), tail: { $: "Nil" } });
 }
 function $skRecordLabel(_recording_0) {
   if (_recording_0) {
@@ -338,16 +342,16 @@ function $skRecordAria(_label_0, _recording_0) {
   }
 }
 function $skRecordNode(_id_0, _label_0, _recording_0) {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("keys-rec"), tail: { $: "Con", head: $view_attrData("role", "rec"), tail: { $: "Con", head: $view_attrKey("keys-rec-" + _id_0), tail: { $: "Con", head: $view_attrAria("pressed", $view_boolStr(_recording_0)), tail: { $: "Con", head: $view_attrAria("label", $skRecordAria(_label_0, _recording_0)), tail: { $: "Con", head: $view_attrOn("click", "Record"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $view_viewText($skRecordLabel(_recording_0)), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("keys-rec"), tail: { $: "Con", head: $$view_attrData("role", "rec"), tail: { $: "Con", head: $$view_attrKey("keys-rec-" + _id_0), tail: { $: "Con", head: $$view_attrAria("pressed", $$view_boolStr(_recording_0)), tail: { $: "Con", head: $$view_attrAria("label", $$skRecordAria(_label_0, _recording_0)), tail: { $: "Con", head: $$view_attrOn("click", "Record"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $$view_viewText($$skRecordLabel(_recording_0)), tail: { $: "Nil" } });
 }
 function $skResetNode(_id_0, _overridden_0) {
-  return $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrClass("keys-reset"), tail: { $: "Con", head: $view_attrData("role", "reset"), tail: { $: "Con", head: $view_attrKey("keys-reset-" + _id_0), tail: { $: "Con", head: $view_attrOn("click", "Reset"), tail: { $: "Nil" } } } } } }, tail: { $: "Con", head: $view_attrWhen($Bool_not(_overridden_0), $view_attr("hidden", "")), tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($msg_msg("keys.reset")), tail: { $: "Nil" } });
+  return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("keys-reset"), tail: { $: "Con", head: $$view_attrData("role", "reset"), tail: { $: "Con", head: $$view_attrKey("keys-reset-" + _id_0), tail: { $: "Con", head: $$view_attrOn("click", "Reset"), tail: { $: "Nil" } } } } } }, tail: { $: "Con", head: $$view_attrWhen($$Bool_not(_overridden_0), $$view_attr("hidden", "")), tail: { $: "Nil" } } }), { $: "Con", head: $$view_viewText($$msg_msg("keys.reset")), tail: { $: "Nil" } });
 }
 function $skRowKids_editable(_id_0, _label_0, _effective_0, _note_0, _overridden_0, _recording_0, _fixed_0) {
   if (_fixed_0) {
-    return { $: "Con", head: $skLabelNode(_id_0, _label_0), tail: { $: "Con", head: $skKbdNode(_label_0, _effective_0, _recording_0), tail: { $: "Con", head: $skNoteNode(_note_0), tail: { $: "Nil" } } } };
+    return { $: "Con", head: $$skLabelNode(_id_0, _label_0), tail: { $: "Con", head: $$skKbdNode(_label_0, _effective_0, _recording_0), tail: { $: "Con", head: $$skNoteNode(_note_0), tail: { $: "Nil" } } } };
   } else {
-    return { $: "Con", head: $skLabelNode(_id_0, _label_0), tail: { $: "Con", head: $skKbdNode(_label_0, _effective_0, _recording_0), tail: { $: "Con", head: $skRecordNode(_id_0, _label_0, _recording_0), tail: { $: "Con", head: $skResetNode(_id_0, _overridden_0), tail: { $: "Nil" } } } } };
+    return { $: "Con", head: $$skLabelNode(_id_0, _label_0), tail: { $: "Con", head: $$skKbdNode(_label_0, _effective_0, _recording_0), tail: { $: "Con", head: $$skRecordNode(_id_0, _label_0, _recording_0), tail: { $: "Con", head: $$skResetNode(_id_0, _overridden_0), tail: { $: "Nil" } } } } };
   }
 }
 function $skRowNode_record(_row_0, _recording_0) {
@@ -357,7 +361,7 @@ function $skRowNode_record(_row_0, _recording_0) {
   const _fixed_0 = _row_0["fixed"];
   const _note_0 = _row_0["note"];
   const _overridden_0 = _row_0["overridden"];
-  return $view_viewKey("div", _id_0, { $: "Con", head: $view_classes({ $: "Con", head: $view_classOn("keys-row", true), tail: { $: "Con", head: $view_classOn("recording", _recording_0), tail: { $: "Con", head: $view_classOn("is-fixed", _fixed_0), tail: { $: "Nil" } } } }), tail: { $: "Con", head: $view_attrData("action", _id_0), tail: { $: "Con", head: $view_attr("role", "group"), tail: { $: "Con", head: $view_attrAria("labelledby", "keys-label-" + _id_0), tail: { $: "Nil" } } } } }, $skRowKids_editable(_id_0, _label_0, _effective_0, _note_0, _overridden_0, _recording_0, _fixed_0));
+  return $view_viewKey("div", _id_0, $$view_attrConcat({ $: "Con", head: $$view_classes({ $: "Con", head: $$view_classOn("keys-row", true), tail: { $: "Con", head: $$view_classOn("recording", _recording_0), tail: { $: "Con", head: $$view_classOn("is-fixed", _fixed_0), tail: { $: "Nil" } } } }), tail: { $: "Con", head: $$view_attrData("action", _id_0), tail: { $: "Con", head: $$view_attr("role", "group"), tail: { $: "Con", head: $$view_attrAria("labelledby", "keys-label-" + _id_0), tail: { $: "Nil" } } } } }, $$view_attrWhen(_fixed_0, $$view_attr("tabindex", "0"))), $$skRowKids_editable(_id_0, _label_0, _effective_0, _note_0, _overridden_0, _recording_0, _fixed_0));
 }
 function $skRowNode(_row_0, _capturing_0) {
   const _id_0 = _row_0["id"];
@@ -366,7 +370,7 @@ function $skRowNode(_row_0, _capturing_0) {
   const _fixed_0 = _row_0["fixed"];
   const _note_0 = _row_0["note"];
   const _overridden_0 = _row_0["overridden"];
-  return $skRowNode_record({ $: "ShortcutRowFact", id: _id_0, label: _label_0, effective: _effective_0, fixed: _fixed_0, note: _note_0, overridden: _overridden_0 }, $String_eq(_id_0, _capturing_0));
+  return $skRowNode_record({ $: "ShortcutRowFact", id: _id_0, label: _label_0, effective: _effective_0, fixed: _fixed_0, note: _note_0, overridden: _overridden_0 }, $$String_eq(_id_0, _capturing_0));
 }
 function $skRowNodes_go(_xs_0, _capturing_0) {
   if (_xs_0.$ === "Nil") {
@@ -374,7 +378,7 @@ function $skRowNodes_go(_xs_0, _capturing_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $skRowNode(_h_0, _capturing_0), tail: $skRowNodes_go(_t_0, _capturing_0) };
+    return { $: "Con", head: $$skRowNode(_h_0, _capturing_0), tail: $$skRowNodes_go(_t_0, _capturing_0) };
   }
 }
 function $skRowNodes(_xs_0, _capturing_0) {
@@ -384,7 +388,7 @@ function $skSectionNode(_section_0, _capturing_0) {
   const _id_0 = _section_0["id"];
   const _title_0 = _section_0["title"];
   const _rows_0 = _section_0["rows"];
-  return $view_viewEl("section", { $: "Con", head: $view_attrClass("keys-group"), tail: { $: "Con", head: $view_attrAria("labelledby", _id_0), tail: { $: "Nil" } } }, { $: "Con", head: $view_viewEl("h3", { $: "Con", head: $view_attrId(_id_0), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText(_title_0), tail: { $: "Nil" } }), tail: $skRowNodes(_rows_0, _capturing_0) });
+  return $view_viewEl("section", { $: "Con", head: $$view_attrClass("keys-group"), tail: { $: "Con", head: $$view_attrAria("labelledby", _id_0), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewEl("h3", { $: "Con", head: $$view_attrId(_id_0), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText(_title_0), tail: { $: "Nil" } }), tail: $$skRowNodes(_rows_0, _capturing_0) });
 }
 function $skSectionNodes_go(_xs_0, _capturing_0) {
   if (_xs_0.$ === "Nil") {
@@ -392,20 +396,20 @@ function $skSectionNodes_go(_xs_0, _capturing_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $skSectionNode(_h_0, _capturing_0), tail: $skSectionNodes_go(_t_0, _capturing_0) };
+    return { $: "Con", head: $$skSectionNode(_h_0, _capturing_0), tail: $$skSectionNodes_go(_t_0, _capturing_0) };
   }
 }
 function $skSectionNodes(_xs_0, _capturing_0) {
   return $skSectionNodes_go(_xs_0, _capturing_0);
 }
 function $skCloseNode() {
-  return $view_viewEl("button", { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrId("keys-done"), tail: { $: "Con", head: $view_attrKey("keys-done"), tail: { $: "Con", head: $view_attrClass("icon-btn dialog-close"), tail: { $: "Con", head: $view_attrAria("label", $msg_msg("keys.closeAria")), tail: { $: "Con", head: $view_attrTitle($msg_msg("common.close")), tail: { $: "Con", head: $view_attrOn("click", "Done"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $view_viewText("×"), tail: { $: "Nil" } });
+  return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrId("keys-done"), tail: { $: "Con", head: $$view_attrKey("keys-done"), tail: { $: "Con", head: $$view_attrClass("icon-btn dialog-close"), tail: { $: "Con", head: $$view_attrAria("label", $$msg_msg("keys.closeAria")), tail: { $: "Con", head: $$view_attrTitle($$msg_msg("common.close")), tail: { $: "Con", head: $$view_attrOn("click", "Done"), tail: { $: "Nil" } } } } } } } }, { $: "Con", head: $$view_viewText("×"), tail: { $: "Nil" } });
 }
 function $skHeadNode() {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("keys-head"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewEl("h2", { $: "Con", head: $view_attrId("keys-title"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($msg_msg("keys.title")), tail: { $: "Nil" } }), tail: { $: "Con", head: $skCloseNode(), tail: { $: "Con", head: $view_viewEl("p", { $: "Con", head: $view_attrClass("keys-sub"), tail: { $: "Nil" } }, { $: "Con", head: $view_viewText($msg_msg("keys.lead")), tail: { $: "Nil" } }), tail: { $: "Nil" } } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("keys-head"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("h2", { $: "Con", head: $$view_attrId("keys-title"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$msg_msg("keys.title")), tail: { $: "Nil" } }), tail: { $: "Con", head: $$skCloseNode(), tail: { $: "Con", head: $$view_viewEl("p", { $: "Con", head: $$view_attrClass("keys-sub"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$msg_msg("keys.lead")), tail: { $: "Nil" } }), tail: { $: "Nil" } } } });
 }
 function $skGroupsNode(_sections_0, _capturing_0) {
-  return $view_viewEl("div", { $: "Con", head: $view_attrClass("keys-groups"), tail: { $: "Nil" } }, $skSectionNodes(_sections_0, _capturing_0));
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("keys-groups"), tail: { $: "Nil" } }, $$skSectionNodes(_sections_0, _capturing_0));
 }
 function $skStatusKind(_kind_0, _conflict_0) {
   if (_conflict_0) {
@@ -415,10 +419,10 @@ function $skStatusKind(_kind_0, _conflict_0) {
   }
 }
 function $skStatusNode(_status_0, _kind_0, _conflict_0) {
-  return $view_viewEl("p", { $: "Con", head: $view_attrClass("keys-status"), tail: { $: "Con", head: $view_attrId("keys-status"), tail: { $: "Con", head: $view_attr("role", "status"), tail: { $: "Con", head: $view_attrAria("live", "polite"), tail: { $: "Con", head: $view_attrData("kind", $skStatusKind(_kind_0, _conflict_0)), tail: { $: "Nil" } } } } } }, $view_viewWhen($Bool_not($String_is_empty(_status_0)), $view_viewText(_status_0)));
+  return $view_viewEl("p", { $: "Con", head: $$view_attrClass("keys-status"), tail: { $: "Con", head: $$view_attrId("keys-status"), tail: { $: "Con", head: $$view_attr("role", "status"), tail: { $: "Con", head: $$view_attrAria("live", "polite"), tail: { $: "Con", head: $$view_attrData("kind", $$skStatusKind(_kind_0, _conflict_0)), tail: { $: "Nil" } } } } } }, $$view_viewWhen($$Bool_not($$String_is_empty(_status_0)), $$view_viewText(_status_0)));
 }
 function $skFooterNode(_hasOverrides_0) {
-  return $view_viewEl("menu", { $: "Nil" }, { $: "Con", head: $view_viewEl("button", $view_attrJoin({ $: "Con", head: { $: "Con", head: $view_attrType("button"), tail: { $: "Con", head: $view_attrId("keys-reset-all"), tail: { $: "Con", head: $view_attrKey("keys-reset-all"), tail: { $: "Con", head: $view_attrOn("click", "ResetAll"), tail: { $: "Nil" } } } } }, tail: { $: "Con", head: $view_attrWhen($Bool_not(_hasOverrides_0), $view_attr("disabled", "")), tail: { $: "Nil" } } }), { $: "Con", head: $view_viewText($msg_msg("keys.resetAll")), tail: { $: "Nil" } }), tail: { $: "Nil" } });
+  return $view_viewEl("menu", { $: "Nil" }, { $: "Con", head: $$view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrId("keys-reset-all"), tail: { $: "Con", head: $$view_attrKey("keys-reset-all"), tail: { $: "Con", head: $$view_attrOn("click", "ResetAll"), tail: { $: "Nil" } } } } }, tail: { $: "Con", head: $$view_attrWhen($$Bool_not(_hasOverrides_0), $$view_attr("disabled", "")), tail: { $: "Nil" } } }), { $: "Con", head: $$view_viewText($$msg_msg("keys.resetAll")), tail: { $: "Nil" } }), tail: { $: "Nil" } });
 }
 function $skDialogChildren(_fact_0) {
   const _capturing_0 = _fact_0["capturing"];
@@ -427,7 +431,7 @@ function $skDialogChildren(_fact_0) {
   const _statusKind_0 = _fact_0["statusKind"];
   const _hasOverrides_0 = _fact_0["hasOverrides"];
   const _sections_0 = _fact_0["sections"];
-  return { $: "Con", head: $skHeadNode(), tail: { $: "Con", head: $skGroupsNode(_sections_0, _capturing_0), tail: { $: "Con", head: $skStatusNode(_status_0, _statusKind_0, _conflict_0), tail: { $: "Con", head: $skFooterNode(_hasOverrides_0), tail: { $: "Nil" } } } } };
+  return { $: "Con", head: $$skHeadNode(), tail: { $: "Con", head: $$skGroupsNode(_sections_0, _capturing_0), tail: { $: "Con", head: $$skStatusNode(_status_0, _statusKind_0, _conflict_0), tail: { $: "Con", head: $$skFooterNode(_hasOverrides_0), tail: { $: "Nil" } } } } };
 }
 function $shortcutDialog(_fact_0) {
   const _open_0 = _fact_0["open"];
@@ -437,7 +441,7 @@ function $shortcutDialog(_fact_0) {
   const _statusKind_0 = _fact_0["statusKind"];
   const _hasOverrides_0 = _fact_0["hasOverrides"];
   const _sections_0 = _fact_0["sections"];
-  return $view_viewEl("dialog", $view_attrConcat({ $: "Con", head: $view_attrId("keys-dialog"), tail: { $: "Con", head: $view_attrAria("labelledby", "keys-title"), tail: { $: "Nil" } } }, $view_attrWhen(_open_0, $view_attr("open", ""))), $skDialogChildren({ $: "ShortcutDialogFact", open: _open_0, capturing: _capturing_0, conflict: _conflict_0, status: _status_0, statusKind: _statusKind_0, hasOverrides: _hasOverrides_0, sections: _sections_0 }));
+  return $view_viewEl("dialog", $$view_attrConcat({ $: "Con", head: $$view_attrId("keys-dialog"), tail: { $: "Con", head: $$view_attrAria("labelledby", "keys-title"), tail: { $: "Nil" } } }, $$view_attrWhen(_open_0, $$view_attr("open", ""))), $$skDialogChildren({ $: "ShortcutDialogFact", open: _open_0, capturing: _capturing_0, conflict: _conflict_0, status: _status_0, statusKind: _statusKind_0, hasOverrides: _hasOverrides_0, sections: _sections_0 }));
 }
 function $String_join(_xs_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
@@ -448,52 +452,11 @@ function $String_join(_xs_0, _sep_0) {
     return $String_join_go(_t_0, _h_0, _sep_0);
   }
 }
-function $String_starts_with($0, $1, $2) {
-  let $pc = 0;
-  for (;; )
-    switch ($pc) {
-      case 0: {
-        const _s_0 = $0;
-        const _p_0 = $1;
-        if (_s_0 === "") {
-          if (_p_0 === "") {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const _h_1 = _s_0.slice(0, char_len(_s_0));
-          const _t_1 = _s_0.slice(char_len(_s_0));
-          if (_p_0 === "") {
-            return true;
-          } else {
-            const _y_0 = _p_0.slice(0, char_len(_p_0));
-            const _yt_0 = _p_0.slice(char_len(_p_0));
-            $0 = _t_1;
-            $1 = _yt_0;
-            $2 = $Char_is_eq(_h_1, _y_0);
-            $pc = 1;
-            continue;
-          }
-        }
-      }
-      case 1: {
-        const _t_0 = $0;
-        const _pt_0 = $1;
-        const _same_0 = $2;
-        if (!_same_0) {
-          return false;
-        } else {
-          $0 = _t_0;
-          $1 = _pt_0;
-          $pc = 0;
-          continue;
-        }
-      }
-    }
+function $String_starts_with(_s_0, _p_0) {
+  return $String_starts_with_go(_p_0, _s_0);
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $List_append(_xs_0, _ys_0) {
   if (_xs_0.$ === "Nil") {
@@ -501,7 +464,7 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $List_concat(_xss_0) {
@@ -510,7 +473,7 @@ function $List_concat(_xss_0) {
   } else {
     const _h_0 = _xss_0["head"];
     const _t_0 = _xss_0["tail"];
-    return $List_append(_h_0, $List_concat(_t_0));
+    return $List_append(_h_0, $$List_concat(_t_0));
   }
 }
 function $String_is_empty(_s_0) {
@@ -526,7 +489,7 @@ function $view_viewMap_0(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_viewText(_h_0), tail: $view_viewMap_0(_t_0) };
+    return { $: "Con", head: $$view_viewText(_h_0), tail: $$view_viewMap_0(_t_0) };
   }
 }
 function $view_viewMapI_go_0(_xs_0, _i_0) {
@@ -535,7 +498,7 @@ function $view_viewMapI_go_0(_xs_0, _i_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $view_asTextI(_i_0, _h_0), tail: $view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
+    return { $: "Con", head: $$view_asTextI(_i_0, _h_0), tail: $$view_viewMapI_go_0(_t_0, nat_chk(_i_0 + 1)) };
   }
 }
 function $Bool_not(_b_0) {
@@ -551,15 +514,50 @@ function $String_join_go(_xs_0, _h_0, _sep_0) {
   } else {
     const _h2_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    const _x_0 = $String_join_go(_t_0, _h2_0, _sep_0);
+    const _x_0 = $$String_join_go(_t_0, _h2_0, _sep_0);
     const _x_1 = _sep_0 + _x_0;
     return _h_0 + _x_1;
   }
 }
-function $Char_is_eq(_a_0, _b_0) {
-  const _x_0 = char_code(_a_0);
-  const _x_1 = char_code(_b_0);
-  return _x_0 === _x_1;
+function $String_starts_with_go($0, $1, $2) {
+  let $pc = 0;
+  for (;; )
+    switch ($pc) {
+      case 0: {
+        const _p_0 = $0;
+        const _s_0 = $1;
+        if (_p_0 === "") {
+          return true;
+        } else {
+          const _y_0 = _p_0.slice(0, char_len(_p_0));
+          const _yt_0 = _p_0.slice(char_len(_p_0));
+          if (_s_0 === "") {
+            return false;
+          } else {
+            const _x_0 = _s_0.slice(0, char_len(_s_0));
+            const _xt_0 = _s_0.slice(char_len(_s_0));
+            $0 = _yt_0;
+            $1 = _xt_0;
+            $2 = $$Char_is_eq(_x_0, _y_0);
+            $pc = 1;
+            continue;
+          }
+        }
+      }
+      case 1: {
+        const _pt_0 = $0;
+        const _t_0 = $1;
+        const _same_0 = $2;
+        if (!_same_0) {
+          return false;
+        } else {
+          $0 = _pt_0;
+          $1 = _t_0;
+          $pc = 0;
+          continue;
+        }
+      }
+    }
 }
 function $Cmp_is_eq(_c_0) {
   if (_c_0.$ === "EQ") {
@@ -570,6 +568,11 @@ function $Cmp_is_eq(_c_0) {
 }
 function $String_order(_a_0, _b_0) {
   return $String_order_go(_a_0, _b_0, { $: "EQ" });
+}
+function $Char_is_eq(_a_0, _b_0) {
+  const _x_0 = char_code(_a_0);
+  const _y_0 = char_code(_b_0);
+  return _x_0 === _y_0;
 }
 function $String_order_go($0, $1, $2) {
   for (;; ) {
@@ -589,6 +592,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -598,13 +602,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -614,57 +617,118 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$msg_mark = $msg_mark;
+var $$msg_sep = $msg_sep;
+var $$String_join = $String_join;
+var $$view_attrGet_go = $view_attrGet_go;
+var $$String_eq = $String_eq;
+var $$view_boolStr = $view_boolStr;
+var $$String_is_empty = $String_is_empty;
+var $$view_classNext_on = $view_classNext_on;
+var $$view_classValue = $view_classValue;
+var $$msg_msg = $msg_msg;
+var $$view_attrClass = $view_attrClass;
+var $$view_attrId = $view_attrId;
+var $$view_viewText = $view_viewText;
+var $$view_classOn = $view_classOn;
+var $$skKbdEmpty = $skKbdEmpty;
+var $$view_classes = $view_classes;
+var $$skKbdAria = $skKbdAria;
+var $$view_attrAria = $view_attrAria;
+var $$skKbdText = $skKbdText;
+var $$skTextOr = $skTextOr;
+var $$view_attrType = $view_attrType;
+var $$view_attrData = $view_attrData;
+var $$view_attrKey = $view_attrKey;
+var $$skRecordAria = $skRecordAria;
+var $$view_attrOn = $view_attrOn;
+var $$skRecordLabel = $skRecordLabel;
+var $$Bool_not = $Bool_not;
+var $$view_attr = $view_attr;
+var $$view_attrWhen = $view_attrWhen;
+var $$view_attrJoin = $view_attrJoin;
+var $$skLabelNode = $skLabelNode;
+var $$skKbdNode = $skKbdNode;
+var $$skNoteNode = $skNoteNode;
+var $$skRecordNode = $skRecordNode;
+var $$skResetNode = $skResetNode;
+var $$view_attrConcat = $view_attrConcat;
+var $$skRowKids_editable = $skRowKids_editable;
+var $$skRowNode = $skRowNode;
+var $$skRowNodes_go = $skRowNodes_go;
+var $$view_viewEl = $view_viewEl;
+var $$skRowNodes = $skRowNodes;
+var $$skSectionNode = $skSectionNode;
+var $$skSectionNodes_go = $skSectionNodes_go;
+var $$view_attrTitle = $view_attrTitle;
+var $$skCloseNode = $skCloseNode;
+var $$skSectionNodes = $skSectionNodes;
+var $$skStatusKind = $skStatusKind;
+var $$view_viewWhen = $view_viewWhen;
+var $$skHeadNode = $skHeadNode;
+var $$skGroupsNode = $skGroupsNode;
+var $$skStatusNode = $skStatusNode;
+var $$skFooterNode = $skFooterNode;
+var $$skDialogChildren = $skDialogChildren;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
+var $$List_concat = $List_concat;
+var $$view_viewMap_0 = $view_viewMap_0;
+var $$view_asTextI = $view_asTextI;
+var $$view_viewMapI_go_0 = $view_viewMapI_go_0;
+var $$String_join_go = $String_join_go;
+var $$Char_is_eq = $Char_is_eq;
 var shortcutview_default = {
-  "msg.mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
-  "msg.sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
-  "msg.pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
-  "msg.msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
-  "msg.msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
-  "msg.msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
-  "msg.msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
-  "msg.msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
-  "msg.isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
-  "view.attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
-  "view.classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
-  "view.viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
-  "view.viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
-  "view.viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
-  "view.tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
-  "view.attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
-  "view.kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
-  "view.textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
-  "view.isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
-  "view.attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
-  "view.attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
-  "view.attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
-  "view.attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
-  "view.attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
-  "view.attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
-  "view.attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
-  "view.attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
-  "view.attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
-  "view.attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
-  "view.attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
-  "view.attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
-  "view.attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
-  "view.attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
-  "view.boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
-  "view.attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
-  "view.classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
-  "view.classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
-  "view.classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
-  "view.classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
-  "view.classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
-  "view.classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
-  "view.classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
-  "view.viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
-  "view.viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
-  "view.viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
-  "view.viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
-  "view.viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
-  "view.asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
-  "view.viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
-  "view.viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
+  "msg:mark": run_lib(() => str_out(run_loop($msg_mark())), 0),
+  "msg:sep": run_lib(() => str_out(run_loop($msg_sep())), 0),
+  "msg:pack": run_lib((a0) => str_out(run_loop($msg_pack(a0))), 1),
+  "msg:msg": run_lib((a0) => str_out(run_loop($msg_msg(str_in(a0)))), 1),
+  "msg:msg1": run_lib((a0, a1, a2) => str_out(run_loop($msg_msg1(str_in(a0), str_in(a1), str_in(a2)))), 3),
+  "msg:msg2": run_lib((a0, a1, a2, a3, a4) => str_out(run_loop($msg_msg2(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4)))), 5),
+  "msg:msg3": run_lib((a0, a1, a2, a3, a4, a5, a6) => str_out(run_loop($msg_msg3(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6)))), 7),
+  "msg:msg4": run_lib((a0, a1, a2, a3, a4, a5, a6, a7, a8) => str_out(run_loop($msg_msg4(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), str_in(a5), str_in(a6), str_in(a7), str_in(a8)))), 9),
+  "msg:isMsg": run_lib((a0) => run_loop($msg_isMsg(str_in(a0))), 1),
+  "view:attr": run_lib((a0, a1) => run_loop($view_attr(str_in(a0), str_in(a1))), 2),
+  "view:classOn": run_lib((a0, a1) => run_loop($view_classOn(str_in(a0), a1)), 2),
+  "view:viewEl": run_lib((a0, a1, a2) => run_loop($view_viewEl(str_in(a0), a1, a2)), 3),
+  "view:viewText": run_lib((a0) => run_loop($view_viewText(str_in(a0))), 1),
+  "view:viewKey": run_lib((a0, a1, a2, a3) => run_loop($view_viewKey(str_in(a0), str_in(a1), a2, a3)), 4),
+  "view:tagOf": run_lib((a0) => str_out(run_loop($view_tagOf(a0))), 1),
+  "view:attrsOf": run_lib((a0) => run_loop($view_attrsOf(a0)), 1),
+  "view:kidsOf": run_lib((a0) => run_loop($view_kidsOf(a0)), 1),
+  "view:textOf": run_lib((a0) => str_out(run_loop($view_textOf(a0))), 1),
+  "view:isText": run_lib((a0) => run_loop($view_isText(a0)), 1),
+  "view:attrGet.choose": run_lib((a0, a1, a2) => run_loop($view_attrGet_choose(str_in(a0), a1, a2)), 3),
+  "view:attrGet.go": run_lib((a0, a1) => run_loop($view_attrGet_go(a0, str_in(a1))), 2),
+  "view:attrGet": run_lib((a0, a1) => run_loop($view_attrGet(a0, str_in(a1))), 2),
+  "view:attrWhen": run_lib((a0, a1) => run_loop($view_attrWhen(a0, a1)), 2),
+  "view:attrConcat": run_lib((a0, a1) => run_loop($view_attrConcat(a0, a1)), 2),
+  "view:attrJoin": run_lib((a0) => run_loop($view_attrJoin(a0)), 1),
+  "view:attrId": run_lib((a0) => run_loop($view_attrId(str_in(a0))), 1),
+  "view:attrClass": run_lib((a0) => run_loop($view_attrClass(str_in(a0))), 1),
+  "view:attrType": run_lib((a0) => run_loop($view_attrType(str_in(a0))), 1),
+  "view:attrTitle": run_lib((a0) => run_loop($view_attrTitle(str_in(a0))), 1),
+  "view:attrKey": run_lib((a0) => run_loop($view_attrKey(str_in(a0))), 1),
+  "view:attrOn": run_lib((a0, a1) => run_loop($view_attrOn(str_in(a0), str_in(a1))), 2),
+  "view:attrData": run_lib((a0, a1) => run_loop($view_attrData(str_in(a0), str_in(a1))), 2),
+  "view:attrAria": run_lib((a0, a1) => run_loop($view_attrAria(str_in(a0), str_in(a1))), 2),
+  "view:boolStr": run_lib((a0) => str_out(run_loop($view_boolStr(a0))), 1),
+  "view:attrBool": run_lib((a0, a1) => run_loop($view_attrBool(str_in(a0), a1)), 2),
+  "view:classAppend.empty": run_lib((a0, a1, a2) => str_out(run_loop($view_classAppend_empty(str_in(a0), str_in(a1), a2))), 3),
+  "view:classAppend": run_lib((a0, a1) => str_out(run_loop($view_classAppend(str_in(a0), str_in(a1)))), 2),
+  "view:classNext.emptyName": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_emptyName(str_in(a0), str_in(a1), a2))), 3),
+  "view:classNext.on": run_lib((a0, a1, a2) => str_out(run_loop($view_classNext_on(str_in(a0), a1, str_in(a2)))), 3),
+  "view:classValue.go": run_lib((a0, a1) => str_out(run_loop($view_classValue_go(a0, str_in(a1)))), 2),
+  "view:classValue": run_lib((a0) => str_out(run_loop($view_classValue(a0))), 1),
+  "view:classes": run_lib((a0) => run_loop($view_classes(a0)), 1),
+  "view:viewWhen": run_lib((a0, a1) => run_loop($view_viewWhen(a0, a1)), 2),
+  "view:viewWhenAll": run_lib((a0, a1) => run_loop($view_viewWhenAll(a0, a1)), 2),
+  "view:viewConcat": run_lib((a0, a1) => run_loop($view_viewConcat(a0, a1)), 2),
+  "view:viewJoin": run_lib((a0) => run_loop($view_viewJoin(a0)), 1),
+  "view:viewMapText": run_lib((a0) => run_loop($view_viewMapText(a0)), 1),
+  "view:asTextI": run_lib((a0, a1) => run_loop($view_asTextI(nat_in(a0), str_in(a1))), 2),
+  "view:viewMapTextI.go": run_lib((a0, a1) => run_loop($view_viewMapTextI_go(a0, nat_in(a1))), 2),
+  "view:viewMapTextI": run_lib((a0) => run_loop($view_viewMapTextI(a0)), 1),
   skRow: run_lib((a0, a1, a2, a3, a4, a5) => run_loop($skRow(str_in(a0), str_in(a1), str_in(a2), a3, str_in(a4), a5)), 6),
   skSection: run_lib((a0, a1, a2) => run_loop($skSection(str_in(a0), str_in(a1), a2)), 3),
   skDialog: run_lib((a0, a1, a2, a3, a4, a5, a6) => run_loop($skDialog(a0, str_in(a1), a2, str_in(a3), str_in(a4), a5, a6)), 7),

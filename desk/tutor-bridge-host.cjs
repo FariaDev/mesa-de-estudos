@@ -11,6 +11,7 @@ const {ClaudeService}=require('./src/agents/service.cjs');
 const {ClaudeAdapter}=require('./src/agents/claude-adapter.cjs');
 const {nativePersistence}=require('./src/agents/native-persistence.cjs');
 const {piPrompt}=require('./src/agents/desk-prompts.cjs');
+const {mesaExtensionPaths,MESA_MATERIAL_EXTENSIONS,mesaToolNames}=require('./src/agents/mesa-tool-catalog.cjs');
 const {spawnEnv}=require('./pi.cjs');
 const {createUsageEvents}=require('./src/study-data/usage-events.cjs');
 const {pinnedArgs}=require('./profiles.cjs');
@@ -54,12 +55,13 @@ function createTutorBridgeHost({live,runtime,deskDir,FREE_ID,ggb,pendingDialogs,
  }
  function promptFile(materialTools=false){
   const file=path.join(runtime,materialTools?'desk-prompt-material.md':'desk-prompt.md');
-  try{fs.writeFileSync(file,piPrompt({materialTools,tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app}));}catch(error){appendLog('desk',`prompt do tutor não gravado: ${error.message}`);}
+  /* B2: a aba Livre não tem caderno de revisão, então o prompt não oferece propor_revisao. */
+  try{fs.writeFileSync(file,piPrompt({materialTools,review:live.courseId!==FREE_ID,tutorLanguage:live.languageHost.tutor(),writingApp:live.state?.conferirApp?.app}));}catch(error){appendLog('desk',`prompt do tutor não gravado: ${error.message}`);}
   return file;
  }
  /* Parâmetros de lançamento do Pi (principal e chat lateral usam o MESMO binário,
     pasta, perfil fixado e prompt de sistema; só a sessão é própria de cada um). */
- function piLaunch({materialTools=false}={}){
+ async function piLaunch({materialTools=false,cardScope=null}={}){
   const pi=piBinary();
   /* Livre: cwd é o workspace da PRÓPRIA conversa (nunca a pasta de uma
      matéria) e o prompt fixado é o genérico — sem TUTOR/LEARNER, sem fontes
@@ -75,20 +77,44 @@ function createTutorBridgeHost({live,runtime,deskDir,FREE_ID,ggb,pendingDialogs,
   const overlayDirs=[path.join(cwd,'.pi'),path.join(runtime,'learning','.pi')];
   const profileExtra=freeMode?pinnedArgs({overlayDirs,freeWorkspace:true}):(live.config.desk?.pinnedExtensions===false?[]:pinnedArgs({overlayDirs}));
   const materialEnv={LEARNING_DESK_MATERIAL_BRIDGE:'',LEARNING_DESK_ACTIVITY_BRIDGE:''};
+  /* O chat lateral recebe um grant de cartão com o id DELE; a principal usa o
+     grant da atividade, criado uma vez e revogado com a sessão. */
+  const cardGrant=cardScope?live.activityBridge.grant(cardScope):null;
+  /* `mesa_ler_pdf` vale na sessão principal e no chat lateral. A concessão é
+     uma só: o lateral que abre antes não troca o token que a principal já usa. */
+  if(!live.activityGrant)live.activityGrant=live.activityBridge.grant(captureActivityScope());
+  materialEnv.LEARNING_DESK_ACTIVITY_BRIDGE=JSON.stringify(live.activityGrant);
+  /* Leitura e busca no material (#A2): principal e chat lateral usam o mesmo índice offline. */
+  for(const extension of mesaExtensionPaths(deskDir,{material:false,cards:!!cardScope}))profileExtra.push('--extension',extension);
   if(materialTools){
    live.tutorMaterialGrant=live.tutorMaterialBridge.grant({courseId:live.courseId,session:live.session,freeSessionId:live.freeSessionId});
    materialEnv.LEARNING_DESK_MATERIAL_BRIDGE=JSON.stringify(live.tutorMaterialGrant);
-   profileExtra.push('--extension',path.join(deskDir,'src','extensions','tutor-pdf'));
-   live.activityGrant=live.activityBridge.grant(captureActivityScope());
-   materialEnv.LEARNING_DESK_ACTIVITY_BRIDGE=JSON.stringify(live.activityGrant);
-   profileExtra.push('--extension',path.join(deskDir,'src','extensions','mesa-activity'));
-   profileExtra.push('--extension',path.join(deskDir,'src','extensions','mesa-figure'));
-   profileExtra.push('--extension',path.join(deskDir,'src','extensions','mesa-geogebra'));
+   /* A MESMA lista do medidor e do teste de paridade (M5). */
+   for(const name of MESA_MATERIAL_EXTENSIONS)profileExtra.push('--extension',path.join(deskDir,'src','extensions',name));
   }
   const testExtra=process.env.LEARNING_DESK_TEST_ARGS?JSON.parse(process.env.LEARNING_DESK_TEST_ARGS):[];
-  return {pi,cwd,env:{...spawnEnv(pi),...live.opencodeHost.keyEnv(),...materialEnv,LEARNING_DESK_GGB_BRIDGE:ggb.bridgeFile,LEARNING_DESK_TUTOR_LANGUAGE:live.languageHost.tutorLanguage()},promptFile:promptFile(materialTools),extraArgs:[...profileExtra,...live.opencodeHost.launchArgs(),...testExtra]};
+  /* Allowlist do tutor (#91/#92): só as ferramentas da Mesa; `ask_user` e
+     `quiz` antigos ficam de fora (pergunta/quiz são cartões `mesa_*`).
+     `--no-builtin-tools` é a segunda trava;
+     `--no-mcp` desliga o servidor MCP do Pi (a Mesa não usa MCP aqui) e
+     `--exclude-tools` cobre servidor MCP registrado por extensão, que o
+     `--tools` mantém registrado por padrão (inclusive as ferramentas de
+     recurso, que não começam com `mcp__`). `pinnedExtensions:false` continua
+     mudando só o perfil de extensões, nunca o allowlist. */
+  const allowedTools=mesaToolNames({material:materialTools,cards:!!cardScope});
+  return {pi,cwd,env:{...spawnEnv(pi),...await live.opencodeHost.keyEnv(),...materialEnv,LEARNING_DESK_CARD_BRIDGE:JSON.stringify(cardGrant||live.activityGrant),LEARNING_DESK_GGB_BRIDGE:ggb.bridgeFile,LEARNING_DESK_TUTOR_LANGUAGE:live.languageHost.tutorLanguage()},promptFile:promptFile(materialTools),extraArgs:['--no-builtin-tools','--no-mcp','--exclude-tools','mcp__*,list_mcp_resources,list_mcp_resource_templates,read_mcp_resource','--tools',allowedTools.join(','),...profileExtra,...live.opencodeHost.launchArgs(),...testExtra],cardGrant};
  }
+ /* O cofre lê a chave de forma assíncrona: duas conexões pedidas juntas
+    compartilham a mesma montagem em vez de subir dois Pi. */
+ let connecting=null;
+ let bridgeGeneration=0;
  function connect(){
+  if(live.bridge)return Promise.resolve(live.bridge);
+  if(!connecting)connecting=openBridge().finally(()=>{connecting=null;});
+  return connecting;
+ }
+ async function openBridge(){
+  const generation=bridgeGeneration;
   if(!live.bridge&&engine()==='claude'){
    conversations.recoverClaudeConversation(live.session,{runtime});
    const {cwd,systemPrompt,record}=prepareClaude();
@@ -96,7 +122,6 @@ function createTutorBridgeHost({live,runtime,deskDir,FREE_ID,ggb,pendingDialogs,
    const descriptor=live.session;
    const materialScope={courseId:live.courseId,session:live.session,freeSessionId:live.freeSessionId};
    const activityScope=captureActivityScope();
-   const toolPolicy={readPaths:[],readRoots:[cwd]};
    const persistence=nativePersistence({descriptor,runtime,preview:record.preview});
    // The launcher follows the user's current CLI; nativeSessionId owns resume.
    // pinnedExecutable is the last observed binary, a fallback without launcher.
@@ -104,10 +129,16 @@ function createTutorBridgeHost({live,runtime,deskDir,FREE_ID,ggb,pendingDialogs,
     priorMessages:record.messages||[],importedPrefixLength:record.importedPrefixLength||0,
     createMaterial:payload=>prepareTutorMaterial(materialScope,payload),
     createActivity:payload=>live.activityHost.publish(activityScope,payload,{toolCallId:payload.toolCallId,callRef:payload.callRef}),
-    previewActivity:payload=>live.activityPreview.preview(payload,{theme:payload?.theme,width:payload?.width}),
+    previewActivity:payload=>live.activityPreview.preview(payload,{theme:payload?.theme,width:payload?.width,scope:activityScope}),
     viewFigure:payload=>live.figurePreview.preview(payload),
-    geogebra:ggb.service,tutorLanguage:()=>live.languageHost.tutorLanguage(),
-    toolPolicy,persistDelivery:persistence.persistDelivery
+    geogebra:ggb.service,readPdf:typeof live.readTutorPdf==='function'?raw=>live.readTutorPdf(raw):null,
+    searchMaterial:typeof live.studyServices?.materialSearch==='function'?raw=>live.studyServices.materialSearch(null,raw):null,
+    listMaterials:typeof live.studyServices?.materialList==='function'?()=>live.studyServices.materialList(null):null,
+    saveNote:typeof live.studyServices?.noteSave==='function'?raw=>live.studyServices.noteSave(null,raw):null,
+    showCard:live.cardHost?(kind,args)=>live.cardHost.show({conversationId:descriptor},{kind,args}):null,
+    proposeReview:(payload,options)=>live.reviewProposalHost.propose(activityScope,payload,options),
+    tutorLanguage:()=>live.languageHost.tutorLanguage(),
+    persistDelivery:persistence.persistDelivery
    });
    live.bridge=new ClaudeService({adapter,uncertain:record.delivery?.status==='uncertain',messages:record.messages||[],importedPrefixLength:record.importedPrefixLength||0,
     onMessages:persistence.onMessages,onSelection:persistence.onSelection,
@@ -116,12 +147,14 @@ function createTutorBridgeHost({live,runtime,deskDir,FREE_ID,ggb,pendingDialogs,
      if(Object.keys(patch).length)conversations.updateClaudeConversation(descriptor,patch,{runtime});
      if(e.executableNote)appendLog('claude',e.executableNote);}
    });
-   live.bridge.toolPolicy=toolPolicy;
   }
   /* OpenCode (#57): servidor da Mesa, MCP `mesa` e serviço nativo — nunca o Pi. */
   if(!live.bridge&&engine()==='opencode')live.bridge=openCodeTutor.connect();
   if(!live.bridge){
-   const launch=piLaunch({materialTools:true});
+   const launch=await piLaunch({materialTools:true});
+   /* `stopBridge` durante a leitura do cofre (cancelar a chamada, trocar de
+      sessão) não pode ser desfeito por uma ponte que nasce depois. */
+   if(generation!==bridgeGeneration){stopBridge();throw Error(message('tutor.error.cancelled'));}
    live.bridge=new PiBridge({cwd:launch.cwd,session:live.session,pi:launch.pi,env:launch.env,promptFile:launch.promptFile,extraArgs:launch.extraArgs});
   }
   if(!live.bridge._mesaBound){
@@ -161,7 +194,9 @@ function createTutorBridgeHost({live,runtime,deskDir,FREE_ID,ggb,pendingDialogs,
   const current=await live.bridge.request('get_state');
   if(live.bridge.isRunning(current))throw Error(message);
  }
- function stopBridge(){live.materialPreviewHost.cancel();
+ function stopBridge(){bridgeGeneration+=1;live.reviewProposalHost?.cancelAll('session');
+  live.materialPreviewHost.cancel();
+  live.activityPreview?.clearDrafts?.();
   live.activityHost.invalidate();
   live.activityGeneration++;
   if(live.activityGrant){live.activityBridge.revoke(live.activityGrant.token);

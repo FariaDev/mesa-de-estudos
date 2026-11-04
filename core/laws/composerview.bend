@@ -99,6 +99,23 @@ law composer_disabled_off:
 law composer_disabled_on:
   {C.queueDisabledAttr(False{}) == Con{V.ViewAttr{"disabled", ""}, Nil{}} : List<&2, V.ViewAttr>}
 
+# ---------- steer de um item da fila ----------
+
+law composer_steer_busy:
+  {C.canSteerQueued(True{}, True{}, False{}, False{}) == True{} : Bool}
+
+law composer_steer_idle:
+  {C.canSteerQueued(False{}, True{}, False{}, False{}) == False{} : Bool}
+
+law composer_steer_no_capability:
+  {C.canSteerQueued(True{}, False{}, False{}, False{}) == False{} : Bool}
+
+law composer_steer_sending:
+  {C.canSteerQueued(True{}, True{}, True{}, False{}) == False{} : Bool}
+
+law composer_steer_editing:
+  {C.canSteerQueued(True{}, True{}, False{}, True{}) == False{} : Bool}
+
 # ---------- banner: hidden / closing ----------
 
 law composer_banner_hidden:
@@ -115,8 +132,7 @@ law composer_banner_class_closing:
 
 # ---------- árvore (cenários concretos) ----------
 
-# A faixa monta [rótulo, itens…, Enviar agora, Limpar]: com a fila vazia, o
-# primeiro e o segundo filhos são as ações.
+# A faixa monta [cabeçalho (rótulo + Enviar agora + Limpar), itens…].
 def at(xs: List<&2, V.ViewNode>, i: Nat) -> V.ViewNode:
   match xs i:
     case Nil{} _:
@@ -156,8 +172,17 @@ law composer_strip_closing_data:
 law composer_strip_open_data:
   {V.attrGet(V.attrsOf(C.queueStripView(False{}, M.msg("queue.queued"), Nil{}, False{}, False{})), "data-closing") == None{} : Maybe<&2, String>}
 
-law composer_strip_actions_class:
-  {V.attrGet(V.attrsOf(kid(C.queueStripView(False{}, M.msg("queue.queued"), Nil{}, True{}, True{}), 1n)), "class") == Some{"queue-actions"} : Maybe<&2, String>}
+law composer_strip_head_class:
+  {V.attrGet(V.attrsOf(kid(C.queueStripView(False{}, M.msg("queue.queued"), Nil{}, True{}, True{}), 0n)), "class") == Some{"queue-head"} : Maybe<&2, String>}
+
+law composer_head_label_class:
+  {V.attrGet(V.attrsOf(kid(C.queueHeadView(M.msg("queue.queued"), False{}, False{}), 0n)), "class") == Some{"queue-label"} : Maybe<&2, String>}
+
+law composer_head_actions_class:
+  {V.attrGet(V.attrsOf(kid(C.queueHeadView(M.msg("queue.queued"), False{}, False{}), 1n)), "class") == Some{"queue-actions"} : Maybe<&2, String>}
+
+law composer_remove_class:
+  {V.attrGet(V.attrsOf(C.queueRemoveBtn(True{})), "class") == Some{"queue-remove"} : Maybe<&2, String>}
 
 law composer_send_now_text:
   {kidText(C.queueSendNowBtn(True{}), 0n) == M.msg("queue.sendNow") : String}
@@ -166,19 +191,37 @@ law composer_clear_text:
   {kidText(C.queueClearBtn(True{}), 0n) == M.msg("queue.clear") : String}
 
 law composer_item_tag:
-  {V.tagOf(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}})) == "div" : String}
+  {V.tagOf(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}, False{}})) == "div" : String}
 
 law composer_item_data_id:
-  {V.attrGet(V.attrsOf(C.queueItemView(C.QueueRow{"fila-1", "oi", False{}, True{}, False{}})), "data-id") == Some{"fila-1"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(C.queueItemView(C.QueueRow{"fila-1", "oi", False{}, True{}, False{}, False{}})), "data-id") == Some{"fila-1"} : Maybe<&2, String>}
 
 law composer_item_sending_class:
-  {V.attrGet(V.attrsOf(C.queueItemView(C.QueueRow{"a", "oi", True{}, False{}, False{}})), "class") == Some{"queue-item sending"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(C.queueItemView(C.QueueRow{"a", "oi", True{}, False{}, False{}, False{}})), "class") == Some{"queue-item sending"} : Maybe<&2, String>}
 
 law composer_item_sending_busy:
-  {V.attrGet(V.attrsOf(C.queueItemView(C.QueueRow{"a", "oi", True{}, False{}, False{}})), "aria-busy") == Some{"true"} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(C.queueItemView(C.QueueRow{"a", "oi", True{}, False{}, False{}, False{}})), "aria-busy") == Some{"true"} : Maybe<&2, String>}
 
 law composer_item_idle_busy:
-  {V.attrGet(V.attrsOf(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}})), "aria-busy") == None{} : Maybe<&2, String>}
+  {V.attrGet(V.attrsOf(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}, False{}})), "aria-busy") == None{} : Maybe<&2, String>}
+
+law composer_item_steer_class:
+  {V.attrGet(V.attrsOf(kid(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}, True{}}), 1n)), "class") == Some{"queue-steer-now"} : Maybe<&2, String>}
+
+law composer_item_steer_click:
+  {V.attrGet(V.attrsOf(kid(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}, True{}}), 1n)), "on:click") == Some{"steerNow"} : Maybe<&2, String>}
+
+law composer_item_steer_aria:
+  {V.attrGet(V.attrsOf(kid(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}, True{}}), 1n)), "aria-label") == Some{M.msg("queue.steerNowTitle")} : Maybe<&2, String>}
+
+law composer_item_steer_text:
+  {kidText(kid(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}, True{}}), 1n), 0n) == M.msg("queue.steerNow") : String}
+
+law composer_item_steer_absent:
+  {V.attrGet(V.attrsOf(kid(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, False{}, False{}}), 1n)), "title") == Some{M.msg("queue.remove")} : Maybe<&2, String>}
+
+law composer_item_steer_editing_absent:
+  {V.attrGet(V.attrsOf(kid(C.queueItemView(C.QueueRow{"a", "oi", False{}, True{}, True{}, True{}}), 1n)), "title") == Some{M.msg("queue.remove")} : Maybe<&2, String>}
 
 law composer_banner_tag:
   for visible: Bool

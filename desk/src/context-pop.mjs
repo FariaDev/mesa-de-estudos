@@ -31,11 +31,13 @@ function openContextPop(){
  $('#exercise-title')?.focus();
 }
 /* Flutuante (position:fixed): não é cortado pela rolagem da coluna. Abre acima
-   da linha quando cabe entre o cabeçalho do tutor e ela; senão, abaixo, sobre a
-   caixa (coluna baixa, como em 900×650). */
+   da caixa quando cabe entre o cabeçalho do tutor e ela; senão, abaixo da
+   pílula, sobre o campo (coluna baixa, como em 900×650). A pílula mora dentro
+   da caixa (#90), por isso a âncora é a borda da caixa. */
 function placeContextPop(){
  const pop=$('#context-pop');if(!pop||pop.hidden)return;
  const line=$('#goes-along').getBoundingClientRect();
+ const anchor=($('#composer-box')||$('#goes-along')).getBoundingClientRect();
  const column=$('#composer').getBoundingClientRect();
  const top=($('#chat .chat-top')||$('#chat')||document.body).getBoundingClientRect().bottom;
  const gap=4,margin=8,pad=parseFloat(getComputedStyle($('#composer')).paddingLeft)||0;
@@ -43,7 +45,7 @@ function placeContextPop(){
  pop.style.width=`${Math.max(0,column.width-2*pad)}px`;
  pop.style.maxHeight='';pop.style.top='auto';pop.style.bottom='auto';
  const height=pop.offsetHeight;
- if(line.top-top-gap>=height){pop.style.bottom=`${innerHeight-line.top+gap}px`;}
+ if(anchor.top-top-gap>=height){pop.style.bottom=`${innerHeight-anchor.top+gap}px`;}
  else{
   const from=line.bottom+gap;
   pop.style.top=`${from}px`;

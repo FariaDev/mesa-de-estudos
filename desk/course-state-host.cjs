@@ -2,7 +2,6 @@
 'use strict';
 
 const fs=require('node:fs');
-const path=require('node:path');
 const pending=require('./pending.cjs');
 const resume=require('./resume.cjs');
 const bookmarks=require('./bookmarks.cjs');
@@ -14,6 +13,7 @@ const chatState=require('./src/study-data/chat-state.cjs');
 const {sessionStartedFromPath,formatSessionLabel,engineLabelPrefix}=require('./lib.cjs');
 const {courseLibrary}=require('./courses.cjs');
 const {needsSetup,normalize,pickPdfs}=require('./config.cjs');
+const {releaseNotesVersion}=require('./desk-version.cjs');
 const {cleanStudy,authorizeRestoredStudy}=require('./study.cjs');
 const {deskLayout}=require('./state-adapter.cjs');
 const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
@@ -37,6 +37,7 @@ const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
  *   sessionInfo: import('./types/main-hosts').TutorEngineHost['sessionInfo'],
  *   conversationData: import('./types/main-hosts').TutorEngineHost['conversationData'],
  *   piBinary: import('./types/main-hosts').TutorEngineHost['piBinary'],
+ *   resumeSession: (file: string, courseId: string) => string,
  *   freeSessionList: import('./types/main-hosts').FreeSessionHost['freeSessionList'],
  *   persistFreeSession: import('./types/main-hosts').FreeSessionHost['persistFreeSession'],
  *   applyFreeCourse: import('./types/main-hosts').FreeSessionHost['applyFreeCourse'],
@@ -44,7 +45,7 @@ const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
  *   captureAvailable: () => boolean, deskVersionLabel: () => string}} options
  * @example const {persist,applyCourse,initialData}=createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,...});
  */
-function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allowed,allowedXopp,ggb,ggbCache,appendLog,previewFile,sessionInfo,conversationData,piBinary,freeSessionList,persistFreeSession,applyFreeCourse,freeWorkspacePayload,captureAvailable,deskVersionLabel}){
+function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allowed,allowedXopp,ggb,ggbCache,appendLog,previewFile,sessionInfo,conversationData,piBinary,resumeSession,freeSessionList,persistFreeSession,applyFreeCourse,freeWorkspacePayload,captureAvailable,deskVersionLabel}){
  function sessionStudy(file=live.session){return cleanStudy(courseStates[live.courseId]?.sessionStudies?.[file]||{});}
  function courseSessions(){
   if(live.courseId===FREE_ID)return freeSessionList();
@@ -97,7 +98,10 @@ function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allo
   live.courseId=selected?id:'';
   live.course=selected?.path||'';
   const saved=sanitizeCourseState(courseStates[live.courseId]);
-  live.session=saved.session||path.join(runtime,`pi-${Date.now()}.jsonl`);
+  /* Matéria sumida não inventa conversa: mantém a atual até haver destino. */
+  /* A abertura e a troca de matéria passam pela MESMA normalização (#93): um
+     marcador Pi vazio de abertura antiga não ressuscita a sessão sem Pi. */
+  if(live.courseId)live.session=resumeSession(saved.session,live.courseId);
   const restoredStudy=cleanStudy(saved.sessionStudies?.[live.session]||saved.study);
   const ggbSaved=ggbCache.read(live.courseId)||saved.ggbBase64||'';
   ggbCache.remember(live.courseId,ggbSaved);
@@ -177,7 +181,8 @@ function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allo
    detectedPi:piBinary(),
    platform:process.platform,
    language:live.languageHost.payload(),
-   deskVersion:deskVersionLabel()
+   deskVersion:deskVersionLabel(),
+   releaseVersion:releaseNotesVersion(deskVersionLabel())
   };
  }
  return {sessionStudy,courseSessions,rememberSession,persist,allCourses,deskPayload,applyCourse,resumePayload,reviewPayload,bookmarksPayload,pdfModelKey,lastPdfModel,rememberPdfModel,materialContext,coursePdfDraft,initialData};

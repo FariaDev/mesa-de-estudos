@@ -10,10 +10,13 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -34,6 +37,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $idOf(_c_0) {
   const _id_0 = _c_0["id"];
   return _id_0;
@@ -56,7 +60,7 @@ function $ids(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $idOf(_h_0), tail: $ids(_t_0) };
+    return { $: "Con", head: $$idOf(_h_0), tail: $$ids(_t_0) };
   }
 }
 function $names(_xs_0) {
@@ -65,7 +69,7 @@ function $names(_xs_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $pdfName(_h_0), tail: $names(_t_0) };
+    return { $: "Con", head: $$pdfName(_h_0), tail: $$names(_t_0) };
   }
 }
 function $hasId(_xs_0, _id_0) {
@@ -75,8 +79,8 @@ function $hasId(_xs_0, _id_0) {
     const _t_0 = _xs_0["head"];
     const _cid_0 = _t_0["id"];
     const _t_1 = _xs_0["tail"];
-    const _x_0 = $String_eq(_cid_0, _id_0);
-    const _x_1 = $hasId(_t_1, _id_0);
+    const _x_0 = $$String_eq(_cid_0, _id_0);
+    const _x_1 = $$hasId(_t_1, _id_0);
     return _x_0 || _x_1;
   }
 }
@@ -88,7 +92,7 @@ function $pickName_prev_if(_prevName_0, _id_0, _empty_0) {
   }
 }
 function $pickName_prev(_prevName_0, _id_0) {
-  return $pickName_prev_if(_prevName_0, _id_0, $String_is_empty(_prevName_0));
+  return $pickName_prev_if(_prevName_0, _id_0, $$String_is_empty(_prevName_0));
 }
 function $pickName_cfg(_cfgName_0, _prevName_0, _id_0, _empty_0) {
   if (!_empty_0) {
@@ -98,20 +102,20 @@ function $pickName_cfg(_cfgName_0, _prevName_0, _id_0, _empty_0) {
   }
 }
 function $pickName(_cfgName_0, _prevName_0, _id_0) {
-  return $pickName_cfg(_cfgName_0, _prevName_0, _id_0, $String_is_empty(_cfgName_0));
+  return $pickName_cfg(_cfgName_0, _prevName_0, _id_0, $$String_is_empty(_cfgName_0));
 }
 function $overlay(_prev_0, _cfg_0) {
   const _prevName_0 = _prev_0["name"];
   const _id_0 = _cfg_0["id"];
   const _cfgName_0 = _cfg_0["name"];
   const _cfgPath_0 = _cfg_0["path"];
-  return { $: "Course", id: _id_0, name: $pickName(_cfgName_0, _prevName_0, _id_0), path: _cfgPath_0 };
+  return { $: "Course", id: _id_0, name: $$pickName(_cfgName_0, _prevName_0, _id_0), path: _cfgPath_0 };
 }
 function $asNew(_cfg_0) {
   const _id_0 = _cfg_0["id"];
   const _name_0 = _cfg_0["name"];
   const _path_0 = _cfg_0["path"];
-  return { $: "Course", id: _id_0, name: $pickName(_name_0, "", _id_0), path: _path_0 };
+  return { $: "Course", id: _id_0, name: $$pickName(_name_0, "", _id_0), path: _path_0 };
 }
 function $rewrite(_h_0, _cfg_0, _same_0) {
   if (_same_0) {
@@ -127,7 +131,7 @@ function $rewriteHead(_h_0, _cfg_0) {
   const _cid_0 = _cfg_0["id"];
   const _cname_0 = _cfg_0["name"];
   const _cpath_0 = _cfg_0["path"];
-  return $rewrite({ $: "Course", id: _hid_0, name: _hname_0, path: _hpath_0 }, { $: "Course", id: _cid_0, name: _cname_0, path: _cpath_0 }, $String_eq(_hid_0, _cid_0));
+  return $rewrite({ $: "Course", id: _hid_0, name: _hname_0, path: _hpath_0 }, { $: "Course", id: _cid_0, name: _cname_0, path: _cpath_0 }, $$String_eq(_hid_0, _cid_0));
 }
 function $updateById(_xs_0, _cfg_0) {
   if (_xs_0.$ === "Nil") {
@@ -135,14 +139,14 @@ function $updateById(_xs_0, _cfg_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: $rewriteHead(_h_0, _cfg_0), tail: $updateById(_t_0, _cfg_0) };
+    return { $: "Con", head: $$rewriteHead(_h_0, _cfg_0), tail: $$updateById(_t_0, _cfg_0) };
   }
 }
 function $mergeOne_has(_acc_0, _cfg_0, _found_0) {
   if (_found_0) {
     return $updateById(_acc_0, _cfg_0);
   } else {
-    return $List_append(_acc_0, { $: "Con", head: $asNew(_cfg_0), tail: { $: "Nil" } });
+    return $List_append(_acc_0, { $: "Con", head: $$asNew(_cfg_0), tail: { $: "Nil" } });
   }
 }
 function $mergeOne(_acc_0, _cfg_0) {
@@ -150,7 +154,7 @@ function $mergeOne(_acc_0, _cfg_0) {
   const _name_0 = _cfg_0["name"];
   const _path_0 = _cfg_0["path"];
   const _c_0 = { $: "Course", id: _id_0, name: _name_0, path: _path_0 };
-  return $mergeOne_has(_acc_0, _c_0, $hasId(_acc_0, _id_0));
+  return $mergeOne_has(_acc_0, _c_0, $$hasId(_acc_0, _id_0));
 }
 function $merge_go($0, $1) {
   for (;; ) {
@@ -163,7 +167,7 @@ function $merge_go($0, $1) {
         const _h_0 = _cfg_0["head"];
         const _t_0 = _cfg_0["tail"];
         $0 = _t_0;
-        $1 = $mergeOne(_acc_0, _h_0);
+        $1 = $$mergeOne(_acc_0, _h_0);
         continue;
       }
     }
@@ -186,7 +190,7 @@ function $uniqueIds(_xs_0) {
     const _t_0 = _xs_0["head"];
     const _id_0 = _t_0["id"];
     const _t_1 = _xs_0["tail"];
-    return $uniqueIds_and($hasId(_t_1, _id_0), $uniqueIds(_t_1));
+    return $uniqueIds_and($$hasId(_t_1, _id_0), $$uniqueIds(_t_1));
   }
 }
 function $hasCanonical(_xs_0, _key_0) {
@@ -196,8 +200,8 @@ function $hasCanonical(_xs_0, _key_0) {
     const _t_0 = _xs_0["head"];
     const _c_0 = _t_0["canonical"];
     const _t_1 = _xs_0["tail"];
-    const _x_0 = $String_eq(_c_0, _key_0);
-    const _x_1 = $hasCanonical(_t_1, _key_0);
+    const _x_0 = $$String_eq(_c_0, _key_0);
+    const _x_1 = $$hasCanonical(_t_1, _key_0);
     return _x_0 || _x_1;
   }
 }
@@ -223,7 +227,7 @@ function $dedupe_go($0, $1) {
         const _t_1 = _xs_0["tail"];
         const _pdf_0 = { $: "Pdf", name: _n_0, path: _p_0, canonical: _c_0 };
         $0 = _t_1;
-        $1 = $keepPdf(_acc_0, _pdf_0, $hasCanonical(_acc_0, _c_0));
+        $1 = $$keepPdf(_acc_0, _pdf_0, $$hasCanonical(_acc_0, _c_0));
         continue;
       }
     }
@@ -241,7 +245,7 @@ function $insertPdf_finish(_st_0) {
   const _acc_0 = _st_0["acc"];
   const _rest_0 = _st_0["rest"];
   const _x_0 = _st_0["x"];
-  return $List_append($List_reverse(_acc_0), { $: "Con", head: _x_0, tail: _rest_0 });
+  return $List_append($$List_reverse(_acc_0), { $: "Con", head: _x_0, tail: _rest_0 });
 }
 function $insertPdf_step(_acc_0, _x_0, _y_0, _ys_0, _le_0) {
   if (_le_0) {
@@ -255,7 +259,7 @@ function $insertPdf_go($0, $1) {
     {
       const _fuel_0 = $0;
       const _st_0 = $1;
-      if (_fuel_0 === 0) {
+      if (_fuel_0 == 0) {
         return $insertPdf_finish(_st_0);
       } else {
         const _f_0 = _fuel_0 - 1;
@@ -273,7 +277,7 @@ function $insertPdf_go($0, $1) {
             return $insertPdf_finish({ $: "PdfIns", acc: _acc_0, rest: { $: "Con", head: _y_0, tail: _ys_0 }, x: _x_1, done: true });
           } else {
             $0 = _f_0;
-            $1 = $insertPdf_step(_acc_0, _x_1, _y_0, _ys_0, $pdfLe(_x_1, _y_0));
+            $1 = $$insertPdf_step(_acc_0, _x_1, _y_0, _ys_0, $$pdfLe(_x_1, _y_0));
             continue;
           }
         }
@@ -282,7 +286,7 @@ function $insertPdf_go($0, $1) {
   }
 }
 function $insertPdf(_x_0, _xs_0) {
-  const _n_0 = $List_length(_xs_0);
+  const _n_0 = $$List_length(_xs_0);
   return $insertPdf_go(_n_0, { $: "PdfIns", acc: { $: "Nil" }, rest: _xs_0, x: _x_0, done: false });
 }
 function $sortPdfs_go($0, $1, $2) {
@@ -291,7 +295,7 @@ function $sortPdfs_go($0, $1, $2) {
       const _fuel_0 = $0;
       const _xs_0 = $1;
       const _acc_0 = $2;
-      if (_fuel_0 === 0) {
+      if (_fuel_0 == 0) {
         return _acc_0;
       } else {
         const _f_0 = _fuel_0 - 1;
@@ -302,7 +306,7 @@ function $sortPdfs_go($0, $1, $2) {
           const _t_0 = _xs_0["tail"];
           $0 = _f_0;
           $1 = _t_0;
-          $2 = $insertPdf(_h_0, _acc_0);
+          $2 = $$insertPdf(_h_0, _acc_0);
           continue;
         }
       }
@@ -310,11 +314,11 @@ function $sortPdfs_go($0, $1, $2) {
   }
 }
 function $sortPdfs(_xs_0) {
-  const _n_0 = $List_length(_xs_0);
+  const _n_0 = $$List_length(_xs_0);
   return $sortPdfs_go(_n_0, _xs_0, { $: "Nil" });
 }
 function $courseLibrary(_xs_0) {
-  const _ds_0 = $dedupe(_xs_0);
+  const _ds_0 = $$dedupe(_xs_0);
   return $sortPdfs(_ds_0);
 }
 function $uniqueCanonicals_and(_found_0, _rest_0) {
@@ -331,11 +335,11 @@ function $uniqueCanonicals(_xs_0) {
     const _t_0 = _xs_0["head"];
     const _c_0 = _t_0["canonical"];
     const _t_1 = _xs_0["tail"];
-    return $uniqueCanonicals_and($hasCanonical(_t_1, _c_0), $uniqueCanonicals(_t_1));
+    return $uniqueCanonicals_and($$hasCanonical(_t_1, _c_0), $$uniqueCanonicals(_t_1));
   }
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $String_is_empty(_s_0) {
   if (_s_0 === "") {
@@ -350,11 +354,11 @@ function $List_append(_xs_0, _ys_0) {
   } else {
     const _h_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
-    return { $: "Con", head: _h_0, tail: $List_append(_t_0, _ys_0) };
+    return { $: "Con", head: _h_0, tail: $$List_append(_t_0, _ys_0) };
   }
 }
 function $String_is_le(_a_0, _b_0) {
-  return $Cmp_is_le($String_order(_a_0, _b_0));
+  return $Cmp_is_le($$String_order(_a_0, _b_0));
 }
 function $List_reverse(_xs_0) {
   return $List_reverse_go(_xs_0, { $: "Nil" });
@@ -364,7 +368,7 @@ function $List_length(_xs_0) {
     return 0;
   } else {
     const _t_0 = _xs_0["tail"];
-    return nat_chk($List_length(_t_0) + 1);
+    return nat_chk($$List_length(_t_0) + 1);
   }
 }
 function $Cmp_is_eq(_c_0) {
@@ -419,6 +423,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -428,13 +433,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -444,6 +448,30 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$idOf = $idOf;
+var $$ids = $ids;
+var $$pdfName = $pdfName;
+var $$names = $names;
+var $$String_eq = $String_eq;
+var $$hasId = $hasId;
+var $$String_is_empty = $String_is_empty;
+var $$pickName = $pickName;
+var $$rewriteHead = $rewriteHead;
+var $$updateById = $updateById;
+var $$asNew = $asNew;
+var $$mergeOne = $mergeOne;
+var $$uniqueIds = $uniqueIds;
+var $$hasCanonical = $hasCanonical;
+var $$keepPdf = $keepPdf;
+var $$List_reverse = $List_reverse;
+var $$pdfLe = $pdfLe;
+var $$insertPdf_step = $insertPdf_step;
+var $$List_length = $List_length;
+var $$insertPdf = $insertPdf;
+var $$dedupe = $dedupe;
+var $$uniqueCanonicals = $uniqueCanonicals;
+var $$String_order = $String_order;
+var $$List_append = $List_append;
 var courses_default = {
   idOf: run_lib((a0) => str_out(run_loop($idOf(a0))), 1),
   nameOf: run_lib((a0) => str_out(run_loop($nameOf(a0))), 1),

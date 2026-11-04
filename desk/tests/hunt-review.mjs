@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {artifactDir,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,fillStudyTitle} from './helpers.mjs';
-import {pollUntil} from './waits.mjs';
+import {nextFrames,pollUntil} from './waits.mjs';
 
 const STAMP=new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'');
 const ART=artifactDir(`hunt-review-${STAMP}`);
@@ -126,7 +126,10 @@ if(only('caderno')){
    await connectIfNeeded();
    await page.waitForSelector('.message.assistant button.msg-review',{timeout:25000});
    const button=page.locator('.message.assistant button.msg-review').first();
-   assert.equal((await button.textContent()).trim(),'Guardar para revisar');
+   await page.locator('.message.assistant').first().hover();
+   assert.equal((await button.textContent()).trim(),'','a ação é só ícone');
+   assert.equal(await button.getAttribute('aria-label'),'Guardar para revisar','o nome acessível carrega o rótulo');
+   assert.equal(await button.getAttribute('data-icon'),null,'o andaime do ícone sai do DOM');
    assert.equal(await page.locator('.message.user button.msg-review').count(),0,'o usuário não guarda a própria fala');
    await fillStudyTitle(page,'Lista 3 — Limites');
   });
@@ -146,6 +149,7 @@ if(only('caderno')){
     selection.removeAllRanges();
     selection.addRange(range);
    });
+   await page.locator('.message.assistant').first().hover();
    await page.locator('.message.assistant button.msg-review').first().click();
    await page.waitForSelector('#review-dialog[open]');
    assert.equal((await page.locator('#review-dialog h2').textContent()).trim(),'Guardar para revisar');
@@ -230,6 +234,7 @@ if(only('caderno')){
    await openCaderno();
    await page.waitForSelector('#references.review');
    assert.equal(await page.evaluate(()=>document.querySelector('#references').classList.contains('ggb')),false);
+   await nextFrames(page,4); // a saída animada precisa de quadros na janela escondida
    await page.locator('#ggb-bar').waitFor({state:'hidden',timeout:2000}); // sai com fade (#63)
   });
 

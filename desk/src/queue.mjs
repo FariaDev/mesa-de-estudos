@@ -1,13 +1,15 @@
-import {$,S,toast,refs,mayAdvanceQueue,connect} from './state.mjs';
+import {$,S,toast,refs,mayAdvanceQueue,connect,supportsCapability} from './state.mjs';
 import {mentionIds,clearMentions} from './mentions.mjs';
 import {send,resetAttachments,persistTray,isComposerCommand} from './chat.mjs';
 import core from './generated/composerview.core.js';
 import pendingCore from './generated/pending.core.js';
 import {createQueueRetry} from './queue-retry.mjs';
+import {steerQueuedOutcome,restoreQueuedAt} from './queue-steer.mjs';
 import {build,renderChildren,preserveFocus} from './view-host.mjs';
 import {t} from './ui-text.mjs';
 import {message} from './i18n.mjs';
 import {toNat} from './bend-nat.mjs';
+import {icon} from '../icons.mjs';
 
 /* Fila de mensagens da Mesa — nasceu como espelho da fila da Conversa (aposentada na #50)
    e segue sobre o núcleo (`core/composerview.bend`), com uma diferença que aqui é
@@ -15,6 +17,9 @@ import {toNat} from './bend-nat.mjs';
    `core/pending.bend`), por conversa.
    ⏎ com o Pi livre não passa por aqui (o #prompt envia); ocupado, enfileira.
    ⌘/Ctrl+⏎ também não: o #prompt manda como steer (interrompe e envia agora).
+   Com uma mensagem JÁ na fila, o "Enviar agora" da linha faz o mesmo com o
+   payload guardado (texto, refs, anexos): só com o tutor ocupado e motor com
+   steer; recusa provada devolve o item à posição, entrega incerta não volta.
    Parar a resposta NÃO descarta mais a fila: `held` a segura e a faixa oferece
    "Enviar agora"; quem descarta é o "Limpar" (com confirmação). Fila lida de
    outra execução nasce `held` (recuperada) e nunca sai sozinha.
@@ -64,12 +69,17 @@ function liveEditText(item){
    linha em branco na faixa: diz o que está guardado. Em edição vale o texto real. */
 function rowText(item){
  if(item.id===editingId)return liveEditText(item);
- return item.text||(item.payload.images.length?'Imagem anexada':'');
+ if(item.text)return item.text;
+ const pdfs=item.payload.pdfs||[];
+ if(pdfs.length)return t('queue.pdfAttached',{name:pdfs[0].name||'PDF'});
+ return item.payload.images.length?'Imagem anexada':'';
 }
 
 function rowOf(item){
  const sending=item.id===sendingId;
- return {$:'QueueRow',id:item.id,text:rowText(item),sending,enabled:!sending,editing:item.id===editingId};
+ const editing=item.id===editingId;
+ const steerable=core.canSteerQueued(!!S.busy,supportsCapability('steer'),sending,editing);
+ return {$:'QueueRow',id:item.id,text:rowText(item),sending,enabled:!sending,editing,steerable};
 }
 
 function idFromEvent(e){
@@ -81,7 +91,7 @@ function idFromEvent(e){
 /* O que vai para o arquivo: texto, referências e anexos do item (o snapshot do
    composer no momento do enqueue), nunca o estado vivo do DOM. */
 function snapshot(){
- return queue.map(item=>({id:item.id,text:item.text,refs:item.payload.refs,images:item.payload.images,mentions:item.payload.mentions}));
+ return queue.map(item=>({id:item.id,text:item.text,refs:item.payload.refs,images:item.payload.images,pdfs:item.payload.pdfs||[],mentions:item.payload.mentions}));
 }
 
 /* Escrita imediata nas mudanças discretas (enfileirar, remover, enviar, limpar)
@@ -128,10 +138,39 @@ const handlers={
   if(rendering||removeIntent)return;
   finishEdit(true);
  },
- /* "Enviar agora": a fila estava segurada (recuperada do disco ou parada pelo
-    usuário); o usuário assume o comando e o envio começa pelo primeiro item.
-    Nunca vira steer nem cancelamento: cada item sai como turno normal
-    (followUp), motor sem steer inclusive. */
+ /* "Enviar agora" da linha: interrompe a resposta e manda ESTE item agora, com
+    o snapshot do composer do enqueue (não o texto vivo). Sai da fila antes do
+    envio — o flush do fim do turno não pode mandá-lo de novo — e volta à
+    posição só na recusa provada (`safe`); entrega incerta fica fora e segura a
+    fila, como no `queue-retry` (reenviar poderia duplicar a fala). */
+ async steerNow(e){
+  const id=idFromEvent(e);
+  if(!id)return;
+  const at=queue.findIndex(q=>q.id===id);
+  if(at<0)return;
+  const item=queue[at];
+  if(!core.canSteerQueued(!!S.busy,supportsCapability('steer'),item.id===sendingId,item.id===editingId))return;
+  const generationOwner=owner;
+  queue.splice(at,1);
+  if(editingId===id){editingId='';editDraft='';}
+  renderQueue();
+  persist(true);
+  let safe=false;
+  const posted=await send(item.text,item.payload.images,{refs:item.payload.refs,pdfs:item.payload.pdfs||[],mentions:item.payload.mentions||[],steer:true,onFailure:value=>{safe=value;}})===true;
+  /* A conversa trocou durante o envio: a fila viva agora é de outra sessão. */
+  if(owner!==generationOwner)return;
+  const outcome=steerQueuedOutcome(posted,safe);
+  if(outcome==='restore'){
+   restoreQueuedAt(queue,item,at);
+   renderQueue();
+   persist(true);
+  }else if(outcome==='hold')holdQueue(message('queue.deliveryUnconfirmed'));
+ },
+ /* "Enviar agora" da faixa: a fila estava segurada (recuperada do disco ou
+    parada pelo usuário); o usuário assume o comando e o envio começa pelo
+    primeiro item. Nunca vira steer nem cancelamento: cada item sai como turno
+    normal (followUp), motor sem steer inclusive. Quem vira steer é o botão de
+    cada linha (`steerNow`), só com o tutor ocupado. */
  sendNow(){
   if(!queue.length)return;
   if(S.busy){toast(message('queue.busyNow'));return;}
@@ -190,7 +229,8 @@ function canSendNow(){return held&&queue.length>0;}
 let shownLabel='';
 function currentLabel(many){
  const count=String(queue.length);
- const plain=core.queueLabel(recovered,many,count);
+ /* Cabeçalho sempre com a contagem; "guardada" mantém o plural próprio. */
+ const plain=core.queueLabel(recovered,true,count);
  return pendingCore.stripLabel(recovered,S.link?.state!=='online',many,count,plain);
 }
 
@@ -209,7 +249,7 @@ function renderQueue(){
  if(editingId&&!queue.some(item=>item.id===editingId)){editingId='';editDraft='';}
  const many=queue.length>1;
  shownLabel=currentLabel(many);
- const tree=core.queueStripView(false,shownLabel,listOf(queue.map(rowOf)),canSendNow(),true);
+ const tree=core.queueStripView(false,shownLabel,listOf(queue.map(rowOf)),canSendNow(),queue.length>1);
  let strip=current;
  if(!strip){
   strip=build(tree,handlers);
@@ -219,6 +259,8 @@ function renderQueue(){
   try{preserveFocus(strip,()=>renderChildren(strip,tree.kids,handlers));}
   finally{rendering=false;}
  }
+ /* O × é ícone, como os da mensagem; nome acessível e dica vêm do núcleo. */
+ for(const button of strip.querySelectorAll('.queue-remove'))button.innerHTML=icon('close');
  const input=editingId?strip.querySelector('.queue-edit'):null;
  if(input)input.addEventListener('input',()=>{editDraft=input.value;persist();});
  if(input&&editingId&&editJustStarted){
@@ -230,6 +272,7 @@ function renderQueue(){
   input.focus();
  }
 }
+
 
 function beginEdit(item){
  if(item.id===sendingId)return;
@@ -266,7 +309,7 @@ function enqueue(text){
     o composer esvazia: o payload desta mensagem não pode vazar para as próximas
     nem ser capturado pelo envio anterior (que ainda não voltou). A bandeja
     esvaziada também vai para o disco — senão o anexo ficaria nos dois lugares. */
- queue.push({id:`fila-${Date.now()}-${seq}`,text,payload:{images:S.attachments.slice(),refs:refs(),mentions:mentionIds()}});
+ queue.push({id:`fila-${Date.now()}-${seq}`,text,payload:{images:S.attachments.slice(),pdfs:S.pdfAttachments.slice(),refs:refs(),mentions:mentionIds()}});
  clearMentions();
  resetAttachments();
  persistTray();
@@ -286,7 +329,7 @@ function onPromptKeydown(e){
  if(e.key!=='Enter'||e.shiftKey)return;
  if(!S.busy)return;
  const text=el.value.trim();
- if(!text)return;
+ if(!text&&!S.attachments.length&&!S.pdfAttachments.length)return;
  e.preventDefault();
  enqueue(text);
  el.value='';
@@ -314,7 +357,7 @@ async function flushQueue({force=false}={}){
  let posted,retryable=false;
  const generationOwner=owner;
  try{
-  posted=await send(item.text,item.payload.images,{refs:item.payload.refs,mentions:item.payload.mentions||[],onFailure:safe=>{retryable=safe;}})===true;
+  posted=await send(item.text,item.payload.images,{refs:item.payload.refs,pdfs:item.payload.pdfs||[],mentions:item.payload.mentions||[],onFailure:safe=>{retryable=safe;}})===true;
  }finally{
   sendingId='';
   flushing=false;
@@ -338,7 +381,7 @@ export function enqueueFromComposer(){
  const el=$('#prompt');
  if(!el)return false;
  const text=el.value.trim();
- if(!text)return false;
+ if(!text&&!S.attachments.length&&!S.pdfAttachments.length)return false;
  enqueue(text);
  el.value='';
  el.dispatchEvent(new Event('input'));
@@ -354,7 +397,7 @@ export function enqueueFromComposer(){
 export function submit(value,options={}){
  const text=String(value??'').trim();
  if(options.release!==false)release();
- const keep=pendingCore.keptWhileOff(!!S.connected,!!S.busy,isComposerCommand(text),text,toNat(S.attachments.length));
+ const keep=pendingCore.keptWhileOff(!!S.connected,!!S.busy,isComposerCommand(text),text,toNat(S.attachments.length+S.pdfAttachments.length));
  if(!keep)return send(value,undefined,options.steer===true?{steer:true}:{});
  enqueue(text);
  const el=$('#prompt');
@@ -390,8 +433,8 @@ export function adopt(data){
  sendingId='';editingId='';editDraft='';editJustStarted=false;
  for(const raw of items){
   const text=typeof raw?.text==='string'?raw.text:'';
-  const payload={images:Array.isArray(raw?.images)?raw.images:[],refs:Array.isArray(raw?.refs)?raw.refs:[],mentions:Array.isArray(raw?.mentions)?raw.mentions.filter(id=>typeof id==='string'):[]};
-  if(!text.trim()&&!payload.images.length)continue;
+  const payload={images:Array.isArray(raw?.images)?raw.images:[],pdfs:Array.isArray(raw?.pdfs)?raw.pdfs:[],refs:Array.isArray(raw?.refs)?raw.refs:[],mentions:Array.isArray(raw?.mentions)?raw.mentions.filter(id=>typeof id==='string'):[]};
+  if(!text.trim()&&!payload.images.length&&!payload.pdfs.length)continue;
   seq++;
   queue.push({id:typeof raw?.id==='string'&&raw.id?raw.id:`fila-${Date.now()}-${seq}`,text,payload});
  }
@@ -404,12 +447,17 @@ export function adopt(data){
 export function init(){
  owner=S.currentSession||'';
  document.addEventListener('keydown',onPromptKeydown,true);
- /* O × da fila é um clique de remoção: o mousedown tira o foco do input de
-    edição, mas não pode confirmar a edição (senão o re-render tira o botão
-    debaixo do clique e a linha só sai no segundo clique). */
+ /* O × (e o "Enviar agora") da fila são cliques de ação: o mousedown tira o
+    foco do input de edição, mas não pode confirmar a edição (senão o
+    re-render tira o botão debaixo do clique e a linha só sai no segundo
+    clique). */
  document.addEventListener('pointerdown',e=>{removeIntent=!!e.target?.closest?.('.queue-item button');},true);
  document.addEventListener('pointerup',()=>{removeIntent=false;},true);
  window.addEventListener('desk-idle',()=>flushQueue());
+ /* O "Enviar agora" da linha existe só com o tutor ocupado e motor com steer:
+    o render acompanha as duas viradas para o botão nascer/sumir na hora. */
+ window.addEventListener('desk-busy',()=>{if(queue.length)renderQueue();});
+ window.addEventListener('desk-engine-facts',()=>{if(queue.length)renderQueue();});
  /* O tutor passou a atender (chamada nova, "Chamar de novo", abertura): a fila
     guardada sai. Só na virada para "ligado" — a checagem de saúde repete o
     estado a cada rodada e não pode soltar a fila. O adiamento deixa o

@@ -59,12 +59,53 @@ for (const where of ['chat', 'pdf']) {
     assert.match(out.html, /var\(--plot-2\)/);
   });
 
+  test(`${where}: hex, rgb e nome de cor viram token do tema`, {skip}, () => {
+    const out = data()[`${where}Color`];
+    for (const token of ['var(--plot-bg)', 'var(--plot-1)', 'var(--plot-2)', 'var(--plot-3)', 'currentColor']) {
+      assert.match(out.html, new RegExp(token.replace(/[()]/g, '\\$&')), `${where}: faltou ${token}\n${out.html}`);
+    }
+    assert.doesNotMatch(out.html, /#2563eb|#ffffff|#111111|\borange\b|rgb\(15/i, `${where}: sobrou cor literal\n${out.html}`);
+  });
+
   test(`${where}: cerca plot vira SVG com a mesma guarda`, {skip}, () => {
     const out = data()[`${where}Plot`];
     assert.equal(out.plots, 1, out.html.slice(0, 400));
     assert.ok(out.tags.includes('path') && out.tags.includes('clippath'), out.html.slice(0, 400));
     assert.deepEqual(out.eventAttributes, []);
     assert.deepEqual(out.links.filter((href) => !href.startsWith('#')), []);
+  });
+
+  test(`${where}: cerca svg vira a mesma figura, inclusive com linha em branco`, {skip}, () => {
+    const out = data()[`${where}SvgFence`];
+    assert.ok(out.tags.includes('svg') && out.tags.includes('rect') && out.tags.includes('text'), out.html);
+    assert.equal(out.tags.includes('pre'), false, `${where}: a cerca não pode continuar como código\n${out.html}`);
+    assert.match(out.html, /var\(--plot-1\)/, `${where}: a cor do tema se mantém`);
+    assert.doesNotMatch(out.html, /```/, `${where}: a cerca não vaza para a tela`);
+  });
+
+  test(`${where}: xml/html só viram figura quando o corpo é um único <svg>`, {skip}, () => {
+    const out = data()[`${where}SvgFenceXml`];
+    assert.ok(out.tags.includes('svg') && out.tags.includes('polygon'), out.html);
+    const invalid = data()[`${where}SvgFenceXmlInvalid`];
+    assert.equal(invalid.tags.includes('svg'), false, `${where}: <not-svg> continua código\n${invalid.html}`);
+    assert.ok(invalid.tags.includes('pre'), `${where}: o bloco inválido fica como código`);
+  });
+
+  test(`${where}: cerca svg acima do limite ou fora de <svg> continua código`, {skip}, () => {
+    const over = data()[`${where}SvgFenceOver`];
+    assert.equal(over.tags.includes('svg'), false, `${where}: passou de MAX_SVG_CHARS\n${over.html}`);
+    assert.ok(over.tags.includes('pre'), `${where}: o excesso fica como código`);
+    const invalid = data()[`${where}SvgFenceInvalid`];
+    assert.equal(invalid.tags.includes('svg'), false, `${where}: sem <svg> não há figura\n${invalid.html}`);
+    assert.ok(invalid.tags.includes('pre'), `${where}: o inválido fica como código`);
+  });
+
+  test(`${where}: cerca svg maliciosa passa pela mesma guarda do inline`, {skip}, () => {
+    const out = data()[`${where}SvgFenceMalicious`];
+    for (const tag of BANNED_TAGS) assert.ok(!out.tags.includes(tag), `${where}: sobrou <${tag}> na cerca:\n${out.html}`);
+    assert.deepEqual(out.eventAttributes, [], `${where}: sobrou atributo on* na cerca`);
+    assert.deepEqual(out.links.filter((href) => !href.startsWith('#')), [], `${where}: sobrou href externo na cerca`);
+    assert.doesNotMatch(out.html, /evil\.example|alert\(|javascript:/i, `${where}: sobrou rastro perigoso na cerca:\n${out.html}`);
   });
 
   test(`${where}: cerca plot mal formada vira aviso legível, não some`, {skip}, () => {
@@ -75,6 +116,15 @@ for (const where of ['chat', 'pdf']) {
     assert.match(out.warnings[0], /mín\.\.máx/, 'o aviso deve dizer o formato esperado');
   });
 }
+
+test('chat: cada svg recomeça a série e o alfa vira color-mix do token', {skip}, () => {
+  const slots = data().chatSlots;
+  assert.match(slots.html, /var\(--plot-1\)/);
+  assert.doesNotMatch(slots.html, /var\(--plot-2\)|#2563eb|#ff00ff/i, slots.html);
+  const alpha = data().chatAlpha;
+  assert.match(alpha.html, /color-mix\(in srgb, var\(--plot-1\) 40%, transparent\)/, alpha.html);
+  assert.doesNotMatch(alpha.html, /rgba\(37/i, alpha.html);
+});
 
 test('pdf: a cerca mal formada entra como diagnóstico do material', {skip}, () => {
   const {diagnostics} = data().pdfBroken;
@@ -113,8 +163,8 @@ test('ver o que desenhei: a ferramenta real devolve PNG, avisos e o que o saniti
   fs.mkdirSync(outDir, {recursive: true});
   const run = scenario('figure-preview', {MESA_FIGURES_PDF_OUT: outDir});
   assert.ok(run.data?.ok, `figure-preview falhou:\n${run.output.slice(-3000)}`);
-  const {plot, plotDark, triangle, malicious, broken} = run.data;
-  for (const entry of [plot, plotDark, triangle, malicious, broken]) {
+  const {plot, plotDark, triangle, malicious, broken, overlap} = run.data;
+  for (const entry of [plot, plotDark, triangle, malicious, broken, overlap]) {
     assert.equal(entry.png.signature, 'PNG');
     assert.ok(entry.png.bytes > 1000 && entry.png.height >= 48, JSON.stringify(entry.png));
   }
@@ -129,5 +179,8 @@ test('ver o que desenhei: a ferramenta real devolve PNG, avisos e o que o saniti
   assert.equal(broken.plots, 0);
   assert.match(broken.warnings[0], /de zero a dez/);
   assert.match(broken.warnings[0], /mín\.\.máx/);
+  assert.equal(overlap.svgs, 1);
+  assert.ok(overlap.warnings.some((note) => /encosta/.test(note)), JSON.stringify(overlap.warnings));
+  assert.ok(overlap.warnings.some((note) => /cruza/.test(note)), JSON.stringify(overlap.warnings));
   fs.rmSync(run.runtime, {recursive: true, force: true});
 });

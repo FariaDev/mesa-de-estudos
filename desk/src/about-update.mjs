@@ -9,7 +9,14 @@ import {noticesOpened,showRows,askUpdate} from './tool-notices.mjs';
    abrir o Sobre e o selo do cabeçalho.
    Saiu do main.mjs na #43 fase 2; quem liga os eventos continua lá. */
 
-function openHelp(){if($('#help-dialog').open)return;renderHelpVersion(S.deskVersion);openGuide();$('#help-dialog').showModal();}
+function openHelp(section=''){if($('#help-dialog').open)return;renderHelpVersion(S.deskVersion);openGuide(typeof section==='string'?section:'');$('#help-dialog').showModal();}
+/* "Como funciona" (#90): link curto que abre a seção certa do guia. */
+document.addEventListener('click',event=>{
+ const link=event.target?.closest?.('[data-open-guide]');
+ if(!link)return;
+ event.preventDefault();
+ openHelp(String(link.dataset.openGuide||''));
+});
 /* Sobre: a linha de atualização e o painel "Componentes" são do núcleo
    (`core/dialogsview.bend`); aqui só se liga o updater (IPC do main) e os
    cliques (verificar / Release notes / Atualizar e reiniciar / Atualizar Pi).

@@ -11,11 +11,13 @@ import view.bend as V
 # título e os três botões são nós vivos do `index.html`; este núcleo devolve os
 # itens dos dois menus que abrem dali, e o aplicador (`desk/src/view-host.mjs`)
 # monta no DOM:
-#   - `newSessionItems`: o motor padrão e o Claude (experimental). Criar
-#     uma sessão nunca troca o motor da que está aberta;
-#   - `moreItems`: exportar em Markdown, Encerrar por hoje (some só pela flag
-#     `desk.endDay`), o encaixe do uso de contexto, o interruptor da
-#     compactação automática, Resumir agora e recolher o tutor;
+#   - `newSessionMenu`: o cabeçalho "Nova sessão com…" e os três motores (o
+#     padrão, o Claude experimental e o OpenCode). Criar uma sessão nunca troca
+#     o motor da que está aberta; o clique no "+" cria direto com o motor atual
+#     e o menu abre pelo clique direito;
+#   - `moreItems`: Contexto (submenu com a medição e as compactações), Encerrar
+#     por hoje (some só pela flag `desk.endDay`), Exportar sessão e recolher o
+#     tutor;
 #   - `indicator` e `popNote` (ticket #14): o indicador de modelo e esforço e
 #     o aviso do popover que ele abre. Desde o #42 o indicador mora na fileira
 #     da caixa de mensagem, à esquerda do Enviar (a ordem e o degrau em coluna
@@ -54,7 +56,7 @@ def item(id: String, text: String, icon: String, handler: String, extra: List<&2
 # ---------- sessão nova ----------
 
 def newSessionDefault() -> V.ViewNode:
-  item("new-session-default", M.msg("header.newSession"), "plus", "NewSession", Nil{})
+  item("new-session-default", M.msg("header.newSessionPi"), "plus", "NewSession", Nil{})
 
 def newSessionClaude() -> V.ViewNode:
   item(
@@ -78,6 +80,16 @@ def newSessionOpenCode() -> V.ViewNode:
 def newSessionItems() -> List<&2, V.ViewNode>:
   [newSessionDefault(), newSessionClaude(), newSessionOpenCode()]
 
+# O menu aberto precisa dizer o que se escolhe; o `aria-label` do popover já
+# nomeia o grupo, então o cabeçalho visível é decorativo para o leitor de tela.
+def newSessionHead() -> V.ViewNode:
+  V.viewEl("div", [V.attrClass("conv-head"), V.attr("aria-hidden", "true")], [
+    V.viewEl("strong", Nil{}, [V.viewText(M.msg("header.newSessionWith"))])
+  ])
+
+def newSessionMenu() -> List<&2, V.ViewNode>:
+  [newSessionHead(), newSessionDefault(), newSessionClaude(), newSessionOpenCode()]
+
 # ---------- mais opções ----------
 
 def exportItem() -> V.ViewNode:
@@ -92,14 +104,29 @@ def endDayItem(endDay: Bool) -> V.ViewNode:
     V.attrWhen(Bool.not(endDay), V.attr("hidden", ""))
   )
 
+# "Contexto" é uma linha que abre o submenu no próprio lugar (sem flyout):
+# dentro dele ficam a medição viva e as duas ações de compactação.
+def contextItem() -> V.ViewNode:
+  item(
+    "more-context",
+    M.msg("header.context"),
+    "graph",
+    "ToggleContextMenu",
+    [
+      V.attr("aria-haspopup", "menu"),
+      V.attr("aria-controls", "more-context-menu"),
+      V.attr("aria-expanded", "false")
+    ]
+  )
+
 # O uso de contexto é leitura, não ação: uma linha com o encaixe onde o host
 # põe o medidor vivo e o texto de "ainda sem medição".
 def contextRow() -> V.ViewNode:
   V.viewEl("div", [
-    V.attrId("more-context"), V.attrClass("more-row"), V.attr("role", "group"),
+    V.attrId("more-context-row"), V.attrClass("more-row"), V.attr("role", "group"),
     V.attr("aria-label", M.msg("header.context"))
   ], [
-    V.viewEl("span", [V.attrClass("more-row-label")], [V.viewText(M.msg("header.context"))]),
+    V.viewEl("span", [V.attrClass("more-row-label")], [V.viewText(M.msg("header.inUse"))]),
     V.viewEl("span", [V.attrId("more-context-slot"), V.attrClass("more-row-value")], []),
     V.viewEl("span", [
       V.attrId("more-context-empty"), V.attrClass("more-row-value more-row-fine")
@@ -127,10 +154,17 @@ def compactNowItem() -> V.ViewNode:
 def collapseItem() -> V.ViewNode:
   item("chat-collapse", M.msg("header.collapse"), "chevronRight", "ToggleTutor", Nil{})
 
+# O submenu de Contexto precisa das duas ações de compactação já definidas.
+def contextMenu() -> V.ViewNode:
+  V.viewEl("div", [
+    V.attrId("more-context-menu"), V.attrClass("more-submenu"), V.attr("role", "menu"),
+    V.attrAria("label", M.msg("header.context")), V.attr("hidden", "")
+  ], [contextRow(), autoCompactItem(), compactNowItem()])
+
 def moreItems(endDay: Bool) -> List<&2, V.ViewNode>:
   [
-    exportItem(), endDayItem(endDay), contextRow(), autoCompactItem(),
-    compactNowItem(), collapseItem()
+    contextItem(), contextMenu(), endDayItem(endDay), exportItem(),
+    collapseItem()
   ]
 
 # ---------- indicador de modelo e esforço (ticket #14) ----------

@@ -60,7 +60,7 @@ export function collectEscapeFacts(doc = globalThis.document, state = {}) {
     dialog: !!doc.querySelector('dialog[open]'),
     palette: !!doc.querySelector('#command-palette:not([hidden])'),
     menu: !!doc.querySelector('#course-menu.open, #study-menu.open, #settings-menu.open'),
-    popover: visible(doc, '#context-pop') || visible(doc, '#phone-pop') || visible(doc, '#check-note') || visible(doc, '#free-more-pop') || visible(doc, '#conversations-pop') || visible(doc, '#model-pop') || visible(doc, '#new-session-pop') || visible(doc, '#chat-more-pop') || visible(doc, '#sidechat-more-pop') || visible(doc, '#sidechat-context-pop') || visible(doc, '.pdf-nav-pop') || visible(doc, '.pdf-more-pop'),
+    popover: visible(doc, '#context-pop') || visible(doc, '#attach-pop') || visible(doc, '#phone-pop') || visible(doc, '#check-note') || visible(doc, '#free-more-pop') || visible(doc, '#conversations-pop') || visible(doc, '#model-pop') || visible(doc, '#new-session-pop') || visible(doc, '#chat-more-pop') || visible(doc, '#sidechat-more-pop') || visible(doc, '#sidechat-context-pop') || visible(doc, '.pdf-nav-pop') || visible(doc, '.pdf-more-pop'),
     citation: visible(doc, '#quote-btn'),
     search: pdfFind,
     tutor: !!state?.busy,

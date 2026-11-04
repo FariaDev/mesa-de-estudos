@@ -13,12 +13,11 @@ import os from 'node:os';
 import path from 'node:path';
 import {launchDesk,withArtifacts,DESK,enterFree,freezeMotion} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
+import {startLeakProbe} from './leak-probe-server.mjs';
 
-const hits=[];
-const server=http.createServer((req,res)=>{hits.push(`${req.method} ${req.url}`);res.writeHead(200,{'content-type':'text/plain','access-control-allow-origin':'*'});res.end('vazou');});
-server.on('upgrade',(req,socket)=>{hits.push(`UPGRADE ${req.url}`);socket.destroy();});
-await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const NET=`http://127.0.0.1:${server.address().port}/`;
+const probe=await startLeakProbe();
+const hits=probe.hits;
+const NET=probe.url;
 
 try{
  await withArtifacts('hunt-activity-network',async ctx=>{
@@ -38,7 +37,7 @@ try{
   /* ---- quadro publicado na conversa ---- */
   await page.locator('#prompt').fill('Mostre o teste de rede.');await page.locator('#send').click();
   await page.locator('.activity-card[data-state="ready"]').waitFor({timeout:30000});
-  const frame=page.frames().find(f=>f.url().startsWith('mesa-activity://artifact/'));
+  const frame=page.frames().find(f=>f.url().startsWith('mesa-activity://act-'));
   assert.ok(frame,'o quadro montou');
   const live=await frame.evaluate(async url=>{
    const result={};
@@ -69,7 +68,6 @@ try{
   console.log('quadro vivo:',JSON.stringify(live));
  });
 }finally{
- server.closeAllConnections?.();
- await new Promise(resolve=>server.close(resolve));
+ await probe.close();
 }
 console.log('hunt-activity-network: PASS — quadro publicado e prévia sem nenhum pedido de rede (fetch, XHR, WebSocket, beacon, SSE, script, imagem, prefetch, áudio, CSS e @import).');

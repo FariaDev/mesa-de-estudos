@@ -84,16 +84,34 @@ test('anexo válido vai junto no pedido, sem mexer no pedido original', async ()
 test('conexão que falha não escreve nem conta o contexto como enviado', async () => {
   let aceitos = 0;
 
-  await assert.rejects(
-    () => send.deliverPrompt({
-      request: PEDIDO,
-      connect() { throw Error('não deu para iniciar o Pi (ENOENT)'); },
-      onAccepted() { aceitos += 1; },
-    }),
-    /não deu para iniciar o Pi/,
-  );
+  const erro = await send.deliverPrompt({
+    request: PEDIDO,
+    connect() { throw Error('não deu para iniciar o Pi (ENOENT)'); },
+    onAccepted() { aceitos += 1; },
+  }).then(() => assert.fail('devia rejeitar'), (error) => error);
 
+  assert.match(erro.message, /não deu para iniciar o Pi/);
+  assert.equal(erro.notSent, true, 'conexão é falha ANTES da escrita: nada foi entregue e pode repetir');
   assert.equal(aceitos, 0);
+});
+
+test('motivo marcado do Pi não quebra a frase de recusa/incerteza', async () => {
+  const {message} = await import('../src/i18n.mjs');
+  const bridge = fakeBridge({failAt: 'prompt', motivo: '', notSent: false});
+  const marked = message('tutor.error.stopped', {code: 1});
+  bridge.request = async (method) => { if (method === 'prompt') throw Error(marked); return {}; };
+  const erro = await send.deliverPrompt({request: PEDIDO, connect: () => bridge})
+    .then(() => assert.fail('devia rejeitar'), (error) => error);
+  assert.match(ptText(erro.message), /não confirmou a mensagem/i);
+  assert.notEqual(erro.notSent, true);
+});
+
+test('spawn que nem chegou a ler o stdin conta como recusa, não incerteza', async () => {
+  const bridge = fakeBridge();
+  bridge.request = async () => { const error = Error('spawn pi EACCES'); error.code = 'EACCES'; throw error; };
+  const erro = await send.deliverPrompt({request: PEDIDO, connect: () => bridge})
+    .then(() => assert.fail('devia rejeitar'), (error) => error);
+  assert.equal(erro.notSent, true, 'o processo não leu nada: pode repetir');
 });
 
 test('escrita que falha é incerta: o erro diz que pode ter chegado e o contexto não conta como enviado', async () => {

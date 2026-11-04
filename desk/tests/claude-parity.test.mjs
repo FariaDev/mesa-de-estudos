@@ -4,6 +4,7 @@
  * Nenhum binário, credencial ou modelo real: o teste empurra o que o CLI
  * emitiria e prova o que a Mesa escreve e decide. */
 import test from 'node:test';
+import './keep-loop-alive.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import * as fx from './claude-fixtures.mjs';
@@ -144,19 +145,15 @@ test('o serviço guarda as duas falas e só "steera" com turno do motor em voo',
   service.stop();
 });
 
-/* Regressão da janela (#58): o host manda a política de leitura em TODO
-   prompt; no steer ela não pode ser trocada (o adaptador recusa com turno
-   aberto) e o envio morria antes de sair. */
-test('steer com toolPolicy mantém a política do turno e chega à consulta', async () => {
+test('steer continua chegando à consulta com prioridade now', async () => {
   const {adapter, sdk} = makeAdapter();
   const service = new NativeService({adapter, engine: 'claude'});
-  const policy = {readPaths: [], readRoots: []};
-  const first = service.request('prompt', {message: 'pergunta', toolPolicy: policy});
+  const first = service.request('prompt', {message: 'pergunta'});
   await fx.waitFor(() => sdk.state.queries.length === 1, 2000, 'consulta criada');
   const query = sdk.state.queries[0];
   query.emit(fx.replayMessage(await fx.takeInput(query)));
   await first;
-  const second = service.request('prompt', {message: 'use a fórmula 2', streamingBehavior: 'steer', toolPolicy: policy});
+  const second = service.request('prompt', {message: 'use a fórmula 2', streamingBehavior: 'steer'});
   const item = await fx.takeInput(query);
   assert.equal(item.priority, 'now');
   query.emit(fx.replayMessage(item));

@@ -49,7 +49,8 @@ await withArtifacts('pdf-retention',async ctx=>{
  const settle=()=>pdfRenderIdle(page);
  const waitCanvas=(i,n)=>page.waitForFunction(([idx,p])=>{const panel=document.querySelectorAll('.pdf-panel')[idx];const el=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page===String(p));return !!el&&!!el.querySelector(':scope > canvas');},[i,n],{timeout:45000});
  const waitNoCanvas=(i,n)=>page.waitForFunction(([idx,p])=>{const panel=document.querySelectorAll('.pdf-panel')[idx];const el=[...panel.querySelectorAll('.pdf-page')].find(e=>e.dataset.page===String(p));return !!el&&!el.querySelector(':scope > canvas');},[i,n],{timeout:15000});
- const gotoPage=async(i,n)=>{await field(i,'.page-number').fill(String(n));await field(i,'.page-number').press('Enter');await waitCanvas(i,n);};
+ const jumpPage=async(i,n)=>{await page.locator('.pdf-panel').nth(i).locator('.pager').click();const input=page.locator('.pdf-panel').nth(i).locator('.page-number');await input.fill(String(n));await input.press('Enter');};
+ const gotoPage=async(i,n)=>{await jumpPage(i,n);await waitCanvas(i,n);};
  // Mede o que está retido no painel (canvas com backing store vivo e textLayer).
  const retention=async i=>page.evaluate(idx=>{
   const panel=document.querySelectorAll('.pdf-panel')[idx];
@@ -167,11 +168,11 @@ await withArtifacts('pdf-retention',async ctx=>{
   // ---------- dois leitores: o descarte é por painel ----------
   const other=await retention(1);report('other-reader',other);
   check('dois leitores: o segundo continua pintado e completo',other.pages===4&&other.canvases>=1&&other.visibleMissing===0,JSON.stringify(other));
-  await field(1,'.page-number').fill('3');await field(1,'.page-number').press('Enter');await waitCanvas(1,3);
+  await jumpPage(1,3);await waitCanvas(1,3);
   check('dois leitores: o segundo navega normalmente',(await num(1,'.page-number'))==='3');
 
   // ---------- corrida: saltos rápidos 1 ↔ 36 sem esperar ----------
-  for(let k=0;k<12;k++){const n=k%2?PAGES:1;await field(0,'.page-number').fill(String(n));await field(0,'.page-number').press('Enter');}
+  for(let k=0;k<12;k++){const n=k%2?PAGES:1;await jumpPage(0,n);}
   await gotoPage(0,PAGES);
   await settle();
   const race=await retention(0);report('race',race);

@@ -30,7 +30,7 @@ function emptyWork(live,expanded,title='Trabalhou por 1s',meta=''){
  return {$:'WorkRow',live,expanded,title,meta,steps:Nil};
 }
 
-function thinkStep({open=false,hasDetail=true,label='Pensou por 3s',text='Vou considerar',preview=''}={}){
+function thinkStep({open=false,hasDetail=true,label='Pensou',text='Vou considerar',preview=''}={}){
  return {
   $:'StepRow',id:'pensar-1',kind:{$:'Thinking'},status:{$:'Status.Done'},
   open,hasDetail,label,time:'',preview,text,links:Nil,
@@ -73,14 +73,15 @@ test('workLog recolhido: data-expanded false, dots hidden, título Trabalhou por
 });
 
 test('passo de pensamento: data-kind/status/detail, label, texto e toggle',()=>{
- const row={$:'WorkRow',live:false,expanded:true,title:'Pensou por 3s',meta:'',steps:list(thinkStep({open:true}))};
+ const row={$:'WorkRow',live:false,expanded:true,title:'Pensou',meta:'',steps:list(thinkStep({open:true}))};
  const tree=core.workLog(row);
  const step=findClass(tree,'work-step');
  assert.equal(attrs(step)['data-kind'],'thinking');
  assert.equal(attrs(step)['data-status'],'done');
  assert.equal(attrs(step)['data-detail'],'true');
  assert.equal(attrs(step).key,'pensar-1');
- assert.equal(textOf(findClass(step,'step-label')),'Pensou por 3s');
+ assert.equal(textOf(findClass(step,'step-label')),'Pensou');
+ assert.equal(findClass(step,'step-time'),null,'o passo não mostra mais horário próprio (#90)');
  assert.equal(textOf(findClass(step,'step-text')),'Vou considerar');
  const toggle=findClass(step,'step-toggle');
  assert.equal(attrs(toggle)['on:click'],'toggleStep');

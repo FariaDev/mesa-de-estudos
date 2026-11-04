@@ -37,7 +37,7 @@ test('bundle usa Claude externo sem perder peers, codecs ou versões aninhadas',
   const source=path.join(root,'source'),nm=path.join(source,'node_modules'),dest=path.join(root,'payload');
   fs.mkdirSync(path.join(source,'scripts'),{recursive:true});
   fs.mkdirSync(path.join(source,'src','locales'),{recursive:true});fs.writeFileSync(path.join(source,'src','locales','en.json'),'{}');
-  for(const name of ['index.html','ggb.html','style.css','package.json','config.example.json','free-models.json','scripts/install-app.mjs'])fs.writeFileSync(path.join(source,name),'{}');
+  for(const name of ['index.html','ggb.html','pdf-render.html','style.css','package.json','config.example.json','free-models.json','update-signing-key.pub','scripts/install-app.mjs'])fs.writeFileSync(path.join(source,name),'{}');
   const pkg=(rel,json,js="module.exports=true")=>{const dir=path.join(nm,rel);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'package.json'),JSON.stringify({name:rel,main:'index.cjs',...json}));fs.writeFileSync(path.join(dir,'index.cjs'),js);};
   for(const name of ['marked','katex','dompurify'])pkg(name,{});
   const cli='@anthropic-ai/claude-agent-sdk-darwin-arm64';
@@ -49,9 +49,13 @@ test('bundle usa Claude externo sem perder peers, codecs ou versões aninhadas',
   pkg('codec',{},"module.exports='codec'");
   pkg('pdfjs-dist/node_modules/nested',{name:'nested'},"module.exports='nested-v2'");
   pkg('nested',{},"module.exports='root-v1'");
-  assert.ok(runtimePackages(nm,['@anthropic-ai/claude-agent-sdk']).some(p=>p.relative.endsWith(cli)),'a API geral mantém o CLI por padrão');
-  const managed=stageBundlePayload(source,dest);
+  const relativeOf=p=>p.relative.split(path.sep).join('/');
+  assert.ok(runtimePackages(nm,['@anthropic-ai/claude-agent-sdk']).some(p=>relativeOf(p).endsWith(cli)),'a API geral mantém o CLI por padrão');
+  const managed=stageBundlePayload(source,dest).map(p=>p.split(path.sep).join('/'));
   assert.ok(!managed.some(p=>p.endsWith(cli)),'o manifesto do app omite o CLI');
+  assert.ok(managed.includes('update-signing-key.pub')&&fs.existsSync(path.join(dest,'update-signing-key.pub')),'a chave pública do update assinado (#80) entra no payload: sem ela o app instalado recusa toda atualização');
+  /* `pdf-render.html` faltava no pacote da candidata 1.1.0: o `ler_pdf` em imagem falhava só no app instalado. */
+  assert.ok(managed.includes('pdf-render.html')&&fs.existsSync(path.join(dest,'pdf-render.html')),'a página do render de PDF entra no payload');
   assert.ok(managed.includes('src')&&fs.existsSync(path.join(dest,'src','locales','en.json')),'os catálogos de idioma (#41, #72) entram no payload dentro de src/: sem eles o app instalado não abre');
   assert.equal(fs.existsSync(path.join(dest,'node_modules','@anthropic-ai/claude-agent-sdk/node_modules',cli)),false,'a cópia do pai não reintroduz o CLI aninhado');
   fs.rmSync(source,{recursive:true});
@@ -61,6 +65,14 @@ test('bundle usa Claude externo sem perder peers, codecs ou versões aninhadas',
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
+test('toda página HTML da raiz de desk/ entra na lista do payload',()=>{
+ const desk=path.dirname(require.resolve('../bundle-runtime.cjs'));
+ const source=fs.readFileSync(path.join(desk,'bundle-runtime.cjs'),'utf8');
+ const pages=fs.readdirSync(desk).filter(file=>file.endsWith('.html'));
+ assert.ok(pages.length>=3,`esperadas ao menos 3 páginas, recebidas: ${pages}`);
+ for(const page of pages)assert.ok(source.includes(`'${page}'`),`${page} fora de stageBundlePayload`);
+});
+
 test('CLI exigido por outra dependência não é omitido',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-bundle-required-'));
  try{
@@ -68,7 +80,7 @@ test('CLI exigido por outra dependência não é omitido',()=>{
   for(const [name,json] of [['@anthropic-ai/claude-agent-sdk',{optionalDependencies:{[cli]:'1'}}],['required',{dependencies:{[cli]:'1'}}],[cli,{}]]){
    const dir=path.join(nm,name);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'package.json'),JSON.stringify({name,...json}));
   }
-  assert.ok(runtimePackages(nm,['@anthropic-ai/claude-agent-sdk','required'],{externalClaude:true}).some(p=>p.relative===cli));
+  assert.ok(runtimePackages(nm,['@anthropic-ai/claude-agent-sdk','required'],{externalClaude:true}).some(p=>p.relative.split(path.sep).join('/')===cli));
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
@@ -88,11 +100,13 @@ test('installBundle: versão no Info.plist, payload, manifesto e órfãos, sem b
  try{
   const source=path.join(root,'desk'),nm=path.join(source,'node_modules'),app=path.join(root,'Mesa de Estudos.app');
   fs.mkdirSync(path.join(source,'scripts'),{recursive:true});
-  for(const name of ['index.html','ggb.html','style.css','package.json','config.example.json','free-models.json','scripts/install-app.mjs','main.cjs'])fs.writeFileSync(path.join(source,name),'{}');
+  for(const name of ['index.html','ggb.html','pdf-render.html','style.css','package.json','config.example.json','free-models.json','update-signing-key.pub','scripts/install-app.mjs','main.cjs'])fs.writeFileSync(path.join(source,name),'{}');
   const pkg=(rel,json)=>{const dir=path.join(nm,rel);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'package.json'),JSON.stringify({name:rel,...json}));};
   for(const name of ['marked','katex','dompurify','pdfjs-dist'])pkg(name,{});
   const cli='@anthropic-ai/claude-agent-sdk-darwin-arm64';
   pkg('@anthropic-ai/claude-agent-sdk',{optionalDependencies:{[cli]:'1'}});pkg(cli,{});
+  fs.mkdirSync(path.join(source,'assets'),{recursive:true});
+  fs.writeFileSync(path.join(source,'assets','mesa.icns'),'icns-de-teste');
   fs.mkdirSync(path.join(app,'Contents','Resources','app'),{recursive:true});
   execFileSync('plutil',['-create','xml1',path.join(app,'Contents','Info.plist')]);
   const dest=path.join(app,'Contents','Resources','app');
@@ -101,6 +115,10 @@ test('installBundle: versão no Info.plist, payload, manifesto e órfãos, sem b
   const out=installBundle({desk:source,root,app,version:'9.8.7'});
   assert.equal(out.dest,dest);
   assert.equal(execFileSync('plutil',['-extract','CFBundleShortVersionString','raw',path.join(app,'Contents','Info.plist')],{encoding:'utf8'}).trim(),'9.8.7');
+  assert.equal(execFileSync('plutil',['-extract','CFBundleIconFile','raw',path.join(app,'Contents','Info.plist')],{encoding:'utf8'}).trim(),'mesa.icns','o bundle aponta o ícone próprio, não electron.icns');
+  assert.equal(execFileSync('plutil',['-extract','CFBundleName','raw',path.join(app,'Contents','Info.plist')],{encoding:'utf8'}).trim(),'Mesa de Estudos');
+  assert.equal(execFileSync('plutil',['-extract','CFBundleIdentifier','raw',path.join(app,'Contents','Info.plist')],{encoding:'utf8'}).trim(),'local.learningcanvas.mesa');
+  assert.ok(fs.existsSync(path.join(app,'Contents','Resources','mesa.icns')));
   assert.ok(fs.existsSync(path.join(dest,'main.cjs')));
   assert.equal(fs.existsSync(path.join(dest,'velho.cjs')),false,'o órfão do manifesto antigo sai');
   assert.equal(fs.existsSync(path.join(dest,'local.txt')),true,'arquivo local fica');

@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
+import {fakeCommand} from './fake-executable.mjs';
 
 const require = createRequire(import.meta.url);
 const {createSideChatManager} = require('../sidechat.cjs');
@@ -34,7 +35,7 @@ function makeDeps({runtime, env = {}}) {
       id,
       sessionPath: descriptor.session,
       cwd: runtime,
-      pi: FAKE_PI,
+      pi: fakeCommand(FAKE_PI, runtime),
       env: {...process.env, ...env},
       extraArgs: [],
       promptFile: path.join(runtime, 'prompt.md'),
@@ -97,7 +98,7 @@ test('Pi de teste: turno completo, contexto uma vez, persistência e retomada', 
     assert.equal(resumed.messages.length, 4);
   } finally {
     manager.suspend('fim');
-    fs.rmSync(runtime, {recursive: true, force: true});
+    fs.rmSync(runtime, {recursive: true, force: true, maxRetries: 20, retryDelay: 100});
   }
 });
 
@@ -132,7 +133,7 @@ test('Pi de teste: open retoma do disco recuperando transmitting e o novo envio 
   } finally {
     manager.suspend('fim');
     restarted?.suspend('fim');
-    fs.rmSync(runtime, {recursive: true, force: true});
+    fs.rmSync(runtime, {recursive: true, force: true, maxRetries: 20, retryDelay: 100});
   }
 });
 
@@ -155,6 +156,65 @@ test('Pi de teste: abort é independente e encerra o turno do lateral', {timeout
     assert.ok(log[0].message.endsWith('segura o turno'), 'o texto do usuário vai no fim, depois do contexto');
   } finally {
     manager.suspend('fim');
-    fs.rmSync(runtime, {recursive: true, force: true});
+    fs.rmSync(runtime, {recursive: true, force: true, maxRetries: 20, retryDelay: 100});
+  }
+});
+
+test('warm sobe o Pi e aplica o modelo uma vez, sem prompt', async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-sidechat-pi-warm-'));
+  const rpcLog = path.join(runtime, 'rpc.log');
+  fs.chmodSync(FAKE_PI, 0o755);
+  const engine = createPiSideEngine({
+    id: 'sc-warm',
+    sessionPath: path.join(runtime, 'side.jsonl'),
+    cwd: runtime,
+    pi: fakeCommand(FAKE_PI, runtime),
+    env: {...process.env, FAKE_PI_RPC_LOG: rpcLog},
+    promptFile: path.join(runtime, 'prompt.md'),
+    onEvent: () => {},
+    log: () => {},
+    mainModel: async () => ({provider: 'test', id: 'offline', level: 'low'}),
+  });
+  try {
+    await engine.warm();
+    const afterWarm = fs.readFileSync(rpcLog, 'utf8').trim().split('\n');
+    assert.deepEqual(afterWarm, ['set_model', 'set_thinking_level']);
+    await engine.warm();
+    await engine.prompt({text: 'oi'});
+    await engine.prompt({text: 'de novo'});
+    const all = fs.readFileSync(rpcLog, 'utf8').trim().split('\n');
+    assert.deepEqual(all.filter((type) => type === 'set_model'), ['set_model']);
+    assert.deepEqual(all.filter((type) => type === 'prompt'), ['prompt', 'prompt']);
+    assert.equal(all.includes('get_state'), false, 'o set_model já subiu o processo');
+  } finally {
+    await engine.close();
+    fs.rmSync(runtime, {recursive: true, force: true, maxRetries: 20, retryDelay: 100});
+  }
+});
+
+test('warm sem modelo na principal sobe o Pi com get_state e o prompt não repete', async () => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-sidechat-pi-warm-empty-'));
+  const rpcLog = path.join(runtime, 'rpc.log');
+  fs.chmodSync(FAKE_PI, 0o755);
+  const engine = createPiSideEngine({
+    id: 'sc-warm-empty',
+    sessionPath: path.join(runtime, 'side.jsonl'),
+    cwd: runtime,
+    pi: fakeCommand(FAKE_PI, runtime),
+    env: {...process.env, FAKE_PI_RPC_LOG: rpcLog},
+    promptFile: path.join(runtime, 'prompt.md'),
+    onEvent: () => {},
+    log: () => {},
+    mainModel: async () => null,
+  });
+  try {
+    await engine.warm();
+    assert.deepEqual(fs.readFileSync(rpcLog, 'utf8').trim().split('\n'), ['get_state']);
+    await engine.prompt({text: 'oi'});
+    const all = fs.readFileSync(rpcLog, 'utf8').trim().split('\n');
+    assert.deepEqual(all, ['get_state', 'prompt']);
+  } finally {
+    await engine.close();
+    fs.rmSync(runtime, {recursive: true, force: true, maxRetries: 20, retryDelay: 100});
   }
 });

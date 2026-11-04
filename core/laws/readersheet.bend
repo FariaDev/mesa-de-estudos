@@ -4,17 +4,13 @@ import ../readersheet.bend as S
 import ../view.bend as V
 
 # ---------------------------------------------------------------------------
-# Contrato da folha "Lista 0" do leitor sem material (ticket #12). Prefixo
-# `readersheet_`.
+# Contrato da folha do leitor sem material (ticket #12, revisto na #90).
+# Prefixo `readersheet_`.
 #
-# A folha diz uma coisa só — como pôr um material naquele leitor — e tem a
-# mesma forma para qualquer matéria: título, matéria, abertura, quatro itens e
-# o quadro de soltar. Os três atalhos nomeiam handlers da tabela do host
-# (`OpenFile`, `RevealFolder`, `AskTutor`); o primeiro caminho (arrastar) não
-# tem botão, o quadro é o atalho.
-#
-# `String.trim` de uma variável livre não reduz: o que se prova do nome da
-# matéria são os casos que importam — nome normal, com espaços e vazio.
+# A folha diz uma coisa só — como pôr um material naquele leitor — com a zona
+# tracejada "Solte um PDF aqui" e três atalhos pequenos embaixo. Os atalhos
+# nomeiam handlers da tabela do host (`OpenFile`, `RevealFolder`, `AskTutor`);
+# o primeiro caminho (arrastar) não tem botão, a zona é o atalho.
 # ---------------------------------------------------------------------------
 
 # Filho de um nó pelo índice.
@@ -35,21 +31,6 @@ def attrOf(n: V.ViewNode, name: String) -> Maybe<&2, String>:
 
 # ---------- textos ----------
 
-law readersheet_titulo:
-  {S.sheetTitle() == M.msg("sheet.title") : String}
-
-law readersheet_materia_com_nome:
-  {S.courseLine("Cálculo I") == M.msg1("sheet.course", "course", "Cálculo I") : String}
-
-law readersheet_materia_apara:
-  {S.courseLine("  Cálculo I  ") == M.msg1("sheet.course", "course", "Cálculo I") : String}
-
-law readersheet_materia_sem_nome:
-  {S.courseLine("") == M.msg("sheet.courseBlank") : String}
-
-law readersheet_materia_so_espaco:
-  {S.courseLine("   ") == M.msg("sheet.courseBlank") : String}
-
 law readersheet_pedido_ao_tutor:
   {S.tutorSeed("Cálculo I") == M.msg1("sheet.seed", "course", "Cálculo I") : String}
 
@@ -63,7 +44,7 @@ law readersheet_rotulos_dos_atalhos:
   {[S.openLabel(), S.folderLabel(), S.tutorLabel()] == [M.msg("sheet.openLabel"), M.msg("sheet.folderLabel"), M.msg("sheet.tutorLabel")] : List<&2, String>}
 
 law readersheet_quadro_texto:
-  {[S.dropTitle(), S.dropHelp()] == [M.msg("sheet.dropTitle"), M.msg("sheet.dropHelp")] : List<&2, String>}
+  {S.dropTitle() == M.msg("sheet.dropTitle") : String}
 
 # ---------- a folha ----------
 
@@ -76,40 +57,32 @@ law readersheet_raiz_classe:
 law readersheet_raiz_aria:
   {attrOf(S.sheet("Cálculo I"), "aria-label") == Some{M.msg1("sheet.aria", "course", "Cálculo I")} : Maybe<&2, String>}
 
-# Título, matéria, abertura, itens, quadro — nessa ordem.
+# Zona de soltar e a linha de atalhos — nessa ordem.
 law readersheet_ordem:
   {V.kidsOf(S.sheet("Cálculo I")) ==
-    [ V.viewEl("h1", [V.attrClass("sheet-title")], [V.viewText(M.msg("sheet.title"))])
-    , V.viewEl("p", [V.attrClass("sheet-course")], [V.viewText(M.msg1("sheet.course", "course", "Cálculo I"))])
-    , V.viewEl("p", [V.attrClass("sheet-intro")], [V.viewText(S.introText())])
-    , V.viewEl("ol", [V.attrClass("sheet-items")], S.items())
-    , S.dropZone()
+    [ S.dropZone()
+    , V.viewEl("div", [V.attrClass("sheet-links")], S.items())
     ] : List<&2, V.ViewNode>}
 
-# ---------- os quatro itens ----------
-
-# Arrastar: só o texto; o quadro tracejado abaixo é o atalho.
-law readersheet_item_arrastar:
-  {kidAt(kidAt(S.sheet("x"), 3n), 0n) == V.viewEl("li", [V.attrClass("sheet-item")], [V.viewText(S.dragText())]) : V.ViewNode}
-
-law readersheet_item_abrir_texto:
-  {kidAt(kidAt(kidAt(S.sheet("x"), 3n), 1n), 0n) == V.viewText(S.openText()) : V.ViewNode}
-
-# O espaço entre o texto e o atalho é um nó à parte: a frase traduzida não é concatenada (#41).
-law readersheet_item_abrir_espaco:
-  {kidAt(kidAt(kidAt(S.sheet("x"), 3n), 1n), 1n) == V.viewText(" ") : V.ViewNode}
+# ---------- os três atalhos, separados por "·" ----------
 
 law readersheet_item_abrir_atalho:
-  {kidAt(kidAt(kidAt(S.sheet("x"), 3n), 1n), 2n) == S.link(M.msg("sheet.openLabel"), "OpenFile") : V.ViewNode}
+  {kidAt(kidAt(S.sheet("x"), 1n), 0n) == S.link(M.msg("sheet.openLabel"), "OpenFile") : V.ViewNode}
+
+law readersheet_item_sep_um:
+  {kidAt(kidAt(S.sheet("x"), 1n), 1n) == S.separator() : V.ViewNode}
 
 law readersheet_item_pasta_atalho:
-  {kidAt(kidAt(kidAt(S.sheet("x"), 3n), 2n), 2n) == S.link(M.msg("sheet.folderLabel"), "RevealFolder") : V.ViewNode}
+  {kidAt(kidAt(S.sheet("x"), 1n), 2n) == S.link(M.msg("sheet.folderLabel"), "RevealFolder") : V.ViewNode}
+
+law readersheet_item_sep_dois:
+  {kidAt(kidAt(S.sheet("x"), 1n), 3n) == S.separator() : V.ViewNode}
 
 law readersheet_item_tutor_atalho:
-  {kidAt(kidAt(kidAt(S.sheet("x"), 3n), 3n), 2n) == S.link(M.msg("sheet.tutorLabel"), "AskTutor") : V.ViewNode}
+  {kidAt(kidAt(S.sheet("x"), 1n), 4n) == S.link(M.msg("sheet.tutorLabel"), "AskTutor") : V.ViewNode}
 
-law readersheet_item_so_quatro:
-  {kidAt(kidAt(S.sheet("x"), 3n), 4n) == V.viewText("") : V.ViewNode}
+law readersheet_item_so_tres:
+  {kidAt(kidAt(S.sheet("x"), 1n), 5n) == V.viewText("") : V.ViewNode}
 
 # ---------- atalho ----------
 
@@ -128,15 +101,25 @@ law readersheet_atalho_handler:
 law readersheet_atalho_texto:
   {V.kidsOf(S.link(M.msg("sheet.openLabel"), "OpenFile")) == [V.viewText(M.msg("sheet.openLabel"))] : List<&2, V.ViewNode>}
 
+# ---------- separador ----------
+
+law readersheet_separador_classe:
+  {attrOf(S.separator(), "class") == Some{"sheet-sep"} : Maybe<&2, String>}
+
+law readersheet_separador_aria:
+  {attrOf(S.separator(), "aria-hidden") == Some{"true"} : Maybe<&2, String>}
+
+law readersheet_separador_texto:
+  {V.kidsOf(S.separator()) == [V.viewText("·")] : List<&2, V.ViewNode>}
+
 # ---------- quadro de soltar ----------
 
 law readersheet_quadro_classe:
   {attrOf(S.dropZone(), "class") == Some{"sheet-drop"} : Maybe<&2, String>}
 
-# Ícone (andaime, escondido do leitor de tela), a frase em destaque e a dica.
+# Ícone (andaime, escondido do leitor de tela) e a frase em destaque.
 law readersheet_quadro_filhos:
   {V.kidsOf(S.dropZone()) ==
     [ V.viewEl("span", [V.attrClass("sheet-drop-icon"), V.attrData("icon", "download"), V.attrAria("hidden", "true")], Nil{})
     , V.viewEl("strong", Nil{}, [V.viewText(M.msg("sheet.dropTitle"))])
-    , V.viewEl("small", Nil{}, [V.viewText(M.msg("sheet.dropHelp"))])
     ] : List<&2, V.ViewNode>}

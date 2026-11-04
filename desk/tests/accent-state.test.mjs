@@ -45,3 +45,15 @@ test('o acento não mexe nos outros campos do estado', () => {
   assert.equal(layout.chatWidth, 500);
   assert.equal(layout.accent, 'green');
 });
+
+
+test('desk.json antigo com mascot/appIcon não volta a gravar os campos (#101)', () => {
+  const old = {...base, accent: 'blue', mascot: 'nabla', appIcon: 'm-colorido'};
+  const layout = deskLayout(old);
+  assert.equal('mascot' in layout, false, 'a carga não devolve mascote');
+  assert.equal('appIcon' in layout, false, 'nem ícone');
+  const saved = saveState(old, {...base, accent: 'green', mascot: 'sigma', appIcon: 'm-refinado'});
+  assert.equal(saved.accent, 'green');
+  assert.equal('mascot' in saved, false, 'o save ignora o campo antigo');
+  assert.equal('appIcon' in saved, false);
+});

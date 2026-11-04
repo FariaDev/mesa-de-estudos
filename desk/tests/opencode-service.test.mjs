@@ -12,11 +12,12 @@ const {NativeService, ClaudeService} = require('../src/agents/service.cjs');
 const {OpenCodeAdapter} = require('../src/agents/opencode-adapter.cjs');
 
 const PASSWORD = 'senha-de-teste';
+const fakeReadVersion = async () => 'opencode v2.2.4';
 
 async function createHarness(t, serveOptions = {}, serviceOptions = {}) {
   const serve = await createFakeOpencodeServe({password: PASSWORD, ...serveOptions});
   const adapter = new OpenCodeAdapter({conversationId: 'conv-1', sessionId: '', directory: '/tmp/mesa-ws/conv-1',
-    acquire: async () => ({baseUrl: serve.url, password: PASSWORD, binary: '/fake/opencode'})});
+    acquire: async () => ({baseUrl: serve.url, password: PASSWORD, binary: '/fake/opencode'}), readVersion: fakeReadVersion});
   const service = new NativeService({adapter, engine: 'opencode', ...serviceOptions});
   const events = [];
   service.on('event', (event) => events.push(event));

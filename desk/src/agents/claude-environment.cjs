@@ -120,10 +120,14 @@ function expandHome(candidate, home) {
    padrão do instalador oficial (`~/.local/bin/claude` → versions/<v>). */
 function candidatePaths({configuredPath, home = os.homedir(), platform = process.platform} = {}) {
   const out = [];
+  /* Todos os candidatos passam pelo mesmo `path.resolve` (o do `expandHome`):
+     `path.join` sozinho devolvia a forma relativa à unidade no Windows
+     (`\casa\...`) enquanto o configurado saía com drive (`D:\casa\...`), e a
+     dedupe/comparação via duas formas do MESMO caminho (CI windows-latest). */
   const configured = expandHome(configuredPath, home);
   if (configured) out.push(configured);
-  if (platform === 'win32') out.push(path.join(home, '.local', 'bin', 'claude.exe'));
-  out.push(path.join(home, '.local', 'bin', 'claude'));
+  if (platform === 'win32') out.push(path.resolve(home, '.local', 'bin', 'claude.exe'));
+  out.push(path.resolve(home, '.local', 'bin', 'claude'));
   return [...new Set(out)];
 }
 

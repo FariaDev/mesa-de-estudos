@@ -20,10 +20,11 @@
   <link rel="stylesheet" href="src/materials/pdf-model-simulado.css" data-material-model="pdf-model-simulado">
   <link rel="stylesheet" href="src/materials/pdf-model-formulario.css" data-material-model="pdf-model-formulario">
   <link rel="stylesheet" href="src/activity.css">
+  <link rel="stylesheet" href="src/release-notes.css">
 </head>
 <body>
 <!-- Primeira abertura em tela cheia (#64, docs/design/setup-guia-r1/Setup-passos.dc.html):
-     um passo por vez, a mascote grande à esquerda e o cartão com a trilha à
+     um passo por vez, a luminária à esquerda e o cartão com a trilha à
      direita. Só aparece com `body[data-first-run]` (src/first-run.mjs); o
      resto da Mesa fica `inert` atrás. Marcação: src/setup-markup.mjs (o teto de
      linhas deste arquivo só cai); passos e textos: src/setup-flow.mjs. -->
@@ -64,7 +65,6 @@
          vazio orientado. O módulo mostra a barra e a área só com o workspace
          `mesa-free`; na matéria normal tudo isto fica oculto. -->
     <div id="free-bar" hidden>
-      <strong data-i18n="free.tab">Livre</strong>
       <label class="free-field" for="free-title"><span class="free-field-label" data-i18n="free.field.title">Título</span>
         <input id="free-title" type="text" maxlength="120" autocomplete="off" placeholder="Sessão livre" title="Título da sessão" data-i18n-attr="placeholder=free.title.placeholder;title=free.title.title">
       </label>
@@ -86,11 +86,10 @@
     <p id="tutor-material-status" role="status" hidden></p>
     <div id="free-empty">
       <h2 data-i18n="free.empty.title">O que você quer estudar?</h2>
-      <p class="free-empty-text" data-i18n="free.empty.lead">Comece sem configurar uma matéria. A sessão e os materiais ficam guardados na aba Livre.</p>
       <div class="free-start-actions">
-        <div><strong data-i18n="free.empty.haveTitle">Já tenho um material</strong><p data-i18n="free.empty.haveBody">Abra um PDF para ler e perguntar ao tutor.</p><button type="button" id="free-empty-open" data-i18n="free.openPdf">Abrir PDF</button></div>
-        <div><strong data-i18n="free.empty.tutorTitle">Quero um material do tutor</strong><p data-i18n="free.empty.tutorBody">Peça um resumo, exemplos ou exercícios em PDF.</p><button type="button" id="free-empty-tutor" class="primary" data-i18n="study.tutorPdf">PDF pelo tutor</button></div>
-        <div><strong data-i18n="free.empty.promoteTitle">Quero organizar este estudo</strong><p data-i18n="free.empty.promoteBody">Leve a sessão e os PDFs para uma nova matéria.</p><button type="button" id="free-empty-promote" data-i18n="free.promote">Criar matéria</button></div>
+        <button type="button" id="free-empty-open" data-i18n="free.openPdf">Abrir PDF</button>
+        <button type="button" id="free-empty-tutor" class="primary" data-i18n="study.tutorPdf">PDF pelo tutor</button>
+        <button type="button" id="free-empty-promote" data-i18n="free.promote">Criar matéria</button>
       </div>
     </div>
     <!-- Área de apoio (segundo leitor e chat lateral): não há barra de abas.
@@ -120,11 +119,11 @@
             <button id="chat-more" type="button" class="icon-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="chat-more-pop" title="Mais opções" aria-label="Mais opções do tutor" data-i18n-attr="title=header.moreTitle;aria-label=header.moreAria"></button>
           </div>
         </div>
-        <div id="new-session-pop" class="chat-pop" role="menu" aria-label="Sessão nova" data-i18n-attr="aria-label=header.newSessionAria" hidden></div>
+        <div id="new-session-pop" class="chat-pop" role="menu" aria-label="Nova sessão com…" data-i18n-attr="aria-label=header.newSessionWith" hidden></div>
         <div id="chat-more-pop" class="chat-pop" role="menu" aria-label="Mais opções do tutor" data-i18n-attr="aria-label=header.moreAria" hidden></div>
         <div id="conversations-pop" role="dialog" aria-label="Sessões da matéria" data-i18n-attr="aria-label=header.sessionsAria" hidden>
           <div class="conv-head"><strong data-i18n="header.sessionsTitle">Sessões da matéria</strong><button type="button" id="conv-close" class="icon-btn" aria-label="Fechar" data-i18n-attr="aria-label=common.close">×</button></div>
-          <p class="fine" data-i18n="header.sessionsHint">Título, data, trecho e motor de cada sessão. A escolha mantém rascunho, fila e anexos.</p>
+          <p class="fine" data-i18n="header.sessionsHint">Trocar mantém rascunho, fila e anexos.</p>
           <div id="conv-list"></div>
           <button type="button" id="conv-library" class="conv-library" data-i18n="header.sessionsLibrary">Buscar e organizar sessões…</button>
         </div>
@@ -140,10 +139,11 @@
       <!-- Caixa de mensagem única (ticket #15). Acima dela, a linha "Vai junto"
            diz o que segue com a próxima mensagem e abre a edição do contexto de
            estudo (lista/questão e rascunho .xopp) no `#context-pop`. A caixa
-           guarda, de cima para baixo: fila e anexos (a captura do Conferir
-           entra aqui, removível), o campo e a fileira de ações. Enviar vira
-           Parar durante a resposta (mesmo lugar, nunca os dois). O texto da
-           linha e o encaixe Enviar/Parar são do `core/composerbox.bend`. -->
+           guarda, de cima para baixo: fila, a pílula "Contexto", anexos (a
+           captura do Conferir entra aqui, removível), o campo e a fileira de
+           ações. Enviar vira Parar durante a resposta (mesmo lugar, nunca os
+           dois). O texto da pílula e o encaixe Enviar/Parar são do
+           `core/composerbox.bend`; o menu Anexar é `#attach-pop`. -->
       <div id="composer">
         <div id="context-pop" role="dialog" aria-label="Contexto de estudo" data-i18n-attr="aria-label=composer.studyAria" hidden>
           <div id="study-context">
@@ -151,26 +151,35 @@
             <button id="pick-xopp" type="button" title="Associar arquivo do Xournal++" data-i18n-attr="title=composer.pickXoppTitle" data-i18n="composer.pickXoppDefault">Rascunho .xopp</button>
           </div>
           <p class="fine" id="context-pop-refs"></p>
+          <button type="button" class="guide-link" data-open-guide="tutor" data-i18n="guide.howItWorks">Como funciona</button>
         </div>
         <div id="check-note" role="group" aria-label="O Conferir não achou o programa" hidden data-i18n-attr="aria-label=check.noteAria"></div>
-        <div id="goes-along" class="goes-along">
-          <span id="context-summary" aria-live="polite"></span>
-          <button id="context-edit" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="context-pop" aria-label="Editar o contexto de estudo" title="Editar a lista ou questão ativa e o rascunho .xopp" data-i18n="composer.editLabel" data-i18n-attr="aria-label=composer.editAria;title=composer.editTitle">Editar</button>
+        <div id="legacy-session" role="status" hidden>
+          <p data-i18n="session.legacy.body">Conversa antiga, só para leitura.</p>
+          <button id="legacy-new-session" type="button" class="primary" data-i18n="session.legacy.action">Nova sessão</button>
         </div>
         <div id="composer-box" class="composer-box">
+          <div id="goes-along" class="goes-along">
+            <span id="context-summary" role="group" aria-live="polite"></span>
+            <button id="context-edit" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="context-pop" aria-label="Editar o contexto de estudo" title="Editar contexto" data-i18n="composer.editLabel" data-i18n-attr="aria-label=composer.editAria;title=composer.editTitle">Editar</button>
+          </div>
           <div id="mention-chips" class="mention-chips" role="group" aria-label="Ferramentas pedidas" data-i18n-attr="aria-label=mention.chips" hidden></div>
           <div id="attachments" hidden></div>
-          <textarea id="prompt" class="composer-field" rows="3" placeholder="Pergunte ou peça uma dica…" aria-label="Mensagem para o tutor" data-i18n-attr="placeholder=composer.hint.online;aria-label=composer.messageAria"></textarea>
+          <textarea id="prompt" class="composer-field" rows="3" placeholder="Pergunte ao tutor…" aria-label="Mensagem para o tutor" data-i18n-attr="placeholder=composer.hint.online;aria-label=composer.messageAria"></textarea>
           <div class="composer-actions">
-            <button id="attach" type="button" aria-label="Anexar imagem" title="Anexar imagem (ou cole com ⌘V, ou arraste para a mensagem; ⌘⇧C anexa a captura do Xournal++)" data-i18n-attr="aria-label=composer.attachAria;title=composer.attachTitle">Anexar</button>
-            <!-- Foto do celular (#36): logo depois do Anexar (`data-follows`); só aparece com a ponte do host. -->
-            <button id="phone-photo" type="button" data-follows="attach" aria-haspopup="dialog" aria-expanded="false" aria-controls="phone-pop" aria-label="Foto do celular" data-i18n-attr="aria-label=phone.button;title=phone.buttonTitle" hidden></button>
-            <button id="include-refs" type="button" aria-pressed="true" aria-label="Referências" title="Referências: manda o caminho e a página dos materiais abertos junto com a mensagem" data-i18n-attr="aria-label=composer.refs;title=composer.refsTitle">Referências</button>
-            <button id="check" type="button" title="Anexar a captura do Xournal++ à mensagem">Conferir Xournal++</button>
+            <button id="attach" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="attach-pop" aria-label="Anexar" title="Anexar (⌘V)" data-i18n-attr="aria-label=composer.attachAria;title=composer.attachTitle">Anexar</button>
+            <button id="include-refs" type="button" aria-pressed="true" aria-label="Referências" title="Incluir PDFs na mensagem" data-i18n-attr="aria-label=composer.refs;title=composer.refsTitle">Referências</button>
             <button id="model-indicator" type="button" class="model-indicator" aria-haspopup="dialog" aria-expanded="false" aria-controls="model-pop" aria-label="Tutor desligado. Modelo e esforço." data-state="off"><span id="status-dot" role="img"></span><span class="mi-text"><span class="mi-model">Tutor desligado</span></span></button>
-            <button id="stop" type="button" title="Parar a resposta. Você pode escrever e enviar enquanto ela chega: a mensagem entra na fila." data-i18n-attr="title=composer.stopTitle" hidden>Parar</button>
-            <button id="send" type="button" class="primary" aria-label="Enviar mensagem" data-i18n-attr="aria-label=composer.sendAria">Enviar</button>
+            <button id="stop" type="button" title="Parar" data-i18n-attr="title=composer.stopTitle" hidden>Parar</button>
+            <button id="send" type="button" class="primary" aria-label="Enviar mensagem" data-i18n-attr="aria-label=composer.sendAria"></button>
           </div>
+        </div>
+        <!-- Menu Anexar (#90): imagem/PDF, foto do celular e a captura do
+             Conferir num só lugar. A fileira fica com quatro controles. -->
+        <div id="attach-pop" class="attach-pop" role="menu" aria-label="Anexar" data-i18n-attr="aria-label=composer.attachMenu" hidden>
+          <button id="attach-file" type="button" role="menuitem">Imagem ou PDF</button>
+          <button id="phone-photo" type="button" role="menuitem" aria-haspopup="dialog" aria-expanded="false" aria-controls="phone-pop" aria-label="Foto do celular" data-i18n-attr="aria-label=phone.button;title=phone.buttonTitle" hidden></button>
+          <button id="check" type="button" role="menuitem" title="Anexar a captura do Xournal++ à mensagem">Conferir Xournal++</button>
         </div>
         <!-- Popover do indicador (abre para cima, ancorado nele): o aviso
              (tutor desligado / motor fixo) é do núcleo; o seletor de modelo e a
@@ -200,7 +209,7 @@
             <button id="phone-restart" type="button" data-i18n="phone.restart" hidden>Ligar de novo</button>
           </div>
         </div>
-        <input id="attach-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+        <input id="attach-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.pdf" multiple hidden>
       </div>
     </section>
     <div id="calc-divider" role="separator" aria-label="Redimensionar calculadora" title="Arraste para redimensionar a calculadora" data-i18n-attr="aria-label=layout.calcResize;title=layout.calcResizeTitle" tabindex="0"></div>
@@ -258,6 +267,14 @@
     <div class="dialog-actions"><button value="cancel" formnovalidate data-i18n="common.cancel">Cancelar</button><button id="bookmark-save" value="ok" class="primary" data-i18n="common.save">Salvar</button></div>
   </form>
 </dialog>
+<dialog id="link-dialog" aria-labelledby="link-title">
+  <form method="dialog">
+    <h2 id="link-title" data-i18n="link.confirm.title">Abrir este link?</h2>
+    <p class="help-lead" data-i18n="link.confirm.lead">Esta atividade veio do modelo. Confira o destino antes de abrir.</p>
+    <p class="link-confirm-host"><strong id="link-host"></strong></p><p class="link-confirm-path"><code id="link-path"></code></p>
+    <div class="dialog-actions"><button value="cancel" autofocus data-i18n="common.cancel">Cancelar</button><button value="ok" class="primary" data-i18n="link.confirm.open">Abrir</button></div>
+  </form>
+</dialog>
 <dialog id="image-dialog">
   <form method="dialog">
     <div class="help-head">
@@ -274,10 +291,9 @@
 <dialog id="help-dialog" aria-labelledby="help-title">
   <form method="dialog" class="guide">
     <nav class="guide-side" aria-label="Seções do guia" data-i18n-attr="aria-label=guide.navAria">
-      <!-- #64: o trio ∫ Σ ∇ pequeno (a ∫ lê com resultados; o ∇ pensa sem
-           resultado), sem acenar nem cochilar: o guia abre no meio do estudo. -->
+      <!-- A marca do app no acento: o trio saiu do topo do Guia a pedido do autor (#101). -->
       <div class="guide-head">
-        <div class="guide-mascote" id="guide-mascote"></div>
+        <img class="guide-lamp brand-icon" src="assets/app-icon/lamp-blue-128.png" alt="">
         <div class="guide-head-text">
           <h2 id="help-title" class="guide-title" data-i18n="guide.title">Guia da Mesa</h2>
           <span class="guide-sub" data-i18n="firstrun.helpLabel">Como a Mesa funciona</span>
@@ -291,6 +307,7 @@
       <div id="guide-nav" class="guide-nav"></div>
       <div class="guide-side-foot">
         <button type="button" id="keys-customize" class="guide-link" aria-haspopup="dialog" aria-controls="keys-dialog" data-i18n="guide.customizeKeys">Personalizar atalhos…</button>
+        <button type="button" id="help-triage" class="guide-link" data-i18n="triage.menu">Relatar um problema</button>
         <p class="guide-hint" data-i18n-html="guide.openHint">Abre com <kbd>⌘</kbd> <kbd>/</kbd> em qualquer lugar.</p>
         <p class="help-version" id="help-version"></p>
       </div>
@@ -336,7 +353,7 @@
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.comecar.t3.title">Pastas, matérias e aparência</h4>
-                <p data-i18n-html="guide.comecar.t3.body">Pastas, nomes de matérias e o caminho do programa do tutor ficam em <strong>Configurações</strong>. O tema (automático, claro ou escuro), a cor de acento e o <strong>Modo compacto</strong> (<kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd>) estão na seção <strong>Aparência e avisos</strong>.</p>
+                <p data-i18n-html="guide.comecar.t3.body">Pastas, nomes de matérias e o caminho do programa do tutor ficam em <strong>Configurações</strong>. O tema (automático, claro ou escuro), a cor de acento e a densidade (<strong>Compacta</strong>, <kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd>) estão na seção <strong>Aparência e avisos</strong>.</p>
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.comecar.t4.title">GeoGebra</h4>
@@ -349,7 +366,7 @@
             <div class="guide-topics">
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.tutor.t1.title">O que vai junto</h4>
-                <p><span data-i18n-html="guide.tutor.t1.body.a">A linha <strong>Vai junto</strong>, acima da caixa, diz o que segue com a próxima mensagem: a matéria, a questão ativa, o rascunho <code>.xopp</code> e os PDFs abertos com a página.</span><span id="help-study-li" data-i18n-html="guide.tutor.t1.body.b"> <strong>Editar</strong> troca a lista ou questão ativa e o rascunho.</span><span data-i18n-html="guide.tutor.t1.body.c"> O botão <strong>Referências</strong> liga e desliga os materiais</span><span id="help-refs-li" data-i18n-html="guide.tutor.t1.body.d"> — mandam caminho e página, não o PDF inteiro</span>.</p>
+                <p><span data-i18n-html="guide.tutor.t1.body.a">As pílulas dentro da caixa de mensagem dizem o que segue com a próxima mensagem: a matéria, a questão ativa, o rascunho <code>.xopp</code> e os PDFs abertos com a página.</span><span id="help-study-li" data-i18n-html="guide.tutor.t1.body.b"> O lápis ao lado troca a lista ou questão ativa e o rascunho.</span><span data-i18n-html="guide.tutor.t1.body.c"> O botão <strong>Referências</strong> (o ícone de colunas) liga e desliga os materiais</span><span id="help-refs-li" data-i18n-html="guide.tutor.t1.body.d"> — mandam caminho e página, não o PDF inteiro</span>.</p>
               </section>
               <section class="guide-topic" id="help-conferir-li" data-search>
                 <h4 data-i18n="guide.tutor.t2.title">Conferir Xournal++</h4>
@@ -373,11 +390,11 @@
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.tutor.t6.title">Modelo e esforço</h4>
-                <p data-i18n-html="guide.tutor.t6.body">Ficam no indicador do cabeçalho do tutor, por exemplo <strong>Sonnet · médio</strong>. Clique nele para trocar. Cada sessão conserva o motor que a criou; para abrir uma no <strong>Claude</strong> (experimental, usa o login feito no próprio Claude Code), use a busca de comandos (<kbd>⌘</kbd><kbd>K</kbd>) → <strong>Sessão nova com Claude (experimental)</strong>.</p>
+                <p data-i18n-html="guide.tutor.t6.body">Ficam no indicador na fileira da caixa de mensagem, por exemplo <strong>Sonnet · médio</strong>. Clique nele para trocar. Cada sessão conserva o motor que a criou; para abrir uma no <strong>Claude</strong> (experimental, usa o login feito no próprio Claude Code), use a busca de comandos (<kbd>⌘</kbd><kbd>K</kbd>) → <strong>Sessão nova com Claude (experimental)</strong>.</p>
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.tutor.t7.title">Sessões e contexto</h4>
-                <p data-i18n-html="guide.tutor.t7.body">O título da sessão, no cabeçalho do tutor, lista as sessões da matéria; escolher por lá mantém rascunho, fila e anexos. Em <strong>Mais opções</strong> estão o medidor de contexto, <strong>Resumir agora</strong> e a compactação automática. Digitar <code>/compact</code> na mensagem faz o mesmo (aceita instruções: <code>/compact foque na questão 7</code>).</p>
+                <p data-i18n-html="guide.tutor.t7.body">O título da sessão, no cabeçalho do tutor, lista as sessões da matéria; escolher por lá mantém rascunho, fila e anexos. Em <strong>Mais opções</strong> estão o medidor de contexto, <strong>Resumir o contexto agora</strong> e a compactação automática. Digitar <code>/compact</code> na mensagem faz o mesmo (aceita instruções: <code>/compact foque na questão 7</code>).</p>
               </section>
               <section class="guide-topic" id="help-endday-li" data-search>
                 <h4 data-i18n="guide.tutor.t8.title">Encerrar por hoje</h4>
@@ -394,7 +411,7 @@
             <div class="guide-topics">
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.leitores.t1.title">Citação clicável</h4>
-                <p data-i18n-html="guide.leitores.t1.body"><code>Limites.pdf, p. 3</code> numa resposta abre o PDF naquela página (ou carrega o arquivo no leitor). <strong>Voltar</strong>, na barra do leitor, desfaz o pulo; <strong>Navegar</strong> guarda favoritos nomeados e mostra o sumário do documento.</p>
+                <p data-i18n-html="guide.leitores.t1.body"><code>Limites.pdf, p. 3</code> numa resposta abre o PDF naquela página (ou carrega o arquivo no leitor). Depois de um pulo, <strong>Voltar</strong> aparece na barra do leitor; <strong>Marcadores</strong>, nos três pontos, guarda favoritos nomeados e mostra o sumário do documento.</p>
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.leitores.t2.title">Buscar</h4>
@@ -402,7 +419,7 @@
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.leitores.t3.title">Mais opções do leitor</h4>
-                <p data-i18n-html="guide.leitores.t3.body">Os três pontos na barra de cada leitor reúnem zoom, ajustar à largura, <strong>Inverter cores</strong> (a escolha fica por arquivo), girar, <strong>Capturar página</strong> e <strong>minimizar o PDF</strong> para uma faixa que libera o espaço para o outro; clique na faixa para restaurar.</p>
+                <p data-i18n-html="guide.leitores.t3.body">Os três pontos na barra de cada leitor reúnem <strong>Capturar página</strong>, zoom, <strong>Largura</strong>, <strong>Página escura</strong> (a escolha fica por arquivo), <strong>Girar</strong>, <strong>Marcadores</strong> e <strong>Minimizar este leitor</strong>, que vira uma faixa e libera o espaço para o outro; clique na faixa para restaurar.</p>
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.leitores.t4.title">Mover-se no documento</h4>
@@ -410,7 +427,11 @@
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.leitores.t5.title">Soltar um PDF</h4>
-                <p data-i18n="guide.leitores.t5.body">Solte um PDF sobre o leitor para abrir o arquivo de onde ele está, sem copiar. Sem material, o leitor mostra a folha de primeiros passos.</p>
+                <p data-i18n="guide.leitores.t5.body">Solte um PDF sobre o leitor para abrir o arquivo de onde ele está, sem copiar. Sem material, o leitor mostra o quadro <strong>Solte um PDF aqui</strong>.</p>
+              </section>
+              <section class="guide-topic" data-search>
+                <h4 data-i18n="guide.leitores.t6.title">Sem material</h4>
+                <p data-i18n-html="guide.leitores.t6.body">Arraste um PDF do computador para o quadro, ou use <strong>Abrir PDF…</strong>. Os arquivos da pasta da matéria aparecem sozinhos; <strong>Pedir ao tutor</strong> cria uma lista de exercícios.</p>
               </section>
             </div>
           </section>
@@ -436,7 +457,7 @@
             <div class="guide-topics">
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.revisao.t1.title">Guardar para revisar</h4>
-                <p data-i18n="guide.revisao.t1.body">Embaixo de toda resposta do tutor. O item já vem com a questão ativa, sua última mensagem, o trecho selecionado e a página aberta.</p>
+                <p data-i18n="guide.revisao.t1.body">Embaixo das respostas do tutor; na última, o ícone de guardar fica à vista. O item já vem com a questão ativa, sua última mensagem, o trecho selecionado e a página aberta.</p>
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.revisao.t2.title">Como foi?</h4>
@@ -444,7 +465,7 @@
               </section>
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.revisao.t3.title">Tentar de novo</h4>
-                <p data-i18n-html="guide.revisao.t3.body">Em cada item, <strong>Tentar de novo com o tutor</strong> e <strong>Pedir um parecido</strong> escrevem o pedido na caixa de mensagem, sem enviar. <strong>Editar</strong> muda o texto do item e <strong>Remover</strong> o tira, com confirmação.</p>
+                <p data-i18n-html="guide.revisao.t3.body">Em cada item, <strong>Tentar de novo</strong> e <strong>Pedir um parecido</strong> escrevem o pedido na caixa de mensagem, sem enviar. <strong>Editar</strong> muda o texto do item e <strong>Remover</strong> o tira, com confirmação.</p>
               </section>
             </div>
           </section>
@@ -483,7 +504,7 @@
                 <div class="guide-key" data-key="ggb-check" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd></span><span data-i18n="guide.atalhos.row.ggb-check">Conferir o applet GeoGebra</span></div>
                 <div class="guide-key" data-key="pdf-find" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>F</kbd></span><span data-i18n="guide.atalhos.row.pdf-find">Buscar no PDF focado</span></div>
                 <div class="guide-key" data-key="page-nav" data-search><span class="guide-combo"><kbd>←</kbd><kbd>→</kbd></span><span data-i18n="guide.atalhos.row.page-nav">Página anterior / seguinte</span></div>
-                <div class="guide-key" data-key="invert" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>I</kbd></span><span data-i18n="guide.atalhos.row.invert">Inverter as cores da página (tema escuro)</span></div>
+                <div class="guide-key" data-key="invert" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>I</kbd></span><span data-i18n="guide.atalhos.row.invert">Página escura no leitor</span></div>
               </section>
               <section class="guide-keygroup">
                 <h4 data-i18n="guide.atalhos.g3">Mesa</h4>
@@ -519,38 +540,32 @@
       <section class="set-sec" id="settings-sec-materias" data-sec="materias" aria-labelledby="set-materias">
         <div class="set-head">
           <h3 id="set-materias" data-i18n="settings.sec.courses">Matérias</h3>
-          <p data-i18n="settings.courses.lead">Cada matéria é uma aba no topo, com sua pasta de PDFs e suas sessões.</p>
         </div>
         <div id="cfg-courses"></div>
         <button type="button" id="cfg-add-course" class="set-link" data-i18n="settings.courses.add">Adicionar matéria</button>
-        <p class="fine" data-i18n="settings.courses.removeNote">Remover uma matéria tira a aba. Os PDFs e as sessões guardadas não são apagados.</p>
       </section>
       <section class="set-sec" id="settings-sec-leitores" data-sec="leitores" aria-labelledby="set-leitores" hidden>
         <div class="set-head">
           <h3 id="set-leitores" data-i18n="settings.sec.readers">Leitores</h3>
-          <p data-i18n="settings.readers.lead">Quantos leitores de PDF, o nome de cada painel e qual arquivo abre em cada um.</p>
+          <button type="button" class="set-link" data-open-guide="leitores" data-i18n="guide.howItWorks">Como funciona</button>
         </div>
         <div id="cfg-layout"></div>
       </section>
       <section class="set-sec" id="settings-sec-mesa" data-sec="mesa" aria-labelledby="set-mesa" hidden>
         <div class="set-head">
           <h3 id="set-mesa" data-i18n="settings.sec.features">Recursos da mesa</h3>
-          <p data-i18n="settings.features.lead">Ligue só o que você usa; o que sai daqui some da tela, sem apagar nada.</p>
         </div>
         <label><span data-i18n="settings.features.deskName">Nome da mesa</span><input id="cfg-title" type="text" placeholder="Mesa de Estudos"></label>
         <label class="set-check"><input type="checkbox" id="cfg-desk-endDay"><span data-i18n="settings.features.endDay">Encerrar por hoje e retomada</span></label>
-        <label class="set-check"><input type="checkbox" id="cfg-desk-studyContext"><span data-i18n="settings.features.studyContext">Lista/questão ativa e rascunho .xopp</span></label>
-        <p class="fine" data-i18n="settings.features.studyContextNote">Lista/questão e rascunho são ativados juntos. Desativar exclui esse contexto das próximas mensagens ao tutor.</p>
+        <label class="set-check" title="Desligado, a matéria, a lista/questão e o rascunho .xopp não vão." data-i18n-attr="title=settings.features.studyContextNote"><input type="checkbox" id="cfg-desk-studyContext"><span data-i18n="settings.features.studyContext">Lista/questão ativa e rascunho .xopp</span></label>
         <label class="set-check"><input type="checkbox" id="cfg-desk-calculator"><span data-i18n="settings.features.calculator">Calculadora</span></label>
         <label class="set-check"><input type="checkbox" id="cfg-desk-xournal"><span id="cfg-desk-xournal-label">Botão para abrir o Xournal++</span></label>
         <label class="set-check"><input type="checkbox" id="cfg-desk-conferir"><span id="cfg-desk-conferir-label">Conferir Xournal++</span></label>
-        <label class="set-check"><input type="checkbox" id="cfg-desk-refsToggle"><span data-i18n="settings.features.refsToggle">Botão para incluir referências no tutor</span></label>
-        <p class="fine" data-i18n="settings.features.refsNote">Ao esconder o botão de referências, os PDFs continuam incluídos nas mensagens.</p>
+        <label class="set-check" title="Esconder o botão não tira os PDFs das mensagens." data-i18n-attr="title=settings.features.refsNote"><input type="checkbox" id="cfg-desk-refsToggle"><span data-i18n="settings.features.refsToggle">Botão para incluir referências no tutor</span></label>
       </section>
       <section class="set-sec" id="settings-sec-avisos" data-sec="avisos" aria-labelledby="set-avisos" hidden>
         <div class="set-head">
           <h3 id="set-avisos" data-i18n="settings.sec.appearance">Aparência e avisos</h3>
-          <p data-i18n="settings.appearance.lead">Idioma, tema e cor de acento valem na hora e ficam lembrados; não dependem do Salvar.</p>
         </div>
         <label><span data-i18n="settings.language">Idioma</span>
           <select id="ui-language">
@@ -588,7 +603,6 @@
       <section class="set-sec" id="settings-sec-pastas" data-sec="pastas" aria-labelledby="set-pastas" hidden>
         <div class="set-head">
           <h3 id="set-pastas" data-i18n="settings.sec.folders">Pastas e programas</h3>
-          <p data-i18n="settings.folders.lead">Onde ficam os dados e os programas que a mesa chama. As credenciais do modelo continuam no Pi.</p>
         </div>
         <label><span data-i18n="settings.folders.vault">Pasta do vault / dados</span>
           <span class="path-row">
@@ -598,21 +612,24 @@
         </label>
         <label><span data-i18n="settings.folders.pi">Executável do Pi</span>
           <span class="path-row">
-            <input id="cfg-pi" type="text" spellcheck="false" placeholder="detectar automaticamente" data-i18n-attr="placeholder=settings.detectAuto">
+            <input id="cfg-pi" type="text" readonly spellcheck="false" placeholder="detectar automaticamente" data-i18n-attr="placeholder=settings.detectAuto">
             <button type="button" id="cfg-pi-detect" data-i18n="settings.detect">Detectar</button>
             <button type="button" id="cfg-pi-browse" data-i18n="settings.choose">Escolher</button>
+            <button type="button" id="cfg-pi-clear" data-i18n="settings.clear">Limpar</button>
           </span>
         </label>
         <label><span data-i18n="settings.folders.claude">Executável do Claude Code</span>
           <span class="path-row">
-            <input id="cfg-claude" type="text" spellcheck="false" placeholder="detectar automaticamente" data-i18n-attr="placeholder=settings.detectAuto">
+            <input id="cfg-claude" type="text" readonly spellcheck="false" placeholder="detectar automaticamente" data-i18n-attr="placeholder=settings.detectAuto">
             <button type="button" id="cfg-claude-browse" data-i18n="settings.choose">Escolher</button>
+            <button type="button" id="cfg-claude-clear" data-i18n="settings.clear">Limpar</button>
           </span>
         </label>
         <label id="cfg-xournal-wrap">Xournal++
           <span class="path-row">
-            <input id="cfg-xournal" type="text" spellcheck="false">
+            <input id="cfg-xournal" type="text" readonly spellcheck="false">
             <button type="button" id="cfg-xournal-browse" data-i18n="settings.choose">Escolher</button>
+            <button type="button" id="cfg-xournal-clear" data-i18n="settings.clear">Limpar</button>
           </span>
         </label>
         <!-- Programa de escrita do Conferir (#38): campo e lista vêm do
@@ -626,7 +643,7 @@
              config.json. A janela só vê a máscara. -->
         <div id="cfg-free-models" class="cfg-free-models">
           <div class="set-group-label" data-i18n="freeModels.settings.title">Modelos gratuitos (OpenCode Zen)</div>
-          <p class="fine" data-i18n="freeModels.settings.lead">Estude sem assinatura de IA.</p>
+          <p class="fine" data-i18n="freeModels.settings.lead">Modelos grátis do OpenCode Zen; a chave fica no cofre do sistema.</p>
           <label><span data-i18n="freeModels.settings.key">Chave do OpenCode Zen</span>
             <span class="path-row">
               <input id="cfg-opencode-key" type="password" spellcheck="false" autocomplete="off" placeholder="Cole a chave aqui" data-i18n-attr="placeholder=freeModels.settings.paste">
@@ -639,19 +656,12 @@
           <button type="button" id="cfg-opencode-usefile" class="set-link" hidden data-i18n="freeModels.settings.useFile">Usar a chave do OpenCode deste computador</button>
           <p id="cfg-opencode-usefile-note" class="fine" hidden></p>
           <p id="cfg-opencode-status" class="fine" role="status" aria-live="polite" hidden></p>
-          <details id="cfg-avoid-charges" class="free-avoid">
-            <summary data-i18n="freeModels.avoid.title">Como evitar cobrança</summary>
-            <ul>
-              <li data-i18n="freeModels.avoid.reload">Desligue a recarga automática no console do OpenCode.</li>
-              <li data-i18n="freeModels.avoid.limit">Defina um limite mensal.</li>
-              <li data-i18n="freeModels.avoid.free">Use só modelos com a marca Grátis.</li>
-            </ul>
-          </details>
+          <button type="button" class="set-link" data-open-guide="tutor" data-i18n="guide.howItWorks">Como funciona</button>
         </div>
       </section>
     </div>
     <div class="dialog-actions settings-actions">
-      <span class="settings-hint" id="settings-hint" data-i18n="settings.hint.save">As mudanças só valem depois de salvar.</span>
+      <span class="settings-hint" id="settings-hint"></span>
       <span class="settings-error" id="settings-error" role="alert" hidden></span>
       <button value="cancel" data-i18n="settings.cancel">Cancelar</button>
       <button id="settings-save" value="ok" class="primary" data-i18n="settings.save">Salvar</button>
@@ -661,7 +671,7 @@
 <dialog id="about-dialog" aria-labelledby="about-title">
   <form method="dialog">
     <div class="about-head">
-      <img class="about-mark brand-icon" src="assets/app-icon/mesa-blue.svg" alt="">
+      <img class="about-mark brand-icon" src="assets/app-icon/lamp-blue-128.png" alt="">
       <div class="about-id">
         <div id="about-title" class="about-name" role="heading" aria-level="1">Mesa de Estudos</div>
         <p id="about-lead" class="about-lead" data-i18n="about.leadStatic">Licença MIT</p>
@@ -679,17 +689,17 @@
       <div id="about-credits" class="about-credits" hidden>
         <h3 data-i18n="about.credits">Créditos e licenças</h3>
         <ul>
-          <li><strong>Pi</strong> — <span data-i18n="about.credit.pi">programa local que faz o tutor funcionar</span></li>
-          <li data-package="electron"><strong>Electron</strong> 44.7.2 — <span data-i18n="about.credit.electron">janela do aplicativo (MIT, © Electron contributors, © 2013-2020 GitHub Inc.)</span></li>
+          <li id="about-credit-pi"><strong>Pi</strong> — <span data-i18n="about.credit.pi">programa local que faz o tutor funcionar</span></li>
+          <li data-package="electron"><strong>Electron</strong> 45.2.0 — <span data-i18n="about.credit.electron">janela do aplicativo (MIT, © Electron contributors, © 2013-2020 GitHub Inc.)</span></li>
           <li data-package="pdfjs-dist"><strong>PDF.js</strong> 6.4.299 — <span data-i18n="about.credit.pdfjs">leitores de PDF (Apache-2.0, © Mozilla Foundation)</span></li>
-          <li data-package="katex"><strong>KaTeX</strong> 0.19.0 — <span data-i18n="about.credit.katex">fórmulas na sessão (MIT, © 2013-2020 Khan Academy and other contributors)</span></li>
-          <li data-package="marked"><strong>marked</strong> 18.1.1 — <span data-i18n="about.credit.marked">texto em Markdown do chat e dos modelos de PDF (MIT, © 2018+ MarkedJS, © 2011-2018 Christopher Jeffrey; trecho do Markdown, © 2004 John Gruber)</span></li>
+          <li data-package="katex"><strong>KaTeX</strong> 0.19.1 — <span data-i18n="about.credit.katex">fórmulas na sessão (MIT, © 2013-2020 Khan Academy and other contributors)</span></li>
+          <li data-package="marked"><strong>marked</strong> 18.1.2 — <span data-i18n="about.credit.marked">texto em Markdown do chat e dos modelos de PDF (MIT, © 2018+ MarkedJS, © 2011-2018 Christopher Jeffrey; trecho do Markdown, © 2004 John Gruber)</span></li>
           <li data-package="dompurify"><strong>DOMPurify</strong> 3.4.17 — <span data-i18n="about.credit.dompurify">limpeza do HTML das visualizações (Apache-2.0 ou MPL-2.0, © Cure53 e colaboradores)</span></li>
-          <li data-package="chart.js"><strong>Chart.js</strong> 4.5.1 — <span data-i18n="about.credit.chartjs">gráficos das visualizações do tutor, embutido e offline (MIT, © 2014-2024 Chart.js Contributors)</span></li>
-          <li data-package="@anthropic-ai/claude-agent-sdk"><strong>Claude Agent SDK</strong> 0.3.301 — <span data-i18n="about.credit.agentSdk">ponte com o Claude Code (© Anthropic PBC, sob os termos legais da Anthropic)</span></li>
+          <li data-package="chart.js"><strong>Chart.js</strong> 4.6.1 — <span data-i18n="about.credit.chartjs">gráficos das visualizações do tutor, embutido e offline (MIT, © 2014-2024 Chart.js Contributors)</span></li>
+          <li data-package="@anthropic-ai/claude-agent-sdk"><strong>Claude Agent SDK</strong> 0.3.314 — <span data-i18n="about.credit.agentSdk">ponte com o Claude Code (© Anthropic PBC, sob os termos legais da Anthropic)</span></li>
           <li><strong>GeoGebra</strong> — <span data-i18n="about.credit.geogebra">applet da aba GeoGebra, da web ou do pacote offline que você baixa no setup (licença não comercial, geogebra.org/license)</span>. Made with GeoGebra®, geogebra.org</li>
           <li><strong>Lobe Icons</strong> 1.95.1 — <span data-i18n="about.credit.lobeIcons">logos dos provedores e dos fabricantes no seletor de modelo, embutidos e offline (MIT, © 2023 LobeHub, github.com/lobehub/lobe-icons; as marcas são dos donos)</span></li>
-          <li><strong>Lucide</strong> — <span data-i18n="about.credit.lucide">ícones da interface, menos a faísca (ISC, © Lucide Contributors; partes do Feather, MIT, © Cole Bemis)</span></li> <li><strong>STIX Two Text</strong> 2.13 — <span data-i18n="about.credit.stix">serifa da Lista 0, do Caderno e dos modelos de PDF, embutida (SIL OFL 1.1, © The STIX Fonts Project Authors)</span></li>
+          <li><strong>Lucide</strong> — <span data-i18n="about.credit.lucide">ícones da interface, menos a faísca (ISC, © Lucide Contributors; partes do Feather, MIT, © Cole Bemis)</span></li> <li><strong>STIX Two Text/Math</strong> 2.13 — <span data-i18n="about.credit.stix">serifa da Lista 0, do Caderno e dos modelos de PDF, embutida (SIL OFL 1.1, © The STIX Fonts Project Authors)</span></li>
           <li><strong>T3 Code</strong> — <span data-i18n="about.credit.t3">desenho do quadro de visualizações, da prévia e dos tokens de tema, adaptado (MIT, © 2026 T3 Tools Inc.)</span></li>
           <li><strong>Xournal++</strong> — <span data-i18n="about.credit.xournal">escrita à mão, fora da Mesa</span></li>
         </ul>
@@ -766,7 +776,7 @@
       <ul class="free-points">
         <li data-i18n="freeModels.card.account">Você precisa de uma conta no OpenCode. A Mesa não cria conta por você.</li>
         <li data-i18n="freeModels.card.billing">O site pode pedir um cartão ou um saldo para liberar a chave.</li>
-        <li data-i18n="freeModels.card.charges">Os modelos marcados como Grátis não cobram.</li>
+        <li data-i18n="freeModels.card.charges">Modelos grátis não cobram. Desligue a recarga automática no console.</li>
         <li data-i18n="freeModels.card.local">A chave fica só neste computador.</li>
       </ul>
       <button type="button" id="free-models-authfile" class="set-link" hidden data-i18n="freeModels.card.authFile">Usar a chave do OpenCode deste computador</button>
@@ -786,7 +796,7 @@
       <input id="free-models-key" type="password" spellcheck="false" autocomplete="off" autocapitalize="off">
     </section>
     <section data-step="paid" hidden>
-      <p data-i18n="freeModels.paid.body">Os modelos sem a marca Grátis cobram do saldo da sua conta no OpenCode.</p>
+      <p data-i18n="freeModels.paid.body">Modelos pagos cobram do saldo da sua conta no OpenCode. Usar mesmo assim?</p>
     </section>
     <section data-step="done" hidden>
       <p id="free-models-done"></p>
@@ -817,12 +827,10 @@
   <form method="dialog" id="tutor-pdf-form">
     <div class="help-head"><h2 data-i18n="study.tutorPdf">PDF pelo tutor</h2><button value="cancel" class="icon-btn" aria-label="Fechar" data-i18n-attr="aria-label=common.close">×</button></div>
     <div class="free-dialog-body">
-      <p class="help-lead" data-i18n="free.tutorPdf.lead">Conte o que você quer estudar. O tutor escreve o conteúdo e preenche a prévia. Você revisa, pode editar e salva o PDF, que abre no leitor.</p>
-      <label><span data-i18n="free.tutorPdf.request">O que deve entrar no PDF?</span><textarea id="tutor-pdf-request" rows="4" maxlength="4000" placeholder="Ex.: resumo de Pitágoras, dois exemplos resolvidos e cinco exercícios" data-i18n-attr="placeholder=free.tutorPdf.placeholder"></textarea></label>
-      <p class="fine" data-i18n="free.tutorPdf.fine">Você também pode pedir diretamente ao tutor: “gere um PDF com…”</p>
+      <label><span data-i18n="free.tutorPdf.request">O que estudar?</span><textarea id="tutor-pdf-request" rows="4" maxlength="4000" placeholder="Ex.: resumo, 2 exemplos e 5 exercícios" data-i18n-attr="placeholder=free.tutorPdf.placeholder"></textarea></label>
       <p id="tutor-pdf-error" class="free-error" role="alert" hidden></p>
     </div>
-    <div class="dialog-actions"><button value="cancel" data-i18n="common.cancel">Cancelar</button><button type="submit" id="tutor-pdf-send" class="primary" data-i18n="free.tutorPdf.send">Enviar ao tutor</button></div>
+    <div class="dialog-actions"><button value="cancel" data-i18n="common.cancel">Cancelar</button><button type="submit" id="tutor-pdf-send" class="primary" data-i18n="free.tutorPdf.send">Pedir PDF</button></div>
   </form>
 </dialog>
 <dialog id="free-promote-dialog">

@@ -3,8 +3,8 @@
 function cmp_new(a, b) {
   return { $: a < b ? "LT" : a === b ? "EQ" : "GT" };
 }
-function char_len(s) {
-  return s[0] === "\uDC00" ? 4 : s.codePointAt(0) > 65535 ? 2 : 1;
+function char_len(s, at = 0) {
+  return s[at] === "\uDC00" ? 4 : s.codePointAt(at) > 65535 ? 2 : 1;
 }
 function char_code(s) {
   return s.length < 4 ? s.codePointAt(0) : (s.charCodeAt(1) << 22 | s.charCodeAt(2) << 11 | s.charCodeAt(3)) >>> 0;
@@ -22,6 +22,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $accentDefault() {
   return { $: "AccentBlue" };
 }
@@ -33,7 +34,7 @@ function $accentIf(_hit_0, _found_0, _rest_0) {
   }
 }
 function $parseAccent(_raw_0, _fallback_0) {
-  return $accentIf($String_eq(_raw_0, "blue"), { $: "AccentBlue" }, $accentIf($String_eq(_raw_0, "violet"), { $: "AccentViolet" }, $accentIf($String_eq(_raw_0, "green"), { $: "AccentGreen" }, $accentIf($String_eq(_raw_0, "orange"), { $: "AccentOrange" }, $accentIf($String_eq(_raw_0, "pink"), { $: "AccentPink" }, $accentIf($String_eq(_raw_0, "graphite"), { $: "AccentGraphite" }, _fallback_0))))));
+  return $accentIf($$String_eq(_raw_0, "blue"), { $: "AccentBlue" }, $$accentIf($$String_eq(_raw_0, "violet"), { $: "AccentViolet" }, $$accentIf($$String_eq(_raw_0, "green"), { $: "AccentGreen" }, $$accentIf($$String_eq(_raw_0, "orange"), { $: "AccentOrange" }, $$accentIf($$String_eq(_raw_0, "pink"), { $: "AccentPink" }, $$accentIf($$String_eq(_raw_0, "graphite"), { $: "AccentGraphite" }, _fallback_0))))));
 }
 function $accentOrDefault(_value_0, _fallback_0) {
   if (_value_0.$ === "None") {
@@ -44,10 +45,10 @@ function $accentOrDefault(_value_0, _fallback_0) {
   }
 }
 function $normalizeAccent(_value_0) {
-  return $accentOrDefault(_value_0, $accentDefault());
+  return $accentOrDefault(_value_0, $$accentDefault());
 }
 function $String_eq(_a_0, _b_0) {
-  return $Cmp_is_eq($String_order(_a_0, _b_0));
+  return $Cmp_is_eq($$String_order(_a_0, _b_0));
 }
 function $Cmp_is_eq(_c_0) {
   if (_c_0.$ === "EQ") {
@@ -77,6 +78,7 @@ function $String_order_go($0, $1, $2) {
         }
       } else {
         const _t_1 = _a_0.slice(0, char_len(_a_0));
+        const _x_0 = char_code(_t_1);
         const _t_2 = _a_0.slice(char_len(_a_0));
         if (_b_0 === "") {
           if (_c_0.$ === "EQ") {
@@ -86,13 +88,12 @@ function $String_order_go($0, $1, $2) {
           }
         } else {
           const _t_3 = _b_0.slice(0, char_len(_b_0));
+          const _y_0 = char_code(_t_3);
           const _t2_0 = _b_0.slice(char_len(_b_0));
           if (_c_0.$ === "EQ") {
-            const _x_0 = char_code(_t_1);
-            const _x_1 = char_code(_t_3);
             $0 = _t_2;
             $1 = _t2_0;
-            $2 = cmp_new(_x_0, _x_1);
+            $2 = cmp_new(_x_0, _y_0);
             continue;
           } else {
             return _c_0;
@@ -102,6 +103,10 @@ function $String_order_go($0, $1, $2) {
     }
   }
 }
+var $$String_eq = $String_eq;
+var $$accentIf = $accentIf;
+var $$accentDefault = $accentDefault;
+var $$String_order = $String_order;
 var accent_default = {
   accentDefault: run_lib(() => run_loop($accentDefault()), 0),
   accentIf: run_lib((a0, a1, a2) => run_loop($accentIf(a0, a1, a2)), 3),

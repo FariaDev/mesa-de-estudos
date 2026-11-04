@@ -60,3 +60,28 @@ test('captureXournalWindow: PNG ruim é erro, não anexo — e o temporário sai
   assert.equal(fs.existsSync(dir), false, 'o temporário é limpo em qualquer saída');
   assert.equal(fs.existsSync(dir2), false, 'o temporário é limpo em qualquer saída');
 });
+
+test('buildScript: as quatro aspas que o PowerShell lê como simples não passam no nome do processo', () => {
+  /* Cada uma fecharia o literal `'…'` no meio do script (revisão de segurança). */
+  for (const aspa of ["'", '‘', '’', '‚', '‛']) {
+    assert.throws(() => buildScript('C:\\cap.png', `xournal${aspa}pp`), ptMatches(/Nome de processo inválido/), `aspa ${aspa.codePointAt(0).toString(16)}`);
+  }
+  assert.throws(() => buildScript('C:\\cap.png', 'x;calc'), ptMatches(/Use só letras, números/));
+  assert.match(buildScript('C:\\cap.png', 'Adobe Acrobat (2)'), /Get-Process -Name 'Adobe Acrobat \(2\)'/);
+  assert.match(buildScript('C:\\cap.png', 'Ñandú.Pro+'), /Get-Process -Name 'Ñandú\.Pro\+'/);
+});
+
+test('buildScript: aspas curvas no caminho são dobradas como as retas', () => {
+  const script = buildScript('C:\\Users\\Ana’s\\cap‘1’.png');
+  assert.match(script, /Ana’’s/);
+  assert.match(script, /cap‘‘1’’\.png/);
+});
+
+test('captureXournalWindow: nome recusado nem chega ao PowerShell, e o temporário sai', async () => {
+  const dir = tmp();
+  let chamou = false;
+  const exec = async () => { chamou = true; return {stdout: ''}; };
+  await assert.rejects(() => captureXournalWindow({exec, tmp: () => dir, processName: 'xournal’pp'}), ptMatches(/Nome de processo inválido/));
+  assert.equal(chamou, false);
+  assert.equal(fs.existsSync(dir), false, 'o temporário é limpo mesmo com o nome recusado');
+});

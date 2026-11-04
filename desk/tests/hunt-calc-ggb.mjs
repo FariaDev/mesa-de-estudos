@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
 import {artifactDir,withArtifacts,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,statusOnline,FAKE_PI,sessionIds,openSessionById,sessionLocked,openSessionList,closeSessionList,openTutorMore,resizeWindow,pageWindow} from './helpers.mjs';
-import {layoutStable,pollUntil} from './waits.mjs';
+import {layoutStable,nextFrames,pollUntil} from './waits.mjs';
 import {ptText} from './pt-text.mjs';
 
 const ART=artifactDir('hunt-calc-ggb-'+Date.now());
@@ -269,7 +269,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   assert.ok(!rows.some(t=>t.startsWith('sqrt(16)')),'o passado distante saiu');
  });
  await check('calc: guia tem os códigos da view e o open sobrevive ao render',async()=>{
-  assert.equal(await page.locator('#calc-guide code').count(),32);
+  assert.equal(await page.locator('#calc-guide code').count(),22);
   await page.locator('#calc-guide summary').click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true);
   await page.locator('#angle button[data-angle="deg"]').click();
@@ -277,7 +277,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   await page.locator('#calc-toggle').click();
   await page.locator('#calc-toggle').click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),true,'open sobrevive ao colapso');
-  assert.equal(await page.locator('#calc-guide code').count(),32);
+  assert.equal(await page.locator('#calc-guide code').count(),22);
   await page.locator('#calc-guide summary').click();
   await page.locator('#angle button[data-angle="rad"]').click();
   assert.equal(await page.locator('#calc-guide').evaluate(el=>el.open),false,'fechar a guia também sobrevive');
@@ -353,7 +353,8 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   }
  });
  await check('ctx-tip: hover mostra o texto do fato e não vaza a janela',async()=>{
-  await openTutorMore(page); // o medidor mora no Mais opções do tutor
+  await openTutorMore(page); // o medidor mora no Contexto dentro de Mais opções
+  await page.locator('#more-context').click();
   await page.locator('#ctx-meter').hover();
   await page.waitForFunction(()=>{const tip=document.querySelector('#ctx-tip'),meter=document.querySelector('#ctx-meter');return !!tip&&!tip.hidden&&!!meter._tipText&&tip.textContent===meter._tipText;},{timeout:5000});
   const tip=await page.evaluate(()=>{const t=document.querySelector('#ctx-tip');const r=t.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,vw:innerWidth,vh:innerHeight,text:t.textContent};});
@@ -362,7 +363,8 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   assert.ok(tip.top>=0&&tip.bottom<=tip.vh+1,'não vaza vertical (top='+Math.round(tip.top)+' bottom='+Math.round(tip.bottom)+' vh='+tip.vh+')');
   await page.mouse.move(6,400);
   await page.waitForFunction(()=>document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape'); // fecha o submenu Contexto
+  await page.keyboard.press('Escape'); // fecha Mais opções
   await page.locator('#chat-more-pop').waitFor({state:'hidden',timeout:5000});
  });
  await check('ctx-tip: em janela estreita o balão fica dentro dela',async()=>{
@@ -373,10 +375,12 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   await page.waitForFunction(()=>document.querySelector('#ctx-meter em').textContent==='63%',undefined,{timeout:8000});
   await page.mouse.move(6,400);
   await openTutorMore(page);
+  await page.locator('#more-context').click();
   await page.locator('#ctx-meter').hover();
   await page.waitForFunction(()=>!document.querySelector('#ctx-tip').hidden,undefined,{timeout:5000});
   const tip=await page.evaluate(()=>{const t=document.querySelector('#ctx-tip');const r=t.getBoundingClientRect();return {left:r.left,right:r.right,vw:innerWidth};});
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape'); // fecha o submenu Contexto
+  await page.keyboard.press('Escape'); // fecha Mais opções
   await resizeWindow(app,page,1280,820);
   await layoutStable(page,'#prompt');
   await page.mouse.move(6,400);
@@ -506,6 +510,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   }
   await page.locator('#course-tabs button[data-id="Geo"]').click();
   await page.waitForFunction(()=>!document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
+  await nextFrames(page,4); // a saída animada precisa de quadros na janela escondida
   await page.locator('#ggb-bar').waitFor({state:'hidden',timeout:2000}); // sai com fade (#63)
   assert.equal(await page.locator('#pdf-grid').first().evaluate(el=>getComputedStyle(el).visibility),'visible');
  });
@@ -529,7 +534,7 @@ await withArtifacts('hunt-calc-ggb',async ctx=>{
   const hit=await page.evaluate(()=>{
    const send=document.querySelector('#send').getBoundingClientRect();
    const el=document.elementFromPoint(send.x+send.width/2,send.y+send.height/2);
-   return {atSend:el?el.id||el.tagName:'',sendY:Math.round(send.y),chatBottom:Math.round(document.querySelector('#chat').getBoundingClientRect().bottom),calcTop:Math.round(document.querySelector('#calculator').getBoundingClientRect().top)};
+   return {atSend:el?.closest('#send')?.id||el?.id||el?.tagName||'',sendY:Math.round(send.y),chatBottom:Math.round(document.querySelector('#chat').getBoundingClientRect().bottom),calcTop:Math.round(document.querySelector('#calculator').getBoundingClientRect().top)};
   });
   await page.evaluate(()=>document.documentElement.style.setProperty('--calc','200px'));
   assert.equal(hit.atSend,'send','o botão Enviar continua clicável (chat bottom='+hit.chatBottom+', send y='+hit.sendY+', calc top='+hit.calcTop+'; acertou '+hit.atSend+')');

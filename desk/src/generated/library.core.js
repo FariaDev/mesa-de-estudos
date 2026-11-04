@@ -7,7 +7,10 @@ function nat_chk(n) {
   return n;
 }
 function nat_in(n) {
-  return Number.isInteger(n) && n >= 0 && n <= 2 ** 53 ? n : nat_chk(1 / 0);
+  if (!Number.isInteger(n) || n < 0 || n > 2 ** 53) {
+    throw "bend: expected a Nat host number: an integer from 0 to 2^53";
+  }
+  return n;
 }
 function run_loop(r) {
   while (r !== null && typeof r === "object" && r.$ === "$JMP") {
@@ -19,6 +22,7 @@ function run_lib(f, n) {
   return (...a) => a.length < n ? run_lib((...b) => f(...a, ...b), n - a.length) : run_loop(f(...a));
 }
 var $0eff = Object.create(null);
+var io_file_append = new Set;
 function $usedAt($0, $1) {
   for (;; ) {
     {
@@ -29,7 +33,7 @@ function $usedAt($0, $1) {
       } else {
         const _u_0 = _used_0["head"];
         const _t_0 = _used_0["tail"];
-        if (_i_0 === 0) {
+        if (_i_0 == 0) {
           return _u_0;
         } else {
           const _p_0 = _i_0 - 1;
@@ -47,11 +51,11 @@ function $markAt(_used_0, _i_0) {
   } else {
     const _u_0 = _used_0["head"];
     const _t_0 = _used_0["tail"];
-    if (_i_0 === 0) {
+    if (_i_0 == 0) {
       return { $: "Con", head: true, tail: _t_0 };
     } else {
       const _p_0 = _i_0 - 1;
-      return { $: "Con", head: _u_0, tail: $markAt(_t_0, _p_0) };
+      return { $: "Con", head: _u_0, tail: $$markAt(_t_0, _p_0) };
     }
   }
 }
@@ -64,7 +68,7 @@ function $inRange($0, $1) {
         return false;
       } else {
         const _t_0 = _used_0["tail"];
-        if (_i_0 === 0) {
+        if (_i_0 == 0) {
           return true;
         } else {
           const _p_0 = _i_0 - 1;
@@ -102,7 +106,7 @@ function $selfAt($0, $1) {
       } else {
         const _x_0 = _xs_0["head"];
         const _t_0 = _xs_0["tail"];
-        if (_i_0 === 0) {
+        if (_i_0 == 0) {
           return $selfOf(_x_0);
         } else {
           const _p_0 = _i_0 - 1;
@@ -124,7 +128,7 @@ function $otherAt($0, $1) {
       } else {
         const _x_0 = _xs_0["head"];
         const _t_0 = _xs_0["tail"];
-        if (_i_0 === 0) {
+        if (_i_0 == 0) {
           return $otherOf(_x_0);
         } else {
           const _p_0 = _i_0 - 1;
@@ -147,8 +151,8 @@ function $hasFreeSelf(_xs_0, _used_0) {
     } else {
       const _u_0 = _used_0["head"];
       const _ut_0 = _used_0["tail"];
-      const _x_0 = $Bool_and($Bool_not(_u_0), $selfOf(__0));
-      const _x_1 = $hasFreeSelf(__1, _ut_0);
+      const _x_0 = $$Bool_and($$Bool_not(_u_0), $$selfOf(__0));
+      const _x_1 = $$hasFreeSelf(__1, _ut_0);
       return _x_0 || _x_1;
     }
   }
@@ -164,8 +168,8 @@ function $hasFreeOther(_xs_0, _used_0) {
     } else {
       const _u_0 = _used_0["head"];
       const _ut_0 = _used_0["tail"];
-      const _x_0 = $Bool_and($Bool_not(_u_0), $Bool_not($otherOf(__0)));
-      const _x_1 = $hasFreeOther(__1, _ut_0);
+      const _x_0 = $$Bool_and($$Bool_not(_u_0), $$Bool_not($$otherOf(__0)));
+      const _x_1 = $$hasFreeOther(__1, _ut_0);
       return _x_0 || _x_1;
     }
   }
@@ -180,8 +184,8 @@ function $hasFree(_xs_0, _used_0) {
     } else {
       const _u_0 = _used_0["head"];
       const _ut_0 = _used_0["tail"];
-      const _x_0 = $Bool_not(_u_0);
-      const _x_1 = $hasFree(__1, _ut_0);
+      const _x_0 = $$Bool_not(_u_0);
+      const _x_1 = $$hasFree(__1, _ut_0);
       return _x_0 || _x_1;
     }
   }
@@ -200,7 +204,7 @@ function $pickSelf(_xs_0, _used_0) {
         const _t_3 = _used_0["head"];
         if (_t_3) {
           const _ut_0 = _used_0["tail"];
-          return $bump($pickSelf(_t_2, _ut_0));
+          return $bump($$pickSelf(_t_2, _ut_0));
         } else {
           return { $: "Some", value: 0 };
         }
@@ -211,7 +215,7 @@ function $pickSelf(_xs_0, _used_0) {
         return { $: "None" };
       } else {
         const _ut_2 = _used_0["tail"];
-        return $bump($pickSelf(_t_4, _ut_2));
+        return $bump($$pickSelf(_t_4, _ut_2));
       }
     }
   }
@@ -230,7 +234,7 @@ function $pickOther(_xs_0, _used_0) {
         const _t_3 = _used_0["head"];
         if (_t_3) {
           const _ut_0 = _used_0["tail"];
-          return $bump($pickOther(_t_2, _ut_0));
+          return $bump($$pickOther(_t_2, _ut_0));
         } else {
           return { $: "Some", value: 0 };
         }
@@ -241,7 +245,7 @@ function $pickOther(_xs_0, _used_0) {
         return { $: "None" };
       } else {
         const _ut_2 = _used_0["tail"];
-        return $bump($pickOther(_t_4, _ut_2));
+        return $bump($$pickOther(_t_4, _ut_2));
       }
     }
   }
@@ -257,7 +261,7 @@ function $pickFree(_xs_0, _used_0) {
       const _t_1 = _used_0["head"];
       if (_t_1) {
         const _ut_0 = _used_0["tail"];
-        return $bump($pickFree(_t_0, _ut_0));
+        return $bump($$pickFree(_t_0, _ut_0));
       } else {
         return { $: "Some", value: 0 };
       }
@@ -285,11 +289,11 @@ function $pickStep_after(_at_0, _used_0) {
     return { $: "Step", at: { $: "None" }, used: _used_0 };
   } else {
     const _i_0 = _at_0["value"];
-    return { $: "Step", at: { $: "Some", value: _i_0 }, used: $markAt(_used_0, _i_0) };
+    return { $: "Step", at: { $: "Some", value: _i_0 }, used: $$markAt(_used_0, _i_0) };
   }
 }
 function $pickStep(_xs_0, _used_0) {
-  return $pickStep_after($pickStep_choice($pickSelf(_xs_0, _used_0), $pickOther(_xs_0, _used_0), $pickFree(_xs_0, _used_0)), _used_0);
+  return $pickStep_after($$pickStep_choice($$pickSelf(_xs_0, _used_0), $$pickOther(_xs_0, _used_0), $$pickFree(_xs_0, _used_0)), _used_0);
 }
 function $stepAcc_after(_step_0, _acc_0) {
   const _at_0 = _step_0["at"];
@@ -299,12 +303,12 @@ function $stepAcc_after(_step_0, _acc_0) {
 function $stepAcc(_panel_0, _st_0) {
   const _used_0 = _st_0["used"];
   const _at_0 = _st_0["at"];
-  return $stepAcc_after($pickStep(_panel_0, _used_0), _at_0);
+  return $stepAcc_after($$pickStep(_panel_0, _used_0), _at_0);
 }
 function $pickAll_rev(_st_0) {
   const _used_0 = _st_0["used"];
   const _at_0 = _st_0["at"];
-  return { $: "Picks", at: $List_reverse(_at_0), used: _used_0 };
+  return { $: "Picks", at: $$List_reverse(_at_0), used: _used_0 };
 }
 function $pickAll_go($0, $1) {
   for (;; ) {
@@ -317,20 +321,20 @@ function $pickAll_go($0, $1) {
         const _p_0 = _panels_0["head"];
         const _rest_0 = _panels_0["tail"];
         $0 = _rest_0;
-        $1 = $stepAcc(_p_0, _st_0);
+        $1 = $$stepAcc(_p_0, _st_0);
         continue;
       }
     }
   }
 }
 function $pickAll(_panels_0, _used_0) {
-  return $pickAll_rev($pickAll_go(_panels_0, { $: "Acc", used: _used_0, at: { $: "Nil" } }));
+  return $pickAll_rev($$pickAll_go(_panels_0, { $: "Acc", used: _used_0, at: { $: "Nil" } }));
 }
 function $emptyMask(_n_0) {
   return $List_replicate(_n_0, false);
 }
 function $pickFresh(_panels_0, _n_0) {
-  return $pickAll(_panels_0, $emptyMask(_n_0));
+  return $pickAll(_panels_0, $$emptyMask(_n_0));
 }
 function $Bool_and(_a_0, _b_0) {
   if (!_a_0) {
@@ -350,11 +354,11 @@ function $List_reverse(_xs_0) {
   return $List_reverse_go(_xs_0, { $: "Nil" });
 }
 function $List_replicate(_n_0, _x_0) {
-  if (_n_0 === 0) {
+  if (_n_0 == 0) {
     return { $: "Nil" };
   } else {
     const _p_0 = _n_0 - 1;
-    return { $: "Con", head: _x_0, tail: $List_replicate(_p_0, _x_0) };
+    return { $: "Con", head: _x_0, tail: $$List_replicate(_p_0, _x_0) };
   }
 }
 function $List_reverse_go($0, $1) {
@@ -374,6 +378,24 @@ function $List_reverse_go($0, $1) {
     }
   }
 }
+var $$markAt = $markAt;
+var $$Bool_not = $Bool_not;
+var $$selfOf = $selfOf;
+var $$Bool_and = $Bool_and;
+var $$hasFreeSelf = $hasFreeSelf;
+var $$otherOf = $otherOf;
+var $$hasFreeOther = $hasFreeOther;
+var $$hasFree = $hasFree;
+var $$pickSelf = $pickSelf;
+var $$pickOther = $pickOther;
+var $$pickFree = $pickFree;
+var $$pickStep_choice = $pickStep_choice;
+var $$pickStep = $pickStep;
+var $$List_reverse = $List_reverse;
+var $$stepAcc = $stepAcc;
+var $$pickAll_go = $pickAll_go;
+var $$emptyMask = $emptyMask;
+var $$List_replicate = $List_replicate;
 var library_default = {
   usedAt: run_lib((a0, a1) => run_loop($usedAt(a0, nat_in(a1))), 2),
   markAt: run_lib((a0, a1) => run_loop($markAt(a0, nat_in(a1))), 2),

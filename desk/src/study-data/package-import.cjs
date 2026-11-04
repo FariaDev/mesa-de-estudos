@@ -192,11 +192,11 @@ function importPackage({buffer, destination, courseId = '', log = () => {}}) {
    (`conversations.cjs`). O id antigo e o `nativeSessionId` antigo NÃO são
    reaproveitados: id/arquivo/sessão nascem novos, `nativeEstablished` é false
    e o arquivo só serve de transcrição — nunca anuncia retomada nativa. */
-function writeClaudeTranscript({record, name, dir, newCourseId, written, log}) {
+function writeClaudeTranscript({record, name, dir, newCourseId, written, log, engine = 'claude'}) {
   fs.mkdirSync(dir, {recursive: true});
   const staging = fs.mkdtempSync(path.join(dir, '.mesa-transcript-'));
   try {
-    const staged = conversations.createClaudeConversation({runtime: staging, courseId: newCourseId});
+    const staged = conversations.createClaudeConversation({runtime: staging, courseId: newCourseId, engine});
     const patch = {};
     if (Number.isFinite(record.started) && record.started >= 0) patch.started = record.started;
     if (typeof record.preview === 'string') patch.preview = record.preview.slice(0, 4000);
@@ -215,14 +215,14 @@ function writeClaudeTranscript({record, name, dir, newCourseId, written, log}) {
     const descriptor = conversations.readClaudeConversation(staged, {runtime: staging});
     if (!descriptor) throw new PackageError(uiMsg('err.pkg.badClaude', {name}));
     if (typeof record.nativeSessionId === 'string' && record.nativeSessionId) descriptor.importedFrom = record.nativeSessionId;
-    const finalName = `claude-${descriptor.id}.json`;
-    writeInside(dir, `claude/${finalName}`, `${JSON.stringify(descriptor, null, 2)}\n`);
-    written.push(`conversas/claude/${finalName}`);
+    const finalName = `${engine}-${descriptor.id}.json`;
+    writeInside(dir, `${engine}/${finalName}`, `${JSON.stringify(descriptor, null, 2)}\n`);
+    written.push(`conversas/${engine}/${finalName}`);
     return {
-      engine: 'claude',
+      engine,
       resume: 'exported-transcript',
       nativeResume: false,
-      file: `conversas/claude/${finalName}`,
+      file: `conversas/${engine}/${finalName}`,
       originalName: name,
       id: descriptor.id,
       nativeSessionId: descriptor.nativeSessionId,
@@ -231,12 +231,60 @@ function writeClaudeTranscript({record, name, dir, newCourseId, written, log}) {
     fs.rmSync(staging, {recursive: true, force: true});
   }
 }
+/* Mensagens de texto de uma sessão JSONL do Pi, na ordem em que aconteceram.
+   Aceita a linha `{type:'message', message:{role, content}}` e a forma curta
+   `{message:{role, content}}`. Chamada de ferramenta, raciocínio e linha que
+   não é mensagem ficam de fora.
+   @example piSessionMessages('{"type":"message","message":{"role":"user","content":"oi"}}') // [{role: 'user', content: 'oi'}] */
+function piSessionMessages(text) {
+  const messages = [];
+  for (const line of String(text).split('\n')) {
+    if (!line.trim()) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const message = isPlainObject(entry?.message) ? entry.message : entry;
+    if (message?.role !== 'user' && message?.role !== 'assistant') continue;
+    const content = piMessageText(message.content);
+    if (content) messages.push({role: message.role, content});
+  }
+  return messages;
+}
+
+/* `content` do Pi é texto ou uma lista de partes; só as partes `text` contam. */
+function piMessageText(content) {
+  if (typeof content === 'string') return content.trim();
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('\n')
+    .trim();
+}
+
+/* Registro para `writeClaudeTranscript`: o início sai do nome `pi-<digits>.jsonl`
+   (como o Pi o grava) e a prévia é a primeira pergunta da pessoa. */
+function piTranscriptRecord(data, name) {
+  const messages = piSessionMessages(data.toString('utf8'));
+  const record = {messages};
+  const digits = /^pi-(\d+)\.jsonl$/.exec(name);
+  if (digits) record.started = Number(digits[1]);
+  const first = messages.find((message) => message.role === 'user');
+  if (first) record.preview = first.content;
+  return record;
+}
+
 /* Conversa importada: id novo (nunca reusa o id nativo do pacote), pasta de
    mesa nova e Referências apontando para o novo destino. Descritor Claude vira
    transcrição: `nativeEstablished` volta a false (o id antigo não abre aqui). */
 function writeConversation({entry, data, dir, newCourseId, written, log}) {
   const name = path.basename(entry.archivePath);
-  if (entry.engine === 'claude' || /^claude-/.test(name)) {
+  const nativeEngine = entry.engine === 'opencode' || /^opencode-/.test(name) ? 'opencode'
+    : entry.engine === 'claude' || /^claude-/.test(name) ? 'claude' : '';
+  if (nativeEngine) {
     let record;
     try {
       record = JSON.parse(data.toString('utf8'));
@@ -244,13 +292,17 @@ function writeConversation({entry, data, dir, newCourseId, written, log}) {
       throw new PackageError(uiMsg('err.pkg.unreadableClaude', {name}));
     }
     if (!isPlainObject(record)) throw new PackageError(uiMsg('err.pkg.unreadableClaude', {name}));
-    const info = writeClaudeTranscript({record, name, dir, newCourseId, written, log});
-    log(`importação: conversa Claude ${name} vira transcrição válida (sem retomada nativa)`);
+    const info = writeClaudeTranscript({record, name, dir, newCourseId, written, log, engine: nativeEngine});
+    log(`importação: conversa ${nativeEngine} ${name} vira transcrição válida (sem retomada nativa)`);
     return info;
   }
-  writeInside(dir, `pi/${name}`, data);
-  written.push(`conversas/pi/${name}`);
-  return {engine: 'pi', resume: 'pi-jsonl-portable', nativeResume: true, file: `conversas/pi/${name}`, originalName: name};
+  /* Sessão do Pi (#79) vira transcrição, como Claude e OpenCode. O JSONL não
+     entra como sessão viva: retomá-lo com `--session` recarregaria o histórico
+     do autor como contexto nativo, e uma instrução escondida nele voltaria a
+     valer. A exibição usa só as mensagens de texto. */
+  const info = writeClaudeTranscript({record: piTranscriptRecord(data, name), name, dir, newCourseId, written, log, engine: 'claude'});
+  log(`importação: sessão Pi ${name} vira transcrição (sem retomada nativa)`);
+  return {...info, origin: 'pi'};
 }
 
-module.exports = {remapValue, importPackage};
+module.exports = {remapValue, importPackage, piSessionMessages};

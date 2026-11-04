@@ -27,14 +27,14 @@
  background:var(--surface);
  color:var(--fg);
  border:1px solid var(--border-strong);
- border-radius:var(--r-xl);
+ border-radius:var(--r-md);
  box-shadow:var(--shadow-pop);
 }
 .palette-input{
  margin:10px;
  padding:9px 11px;
  border:1px solid var(--border-strong);
- border-radius:var(--r-md);
+ border-radius:var(--r-sm);
  background:var(--surface);
  color:var(--fg);
  font-size:var(--fs-lg);
@@ -59,7 +59,7 @@
  gap:var(--space-3);
  min-height:34px;
  padding:6px 10px;
- border-radius:var(--r-md);
+ border-radius:var(--r-sm);
  cursor:pointer;
 }
 .palette-item .label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

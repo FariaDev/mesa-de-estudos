@@ -15,8 +15,8 @@ import {layoutStable} from './waits.mjs';
 const SHOT_DIR=screenshotDirectory('cores');
 
 const ROLES={
- light:{bg:[239,239,239,1],surface:[255,255,255,1],tutor:[244,244,244,1],stage:[203,203,203,1],selected:[232,232,232,1],hover:[242,242,242,1],border:[218,218,218,1],borderStrong:[199,199,199,1]},
- dark:{bg:[31,31,31,1],surface:[44,44,44,1],tutor:[36,36,36,1],stage:[25,25,25,1],selected:[255,255,255,.09],hover:[255,255,255,.06],border:[255,255,255,.10],borderStrong:[255,255,255,.16]}
+ light:{bg:[247,247,247,1],surface:[255,255,255,1],tutor:[255,255,255,1],stage:[237,237,237,1],selected:[230,230,230,1],hover:[241,241,241,1],border:[224,224,224,1],borderStrong:[208,208,208,1],raised:[255,255,255,1]},
+ dark:{bg:[25,25,25,1],surface:[31,31,31,1],tutor:[25,25,25,1],stage:[20,20,20,1],selected:[255,255,255,.09],hover:[255,255,255,.05],border:[255,255,255,.10],borderStrong:[255,255,255,.16],raised:[48,48,48,1]}
 };
 const SIZES=[[1440,900],[900,650]];
 /* O que pode ter sombra: menus (e os popovers e a paleta, que fazem papel de
@@ -175,7 +175,10 @@ await withArtifacts('papeis-de-cor',async ctx=>{
    sameColor(await style(page,'.pdf-panel','backgroundColor'),role.surface,`${label}: superfície (leitor)`);
    sameColor(await style(page,'#sidebar','backgroundColor'),role.tutor,`${label}: coluna do tutor`);
    sameColor(await style(page,'.pdf-viewport','backgroundColor'),role.stage,`${label}: palco do leitor`);
-   assert.notEqual(await style(page,'#sidebar','backgroundColor'),await style(page,'.pdf-panel','backgroundColor'),`${label}: tutor e leitores têm fundos diferentes`);
+   /* O tema claro aprovado usa o mesmo branco na superfície e na coluna do
+      tutor; a distinção fica na borda. No escuro os dois papéis continuam
+      distintos. */
+   if(theme==='dark')assert.notEqual(await style(page,'#sidebar','backgroundColor'),await style(page,'.pdf-panel','backgroundColor'),`${label}: tutor e leitores têm fundos diferentes`);
 
    /* Seleção em cinza neutro: aba de matéria ativa. */
    sameColor(await style(page,'#course-tabs button.active','backgroundColor'),role.selected,`${label}: aba de matéria ativa`);
@@ -226,7 +229,7 @@ await withArtifacts('papeis-de-cor',async ctx=>{
 
   await page.keyboard.press('ControlOrMeta+,');
   await page.waitForSelector('#settings-dialog[open]');
-  sameColor(await style(page,'#settings-dialog','backgroundColor'),role.surface,`${tag}: diálogo na superfície`);
+  sameColor(await style(page,'#settings-dialog','backgroundColor'),role.raised,`${tag}: diálogo elevado em --raised`);
   await assertClean(page,`${tag} Configurações`,'settings-dialog');
   await shot(page,`${tag}-configuracoes.png`);
   await page.keyboard.press('Escape');

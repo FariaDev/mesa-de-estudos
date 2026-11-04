@@ -50,6 +50,10 @@ function coreListToArray(node){
  return out;
 }
 
+function existingFile(file){
+ try{return file&&fs.statSync(file).isFile()?file:'';}catch{return '';}
+}
+
 function defaultRun(cmd,args=[],opts={}){
  return updater.defaultRun(cmd,args,opts);
 }
@@ -181,7 +185,10 @@ async function collectTools(opts={}){
   claudeLauncher:launcherOpt,latestOverride,home=os.homedir(),readOnly=false,
  }=opts;
  const fetchNet=testMode?async()=>{throw Error('modo de teste');}:fetchJson;
- const piPath=piPathOpt!==undefined?piPathOpt:resolvePi({configPath:String(config.piPath||''),deskDir,envPath});
+ /* Em teste só vale o fake explícito de LEARNING_DESK_PI (a mesma regra do
+    tutor): o Pi real do PATH/Homebrew não pode aparecer no Sobre de uma janela
+    que pediu "sem Pi". Fora do teste, `resolvePi` continua achando o do usuário. */
+ const piPath=piPathOpt!==undefined?piPathOpt:(testMode?existingFile(envPath):resolvePi({configPath:String(config.piPath||''),deskDir,envPath}));
  const localRoot=piLocalRoot(piPath,deskDir);
  const launcher=launcherOpt!==undefined?launcherOpt:claudeEnvironment.findClaudeLauncher({configuredPath:config.claudePath,home});
  const latestOpts={override:latestOverride,cacheFile,fetchJson:fetchNet,now,manual,cacheOnly};
@@ -275,6 +282,8 @@ async function collect(opts={}){
    canUpdate:piLocal&&outdated,
    ...toolRowExtras(fact,outdated),
   };
+  /* Quem não tem Pi não vê a linha dele em Componentes (#release OpenCode). */
+  if(!fact.path)delete byId.pi;
  }
 
  /* Claude Code: o launcher do usuário (`claude --version`), o único que a Mesa
@@ -302,7 +311,8 @@ async function collect(opts={}){
   byId.node={
    id:'node',label:info.source==='system'?message('component.node.system'):message('component.node.embedded'),version:String(info.version||''),
    state:state.$==='CompWarn'?'warn':state.$==='CompOk'?'ok':'unknown',
-   latest:'',note:state.$==='CompWarn'?String(state.note||''):'',
+   /* O aviso do Node é sobre o Pi: sem Pi instalado ele não aparece. */
+   latest:'',note:state.$==='CompWarn'&&piPath?String(state.note||''):'',
    hint:info.source==='system'?'':message('component.hint.nodeEmbedded'),
    link:'',linkLabel:'',canUpdate:false,
   };

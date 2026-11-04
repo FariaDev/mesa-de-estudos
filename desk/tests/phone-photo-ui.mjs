@@ -34,18 +34,19 @@ const trayCount=page=>page.evaluate(()=>document.querySelectorAll('#attachments 
 const clearTray=page=>page.evaluate(async()=>{(await import('./src/chat-attachments.mjs')).clearAttachments();});
 
 async function openPop(page){
+ await page.locator('#attach').click();
  await page.locator('#phone-photo').click();
  await page.waitForFunction(()=>/^http:\/\/127\.0\.0\.1:\d+\/[\w-]{24}$/.test(document.querySelector('#phone-address')?.textContent||''));
  await nextFrames(page,3);
  return page.evaluate(()=>{
   const rect=el=>{const b=el.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height};};
-  const button=document.querySelector('#phone-photo');
+  const button=document.querySelector('#phone-photo'),anchor=document.querySelector('#attach');
   return {
    url:document.querySelector('#phone-address').textContent,
    state:document.querySelector('#phone-state').textContent,
    pop:rect(document.querySelector('#phone-pop')),qr:rect(document.querySelector('#phone-qr svg')),
-   button:rect(button),chat:rect(document.querySelector('#chat')),vh:innerHeight,
-   previous:button.previousElementSibling?.id,label:button.getAttribute('aria-label'),
+   button:rect(anchor),chat:rect(document.querySelector('#chat')),vh:innerHeight,
+   inMenu:button.closest('#attach-pop')?.id,label:button.getAttribute('aria-label'),
    expanded:button.getAttribute('aria-expanded'),
   };
  });
@@ -111,7 +112,7 @@ await withArtifacts('phone-photo',async ctx=>{
 
    /* Popover: logo depois do Anexar, para cima, dentro da coluna, com QR e estado. */
    const m=await openPop(page);
-   assert.equal(m.previous,'attach',`${label}: o botão vem logo depois do Anexar`);
+   assert.equal(m.inMenu,'attach-pop',`${label}: a Foto do celular mora no menu Anexar`);
    assert.equal(m.label,'Foto do celular',`${label}: nome acessível`);
    assert.equal(m.expanded,'true',`${label}: aria-expanded`);
    assert.equal(m.state,'Esperando o celular…',`${label}: estado inicial`);
@@ -158,6 +159,11 @@ await withArtifacts('phone-photo',async ctx=>{
   phone.loadURL(address);
  },url);
  const phonePage=await opened;
+ /* A janela de 375×812 não cabe num monitor de 1366×768 (o sistema apara a
+    altura): a métrica de dispositivo do CDP fixa o viewport do celular no
+    tamanho pedido, sem afrouxar o que o teste mede. */
+ const phoneCdp=await phonePage.context().newCDPSession(phonePage);
+ await phoneCdp.send('Emulation.setDeviceMetricsOverride',{width:375,height:812,deviceScaleFactor:1,mobile:true,screenWidth:375,screenHeight:812});
  /* A CSP recusaria um atributo style do desenho: o console do celular tem de ficar limpo. Recarrega já ouvindo. */
  const cspErrors=[];phonePage.on('console',m=>{if(/Content Security Policy/i.test(m.text()))cspErrors.push(m.text());});
  await phonePage.reload();
@@ -203,7 +209,8 @@ await withArtifacts('phone-photo',async ctx=>{
  await phonePage.setInputFiles('#camera',[{name:'pagina-3.png',mimeType:'image/png',buffer:syntheticPng({w:20,h:40})}]);
  await phonePage.waitForFunction(()=>document.querySelector('main').dataset.state==='offline');
  assert.equal(await phonePage.locator('#offline[role=alert] strong').textContent(),'Sem conexão com a Mesa.');
- assert.equal(await phonePage.locator('#sent .thumb').count(),2,'as que chegaram continuam na grade');
+ assert.equal(await phonePage.locator('#sent .thumb:not(.pending)').count(),2,'as que chegaram continuam na grade');
+ assert.equal(await phonePage.locator('#sent .thumb.pending').count(),1,'a que não chegou fica pendente para o Tentar de novo');
  for(const theme of ['light','dark']){
   await phonePage.emulateMedia({colorScheme:theme});
   await expectCast(phonePage,'offline',NABLA,`${theme} sem conexão`);

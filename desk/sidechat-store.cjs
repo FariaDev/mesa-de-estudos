@@ -40,9 +40,14 @@ const CONTEXT_END_MARKER = `\n${CONTEXT_END}\n\n`;
 /* Texto de exibição de uma fala do usuário: corta o envelope de contexto quando
    presente. Fora do envelope nada muda (o texto não é reescrito). */
 function displayUserText(text) {
-  if (typeof text !== 'string' || !text.startsWith(CONTEXT_START)) return text;
-  const at = text.indexOf(CONTEXT_END_MARKER);
-  return at === -1 ? text : text.slice(at + CONTEXT_END_MARKER.length);
+  if (typeof text !== 'string') return text;
+  const at = text.startsWith(CONTEXT_START) ? text.indexOf(CONTEXT_END_MARKER) : -1;
+  const shown = at === -1 ? text : text.slice(at + CONTEXT_END_MARKER.length);
+  /* O resultado do cartão é um prompt da Mesa, não fala do aluno (#92): a bolha
+     mostra o mesmo rótulo do chat principal (`text.mjs`). */
+  const result = shown.match(/^\[Resultado do cartão: [^\]]+\]\n([\s\S]*)$/);
+  if (!result) return shown;
+  return uiMsg(/^(?:Quiz|Pergunta):/m.test(result[1]) ? 'quiz.sentQuiz' : 'quiz.sentAsk');
 }
 /* Projeção de exibição do cache do motor. O Claude guarda no cache/descritor o
    texto que FOI ao motor (com o bloco de contexto); a UI recebe só a fala. A

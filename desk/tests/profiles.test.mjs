@@ -26,8 +26,6 @@ test('pinnedArgs desliga a descoberta e declara cada extensão que existe', () =
   const home = mkdtempSync(join(tmpdir(), 'mesa-profile-'));
   try {
     const root = join(home, '.pi', 'agent', 'extensions');
-    mkdirSync(join(root, 'ask-user'), {recursive: true});
-    writeFileSync(join(root, 'ask-user', 'index.ts'), '');
     mkdirSync(join(root, 'browser'), {recursive: true});
     writeFileSync(join(root, 'browser', 'index.ts'), '');
     const settings = join(home, '.pi', 'agent', 'settings.json');
@@ -35,8 +33,8 @@ test('pinnedArgs desliga a descoberta e declara cada extensão que existe', () =
 
     const args = profile.pinnedArgs({home, overlayDirs: [], settingsPath: settings});
     assert.equal(args[0], '--no-extensions');
-    assert.ok(args.includes(join(root, 'ask-user', 'index.ts')), 'a extensão que existe entra');
-    assert.ok(args.includes(join(root, 'browser', 'index.ts')), 'a segunda também');
+    assert.ok(args.includes(join(root, 'browser', 'index.ts')), 'a extensão que existe entra')
+    assert.ok(!args.includes(join(root, 'ask-user', 'index.ts')), 'ask-user saiu do perfil (#92)');
     assert.ok(!args.some((a) => a.includes('subagents')), 'o que não existe fica de fora da linha de comando');
     assert.ok(!args.includes('npm:pi-mcp-adapter'), 'o adapter não pode substituir o MCP nativo');
     for (const name of profile.BUILTIN_EXTENSIONS) assert.ok(args.includes(name));
@@ -49,10 +47,10 @@ test('overlay do curso entra só pelos arquivos presentes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mesa-overlay-'));
   try {
     mkdirSync(join(dir, 'extensions'), {recursive: true});
-    writeFileSync(join(dir, 'extensions', 'quiz.ts'), '');
+    writeFileSync(join(dir, 'extensions', 'visual-check.ts'), '');
     const paths = profile.overlayExtensionPaths([dir]);
     assert.equal(paths.length, 1);
-    assert.ok(paths[0].endsWith('quiz.ts'));
+    assert.ok(paths[0].endsWith('visual-check.ts'));
   } finally {
     rmSync(dir, {recursive: true, force: true});
   }
@@ -101,7 +99,7 @@ test('o que não existe fica de fora da linha de comando', () => {
     const args = profile.pinnedArgs({home, overlayDirs: [], settingsPath: join(home, 'settings.json')});
     assert.equal(args[0], '--no-extensions');
     const loaded = args.filter((a, i) => args[i - 1] === '--extension');
-    assert.deepEqual(loaded, [...profile.BUILTIN_EXTENSIONS, join(import.meta.dirname, '..', 'src', 'extensions', 'mcp-policy')]);
+    assert.deepEqual(loaded, [...profile.BUILTIN_EXTENSIONS]);
   } finally {
     rmSync(home, {recursive: true, force: true});
   }
@@ -112,7 +110,7 @@ test('Livre dentro do vault não carrega modo/contexto de matéria e mantém fer
  const home=mkdtempSync(join(tmpdir(),'mesa-profile-free-'));
  try{
   const root=join(home,'.pi','agent','extensions');
-  for(const name of ['context-mode','workspace-guard','ask-user']){mkdirSync(join(root,name),{recursive:true});writeFileSync(join(root,name,'index.ts'),'');}
+  for(const name of ['context-mode','workspace-guard']){mkdirSync(join(root,name),{recursive:true});writeFileSync(join(root,name,'index.ts'),'');}
   const overlay=join(home,'vault-overlay');mkdirSync(join(overlay,'extensions'),{recursive:true});
   for(const name of ['learning-session.ts','code-study-guard.ts','anki-cards.ts','quiz.ts','visual-check.ts'])writeFileSync(join(overlay,'extensions',name),'');
   const normal=profile.pinnedArgs({home,overlayDirs:[overlay]});
@@ -124,7 +122,8 @@ test('Livre dentro do vault não carrega modo/contexto de matéria e mantém fer
   const loaded=free.filter((_,i)=>free[i-1]==='--extension');
   assert.ok(!loaded.includes(join(root,'context-mode','index.ts')));
   for(const name of ['learning-session.ts','code-study-guard.ts','anki-cards.ts'])assert.ok(!loaded.includes(join(overlay,'extensions',name)));
-  for(const name of ['quiz.ts','visual-check.ts'])assert.ok(loaded.includes(join(overlay,'extensions',name)));
+  assert.ok(loaded.includes(join(overlay,'extensions','visual-check.ts')));
+  assert.ok(!loaded.includes(join(overlay,'extensions','quiz.ts')),'quiz antigo saiu do overlay (#92)');
   assert.ok(loaded.includes(join(root,'workspace-guard','index.ts')),'guarda de acesso preservada');
   assert.ok(loaded.includes('builtin:mcp'),'MCP nativo preservado');
  }finally{rmSync(home,{recursive:true,force:true});}

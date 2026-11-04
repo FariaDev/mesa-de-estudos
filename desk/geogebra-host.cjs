@@ -5,6 +5,7 @@ const http=require('node:http');const crypto=require('node:crypto');
 const {createGgbBoard,createKeptStore}=require('./ggb-board.cjs');
 const {readInstalledPack,contentRoot}=require('./geogebra-pack.cjs');
 const {PAGE_URL,installOfflineSession}=require('./ggb-pack-protocol.cjs');
+const {guardPage,guardPermissions}=require('./web-guards.cjs');
 const {message: uiMsg}=require('./src/i18n.mjs');
 
 /* Applet GeoGebra: a view nativa por cima do leitor, a ponte HTTP local que a
@@ -30,10 +31,12 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
  * @param {{WebContentsView: typeof import('electron').WebContentsView, win: () => import('./types/host-deps').BrowserWindow,
  *   deskState: () => import('./types/desk-state').DeskState, courseKey?: () => string,
  *   persist: (force?: boolean) => void, runtime: string, appendLog: import('./types/host-deps').AppendLog,
- *   tutorT?: import('./types/host-deps').Translate, ggbPage?: string, openDeadlineMs?: number, ggbPackDir?: string}} deps
+ *   tutorT?: import('./types/host-deps').Translate, ggbPage?: string, openDeadlineMs?: number, ggbPackDir?: string,
+ *   openExternal?: (url: string) => unknown, confirmExternal?: (url: string) => boolean | Promise<boolean>}} deps
+ *   `openExternal` recebe só links `https:` clicados no applet, depois de `confirmExternal` (o diálogo da Mesa, #81).
  * @example const ggb = createGeogebraHost({WebContentsView, win: () => win, deskState: () => state, persist, runtime, appendLog});
  */
-function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',persist,runtime,appendLog,tutorT=key=>key,ggbPage=path.join(__dirname,'ggb.html'),openDeadlineMs=OPEN_DEADLINE_MS,ggbPackDir=''}){
+function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',persist,runtime,appendLog,tutorT=key=>key,ggbPage=path.join(__dirname,'ggb.html'),openDeadlineMs=OPEN_DEADLINE_MS,ggbPackDir='',openExternal=()=>{},confirmExternal=()=>false}){
  let offline=false;
  let ggbRestored=false,restoring=Promise.resolve(false);
  const ggbBridgeFile=path.join(runtime,'ggb-bridge.json');
@@ -55,6 +58,11 @@ function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',pers
  function ensureGgbView(){
   if(!ggbView){
    ggbView=new WebContentsView({webPreferences:{partition:'persist:geogebra',sandbox:true,contextIsolation:true,nodeIntegration:false,spellcheck:false}});
+   /* A view do applet não ganha permissão de página (câmera, microfone, notificação…)
+      e não sai da própria página; link externo só vai ao navegador do sistema
+      (revisão de segurança, `web-guards.cjs`). */
+   guardPermissions(ggbView.webContents.session);
+   guardPage(ggbView.webContents,{openExternal,confirmLink:confirmExternal});
    win().contentView.addChildView(ggbView);
    /* O applet recarrega sozinho quando a view muda de tamanho: no documento novo
       o snapshot da matéria é reaplicado assim que o applet fica pronto. */

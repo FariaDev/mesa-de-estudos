@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {primeHiddenFrames} from './frame-prime.mjs';
 
 /* Medidas de layout compartilhadas pelos testes de janela (ticket #7 da spec de
    redesenho): o que está colado em quê, alturas de barra, recuo, largura da
@@ -13,15 +14,27 @@ export const HEADER=44,BAR=40,PAD=12;
 const SCROLLBAR=17;
 
 /* O leitor refaz o ajuste de largura com atraso (ResizeObserver + 120ms):
-   espera a largura das páginas ficar igual por 6 leituras de 50 ms (300 ms,
-   mais que o atraso do leitor). */
+   espera a condição final, não um tempo. Com zoom de 100% a página precisa
+   preencher a largura útil do leitor (a mesma regra do `assertFill`) e o papel
+   acompanhar a página; aí a assinatura de posição e largura tem de ficar igual
+   por 12 leituras de 50 ms. Sob carga a espera continua até o refit chegar, em
+   vez de medir a largura antiga ainda estável. A posição entra na assinatura
+   porque a barra de rolagem pode aparecer sem mudar a largura medida. */
 export async function settle(page){
+ await primeHiddenFrames(page);
  await page.evaluate(()=>{window.__layoutSettle=null;});
  await page.waitForFunction(()=>{
-  const now=[...document.querySelectorAll('.pdf-page')].map(el=>Math.round(el.getBoundingClientRect().width)).join(',');
+  const now=[...document.querySelectorAll('.pdf-page')].map(el=>{const r=el.getBoundingClientRect();return `${Math.round(r.left)},${Math.round(r.width)}`;}).join(' ');
   const last=window.__layoutSettle;
   window.__layoutSettle=last&&last.signature===now?{signature:now,reads:last.reads+1}:{signature:now,reads:1};
-  return window.__layoutSettle.reads>=6;
+  const fitted=[...document.querySelectorAll('#pdf-grid .pdf-panel')].every(panel=>{
+   const viewport=panel.querySelector('.pdf-viewport'),page=panel.querySelector('.pdf-page');
+   if(!viewport||!page)return true;
+   if((panel.querySelector('.zoom-label')?.textContent||'').trim()!=='100%')return true;
+   const pageRect=page.getBoundingClientRect(),canvas=page.querySelector('canvas')?.getBoundingClientRect();
+   return Math.abs(pageRect.width-viewport.clientWidth)<=1&&(!canvas||Math.abs(canvas.width-pageRect.width)<=1);
+  });
+  return window.__layoutSettle.reads>=12&&fitted;
  },undefined,{timeout:10000,polling:50});
 }
 
@@ -66,7 +79,7 @@ export function measure(page){
    const viewport=q('.pdf-viewport',panel);
    return {
     panel:box(panel),title:box(q('.pdf-title',panel)),
-    viewport:box(viewport),foot:box(q('.pdf-foot',panel)),
+    viewport:box(viewport),
     client:viewport.clientWidth,scrollWidth:viewport.scrollWidth,
     page:rect(q('.pdf-page',panel)),canvas:rect(q('.pdf-page canvas',panel)),
     label:rect(q('.pdf-title strong',panel)),select:rect(q('.pdf-title .pdf-select',panel)),lastIcon:rect(q('.pdf-title .more svg',panel)),
@@ -83,7 +96,7 @@ export function measure(page){
    readers,sidechat:box(sidechat),sidechatHead:box(q('.sidechat-head')),sidechatTitle:rect(q('.sidechat-head-title')),
    sidechatLastIcon:rect(q('#sidechat-close svg')),sidechatScope:rect(q('#sidechat-scope')),sidechatBox:rect(q('#sidechat-box')),
    chatHead:box(q('.chat-head')),chatScroll:q('#chat').scrollTop,tutorLabel:rect(q('.chat-head .session-title')),indicator:rect(q('#model-indicator')),indicatorRow:rect(q('#composer-box .composer-actions')),checkBtn:rect(q('#check')),sendBtn:rect(q('#send:not([hidden]),#stop:not([hidden])')),chatActions:rect(q('.chat-head-actions')),tutorLastIcon:rect(q('#chat-more svg')),
-   prompt:rect(q('#prompt')),navStart:rect(q('header .header-nav')),offscreen
+   prompt:rect(q('#prompt')),composer:box(q('#composer')),composerBox:rect(q('#composer-box')),navStart:rect(q('header .header-nav')),offscreen
   };
  });
 }
@@ -137,8 +150,9 @@ export function assertLayout(m,label,{readers}={}){
   }
  }
 
- /* Sem raio de cartão nos painéis nem nas barras. */
- for(const item of [m.references,m.sidebar,m.sidechat,...m.column,...m.row,...m.slot,...m.readers.flatMap(r=>[r.panel,r.title,r.viewport])].filter(Boolean)){
+ /* Sem raio de cartão nos painéis nem nas barras (o composer do tutor também
+    encosta na coluna; o cartão ficou só no chat lateral). */
+ for(const item of [m.references,m.sidebar,m.sidechat,m.composer,...m.column,...m.row,...m.slot,...m.readers.flatMap(r=>[r.panel,r.title,r.viewport])].filter(Boolean)){
   assert.equal(item.radius,'0px 0px 0px 0px',`${label}: ${item.name} sem raio de cartão`);
  }
 
@@ -174,9 +188,19 @@ export function assertLayout(m,label,{readers}={}){
   assert.ok(m.indicator.right<=m.sendBtn.left+.5,`${label}: o indicador termina antes do Enviar (${m.indicator.right} > ${m.sendBtn.left})`);
   assert.ok(m.indicator.top>=m.indicatorRow.top-.5&&m.indicator.bottom<=m.indicatorRow.bottom+.5,`${label}: o indicador fica na fileira da caixa`);
  }
- if(m.prompt){
-  assertPad(label,'caixa de mensagem (esquerda)',m.prompt.left-m.sidebar.left);
-  assertPad(label,'caixa de mensagem (direita)',m.sidebar.right-m.prompt.right);
+ if(m.composer){
+  /* O composer encosta na coluna de ponta a ponta: sem margem externa. */
+  assert.ok(near(m.composer.left,m.sidebar.left)&&near(m.composer.right,m.sidebar.right),`${label}: o composer vai de ponta a ponta da coluna (${m.composer.left}..${m.composer.right} de ${m.sidebar.left}..${m.sidebar.right})`);
+  if(m.composerBox){
+   assertPad(label,'caixa de mensagem (esquerda)',m.composerBox.left-m.sidebar.left);
+   assertPad(label,'caixa de mensagem (direita)',m.sidebar.right-m.composerBox.right);
+   /* O texto do campo mora 12px dentro do composer: o recuo de --pad fica no
+      composer, não na caixa; o placeholder não encosta na lateral. */
+   if(m.prompt){
+    assert.ok(m.prompt.left-m.composer.left>=12-.5,`${label}: o texto do campo respira dentro do composer (${m.prompt.left-m.composer.left}px)`);
+    assert.ok(m.composer.right-m.prompt.right>=12-.5,`${label}: o texto do campo respira dentro do composer (${m.composer.right-m.prompt.right}px)`);
+   }
+  }
  }
  if(m.sidechatTitle)assertPad(label,'título do chat lateral',m.sidechatTitle.left-m.sidechat.left);
  if(m.sidechatLastIcon)assertPad(label,'último ícone do cabeçalho do chat lateral',m.sidechat.right-m.sidechatLastIcon.right);
@@ -194,9 +218,9 @@ export function assertLayout(m,label,{readers}={}){
   assertPad(label,'último ícone da barra do leitor',r.panel.right-r.lastIcon.right);
  }
 
- /* Leitor: barras, palco e rodapé colados; a página preenche a largura. */
+ /* Leitor: barra e palco colados; a página preenche a largura. */
  for(const [i,r] of m.readers.entries()){
-  const tag=`${label} leitor ${i+1}`,stack=[r.title,r.viewport,r.foot].filter(Boolean);
+  const tag=`${label} leitor ${i+1}`,stack=[r.title,r.viewport].filter(Boolean);
   assertChain(tag,stack,'y',r.panel.top,r.panel.bottom);
   assertSpan(tag,stack,'x',r.panel.left,r.panel.right);
   if(r.viewport)assertFill(r,tag);

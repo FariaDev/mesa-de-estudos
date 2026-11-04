@@ -212,11 +212,8 @@ def closeLabel() -> String:
 def emptyTitle() -> String:
   M.msg("review.empty.title")
 
-def emptyLead() -> String:
-  M.msg("review.empty.lead")
-
-def emptyTail() -> String:
-  M.msg("review.empty.tail")
+def emptyBody() -> String:
+  M.msg("review.empty.body")
 
 def countText(+n: Nat) -> String:
   M.msg1("review.count", "count", Nat.show(n))
@@ -674,19 +671,19 @@ def rowSrc(+name: String, +page: Nat, +path: String) -> String:
 
 def rowNode(+current: String, +e: ReviewEntry) -> V.ViewNode:
   match e:
-    case ReviewEntry{+id, +question, _, _, ReviewRef{+name, +page, +path}, _, +when, _, _, _}:
+    case ReviewEntry{+id, +question, _, _, ReviewRef{+name, +page, +path}, +due, +when, _, _, _}:
       V.viewEl("button", V.attrJoin([
         [V.attrType("button")],
         [V.attrClass("review-row")],
         [V.attrData("id", id)],
         V.attrWhen(String.eq(id, current), V.attrAria("current", "true"))
-      ]), [
-        V.viewEl("span", [V.attrClass("review-row-title")], [V.viewText(question)]),
-        V.viewEl("span", [V.attrClass("review-row-meta")], [
-          V.viewEl("span", [V.attrClass("review-row-src")], [V.viewText(rowSrc(name, page, path))]),
-          V.viewEl("span", [V.attrClass("review-row-when")], [V.viewText(when)])
-        ])
-      ])
+      ]), V.viewJoin([
+        [V.viewEl("span", [V.attrClass("review-row-title")], [V.viewText(question)])],
+        [V.viewEl("span", [V.attrClass("review-row-meta")], V.viewJoin([
+          [V.viewEl("span", [V.attrClass("review-row-src")], [V.viewText(rowSrc(name, page, path))])],
+          V.viewWhen(Bool.not(due), V.viewEl("span", [V.attrClass("review-row-when")], [V.viewText(when)]))
+        ]))]
+      ]))
 
 def rowNodes(+current: String, +xs: List<&2, ReviewEntry>) -> List<&2, V.ViewNode>:
   match xs:
@@ -730,16 +727,8 @@ def currentId(+m: Maybe<&2, ReviewEntry>) -> String:
 def reviewEmpty() -> V.ViewNode:
   V.viewEl("div", [V.attrClass("review-empty-block")], [
     V.viewEl("h3", [V.attrClass("review-empty-title")], [V.viewText(emptyTitle())]),
-    V.viewEl("p", [V.attrClass("review-empty")], [
-      V.viewText(emptyLead()),
-      V.viewEl("strong", Nil{}, [V.viewText(saveActionLabel())]),
-      V.viewText(emptyTail())
-    ]),
+    V.viewEl("p", [V.attrClass("review-empty")], [V.viewText(emptyBody())]),
     V.viewEl("div", [V.attrClass("review-empty-sample"), V.attrAria("hidden", "true")], [
-      V.viewEl("span", Nil{}, [V.viewText(M.msg("common.copy"))]),
-      V.viewEl("span", [V.attrClass("review-empty-dot")], [V.viewText("·")]),
-      V.viewEl("span", Nil{}, [V.viewText(M.msg("quote.button"))]),
-      V.viewEl("span", [V.attrClass("review-empty-dot")], [V.viewText("·")]),
       V.viewEl("span", [V.attrClass("review-empty-save")], [V.viewText(saveActionLabel())])
     ])
   ])
@@ -868,3 +857,9 @@ def canFillDraft(open: Bool, current: Bool, untouched: Bool) -> Bool:
 
 def draftStatus(text: String) -> V.ViewNode:
   V.viewEl("p", [V.attrId("review-draft-status"), V.attr("role", "status")], [V.viewText(text)])
+
+# Proposta do tutor: o card só entra no caderno quando o aluno aprova. "edited"
+# grava a versão que ele deixou no diálogo. Descarte, diálogo ocupado e silêncio
+# (prazo ou janela fechada) não gravam nada.
+def proposalEnters(+status: String) -> Bool:
+  Bool.or(String.eq(status, "approved"), String.eq(status, "edited"))

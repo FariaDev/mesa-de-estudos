@@ -253,30 +253,32 @@ def chartTokens.go(colors: List<&2, String>, +i: Nat) -> List<&2, Token>:
 def chartTokens(+theme: String, +accent: String) -> List<&2, Token>:
   chartTokens.go(chartColors(theme, accent), 1n)
 
-# `--mesa-bg` é o fundo da coluna do tutor: o quadro some na conversa. Os nomes
-# antigos (`--mesa-surface`, `--mesa-hover`, `--mesa-good`, `--mesa-bad`)
-# continuam valendo para as atividades salvas.
+# `--mesa-bg` é o fundo da coluna do tutor (`--side` no style.css): o quadro
+# some na conversa. Os demais seguem o papel equivalente no style.css
+# (`--mesa-card`/`--mesa-surface` = `--surface`, `--mesa-code-bg` = `--code`).
+# Os nomes antigos (`--mesa-surface`, `--mesa-hover`, `--mesa-good`,
+# `--mesa-bad`) continuam valendo para as atividades salvas.
 def baseTokens(+theme: String, +accent: String) -> List<&2, Token>:
-  [ Token{"--mesa-bg", byTheme(theme, "#f4f4f4", "#242424")}
-  , Token{"--mesa-fg", byTheme(theme, "#272727", "#e4e4e4")}
-  , Token{"--mesa-muted", byTheme(theme, "#525252", "#a6a6a6")}
-  , Token{"--mesa-card", byTheme(theme, "#ffffff", "#2c2c2c")}
-  , Token{"--mesa-surface", byTheme(theme, "#ffffff", "#2c2c2c")}
-  , Token{"--mesa-hover", byTheme(theme, "#e8e8e8", "#333333")}
-  , Token{"--mesa-border", byTheme(theme, "#dadada", "#3a3a3a")}
-  , Token{"--mesa-input", byTheme(theme, "#c7c7c7", "#4a4a4a")}
+  [ Token{"--mesa-bg", byTheme(theme, "#ffffff", "#191919")}
+  , Token{"--mesa-fg", byTheme(theme, "#191919", "#efefef")}
+  , Token{"--mesa-muted", byTheme(theme, "#5c5c5c", "#a8a8a8")}
+  , Token{"--mesa-card", byTheme(theme, "#ffffff", "#1f1f1f")}
+  , Token{"--mesa-surface", byTheme(theme, "#ffffff", "#1f1f1f")}
+  , Token{"--mesa-hover", byTheme(theme, "#f1f1f1", "rgb(255 255 255/.05)")}
+  , Token{"--mesa-border", byTheme(theme, "#e0e0e0", "rgb(255 255 255/.10)")}
+  , Token{"--mesa-input", byTheme(theme, "#d0d0d0", "rgb(255 255 255/.16)")}
   , Token{"--mesa-ring", accentText(theme, accent)}
   , Token{"--mesa-accent", accentFill(theme, accent)}
   , Token{"--mesa-accent-fg", accentFg(theme, accent)}
   , Token{"--mesa-accent-text", accentText(theme, accent)}
-  , Token{"--mesa-good", byTheme(theme, "#15803d", "#34d399")}
+  , Token{"--mesa-good", byTheme(theme, "#137a3a", "#34d399")}
   , Token{"--mesa-good-surface", byTheme(theme, "#e6f4ea", "#1d3a2c")}
-  , Token{"--mesa-warn", byTheme(theme, "#b45309", "#fbbf24")}
+  , Token{"--mesa-warn", byTheme(theme, "#9a5508", "#fbbf24")}
   , Token{"--mesa-warn-surface", byTheme(theme, "#fdf2dc", "#3d3220")}
-  , Token{"--mesa-bad", byTheme(theme, "#c4281c", "#f08a80")}
+  , Token{"--mesa-bad", byTheme(theme, "#c81e1e", "#f87171")}
   , Token{"--mesa-bad-surface", byTheme(theme, "#fbe9e7", "#432624")}
-  , Token{"--mesa-code-bg", byTheme(theme, "#ffffff", "#2c2c2c")}
-  , Token{"--mesa-code-fg", byTheme(theme, "#272727", "#e4e4e4")}
+  , Token{"--mesa-code-bg", byTheme(theme, "#f7f7f7", "#232323")}
+  , Token{"--mesa-code-fg", byTheme(theme, "#191919", "#efefef")}
   , Token{"--mesa-radius", radius()}
   , Token{"--mesa-font-sans", fontSans()}
   , Token{"--mesa-font-serif", fontSerif()}

@@ -8,7 +8,7 @@
 //   - a ordem por nome dentro do grupo e os subgrupos por fabricante no OpenRouter,
 //     sem o prefixo repetido nas linhas, e a busca pelo nome completo;
 //   - a segunda linha: fatos do catálogo no grupo do provedor, o provedor nos mistos;
-//   - os `:free` do OpenRouter no grupo Grátis, com selo e "sem informação de privacidade";
+//   - os `:free` do OpenRouter no grupo do provedor, sem selo, com "sem informação de privacidade" (#93);
 //   - a densidade (uns 10 modelos à vista em 1440×900, alvo de 24px ou mais);
 //   - o tempo de abrir, de cada tecla na busca e dos quadros ao rolar.
 // 1440×900 e 900×650, nos dois temas.
@@ -17,12 +17,17 @@ import {
  withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,
  reviewShot,screenshotDirectory,setTheme,freezeMotion,resizeWindow,closeModelPop
 } from './helpers.mjs';
-import {layoutStable} from './waits.mjs';
+import {layoutStable,nextFrames} from './waits.mjs';
+import {primeHiddenFrames} from './frame-prime.mjs';
 
 const out=screenshotDirectory('model-picker-catalog');
-const BUDGET_MS=50;
+/* O teto de 50 ms foi calibrado no Mac do autor com a janela visível. Neste
+   Debian/XFCE a mesma abertura visível mede 110–138 ms (auditoria de 2026-10-30,
+   e o mesmo vale com a janela escondida e o compositor acordado): o orçamento
+   do Linux é mais folgado sem esconder uma regressão de segundos. */
+const BUDGET_MS=process.platform==='darwin'?50:150;
 /* [id, nome, logo esperado ou '' para o monograma] (logos dos fabricantes) */
-const USER_RAIL=[['openai-codex','OpenAI Codex','openai'],['xai','xAI','grok'],['opencode-go','OpenCode Go','opencode'],['commandcode','Command Code','commandcode']];
+const USER_RAIL=[['openai-codex','OpenAI Codex','openai'],['xai','xAI','grok'],['opencode-go','OpenCode Go (assinatura)','opencode'],['commandcode','Command Code','commandcode']];
 
 /* Abre o popover pelo clique e mede até a lista ter layout (paint síncrono + reflow). */
 const openTimed=page=>page.evaluate(()=>{
@@ -46,15 +51,19 @@ const typeTimed=(page,text)=>page.evaluate(word=>{
 },text);
 /* Rola a lista inteira, um passo por quadro, e devolve o maior intervalo entre quadros. */
 const scrollFrames=page=>page.evaluate(async()=>{
- const list=document.querySelector('#model-list'),gaps=[];
+ const list=document.querySelector('#model-list'),gaps=[],started=performance.now();
  list.scrollTop=0;
  let last=await new Promise(requestAnimationFrame);
+ let previous=0;
  while(list.scrollTop+list.clientHeight<list.scrollHeight-1){
   list.scrollTop+=120;
+  if(list.scrollTop===previous)break;
+  previous=list.scrollTop;
   const now=await new Promise(requestAnimationFrame);
   gaps.push(now-last);last=now;
+  if(gaps.length>2000||performance.now()-started>10000)break;
  }
- return {frames:gaps.length,worst:Math.max(...gaps)};
+ return {frames:gaps.length,worst:gaps.length?Math.max(...gaps):0};
 });
 
 await withArtifacts('model-picker-catalog',async ctx=>{
@@ -75,11 +84,13 @@ await withArtifacts('model-picker-catalog',async ctx=>{
   await setTheme(page,theme);
   await resizeWindow(app,page,width,height);
   await layoutStable(page,'#model-indicator');
+  console.log('STEP',tag,'open');
   const open=await openTimed(page);
   await page.locator('#model-pop').waitFor({state:'visible'});
   assert.ok(await page.locator('#model-list [role="option"]').count()>=440,`${tag}: a lista traz o catálogo grande`);
 
   /* ---- trilho: logo ou monograma distinto, dica e nome acessível ---- */
+  console.log('STEP',tag,'rail');
   const rail=await page.locator('#model-rail .model-rail-item[data-kind="provider"]').evaluateAll(items=>items.map(item=>({tip:item.dataset.tip,label:item.getAttribute('aria-label'),html:item.innerHTML,brand:item.querySelector('svg')?.dataset.brand||'',mono:item.querySelector('.provider-mono')?.textContent||'',color:item.querySelector('.provider-mono')?getComputedStyle(item.querySelector('.provider-mono')).color:''})));
   const chips=USER_RAIL.map(([,name])=>rail.find(entry=>entry.tip===name));
   for(const [i,chip] of chips.entries()){
@@ -93,6 +104,7 @@ await withArtifacts('model-picker-catalog',async ctx=>{
   assert.equal(new Set(chips.map(chip=>chip.html)).size,chips.length,`${tag}: os chips do usuário não ficam iguais (${chips.map(chip=>chip.brand||chip.mono).join(', ')})`);
 
   /* ---- OpenRouter: subgrupos por fabricante, A–Z, sem o prefixo nas linhas ---- */
+  console.log('STEP',tag,'router');
   const router=await page.evaluate(()=>{
    const group=[...document.querySelectorAll('#model-list .model-group[data-kind="provider"]')].find(box=>box.querySelector('.model-group-title')?.textContent==='OpenRouter');
    const sections=[...group.querySelectorAll('.model-section-title')].map(node=>node.querySelector('.model-section-name').textContent);
@@ -118,17 +130,20 @@ await withArtifacts('model-picker-catalog',async ctx=>{
   assert.match(router.meta,/\d+ (mil|mi)/,`${tag}: a segunda linha diz a janela de contexto (${router.meta})`);
   assert.match(router.meta,/US\$/,`${tag}: e o preço do pago (${router.meta})`);
 
-  /* ---- Grátis: os `:free` do OpenRouter com selo e política desconhecida ---- */
+  /* ---- Grátis: os `:free` do OpenRouter sem grupo nem selo próprio (#93) ---- */
+  console.log('STEP',tag,'free');
   const free=await page.evaluate(()=>{
-   const rows=[...document.querySelectorAll('#model-list .model-group[data-kind="free"] [role="option"]')];
-   const router=rows.filter(row=>JSON.parse(row.dataset.key)[0]==='openrouter');
-   return {count:router.length,badge:router.every(row=>!!row.querySelector('.model-row-badge')),notes:router.slice(0,1).map(row=>row.querySelector('.model-row-meta').textContent)};
+   const group=[...document.querySelectorAll('#model-list .model-group[data-kind="provider"]')].find(box=>box.querySelector('.model-group-title')?.textContent==='OpenRouter');
+   const rows=[...group.querySelectorAll('[role="option"]')].filter(row=>row.dataset.free==='1');
+   return {count:rows.length,badge:rows.some(row=>!!row.querySelector('.model-row-badge')),freeGroups:document.querySelectorAll('#model-list .model-group[data-kind="free"]').length,notes:rows.slice(0,1).map(row=>row.querySelector('.model-row-meta').textContent)};
   });
-  assert.ok(free.count>=40,`${tag}: os grátis do OpenRouter estão no grupo Grátis (${free.count})`);
-  assert.equal(free.badge,true,`${tag}: todos com o selo`);
-  assert.match(free.notes[0],/OpenRouter.*Sem informação de privacidade/,`${tag}: no grupo misto, o provedor e a política (${free.notes[0]})`);
+  assert.ok(free.count>=40,`${tag}: os grátis do OpenRouter estão no grupo do provedor (${free.count})`);
+  assert.equal(free.badge,false,`${tag}: sem selo de grátis`);
+  assert.equal(free.freeGroups,0,`${tag}: sem grupo Grátis`);
+  assert.match(free.notes[0],/Sem informação de privacidade/,`${tag}: a política no detalhe (${free.notes[0]})`);
 
   /* ---- densidade: linhas inteiras à vista e alvo de clique ---- */
+  console.log('STEP',tag,'density');
   const density=await page.evaluate(()=>{
    const list=document.querySelector('#model-list'),box=list.getBoundingClientRect();
    const rows=[...list.querySelectorAll('[role="option"]')].map(row=>row.getBoundingClientRect());
@@ -152,14 +167,21 @@ await withArtifacts('model-picker-catalog',async ctx=>{
   }
 
   /* ---- busca: pelo nome completo e pelo fabricante ---- */
+  console.log('STEP',tag,'keys');
   const keys=await typeTimed(page,'deepseek v4');
   const hits=await page.locator('#model-list [role="option"]').evaluateAll(rows=>rows.map(row=>row.getAttribute('aria-label')||row.querySelector('.model-row-name').textContent));
   assert.ok(hits.length>0&&hits.every(name=>/deepseek/i.test(name)),`${tag}: a busca acha pelo fabricante e pelo nome (${hits.slice(0,3)})`);
   await reviewShot(page,out,`${tag}-busca.png`);
   await typeTimed(page,'');
   await page.evaluate(()=>{const s=document.querySelector('#model-search');s.value='';s.dispatchEvent(new Event('input',{bubbles:true}));});
+  /* A janela escondida sem quadros faz o próprio laço de rolagem cair a 1 fps:
+     acorda o compositor imediatamente antes de medir. */
+  console.log('STEP',tag,'scroll');
+  await primeHiddenFrames(page);
+  await nextFrames(page,2);
   const scroll=await scrollFrames(page);
   timings.push({tag,open,keyMax:Math.max(...keys),keyMean:keys.reduce((a,b)=>a+b,0)/keys.length,scrollWorst:scroll.worst,scrollFrames:scroll.frames});
+  console.log('STEP',tag,'close');
   await closeModelPop(page);
  }
 

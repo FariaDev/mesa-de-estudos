@@ -5,7 +5,7 @@ import en from '../src/locales/en.json' with {type: 'json'};
 import {createI18n} from '../src/i18n.mjs';
 import {
   STEPS, TOUR, initialSetup, stepId, setupBlocked, nextSetup, backSetup, goToStep, primaryKey, hintKey,
-  setupTrail, speechOf, mascoteOf, castOf, activeRegion, pdfPreview, clearFolder,
+  setupTrail, speechOf, activeRegion, pdfPreview, clearFolder,
 } from '../src/setup-flow.mjs';
 
 /* #64: a primeira abertura em tela cheia, um passo por vez. */
@@ -77,7 +77,7 @@ test('a fala diz o que aconteceu ou o que fazer, sem falar como personagem', () 
     return pt.t(key, args);
   };
   assert.equal(say(initialSetup('setup')), 'Vamos montar a sua Mesa.');
-  assert.equal(say(at('tour', {frame: 3})), 'Se esquecer de algo, ⌘ / abre o guia.');
+  assert.equal(say(at('tour', {frame: 3})), '', 'o quadro fala pelo desenho, sem balão repetido');
   assert.equal(say(at('name')), 'Como se chama a matéria?');
   assert.equal(say(at('name', {writing: true})), 'Como se chama a matéria?', 'digitar não troca a fala');
   assert.equal(say(at('name', {name: ' Física II '})), 'Matéria: Física II.');
@@ -86,43 +86,23 @@ test('a fala diz o que aconteceu ou o que fazer, sem falar como personagem', () 
   assert.equal(say(at('folder', {folder: '/pdfs', pdfCount: 12})), '12 PDFs encontrados.');
   assert.equal(say(at('folder', {folder: '/pdfs', pdfCount: 0})), 'A pasta ainda não tem PDFs. Dá para pôr depois.');
   assert.equal(say(at('tutor', {online: true})), 'Tutor ligado.');
+  assert.equal(say(at('tutor')), '', 'o tutor opcional não repete o cartão');
   assert.equal(say(at('ready')), 'Tudo pronto. Crie a matéria para começar.');
-  assert.equal(say(at('ready', {sleepy: true})), 'Continue quando quiser.');
 });
 
 /* #67: o teste cobre o catálogo todo. Exceções: o "©" dos créditos do Sobre (é o símbolo
-   legal, não emoji) e a fala de apresentação do tutor, que já ficava fora desde a #64. */
+   legal, não emoji) e a fala de apresentação do tutor, que já ficava fora desde a #64. A "★"
+   de Favorita é marcador, não emoji: o ICU do Node 22 a conta como pictográfica e o do
+   Node 24 não, então ela sai do texto antes da conferência. */
 const TONE_EXCEPTIONS = /^(about\.copyright|about\.credit\.|firstrun\.tutor\.lead$)/;
 
 test('nenhum texto do catálogo (#67; antes só setup, Guia, mascotes e celular) tem o tom infantil que a #64 tirou', () => {
   for (const catalog of [ptBR, en]) {
     for (const [key, value] of Object.entries(catalog)) {
       if (TONE_EXCEPTIONS.test(key)) continue;
-      assert.doesNotMatch(value, /Bora|Zzz|!|\ba gente\b|eu pego|I’ll|\p{Extended_Pictographic}/u, `${key}: ${value}`);
+      assert.doesNotMatch(value.replaceAll('★', ''), /Bora|Zzz|!|\ba gente\b|eu pego|I’ll|\p{Extended_Pictographic}/u, `${key}: ${value}`);
     }
   }
-});
-
-test('quem está em cena: o trio junto nas Boas-vindas e no Pronto, um só nos outros passos', () => {
-  assert.deepEqual(castOf(initialSetup('setup')), {trio: true, lead: 'integral'});
-  assert.deepEqual(castOf(at('ready')), {trio: true, lead: 'sigma'});
-  assert.deepEqual(TOUR.map((_, frame) => castOf(at('tour', {frame})).lead), ['integral', 'sigma', 'nabla', 'nabla'], 'a ∫ lê, o Σ resolve, o ∇ pergunta e aponta');
-  assert.deepEqual(castOf(at('name')), {trio: false, lead: 'sigma'}, 'o Σ conta os itens');
-  assert.deepEqual(castOf(at('folder')), {trio: false, lead: 'nabla'}, 'o ∇ procura a pasta');
-  assert.deepEqual(castOf(at('tutor')), {trio: false, lead: 'integral'});
-});
-
-test('o humor da mascote acompanha o passo e cada avanço é um pulo', () => {
-  assert.equal(mascoteOf(initialSetup('setup')).wave, true, 'acena nas boas-vindas');
-  assert.equal(mascoteOf(at('tour')).reading, true, 'Abra o material: lendo');
-  assert.equal(mascoteOf(at('tour', {frame: 1})).writing, true, 'Resolva do seu jeito: escrevendo');
-  assert.equal(mascoteOf(at('tour', {frame: 3})).alert, true, 'Onde está o quê: o ∇ dá a dica');
-  assert.equal(mascoteOf(at('folder')).mood, 'pensando', 'esperando os PDFs');
-  assert.equal(mascoteOf(at('folder', {alert: true})).mood, 'normal');
-  assert.equal(mascoteOf(at('ready')).mood, 'feliz');
-  const milestones = [initialSetup('setup'), at('tour'), at('tour', {frame: 1}), at('name'), at('folder')].map((s) => mascoteOf(s).milestone);
-  assert.deepEqual(milestones, [...milestones].sort((a, b) => a - b), 'o marco só sobe ao avançar');
-  assert.equal(new Set(milestones).size, milestones.length);
 });
 
 test('a linha da pasta mostra até quatro nomes e quantos sobram', () => {
@@ -145,8 +125,11 @@ test('"plano pago" sugeria que a Mesa tem plano; o que se dispensa é a assinatu
   for (const catalog of [ptBR, en]) {
     for (const [key, value] of Object.entries(catalog)) assert.doesNotMatch(value, /plano pago|paid plan/i, `${key}: ${value}`);
   }
-  assert.match(ptBR['freeModels.openTitle'], /^Estudar sem assinatura de IA,/);
-  assert.match(en['freeModels.settings.lead'], /^Study without an AI subscription\./);
+  assert.match(en['freeModels.settings.lead'], /^OpenCode Zen key\./);
+  assert.equal(ptBR['guide.tutor.t10.title'], undefined, 'o guia não anuncia modelos grátis (#93)');
+  assert.equal(en['guide.tutor.t10.title'], undefined);
+  assert.equal(ptBR['freeModels.badge'], undefined, 'a marca Grátis saiu do catálogo (#93)');
+  assert.equal(en['freeModels.badge'], undefined);
 });
 
 /* #70: a pasta escolhida por engano não tinha como sair do passo PDFs. */

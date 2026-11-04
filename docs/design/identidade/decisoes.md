@@ -4,10 +4,10 @@ Fase A, exploração. Cada peça passa por rodadas curtas de 2 a 4 variantes; o 
 
 | # | Peça | Protótipo | Opções | Recomendo | Escolha |
 |---|---|---|---|---|---|
-| 1 | Mascote (entra ou não, e qual) | [mascote-r1.html](mascote-r1.html) §1 | A Mesinha · B Folhinha · C Caderninho · nenhum | **A Mesinha** | **Trio ∫ Integral, Σ Sigma e ∇ Nabla**, aprovado em 2026-10-22 na #64 ([../../reviews/issue-64-mascotes.html](../../reviews/issue-64-mascotes.html)), no estilo da [mascote-r6.html](mascote-r6.html). Substitui a Folhinha (aprovada em 2026-10-21 em [folhinha-r7.html](folhinha-r7.html), hoje só histórico) |
-| 2 | Ícone do app | [logo-r1.html](logo-r1.html), [mascote-r1.html](mascote-r1.html) §2 | A Duas folhas · B M serifado · C Lista 0 · D Tampo · D' M-mesa · E M-lápis · F Folha que sorri | **D' M-mesa** (sem mascote: **B M serifado**) | **G1 · folha com a ∫** ([logo-folha-r5.html](logo-folha-r5.html)), escolhida em 2026-10-22: a mesma folha creme inclinada da F1, com a ∫ em traço de pincel no tom escuro do acento, sem o visto; reativa à cor de acento. Antes: G2 com o visto (#65, no mesmo dia), F1 com a lista (2026-10-21) e, antes dela, D' M-mesa |
+| 1 | Mascote (entra ou não, e qual) | [mascote-r1.html](mascote-r1.html) §1 | A Mesinha · B Folhinha · C Caderninho · nenhum | **A Mesinha** | **Trio ∫ Integral, Σ Sigma e ∇ Nabla**, aprovado em 2026-10-22 na #64 ([../../reviews/issue-64-mascotes.html](../../reviews/issue-64-mascotes.html)), no estilo da [mascote-r6.html](mascote-r6.html). Substitui a Folhinha (aprovada em 2026-10-21 em [folhinha-r7.html](folhinha-r7.html), hoje só histórico). Na #100 o **principal** passou a ser escolhido entre os três (∫ é o padrão), e onde só um aparece vale o escolhido; a #101 tirou a escolha e deixou o trio só no Guia e na página do celular |
+| 2 | Ícone do app | [logo-r1.html](logo-r1.html), [mascote-r1.html](mascote-r1.html) §2 | A Duas folhas · B M serifado · C Lista 0 · D Tampo · D' M-mesa · E M-lápis · F Folha que sorri | **D' M-mesa** (sem mascote: **B M serifado**) | **Luminária** (#101, 2026-11-03): a arte final do Lucas, em seis cores de acento; o pacote fica no **azul** e o Dock/janela/cabeçalho seguem o acento. Antes: oito ícones (#100, 2026-11-03), G1 com a ∫ ([logo-folha-r5.html](logo-folha-r5.html), 2026-10-22), G2 com o visto (#65), F1 com a lista (2026-10-21) e D' M-mesa |
 | 3 | Estilo dos ícones da interface | [icones-r1.html](icones-r1.html) | A Fino · B Duotom · C Acento | **B Duotom** | **Hoje (Lucide)**, com a faísca do Fino no **traço 2** ([icones-r2.html](icones-r2.html), variante A); 2026-10-21 |
-| 4 | "Pensando" animado | [animados-r1.html](animados-r1.html) §1 | A1 Faísca · A2 Lápis · A3 Mesinha · A4 Pontos | **A3 Mesinha** (sem mascote: **A2 Lápis**) | **∫ pequena, pose "pensando"** (mão no queixo, "?" e piscada), pelo componente `desk/src/mascote.mjs`; 2026-10-22 na #64. Antes: Folhinha pequena de [folhinha-r7.html](folhinha-r7.html), 2026-10-21 |
+| 4 | "Pensando" animado | [animados-r1.html](animados-r1.html) §1 | A1 Faísca · A2 Lápis · A3 Mesinha · A4 Pontos | **A3 Mesinha** (sem mascote: **A2 Lápis**) | **Cúpula da luminária** com a luz pulsando (#101, 2026-11-03), sem braço nem personagem. Antes: ∫ pequena, pose "pensando" (mão no queixo, "?" e piscada), pelo componente `desk/src/mascote.mjs`; 2026-10-22 na #64, e Folhinha pequena de [folhinha-r7.html](folhinha-r7.html), 2026-10-21 |
 | 5 | Microinterações animadas | [animados-r1.html](animados-r1.html) §2 | copiar · enviar · guardar · conferir | **copiar, guardar e conferir**; enviar fica parado | **copiar, guardar e conferir** (2026-10-21); copiar, guardar e conferir corrigidos em [animados-r2.html](animados-r2.html) |
 | 6 | STIX na Lista 0 | [tipografia-r1.html](tipografia-r1.html) §1 | A só cabeçalho · B folha inteira | **B folha inteira** | **B folha inteira** (2026-10-21) |
 | 7 | STIX no Caderno | [tipografia-r1.html](tipografia-r1.html) §2 | A 26px regular · B 24px médio | **B 24px médio** | **B 24px médio** (2026-10-21) |
@@ -15,13 +15,37 @@ Fase A, exploração. Cada peça passa por rodadas curtas de 2 a 4 variantes; o 
 | 9 | Títulos do chat | [tipografia-r1.html](tipografia-r1.html) §4 | A proposta da issue · B tudo 15px | **A proposta da issue** | **A proposta da issue** (2026-10-21) |
 | 10 | `tabular-nums` | [tipografia-r1.html](tipografia-r1.html) §5 | sim · não | **sim** (já decidido na issue) | sim |
 
+## Luminária: ícone único, sem escolhas (#101, 2026-11-03)
+
+- O ícone do app é a **luminária** desenhada pelo Lucas. As PNGs-mestras de 1024 px são a arte; a variante de 16–32 px, só com a cúpula e a luz na folha colorida, é gerada por `scripts/lamp-icons.cjs` a partir do SVG de `scripts/lamp-art.mjs`. O pacote fica no azul e o Dock, a janela e o cabeçalho seguem a cor de acento.
+- Saem as escolhas de mascote e de ícone das Configurações e do setup, os campos `mascot`/`appIcon` do `desk.json` e a linha "vale com o app aberto". Um `desk.json` antigo com os campos é lido e regravado sem eles.
+- O trio ∫ Σ ∇ fica só na página do celular, seguindo o acento. O topo da lateral do Guia passa a mostrar a luminária (o autor achou o trio largado ali); o vazio da busca segue com o ∇ fixo de antes da #100.
+- No setup, a luminária fica parada e só a luz se move (posição, tamanho e intensidade). Saem personagens, balão, olhos, aceno, cochilo, riso, tontura, pulo e faíscas. A área acesa cresce a cada passo e no Pronto a folha inteira acende. OpenCode ausente, instalando ou com falha fica com luz fraca e estável, sem alarme; com movimento reduzido cada passo mostra a luz no lugar final.
+- O "pensando" do tutor usa a luminária da arte do autor: o braço entra pelo canto de cima da linha e a cabeça corta o facho. A luz pulsa em 2,4 s (`--ease-move`, opacidade de .22 a 1), acento no claro e creme no escuro.
+- Os dois composers (tutor e chat lateral) não flutuam: ponta a ponta na coluna, um fio em cima e 12 px de recuo no texto. O fio e o início do campo ficam na mesma altura nas duas colunas (`composer-align.mjs`), e o campo do lateral desce até o pé da coluna, onde o tutor tem a calculadora.
+- O escopo do chat lateral fica em uma linha, com reticências; isso substitui as duas linhas da #23 para manter os composers alinhados.
+- Peso: `assets/app-icon/` passou de 2,7 MB (144 arquivos) para 0,78 MB (42 arquivos); o payload em `assets/` caiu de 2,97 MB para 1,40 MB.
+
+## Mascote, cor e ícone (#100, 2026-11-03; escolhas removidas na #101)
+
+- **Histórico:** a escolha do principal, os oito ícones e o ícone automático descritos abaixo saíram na #101; seguem valendo as cores do trio e o ∇ fixo do vazio da busca.
+- **Mascote principal:** ∫ Integral (padrão), Σ Sigma ou ∇ Nabla. Aparece onde hoje só um aparece — "pensando" do chat, vazio da busca do Guia e passos individuais do setup. As telas com o trio junto (Boas-vindas e Pronto do setup, topo do Guia) continuam com o trio; tocar um dos três nas Boas-vindas o traz para a frente e o torna o principal.
+- **Cores do mascote:** as três seguem a cor de acento nos dois temas, no app e na página do celular: corpo, claro, membro, sinal e tinta vêm de `--trio-*` em `style.css`. O lápis e o ✓ continuam âmbar em todas as cores; os olhos, brancos. Grafite tem os dois tons do tema porque o claro quase sumia no fundo escuro. A tabela do ticket foi ajustada no mínimo para passar 3:1 de desenho e 4,5:1 do sinal: violeta, laranja e rosa do tema escuro clarearam um pouco, o membro do escuro usa o tom claro, e o claro do verde no tema claro escureceu; os valores estão em `tests/contrast.test.mjs`.
+- **Oito ícones:** `esquadro-sigma`, `esquadro-integral`, `esquadro-nabla`, `m-refinado`, `m-italico`, `m-quadriculado`, `m-colorido` e `m-esquadro`, cada um nas seis cores, gerados por `node_modules/.bin/electron scripts/app-icons.cjs` a partir das mestras em `scripts/app-icon-art/`. Cada um tem a variante de 16–32 px sem réguas, grade nem esquadro e com o símbolo engrossado. O sublinhado dos M fica (decisão aberta na revisão visual).
+- **Ícone segue o mascote:** ∫→∫, Σ→Σ, ∇→∇. Depois de uma escolha manual, trocar de mascote não muda o ícone; "Usar o ícone do mascote" volta ao automático.
+- **Onde escolher:** mascote e cor nas Boas-vindas do setup e nas Configurações; o ícone sugerido aparece no setup com **Trocar**, e a grade completa fica nas Configurações.
+- **Estado:** `mascot` e `appIcon` ficam no `desk.json`, nunca no `config.json`. Ausente ou inválido cai em ∫ e no automático; quem já usa mantém a cor, fica com a ∫ e não revê o setup.
+- **Ícone com o app fechado:** o escolhido vale com o app aberto (Dock, janela e barra de tarefas). O ícone do pacote instalado não muda, e a tela de escolha diz isso em uma linha. O teste com `.icns` de um `.app` de teste fica para o macOS (etapa 1 do ticket, não feita aqui).
+- **Licença:** os glifos são contornos da STIX Two Math (OFL 1.1), cobertos junto com a STIX Two Text em `src/fonts/OFL.txt`.
+- **Peso:** `assets/app-icon/` passou de 508 KB para 2,7 MB (144 arquivos: 48 SVGs, 48 Dock de 512 px e 48 de 256 px), abaixo da estimativa de 4 MB.
+
 ## Trio ∫ Σ ∇ no lugar da Folhinha (#64, 2026-10-22)
 
 - O autor trocou a Folhinha pelo **trio ∫ Integral, Σ Sigma e ∇ Nabla**, revisado na página estática [issue-64-mascotes.html](../../reviews/issue-64-mascotes.html), feita com o mesmo código do app. A Folhinha saiu do código e dos testes; [folhinha-r7.html](folhinha-r7.html) fica só como histórico.
 - Papéis: a **∫** é calma e lê junto; o **Σ** é organizado e soma o progresso (o ✓ do passo vencido e o Pronto); o **∇** é curioso e dá a dica (braço levantado com "!").
 - Onde aparecem: os três juntos nas Boas-vindas e no Pronto do setup e no topo do Guia; um só, grande, nos outros passos do setup e no vazio da busca do Guia (∇ pensando); um só, pequeno, no "pensando" do chat (∫).
 - Tom: os textos ao redor dizem o que aconteceu ou o que fazer, sem fala de personagem. O nome de cada um aparece só no aria-label (`mascote.<id>.nome`).
-- O ícone do app (item 2, hoje o G2 da #65) não muda nesta issue.
+- O ícone do app mudou na #100 (ver a seção acima).
 
 ## Folhinha sem a lista no corpo (#64, 2026-10-21; histórico)
 

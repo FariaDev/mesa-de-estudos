@@ -317,7 +317,6 @@ function finishActivitySlots(reason){
 function liveWorkShown(){return !!document.querySelector('#messages .work[data-live="true"]');}
 function paintLive(){
  if(!turnState.turnLog)return;
- if(S.quizQueue&&S.quizQueue.length)return; /* o quiz manda na linha do composer */
  /* Um aviso de limite visível manda na faixa: o relógio do turno não apaga o
     motivo da pausa a cada segundo (a limpeza é do `agent_settled`/RESUMED). */
  if(turnState.limitShown)return;

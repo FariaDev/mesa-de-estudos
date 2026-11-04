@@ -23,7 +23,9 @@
  *     validadas por `event.source`, origem opaca e identidade id/version/hash;
  *   - ampliar só muda o CSS do MESMO iframe (sem reparenting, o contexto não
  *     recarrega); reiniciar cria montagem nova com init limpo; parar remove o
- *     iframe (um laço no artefato morre com o frame, medido no spike);
+ *     iframe, e o watchdog encerra o processo próprio quando ele fica sem
+ *     frames (#88) — um laço não derruba as outras atividades, nem outra
+ *     revisão da mesma atividade (#89);
  *   - “Levar ao tutor” só ANEXA um rascunho ao conteúdo existente e dispara
  *     `input`; nunca envia prompt, nunca apaga o texto do aluno;
  *   - awaits guardam época/tamanho do slot: resposta atrasada de outra conversa

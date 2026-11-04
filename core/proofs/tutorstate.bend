@@ -4,9 +4,6 @@ import ../laws/tutorstate.bend as Laws
 # Provas dos estados do tutor na coluna. Aceitador: `bend proofs/tutorstate.bend`.
 # Todos os termos fecham em valores concretos (computação).
 
-def Laws.tutorstate_reason_cap():
-  {==}
-
 def Laws.tutorstate_reason_vazio():
   {==}
 
@@ -14,6 +11,9 @@ def Laws.tutorstate_reason_so_espaco():
   {==}
 
 def Laws.tutorstate_reason_apara():
+  {==}
+
+def Laws.tutorstate_reason_longo_intacto():
   {==}
 
 def Laws.tutorstate_off_convite():
@@ -174,6 +174,24 @@ def Laws.tutorstate_pi_ausente_chamar_secundario():
   {==}
 
 def Laws.tutorstate_pi_ausente_tres_acoes():
+  {==}
+
+def Laws.tutorstate_opencode_ausente_marca():
+  {==}
+
+def Laws.tutorstate_opencode_presente_nao_marca():
+  {==}
+
+def Laws.tutorstate_opencode_ausente_instalar_principal():
+  {==}
+
+def Laws.tutorstate_opencode_ausente_sem_chamar():
+  {==}
+
+def Laws.tutorstate_opencode_ausente_log_secundario():
+  {==}
+
+def Laws.tutorstate_opencode_ausente_escolhe_view():
   {==}
 
 def Laws.tutorstate_dica_ligado():

@@ -228,8 +228,10 @@ test('Windows: a captura de outro programa nomeia o processo e o rótulo', async
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-conferir-cap-'));
   let script = '';
   const exec = async (cmd, args) => { script = fs.readFileSync(args.at(-1), 'utf8'); const e = Error('exit 3'); e.code = 3; throw e; };
-  await assert.rejects(() => captureWindow({exec, tmp: () => dir, processName: "One'Note", label: 'OneNote'}), ptMatches(/Abra o OneNote primeiro/));
-  assert.match(script, /Get-Process -Name 'One''Note'/, 'aspas do nome do processo são duplicadas');
+  await assert.rejects(() => captureWindow({exec, tmp: () => dir, processName: 'ONENOTE', label: 'OneNote'}), ptMatches(/Abra o OneNote primeiro/));
+  assert.match(script, /Get-Process -Name 'ONENOTE'/);
+  /* Revisão de segurança (90a0527): nome de processo com aspa é recusado antes do script, em vez de escapado. */
+  await assert.rejects(() => captureWindow({exec, tmp: () => dir, processName: "One'Note", label: 'OneNote'}), ptMatches(/Nome de processo inválido/));
   assert.equal(psLiteral('a\nb'), 'a b');
   assert.match(buildScript('C:\\x.png', 'code'), /Get-Process -Name 'code'/);
 });

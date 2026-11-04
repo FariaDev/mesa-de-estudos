@@ -84,7 +84,9 @@ function createToolUpdates(deps){
   testMode=false,env=process.env,home=os.homedir(),now=Date.now,
   run=updater.defaultRun,fetchJson=updater.defaultFetchJson,
   runTool=toolRun.runTool,latestOverride,piPath,claudeLauncher,searchDirs,allowRunInTest=false,
+  visibleEngines=()=>['pi','claude','opencode'],
  }=deps;
+ const visibleToolIds=()=>TOOL_IDS.filter(id=>visibleEngines().includes(id));
  const cacheFile=path.join(runtime,'update.json');
  let running=null;
 
@@ -112,7 +114,7 @@ function createToolUpdates(deps){
   const items={};
   const lines=[];
   let dot=false;
-  for(const id of TOOL_IDS){
+  for(const id of visibleToolIds()){
    const fact=tools[id];
    const notice=noticeOf(fact,entryOf(id));
    items[id]={available:notice.available,unreachable:notice.unreachable,showLine:notice.showLine,showDot:notice.showDot,ahead:notice.ahead};
@@ -132,7 +134,7 @@ function createToolUpdates(deps){
   *  mais nova. As linhas continuam (ver, não é ignorar). */
  async function opened(){
   const tools=await components.collectTools(toolOpts({cacheOnly:true}));
-  for(const id of TOOL_IDS){
+  for(const id of visibleToolIds()){
    const fact=tools[id];
    const next=noticeCore.afterOpen(coreMemory(entryOf(id)),components.verOf(fact.installed),components.verOf(fact.latest));
    remember(id,next);
@@ -141,7 +143,7 @@ function createToolUpdates(deps){
  }
 
  async function answer(id,decide){
-  if(!isToolId(id))throw Error(`ferramenta desconhecida: ${JSON.stringify(id)}; esperado ${TOOL_IDS.join(' ou ')}`);
+  if(!isToolId(id)||!visibleToolIds().includes(id))throw Error(`ferramenta desconhecida: ${JSON.stringify(id)}; esperado ${visibleToolIds().join(' ou ')}`);
   const tools=await components.collectTools(toolOpts({cacheOnly:true}));
   remember(id,decide(coreMemory(entryOf(id)),tools[id]));
   return summarize(tools);
@@ -155,7 +157,7 @@ function createToolUpdates(deps){
   *  ter chegado aqui (id, instalação sem comando, tutor respondendo, outra
   *  atualização em curso). */
  async function runUpdate(id){
-  if(!isToolId(id))throw Error(`ferramenta desconhecida: ${JSON.stringify(id)}; esperado ${TOOL_IDS.join(' ou ')}`);
+  if(!isToolId(id)||!visibleToolIds().includes(id))throw Error(`ferramenta desconhecida: ${JSON.stringify(id)}; esperado ${visibleToolIds().join(' ou ')}`);
   if(testMode&&!allowRunInTest)throw Error(uiMsg('err.update.testMode'));
   if(running)throw Error(uiMsg('err.update.running'));
   if(await isBusy())throw Error(uiMsg('err.update.tutorBusy'));

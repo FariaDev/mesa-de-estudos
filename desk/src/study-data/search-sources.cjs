@@ -396,6 +396,7 @@ function gather(runtime, {courses = []} = {}) {
         title: text(material?.name, MAX_TITLE_CHARS),
         when: 0,
         materialName: text(material?.name, 200),
+        sessionId: record.id,
       });
     }
   }

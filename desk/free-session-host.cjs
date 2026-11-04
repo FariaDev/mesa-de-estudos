@@ -24,10 +24,11 @@ const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
  * @param {{live: import('./main.cjs').DeskLive, runtime: string, FREE_ID: string,
  *   ggb: import('./types/main-hosts').GeogebraHost,
  *   engine: import('./types/main-hosts').TutorEngineHost['engine'],
+ *   defaultEngine: import('./types/main-hosts').TutorEngineHost['defaultEngine'],
  *   previewFile: import('./types/main-hosts').TutorEngineHost['previewFile']}} options
- * @example const {ensureFreeRecord,hydrateFreeRecord}=createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,previewFile});
+ * @example const {ensureFreeRecord,hydrateFreeRecord}=createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,previewFile});
  */
-function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,previewFile}){
+function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,previewFile}){
  function isPromotedRecord(record){return !!(record&&record.promotion&&record.promotion.status==='promoted');}
  function freeRecordForToken(file){
   if(typeof file!=='string'||!file)return null;
@@ -41,13 +42,26 @@ function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,previewFile}){
  function newFreeNativePath(id,engine){return freeEngine(engine)!=='pi'?conversations.createClaudeConversation({runtime,courseId:FREE_ID,engine}):path.join(free.workspaceDir(runtime,id),`pi-${crypto.randomUUID()}.jsonl`);}
  function ensureFreeNativePath(record){
   if(record.nativePath)return record;
-  const native=newFreeNativePath(record.id,'pi');
+  const native=newFreeNativePath(record.id,defaultEngine());
+  free.setNativePath(runtime,record.id,native);
+  return free.findWorkspace(runtime,record.id)||record;
+ }
+ /* Marcador Pi vazio de uma abertura antiga não prende a sessão Livre sem Pi:
+    histórico Pi existente fica como está, e a escolha só repõe o caminho. */
+ function usableNativePath(file){
+  if(!file)return false;
+  try{if(freeEngine(engine(file))!=='pi')return true;}catch{return true;}
+  if(defaultEngine()==='pi')return true;
+  try{return fs.existsSync(file)&&fs.statSync(file).size>0;}catch{return false;}
+ }
+ function replaceEmptyNativePath(record){
+  const native=newFreeNativePath(record.id,defaultEngine());
   free.setNativePath(runtime,record.id,native);
   return free.findWorkspace(runtime,record.id)||record;
  }
  /* Cria workspace + caminho nativo + entrada de layout. Não hidrata: quem chama
     decide quando a sessão vira a ativa. */
- function createFreeRecord(engine='pi'){
+ function createFreeRecord(engine=defaultEngine()){
   const id=crypto.randomUUID();
   free.ensureWorkspace(runtime,{sessionId:id,title:free.defaultTitle()});
   const nativePath=newFreeNativePath(id,freeEngine(engine));
@@ -63,7 +77,8 @@ function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,previewFile}){
   const list=free.listWorkspaces(runtime).filter(record=>!isPromotedRecord(record));
   let record=list.find(entry=>entry.id===live.state.free?.activeId)||list.find(entry=>entry.nativePath&&entry.nativePath===live.state.session)||list[0]||null;
   if(record&&!record.nativePath)record=ensureFreeNativePath(record);
-  if(!record)record=createFreeRecord('pi');
+  if(record&&!usableNativePath(record.nativePath))record=replaceEmptyNativePath(record);
+  if(!record)record=createFreeRecord();
   return record;
  }
  function createFreeSession(engine){const record=createFreeRecord(engine);hydrateFreeRecord(record);return record;}

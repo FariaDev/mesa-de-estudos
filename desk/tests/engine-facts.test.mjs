@@ -2,7 +2,7 @@
    binário achado, esforço e capacidade padrão, e a ordem do catálogo. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {knownEngine, sessionEngine, isNativeEngine, engineReady, defaultEffort, defaultCapability} from '../src/engine-facts.mjs';
+import {knownEngine, sessionEngine, isNativeEngine, engineReady, otherEngineDetected, defaultEffort, defaultCapability} from '../src/engine-facts.mjs';
 
 test('knownEngine: só os três motores conhecidos passam', () => {
   for (const engine of ['pi', 'claude', 'opencode']) assert.equal(knownEngine(engine), engine);
@@ -49,4 +49,11 @@ test('defaultCapability: Pi nasce com tudo, nativo nasce fechado', () => {
   assert.equal(defaultCapability(undefined), true);
   assert.equal(defaultCapability('claude'), false);
   assert.equal(defaultCapability('opencode'), false);
+});
+
+test('otherEngineDetected: só troca de sessão quando há outro motor instalado (#93)', () => {
+  assert.equal(otherEngineDetected({engine: 'claude'}), false, 'nenhum motor encontrado: segue e mostra o erro');
+  assert.equal(otherEngineDetected({engine: 'claude', detectedClaude: '/bin/claude'}), false, 'o próprio motor não conta');
+  assert.equal(otherEngineDetected({engine: 'claude', detectedOpenCode: '/bin/opencode'}), true);
+  assert.equal(otherEngineDetected({engine: 'pi', detectedPi: '/bin/pi', detectedClaude: '/bin/claude'}), true);
 });

@@ -17,10 +17,14 @@ import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
-import {buildStudyCores} from './study-core-build.mjs';
+import {buildStudyCores, studyCoreSkipReason} from './study-core-build.mjs';
 
-const built = buildStudyCores({entries: ['studystats.bend']});
-process.env.MESA_STUDYSTATS_CORE = built.corePath('studystats');
+const skip = studyCoreSkipReason();
+const built = skip ? null : buildStudyCores({entries: ['studystats.bend']});
+if (built) process.env.MESA_STUDYSTATS_CORE = built.corePath('studystats');
+/* Sem a toolchain do Bend o arquivo inteiro é pulado com o motivo, em vez de
+   reprovar o `npm test` de quem só usa o app. */
+const withToolchain = skip ? (name, fn) => test(name, {skip}, fn) : test;
 const require = createRequire(import.meta.url);
 const stats = require('../src/study-data/statistics.cjs');
 
@@ -40,7 +44,7 @@ function withRuntime(fn) {
 
 const event = (extra = {}) => ({at: AT, now: AT, courseId: 'A', tzOffset: 0, ...extra});
 
-test('sem arquivo a leitura é vazia e nada é criado', () => {
+withToolchain('sem arquivo a leitura é vazia e nada é criado', () => {
   withRuntime((runtime) => {
     const store = stats.readStore(runtime);
     assert.deepEqual(store.activity, {});
@@ -48,7 +52,7 @@ test('sem arquivo a leitura é vazia e nada é criado', () => {
   });
 });
 
-test('arquivo corrompido não derruba a leitura', () => {
+withToolchain('arquivo corrompido não derruba a leitura', () => {
   withRuntime((runtime) => {
     writeFileSync(fileOf(runtime), '{ isso não é json');
     assert.deepEqual(stats.readStore(runtime).prompts, []);
@@ -56,7 +60,7 @@ test('arquivo corrompido não derruba a leitura', () => {
   });
 });
 
-test('sessão: batimento com timer rodando conta o intervalo; parado não conta', () => {
+withToolchain('sessão: batimento com timer rodando conta o intervalo; parado não conta', () => {
   withRuntime((runtime) => {
     let timer = stats.control(runtime, event({action: 'start'}));
     assert.equal(timer.running, true);
@@ -72,7 +76,7 @@ test('sessão: batimento com timer rodando conta o intervalo; parado não conta'
   });
 });
 
-test('batimento com janela escondida, sistema congelado ou intervalo grande não conta', () => {
+withToolchain('batimento com janela escondida, sistema congelado ou intervalo grande não conta', () => {
   withRuntime((runtime) => {
     stats.control(runtime, event({action: 'start'}));
     assert.equal(stats.recordActivity(runtime, event({id: 'hb-hide', at: AT + 30000, visible: false})).counted, 0);
@@ -82,7 +86,7 @@ test('batimento com janela escondida, sistema congelado ou intervalo grande não
   });
 });
 
-test('batimento repetido (mesmo id) não conta duas vezes', () => {
+withToolchain('batimento repetido (mesmo id) não conta duas vezes', () => {
   withRuntime((runtime) => {
     stats.control(runtime, event({action: 'start'}));
     assert.equal(stats.recordActivity(runtime, event({id: 'hb-x', at: AT + 30000})).counted, 30);
@@ -93,7 +97,7 @@ test('batimento repetido (mesmo id) não conta duas vezes', () => {
   });
 });
 
-test('retroativo sem evidência é recusado; com evidência nativa entra', () => {
+withToolchain('retroativo sem evidência é recusado; com evidência nativa entra', () => {
   withRuntime((runtime) => {
     stats.control(runtime, event({action: 'start', at: AT - DAY}));
     const rejected = stats.recordActivity(runtime, event({id: 'hb-old', at: AT - DAY + 30000, now: AT}));
@@ -109,7 +113,7 @@ test('retroativo sem evidência é recusado; com evidência nativa entra', () =>
   });
 });
 
-test('congelar/suspender carimba a régua e nenhum intervalo atravessa o evento', () => {
+withToolchain('congelar/suspender carimba a régua e nenhum intervalo atravessa o evento', () => {
   withRuntime((runtime) => {
     stats.control(runtime, event({action: 'start'}));
     stats.recordActivity(runtime, event({id: 'hb-1', at: AT + 30000}));
@@ -122,7 +126,7 @@ test('congelar/suspender carimba a régua e nenhum intervalo atravessa o evento'
   });
 });
 
-test('parar a sessão conta a sessão só quando passou de zero segundo', () => {
+withToolchain('parar a sessão conta a sessão só quando passou de zero segundo', () => {
   withRuntime((runtime) => {
     stats.control(runtime, event({action: 'start'}));
     stats.control(runtime, event({action: 'stop', at: AT + 1000}));
@@ -139,7 +143,7 @@ test('parar a sessão conta a sessão só quando passou de zero segundo', () => 
   });
 });
 
-test('ocioso e ações desconhecidas', () => {
+withToolchain('ocioso e ações desconhecidas', () => {
   withRuntime((runtime) => {
     const timer = stats.control(runtime, event({action: 'idle'}));
     assert.equal(timer.idle, true);
@@ -148,7 +152,7 @@ test('ocioso e ações desconhecidas', () => {
   });
 });
 
-test('pergunta: aceita conta; recusada e duplicada ficam fora', () => {
+withToolchain('pergunta: aceita conta; recusada e duplicada ficam fora', () => {
   withRuntime((runtime) => {
     assert.equal(stats.recordPrompt(runtime, event({id: 'p1', accepted: true})).counted, true);
     assert.equal(stats.recordPrompt(runtime, event({id: 'p2', accepted: false})).counted, false);
@@ -160,7 +164,7 @@ test('pergunta: aceita conta; recusada e duplicada ficam fora', () => {
   });
 });
 
-test('tokens: entrada/saída/cache separados e a falta fica indisponível', () => {
+withToolchain('tokens: entrada/saída/cache separados e a falta fica indisponível', () => {
   withRuntime((runtime) => {
     assert.equal(stats.recordUsage(runtime, event({
       id: 'u1',
@@ -187,7 +191,7 @@ test('tokens: entrada/saída/cache separados e a falta fica indisponível', () =
   });
 });
 
-test('dia civil segue o fuso: oeste e leste caem em dias diferentes', () => {
+withToolchain('dia civil segue o fuso: oeste e leste caem em dias diferentes', () => {
   withRuntime((runtime) => {
     const at = Date.UTC(2026, 0, 10, 1, 0, 0);
     stats.control(runtime, event({action: 'start', at: at - 30000, tzOffset: 180}));
@@ -206,7 +210,7 @@ test('dia civil segue o fuso: oeste e leste caem em dias diferentes', () => {
   });
 });
 
-test('resumo 7/30/tudo com dias determinísticos e por matéria', () => {
+withToolchain('resumo 7/30/tudo com dias determinísticos e por matéria', () => {
   withRuntime((runtime) => {
     const today = stats.localDay(AT, {offsetMinutes: 0, west: false});
     const store = {
@@ -256,7 +260,7 @@ test('resumo 7/30/tudo com dias determinísticos e por matéria', () => {
   });
 });
 
-test('resumo "tudo" devolve a primeira evidência e o último reset', () => {
+withToolchain('resumo "tudo" devolve a primeira evidência e o último reset', () => {
   withRuntime((runtime) => {
     stats.recordPrompt(runtime, event({id: 'p1', accepted: true}));
     const summary = stats.summary(runtime, {now: AT, tzOffset: 0, period: 'all'});
@@ -267,7 +271,7 @@ test('resumo "tudo" devolve a primeira evidência e o último reset', () => {
   });
 });
 
-test('reset exige confirmação, limpa os agregados e preserva o dedupe', () => {
+withToolchain('reset exige confirmação, limpa os agregados e preserva o dedupe', () => {
   withRuntime((runtime) => {
     stats.control(runtime, event({action: 'start'}));
     stats.recordActivity(runtime, event({id: 'hb-1', at: AT + 30000}));
@@ -283,7 +287,7 @@ test('reset exige confirmação, limpa os agregados e preserva o dedupe', () => 
   });
 });
 
-test('a gravação é atômica e o arquivo fica em runtime/<FILENAME>', () => {
+withToolchain('a gravação é atômica e o arquivo fica em runtime/<FILENAME>', () => {
   withRuntime((runtime) => {
     stats.recordPrompt(runtime, event({id: 'p1', accepted: true}));
     assert.equal(existsSync(fileOf(runtime)), true);
@@ -292,7 +296,7 @@ test('a gravação é atômica e o arquivo fica em runtime/<FILENAME>', () => {
   });
 });
 
-test('campos hostis viram valores seguros', () => {
+withToolchain('campos hostis viram valores seguros', () => {
   withRuntime((runtime) => {
     const result = stats.recordUsage(runtime, event({
       id: 'x'.repeat(500),
@@ -312,7 +316,7 @@ test('campos hostis viram valores seguros', () => {
   });
 });
 
-test('dedupe estável não é expulso pelo dilúvio de batimentos', () => {
+withToolchain('dedupe estável não é expulso pelo dilúvio de batimentos', () => {
   withRuntime((runtime) => {
     stats.recordUsage(runtime, event({id: 'usage-estavel', input: {available: true, count: 100}, engine: 'pi'}));
     stats.recordPrompt(runtime, event({id: 'prompt-estavel', accepted: true}));
@@ -325,7 +329,7 @@ test('dedupe estável não é expulso pelo dilúvio de batimentos', () => {
   });
 });
 
-test('reinício do app não conta o intervalo fechado nem herda o congelamento antigo', () => {
+withToolchain('reinício do app não conta o intervalo fechado nem herda o congelamento antigo', () => {
   withRuntime((runtime) => {
     const frozen = (extra) => ({
       version: 1, activity: {}, prompts: [], usage: {},

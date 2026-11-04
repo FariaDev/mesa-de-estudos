@@ -80,7 +80,7 @@ O idioma **não é campo do `config.json`**: mora no estado de interface (`desk.
 
 Quem não paga plano de IA estuda com os modelos gratuitos do OpenCode Zen pelo Pi. **Não é campo do `config.json`**: a chave do Zen mora no cofre do sistema (Keychain, Credential Manager ou chaveiro do Linux, via `safeStorage` do Electron), em `opencode-key.bin` dentro da pasta de dados, **cifrada**, e vai ao Pi como `OPENCODE_API_KEY` no ambiente dele (nunca em `config.json`, `desk.json`, log ou linha de comando). O modelo escolhido fica em `desk.json` (`opencodeModel`) e o aviso de modelo pago aceito em `opencodePaidOk`.
 
-- **Onde pedir:** botão **Usar modelos grátis** na primeira abertura (ao lado de "Chamar o tutor") ou **Configurações → Pastas e programas → Modelos gratuitos (OpenCode Zen)** (campo com a chave mascarada, Testar, Criar uma chave, Remover e "Como evitar cobrança").
+- **Onde pedir:** **Configurações → Pastas e programas → Modelos gratuitos (OpenCode Zen)** (campo com a chave mascarada, Testar, Criar uma chave, Remover e "Como funciona"). A partir da #93 a primeira abertura não convida aos grátis: quem tem OpenCode vê **Chamar o tutor** e **Ajustes do tutor**, e o seletor não destaca esses modelos.
 - **Política de dados por modelo** é dado da Mesa, em `desk/free-models.json` (com data de conferência e fonte); a ordem de `recommended` define o padrão e só vale para retenção zero. Para outra pessoa, o que muda é a chave dela, não esse arquivo.
 - **Sem cofre** (Linux sem chaveiro) a Mesa diz isso e não guarda a chave em texto: sem plano pago nesse computador, use o campo do Pi.
 - As frases são do catálogo (`freeModels.*` em `desk/src/locales/*.json`), nos dois idiomas.

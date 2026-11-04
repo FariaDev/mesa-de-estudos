@@ -12,7 +12,14 @@
    fase 3): o tsc nos arquivos da lista do `tsconfig.json` leva menos de um segundo,
    e `npm run lint` (ESLint só com regras de erro) leva poucos segundos.
 
-   Os três passos rodam por `scripts/gate-run.mjs`, que resolve o comando do npm
+   Sem a toolchain do Bend (bun + bend), `build:bend` e `test:proof` não têm
+   como rodar: o portão avisa e pula os dois, mas continua com os passos de Node
+   puro (`check`, `typecheck`, `lint` e `test:parity`). O hash guardado, quando
+   existe, ainda confere os artefatos; sem ele, o portão diz que não deu para
+   conferir. `MESA_REQUIRE_BEND=1` transforma o pulo em falha (o CI do núcleo
+   usa isso com `verify:bend`).
+
+   Os passos rodam por `scripts/gate-run.mjs`, que resolve o comando do npm
    por plataforma (Windows precisa de `npm.cmd` com shell) e nunca sai calado
    quando o spawn falha.
 
@@ -21,8 +28,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {detectToolchain} from '../../core/toolchain.mjs';
 import {gateHash} from './gate-hash.mjs';
+import {artifactFreshness, bendGatePlan} from './gate-plan.mjs';
 import {runStep} from './gate-run.mjs';
+import {ensureElectronBinary} from './electron-binary.mjs';
 
 const desk=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.resolve(desk,'..');
@@ -35,6 +45,17 @@ function run(script){
  if(!out.ok)process.exit(out.status||1);
 }
 
+const toolchain=detectToolchain();
+const plan=bendGatePlan({toolchain,requireBend:process.env.MESA_REQUIRE_BEND==='1'});
+if(plan.fail){
+ console.error(`portão do núcleo: ${plan.fail}`);
+ process.exit(1);
+}
+if(plan.notice)console.log(`portão do núcleo: ${plan.notice}`);
+/* Antes dos testes que sobem Electron em paralelo: sem isso cada um disparava
+   o próprio download do binário e eles se atropelavam (Electron 45, Mac). */
+ensureElectronBinary({electronDir:path.join(desk,'node_modules','electron')});
+
 run('check');
 /* Tipos e lint só de erros (#43 fase 3): baratos e fora do cache, como o `check`. */
 run('typecheck');
@@ -44,6 +65,13 @@ const {hash,count}=gateHash({root,desk});
 const forced=process.env.MESA_GATE_CACHE==='0';
 let cached=null;
 try{cached=JSON.parse(fs.readFileSync(CACHE,'utf8'));}catch{}
+
+if(!plan.runBend){
+ const freshness=artifactFreshness({cached:forced?null:cached,hash,count});
+ console.log(`portão do núcleo: ${freshness.line}`);
+ run('test:parity');
+ process.exit(0);
+}
 
 if(!forced&&cached?.hash===hash){
  console.log(`portão já aprovado para este conteúdo (${count} arquivos: núcleo, artefatos, verificadores de paridade e o que eles importam) — pulando build, provas e paridade.`);
