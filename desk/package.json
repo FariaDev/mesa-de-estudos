@@ -34,7 +34,8 @@
     "test:sessions": "node tests/session-switch.mjs",
     "update:keygen": "node scripts/update-release.mjs keygen",
     "update:sign": "node scripts/update-release.mjs sign",
-    "update:release:verify": "node scripts/update-release.mjs verify"
+    "update:release:verify": "node scripts/update-release.mjs verify",
+    "update:rehearsal": "node scripts/update-rehearsal.mjs"
   },
   "keywords": [],
   "type": "commonjs",

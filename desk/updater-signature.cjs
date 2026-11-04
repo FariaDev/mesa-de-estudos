@@ -49,15 +49,25 @@ function updateAssetUrls(version){
  };
 }
 
+/* Cópia da chave de `update-signing-key.pub` dentro do código. O updater por zip
+   da 1.0.2 não sabe copiar `.pub`: quem subiu dela para a 1.1.0 ficou sem o
+   arquivo e teve a atualização seguinte recusada. Trocar a chave pede trocar
+   as duas; `tests/updater-signature.test.mjs` compara. */
+const EMBEDDED_UPDATE_PUBLIC_KEY=`-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEARXlOPF/XzTcNBAAY5cCG4XIJcGrLwwumxWS4NdqPvDE=
+-----END PUBLIC KEY-----
+`;
+
 /**
- * Lê a chave pública do disco; ausente ou ilegível vira string vazia (que a
- * verificação trata como marcador e recusa o update).
+ * Lê a chave pública do disco. Arquivo ausente usa a cópia embutida; ilegível
+ * vira string vazia, que a verificação trata como marcador e recusa o update.
  * @param {string} file caminho de `update-signing-key.pub`
  * @returns {string}
  * @example readUpdatePublicKey(path.join(deskDir, 'update-signing-key.pub'))
  */
 function readUpdatePublicKey(file){
- try{return fs.readFileSync(file,'utf8');}catch{return '';}
+ try{return fs.readFileSync(file,'utf8');}
+ catch(error){return error?.code==='ENOENT'?EMBEDDED_UPDATE_PUBLIC_KEY:'';}
 }
 
 /**
@@ -270,7 +280,7 @@ async function loadSignedRelease({version,publicKey,fetchBuffer,needZip,manifest
 }
 
 module.exports={
- PLACEHOLDER_MARK,MANIFEST_MAX_BYTES,SIGNATURE_MAX_BYTES,ZIP_MAX_BYTES,
+ EMBEDDED_UPDATE_PUBLIC_KEY,PLACEHOLDER_MARK,MANIFEST_MAX_BYTES,SIGNATURE_MAX_BYTES,ZIP_MAX_BYTES,
  updateAssetUrls,normalizeVersion,readUpdatePublicKey,isPlaceholderKey,publicKeyOf,
  parseManifest,verifySignedManifest,assertZipMatchesManifest,assertTagCommitMatches,assertAppliedCommitMatches,assertZipWithinLimit,tagMissingError,
  fetchReleaseAsset,loadSignedRelease,

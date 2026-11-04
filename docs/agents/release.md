@@ -42,9 +42,10 @@ npm run update:keygen -- --private-key ~/mesa-update-signing.pem
   publique antes da primeira Release assinada;
 - `keygen` recusa sobrescrever chave existente sem `--force` — trocar a chave
   obriga todo mundo a reinstalar, então não use `--force` por engano;
-- instalações por zip anteriores à versão que conhece `.pub` não recebem a
-  chave pelo updater antigo: atualize por git ou reinstale antes de depender do
-  update assinado.
+- instalações por zip anteriores à versão que conhece `.pub` não recebem o
+  arquivo pelo updater antigo. Por isso `desk/updater-signature.cjs` leva uma
+  cópia da chave, usada quando o arquivo falta. **Trocar a chave pede trocar as
+  duas**; um teste compara.
 
 ### Cada release `vX.Y.Z`
 
@@ -56,7 +57,16 @@ npm run update:keygen -- --private-key ~/mesa-update-signing.pem
    fecha o portão sem `--no-verify` por causa do app irmão (o `--no-verify`
    segue sendo só a saída de emergência);
 2. tag `vX.Y.Z` no público (a chave pública já tem de estar commitada nela);
-3. monte e assine os assets, na raiz dessa cópia:
+3. monte e assine os assets, numa cópia **completa** do público (clone raso não
+   enxerga a versão anterior e o `sign` recusa). O `sign` roda antes o ensaio
+   `npm run update:rehearsal`: o updater da versão publicada anterior aplica o zip
+   candidato, e a assinatura é recusada se faltar arquivo, se um dado do usuário
+   mudar ou se a instalação ficar sem chave válida (a 1.0.2 não copiava `.pub`, e
+   só o código novo era testado). `npm run update:rehearsal -- vX.Y.Z --abrir`
+   também instala as dependências e abre a Mesa atualizada. O ensaio só cobre a
+   instalação por zip; **no macOS, ensaie à parte o caminho do `.app`**: monte em
+   pasta temporária um bundle da versão anterior, com `HOME` temporário, e use o
+   `update-check` e o `update-apply`;
 
    ```sh
    cd desk

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {TEST_COMMIT, generateSigningPair, makeSignedRelease} from './fake-update-release.mjs';
@@ -180,4 +181,23 @@ test('#80: defaultFetchBuffer aborta content-length e stream acima do teto', asy
   reply = new Response(body);
   await assert.rejects(() => updater.defaultFetchBuffer('https://exemplo.test/bin', {maxBytes: 10}), /passou do teto de 10/);
   assert.equal(cancelled, true, 'o stream é cancelado ao passar do teto');
+});
+
+test('instalação sem o .pub usa a chave embutida, igual à commitada', () => {
+  const committed = fs.readFileSync(path.join(DESK, 'update-signing-key.pub'), 'utf8');
+  assert.equal(signature.EMBEDDED_UPDATE_PUBLIC_KEY.trim(), committed.trim(), 'trocar a chave pede trocar as duas cópias');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-key-'));
+  try {
+    const missing = signature.readUpdatePublicKey(path.join(dir, 'update-signing-key.pub'));
+    assert.equal(missing, signature.EMBEDDED_UPDATE_PUBLIC_KEY);
+    assert.equal(signature.isPlaceholderKey(missing), false);
+    assert.equal(crypto.createPublicKey(missing).asymmetricKeyType, 'ed25519');
+    /* A embutida só cobre o arquivo que falta: marcador e erro de leitura seguem recusando. */
+    const placeholder = path.join(dir, 'marcador.pub');
+    fs.writeFileSync(placeholder, 'PLACEHOLDER');
+    assert.equal(signature.isPlaceholderKey(signature.readUpdatePublicKey(placeholder)), true);
+    assert.equal(signature.readUpdatePublicKey(dir), '');
+  } finally {
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
 });

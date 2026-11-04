@@ -17,6 +17,7 @@ import crypto from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
+import {rehearseBeforeSigning} from './update-rehearsal.mjs';
 
 const require = createRequire(import.meta.url);
 const signature = require('../updater-signature.cjs');
@@ -144,7 +145,7 @@ function buildZip(version, outDir) {
   return {zipName, zipFile, zipBytes: fs.statSync(zipFile).size, zipSha256: sha256File(zipFile)};
 }
 
-function sign(args) {
+async function sign(args) {
   const version = versionOf(args[0] || flag(args, '--versao'));
   const configured = readConfiguredPublicKey();
   const privateKey = readPrivateKey(flag(args, '--private-key'));
@@ -153,6 +154,7 @@ function sign(args) {
   }
   const outDir = path.resolve(flag(args, '--out') || '');
   if (!flag(args, '--out')) fail('informe --out <pasta dos assets>');
+  await rehearseBeforeSigning({repoRoot: REPO_ROOT, version});
   fs.mkdirSync(outDir, {recursive: true});
   const commit = git(['rev-parse', '--verify', `v${version}^{commit}`]);
   const zip = buildZip(version, outDir);
@@ -195,7 +197,7 @@ function verify(args) {
   console.log(`release v${version} confere: assinatura, zip (${manifest.zipBytes} bytes) e commit ${tagCommit}.`);
 }
 
-function main() {
+async function main() {
   const [command, ...args] = process.argv.slice(2);
   locateRepo();
   if (command === 'keygen') return keygen(args);
@@ -205,9 +207,7 @@ function main() {
   process.exitCode = 1;
 }
 
-try {
-  main();
-} catch (error) {
+main().catch((error) => {
   console.error(`update-release: ${error.message}`);
   process.exitCode = 1;
-}
+});
