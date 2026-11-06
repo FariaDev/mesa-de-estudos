@@ -11,6 +11,10 @@ on:
         description: Versão de partida
         default: v1.1.0
         required: true
+      versao:
+        description: Versão de destino, para ensaiar uma pre-release antes de marcá-la latest (vazio = a latest)
+        default: ''
+        required: false
 
 permissions:
   contents: read
@@ -24,6 +28,7 @@ jobs:
         shell: bash
     env:
       FROM_TAG: ${{ inputs.from }}
+      TO_VERSION: ${{ inputs.versao }}
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -45,8 +50,14 @@ jobs:
       - name: Atualizar pelo updater da versão de partida
         run: |
           cd "$DESK"
-          npm run update -- --sem-reabrir
-          LATEST="$(curl -fsSL https://api.github.com/repos/FariaDev/mesa-de-estudos/releases/latest | node -p 'JSON.parse(require("fs").readFileSync(0)).tag_name.slice(1)')"
+          # O updater só vê a latest; a pre-release se ensaia pelo --versao dele.
+          if [ -n "$TO_VERSION" ]; then
+            npm run update -- --versao "${TO_VERSION#v}" --sem-reabrir
+            LATEST="${TO_VERSION#v}"
+          else
+            npm run update -- --sem-reabrir
+            LATEST="$(curl -fsSL https://api.github.com/repos/FariaDev/mesa-de-estudos/releases/latest | node -p 'JSON.parse(require("fs").readFileSync(0)).tag_name.slice(1)')"
+          fi
           INSTALLED="$(node -p 'require("./package.json").version')"
           test "$INSTALLED" = "$LATEST" || { echo "instalada $INSTALLED, publicada $LATEST"; exit 1; }
           grep -q '"ensaio":true' config.json
