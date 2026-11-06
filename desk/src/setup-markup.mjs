@@ -113,8 +113,8 @@ const SETUP_MARKUP = `
         <div class="setup-tutor-off" id="setup-tutor-off">
           <span class="setup-pi" id="setup-pi"></span>
           <div class="setup-tutor-actions" id="setup-tutor-actions"></div>
+          <div class="setup-providers" id="setup-providers"></div>
         </div>
-        <p class="setup-note" id="setup-codex-grok" data-i18n="firstrun.tutor.codexGrok" hidden></p>
         <p class="setup-note setup-login" id="setup-login-hint" hidden></p>
       </div>
 

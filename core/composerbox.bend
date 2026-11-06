@@ -10,14 +10,15 @@ import view.bend as V
 #
 # Duas decisões moram aqui:
 #
-#   1. A linha "Vai junto: …" acima da caixa — o que seguirá com a próxima
-#      mensagem: a matéria, o contexto de estudo (lista/questão ativa e o
-#      rascunho .xopp), e as referências (materiais abertos e a página). O host
-#      entrega fatos já resolvidos em texto (nome da matéria, título da
-#      questão, nome do arquivo .xopp, "Limites.pdf p. 4") e a flag
+#   1. O resumo do contexto — o que seguirá com a próxima mensagem: a matéria,
+#      o contexto de estudo (lista/questão ativa e o rascunho .xopp), e as
+#      referências (materiais abertos e a página). Desde a #123 ele mora em
+#      Mais opções → Contexto, não acima da caixa; o composer fica só com a
+#      escrita. O host entrega fatos já resolvidos em texto (nome da matéria,
+#      título da questão, nome do arquivo .xopp, "Limites.pdf p. 4") e a flag
 #      `studyContext` normalizada; o núcleo decide o que entra, a ordem e a
 #      redação. Referências desligadas aparecem como tal (nunca somem em
-#      silêncio): a linha reflete o alternador.
+#      silêncio): o resumo reflete o alternador.
 #
 #   2. O encaixe Enviar/Parar: o mesmo lugar da fileira de ações guarda os dois
 #      botões e nunca mostra os dois — ocioso, Enviar; durante a resposta,
@@ -40,7 +41,7 @@ import view.bend as V
 type GoesRef is Data:
   GoesRef{name: String, page: String}
 
-# ---------- linha "Vai junto" ----------
+# ---------- resumo do contexto (Mais opções → Contexto) ----------
 
 # Texto traduzível (#41): o prefixo, "só a mensagem" e "Referências desligadas"
 # são mensagens do catálogo, cada uma num nó de texto próprio, para a linha
@@ -139,7 +140,7 @@ def refsParts(refsOn: Bool, refs: +List<GoesRef>) -> List<&2, V.ViewNode>:
     case False{}:
       [textPill(goesRefsOff())]
 
-# A linha como árvore, em pílulas. O `goes-lead` ("Contexto: ") fica no DOM
+# O resumo como árvore, em pílulas. O `goes-lead` ("Contexto: ") fica no DOM
 # para o nome acessível, mas o CSS o esconde quando há pílula: a matéria é a
 # primeira coisa à vista. Sem nenhuma parte, a frase "só a mensagem" já traz o
 # próprio prefixo.

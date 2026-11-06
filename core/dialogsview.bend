@@ -23,7 +23,7 @@ import updatenotice.bend as U
 #
 # Convenções de attr: as mesmas do `view.bend` (`on:<evento>` vira lookup na
 # tabela de handlers do host; `class`/`id` vazios são pulados). Texto que vem
-# do Pi entra cru e quem aplica é que resolve markdown/KaTeX.
+# do motor entra cru e quem aplica é que resolve markdown/KaTeX.
 # ---------------------------------------------------------------------------
 
 # ---------- pi-dialog ----------
@@ -32,7 +32,7 @@ import updatenotice.bend as U
 type DialogOption is Data:
   DialogOption{label: String, value: String}
 
-# Campo do formulário do Pi. O DOM atual é só o controle (sem `<label>` em
+# Campo do formulário do tutor. O DOM atual é só o controle (sem `<label>` em
 # volta); o rótulo, quando existe, vira `aria-label`.
 type DialogField is Data:
   FieldText{label: String, value: String, hint: String}
@@ -50,6 +50,16 @@ type HelpFlags is Data:
 # O que a ajuda mostra: versão formatada e quais itens do texto somem.
 type HelpChrome is Data:
   HelpChrome{version: String, studyHidden: Bool, endDayHidden: Bool, refsHidden: Bool, conferirHidden: Bool}
+
+# Procedência das atualizações no Sobre (#109). O host entrega o fato do disco:
+# app instalado sem clone (`OriginNormal`), bundle ligado a um clone/worktree
+# (`OriginDev`), origem que sumiu ou não é clone (`OriginUnavailable`) e a Mesa
+# rodando do código, sem app instalado (`OriginSource`, o comportamento de hoje).
+type AboutOrigin is Data:
+  OriginNormal{}
+  OriginDev{worktree: Bool, path: String}
+  OriginUnavailable{path: String}
+  OriginSource{}
 
 # ---------- configurações ----------
 
@@ -156,7 +166,7 @@ def fieldControl(f: DialogField) -> V.ViewNode:
         V.viewText(label)
       ])
 
-# Filhos do `#dialog-fields` (0 ou 1 campo na fila do Pi).
+# Filhos do `#dialog-fields` (0 ou 1 campo na fila do tutor).
 def piFields(fs: List<&2, DialogField>) -> List<&2, V.ViewNode>:
   match fs:
     case Nil{}:
@@ -345,6 +355,73 @@ def aboutLead(+version: String) -> String:
 def aboutLeadNode(version: String) -> V.ViewNode:
   V.viewText(aboutLead(version))
 
+# ---------- about: de onde o app se atualiza (#109) ----------
+
+def originShown(o: AboutOrigin) -> Bool:
+  match o:
+    case OriginNormal{}:
+      True{}
+    case OriginDev{_, _}:
+      True{}
+    case OriginUnavailable{_}:
+      True{}
+    case OriginSource{}:
+      False{}
+
+# O rótulo é curto de propósito: o caminho, quando existe, divide a linha.
+def originLabel(o: AboutOrigin) -> String:
+  match o:
+    case OriginNormal{}:
+      M.msg("about.origin.normal")
+    case OriginDev{worktree, _}:
+      match worktree:
+        case True{}:
+          M.msg("about.origin.worktree")
+        case False{}:
+          M.msg("about.origin.dev")
+    case OriginUnavailable{_}:
+      M.msg("about.origin.unavailable")
+    case OriginSource{}:
+      ""
+
+def originPath(o: AboutOrigin) -> String:
+  match o:
+    case OriginNormal{}:
+      ""
+    case OriginDev{_, path}:
+      path
+    case OriginUnavailable{path}:
+      path
+    case OriginSource{}:
+      ""
+
+# Caminho completo no `title`; a linha corta por CSS (o Sobre é do usuário).
+def originPathNode(+path: String) -> V.ViewNode:
+  V.viewEl("code", [
+    V.attrClass("about-origin-path"),
+    V.attrTitle(path)
+  ], [V.viewText(path)])
+
+def originChildrenShown(+o: AboutOrigin) -> List<&2, V.ViewNode>:
+  V.viewConcat(
+    [V.viewEl("span", [V.attrClass("about-origin-label")], [V.viewText(originLabel(o))])],
+    V.viewWhenAll(Bool.not(String.is_empty(originPath(o))), [
+      V.viewText(" · "),
+      originPathNode(originPath(o))
+    ])
+  )
+
+def originChildren(o: AboutOrigin) -> List<&2, V.ViewNode>:
+  match o:
+    case OriginNormal{}:
+      originChildrenShown(o)
+    case OriginDev{_, _}:
+      originChildrenShown(o)
+    case OriginUnavailable{_}:
+      originChildrenShown(o)
+    case OriginSource{}:
+      Nil{}
+
 # ---------- settings-dialog ----------
 
 def emptyCourse() -> SettingsCourse:
@@ -421,6 +498,8 @@ type UpdateState is Data:
   UpdateNone{current: String, checked: String}
   UpdateReady{version: String, notes: String, url: String}
   UpdateFailed{}
+  # A origem não recebe atualização (pasta sumiu ou não é clone): sem "Atualizada".
+  UpdateUnverifiable{}
   UpdateApplying{}
   UpdateDone{version: String}
   UpdateRecovered{version: String, reason: String}
@@ -456,6 +535,9 @@ def updateFailedText() -> String:
 def updateFailedRest() -> String:
   M.msg("update.failedRest")
 
+def updateUnverifiableText() -> String:
+  M.msg("update.unverifiable")
+
 def updateReadyText(version: String) -> String:
   M.msg1("update.ready", "version", version)
 
@@ -464,9 +546,6 @@ def updateNotesLabel() -> String:
 
 def updateApplyLabel() -> String:
   M.msg("update.apply")
-
-def updatePiLabel() -> String:
-  M.msg("update.pi")
 
 def updateApplyingText() -> String:
   M.msg("update.applying")
@@ -605,6 +684,12 @@ def aboutUpdateChildren(s: UpdateState) -> List<&2, V.ViewNode>:
         updateLine2(updateFailedText(), updateFailedRest()),
         checkUpdateButton()
       ]
+    case UpdateUnverifiable{}:
+      [
+        updateIcon("warn", "!"),
+        updateLineNode(updateUnverifiableText()),
+        checkUpdateButton()
+      ]
     case UpdateApplying{}:
       [updateIcon("busy", "…"), updateLineNode(updateApplyingText()), applyingUpdateButton()]
     case UpdateDone{version}:
@@ -626,10 +711,9 @@ def aboutUpdateChildren(s: UpdateState) -> List<&2, V.ViewNode>:
 
 # ---------- about: painel "Componentes" ----------
 
-# Pi, Claude Code, Node e Xournal++ com versão instalada e estado. A ação da
-# linha é do `updatenotice.bend` (#45): o Pi local da Mesa tem o botão de
-# sempre; Pi de Homebrew/npm e Claude Code abrem a confirmação com o comando
-# exato; instalação não reconhecida só mostra o comando com "Copiar". Node e
+# Claude Code, Node e Xournal++ com versão instalada e estado. A ação da
+# linha é do `updatenotice.bend` (#45): o Claude Code abre a confirmação com o
+# comando exato; instalação não reconhecida só mostra o comando com "Copiar". Node e
 # Xournal++ são informativos (dica/link), o app não os toca.
 type ComponentState is Data:
   CompOk{}
@@ -645,11 +729,11 @@ type ComponentState is Data:
 type ComponentRow is Data:
   ComponentRow{id: String, label: String, version: String, state: ComponentState, hint: String, link: String, linkLabel: String, action: U.ToolAction, ahead: Bool, run: U.ToolRun}
 
-# A ordem do painel é decisão do núcleo: Pi, Claude Code, Node, Xournal++. A
+# A ordem do painel é decisão do núcleo: Claude Code, Node, Xournal++. A
 # Mesa não é linha: a versão dela já está no cabeçalho e o estado dela na faixa
 # de atualização acima ("O que a Mesa usa" lista o que ela usa, não ela mesma).
 def componentIds() -> List<&2, String>:
-  ["pi", "claude", "node", "xournal"]
+  ["claude", "node", "xournal"]
 
 def componentStateText(s: ComponentState) -> String:
   match s:
@@ -672,7 +756,7 @@ def componentVersionText(+version: String) -> String:
 def componentLinkLabel(+label: String) -> String:
   textOr(label, M.msg("component.openSite"))
 
-# O Node mínimo vem do Pi (`engines: >=22.19.0`): abaixo disso o painel avisa.
+# O Node mínimo é o que o app e o MCP exigem: abaixo disso o painel avisa.
 def nodeTooOld(+major: U32, minor: U32) -> Bool:
   Bool.or(U32.is_lt(major, 22), Bool.and(U32.is_eq(major, 22), U32.is_lt(minor, 19)))
 
@@ -688,9 +772,6 @@ def nodeState.if(old: Bool) -> ComponentState:
 
 def nodeState(major: U32, minor: U32) -> ComponentState:
   nodeState.if(nodeTooOld(major, minor))
-
-def updatePiButton() -> V.ViewNode:
-  U.localButton()
 
 def componentLinkButton(url: String, label: String) -> V.ViewNode:
   V.viewEl("button", [
@@ -717,7 +798,7 @@ def componentDot(s: ComponentState) -> String:
     case CompChecking{}:
       "busy"
 
-# A dica do host (onde o Pi mora, o que fazer) só aparece quando o estado pede
+# A dica do host (onde o motor mora, o que fazer) só aparece quando o estado pede
 # ação; em dia ou verificando, a linha diz apenas o que o componente é.
 def componentShowsHint(s: ComponentState) -> Bool:
   match s:
@@ -755,15 +836,11 @@ def componentDescription.claude(isClaude: Bool, isNode: Bool, isXournal: Bool) -
     case False{}:
       componentDescription.node(isNode, isXournal)
 
-def componentDescription.pick(isPi: Bool, isClaude: Bool, isNode: Bool, isXournal: Bool) -> String:
-  match isPi:
-    case True{}:
-      M.msg("component.desc.pi")
-    case False{}:
-      componentDescription.claude(isClaude, isNode, isXournal)
+def componentDescription.pick(isClaude: Bool, isNode: Bool, isXournal: Bool) -> String:
+  componentDescription.claude(isClaude, isNode, isXournal)
 
 def componentDescription(+id: String) -> String:
-  componentDescription.pick(String.eq(id, "pi"), String.eq(id, "claude"), String.eq(id, "node"), String.eq(id, "xournal"))
+  componentDescription.pick(String.eq(id, "claude"), String.eq(id, "node"), String.eq(id, "xournal"))
 
 def componentHintNode(parts: List<&2, V.ViewNode>) -> V.ViewNode:
   V.viewEl("small", [V.attrClass("component-hint")], parts)

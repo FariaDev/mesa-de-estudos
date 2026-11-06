@@ -9,9 +9,8 @@ await withArtifacts('improvements',async ctx=>{
  fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdf('Exercise'));
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Teste',path:course}],desk:{pinnedExtensions:false}});
  const refusalLog=path.join(runtime,'refusals.jsonl'),queueLog=path.join(runtime,'queue.jsonl');
- const stateFailureFile=path.join(runtime,'state-failure');
  const draft={question:'Limite lateral',attempt:'Dividi por x',difficulty:'Sinal pela direita'};
- ctx.app=await launchDesk({runtime,env:{FAKE_PI_STATE_FAILURE_FILE:stateFailureFile,FAKE_PI_REVIEW_DRAFT:JSON.stringify(draft),FAKE_PI_REVIEW_DELAY:'900',FAKE_PI_REFUSAL_LOG:refusalLog,FAKE_PI_QUEUE_LOG:queueLog,FAKE_PI_QUEUE_HOLD_MS:'1500'}});
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_REVIEW_DRAFT:JSON.stringify(draft),FAKE_OPENCODE_REVIEW_DELAY:'900',FAKE_OPENCODE_REFUSAL_LOG:refusalLog,FAKE_OPENCODE_QUEUE_LOG:queueLog,FAKE_OPENCODE_QUEUE_HOLD_MS:'1500'}});
  const page=await ctx.app.firstWindow();await statusOnline(page);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  // Hover and focus cannot open a menu; click/keyboard and Escape own its state.
  for(const id of ['study','settings']){
@@ -28,7 +27,6 @@ await withArtifacts('improvements',async ctx=>{
  await page.locator('#prompt').fill('primeiro');await page.locator('#send').click();
  await page.waitForSelector('.message.assistant button.msg-review');
  await page.locator('.message.assistant').first().hover();
- fs.writeFileSync(stateFailureFile,'fail once');
  await page.locator('.message.assistant button.msg-review').first().click();
  await page.waitForSelector('#review-dialog[open]');
  await page.locator('#review-question').fill('Minha questão editada');
@@ -46,12 +44,12 @@ await withArtifacts('improvements',async ctx=>{
  await page.locator('.message.assistant').first().hover();
  await page.locator('.message.assistant button.msg-review').first().click();await page.locator('#review-dialog button[value=cancel]').click();
  await page.waitForFunction(()=>!document.querySelector('#review-dialog').open);
- // Safe refusal from Pi: exactly initial + 3 repeats, spaced by 2/4/8 seconds.
+ // Safe refusal from OpenCode: exactly initial + 3 repeats, spaced by 2/4/8 seconds.
  await page.locator('#prompt').fill('primeiro de novo');await page.locator('#send').click();
  await page.locator('#prompt').fill('falhar');await page.locator('#prompt').press('Enter');
  /* O toast "tentativas acabaram" pode ser empilhado ou trocado por outro antes de
     o teste olhar `#toast`: espera por qualquer item vivo com o texto e, só então,
-    pelas 4 linhas do log (a 4ª recusa já foi registrada pelo Pi falso). */
+    pelas 4 linhas do log (a 4ª recusa já foi registrada pelo OpenCode falso). */
  await toastWait(page,'tentativas acabaram',{timeout:25000});
  const readAttempts=()=>fs.existsSync(refusalLog)?fs.readFileSync(refusalLog,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line)):[];
  await pollUntil(readAttempts,attempts=>attempts.length>=4,{timeout:10000,interval:100,what:'4 tentativas no log de recusas',onTimeout:'return'});

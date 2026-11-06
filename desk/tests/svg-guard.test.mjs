@@ -76,3 +76,14 @@ test('url(#fragmento) continua passando', () => {
   assert.equal(setAttribute(purify, rect, 'fill', 'url(#grad)').keepAttr, true);
   assert.equal(setAttribute(purify, rect, 'style', 'fill: url("#grad")').keepAttr, true);
 });
+
+test('style que posiciona sai do SVG; static e cor passam', () => {
+  const purify = guardedPurify();
+  const rect = fakeNode('rect');
+  assert.equal(setAttribute(purify, rect, 'style', 'position:fixed;inset:0').keepAttr, false);
+  assert.equal(setAttribute(purify, rect, 'style', 'fill:red;position:absolute').keepAttr, false);
+  /* O hook recebe o valor já decodificado: `&#112;osition` chega `position`. */
+  assert.equal(setAttribute(purify, rect, 'style', 'position:fixed').keepAttr, false);
+  assert.equal(setAttribute(purify, rect, 'style', 'position:static').keepAttr, true);
+  assert.equal(setAttribute(purify, rect, 'style', 'fill:red').keepAttr, true);
+});

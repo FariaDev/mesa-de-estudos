@@ -2,15 +2,20 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {launchDesk,withArtifacts,DESK,screenshotDirectory,newSession,enterFree} from './helpers.mjs';
+import {launchDesk,withArtifacts,screenshotDirectory,newSession,enterFree} from './helpers.mjs';
+import {specFor} from './fixtures/activity-specs.mjs';
 import {pollUntil} from './waits.mjs';
 /* global mesa */ // a API da atividade, dentro do quadro (só no diagnóstico de falha)
 
 await withArtifacts('mesa-interactive-integrated',async ctx=>{
  ctx.runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-interactive-integrated-'));
- const pi=path.join(DESK,'tests/fixtures/mesa-interactive-pi.mjs');fs.chmodSync(pi,0o755);
+ const calls=[
+  {name:'criar_atividade',id:'integrated-call-1',input:specFor('movimento')},
+  {name:'criar_atividade',id:'integrated-call-2',input:specFor('katex')},
+  {name:'criar_atividade',id:'integrated-call-3',input:specFor('loop')},
+ ];
  fs.writeFileSync(path.join(ctx.runtime,'config.json'),JSON.stringify({runtimePath:ctx.runtime,vaultPath:ctx.runtime,courses:[]}));
- ctx.app=await launchDesk({runtime:ctx.runtime,env:{LEARNING_DESK_PI:pi}});
+ ctx.app=await launchDesk({runtime:ctx.runtime,env:{FAKE_OPENCODE_MCP_CALLS:JSON.stringify(calls),FAKE_OPENCODE_MCP_BEFORE:'Antes da atividade.',FAKE_OPENCODE_MCP_AFTER:'Depois da declaração.'}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  page.on('dialog',dialog=>dialog.accept());
  await enterFree(page);
@@ -45,8 +50,8 @@ await withArtifacts('mesa-interactive-integrated',async ctx=>{
  const oldItem=await page.evaluate(async()=>{const {items}=await window.desk.activityList();return items[0];});
  console.log('State before reload',JSON.stringify(await page.evaluate(item=>window.desk.activityStateGet(item),oldItem)));
  /* Sem matéria configurada a Mesa reabre na folha de primeira abertura, com o
-    tutor desligado: a sessão Livre está a um clique e o histórico do Pi volta
-    quando o tutor é chamado. */
+    tutor desligado: a sessão Livre está a um clique e o histórico do OpenCode
+    volta quando o tutor é chamado. */
  await page.reload();await enterFree(page);
  await page.evaluate(async()=>{await (await import('./src/state.mjs')).connect();});
  await page.waitForSelector('.activity-slot .activity-card');
@@ -93,4 +98,4 @@ await withArtifacts('mesa-interactive-integrated',async ctx=>{
  assert.equal((await page.evaluate(()=>window.desk.activityList())).items.length,0);
  assert.deepEqual(errors,[]);
 });
-console.log('mesa-interactive-ui: PASS — real main/preload/bridge/runtime, MRUV, draft, timeline, lazy reload, state, offline KaTeX, loop stop and scope isolation; Pi simulated.');
+console.log('mesa-interactive-ui: PASS — real main/preload/bridge/runtime, MRUV, draft, timeline, lazy reload, state, offline KaTeX, loop stop and scope isolation; OpenCode MCP simulated.');

@@ -4,14 +4,13 @@
    antes de o aluno responder. Fake do Pi; nenhum motor real. */
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {launchDesk,newRuntime,seedCourse,seedSession,statusOnline,withArtifacts,writeConfigJson,writeDeskJson} from './helpers.mjs';
+import {launchDesk,newRuntime,openSessionById,seedCourse,seedSession,seedNativeSession,statusOnline,withArtifacts,writeConfigJson,writeDeskJson} from './helpers.mjs';
 
 const require=createRequire(import.meta.url);
 const conversations=require('../src/agents/conversations.cjs');
 
-const SECRET='SEGREDO-QUE-NAO-PODE-APARECER';
 const EXPLANATION='EXPLICACAO-QUE-NAO-PODE-APARECER';
-const args={question:'Quanto é 2+2?',options:[{label:'3'},{label:'4'}],correctAnswer:SECRET,explanation:EXPLANATION};
+const args={question:'Quanto é 2+2?',options:[{label:'3'},{label:'4'}],correctAnswer:'4',explanation:EXPLANATION};
 
 function seed(runtime){
  const course=seedCourse(runtime,'Calculus I');
@@ -28,7 +27,7 @@ async function assertHidden(page,label){
  await page.waitForFunction(()=>document.querySelector('#messages')?.textContent.includes('Deixei o cartão'),undefined,{timeout:30000});
  const text=await page.locator('#messages').textContent();
  const html=await page.locator('#messages').innerHTML();
- for(const value of [SECRET,EXPLANATION]){
+ for(const value of [EXPLANATION]){
   assert.ok(!text.includes(value),`${label}: o texto do diário não contém ${value}`);
   assert.ok(!html.includes(value),`${label}: o HTML do diário não contém ${value}`);
  }
@@ -42,9 +41,10 @@ await withArtifacts('p1-histórico-pi',async ctx=>{
   {type:'message',message:message('mesa_quiz')},
   {type:'message',message:{role:'toolResult',toolCallId:'card-1',content:[{type:'text',text:'Mostrado ao aluno.'}],timestamp:3_000}},
  ]);
- writeDeskJson(runtime,{session,courseId:'Calculus I'});
+ writeDeskJson(runtime,{session,courseId:'Calculus I',courseStates:{'Calculus I':{session,sessions:[{path:session,started:1700000000000}]}}});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();
+ await openSessionById(page,session);
  await assertHidden(page,'Pi JSONL');
 });
 
@@ -73,14 +73,15 @@ await withArtifacts('p1-histórico-opencode',async ctx=>{
 await withArtifacts('p1-vivo-pi',async ctx=>{
  const runtime=ctx.runtime=newRuntime('p1-vivo');
  seed(runtime);
- const session=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Vamos revisar.'}]}}]);
+ const session=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:'Vamos revisar.'}]}],{courseId:'Calculus I'});
  writeDeskJson(runtime,{session,courseId:'Calculus I'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_QUIZ_TOOLCALL:'1'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MCP_CALL:JSON.stringify({name:'quiz',input:args}),FAKE_OPENCODE_REPLY:'Deixei o cartão.'}});
  const page=await app.firstWindow();
  await statusOnline(page);
  await page.locator('#prompt').fill('quiz ao vivo');
  await page.locator('#send').click();
  await page.waitForSelector('.message.quiz .quiz-option',{timeout:30000});
+ assert.equal(await page.locator('.quiz-option.correct').count(),0,'ao vivo: a resposta certa não é marcada antes de responder');
  await page.waitForFunction(()=>document.querySelector('#messages')?.textContent.includes('Deixei o cartão'),undefined,{timeout:30000});
  const text=await page.locator('#messages').textContent();
  const html=await page.locator('#messages').innerHTML();
@@ -107,9 +108,10 @@ await withArtifacts('p1-histórico-legado',async ctx=>{
   legacy('card-2','ask_user'),resultOf('card-2'),
   legacy('card-3','AskUserQuestion'),resultOf('card-3'),
  ]);
- writeDeskJson(runtime,{session,courseId:'Calculus I'});
+ writeDeskJson(runtime,{session,courseId:'Calculus I',courseStates:{'Calculus I':{session,sessions:[{path:session,started:1700000000000}]}}});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await openSessionById(page,session);
  await assertHidden(page,'legado');
  assert.deepEqual(errors,[]);
  assert.equal(await page.locator('.quiz-card').count(),0,'cartão antigo não é remontado');

@@ -26,8 +26,8 @@ const INVENTORY={
  materias:['#cfg-courses','#cfg-add-course'],
  leitores:['#cfg-layout','#layout-presets-open'],
  mesa:['#cfg-title',...FLAGS.map(key=>'#cfg-desk-'+key)],
- avisos:['#ui-language','#tutor-language','#theme-mode','#accent-mode','#density-mode','#notify-sound','#notify-desktop','#notify-focused'],
- pastas:['#cfg-vault','#cfg-vault-browse','#cfg-pi','#cfg-pi-detect','#cfg-pi-browse','#cfg-pi-clear','#cfg-claude','#cfg-claude-browse','#cfg-claude-clear','#cfg-xournal','#cfg-xournal-browse','#cfg-xournal-clear','#cfg-opencode-key','#cfg-opencode-save','#cfg-opencode-create']
+ avisos:['#ui-language','#tutor-language','#theme-mode','#accent-mode','#density-mode','#reading-size','#reading-width','#pdf-dark','#notify-sound','#notify-desktop','#notify-focused'],
+ pastas:['#cfg-vault','#cfg-vault-browse','#cfg-claude','#cfg-claude-browse','#cfg-claude-clear','#cfg-xournal','#cfg-xournal-browse','#cfg-xournal-clear','#cfg-opencode-key','#cfg-opencode-save','#cfg-opencode-create','#cfg-opencode-provider-select']
 };
 
 const rgb=text=>{
@@ -109,7 +109,7 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
   label1:document.querySelector('#cfg-layout-label-1')?.value??null,
   title:document.querySelector('#cfg-title').value,
   flags:Object.fromEntries(['endDay','studyContext','calculator','xournal','conferir','refsToggle'].map(k=>[k,document.querySelector('#cfg-desk-'+k).checked])),
-  vault:document.querySelector('#cfg-vault').value,pi:document.querySelector('#cfg-pi').value,
+  vault:document.querySelector('#cfg-vault').value,
   claude:document.querySelector('#cfg-claude').value,xournal:document.querySelector('#cfg-xournal').value
  }));
 
@@ -139,7 +139,7 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
   .filter(el=>!el.closest('#cfg-courses,#cfg-layout'))
   .map(el=>el.id));
  for(const id of stray)assert.ok(known.has(id),`campo ${id} está no inventário`);
- for(const id of ['cfg-title','cfg-vault','cfg-pi','cfg-claude','cfg-xournal','theme-mode','density-mode','notify-sound','notify-desktop','notify-focused',...FLAGS.map(k=>'cfg-desk-'+k)]){
+ for(const id of ['cfg-title','cfg-vault','cfg-claude','cfg-xournal','theme-mode','density-mode','notify-sound','notify-desktop','notify-focused',...FLAGS.map(k=>'cfg-desk-'+k)]){
   assert.ok(stray.includes(id),`campo ${id} continua existindo`);
  }
 
@@ -152,7 +152,6 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
   await page.locator('#cfg-title').fill('Título editado');
   await page.locator('#cfg-desk-calculator').uncheck();
   await tab('pastas');
-  await pickExecutable('#cfg-pi-browse','/tmp/pi-editado');
   await tab('leitores');
   await page.locator('#cfg-layout-label-1').fill('Leitor editado');
  };
@@ -160,7 +159,6 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
  await tab('materias');
  assert.equal(await page.locator('#cfg-courses .cfg-course').first().locator('.cfg-name').inputValue(),'Cálculo editado','trocar de seção não descarta');
  await tab('pastas');
- assert.equal(await page.locator('#cfg-pi').inputValue(),'/tmp/pi-editado','nem a edição das outras seções');
  assert.deepEqual(readConfig().courses.map(c=>c.name),['Cálculo','Física'],'trocar de seção não salva');
  await cancel();
  await open();
@@ -201,7 +199,6 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
  const added=page.locator('#cfg-courses .cfg-course').last();
  await added.locator('.cfg-name').fill('Nova sem pasta');
  await tab('pastas');
- await pickExecutable('#cfg-pi-browse','/tmp/pi-nao-salva');
  await page.locator('#settings-save').click();
  await page.waitForSelector('#cfg-courses .cfg-error',{timeout:5000});
  assert.equal(await page.evaluate(()=>document.querySelector('#settings-dialog').open),true,'o erro impede o Salvar');
@@ -248,7 +245,6 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
  await page.locator('#cfg-desk-conferir').uncheck();
  await page.locator('#cfg-desk-refsToggle').uncheck();
  await tab('pastas');
- await pickExecutable('#cfg-pi-browse','/tmp/pi-secoes');
  await pickExecutable('#cfg-claude-browse','/tmp/claude-secoes');
  await pickExecutable('#cfg-xournal-browse','/tmp/xournal-secoes');
  await save();
@@ -256,7 +252,6 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
  assert.deepEqual(saved.courses.map(c=>[c.id,c.name,c.path]),[['A','Cálculo I',courseA],['B','Física',courseB],['Química','Química',courseC]],'matérias gravadas como antes');
  assert.equal(saved.desk.title,'Mesa nova');
  for(const key of FLAGS)assert.equal(saved.desk[key],!['conferir','refsToggle'].includes(key),`flag ${key}`);
- assert.equal(saved.piPath,'/tmp/pi-secoes');
  assert.equal(saved.claudePath,'/tmp/claude-secoes');
  assert.equal(saved.xournalPath,'/tmp/xournal-secoes');
  assert.equal(saved.vaultPath,runtime,'a pasta de dados segue igual');
@@ -278,7 +273,6 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
  assert.equal(after.title,'Mesa nova');
  /* O campo do Pi mostra o executável em uso (o teste injeta o Pi falso por
     ambiente); o que foi gravado segue no arquivo. */
- assert.equal(readConfig().piPath,'/tmp/pi-secoes');
  assert.equal(after.claude,'/tmp/claude-secoes');
  assert.equal(after.xournal,'/tmp/xournal-secoes');
  assert.equal(after.label1,'Prova');
@@ -339,7 +333,7 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
     const hint=(await page.locator('#settings-hint').textContent()).trim();
     if(id==='avisos'){
      assert.doesNotMatch(hint,/depois de salvar/,`${label}: tema e acento valem na hora, o rodapé não contradiz (${hint})`);
-     assert.match(hint,/tema, acento, densidade, idioma e avisos valem na hora/i,`${label}: o rodapé nomeia o que vale na hora (${hint})`);
+     assert.match(hint,/tudo nesta seção vale na hora/i,`${label}: o rodapé diz que a seção inteira vale na hora (${hint})`);
     }else if(id==='pastas'){
      assert.match(hint,/Os caminhos só valem depois de salvar/,`${label}: os caminhos seguem com o aviso de salvar (${hint})`);
      assert.match(hint,/O programa de escrita vale na hora/,`${label}: o programa de escrita vale na hora e o rodapé diz (${hint})`);
@@ -445,7 +439,10 @@ await withArtifacts('configuracoes-secoes',async ctx=>{
     assert.equal(b9.addBorder,'0px',`${tag}: Adicionar matéria é ação fantasma`);
     assert.match(b9.addBefore,/\+/,`${tag}: Adicionar matéria leva o +`);
     assert.equal(b9.dialogRadius,'12px',`${tag}: diálogo com raio 12px`);
-    assert.equal(b9.tabH,30,`${tag}: itens da lateral com 30px`);
+    /* 46px desde 342f926d (auditoria rodada 4, F4): todas as abas levam o teto
+       de duas linhas para medir igual às que quebram; o ritmo entre elas é
+       provado em settings-rhythm-ui.mjs. */
+    assert.equal(b9.tabH,46,`${tag}: itens da lateral com 46px (teto de duas linhas)`);
     assert.equal(b9.tabRadius,'7px',`${tag}: itens da lateral com raio 7px`);
    }
    // Erro de validação (captura): linha com nome e sem pasta.

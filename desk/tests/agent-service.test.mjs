@@ -64,9 +64,20 @@ test('catalog controls are dynamic and changing settings blocks concurrent sendi
  svc.uncertain=true;
  await assert.rejects(svc.request('set_controls',{selection}),ptMatches(/Aguarde/));
 });
+test('connecting/configuring is not a turn for navigation',async()=>{
+ const adapter=new Fake();let release;
+ adapter.setControls=async()=>{await new Promise(r=>release=r);return {};};
+ const svc=new ClaudeService({adapter});
+ const pending=svc.request('set_controls',{selection:{model:'sonnet',effort:'high'}});
+ await new Promise(r=>setImmediate(r));
+ assert.equal(svc.isRunning(),true,'configurar ainda conta como ocupado para controles');
+ assert.equal(svc.isTurnActive(),false,'conectar/configurar não pode bloquear troca de matéria ou Ajustes');
+ release();await pending;
+ assert.equal(svc.isTurnActive(),false);
+});
 test('Claude service keeps its transport, conversation and capabilities separate',async()=>{
  const adapter=new Fake(),svc=new ClaudeService({adapter});const seen=[];svc.on('event',e=>seen.push(e));
- assert.equal(metadata('claude').caps.steer,true);assert.equal(metadata('pi').caps.steer,true);
+ assert.equal(metadata('claude').caps.steer,true);assert.equal(metadata('pi').caps.steer,false);
  for(const engine of ['claude','pi','opencode','x'])assert.equal(Object.hasOwn(metadata(engine).caps,'handoff'),false,`${engine}: o bilhete saiu do contrato (#50/#49)`);
  adapter.emit('event',{type:'turn_end',conversationId:'own',runId:'run',isError:true});
  assert.deepEqual(seen,[{type:'agent_settled',conversationId:'own',runId:'run',isError:true,cancelled:false,uncertain:false}]);
@@ -123,6 +134,8 @@ test('display cache retains recent messages within the persistence row limit',()
  adapter.emit('event',{type:'message_end',message:{role:'assistant',content:[{type:'text',text:'latest'}]}});
  assert.equal(svc.messages.length,5000);
  assert.equal(svc.messages[0].content[0].text,'2');
+ assert.equal(saved,undefined,'message_end fica pendente até o fim do turno (#116)');
+ adapter.emit('event',{type:'turn_end'});
  assert.equal(saved.at(-1).content[0].text,'latest');
 });
 

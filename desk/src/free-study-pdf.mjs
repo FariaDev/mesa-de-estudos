@@ -5,7 +5,7 @@ import {draftModel,modelLabel,statusPhrase,pageOf} from './materials/model.mjs';
 import {t,text as translated} from './ui-text.mjs';
 import {message} from './i18n.mjs';
 import {displayFreeTitle} from './free-names.mjs';
-import {FREE_COURSE_ID,api,extractData,freeState,isFree,workspaceOf} from './free-study-base.mjs';
+import {FREE_COURSE_ID,api,beginFreeInflight,endFreeInflight,extractData,freeState,isFree,workspaceOf} from './free-study-base.mjs';
 import {applyData,assistantSources,flushState,notice,setBarBusy,setDialogBusy} from './free-study-chrome.mjs';
 
 /* Aba Livre — gerar PDF: fonte (respostas do tutor), modelo, prévia fiel
@@ -236,11 +236,15 @@ function updatePdfPreview(){
  }
  let html,diagnostics;
  try{
-  const prepared=prepareMaterialMarkdown({title,markdown:text});
-  const math=checkMaterialMath(prepared.markdown);
-  diagnostics=[...prepared.diagnostics,...math.diagnostics];
-  paintCounts(math.segments,math.errors);
-  html=renderMaterialHtml({title,markdown:text,model,options,context:pdfContext()}).html;
+   const prepared=prepareMaterialMarkdown({title,markdown:text});
+   const math=checkMaterialMath(prepared.markdown);
+   diagnostics=[...prepared.diagnostics,...math.diagnostics];
+   paintCounts(math.segments,math.errors);
+   /* Prévia viva no DOM da janela: com a faixa Allowlist ligada (`preview`),
+      `id`/`class` do modelo sob prefixo — o overlay, o clobber e o `file://`
+      não entram na janela (a fidelidade com o impresso se mantém: o impresso
+      perde só `position`/`inset` do `style`). */
+   html=renderMaterialHtml({title,markdown:text,model,options,context:pdfContext(),preview:true}).html;
  }catch(error){
   const hint=document.createElement('p');
   hint.className='fine';
@@ -376,7 +380,8 @@ async function verifyPdf({auto=false}={}){
  }
 }
 function openPdfDialog(draft=null){
- if(freeState.inflight==='free-open'||freeState.inflight==='pdf-save')return;
+ const ongoing=freeState.inflight?.name;
+ if(ongoing==='free-open'||ongoing==='pdf-save')return;
  freeState.sources=draft?[{raw:draft.markdown,preview:t('free.pdf.draftSource')}]:assistantSources();
  const dialog=$('#free-pdf-dialog');dialog._pdfDraftId=draft?.id||'';
  dialog.querySelector('h2').textContent=draft?t('free.pdf.draftHeading'):t('free.pdf.buildHeading');
@@ -424,14 +429,16 @@ function openAddMaterial(){
 }
 async function addMaterial(){
  if(!isFree()||freeState.inflight)return;
- const gen=freeState.generation;freeState.inflight='add-material';setDialogBusy('#free-add-dialog',true);
+ const token=beginFreeInflight('add-material');
+ if(!token)return;
+ const gen=freeState.generation;setDialogBusy('#free-add-dialog',true);
  try{
   const result=await api('freeAddMaterial')({materialId:$('#free-add-pdf').value,courseId:$('#free-add-course').value});
   if(gen!==freeState.generation)return;
   if(!result?.added)throw Error(t('free.add.fail'));
   $('#free-add-dialog').close();toast(t('free.add.done',{material:result.material.name,course:result.material.courseName}));
  }catch(error){if(gen===freeState.generation)notice('#free-add-error',translated(error.message));}
- finally{freeState.inflight='';setDialogBusy('#free-add-dialog',false);}
+ finally{if(endFreeInflight(token))setDialogBusy('#free-add-dialog',false);}
 }
 async function savePdf(){
  if(freeState.inflight)return;
@@ -458,7 +465,8 @@ async function savePdf(){
  /* Salvar sempre re-renderiza no host; a prévia anterior é descartada aqui. */
  clearTimeout(freeState.realPreviewTimer);
  invalidatePreview();
- freeState.inflight='pdf-save';
+ const token=beginFreeInflight('pdf-save');
+ if(!token)return;
  setBarBusy(true);
  setDialogBusy('#free-pdf-dialog',true);
  try{
@@ -477,10 +485,12 @@ async function savePdf(){
  }catch(error){
   if(gen===freeState.generation)notice('#free-pdf-error',error&&error.message?translated(error.message):t('free.save.fail'));
  }finally{
-  freeState.inflight='';
-  setBarBusy(false);
-  setDialogBusy('#free-pdf-dialog',false);
-  if(!freeState.sources.length)$('#free-pdf-source').disabled=true;
+  /* Uma operação nova que já tomou o lock cuida da própria interface. */
+  if(endFreeInflight(token)){
+   setBarBusy(false);
+   setDialogBusy('#free-pdf-dialog',false);
+   if(!freeState.sources.length)$('#free-pdf-source').disabled=true;
+  }
  }
 }
 

@@ -4,26 +4,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {pathToFileURL} from 'node:url';
 import {execFileSync} from 'node:child_process';
-import {DESK,fakePiSource,launchDesk,withArtifacts,seedCourse,tinyPdf,freeMenuClick} from './helpers.mjs';
+import {launchDesk,withArtifacts,seedCourse,tinyPdf,freeMenuClick} from './helpers.mjs';
 const markdown='# Grafos e relações\n\n## Lista de exercícios\n\n1. Determine os vértices de um grafo com três arestas.\n2. Discuta a transitividade de uma relação.';
 const out=screenshotDirectory('course-pdf-ui');
 await withArtifacts('course-pdf-ui',async ctx=>{
  const runtime=ctx.runtime=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-course-pdf-ui-'))),course=seedCourse(runtime,'discreta');
  fs.writeFileSync(path.join(course,'Lista existente.pdf'),tinyPdf('Lista de exercicios'));
- const source=fakePiSource(),marker='else if(/quiz/i.test(studentText(e.message)))void emitQuiz(e.message);';assert.ok(source.includes(marker));
- const branch=`else if(String(e.message).includes('Prepare um PDF na Mesa')){
-  streaming=true;emit({type:'agent_start'});
-  (async()=>{try{
-   const {createTutorPdf}=await import(${JSON.stringify(pathToFileURL(path.join(DESK,'src/extensions/tutor-pdf/client.mjs')).href)});
-   await createTutorPdf(JSON.parse(process.env.LEARNING_DESK_MATERIAL_BRIDGE),{title:'Grafos e relações',markdown:${JSON.stringify(markdown)}});
-   streaming=false;emitText('Material preparado para revisar.');
-  }catch(error){streaming=false;emitText('Falha: '+error.message);}})();
- } ${marker}`;
- const demo=path.join(runtime,'pi-demo.mjs');fs.writeFileSync(demo,source.replace(marker,()=>branch));fs.chmodSync(demo,0o755);
  fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({runtimePath:runtime,vaultPath:runtime,courses:[{id:'discreta',name:'Matemática Discreta',path:course}]}));
- ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:demo}});const page=await ctx.app.firstWindow();
+ const createPdf={name:'criar_pdf',input:{title:'Grafos e relações',markdown}};
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MCP_CALL:JSON.stringify(createPdf)}});const page=await ctx.app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.waitForSelector('#study-tutor-pdf',{state:'attached'});
  await page.evaluate(async()=>{const {S,connect}=await import('./src/state.mjs');window.__studyState=S;if(!S.connected)await connect();});

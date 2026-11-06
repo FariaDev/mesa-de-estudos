@@ -32,7 +32,7 @@ test('as regras invioláveis seguem no AGENTS.md', () => {
     ['defaults de `desk/config.cjs`', 'não alterar os defaults da mesa do autor'],
     ['PDFs nem materiais de curso', 'não alterar PDFs nem materiais'],
     ['sessões JSONL', 'não publicar sessões JSONL'],
-    ['credenciais do Pi', 'não publicar credenciais'],
+    ['credenciais', 'não publicar credenciais'],
     ['Mesa de Estudos.app', 'não publicar o bundle'],
     ['Dois apps', 'dois apps separados'],
     ['canvas de tinta', 'sem canvas de tinta'],

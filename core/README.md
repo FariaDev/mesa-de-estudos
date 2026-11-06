@@ -101,8 +101,8 @@ A revisão humana leve olha os enunciados e as fronteiras, não o JS gerado.
 
 ## Módulos
 
-Hoje o `PROOF.bend` importa 71 provas (69 arquivos de leis, 3.121 declarações
-`law`) e o build gera 69 saídas, todas em `desk/src/generated` (a Conversa e os
+Hoje o `PROOF.bend` importa 70 módulos de prova (70 arquivos de leis, 3.072
+declarações `law`) e o build gera 68 saídas, todas em `desk/src/generated` (a Conversa e os
 14 módulos só dela saíram na #50; `claudeversion` entrou na #51; `overlay`, na #52;
 `ggbboard` e `toolmentions`, na #53; `freemodels`, na #44; `phonedrop`, na #36).
 
@@ -119,7 +119,7 @@ Hoje o `PROOF.bend` importa 71 provas (69 arquivos de leis, 3.121 declarações
   link, grava com `O_EXCL` e não sobrescreve. O tutor só escreve dentro da
   matéria (ou do workspace da Livre); o invariante não depende do motor.
 
-- **`updatenotice.bend`** — avisos de atualização do Pi e do Claude Code: a
+- **`updatenotice.bend`** — avisos de atualização do Claude Code: a
   decisão (linha do Sobre, ponto do ⚙, "mais nova que a testada", sem rede não
   é erro), a memória de "visto", "ignorar esta versão" e "lembrar depois", as
   frases do resultado e os nós de ação, confirmação e saída. O host só lê as
@@ -170,8 +170,6 @@ Hoje o `PROOF.bend` importa 71 provas (69 arquivos de leis, 3.121 declarações
   páginas), trim + corte em 240, no máximo 2 PDFs e os textos do cartão.
   Adaptadores `desk/resume.cjs` (um registro por matéria) e `desk/src/resume.mjs`
   (o cartão acima do campo).
-- **`framing.bend`** — framing das linhas JSON-RPC do stdout do Pi (split por
-  LF, resto no buffer, overflow descarta tudo). Adaptador `desk/rpc.cjs`.
 - **`statusview.bend` / `composerview.bend` / `talkview.bend`** —
   ficaram só com a Mesa depois da #50. `footStatus` perdeu o consumidor
   (o rodapé era da Conversa) e segue no núcleo até alguém limpá-lo; `settingsPanel` e os construtores
@@ -205,7 +203,7 @@ o host faz as comparações. É onde os bugs moram e onde as leis pegam.
 
 Os **tetos** seguem o caminho inverso: o número mora no núcleo
 (`maxDraftChars()`), é pinado por lei e o host lê de lá — `MAX_DRAFT` em
-`state-adapter.cjs`, usado no corte/save do rascunho e no `pi-prompt` do main —
+`state-adapter.cjs`, usado no corte/save do rascunho e no canal do tutor —
 em vez de repetir o literal. Onde o host não alcança o artefato (um preload com
 `sandbox: true`) o literal é inevitável e precisa de um teste de paridade. Os
 tetos de `attachments.bend` (4 anexos, 120/80000/16 MiB) são lidos do artefato

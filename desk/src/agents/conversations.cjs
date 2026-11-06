@@ -53,21 +53,20 @@ const CORRUPT_DESCRIPTOR_CODE = 'CLAUDE_DESCRIPTOR_INVALID';
 const PATCH_ERROR_CODE = 'CLAUDE_DESCRIPTOR_PATCH';
 const DELIVERY_STATUSES = Object.freeze(['transmitting', 'accepted', 'settled', 'uncertain', 'refused']);
 
-const MAX_MESSAGES_BYTES = 12 * 1024 * 1024;
+const {MAX_MESSAGES_BYTES, MAX_MESSAGE_COUNT, boundMessages} = require('./conversation-bounds.cjs');
 /* Folga para o metadado que nunca é cortado pelo teto de `messages`. */
 const MAX_DESCRIPTOR_BYTES = 13 * 1024 * 1024;
 const MAX_COURSE_ID = 400;
 const MAX_PREVIEW = 4000;
 const MAX_MODEL = 400;
-const MAX_PATH = 4096;
 const MAX_DELIVERY_ID = 200;
-const MAX_MESSAGE_COUNT = 5000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const DESCRIPTOR_RE = /^(claude|opencode)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.json$/;
 const {validNativeId, nextNativeId} = require('./native-identity.cjs');
 
 const {isPlainObject} = require('../../plain-object.cjs');
+const {MAX_PATH, MAX_HANDOFF_BYTES, HANDOFF_KINDS, ORIGIN_ENGINES, validateOrigin, validateHandoff, validateHandoffOptions, sameValue} = require('./conversation-handoff.cjs');
 const bytes = (value) => Buffer.byteLength(JSON.stringify(value));
 const isUuid = (value) => typeof value === 'string' && UUID_RE.test(value);
 const boundedString = (value, max) => typeof value === 'string' && value.length <= max;
@@ -203,6 +202,8 @@ function validDescriptor(raw, uuid, engine = ENGINE_CLAUDE) {
   if (raw.messages !== undefined && !validateMessages(raw.messages)) return false;
   if (raw.importedTranscript !== undefined && !boundedString(raw.importedTranscript, 50000)) return false;
   if (raw.importedPrefixLength !== undefined && (!Number.isInteger(raw.importedPrefixLength)||raw.importedPrefixLength<0||raw.importedPrefixLength>MAX_MESSAGE_COUNT)) return false;
+  if (raw.origin !== undefined && !validateOrigin(raw.origin)) return false;
+  if (raw.handoff !== undefined && !validateHandoff(raw.handoff)) return false;
   return true;
 }
 
@@ -263,11 +264,16 @@ function publishExclusive(tmp, file, payload) {
 }
 
 /** Cria o descritor sem sobrescrever nada: escreve um tmp e publica com link
-   exclusivo (EEXIST → tenta outro id). Devolve o CAMINHO do arquivo. @param {{runtime?: string, courseId?: string, model?: string, effort?: string, engine?: string}} [options] */
-function createClaudeConversation({runtime, courseId, model, effort, engine = ENGINE_CLAUDE} = {}) {
+   exclusivo (EEXIST → tenta outro id). Devolve o CAMINHO do arquivo.
+   A passagem (#87) entra já na criação: `importedTranscript`, `origin` e
+   `handoff` são gravados uma vez e nunca sobrescrevem o descritor de origem.
+   @param {{runtime?: string, courseId?: string, model?: string, effort?: string, engine?: string, importedTranscript?: string, origin?: {session: string, engine: string}, handoff?: {kind: string, bytes: number, createdAt: number}}} [options] */
+function createClaudeConversation({runtime, courseId, model, effort, engine = ENGINE_CLAUDE, importedTranscript, origin, handoff} = {}) {
   if (typeof runtime !== 'string' || !runtime) throw new Error(invalidValue('runtime', runtime, 'string(1..)'));
   if (!NATIVE_ENGINES.includes(engine)) throw new Error(invalidValue('engine', engine, NATIVE_ENGINES.join('|')));
   if (effort !== undefined && !boundedString(effort, 24)) throw new Error(invalidValue('effort', effort, 'string(0..24)'));
+  const invalidHandoff = validateHandoffOptions({importedTranscript, origin, handoff});
+  if (invalidHandoff) throw new Error(invalidValue(invalidHandoff, {importedTranscript, origin, handoff}[invalidHandoff], invalidHandoff === 'importedTranscript' ? 'string(0..50000)' : invalidHandoff === 'origin' ? `{session: string(1..${MAX_PATH}), engine: ${ORIGIN_ENGINES.join('|')}}` : `{kind: ${HANDOFF_KINDS.join('|')}, bytes: integer(0..${MAX_HANDOFF_BYTES}), createdAt: number(0..)}`));
   const dir = conversationsDir(runtime);
   fs.mkdirSync(dir, {recursive: true});
   const course = typeof courseId === 'string' ? courseId.slice(0, MAX_COURSE_ID) : '';
@@ -286,6 +292,9 @@ function createClaudeConversation({runtime, courseId, model, effort, engine = EN
     };
     if (typeof model === 'string' && model) descriptor.model = model.slice(0, MAX_MODEL);
     if (effort !== undefined) descriptor.effort = effort;
+    if (importedTranscript !== undefined) descriptor.importedTranscript = importedTranscript;
+    if (origin !== undefined) descriptor.origin = {session: origin.session, engine: origin.engine};
+    if (handoff !== undefined) descriptor.handoff = {kind: handoff.kind, bytes: handoff.bytes, createdAt: handoff.createdAt};
     const payload = JSON.stringify(descriptor);
     const tmp = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
     fs.writeFileSync(tmp, payload);
@@ -375,27 +384,19 @@ function updateClaudeConversation(file, patch, {runtime} = {}) {
     if (current.importedTranscript !== undefined && current.importedTranscript !== patch.importedTranscript) throw patchError(`importedTranscript é imutável: recebido ${describeReceived(patch.importedTranscript)}, diferente do atual.`);
     next.importedTranscript = patch.importedTranscript;
   }
+  if (Object.hasOwn(patch, 'origin')) {
+    if (!validateOrigin(patch.origin)) throw patchError(invalidValue('origin', patch.origin, `{session: string(1..${MAX_PATH}), engine: ${ORIGIN_ENGINES.join('|')}}`));
+    if (current.origin !== undefined && !sameValue(current.origin, patch.origin)) throw patchError(`origin é imutável: recebido ${describeReceived(patch.origin)}, diferente do atual.`);
+    next.origin = {session: patch.origin.session, engine: patch.origin.engine};
+  }
+  if (Object.hasOwn(patch, 'handoff')) {
+    if (!validateHandoff(patch.handoff)) throw patchError(invalidValue('handoff', patch.handoff, `{kind: ${HANDOFF_KINDS.join('|')}, bytes: integer(0..${MAX_HANDOFF_BYTES}), createdAt: number(0..)}`));
+    if (current.handoff !== undefined && !sameValue(current.handoff, patch.handoff)) throw patchError(`handoff é imutável: recebido ${describeReceived(patch.handoff)}, diferente do atual.`);
+    next.handoff = {kind: patch.handoff.kind, bytes: patch.handoff.bytes, createdAt: patch.handoff.createdAt};
+  }
   if (!validDescriptor(next, managedUuid(file), current.engine)) throw patchError(`patch produziria um descritor inválido: campos ${describeReceived(patch)}.`);
   writeDescriptorAtomic(file, next);
   return next;
-}
-
-/* Teto de `messages`: mantém as mais novas; corta do começo. Metadados de
-   entrega/incerteza ficam fora dessa conta e nunca são cortados. */
-function boundMessages(messages) {
-  const list = (Array.isArray(messages) ? messages : []).slice(-MAX_MESSAGE_COUNT);
-  // Array framing is two brackets plus one comma between each row. Count
-  // UTF-8 bytes from newest to oldest without reserializing large images for
-  // every discarded prefix row. The retained suffix has the same byte cap.
-  let total = 2, start = list.length;
-  for (let i = list.length - 1; i >= 0; i -= 1) {
-    const rowBytes = Buffer.byteLength(JSON.stringify(list[i]) ?? 'null', 'utf8');
-    const next = total + rowBytes + (start < list.length ? 1 : 0);
-    if (next > MAX_MESSAGES_BYTES) break;
-    total = next;
-    start = i;
-  }
-  return list.slice(start);
 }
 
 /* ---------- classificação/metadados ---------- */
@@ -438,6 +439,8 @@ function conversationMetadata(file, {runtime} = {}) {
       effort: descriptor.effort ?? null,
       pinnedExecutable: descriptor.pinnedExecutable ?? null,
       delivery: descriptor.delivery ? {id: descriptor.delivery.id, status: descriptor.delivery.status} : null,
+      origin: descriptor.origin ? {session: descriptor.origin.session, engine: descriptor.origin.engine} : null,
+      handoff: descriptor.handoff ? {kind: descriptor.handoff.kind, bytes: descriptor.handoff.bytes, createdAt: descriptor.handoff.createdAt} : null,
       messageCount: Array.isArray(descriptor.messages) ? descriptor.messages.length : 0
     };
   }
@@ -453,6 +456,8 @@ function conversationMetadata(file, {runtime} = {}) {
     effort: null,
     pinnedExecutable: null,
     delivery: null,
+    origin: null,
+    handoff: null,
     messageCount: 0
   };
 }

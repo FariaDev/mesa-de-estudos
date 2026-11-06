@@ -27,12 +27,13 @@ const {createDeskVersionLabel}=require('./desk-version.cjs');
 const {createStudyHeartbeat,heartbeatActive}=require('./study-heartbeat.cjs');
 const {recoverFreePromotions}=require('./free-boot-recovery.cjs');
 const {createTutorEngineHost}=require('./tutor-engine-host.cjs');
+const {createSessionHandoffHost}=require('./session-handoff-host.cjs');
 const {registerTutorSessionIpc}=require('./tutor-session-ipc.cjs');
 const {registerTutorPromptHost}=require('./tutor-prompt-host.cjs');
 const {createCardHost}=require('./card-host.cjs');
 const {registerChatExportHost}=require('./chat-export-host.cjs');
 const {registerStudyRecordsHost}=require('./study-records-host.cjs');
-const {createCourseStateHost}=require('./course-state-host.cjs');
+const {createCourseStateHost}=require('./course-state-host.cjs');const {historyIdentity}=require('./src/history-identity.cjs');
 const {createDeskMenu}=require('./desk-menu.cjs');
 const {createDeskNotifier}=require('./desk-notify-host.cjs');
 const {createFreePromotionHost}=require('./free-promotion-host.cjs');
@@ -49,7 +50,8 @@ const {readPalette,phoneLookCss}=require('./phone-look.cjs');
 const {phoneCastCss}=require('./phone-cast.cjs');
 const {createLanguageHost}=require('./language-host.cjs');
 const {createAppIcon}=require('./app-icon-host.cjs');
-const {createOpencodeHost}=require('./opencode-host.cjs');
+const {createOpencodeHost}=require('./opencode-host.cjs');const {toolTestFixtures}=require('./tool-test-fixtures.cjs');
+const {createOpenCodeProvidersHost}=require('./opencode-providers-host.cjs');const {createTutorRelink}=require('./tutor-relink.cjs');
 const {registerTriageHost}=require('./triage-host.cjs');
 const {createKeyStore,electronCipher}=require('./opencode-key-store.cjs');
 const {message}=require('./src/i18n.mjs');
@@ -70,11 +72,11 @@ const chatLibrary=require('./src/study-data/chat-library.cjs');
 const chatState=require('./src/study-data/chat-state.cjs');
 const {createTutorMaterialBridge}=require('./tutor-materials.cjs');
 const {createActivityStore}=require('./activity-store.cjs');
-const {createActivityRuntime,ACTIVITY_SCHEME}=require('./activity-runtime.cjs');
+const {createActivityRuntime,ACTIVITY_SCHEME,fileGuardOptions}=require('./activity-runtime.cjs');
 const {createActivityBridge}=require('./activity-bridge.cjs');
 const {createPdfPageReader}=require('./pdf-page-text.cjs');
 const {createPdfPageRenderer}=require('./pdf-page-render.cjs');
-const {resolveTutorPdf}=require('./pdf-read-path.cjs');
+const {resolveTutorPdf}=require('./pdf-read-path.cjs');const {createPdfGrants}=require('./pdf-grants.cjs');
 const {createChatPdfHost}=require('./chat-pdf-host.cjs');
 const {createChatPdfGrants}=require('./chat-pdf-grants.cjs');
 const {createActivityHost}=require('./activity-host.cjs');
@@ -145,6 +147,7 @@ state.pdfPageOffsets=sanitizePdfPageOffsets(state.pdfPageOffsets);
 {
  const saved=deskLayout(state);
  state.draft=saved.draft;state.theme=saved.theme;state.accent=saved.accent;state.referenceVisible=saved.referenceVisible;
+ state.readingSize=saved.readingSize;state.readingWidth=saved.readingWidth;state.pdfDark=saved.pdfDark;
  /* #101: o desk.json antigo podia ter `mascot`/`appIcon`; os campos saem sem migração. */
  delete state.mascot;delete state.appIcon;
  state.chatWidth=saved.chatWidth;state.calcHeight=saved.calcHeight;state.pdfSplit=saved.pdfSplit;
@@ -159,6 +162,7 @@ const courseStates=state.courseStates||{};
 state.ggbBase64=state.ggbBase64||ggbCache.read(courseId);
 ggbCache.remember(courseId,typeof state.ggbBase64==='string'?state.ggbBase64:'');
 const allowed=new Set(),allowedXopp=new Set();let win,bridge,lastPersist='',levelsMod,appIcon=null;const pdfDisk=new Map();
+const pdfGrants=createPdfGrants({allowed});
 const TEST_MODE=process.env.DESK_TEST==='1';
 if(!TEST_MODE){if(!app.requestSingleInstanceLock())app.quit();app.on('second-instance',()=>{if(win){if(win.isMinimized())win.restore();win.show();win.focus();}});}
 let session=state.session||'';
@@ -214,13 +218,14 @@ const live={
  get tutorMaterialBridge(){return tutorMaterialBridge;},
 };
 /** O estado vivo que os hosts recebem (#43 fase 3: o tipo deles sai daqui). @typedef {typeof live} DeskLive */
-const {piBinary,engine,isNative,openCodeBinary,claudeBinary,claudeDetector,defaultEngine,newSessionPath,resumeSession,visibleEngines,descriptorCache,conversationData,sessionInfo,prepareClaude,prepareOpenCode,prepareClaudeSide,prepareOpenCodeSide,testClaudeSdkLoader,previewFile}=createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID});
+const {engine,isNative,openCodeBinary,claudeBinary,claudeDetector,defaultEngine,newSessionPath,resumeSession,visibleEngines,descriptorCache,conversationData,sessionInfo,prepareClaude,prepareOpenCode,prepareClaudeSide,prepareOpenCodeSide,testClaudeSdkLoader,previewFile,engineFacts,legacyHistory}=createTutorEngineHost({live,runtime,deskDir,TEST_MODE,FREE_ID});
+const sessionHandoff=createSessionHandoffHost({runtime,live,engine,engineFacts,visibleEngines,legacyHistory,sourceInCourse:file=>{try{return courseSessions().some(s=>s.path===file);}catch{return false;}},FREE_ID,tutorT:(key,args)=>languageHost.tutorT(key,args)});
 session=resumeSession(session,courseId);
 const {readableImage,promptImages,trimMessageImages}=createPromptImages({runtime,deskDir,learningRoot,nativeImage});
 const openCodeTutor=createOpenCodeTutorHost({live,runtime,ggbBridge:()=>ggb.bridgeFile,appendLog,captureActivityScope,prepareOpenCode,prepareOpenCodeSide,openCodeBinary});createOpenCodeInstallHost({ipcMain,win:()=>win,home:os.homedir(),env:process.env,testMode:TEST_MODE,log:appendLog,detect:()=>({detectedOpenCode:openCodeBinary()})});
-const {connect,assertIdle,stopBridge,piLaunch}=createTutorBridgeHost({live,runtime,deskDir,FREE_ID,ggb,pendingDialogs,appendLog,captureActivityScope,prepareTutorMaterial,engine,prepareClaude,testClaudeSdkLoader,claudeBinary,claudeDetector,piBinary,isNative,openCodeTutor});
-const {isPromotedRecord,freeRecordForToken,ensureFreeNativePath,ensureFreeRecord,createFreeSession,freeEntryOf,hydrateFreeRecord,persistFreeSession,freeSessionList,freeWorkspacePayload,focusFreeMaterial,applyFreeCourse}=createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,previewFile});
-const {courseSessions,rememberSession,persist,applyCourse,reviewPayload,bookmarksPayload,lastPdfModel,rememberPdfModel,materialContext,initialData}=createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allowed,allowedXopp,ggb,ggbCache,appendLog,previewFile,sessionInfo,conversationData,piBinary,resumeSession,freeSessionList,persistFreeSession,applyFreeCourse,freeWorkspacePayload,captureAvailable,deskVersionLabel});
+const {connect,assertIdle,stopBridge}=createTutorBridgeHost({live,runtime,ggb,pendingDialogs,appendLog,captureActivityScope,prepareTutorMaterial,engine,prepareClaude,testClaudeSdkLoader,claudeBinary,claudeDetector,isNative,openCodeTutor});
+const {isPromotedRecord,freeRecordForToken,ensureFreeNativePath,ensureFreeRecord,createFreeSession,freeEntryOf,hydrateFreeRecord,persistFreeSession,freeSessionList,freeWorkspacePayload,focusFreeMaterial,applyFreeCourse}=createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,visibleEngines,previewFile});
+const {courseSessions,rememberSession,persist,applyCourse,reviewPayload,bookmarksPayload,lastPdfModel,rememberPdfModel,materialContext,initialData}=createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allowed,pdfGrants,allowedXopp,ggb,ggbCache,appendLog,previewFile,sessionInfo,conversationData,historyIdentity,resumeSession,freeSessionList,persistFreeSession,applyFreeCourse,freeWorkspacePayload,captureAvailable,deskVersionLabel});
 const {isFree,assertNoFreeMutation,assertNoNav,freeMutate,activityMutate,withHostNav}=createDeskGuards({live,FREE_ID,persist,appendLog});
 const {runFreePromotion}=createFreePromotionHost({live,runtime,configFile,stateFile,persistConfig,courseStates,allowedXopp,ggbCache,appendLog,freeEntryOf,previewFile,engine,stopBridge,applyCourse,persist});
 const bootFree=courseId===FREE_ID?ensureFreeRecord():null;
@@ -233,7 +238,7 @@ function captureAvailable(){return (TEST_MODE&&!!process.env.LEARNING_DESK_CAPTU
 function validPdf(p){if(typeof p!=='string'||!allowed.has(p))throw Error(message('err.pdf.pick'));return p;}
 /* chat lateral: o gerenciador mora em sidechat-host.cjs; o main entrega o que
    lê do principal por acessores (as variáveis são reatribuídas aqui). */
-const sidechatManager=createMesaSidechat({runtime,activityBridge:()=>activityBridge,freeId:FREE_ID,session:()=>session,courseId:()=>courseId,courses:()=>courses,config:()=>config,state:()=>state,bridge:()=>bridge,engine,validPdf,allowedXopp,descriptorCache,piLaunch,prepareClaudeSide,connectOpenCodeSide:side=>openCodeTutor.connectSide(side),testClaudeSdkLoader,claudeBinary,claudeDetector,win:()=>win,appendLog,languageHost:{tutorT:(...args)=>languageHost.tutorT(...args),tutorLanguage:()=>languageHost.tutorLanguage()},readPdf:raw=>live.readTutorPdf(raw),searchMaterial:raw=>live.studyServices.materialSearch(null,raw),listMaterials:()=>live.studyServices.materialList(null)});
+const sidechatManager=createMesaSidechat({runtime,activityBridge:()=>activityBridge,freeId:FREE_ID,session:()=>session,courseId:()=>courseId,courses:()=>courses,config:()=>config,state:()=>state,bridge:()=>bridge,engine,validPdf,allowedXopp,descriptorCache,prepareClaudeSide,connectOpenCodeSide:side=>openCodeTutor.connectSide(side),testClaudeSdkLoader,claudeBinary,claudeDetector,win:()=>win,appendLog,languageHost:{tutorT:(...args)=>languageHost.tutorT(...args),tutorLanguage:()=>languageHost.tutorLanguage()},readPdf:raw=>live.readTutorPdf(raw),searchMaterial:raw=>live.studyServices.materialSearch(null,raw),listMaterials:()=>live.studyServices.materialList(null)});
 /* ---------- aba Livre (workspace virtual `mesa-free`) ----------
    Cada conversa Livre tem workspace próprio no store (`free-workspaces.cjs`):
    título/rascunho/materiais/nativePath ficam lá; layout, estudo e rotações
@@ -277,9 +282,9 @@ let previewSessionReady=null;
 function previewSession(){
  if(previewSessionReady)return previewSessionReady;
  const ses=require('electron').session.fromPartition('mesa-activity-preview');
- activityRuntime.installProtocol(ses);
- activityRuntime.installSessionGuards(ses);
- ses.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
+  activityRuntime.installProtocol(ses);
+  activityRuntime.installSessionGuards(ses, fileGuardOptions({appRoot:deskDir,runtimeRoot:runtime,live}));
+  ses.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
  previewSessionReady=ses;
  return ses;
 }
@@ -314,12 +319,12 @@ function renderPdfPage(request){
  return pdfRenderer.render(request);
 }
 const pdfPageReader=createPdfPageReader({renderPage:renderPdfPage});
-/* PDF solto no chat: liberado por conversa e só por inteiro (`exact`); a
-   regra da pasta irmã continua só para a biblioteca (`allowed`). */
+/* Leitura do tutor: a pasta irmã vale só para a biblioteca; avulso (aberto,
+   solto, restaurado fora da biblioteca) vale só por inteiro (`exact`). */
 const chatPdfGrants=createChatPdfGrants({runtime,session:()=>session});
 function readTutorPdf(raw){
- const file=resolveTutorPdf(raw&&raw.path,allowed,{exact:chatPdfGrants.list()});
- return pdfPageReader.read({file,first:raw&&raw.first,last:raw&&raw.last,imagem:raw&&raw.imagem});
+ const grants=pdfGrants.resolveArgs(chatPdfGrants.list());
+ return pdfPageReader.read({file:resolveTutorPdf(raw&&raw.path,grants.library,{exact:grants.exact}),first:raw&&raw.first,last:raw&&raw.last,imagem:raw&&raw.imagem,girar:raw&&raw.girar,recorte:raw&&raw.recorte,ampliar:raw&&raw.ampliar});
 }
 live.readTutorPdf=readTutorPdf;
 /* O envio pula o PDF que sumiu e segue (`onSkip`): o motivo fica no log, sem o caminho. */
@@ -414,10 +419,10 @@ app.whenReady().then(async()=>{
   win.setAppDetails({appId:WINDOWS_APP_ID,appIconPath:path.join(__dirname,'assets','mesa.ico'),appIconIndex:0,relaunchCommand:args.map(arg=>'"'+arg+'"').join(' '),relaunchDisplayName:'Mesa de Estudos'});
  }
  appIcon.apply(win,state.accent);
- activityRuntime.installProtocol(win.webContents.session);
+  activityRuntime.installProtocol(win.webContents.session);
  /* Sessão padrão (a janela principal): nenhuma permissão de página além da cópia (revisão de segurança). */
- guardPermissions(win.webContents.session);
- activityRuntime.installSessionGuards(win.webContents.session);
+  guardPermissions(win.webContents.session);
+  activityRuntime.installSessionGuards(win.webContents.session, fileGuardOptions({appRoot:deskDir,runtimeRoot:runtime,live}));
  activityRuntime.attachWindow(win);
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',(e,url)=>{if(url!==win.webContents.getURL())e.preventDefault();});
  buildMenu();
@@ -441,7 +446,7 @@ ipcMain.handle('switch-course',async(_e,id)=>withHostNav(async()=>{
  persist();stopBridge();applyCourse(id);persist();return initialData();
 }));
 /* PDFs e imagens da mesa (open-pdf … open-image): pdf-host.cjs, mesma posição de registro. */
-registerPdfHost({ipcMain,dialog,shell,win:()=>win,runtime,freeId:FREE_ID,allowed,pdfDisk,course:()=>course,courseId:()=>courseId,config:()=>config,state:()=>state,freeSessionId:()=>freeSessionId,isPlainObject,isFree,validPdf,readableImage,assertNoFreeMutation,assertNoNav,assertIdle,freeMutate,focusFreeMaterial,persist,initialData});
+registerPdfHost({ipcMain,dialog,shell,win:()=>win,runtime,freeId:FREE_ID,pdfGrants,pdfDisk,course:()=>course,courseId:()=>courseId,config:()=>config,state:()=>state,freeSessionId:()=>freeSessionId,isPlainObject,isFree,validPdf,readableImage,assertNoFreeMutation,assertNoNav,assertIdle,freeMutate,focusFreeMaterial,persist,initialData});
 ipcMain.handle('chat-attach-pdf',async(_e,rawPath)=>{
  assertNoNav();
  return chatPdfHost.attach(rawPath);
@@ -455,7 +460,7 @@ ipcMain.handle('save-state',(_e,value)=>{
     documentados em state-adapter.cjs). */
  const layout=saveState(state,value);
  const theme=layout.theme;
- state={...state,draft:layout.draft,study,pdfs,pdfRotations,referenceVisible:layout.referenceVisible,chatWidth:layout.chatWidth,calcHeight:layout.calcHeight,pdfSplit:layout.pdfSplit,theme,accent:layout.accent,viewLayout:layoutPolicy.normalizeViewLayout(value?.viewLayout)??state.viewLayout??null,modelRecents:value?.modelRecents===undefined?state.modelRecents:sanitizeModelRecents(value.modelRecents),modelFavorites:value?.modelFavorites===undefined?state.modelFavorites:sanitizeModelFavorites(value.modelFavorites),modelDefault:value?.modelDefault===undefined?state.modelDefault:sanitizeModelDefault(value.modelDefault),releaseNotesSeen:typeof value?.releaseNotesSeen==='string'?value.releaseNotesSeen.slice(0,24):state.releaseNotesSeen};
+ state={...state,draft:layout.draft,study,pdfs,pdfRotations,referenceVisible:layout.referenceVisible,chatWidth:layout.chatWidth,calcHeight:layout.calcHeight,pdfSplit:layout.pdfSplit,theme,accent:layout.accent,readingSize:layout.readingSize,readingWidth:layout.readingWidth,pdfDark:layout.pdfDark,viewLayout:layoutPolicy.normalizeViewLayout(value?.viewLayout)??state.viewLayout??null,modelRecents:value?.modelRecents===undefined?state.modelRecents:sanitizeModelRecents(value.modelRecents),modelFavorites:value?.modelFavorites===undefined?state.modelFavorites:sanitizeModelFavorites(value.modelFavorites),modelDefault:value?.modelDefault===undefined?state.modelDefault:sanitizeModelDefault(value.modelDefault),releaseNotesSeen:typeof value?.releaseNotesSeen==='string'?value.releaseNotesSeen.slice(0,24):state.releaseNotesSeen};
  if(win&&!win.isDestroyed())win.setBackgroundColor(theme==='dark'?'#191919':'#f7f7f7');
  appIcon?.apply(win,state.accent);
  persist();
@@ -467,9 +472,9 @@ ipcMain.handle('layout-presets-save',(_e,payload)=>{
  if(!result.ok)throw Error(result.error);
  state={...state,layoutPresets:result.store};persist();return result.store;
 });
-const {cancelReviewDraft}=registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appendLog,engine,piBinary,claudeBinary,claudeDetector,testClaudeSdkLoader,openCodeDraft:options=>openCodeTutor.draft(options),bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav});
+const {cancelReviewDraft}=registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,engine,claudeBinary,claudeDetector,testClaudeSdkLoader,openCodeDraft:options=>openCodeTutor.draft(options),bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav});
 registerChatExportHost({ipcMain,live,runtime,envRuntime,dialog,shell,appendLog,engine,testClaudeSdkLoader});
-ipcMain.handle('get-config',()=>({config:normalize(config),detectedPi:piBinary(),...conversationData({messages:false}),captureAvailable:captureAvailable(),platform:process.platform,needsSetup:needsSetup(config,courses),deskVersion:deskVersionLabel()}));
+ipcMain.handle('get-config',()=>({config:normalize(config),...conversationData({messages:false}),captureAvailable:captureAvailable(),platform:process.platform,needsSetup:needsSetup(config,courses),deskVersion:deskVersionLabel()}));
 ipcMain.handle('pick-folder',async()=>{const r=await dialog.showOpenDialog(win,{properties:['openDirectory']});return r.canceled?null:r.filePaths[0];});
 /* Primeira abertura dentro do app (ticket #21). O que a pessoa soltou na folha
    vira a pasta da matéria (`first-run.cjs`); a pasta de dados sugerida só é
@@ -483,9 +488,8 @@ ipcMain.handle('pick-xopp',async()=>{const r=await dialog.showOpenDialog(win,{fi
  const file=r.filePaths[0];
  allowedXopp.add(file);
  return file;});
-/* #83: Pi, Claude Code e Xournal++ mudam só pelo diálogo ou pela detecção do main; o `save-config` aceita só isso. */
+/* #83/#102: Claude Code, Xournal++ e OpenCode mudam só pelo diálogo do main; o `save-config` aceita só isso. */
 const executables=registerExecutableHost({ipcMain,dialog,win:()=>win,message,t:key=>languageHost.t(key),log:(area,line)=>appendLog(area,line)});
-ipcMain.handle('detect-pi',()=>executables.remember('piPath',piBinary()));
 ipcMain.handle('save-config',async(_e,next)=>withHostNav(async()=>{
  await assertIdle(message('err.idle.settings'));
  const incoming=executables.keepSaved(normalize(next||{}),config);
@@ -501,7 +505,7 @@ ipcMain.handle('save-config',async(_e,next)=>withHostNav(async()=>{
  persist();buildMenu();
  return initialData();
 }));
-registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,appendLog,engine,connect,stopBridge,assertIdle,persist,courseSessions,conversationData,captureAvailable,trimMessageImages,piBinary,isNative});
+registerTutorSessionIpc({ipcMain,live,runtime,pendingDialogs,appendLog,engine,connect,stopBridge,assertIdle,persist,courseSessions,conversationData,captureAvailable,historyIdentity,trimMessageImages,isNative});
 const promptHost=registerTutorPromptHost({ipcMain,live,runtime,FREE_ID,allowedXopp,ggb,appendLog,engine,connect,promptImages,validPdf,authorizePdfs:raw=>chatPdfHost.authorize(raw),assertNoFreeMutation,assertNoNav,warmPdf:request=>pdfPageReader.warm(request)});
 cardHost=createCardHost({ipcMain,runtime,live,appendLog,sendText:(text,target)=>promptHost.sendText(text,{conversationId:target}),emit:payload=>{if(win&&!win.isDestroyed())win.webContents.send('desk-card',payload);}});
 /* ---------- chat lateral: IPC e listagem de conversas ----------
@@ -515,7 +519,7 @@ const backupHost=registerBackupHost({ipcMain,dialog,shell,t:(key,args)=>language
  external:()=>[...(!path.resolve(configFile).startsWith(path.resolve(runtime)+path.sep)?[{path:configFile,ref:'mesa-config.json',resume:'preferences'}]:[]),...libraryAuthorizedChats().filter(row=>!path.resolve(row.session).startsWith(path.resolve(runtime)+path.sep)).map(row=>({path:row.session,ref:'session-'+crypto.createHash('sha256').update(row.session).digest('hex').slice(0,24)+path.extname(row.session),resume:'transcript-only'}))],
  afterRestore(result){
   state=sanitizeState(JSON.parse(fs.readFileSync(stateFile,'utf8')));
-  const disk=restoreConfiguration({configFile,runtime,result,services:backupHost.services});if(disk){config=disk;if(process.env.LEARNING_DESK_PI)config.piPath=process.env.LEARNING_DESK_PI;}
+  const disk=restoreConfiguration({configFile,runtime,result,services:backupHost.services});if(disk)config=disk;
   courses=mergeCourses(config);for(const key of Object.keys(courseStates))delete courseStates[key];Object.assign(courseStates,state.courseStates);
   const target=state.courseId===FREE_ID?FREE_ID:(courses.find(c=>c.id===state.courseId)?.id||courses[0]?.id||FREE_ID);
   pdfDisk.clear();ggbCache.clear();lastPersist='';applyCourse(target);return initialData();
@@ -568,23 +572,20 @@ ipcMain.handle('library-chat-open',async(_e,id)=>withHostNav(async()=>{
  return openSessionWithinNav(target.session);
 }));
 ipcMain.handle('new-session',async(_e,options={})=>withHostNav(async()=>{
- if(options.engine!=null&&!['pi','claude','opencode'].includes(options.engine))throw Error(invalidRequest('new-session','engine',options.engine,'"pi"|"claude"|"opencode"|null'));
+ if(options.engine!=null&&!['claude','opencode'].includes(options.engine))throw Error(invalidRequest('new-session','engine',options.engine,'"claude"|"opencode"|null'));
+ if(options.carryFrom!=null&&(typeof options.carryFrom!=='string'||!options.carryFrom))throw Error(invalidRequest('new-session','carryFrom',options.carryFrom,'string(1..)'));
  await assertIdle(message('err.idle.newSession'));
- /* Um motor fora da vista deste release não abre sessão nova: cai no padrão
-    (OpenCode). O pedido antigo da janela não vira erro nem apaga nada. */
- const chosen=options.engine&&visibleEngines().includes(options.engine)?options.engine:defaultEngine();
+ /* Motor fora da vista cai no padrão (OpenCode); com passagem o motor é explícito. */
+ const requested=options.engine||null, chosen=requested&&visibleEngines().includes(requested)?requested:defaultEngine();
+ const carry=sessionHandoff.carryFor(options.carryFrom,requested,options.mode||'digest');
  if(courseId===FREE_ID){
-  /* Conversa Livre nova: workspace/vazio próprio, caminho nativo único (Pi
-     nasce sem JSONL — o store lista mesmo assim) e caminho pelo seletor. */
-  persist();stopBridge();
-  createFreeSession(chosen);
-  lastContextKey='';allowedXopp.clear();state={...state,draft:'',study:{title:'',xopp:''}};
-  persist();
+  /* Conversa Livre nova: workspace/vazio próprio, caminho nativo único e caminho pelo seletor. */
+  persist();stopBridge();createFreeSession(chosen,carry);
+  lastContextKey='';allowedXopp.clear();state={...state,draft:'',study:{title:'',xopp:''}};persist();
   return initialData();
  }
  persist();rememberSession();stopBridge();
- session=newSessionPath(courseId,chosen);lastContextKey='';state={...state,draft:'',study:{title:'',xopp:''}};persist();
- return initialData();
+ session=newSessionPath(courseId,chosen,carry);lastContextKey='';state={...state,draft:'',study:{title:'',xopp:''}};persist();return initialData();
 }));
 async function openSessionWithinNav(file){
  if(typeof file!=='string'||!file)throw Error(invalidRequest('open-session','file',file,'string(1..)'));
@@ -618,7 +619,7 @@ async function openSessionWithinNav(file){
 }
 ipcMain.handle('open-session',async(_e,file)=>withHostNav(()=>openSessionWithinNav(file)));
 /* APIs da aba Livre e `course-save-material`: free-host.cjs (mesma posição de registro). */
-registerFreeHost({ipcMain,dialog,win:()=>win,runtime,courses:()=>courses,courseId:()=>courseId,session:()=>session,freeSessionId:()=>freeSessionId,state:()=>state,setState:next=>{state=next;},allowed,freeJobs,isFree,isPromotedRecord,freeMutate,assertIdle,focusFreeMaterial,runFreePromotion,persist,initialData,appendLog,contextName:materialContext,rememberPdfModel,t:(key,args)=>languageHost.t(key,args)});
+registerFreeHost({ipcMain,dialog,win:()=>win,runtime,courses:()=>courses,courseId:()=>courseId,session:()=>session,freeSessionId:()=>freeSessionId,state:()=>state,setState:next=>{state=next;},pdfGrants,freeJobs,isFree,isPromotedRecord,freeMutate,assertIdle,focusFreeMaterial,runFreePromotion,persist,initialData,appendLog,contextName:materialContext,rememberPdfModel,t:(key,args)=>languageHost.t(key,args)});
 /* Conferir (capture-ready/windows/choose/default): conferir-host.cjs. A decisão
    de qual janela capturar é do núcleo (core/conferir.bend); aqui ficam o
    helper do macOS, o `screencapture`, a permissão de tela e o PowerShell do
@@ -659,6 +660,7 @@ function openExternalLink(url){
 function confirmExternalLink(url){return linkConfirmHost.confirm(url);}
 /* Modelos grátis do OpenCode Zen (#44). Os fakes dos testes (área de transferência, cifra, console, pasta do OpenCode e navegador) só valem em modo de teste. */
 const opencodeCipher=TEST_MODE&&process.env.LEARNING_DESK_SECRET_CIPHER?require(process.env.LEARNING_DESK_SECRET_CIPHER):electronCipher(safeStorage);
+const relinkTutorNow=createTutorRelink({bridge:()=>bridge, toolHost:()=>toolHost, persist, stopBridge});
 const opencodeHost=createOpencodeHost({
  ipcMain,
  keyStore:createKeyStore({dir:runtime,cipher:opencodeCipher}),
@@ -671,15 +673,15 @@ const opencodeHost=createOpencodeHost({
  xdgDataHome:TEST_MODE?'':(process.env.XDG_DATA_HOME||''),
  readClipboard:()=>TEST_MODE&&process.env.LEARNING_DESK_FAKE_CLIPBOARD?fs.readFileSync(process.env.LEARNING_DESK_FAKE_CLIPBOARD,'utf8'):clipboard.readText(),
  openExternal:openExternalLink,
- /* O Pi lê a chave do ambiente ao nascer: derrubar a ponte parada faz o renderer ligar de novo já com ela. */
- relinkTutor:async()=>{
-  if(!bridge)return {relinked:false};
-  if(await toolHost.isBusy())return {relinked:false,busy:true};
-  persist();stopBridge();
-  return {relinked:true};
- },
+ /* O OpenCode lê a chave do ambiente ao nascer: derrubar a ponte parada faz o renderer ligar de novo já com ela. */
+ relinkTutor:relinkTutorNow,
  appendLog
 });
+/* Login por provedor: usa o `opencode serve` da Mesa; `acquireAuth` não lê o
+   cofre, então abrir Configurações não pede o Chaves do macOS (#104). */
+createOpenCodeProvidersHost({ipcMain, acquire:()=>openCodeTutor.acquireAuth(), binary:openCodeBinary,
+ oldVersion:()=>String(engineFacts().opencodeOld||''), openExternal:openExternalLink,
+ relinkTutor:relinkTutorNow, appendLog, fetchImpl:fetch});
 opencodeHost.refreshLive();
 /* Relatar um problema (#62): relatório limpo e as três saídas, montados fora do processo principal. */
 registerTriageHost({ipcMain,openExternal:openExternalLink,electronVersion:process.versions.electron||''});
@@ -750,38 +752,23 @@ ipcMain.handle('open-xournal',()=>{
  return shell.openPath(target);
 });
 
-/* Avisos de atualização do Pi e do Claude Code (#45). Os fixtures só existem no
-   modo de teste: versões "mais novas" injetadas, uma pasta de binários falsos
-   (`brew`/`npm`/`claude`) que é a ÚNICA onde o comando é procurado, e o launcher
-   do Claude. Nenhum teste fala com a rede nem roda o `brew` de verdade. */
-function toolTestFixtures(){
- if(!TEST_MODE)return {};
- const fixtures={};
- try{
-  const latest=JSON.parse(process.env.LEARNING_DESK_TOOL_LATEST||'null');
-  if(latest&&typeof latest==='object')fixtures.latestOverride=latest;
- }catch{/* fixture inválida: sem versão injetada */}
- if(process.env.LEARNING_DESK_TOOL_FAKE_BIN){
-  fixtures.searchDirs=[process.env.LEARNING_DESK_TOOL_FAKE_BIN];
-  fixtures.allowRunInTest=true;
- }
- if(process.env.LEARNING_DESK_CLAUDE_LAUNCHER!==undefined)fixtures.claudeLauncher=process.env.LEARNING_DESK_CLAUDE_LAUNCHER;
- /* O Pi "instalado" que os avisos leem (Cellar falso), separado do `LEARNING_DESK_PI` que o tutor executa. */
- if(process.env.LEARNING_DESK_TOOL_PI_PATH)fixtures.piPath=process.env.LEARNING_DESK_TOOL_PI_PATH;
- return fixtures;
-}
 const toolHost={
  state:()=>state,persist:()=>persist(),
  isBusy:async()=>{try{await assertIdle('ocupado');return false;}catch{return true;}},
  hasBridge:()=>!!bridge,
  relink:()=>{persist();stopBridge();},
- fixtures:toolTestFixtures(),
+ fixtures:toolTestFixtures(TEST_MODE),
 };
-const {scheduleUpdateCheck}=registerUpdateHost({ipcMain,app,shell,runtime,deskDir,logFile,testMode:TEST_MODE,config:()=>config,win:()=>win,piBinary,appendLog,toolHost});
+const {scheduleUpdateCheck}=registerUpdateHost({ipcMain,app,shell,runtime,deskDir,logFile,testMode:TEST_MODE,config:()=>config,win:()=>win,appendLog,toolHost});
 ggb.register(ipcMain);
 
 app.on('window-all-closed',()=>app.quit());
+/* O `before-quit` espera o serve sair de verdade, com teto: no caso normal o
+   SIGTERM o encerra em milissegundos; no teimoso, o stop escala para SIGKILL
+   e o ledger "encerrando" fica para a próxima abertura se o app sair antes (#105). */
+let serveStopStarted=false;
 app.on('before-quit',(event)=>{quitting=true;
+ if(serveStopStarted)return;
  phoneHost.stop();materialPreviewHost.cancel();
  reviewProposalHost.cancelAll('quit');
  linkConfirmHost.cancelAll();
@@ -795,6 +782,10 @@ app.on('before-quit',(event)=>{quitting=true;
  if(draft){event.preventDefault();draft.finally(()=>app.quit());return;}
  for(const controller of freeJobs)try{controller.abort();}catch{/* encerrando: a geração já terminou */}bridge?.removeAllListeners();
  bridge?.stop();
- openCodeTutor.stop();
+ serveStopStarted=true;
+ const stopping=Promise.resolve(openCodeTutor.stop()).catch(()=>{/* encerrando: o serve já saiu */});
  ggb.close();
- persist();});
+ persist();
+ event.preventDefault();
+ const ceiling=setTimeout(()=>app.quit(),3000);
+ stopping.then(()=>{clearTimeout(ceiling);app.quit();});});

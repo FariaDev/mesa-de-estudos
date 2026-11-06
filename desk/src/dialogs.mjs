@@ -137,6 +137,30 @@ export function applyHelpFlags(flags = {}) {
   hide('#help-conferir-li', chrome.conferirHidden);
 }
 
+/* Origem das atualizações (#109): fatos do host (`update-origin`) viram a
+   variante do núcleo. Rodando do código (`source`) a linha não aparece, como
+   antes do ticket. */
+const aboutOriginFacts = (origin = {}) => {
+  const kind = String(origin.kind ?? 'source');
+  if (kind === 'development') return {$: 'OriginDev', worktree: !!origin.worktree, path: String(origin.path ?? '')};
+  if (kind === 'unavailable') return {$: 'OriginUnavailable', path: String(origin.path ?? '')};
+  if (kind === 'normal') return {$: 'OriginNormal'};
+  return {$: 'OriginSource'};
+};
+let lastAboutOrigin = aboutOriginFacts();
+function paintAboutOrigin() {
+  const el = $('#about-origin');
+  if (!el) return;
+  el.hidden = !dialogsCore.originShown(lastAboutOrigin);
+  renderChildren(el, dialogsCore.originChildren(lastAboutOrigin), dialogsHandlers);
+}
+
+/* O host manda `{kind, path, worktree}`; o núcleo decide rótulo e caminho. */
+export function renderAboutOrigin(origin) {
+  lastAboutOrigin = aboutOriginFacts(origin);
+  paintAboutOrigin();
+}
+
 /* O lead do Sobre carrega a versão; sem versão o texto estático fica. */
 export function renderAboutLead(version) {
   /* O primeiro `.help-lead` do corpo é o da versão (o outro é o do link). */
@@ -146,6 +170,8 @@ export function renderAboutLead(version) {
   const text = String(version ?? '').trim().replace(/\s+/g, ' · ');
   const lead = dialogsCore.aboutLead(text);
   if (el && lead) renderInto(el, dialogsCore.aboutLeadNode(text));
+  /* Troca de idioma: o main chama de novo, e a origem guardada acompanha. */
+  paintAboutOrigin();
 }
 
 /* ---------- about: linha de atualização + painel de componentes ---------- */
@@ -159,17 +185,13 @@ export function renderAboutUpdate(state, handlers = {}) {
   renderChildren(box, dialogsCore.aboutUpdateChildren(state || {$: 'UpdateIdle'}), handlers);
 }
 
-/* A ação da linha é decisão do host + núcleo: Pi local = o botão de sempre;
-   Homebrew/npm/Claude Code = "Atualizar" (com confirmação); instalação que a
-   Mesa não reconhece = só o comando com "Copiar". Com o tutor respondendo a
-   ação fica desligada, com a dica (`ToolWait`). */
+/* A ação da linha é decisão do host + núcleo: Claude Code = "Atualizar" (com
+   confirmação); instalação que a Mesa não reconhece = só o comando com
+   "Copiar". Com o tutor respondendo a ação fica desligada (`ToolWait`). */
 function toolActionFacts(row = {}, busy = false) {
   const command = String(row.command ?? '');
-  const local = !!row.canUpdate;
-  const runnable = row.state === 'outdated' && !!command;
-  if (!local && !runnable) return {$: 'ToolNone'};
+  if (row.state !== 'outdated' || !command) return {$: 'ToolNone'};
   if (busy) return {$: 'ToolWait', command};
-  if (local) return {$: 'ToolLocal'};
   return row.copyOnly ? {$: 'ToolCopy', command} : {$: 'ToolAsk', command};
 }
 
@@ -203,15 +225,13 @@ function componentStateFacts(row = {}) {
    substitui no mesmo lugar. */
 export function renderComponentChecking() {
   renderComponentRows([
-    {id: 'pi', label: 'Pi', version: '', state: 'checking'},
     {id: 'claude', label: 'Claude Code', version: '', state: 'checking'},
     {id: 'node', label: 'Node (sistema)', version: '', state: 'checking'},
     {id: 'xournal', label: 'Xournal++', version: '', state: 'checking'},
   ]);
 }
 
-/* Painel "Componentes": Pi, Claude Code, Node e Xournal++ (a ordem é do
-   núcleo). `context` traz o que não vem do host de arquivos: tutor ocupado e a
+/* Painel "Componentes": Claude Code, Node e Xournal++ (a ordem é do núcleo). `context` traz o que não vem do host de arquivos: tutor ocupado e a
    execução em curso de cada ferramenta. */
 export function renderComponentRows(rows, handlers = {}, context = {}) {
   const box = $('#component-rows');

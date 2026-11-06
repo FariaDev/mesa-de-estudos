@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {openSessionLibrary,launchDesk,seedCourse,writeConfigJson,writeDeskJson,tinyPdf,statusOnline} from './helpers.mjs';
+import {openSessionLibrary,launchDesk,seedCourse,seedNativeSession,writeConfigJson,writeDeskJson,tinyPdf,statusOnline} from './helpers.mjs';
 const out=screenshotDirectory('chat-library-ui');
 
 const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-chat-library-ui-'));
 const course=seedCourse(runtime,'calc');const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites e derivadas'));
 const old=Date.now()-365*86400000,recent=Date.now()-86400000;
-const sessionA=path.join(runtime,`pi-${old}.jsonl`),sessionB=path.join(runtime,`pi-${recent}.jsonl`);
-for(const [file,text] of [[sessionA,'Quero estudar limites fundamentais'],[sessionB,'Uma dúvida sobre derivadas']])fs.writeFileSync(file,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text}]}})+'\n');
+const sessionA=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'Quero estudar limites fundamentais'}]}],{courseId:'calc',started:old,preview:'Quero estudar limites fundamentais'});
+const sessionB=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'Uma dúvida sobre derivadas'}]}],{courseId:'calc',started:recent,preview:'Uma dúvida sobre derivadas'});
 writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
 writeDeskJson(runtime,{courseId:'calc',session:sessionA,courseStates:{calc:{session:sessionA,sessions:[{path:sessionA,started:old},{path:sessionB,started:recent}],draft:'rascunho inicial',pdfs:[{path:pdf,page:1}],study:{title:'Limites',xopp:''}}}});
 let app;
@@ -35,6 +35,15 @@ try{
  await page.locator('#chat-library-query').fill('');
  await reviewShot(page,out,'01-conversas.png');
  await reviewShot(page.locator('#chat-library-dialog'),out,'01-conversas-detalhe.png');
+ /* A data sai sem o ano no ano corrente e com o ano fora dele (B3). */
+ {
+  const recentDetail=await page.locator('.chat-library-row').filter({hasText:'Uma dúvida sobre derivadas'}).locator('small.study-muted').textContent();
+  const oldDetail=await page.locator('.chat-library-row').filter({hasText:'Quero estudar limites fundamentais'}).locator('small.study-muted').textContent();
+  const thisYear=String(new Date().getFullYear());
+  if(String(new Date(recent).getFullYear())===thisYear)assert.doesNotMatch(recentDetail||'',/\d{4}/,'a conversa recente sai sem o ano');
+  else assert.match(recentDetail||'',new RegExp(String(new Date(recent).getFullYear())),'a conversa recente traz o ano dela');
+  assert.match(oldDetail||'',new RegExp(String(new Date(old).getFullYear())),'a conversa antiga traz o ano dela');
+ }
  await page.getByRole('button',{name:'Fechar',exact:true}).click();
  await page.evaluate(async()=>{const data=await window.desk.init();await window.desk.save({...data.state,draft:'rascunho A que precisa continuar'});});
  await page.locator('#prompt').fill('rascunho A que precisa continuar');
@@ -63,5 +72,5 @@ try{
  await resizeWindow(app,reopened,900,650,{content:true});
  const bounds=await reopened.locator('#chat-library-dialog').boundingBox();assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=900&&bounds.y+bounds.height<=650);
  assert.deepEqual(errors,[]);
- console.log('CHAT LIBRARY UI PASSED: conversa de um ano, título/assunto/favoritos, filtros, retomada, rascunhos por conversa, reabertura e 900x650. Provider fake-Pi; dados sintéticos.');
+  console.log('CHAT LIBRARY UI PASSED: conversa de um ano, título/assunto/favoritos, filtros, retomada, rascunhos por conversa, reabertura e 900x650. Provider fake-OpenCode; dados sintéticos.');
 }finally{if(app)await app.close();fs.rmSync(runtime,{recursive:true,force:true});}

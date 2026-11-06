@@ -2,16 +2,16 @@
    credencial ou inferência. Verifica boot, import do SDK e impressão real. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 import {_electron as electron} from '@playwright/test';
 import bundle from '../bundle-runtime.cjs';
 import {DESK,deskEnv,withArtifacts,enterFree,freeMenuClick} from './helpers.mjs';
+import {tempDir} from './temp-dir.mjs';
 
 await withArtifacts('bundle-payload-ui',async ctx=>{
- const tmp=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-bundle-payload-')));
+ const tmp=tempDir('mesa-bundle-payload');
  ctx.runtime=tmp;
  const payload=path.join(tmp,'app'),runtime=path.join(tmp,'user-data');
  fs.mkdirSync(runtime);
@@ -27,7 +27,6 @@ await withArtifacts('bundle-payload-ui',async ctx=>{
  const nativePdf=await createTutorPdfServer(async()=>({prepared:true}));
  assert.ok(nativePdf.instance,'servidor oficial de PDF resolve SDK e zod dentro do payload');
  await nativePdf.instance.close();
- assert.ok(fs.existsSync(path.join(payload,'src','extensions','tutor-pdf','index.ts')),'extensão PDF do Pi distribuída');
  ctx.app=await electron.launch({args:[payload],cwd:tmp,env:deskEnv(runtime)});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await enterFree(page);

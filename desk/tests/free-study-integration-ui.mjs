@@ -1,32 +1,26 @@
-/* Fluxo UI + preload/IPC/host e impressão Electron REAIS, com Pi simulado e
-   seletor nativo respondido pelo teste. Sem API Livre simulada, login ou dados
+/* Fluxo UI + preload/IPC/host e impressão Electron REAIS, com OpenCode simulado
+   e seletor nativo respondido pelo teste. Sem API Livre simulada, login ou dados
    reais. Runtime/userData sintéticos; roda separado do gate unitário. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {pathToFileURL} from 'node:url';
-import {FAKE_PI,launchDesk,tinyPdf,withArtifacts,moreClick,newSession,openSessionById,sessionLocked,enterFree,freeMenuClick} from './helpers.mjs';
+import {launchDesk,tinyPdf,withArtifacts,moreClick,newSession,openSessionById,sessionLocked,enterFree,freeMenuClick} from './helpers.mjs';
 import {layoutStable} from './waits.mjs';
 import {ptText} from './pt-text.mjs';
 
 const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-free-integrated-ui-'));
-const piWrap=path.join(runtime,'pi-wrap.mjs');
-const cwdLog=path.join(runtime,'pi-cwd.jsonl');
-fs.writeFileSync(piWrap,`#!/usr/bin/env node\nimport fs from 'node:fs';\nfs.appendFileSync(${JSON.stringify(cwdLog)},JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)})+'\\n');\nawait import(${JSON.stringify(pathToFileURL(FAKE_PI).href)});\n`);
-fs.chmodSync(piWrap,0o755);
 fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({runtimePath:runtime,vaultPath:runtime,courses:[],desk:{customPreference:{keep:true},panels:[{label:'Material',customTag:'preservar'}]},customUserValue:'preservar'},null,2));
 const original=path.join(runtime,'original.pdf'),originalBytes=tinyPdf('Material original da sessao',3);
 fs.writeFileSync(original,originalBytes);
 const parent=path.join(runtime,'materias');fs.mkdirSync(parent);
 const collision=path.join(parent,'Materia revisada');fs.mkdirSync(collision);fs.writeFileSync(path.join(collision,'nao-substituir.txt'),'preservar');
-const launches=()=>fs.readFileSync(cwdLog,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));
 const stubPicker=(app,paths)=>app.evaluate(({dialog},paths)=>{dialog.showOpenDialog=async()=>({canceled:paths===null,filePaths:paths||[]});},paths);
 async function facts(page){return page.evaluate(async()=>{const {S}=await import('./src/state.mjs');return {courseId:S.currentCourseId,session:S.currentSession,workspace:S.workspace,library:S.library,connected:S.connected,busy:S.busy,rotation:S.panels[0]?.rotation,path:S.panels[0]?.path};});}
 async function ready(page){await page.waitForFunction(()=>{const S=window.__mesaState;return !S.busy&&!S.connecting&&!S.switching;},undefined,{timeout:30000});}
 async function waitSession(page,session){await page.waitForFunction(s=>{const S=window.__mesaState;return S.currentSession===s&&S.connected&&!S.connecting&&!S.switching;},session,{timeout:30000});}
 async function connectIfNeeded(page){await page.evaluate(async()=>{const {connect}=await import('./src/state.mjs');await connect();});await ready(page);}
-async function boot(ctx){ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:piWrap}});const page=await ctx.app.firstWindow();page.on('dialog',d=>d.accept());await page.waitForSelector('.pdf-panel',{state:'attached'});await page.waitForFunction(()=>typeof window.desk.freePromote==='function');await page.evaluate(async()=>{window.__mesaState=(await import('./src/state.mjs')).S;});await layoutStable(page,'.pdf-panel');await enterFree(page);return page;}
+async function boot(ctx){ctx.app=await launchDesk({runtime});const page=await ctx.app.firstWindow();page.on('dialog',d=>d.accept());await page.waitForSelector('.pdf-panel',{state:'attached'});await page.waitForFunction(()=>typeof window.desk.freePromote==='function');await page.evaluate(async()=>{window.__mesaState=(await import('./src/state.mjs')).S;});await layoutStable(page,'.pdf-panel');await enterFree(page);return page;}
 
 await withArtifacts('free-study-integration-ui',async ctx=>{
  ctx.runtime=runtime;
@@ -39,10 +33,7 @@ await withArtifacts('free-study-integration-ui',async ctx=>{
  await connectIfNeeded(page);
  const a=await facts(page),sessionA=a.session;
  assert.equal(a.workspace.kind,'free');
- const freeLaunch=launches().at(-1),freeCwd=freeLaunch.cwd;
- assert.ok(freeLaunch.args.includes('--no-context-files'),'sessão Livre não herda contexto de ancestrais');
- assert.ok(!freeLaunch.args.some(arg=>/[\\/]context-mode[\\/]index\.ts$|[\\/](learning-session|code-study-guard|anki-cards)\.ts$/.test(arg)),'perfil real não carrega extensões da matéria no Livre');
- assert.ok(fs.realpathSync(freeCwd).startsWith(fs.realpathSync(path.join(runtime,'free'))+path.sep),'motor inicia no workspace livre');
+ assert.equal(a.workspace.kind,'free','a sessão Livre tem workspace próprio');
  await page.locator('#prompt').fill('pensar profundo sobre a sessao A');await page.locator('#send').click();
  await page.waitForFunction(()=>document.querySelector('#messages')?.textContent.includes('É o OD.'),undefined,{timeout:20000});await ready(page);
  assert.match(fs.readFileSync(sessionA,'utf8'),/É o OD\./,'histórico realmente persistido na sessão nativa');
@@ -88,9 +79,8 @@ await withArtifacts('free-study-integration-ui',async ctx=>{
  assert.equal(promoted.session,sessionA,'promoção transfere a conversa nativa');assert.match(await page.locator('#messages').textContent(),/É o OD\./,'promoção conserva histórico');assert.equal(await page.locator('#prompt').inputValue(),'rascunho A ainda nao enviado');assert.equal(promoted.library.length,2);assert.equal(await page.locator(`#course-tabs button[data-id="${courseId}"]`).getAttribute('aria-selected'),'true','nova matéria já aparece ativa');
  const cfg=JSON.parse(fs.readFileSync(path.join(runtime,'config.json'),'utf8'));assert.equal(cfg.customUserValue,'preservar');assert.deepEqual(cfg.desk.customPreference,{keep:true});assert.equal(cfg.desk.panels[0].customTag,'preservar');assert.equal(cfg.courses.some(x=>x.id==='mesa-free'),false);
  const newCourse=cfg.courses.find(x=>x.id===courseId);assert.notEqual(newCourse.path,collision);assert.equal(fs.readFileSync(path.join(collision,'nao-substituir.txt'),'utf8'),'preservar');assert.ok(promoted.path.startsWith(newCourse.path+path.sep));
- assert.notEqual(launches().at(-1).cwd,freeCwd,'promoção não reutiliza processo Livre');assert.ok(launches().at(-1).cwd.includes(courseId),'reconexão usa contexto da matéria nova');assert.equal(launches().at(-1).args.includes('--no-context-files'),false,'promoção restaura o perfil normal da matéria');
  await page.locator('#course-tabs button[data-id="mesa-free"]').click();await waitSession(page,sessionB);assert.equal(await sessionLocked(page),false,'a lista de sessões destrava depois de trocar matéria');assert.equal((await facts(page)).workspace.kind,'free');assert.equal(await page.locator('#prompt').inputValue(),'rascunho B');assert.equal((await facts(page)).library.length,0);
  await openSessionById(page,sessionA);await waitSession(page,sessionA);assert.equal((await facts(page)).courseId,courseId,'recibo Livre redireciona para matéria promovida');assert.match(await page.locator('#messages').textContent(),/É o OD\./);assert.deepEqual(fs.readFileSync(original),originalBytes,'original continua intacto após todos os fluxos');
  assert.deepEqual(errors,[],'nenhum erro de renderer no fluxo integrado');
 });
-console.log('free-study-integration-ui: PASS — UI/IPC reais, impressão PDF, isolamento A/B/restart, rotação, cancelamentos e promoção/reconexão; motor Pi simulado.');
+console.log('free-study-integration-ui: PASS — UI/IPC reais, impressão PDF, isolamento A/B/restart, rotação, cancelamentos e promoção/reconexão; motor OpenCode simulado.');

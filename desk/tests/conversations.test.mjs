@@ -20,15 +20,15 @@ const require = createRequire(import.meta.url);
 const conversations = require('../src/agents/conversations.cjs');
 const pending = require('../pending.cjs');
 
-test('cache trimming keeps the newest complete UTF-8/image suffix within the byte cap',()=>{
+test('cache trimming keeps the newest complete UTF-8/image suffix within the byte cap, older images dropped first (#117)',()=>{
  const image={role:'user',content:[{type:'image',data:'a'.repeat(conversations.MAX_MESSAGES_BYTES/2)}]};
  const newest={role:'assistant',content:[{type:'text',text:'ação 😀 \\ " fim'}]};
  const input=[image,image,newest];
  const bounded=conversations.boundMessages(input);
- assert.deepEqual(bounded,[image,newest]);
+ assert.deepEqual(bounded,[{role:'user',content:[]},image,newest]);
  assert.equal(input.length,3,'the source transcript is preserved');
  assert.ok(Buffer.byteLength(JSON.stringify(bounded),'utf8')<=conversations.MAX_MESSAGES_BYTES);
- assert.ok(Buffer.byteLength(JSON.stringify([image,...bounded]),'utf8')>conversations.MAX_MESSAGES_BYTES,'retained suffix is maximal');
+ assert.ok(Buffer.byteLength(JSON.stringify([image,...bounded.slice(1)]),'utf8')>conversations.MAX_MESSAGES_BYTES,'retained suffix is maximal');
  assert.deepEqual(conversations.boundMessages([{content:'x'.repeat(conversations.MAX_MESSAGES_BYTES)}]),[],'oversized newest message cannot fit');
 });
 
@@ -209,7 +209,7 @@ test('update mescla só campos permitidos, ignora path/id/engine e preserva o an
   });
 });
 
-test('messages normaliza, limita a ~12 MiB pelas mais novas e nunca corta a entrega', () => {
+test('messages normaliza, limita a ~12 MiB tirando primeiro as imagens antigas e nunca corta a entrega', () => {
   withRuntime((runtime) => {
     const {file} = create(runtime);
     conversations.updateClaudeConversation(file, {delivery: {id: 'envio-9', status: 'accepted'}}, {runtime});
@@ -220,12 +220,12 @@ test('messages normaliza, limita a ~12 MiB pelas mais novas e nunca corta a entr
     const updated = conversations.updateClaudeConversation(file, {
       messages: [image('m0'), image('m1'), image('m2'), image('m3')]
     }, {runtime});
-    assert.ok(updated.messages.length < 4, 'o teto corta mensagens antigas');
+    assert.equal(updated.messages.length, 4, 'o texto antigo fica (#117)');
     assert.ok(bytesOf(updated.messages) <= conversations.MAX_MESSAGES_BYTES);
     assert.deepEqual(updated.delivery, {id: 'envio-9', status: 'accepted'}, 'entrega em voo não é cortada pelo teto de messages');
     const stored = conversations.readClaudeConversation(file, {runtime});
     assert.equal(stored.messages.at(-1).content.at(-1).text, 'm3', 'as mais novas ficam');
-    assert.equal(stored.messages[0].content.at(-1).text, 'm1', 'a mais antiga saiu do descritor');
+    assert.deepEqual(stored.messages[0].content, [{type: 'text', text: 'm0'}], 'a mais antiga perdeu só a imagem');
     assert.deepEqual(stored.delivery, {id: 'envio-9', status: 'accepted'});
 
     /* Mensagem normalizada de verdade round-trip: imagem + texto + ferramenta. */
@@ -377,5 +377,55 @@ test('nativeEstablished é o portão de retomada: precriado fica false e só o a
     assert.equal(readRaw(file), establishedBytes, 'recusar a troca não grava nenhum outro campo do patch');
     const unchanged = conversations.updateClaudeConversation(file, {nativeSessionId: precreated.nativeSessionId}, {runtime});
     assert.equal(unchanged.nativeSessionId, precreated.nativeSessionId);
+  });
+});
+
+/* #87: a passagem grava a linhagem e a transcrição no descritor NOVO; o
+   descritor de origem não é tocado e os campos de linhagem não são reescritos. */
+test('origin/handoff/importedTranscript entram na criação e são imutáveis depois', () => {
+  withRuntime((runtime) => {
+    const source = conversations.createClaudeConversation({runtime, courseId: 'calc', engine: 'opencode'});
+    conversations.updateClaudeConversation(source, {messages: [{role: 'user', content: [{type: 'text', text: 'pergunta antiga'}]}]}, {runtime});
+    const sourceBytes = readRaw(source);
+    const origin = {session: source, engine: 'opencode'};
+    const handoff = {kind: 'digest', bytes: 123, createdAt: 1700000000000};
+    const target = conversations.createClaudeConversation({
+      runtime, courseId: 'calc', engine: 'claude', importedTranscript: 'Matéria: Cálculo\nQuestão: Lista 3',
+      origin, handoff,
+    });
+    const record = conversations.readClaudeConversation(target, {runtime});
+    assert.equal(record.importedTranscript, 'Matéria: Cálculo\nQuestão: Lista 3');
+    assert.deepEqual(record.origin, origin);
+    assert.deepEqual(record.handoff, handoff);
+    assert.equal(readRaw(source), sourceBytes, 'o descritor de origem fica byte a byte');
+    assert.equal(conversations.conversationMetadata(target, {runtime}).origin.session, source);
+
+    const targetBytes = readRaw(target);
+    assert.throws(() => conversations.updateClaudeConversation(target, {origin: {session: '/outra', engine: 'pi'}}, {runtime}), /origin é imutável/);
+    assert.throws(() => conversations.updateClaudeConversation(target, {importedTranscript: 'outra'}, {runtime}), /importedTranscript é imutável/);
+    assert.equal(readRaw(target), targetBytes, 'patch recusado não grava nada');
+
+    assert.throws(() => conversations.createClaudeConversation({runtime, courseId: 'calc', engine: 'opencode', origin: {session: '', engine: 'pi'}}), /origin/);
+    assert.throws(() => conversations.createClaudeConversation({runtime, courseId: 'calc', engine: 'opencode', origin: {session: 'x', engine: 'outro'}}), /origin/);
+    assert.throws(() => conversations.createClaudeConversation({runtime, courseId: 'calc', engine: 'opencode', handoff: {kind: 'resumo', bytes: 1, createdAt: 1}}), /handoff/);
+    assert.throws(() => conversations.createClaudeConversation({runtime, courseId: 'calc', engine: 'opencode', importedTranscript: 'x'.repeat(50001)}), /importedTranscript/);
+  });
+});
+
+/* #87 item 6: `origin.session` é só ponteiro (nunca vira caminho de leitura —
+   só o `engine` aparece na lista) e a igualdade ignora a ordem das chaves:
+   reescrever o mesmo valor em outra ordem não é "mudança". */
+test('reescrever origin/handoff iguais em outra ordem de chaves não é mudança', () => {
+  withRuntime((runtime) => {
+    const source = conversations.createClaudeConversation({runtime, courseId: 'calc', engine: 'opencode'});
+    const target = conversations.createClaudeConversation({
+      runtime, courseId: 'calc', engine: 'claude',
+      origin: {session: source, engine: 'opencode'},
+      handoff: {kind: 'digest', bytes: 123, createdAt: 1700000000000},
+    });
+    const targetBytes = readRaw(target);
+    conversations.updateClaudeConversation(target, {origin: {engine: 'opencode', session: source}}, {runtime});
+    conversations.updateClaudeConversation(target, {handoff: {bytes: 123, createdAt: 1700000000000, kind: 'digest'}}, {runtime});
+    assert.equal(readRaw(target), targetBytes, 'mesmo valor em outra ordem não reescreve');
   });
 });

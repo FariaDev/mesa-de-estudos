@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {parseMessage} from '../src/i18n.mjs';
+import {trackTempDir} from './temp-dir.mjs';
 
 const require = createRequire(import.meta.url);
 const {nativePersistence, previewOf} = require('../src/agents/native-persistence.cjs');
@@ -20,7 +21,7 @@ const {createOpenCodeTutorHost, mesaMcpConfig, MCP_SERVER} = require('../opencod
 
 const temps = [];
 function tempDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-'));
+  const dir = trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-')));
   temps.push(dir);
   return dir;
 }
@@ -158,9 +159,9 @@ test('o host do tutor delega sweep e stop ao dono falso e identifica só chamada
   assert.equal(env?.OPENCODE_PERMISSION, undefined, 'nunca volta ao ask herdado');
   const serveConfig = JSON.parse(fs.readFileSync(path.join(env.OPENCODE_CONFIG_DIR, 'opencode.json'), 'utf8'));
   assert.equal(serveConfig.plugin, undefined, 'sem plugin da jaula');
-  assert.equal(serveConfig.tools.shell, false);
+  assert.equal(serveConfig.tools, undefined, 'sem tools: o Zen precisa de read na lista');
   assert.equal(serveConfig.permission.bash, 'deny');
-  assert.equal(serveConfig.permission.read, 'deny');
+  assert.deepEqual(serveConfig.permission.read, {'*': 'deny', '/mesa-nada-existe/*': 'allow'});
 
   const otherEngine = {engine: 'claude', paramsHash: 'h1'};
   assert.strictEqual(await host.identifyCaller(otherEngine), otherEngine);

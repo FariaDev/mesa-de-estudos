@@ -88,12 +88,19 @@ async function main() {
       return;
     }
     const settings = backup.resolveSettings(DESK, {destination: dest});
+    /* `.mesa-git` recusado não derruba o `status`: vira erro no campo do git. */
+    let git;
+    try {
+      git = fs.existsSync(path.join(dest, gitBackup.GIT_DIR)) ? gitBackup.api({root: dest, deskDir: DESK}).status() : {available: false};
+    } catch (error) {
+      git = {available: false, error: String((error && error.message) || error)};
+    }
     console.log(JSON.stringify({
       destination: dest,
       status: backup.readStatus(dest),
       versions: backup.list(dest).length,
       settings: {...settings, destination: dest},
-      git: fs.existsSync(path.join(dest, gitBackup.GIT_DIR)) ? gitBackup.api({root: dest, deskDir: DESK}).status() : {available: false},
+      git,
     }, null, 2));
     return;
   }

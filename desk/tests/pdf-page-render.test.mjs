@@ -92,9 +92,13 @@ test('o render lê o arquivo só pelo main, só para a janela de render e só na
   });
   assert.equal(ipc.channel, PDF_RENDER_READ_CHANNEL);
   assert.equal(await renderer.render({file: '/c/Aula.pdf', page: 2}), PLOT_PNG);
-  assert.match(seen[0], /mesaRenderPdfPage\("\/c\/Aula.pdf", 2\)/);
+  assert.match(seen[0], /mesaRenderPdfPage\("\/c\/Aula\.pdf", 2, \{\s*"girar":0,"recorte":null,"ampliar":1\s*\}\)/);
   assert.deepEqual(reads, ['/c/Aula.pdf'], 'só o caminho da chamada foi lido');
   assert.throws(() => ipc.handler({sender: win.webContents}, '/c/Aula.pdf'), /não autorizado/, 'fora da chamada o pedido é recusado');
+  assert.equal(await renderer.render({file: '/c/Aula.pdf', page: 3, girar: 90, recorte: {x: 0, y: 0, largura: 0.5, altura: 0.5}, ampliar: 2}), PLOT_PNG);
+  assert.match(seen[1], /mesaRenderPdfPage\("\/c\/Aula\.pdf", 3, \{\s*"girar":90,"recorte":\{"x":0,"y":0,"largura":0\.5,"altura":0\.5\},"ampliar":2\s*\}\)/);
+  assert.deepEqual(reads, ['/c/Aula.pdf', '/c/Aula.pdf'], 'as opções não leem outro arquivo');
+  assert.throws(() => ipc.handler({sender: win.webContents}, '/etc/passwd'), /não autorizado/, 'recorte/ampliar não abrem caminho novo');
   renderer.close();
 
   let hidden = null;

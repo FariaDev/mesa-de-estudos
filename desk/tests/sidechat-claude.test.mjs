@@ -95,9 +95,11 @@ test('canal Claude: descritor próprio e cache persistido', async () => {
   assert.equal(record.nativeEstablished, true, 'aceite marca a sessão nativa do lateral');
   assert.deepEqual(record.messages.map((message) => message.role), ['user']);
   adapter.emit('event', {type: 'message_end', conversationId: descriptor, message: {role: 'assistant', content: [{type: 'text', text: 'resposta do claude'}]}});
+  assert.deepEqual(conversations.readClaudeConversation(descriptor, {runtime}).messages.map((message) => message.role), ['user'], 'a resposta grava no fim do turno (#116)');
+  adapter.emit('event', {type: 'turn_end', conversationId: descriptor, cancelled: false, isError: false, uncertain: false});
   const after = conversations.readClaudeConversation(descriptor, {runtime});
   assert.deepEqual(after.messages.map((message) => message.role), ['user', 'assistant']);
-  assert.deepEqual(events.map((event) => event.type), ['message_end']);
+  assert.equal(events[0].type, 'message_end');
   assert.equal(events[0].conversationId, descriptor);
   assert.equal(engine.isBusy(), false);
   assert.equal(engine.isUncertain(), false);

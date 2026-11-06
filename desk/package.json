@@ -1,6 +1,6 @@
 {
   "name": "learning-desk",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Mesa de Estudos: dois PDFs, calculadora e tutor numa janela, ao lado do Xournal++",
   "main": "main.cjs",
   "scripts": {
@@ -16,7 +16,6 @@
     "hunts": "node tests/run-hunts.mjs",
     "ui": "node tests/run-ui.mjs",
     "verify:bend": "node ../core/verify.mjs",
-    "test:pi": "node tests/pi-contract.mjs",
     "test:ui:x3": "node tests/smoke-x3.mjs",
     "test:app": "node tests/app-smoke.mjs",
     "test:packaged": "node tests/packaged-app-ui.mjs",
@@ -28,10 +27,8 @@
     "doctor:claude": "node scripts/claude-doctor.mjs",
     "triage": "node scripts/triage.mjs",
     "test:claude-ui": "node tests/run-claude-ui.mjs",
-    "profile": "node scripts/profile.mjs",
     "install-app": "node scripts/install-app.mjs",
     "update": "node scripts/update-cli.mjs",
-    "test:sessions": "node tests/session-switch.mjs",
     "update:keygen": "node scripts/update-release.mjs keygen",
     "update:sign": "node scripts/update-release.mjs sign",
     "update:release:verify": "node scripts/update-release.mjs verify",

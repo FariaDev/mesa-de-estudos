@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {figureMarkdown, blankLineWarning, removedNames, stackedTextWarning} from '../src/figures/figure-markup.mjs';
@@ -138,6 +137,25 @@ test('host: abre a página da figura, manda o pedido, captura e fecha a janela',
   assert.equal(Buffer.from(result.screenshot.data, 'base64').toString(), 'png');
 });
 
+test('host: captura com UnknownVizError tenta de novo; erro de outra espécie sobe', async () => {
+  const attempts = [];
+  const win = createFakeFigureWindow();
+  win.webContents.capturePage = async ({width, height}) => {
+    attempts.push(width);
+    if (attempts.length < 3) throw Error('UnknownVizError');
+    return {getSize: () => ({width, height}), resize: () => { throw Error('não escala'); }, toPNG: () => Buffer.from('png')};
+  };
+  const {preview} = createFigurePreview({createWindow: () => win});
+  const result = await preview({kind: 'plot', source: PARABOLA_BODY, width: 400});
+  assert.equal(attempts.length, 3, 'duas falhas transitórias e a terceira captura');
+  assert.equal(Buffer.from(result.screenshot.data, 'base64').toString(), 'png');
+
+  const other = createFakeFigureWindow();
+  other.webContents.capturePage = async () => { throw Error('falha permanente'); };
+  const failing = createFigurePreview({createWindow: () => other});
+  await assert.rejects(failing.preview({kind: 'plot', source: PARABOLA_BODY}), /falha permanente/);
+});
+
 test('host: pedido inválido falha sem abrir janela, e uma falha não trava a fila', async () => {
   const windows = [];
   const {preview} = createFigurePreview({createWindow: () => { const win = createFakeFigureWindow(); windows.push(win); return win; }});
@@ -178,10 +196,6 @@ test('o servidor mesa leva ver_figura com o esquema e a descrição do guia', as
     await client.close();
     await server.instance.close();
   }
-  const source = fs.readFileSync(path.join(import.meta.dirname, '..', 'src', 'extensions', 'mesa-figure', 'index.ts'), 'utf8');
-  assert.match(source, /name: 'mesa_ver_figura'[\s\S]*?description: FIGURE_DESCRIPTION/);
-  assert.match(source, /parameters: typeboxObject\(Type, FIGURE_FIELDS\)/);
-  assert.match(source, /figureText\(result\)/);
 });
 
 test('OpenCode: a ferramenta ver_figura usa o mesmo esquema, e só existe com a ponte', async () => {

@@ -9,8 +9,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
- withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,PLOT_PNG,captureFixtureEnv,
- reviewShot,screenshotDirectory,setTheme,freezeMotion,toastWait,sendEnabled,sessionIds,openSessionById,resizeWindow
+ withArtifacts,newRuntime,seedCourse,seedNativeSession,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,PLOT_PNG,captureFixtureEnv,
+ reviewShot,screenshotDirectory,setTheme,freezeMotion,toastWait,sendEnabled,sessionIds,openSessionById,resizeWindow,openStudyContext,closeStudyContext
 } from './helpers.mjs';
 import {layoutStable,nextFrames,pollUntil} from './waits.mjs';
 
@@ -92,16 +92,14 @@ await withArtifacts('composer-box',async ctx=>{
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites e derivadas'));
  const formulas=path.join(course,'Formulario.pdf');fs.writeFileSync(formulas,tinyPdf('Formulas'));
  const logFile=path.join(runtime,'queue.log');
- const other=path.join(runtime,'pi-1700000001000.jsonl');
- fs.writeFileSync(other,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text:'outra sessão'}],timestamp:1700000001000}})+'\n');
- const first=path.join(runtime,'pi-1700000002000.jsonl');
- fs.writeFileSync(first,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text:'sessão corrente'}],timestamp:1700000002000}})+'\n');
+ const other=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'outra sessão'}],timestamp:1700000001000}],{courseId:'calc',started:1700000001000,preview:'outra sessão'});
+ const first=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'sessão corrente'}],timestamp:1700000002000}],{courseId:'calc',started:1700000002000,preview:'sessão corrente'});
  /* Uma segunda matéria: durante a resposta a aba dela trava (com a dica) e a da atual fica livre (#42). */
  const other2=seedCourse(runtime,'fis');
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:course},{id:'fis',name:'Física',path:other2}]});
  writeDeskJson(runtime,{courseId:'calc',session:first,courseStates:{calc:{session:first,sessions:[{path:first,started:1700000002000},{path:other,started:1700000001000}],pdfs:[{path:pdf,page:4},{path:formulas,page:1}],study:{title:'',xopp:''}}}});
  /* 15 s: o bloco 10 mede a fila em quatro temas/tamanhos antes de o turno do fake terminar. */
- const env=captureFixtureEnv(runtime,{FAKE_PI_QUEUE_LOG:logFile,FAKE_PI_QUEUE_HOLD_MS:'15000'});
+ const env=captureFixtureEnv(runtime,{FAKE_OPENCODE_QUEUE_LOG:logFile,FAKE_OPENCODE_QUEUE_HOLD_MS:'15000'});
  let app=ctx.app=await launchDesk({runtime,env});
  let page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -128,20 +126,19 @@ await withArtifacts('composer-box',async ctx=>{
    hint:!!document.querySelector('#composer-hint'),
    refsState:!!document.querySelector('#refs-state'),
    refsPop:!!document.querySelector('#refs-pop'),
-   summaryInBox:box.contains(document.querySelector('#context-summary')),
    studyVisibleAtRest:(()=>{const el=document.querySelector('#study-context');const b=el.getBoundingClientRect();return b.width>0&&b.height>0;})(),
+   summaryInBox:box.contains(document.querySelector('#context-summary')),
+   summaryInMenu:!!document.querySelector('#more-context-menu #context-summary'),
   };
  });
- assert.deepEqual(parts.kids,['goes-along','mention-chips','attachments','prompt','composer-actions'],'a caixa tem a pílula de contexto, chips das ferramentas (#53), anexos, campo e fileira, nessa ordem');
+ assert.deepEqual(parts.kids,['mention-chips','attachments','prompt','composer-actions'],'a caixa tem chips das ferramentas (#53), anexos, campo e fileira, nessa ordem; o contexto saiu para Mais opções (#123)');
  assert.deepEqual(parts.inBox,[],'anexar, Referências e Enviar/Parar moram dentro da caixa; o Conferir fica no menu Anexar');
  assert.equal(parts.hint,false,'a dica de atalhos saiu da tela principal');
  assert.equal(parts.refsState,false,'a etiqueta de estado das referências saiu (a linha Vai junto a substitui)');
  assert.equal(parts.refsPop,false,'o popover antigo das referências saiu');
- assert.equal(parts.summaryInBox,true,'o contexto vira pílula dentro da caixa');
+ assert.equal(parts.summaryInBox,false,'o resumo do contexto não ocupa mais a caixa (#123)');
+ assert.equal(parts.summaryInMenu,true,'o resumo do contexto mora no submenu Contexto');
  assert.equal(parts.studyVisibleAtRest,false,'lista/questão e rascunho não ficam soltos: só aparecem pela linha');
- const lineBox=await rect(page,'#goes-along'),boxBox=await rect(page,'#composer-box');
- assert.ok(lineBox.top>=boxBox.top-0.5&&lineBox.bottom<=boxBox.bottom+0.5,'a pílula de contexto fica dentro da caixa');
- assert.ok(lineBox.top-boxBox.top<24,'a pílula abre a caixa, acima do campo');
  // a fileira: ordem e alinhamento
  const order=await page.evaluate(()=>['#attach','#include-refs','#send'].map(sel=>document.querySelector(sel).getBoundingClientRect().left));
  assert.deepEqual([...order].sort((a,b)=>a-b),order,'Anexar, Referências e Enviar, da esquerda para a direita');
@@ -151,11 +148,13 @@ await withArtifacts('composer-box',async ctx=>{
  assert.equal(await page.locator('#send').getAttribute('aria-label'),'Enviar mensagem','a seta mantém o nome acessível');
  assert.equal(await page.locator('#stop').isHidden(),true,'Parar não aparece com o tutor livre');
  const emptyField=await rect(page,'#prompt');
- assert.ok(emptyField.height<=48,`em repouso o campo fica em uma a duas linhas (${emptyField.height}px)`);
- await page.locator('#prompt').fill('linha um\nlinha dois\nlinha três');
+ assert.ok(emptyField.height>=70,`em repouso o campo já mostra três linhas (#123: ${emptyField.height}px)`);
+ await page.locator('#prompt').fill('linha um\nlinha dois\nlinha três\nlinha quatro\nlinha cinco\nlinha seis');
  await nextFrames(page);
  const grownField=await rect(page,'#prompt');
- assert.ok(grownField.height>emptyField.height+10,`com texto o campo cresce (${emptyField.height} -> ${grownField.height}px)`);
+ assert.ok(Math.abs(grownField.height-emptyField.height)<=0.5,`com texto longo o campo não cresce (${emptyField.height} -> ${grownField.height}px)`);
+ const scrolled=await page.locator('#prompt').evaluate(el=>({scrollHeight:el.scrollHeight,clientHeight:el.clientHeight,scrollTop:el.scrollTop}));
+ assert.ok(scrolled.scrollHeight>scrolled.clientHeight&&scrolled.scrollTop>0,`o texto longo rola por dentro e mantém o cursor à vista (${JSON.stringify(scrolled)})`);
  assert.equal(await page.locator('#send').getAttribute('class'),'primary','com texto, Enviar acende no acento');
  await page.locator('#prompt').fill('');
  assert.equal(await page.locator('#send').getAttribute('class'),'','esvaziar o campo apaga o acento');
@@ -187,6 +186,7 @@ await withArtifacts('composer-box',async ctx=>{
  assert.match(pillLabels[2],/^Formulario\.pdf p\.\d+$/,'o segundo material guarda nome e página no aria-label');
  assert.deepEqual(await page.locator('#context-summary>.goes-pill').evaluateAll(els=>els.map(el=>el.getAttribute('title'))),pillLabels,'e o nome inteiro na dica');
  assert.equal(await page.locator('#context-summary>.goes-lead').isHidden(),true,'o prefixo fica escondido quando há pílula');
+ await openStudyContext(page);
  const pillGap=await page.locator('#context-summary').evaluate(box=>{
   const pill=[...box.querySelectorAll(':scope>.goes-pill')].map(el=>el.getBoundingClientRect()).filter(r=>r.width>0);
   return pill.slice(1).map((r,i)=>Math.round(r.left-pill[i].right));
@@ -207,6 +207,7 @@ await withArtifacts('composer-box',async ctx=>{
   assert.ok(shape.radius<=7,`a pílula é chip compacto, não cápsula (raio ${shape.radius}px)`);
   assert.ok(Math.abs(shape.left-shape.right)<=1,`o respiro da pílula é o mesmo dos dois lados (${JSON.stringify(shape)})`);
  }
+ await closeStudyContext(page);
  const refs=page.locator('#include-refs');
  assert.equal(await refs.getAttribute('aria-pressed'),'true','Referências começa ligado');
  const onLook=await refs.evaluate(el=>{const s=getComputedStyle(el);return {bg:s.backgroundColor,fg:s.color};});
@@ -227,29 +228,17 @@ await withArtifacts('composer-box',async ctx=>{
  assert.match(await line(page),/Limites\.pdf p\.\s?7/,'a linha acompanha a página');
  await page.evaluate(async()=>{const state=await import('./src/state.mjs');state.S.panels[0].page=1;state.updateContextSummary();});
 
- /* ---------- 3. o contexto de estudo se edita pela linha ---------- */
- const edit=page.locator('#context-edit');
- assert.equal(await edit.isVisible(),true,'a linha oferece editar o contexto');
- assert.equal(await page.locator('#context-pop').isHidden(),true);
- await page.locator('#context-summary').click();
- assert.equal(await page.evaluate(()=>document.querySelector('#context-pop').hidden),false,'clicar a pílula abre a edição (#90)');
- assert.equal(await page.evaluate(()=>document.activeElement?.id),'exercise-title','o foco cai no campo da lista/questão');
- await page.keyboard.press('Escape');
- await page.waitForFunction(()=>document.querySelector('#context-pop').hidden);
- await edit.click();
- await page.locator('#context-pop').waitFor({state:'visible'});
- assert.equal(await edit.getAttribute('aria-expanded'),'true');
- assert.equal(await page.evaluate(()=>document.activeElement?.id),'exercise-title','o foco cai no campo da lista/questão');
- await page.locator('#exercise-title').fill('Lista 3 q.2');
- assert.match(await line(page),/Lista 3 q\.2/,'a linha mostra a questão ativa na hora');
+ /* ---------- 3. o contexto de estudo se edita em Mais opções → Contexto ---------- */
+ assert.equal(await page.locator('#context-edit').count(),0,'o lápis da linha saiu (#123)');
+ await openStudyContext(page);
+ assert.equal(await page.locator('#more-context-menu').isVisible(),true,'o submenu Contexto abre pelo Mais opções');
+ assert.equal(await page.locator('#study-context').isVisible(),true,'a edição do contexto de estudo mora no submenu');
  assert.match(await page.locator('#context-pop-refs').textContent(),/Caminho e página; o PDF não vai\. A captura do Xournal\+\+ vai como imagem\./,'a nota mantém a garantia curta de referências × captura');
- assert.equal(await page.locator('#pick-xopp').isVisible(),true,'o rascunho .xopp se associa pelo mesmo popover');
+ await page.locator('#exercise-title').fill('Lista 3 q.2');
+ assert.match(await line(page),/Lista 3 q\.2/,'o resumo mostra a questão ativa na hora');
+ assert.equal(await page.locator('#pick-xopp').isVisible(),true,'o rascunho .xopp se associa pelo mesmo submenu');
  await reviewShot(page,out,'edicao-contexto-claro-1440.png');
- // Esc fecha o popover e não toca no turno
- await page.keyboard.press('Escape');
- await page.locator('#context-pop').waitFor({state:'hidden'});
- assert.equal(await edit.getAttribute('aria-expanded'),'false');
- assert.equal(await page.evaluate(()=>document.activeElement?.id),'context-edit','o foco volta ao botão da linha');
+ await closeStudyContext(page);
  // o contexto editado chega ao desk.json
  const saved=await page.evaluate(async()=>{const state=await import('./src/state.mjs');return state.studySnapshot();});
  assert.equal(saved.title,'Lista 3 q.2','o contexto editado é o contexto de estudo da sessão');
@@ -359,7 +348,7 @@ await withArtifacts('composer-box',async ctx=>{
  await toastWait(page,'a fila ficou segurada');
  await idle();
  const ids=await sessionIds(page);
- const otherId=ids.find(id=>id.endsWith('pi-1700000001000.jsonl'));
+ const otherId=ids.find(id=>id===other);
  assert.ok(otherId,'a outra sessão aparece na lista');
  await openSessionById(page,otherId);
  await page.waitForFunction(()=>!document.querySelector('.queue-strip'),undefined,{timeout:30000});
@@ -367,6 +356,7 @@ await withArtifacts('composer-box',async ctx=>{
  await openSessionById(page,first);
  await page.waitForFunction(()=>!!document.querySelector('.queue-item'),undefined,{timeout:30000});
  await statusOnline(page);
+ await idle();
  assert.deepEqual(await page.locator('.queue-item span').allTextContents(),['segue guardada'],'a fila volta com a sessão');
  await page.locator('.queue-send-now').click();
  await waitSent('segue guardada');
@@ -431,16 +421,16 @@ await withArtifacts('composer-box',async ctx=>{
   const boxRect=await rect(page,'#composer-box');
   inside(boxRect,viewport,`${tag} caixa`);
   const facts=await assertBoxSkin(page,tag);
-  for(const id of ['#attach','#include-refs','#send','#prompt','#context-summary','#context-edit']){
+  for(const id of ['#attach','#include-refs','#send','#prompt']){
    const box=await rect(page,id);
-   inside(box,id==='#context-summary'||id==='#context-edit'?viewport:boxRect,`${tag} ${id}`);
+   inside(box,boxRect,`${tag} ${id}`);
   }
   /* Fila, anexos, pílula e fileira começam na mesma coluna do texto do campo. */
   const aligned=await page.evaluate(()=>{
    const composer=document.querySelector('#composer').getBoundingClientRect();
    const field=document.querySelector('#prompt'),fr=field.getBoundingClientRect();
    const textLeft=fr.left+parseFloat(getComputedStyle(field).paddingLeft);
-   const rows=['#composer-box #goes-along','#composer-box #attachments','#composer-box .composer-actions'].map(selector=>{
+   const rows=['#composer-box #attachments','#composer-box .composer-actions'].map(selector=>{
     const el=document.querySelector(selector),r=el.getBoundingClientRect(),style=getComputedStyle(el);
     return {selector,left:r.left+parseFloat(style.paddingLeft)-textLeft};
    });
@@ -471,8 +461,6 @@ await withArtifacts('composer-box',async ctx=>{
   const nameOf=async sel=>page.locator(sel).evaluate(el=>(el.getAttribute('aria-label')||el.innerText||'').trim());
   assert.ok((await nameOf('#attach')).length>0,`${tag}: Anexar tem nome acessível`);
   assert.match(await nameOf('#check'),/Conferir/,`${tag}: Conferir segue nomeado`);
-  const lineOver=await page.evaluate(()=>{const el=document.querySelector('#goes-along');return el.scrollWidth-el.clientWidth;});
-  assert.ok(lineOver<=1,`${tag}: a pílula de contexto cabe (corta com reticências)`);
   /* Janela estreita, matéria e PDF de nomes grandes e quatro itens: a linha
      quebra em até duas linhas; o nome do PDF cede antes da matéria, mas a
      página (p.N) continua à vista e a matéria guarda 8 caracteres legíveis
@@ -488,6 +476,7 @@ await withArtifacts('composer-box',async ctx=>{
    state.updateContextSummary();
    return previous;
   },{name:longCourse,long:longPdf});
+  await openStudyContext(page);
   const cut=await page.evaluate(()=>{
    const box=document.querySelector('#context-summary');
    const pills=[...box.querySelectorAll(':scope>.goes-pill')].filter(el=>el.getBoundingClientRect().width>0);
@@ -508,33 +497,26 @@ await withArtifacts('composer-box',async ctx=>{
    };
   });
   assert.ok(cut.over<=1,`${tag}: a linha de pílulas não estoura (${cut.over}px)`);
-  assert.ok(cut.lines<=2,`${tag}: a linha quebra em até 2 linhas (${cut.lines})`);
-  assert.ok(cut.height<=49,`${tag}: a linha não passa de duas linhas de pílula (${cut.height}px)`);
+  assert.ok(cut.lines<=4,`${tag}: o resumo quebra em até 4 linhas (${cut.lines})`);
+  assert.ok(cut.height<=96,`${tag}: o resumo não passa de quatro linhas de pílula (${cut.height}px)`);
   assert.ok(cut.course.client>=8*cut.course.char+cut.course.paddingX,`${tag}: a pílula da matéria mantém 8 caracteres legíveis (${JSON.stringify(cut.course)})`);
   assert.match(cut.pdf.label,/Lista de exercicios muito comprida/,'a pílula do PDF longo guarda o nome inteiro');
   assert.ok(cut.pdf.nameScroll>cut.pdf.nameClient,`${tag}: o nome do PDF é o que corta (${JSON.stringify(cut.pdf)})`);
   assert.match(cut.pdf.page,/p\.1/,`${tag}: a página continua inteira ao lado do nome cortado (${cut.pdf.page})`);
   assert.ok(cut.pdf.pageClient>0,`${tag}: a página do PDF não encolhe (${cut.pdf.pageClient}px)`);
   assert.ok(cut.labels.includes(`${longCourse}`)&&cut.labels.includes('Lista de exercicios muito comprida para nao caber de jeito nenhum.pdf p.1'),'o nome inteiro segue no aria-label das pílulas');
+  await closeStudyContext(page);
   await page.evaluate(async previous=>{const state=await import('./src/state.mjs');state.S.activeCourseName='Cálculo I';state.S.panels[1].path=previous;state.updateContextSummary();},previousPath);
   await reviewShot(page,out,`anexo-e-texto-${tag}.png`);
-  // edição do contexto aberta
-  await page.locator('#context-edit').click();
-  await page.locator('#context-pop').waitFor({state:'visible'});
-  inside(await rect(page,'#context-pop'),viewport,`${tag} popover do contexto`);
-  const painted=await page.evaluate(()=>{
-   const pop=document.querySelector('#context-pop'),b=pop.getBoundingClientRect();
-   const hit=(x,y)=>pop.contains(document.elementFromPoint(x,y));
-   return {topLeft:hit(b.left+6,b.top+6),topRight:hit(b.right-6,b.top+6),bottomLeft:hit(b.left+6,b.bottom-6),bottomRight:hit(b.right-6,b.bottom-6),title:pop.contains(document.querySelector('#exercise-title'))&&document.elementFromPoint(document.querySelector('#exercise-title').getBoundingClientRect().left+8,document.querySelector('#exercise-title').getBoundingClientRect().top+8)===document.querySelector('#exercise-title')};
-  });
+  // edição do contexto aberta no submenu
+  await openStudyContext(page);
+  inside(await rect(page,'#more-context-menu'),viewport,`${tag} submenu do contexto`);
+  await page.locator('#exercise-title').scrollIntoViewIfNeeded();
+  assert.equal(await page.locator('#exercise-title').isVisible(),true,`${tag}: o campo da lista/questão está à vista`);
   const xopp=await page.locator('#pick-xopp').evaluate(el=>({overflow:getComputedStyle(el).textOverflow,display:getComputedStyle(el).display}));
   assert.deepEqual(xopp,{overflow:'ellipsis',display:'block'},`${tag}: o nome do rascunho corta com reticências, não pelos dois lados`);
-  assert.deepEqual(painted,{topLeft:true,topRight:true,bottomLeft:true,bottomRight:true,title:true},`${tag}: o popover aparece inteiro (nada o corta nem o cobre)`);
-  const popInner=await page.evaluate(()=>{const pop=document.querySelector('#context-pop');return [...pop.querySelectorAll('input,button')].map(el=>{const b=el.getBoundingClientRect(),p=pop.getBoundingClientRect();return b.right<=p.right+0.5&&b.left>=p.left-0.5;});});
-  assert.ok(popInner.every(Boolean),`${tag}: os campos cabem no popover`);
   await reviewShot(page,out,`edicao-contexto-${tag}.png`);
-  await page.keyboard.press('Escape');
-  await page.locator('#context-pop').waitFor({state:'hidden'});
+  await closeStudyContext(page);
  }
  // colunas do tutor estreitas (a divisória no mínimo)
  await size(app,page,900,650);
@@ -542,9 +524,21 @@ await withArtifacts('composer-box',async ctx=>{
  await layoutStable(page,'#composer-box');
  const narrow=await page.evaluate(()=>{const el=document.querySelector('.composer-actions');return {over:el.scrollWidth-el.clientWidth,boxW:document.querySelector('#composer-box').getBoundingClientRect().width};});
  assert.ok(narrow.over<=1,`coluna de 310px: a fileira não estoura (${narrow.over}px, caixa ${narrow.boxW}px)`);
- await page.evaluate(()=>document.documentElement.style.removeProperty('--chat'));
+  await page.evaluate(()=>document.documentElement.style.removeProperty('--chat'));
 
- /* ---------- 10. resposta em andamento e fila, nos dois temas em 900×650 ---------- */
+  /* ---------- 9b. tela cheia: sem a reserva de 24px do escopo lateral ---------- */
+  await page.locator('#chat-full').click();
+  await page.waitForFunction(()=>document.body.classList.contains('chat-full'),undefined,{timeout:5000});
+  await layoutStable(page,'#composer-box');
+  const fullPad=await page.evaluate(()=>parseFloat(getComputedStyle(document.querySelector('#composer-box')).paddingTop));
+  assert.equal(fullPad,0,`em tela cheia a caixa não reserva o escopo (${fullPad}px)`);
+  await page.locator('#chat-full').click();
+  await page.waitForFunction(()=>!document.body.classList.contains('chat-full'),undefined,{timeout:5000});
+  await layoutStable(page,'#composer-box');
+  const backPad=await page.evaluate(()=>parseFloat(getComputedStyle(document.querySelector('#composer-box')).paddingTop));
+  assert.equal(backPad,24,`fora dela a reserva volta (${backPad}px)`);
+
+  /* ---------- 10. resposta em andamento e fila, nos dois temas em 900×650 ---------- */
  await page.locator('#attachments .attachment-remove').first().click();
  await page.locator('#prompt').fill('');
  await sendEnabled(page);
@@ -585,33 +579,39 @@ await withArtifacts('composer-box',async ctx=>{
   assert.equal(lock.check.opacity,'1',`${tag}: o Conferir não fica apagado`);
   assert.equal(lock.check.color,lock.muted,`${tag}: o Conferir fica em --muted`);
   assert.equal(lock.check.tip,'Espere a resposta terminar para conferir',`${tag}: o Conferir diz por quê`);
-  /* #42 (7): "Pensando…", a linha "Vai junto" e a caixa começam na mesma margem. */
-  const edges=await page.evaluate(()=>{
-   const left=sel=>{const el=document.querySelector(sel);if(!el)return null;const r=el.getBoundingClientRect();return r.width>0?r.left:null;};
-   /* Onde o conteúdo da linha de atividade começa (borda + recuo): vale com
-      "Pensando…" na tela ou entre dois passos, quando ela está vazia. */
-   const act=document.querySelector('#activity');
-   const start=act.getBoundingClientRect().left+parseFloat(getComputedStyle(act).paddingLeft);
-   const text=left('#activity .pulse')??left('#activity .activity-label');
-   /* Primeira letra do "Tutor está pensando…": tem de começar dentro da coluna,
-      não colada/cortada pela borda esquerda. */
-   const firstText=act.firstChild;
-   let firstLetter=null;
-   if(firstText?.nodeType===3&&firstText.textContent.trim()){
-    const range=document.createRange();range.setStart(firstText,0);range.setEnd(firstText,1);
-    firstLetter=range.getBoundingClientRect().left;
-   }
-   const field=document.querySelector('#prompt');
-   const fieldStart=field.getBoundingClientRect().left+parseFloat(getComputedStyle(field).paddingLeft);
-   return {activity:start,activityText:text,firstLetter,field:fieldStart,goes:left('#context-summary > :first-child')??left('#context-summary'),box:left('#composer-box'),column:left('#sidebar')};
-  });
+   /* #42 (7): "Pensando…" e a caixa começam na mesma margem. Desde a #123 o
+      resumo do contexto mora em Mais opções → Contexto, não no composer. */
+   const edges=await page.evaluate(()=>{
+    const left=sel=>{const el=document.querySelector(sel);if(!el)return null;const r=el.getBoundingClientRect();return r.width>0?r.left:null;};
+    /* Onde o conteúdo da linha de atividade começa (borda + recuo): vale com
+       "Pensando…" na tela ou entre dois passos, quando ela está vazia. */
+    const act=document.querySelector('#activity');
+    const start=act.getBoundingClientRect().left+parseFloat(getComputedStyle(act).paddingLeft);
+    const text=left('#activity .pulse')??left('#activity .activity-label');
+    /* Primeira letra do "Tutor está pensando…": tem de começar dentro da coluna,
+       não colada/cortada pela borda esquerda. */
+    const firstText=act.firstChild;
+    let firstLetter=null;
+    if(firstText?.nodeType===3&&firstText.textContent.trim()){
+     const range=document.createRange();range.setStart(firstText,0);range.setEnd(firstText,1);
+     firstLetter=range.getBoundingClientRect().left;
+    }
+    const field=document.querySelector('#prompt');
+    const fieldStart=field.getBoundingClientRect().left+parseFloat(getComputedStyle(field).paddingLeft);
+    const summary=document.querySelector('#context-summary');
+    const summaryBox=summary?.getBoundingClientRect();
+    return {activity:start,activityText:text,firstLetter,field:fieldStart,goes:left('#context-summary > :first-child')??left('#context-summary'),box:left('#composer-box'),column:left('#sidebar'),summaryHidden:!summaryBox||summaryBox.width===0,summaryInMenu:!!summary?.closest('#more-context-menu,#context-live'),summaryInBox:!!document.querySelector('#composer-box')?.contains(summary)};
+   });
   if(edges.activityText!==null)assert.ok(Math.abs(edges.activityText-edges.activity)<=0.6,`${tag}: "Pensando…" começa no recuo da linha`);
   if(edges.firstLetter!==null)assert.ok(edges.firstLetter>=edges.column+11.5,`${tag}: a primeira letra de "Pensando…" não é cortada pela borda (${edges.firstLetter} × ${edges.column})`);
   /* O composer recolhe o texto do campo em 12px; a atividade acompanha a
      coluna do texto. Medir o texto do campo — e não a borda do composer — é o
      que mantém "Pensando…" alinhado a ele. */
   assert.ok(Math.abs(edges.activity-edges.field)<=0.6,`${tag}: atividade e texto do campo na mesma margem (${JSON.stringify(edges)})`);
-  assert.ok(edges.goes!==null&&edges.goes>=edges.box,`${tag}: a pílula de contexto começa dentro da caixa (${JSON.stringify(edges)})`);
+  assert.equal(edges.goes,null,`${tag}: o resumo do contexto saiu do composer (#123: ${JSON.stringify(edges)})`);
+  assert.equal(edges.summaryInBox,false,`${tag}: o resumo não mora na caixa`);
+  assert.equal(edges.summaryInMenu,true,`${tag}: o resumo mora no submenu Contexto`);
+  assert.equal(edges.summaryHidden,true,`${tag}: com o submenu fechado, o resumo não aparece`);
   const boxRect=await rect(page,'#composer-box');
   inside(boxRect,{left:0,top:0,right:width,bottom:height},`${tag} caixa com fila`);
   await assertBoxSkin(page,tag,{queue:true});
@@ -648,7 +648,7 @@ await withArtifacts('composer-box-flags',async ctx=>{
  await freezeMotion(page);
  assert.equal(await page.locator('#include-refs').isHidden(),true,'refsToggle desligado esconde Referências');
  assert.equal(await page.locator('#check').isHidden(),true,'conferir desligado esconde Conferir');
- assert.equal(await page.locator('#context-edit').isHidden(),true,'studyContext desligado esconde a edição do contexto');
+ assert.equal(await page.locator('#study-context').evaluate(el=>el.hidden),true,'studyContext desligado esconde a edição do contexto');
  const text=await line(page);
  assert.match(text,/Limites\.pdf p\.\d+/,'sem o botão, as referências seguem ligadas e vão junto');
  assert.doesNotMatch(text,/Lista oculta|Cálculo I/,'sem contexto de estudo, nem a questão nem a matéria vão na linha');

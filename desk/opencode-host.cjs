@@ -1,20 +1,23 @@
 // @ts-check
 'use strict';
 
-/* Modelos grátis do OpenCode Zen pelo Pi, no host (#44). A decisão — o que vale
+/* Modelos grátis do OpenCode Zen, no host (#44). A decisão — o que vale
    como chave, o que é grátis, a política de cada modelo, o padrão, a frase do
    teste — é do núcleo (`core/freemodels.bend`); aqui ficam o cofre da chave
    (`opencode-key-store.cjs`), a área de transferência, o arquivo do OpenCode, a
-   rede e o catálogo do Pi, todos entrando por parâmetro (nos testes, por fakes
+   rede e o catálogo do OpenCode, todos entrando por parâmetro (nos testes, por fakes
    com nome: `tests/fake-opencode.mjs`, `tests/fake-secret-cipher.cjs`).
 
    A chave só existe cifrada no disco; em claro, só na memória do processo e no
-   ambiente do Pi (`OPENCODE_API_KEY`), lida a cada lançamento. Nenhuma mensagem,
+   ambiente do OpenCode (`OPENCODE_API_KEY`), lida a cada lançamento. Nenhuma mensagem,
    log nem retorno de canal carrega a chave: o renderer recebe só a máscara.
 
    Canais (todos devolvem `{ok, outcome, message, masked?}` onde há resultado;
    `message` é mensagem do catálogo, chave + argumentos, que o renderer traduz):
-   - `opencode-status`            → {saved, masked, secure, authFile:{exists, display}, model, paidConfirmed, consoleUrl}
+   - `opencode-status`            → {saved, masked, authFile:{exists, display}, model, paidConfirmed, consoleUrl}
+                                     (`saved` é só o arquivo cifrado existir; a máscara
+                                     completa só existe se a chave já foi lida nesta
+                                     execução — abrir Configurações não decifra, #104)
    - `opencode-open-console`      → abre o console do OpenCode no navegador do sistema
    - `opencode-clipboard-peek`    → {found, masked?}: lê a área de transferência AGORA
                                      e guarda o candidato só na memória
@@ -104,19 +107,17 @@ function createOpencodeHost(deps) {
     await Promise.race([livePromise, new Promise((resolve) => setTimeout(resolve, ms))]);
   }
 
-  /* ---------- catálogo do Pi → o que o seletor mostra ---------- */
+  /* ---------- catálogo do OpenCode → o que o seletor mostra ---------- */
 
   /** Custo zero só com o preço presente e zero na entrada e na saída: preço ausente não prova nada. */
   const provenCostZero = (model) => !!model?.cost && model.cost.input === 0 && model.cost.output === 0;
 
   /**
    * Tira o que não dá para chamar e marca o grátis com a política e o aviso.
-   * O Pi (`keepFree: false`) não leva os grátis: o OpenCode só libera o plano
-   * grátis no próprio cliente, e pelo Pi a inferência volta 403 `FreeTierError`
-   * (#57, medido em 2026-10-19). O motor OpenCode passa `keepFree: true`.
+   * O motor OpenCode passa `keepFree: true` e mantém os grátis do Zen.
    * @param {Array<{provider?: string, id?: string, cost?: {input?: number, output?: number}}>} models
    * @param {{keepFree?: boolean}} [options]
-   * @example annotate(piModels) // sem os `-free` do Zen
+   * @example annotate(models) // com os `-free` do Zen
    */
   function annotate(models, {keepFree = false} = {}) {
     const known = liveIds !== null;
@@ -161,14 +162,24 @@ function createOpencodeHost(deps) {
   const reply = (outcome, extra = {}) => ({ok: core.keepsKey(outcome), outcome, message: core.outcomeMsg(outcome), ...extra});
 
   async function test(rawKey) {
-    const key = String(rawKey ?? '').trim();
+    const typed = String(rawKey ?? '').trim();
+    let key = typed;
+    if (!key) {
+      /* Testar a chave guardada é um uso explícito: aqui pode decifrar. */
+      const stored = await keyStore.read();
+      if (stored.saved && !stored.readable) {
+        appendLog('opencode', stored.vaultAvailable ? 'chave guardada ilegível: o cofre recusou a leitura' : 'chave guardada não lida: cofre indisponível');
+        return {ok: false, outcome: 'unreadable', message: message('err.opencode.keyUnreadable')};
+      }
+      key = stored.key;
+    }
     const shapeOk = core.typedKey(key);
     const outcome = shapeOk ? await probe(key) : core.outcomeFor(false, false, 0);
     appendLog('opencode', `teste da chave: ${outcome}`);
     return reply(outcome, shapeOk ? {masked: core.mask(key)} : {});
   }
 
-  /** Testa e, só se valer, guarda e religa o tutor para o Pi nascer com a chave. */
+  /** Testa e, só se valer, guarda e religa o tutor para o OpenCode nascer com a chave. */
   async function accept(rawKey, source) {
     const key = String(rawKey ?? '').trim();
     const result = await test(key);
@@ -190,7 +201,10 @@ function createOpencodeHost(deps) {
     candidate = '';
     const raw = String((await readClipboard()) ?? '').trim();
     if (!raw || raw.length > CLIPBOARD_MAX || !core.clipboardKey(raw)) return {found: false};
-    if (keyStore.has() && raw === await keyStore.load()) return {found: false};
+    /* Compara só com a chave já decifrada nesta execução: se ainda não foi
+       lida, não vale pedir o cofre só para saber se a área de transferência
+       traz a mesma chave. Aceitar de novo testa e regrava sem risco. */
+    if (keyStore.has() && raw === keyStore.peek()) return {found: false};
     candidate = raw;
     return {found: true, masked: core.mask(raw)};
   }
@@ -222,12 +236,15 @@ function createOpencodeHost(deps) {
     const file = authFile();
     let exists;
     try { exists = fs.statSync(file).isFile(); } catch { exists = false; }
+    /* Saber que há chave guardada é só o arquivo cifrado existir. A máscara
+       completa vem da memória quando a chave já foi lida nesta execução
+       (salvar, testar ou usar o tutor); sem isso, um `••••` genérico. Nada de
+       `load`/`available` aqui: abrir Configurações não pode pedir o Chaves (#104). */
     const saved = keyStore.has();
-    const key = saved ? await keyStore.load() : '';
+    const known = saved ? keyStore.peek() : null;
     return {
       saved,
-      masked: key ? core.mask(key) : '',
-      secure: await keyStore.available(),
+      masked: saved ? core.mask(known || '') : '',
       authFile: {exists, display: displayPath(file, homeDir)},
       model: String(state()?.opencodeModel || ''),
       paidConfirmed: state()?.opencodePaidOk === true,
@@ -243,16 +260,19 @@ function createOpencodeHost(deps) {
     return {ok: true, relink: await relinkTutor()};
   }
 
-  /** O Pi nasce com a chave (e só se ela existe) no ambiente do provedor `opencode`. */
-  const keyEnv = async () => { const key = await keyStore.load(); return key ? {OPENCODE_API_KEY: key} : {}; };
-
-  /** Quem escolheu um modelo do Zen nasce com ele; trocar para outro provedor desfaz.
-      Um grátis lembrado de antes da #57 não volta: pelo Pi ele dá 403. */
-  function launchArgs() {
-    const id = String(state()?.opencodeModel || '');
-    if (!id || !keyStore.has() || Object.hasOwn(policyTable.models, id)) return [];
-    return ['--provider', core.zenProvider(), '--model', id];
-  }
+  /**
+   * O OpenCode nasce com a chave (e só se ela existe) no ambiente do provedor
+   * `opencode`. Sem arquivo, o cofre nem é consultado. Chave guardada que não
+   * abre vira erro claro em vez de tutor sem chave (#104).
+   */
+  const keyEnv = async () => {
+    const stored = await keyStore.read();
+    if (stored.saved && !stored.readable) {
+      appendLog('opencode', stored.vaultAvailable ? 'chave guardada ilegível: o cofre recusou a leitura' : 'chave guardada não lida: cofre indisponível');
+      throw Error(message('err.opencode.keyUnreadable'));
+    }
+    return stored.key ? {OPENCODE_API_KEY: stored.key} : {};
+  };
 
   function rememberModel(model) {
     const remembered = String(state()?.opencodeModel || '');
@@ -266,12 +286,12 @@ function createOpencodeHost(deps) {
   ipcMain.handle('opencode-clipboard-accept', () => acceptCandidate());
   ipcMain.handle('opencode-clipboard-forget', () => { candidate = ''; });
   ipcMain.handle('opencode-key-save', (_event, request) => accept(request?.key, 'campo'));
-  ipcMain.handle('opencode-key-test', async (_event, request) => test(request?.key ? request.key : await keyStore.load()));
+  ipcMain.handle('opencode-key-test', (_event, request) => test(request?.key ?? ''));
   ipcMain.handle('opencode-key-remove', () => remove());
   ipcMain.handle('opencode-auth-file-use', () => useAuthFile());
   ipcMain.handle('opencode-paid-ack', () => { patchState({opencodePaidOk: true}); return true; });
 
-  return {annotate, refreshLive, liveReady, keyEnv, launchArgs, rememberModel, status, preferredDefaults};
+  return {annotate, refreshLive, liveReady, keyEnv, rememberModel, status, preferredDefaults};
 }
 
 module.exports = {createOpencodeHost, authFilePath, displayPath, preferredDefaults, CONSOLE_URL, MODELS_PATH};

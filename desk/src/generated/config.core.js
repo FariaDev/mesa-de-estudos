@@ -183,9 +183,10 @@ function $normalize(_facts_0) {
   const _piPath_0 = _facts_0["piPath"];
   const _claudePath_0 = _facts_0["claudePath"];
   const _xournalPath_0 = _facts_0["xournalPath"];
+  const _opencodePath_0 = _facts_0["opencodePath"];
   const _courses_0 = _facts_0["courses"];
   const _desk_0 = _facts_0["desk"];
-  return { $: "Config", vaultPath: $$orElse(_vaultPath_0, ""), runtimePath: $$orElse(_runtimePath_0, ""), piPath: $$orElse(_piPath_0, ""), claudePath: $$orElse(_claudePath_0, ""), xournalPath: $$orElse(_xournalPath_0, ""), courses: $$normalizeCourses(_courses_0), desk: $$normalizeDesk(_desk_0) };
+  return { $: "Config", vaultPath: $$orElse(_vaultPath_0, ""), runtimePath: $$orElse(_runtimePath_0, ""), piPath: $$orElse(_piPath_0, ""), claudePath: $$orElse(_claudePath_0, ""), xournalPath: $$orElse(_xournalPath_0, ""), opencodePath: $$orElse(_opencodePath_0, ""), courses: $$normalizeCourses(_courses_0), desk: $$normalizeDesk(_desk_0) };
 }
 function $String_trim(_s_0) {
   return $String_trim_end($$String_trim_start(_s_0));

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {launchDesk,withArtifacts,seedCourse,tinyPdf,writeConfigJson,writeDeskJson} from './helpers.mjs';
+import {launchDesk,withArtifacts,seedCourse,seedNativeSession,tinyPdf,writeConfigJson,writeDeskJson} from './helpers.mjs';
 const out=screenshotDirectory('study-tools-ui');
 await withArtifacts('study-features-ui',async ctx=>{
  const runtime=ctx.runtime=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-study-features-ui-')));
@@ -13,8 +13,9 @@ await withArtifacts('study-features-ui',async ctx=>{
  fs.writeFileSync(pdfA,tinyPdf('Limites fundamentais'));fs.writeFileSync(pdfB,tinyPdf('Grafos vertices arestas'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:a},{id:'discreta',name:'Matemática Discreta',path:b}]});
  const beforePdf=fs.readFileSync(pdfA);
- const old=Date.now()-365*86400000,sessionA=path.join(runtime,`pi-${old}.jsonl`),sessionB=path.join(runtime,`pi-${old+1}.jsonl`);
- for(const [file,text] of [[sessionA,'Limites e continuidade'],[sessionB,'Grafos e conectividade']])fs.writeFileSync(file,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text}]}})+'\n');
+ const old=Date.now()-365*86400000;
+ const sessionA=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'Limites e continuidade'}]}],{courseId:'calc',started:old});
+ const sessionB=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'Grafos e conectividade'}]}],{courseId:'discreta',started:old+1});
  writeDeskJson(runtime,{courseId:'calc',session:sessionA,courseStates:{calc:{session:sessionA,sessions:[{path:sessionA,started:old}],pdfs:[{path:pdfA,page:1}]},discreta:{session:sessionB,sessions:[{path:sessionB,started:old+1}],pdfs:[{path:pdfB,page:1}]}}});
  ctx.app=await launchDesk({runtime});const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.waitForSelector('.pdf-page[data-rendered] canvas');
@@ -65,5 +66,5 @@ await withArtifacts('study-features-ui',async ctx=>{
  await resizeWindow(ctx.app,page,900,650);
  await page.locator('#study-menu .nav-trigger').click();await page.locator('#study-menu #study-search-open').click();const bounds=await page.locator('#study-search-dialog').boundingBox();assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=900&&bounds.y+bounds.height<=650);
  assert.deepEqual(errors,[]);
- console.log('STUDY FEATURES UI PASSED: toolbar, notas, busca entre matérias, retomada, Revisar hoje, tokens indisponíveis, backup, modais e 900x650. Pi simulado.');
+ console.log('STUDY FEATURES UI PASSED: toolbar, notas, busca entre matérias, retomada, Revisar hoje, tokens indisponíveis, backup, modais e 900x650. OpenCode simulado.');
 });

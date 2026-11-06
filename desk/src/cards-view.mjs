@@ -6,7 +6,7 @@
 
 import {markup,markupInline} from './markdown.mjs';
 import {normalizeAskAnswer} from './cards/input.mjs';
-import {t} from './ui-text.mjs';
+import {t,text} from './ui-text.mjs';
 
 const MAX_DRAFT_DELAY = 250;
 
@@ -287,7 +287,7 @@ export function cardElement(card, api) {
   function paint() {
     const active = document.activeElement?.dataset?.cardKey || '';
     box.replaceChildren(...(state.card.kind === 'ask' ? askBody() : quizBody()));
-    if (state.error) box.append(node('p', 'quiz-error', state.error));
+    if (state.error) box.append(node('p', 'quiz-error', text(state.error)));
     if (active) {
       const next = box.querySelector(`[data-card-key="${CSS.escape(active)}"]`);
       if (next && typeof next.focus === 'function') {

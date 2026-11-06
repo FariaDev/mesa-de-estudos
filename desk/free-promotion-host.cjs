@@ -118,7 +118,9 @@ function createFreePromotionHost({live,runtime,configFile,stateFile,persistConfi
    };
    courseEntry={id:courseId,name:courseName,path:folderPath};
    const kind=engine();
-   const descriptorFile=kind==='claude'?nativePath:'';
+   /* Claude e OpenCode guardam a conversa num descritor; o Pi antigo era o
+      próprio JSONL. Só o descritor muda de matéria. */
+   const descriptorFile=kind==='claude'||kind==='opencode'?nativePath:'';
    canWriteConfig=persistConfig||fs.existsSync(configFile);
    const files=[{label:'desk',file:stateFile}];
    if(canWriteConfig)files.push({label:'config',file:configFile});

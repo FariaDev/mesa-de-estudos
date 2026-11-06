@@ -8,8 +8,16 @@
    os órfãos já foram adotados pelo launchd e somem da árvore).
 
    Cada processo é identificado por pid + hora de início, para um pid reciclado
-   nunca levar o SIGKILL de outro. */
+   nunca levar o SIGKILL de outro.
+
+   O `opencode serve` é `detached`, fora do grupo do Electron: `closeApp` lê o
+   ledger do runtime e mata o pid registrado com a mesma prova do produto
+   (pid + hora de início + argumentos do serve da Mesa) (#105). */
 import {execFileSync} from 'node:child_process';
+import {createRequire} from 'node:module';
+
+const require=createRequire(import.meta.url);
+const {readEntry,readProcessInfo,isAnnotatedServe,killGroup}=require('../src/agents/opencode-orphans.cjs');
 
 const WIN=process.platform==='win32';
 
@@ -81,21 +89,47 @@ export function guardChildren(){
  }
 }
 
+/* Fecha o serve registrado no ledger do runtime, com a identidade do produto:
+   pid + hora de início + argumentos. Devolve os pids mortos; espera a árvore
+   sumir (o runtime só pode ser apagado depois disso).
+
+   Assume um runtime EXCLUSIVO deste teste: `helpers.mjs` cria um por teste,
+   então o ledger só pode ser do app que o teste subiu, e o dono não é
+   consultado antes do SIGKILL. Um teste que um dia compartilhe runtime com o
+   app instalado precisa checar `ownerStillRuns` antes de matar. */
+export async function killLedgerServer(ledgerDir,{timeout=5000}={}){
+ if(!ledgerDir)return [];
+ const entry=readEntry(ledgerDir);
+ if(!entry)return [];
+ const mine=()=>{const info=readProcessInfo(entry.pid);return info&&isAnnotatedServe(entry,info)};
+ if(!mine())return [];
+ try{killGroup({pid:entry.pid,pgid:entry.pid,signal:'SIGKILL'});}catch{/* já saiu */}
+ const end=Date.now()+timeout;
+ while(Date.now()<end){
+  if(!mine())return [entry.pid];
+  await new Promise(resolve=>setTimeout(resolve,50));
+ }
+ return [];
+}
+
 /* `app.close()` do Playwright espera o Electron sair e não tem prazo: preso no
    fechamento, o teste trava com ele. Aqui o fechamento tem prazo; estourou,
    o app morre com SIGKILL (árvore e grupo) e o teste reprova dizendo isso — app
-   que não fecha é defeito, não detalhe de teste. */
-export async function closeApp(app,{timeout=15000}={}){
+   que não fecha é defeito, não detalhe de teste. Depois, o ledger do runtime
+   é conferido: serve vivo ali também morre (#105). */
+export async function closeApp(app,{timeout=15000,ledgerDir=''}={}){
  if(!app)return;
+ const runtime=ledgerDir||app.mesaRuntime||'';
  /* App que o próprio teste já fechou: o Playwright descartou o objeto e
-    `process()` lança. Nada a fechar. */
+    `process()` lança. Ainda assim o ledger é limpo. */
  let pid;
- try{pid=app.process()?.pid;}catch{return;}
+ try{pid=app.process()?.pid;}catch{await killLedgerServer(runtime);return;}
  const closed=app.close().then(()=>true,()=>true);
  let timer;
  const late=new Promise(resolve=>{timer=setTimeout(()=>resolve(false),timeout);});
  const ok=await Promise.race([closed,late]);
  clearTimeout(timer);
+ await killLedgerServer(runtime);
  if(ok||!pid)return;
  killTree(pid);
  if(!WIN){try{process.kill(-pid,'SIGKILL');}catch{/* grupo já foi */}}

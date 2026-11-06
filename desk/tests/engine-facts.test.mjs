@@ -2,7 +2,7 @@
    binário achado, esforço e capacidade padrão, e a ordem do catálogo. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {knownEngine, sessionEngine, isNativeEngine, engineReady, otherEngineDetected, defaultEffort, defaultCapability} from '../src/engine-facts.mjs';
+import {knownEngine, sessionEngine, isNativeEngine, engineReady, otherEngineDetected, otherReadyVisibleEngine, readyVisibleEngines, defaultEffort, defaultCapability} from '../src/engine-facts.mjs';
 
 test('knownEngine: só os três motores conhecidos passam', () => {
   for (const engine of ['pi', 'claude', 'opencode']) assert.equal(knownEngine(engine), engine);
@@ -22,13 +22,12 @@ test('isNativeEngine: true só para Claude e OpenCode', () => {
 });
 
 test('engineReady: cada motor olha o próprio binário', () => {
-  assert.equal(engineReady({engine: 'pi', detectedPi: '/bin/pi'}), true);
+  assert.equal(engineReady({engine: 'pi', detectedPi: '/bin/pi'}), false, 'Pi antigo não tem motor para ligar');
   assert.equal(engineReady({engine: 'claude', detectedClaude: '/bin/claude'}), true);
   assert.equal(engineReady({engine: 'opencode', detectedOpenCode: '/bin/opencode'}), true);
 });
 
 test('engineReady: binário de outro motor achado não conta', () => {
-  assert.equal(engineReady({engine: 'pi', detectedClaude: '/bin/claude', detectedOpenCode: '/bin/opencode'}), false);
   assert.equal(engineReady({engine: 'claude', detectedPi: '/bin/pi', detectedOpenCode: '/bin/opencode'}), false);
   assert.equal(engineReady({engine: 'opencode', detectedPi: '/bin/pi', detectedClaude: '/bin/claude'}), false);
 });
@@ -55,5 +54,14 @@ test('otherEngineDetected: só troca de sessão quando há outro motor instalado
   assert.equal(otherEngineDetected({engine: 'claude'}), false, 'nenhum motor encontrado: segue e mostra o erro');
   assert.equal(otherEngineDetected({engine: 'claude', detectedClaude: '/bin/claude'}), false, 'o próprio motor não conta');
   assert.equal(otherEngineDetected({engine: 'claude', detectedOpenCode: '/bin/opencode'}), true);
-  assert.equal(otherEngineDetected({engine: 'pi', detectedPi: '/bin/pi', detectedClaude: '/bin/claude'}), true);
+});
+
+test('readyVisibleEngines/otherReadyVisibleEngine recebem a lista visível por parâmetro (#87)', () => {
+  const both = {detectedClaude: '/bin/claude', detectedOpenCode: '/bin/opencode'};
+  assert.deepEqual(readyVisibleEngines(both, ['claude', 'opencode']), ['claude', 'opencode']);
+  assert.deepEqual(readyVisibleEngines(both, ['opencode']), ['opencode'], 'produção: só o visível conta');
+  assert.equal(otherReadyVisibleEngine({engine: 'opencode', ...both}, ['claude', 'opencode']), 'claude');
+  assert.equal(otherReadyVisibleEngine({engine: 'claude', ...both}, ['claude', 'opencode']), 'opencode');
+  assert.equal(otherReadyVisibleEngine({engine: 'opencode', ...both}, ['opencode']), '', 'sem outro visível não há queda');
+  assert.equal(otherReadyVisibleEngine({engine: 'opencode', detectedClaude: '', detectedOpenCode: '/bin/opencode'}, ['claude', 'opencode']), '', 'motor sem binário não entra');
 });

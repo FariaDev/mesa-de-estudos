@@ -116,7 +116,7 @@ const CSS = `
 .study-search-reset{font-size:var(--fs-sm);padding:4px 8px}
 .study-search-reset[hidden],.study-search-filter-summary p[hidden]{display:none}
 .study-search-status{margin:8px 0 0;min-height:20px;color:var(--muted)}
-.study-search-status.error{color:var(--danger,#b42318)}
+.study-search-status.error{color:var(--danger-text,#b42318)}
 .study-search-empty{color:var(--muted);padding:14px 2px}
 @media(max-width:480px){.study-search-filters{grid-template-columns:minmax(0,1fr)}}
 `;

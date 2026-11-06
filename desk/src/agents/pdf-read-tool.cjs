@@ -8,7 +8,7 @@ const PDF_READ_TOOL_NAME = 'mcp__mesa__ler_pdf';
 const {toolErrorText} = require('./tool-error-text.cjs');
 
 /**
- * @param {(raw: {path?: unknown, first?: unknown, last?: unknown}) => Promise<object>} readPdf
+ * @param {(raw: {path?: unknown, first?: unknown, last?: unknown, imagem?: unknown, girar?: unknown, recorte?: unknown, ampliar?: unknown}) => Promise<object>} readPdf
  * @param {{language?: string}} [options]
  */
 async function createPdfReadTool(readPdf, {language} = {}) {
@@ -21,7 +21,7 @@ async function createPdfReadTool(readPdf, {language} = {}) {
   const session = pdf.createPdfSession();
   return tool('ler_pdf', pdf.PDF_DESCRIPTION, fields.zodShape(z, pdf.PDF_FIELDS), async (args) => {
     try {
-      const result = await readPdf({path: args.caminho, first: args.pagina, last: args.ate, imagem: args.imagem});
+      const result = await readPdf({path: args.caminho, first: args.pagina, last: args.ate, imagem: args.imagem, girar: args.girar, recorte: args.recorte, ampliar: args.ampliar});
       return {content: session.content(result)};
     } catch (error) {
       return {isError: true, content: [{type: 'text', text: toolErrorText(error, language, 'err.pdf.readFailed')}]};

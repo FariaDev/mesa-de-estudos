@@ -109,13 +109,21 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
  padding:0;border:0;border-radius:0;background:var(--surface);color:var(--muted);gap:0;box-shadow:none;
 }
 #support-restore:hover{background:var(--hover);color:var(--fg)}
-/* Painel ativo (#42): uma regra só para os leitores, a coluna do tutor e o
-   chat lateral. O painel onde está o foco (alvo das setas, da busca, do campo
-   de mensagem) ganha o contorno de foco por dentro — nenhum deles tem borda
-   própria para trocar de cor. O contorno não pega clique e fica abaixo dos
-   menus que abrem do painel. */
+/* Painel ativo (#42): uma regra só para a coluna do tutor e o chat lateral.
+   O painel onde está o foco (alvo das setas, do campo de mensagem) ganha o
+   contorno de foco por dentro — nenhum deles tem borda própria para trocar
+   de cor. O contorno não pega clique e fica abaixo dos menus que abrem do
+   painel. No leitor o anel fica só na barra de ferramentas (auditoria de
+   UI/UX, rodada 1, C1): o contorno no painel inteiro pesava. */
 #sidebar{position:relative}
-:is(.pdf-panel,#sidebar,#sidechat):focus-within::after{content:"";position:absolute;inset:0;z-index:7;border:1px solid var(--ring);pointer-events:none}
+:is(#sidebar,#sidechat):focus-within::after{content:"";position:absolute;inset:0;z-index:7;border:1px solid var(--ring);pointer-events:none}
+.pdf-panel>.pdf-title{position:relative}
+.pdf-panel>.pdf-title:focus-within::after{content:"";position:absolute;inset:0;z-index:7;border:1px solid var(--ring);pointer-events:none}
+/* Foco de teclado no próprio painel (auditoria de UI/UX, rodada 2, D3): o
+   painel é `tabindex="0"` e estava sem indicador (WCAG 2.4.7). O contorno
+   discreto de 1px só aparece no `:focus-visible` — Tab até o painel mostra,
+   clique com o mouse não. */
+.pdf-panel:focus-visible::after{content:"";position:absolute;inset:0;z-index:7;border:1px solid var(--ring);pointer-events:none}
 /* Uma linha só, de 40px: rótulo, material, voltar, pager, busca e Mais opções.
    Nada quebra nem passa da borda — o rótulo e o material encolhem com
    reticências; o resto tem tamanho fixo. O último ícone (Mais opções) termina
@@ -152,12 +160,29 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
  /* sem o rótulo, o material abre a barra: a margem negativa de cima não vale */
  .pdf-panel>.pdf-title strong+.pdf-select{margin-left:0}
 }
+/* Leitor vazio (auditoria rodada 4, F2; revisão rodada 5): sem material não há
+   página à vista e o rótulo é o único texto que diz qual leitor é qual — fica
+   visível com a largura natural em TODA largura de barra (antes a regra valia
+   só até `@container 290px` e acima dela o teto de 28–34% cortava "Formulário
+   & apoio"). Sem teto de largura para o rótulo e sem mínimo nem recuo para o
+   "Nenhum material" (só o nome acessível, sem sair do DOM): o seletor cede
+   toda a largura que o rótulo pedir. */
+.pdf-panel[data-no-material]>.pdf-title strong{display:block;flex:none;max-width:none}
+.pdf-panel[data-no-material]>.pdf-title .pdf-select{flex:1 1 0;min-width:0;margin-left:0;margin-right:0;padding-left:0;padding-right:0}
 /* Leitor sem material (#27 B3): a barra é rótulo + "Nenhum material" + Mais
    opções. O seletor segue no DOM (nome acessível, valor), mas se lê como texto. */
 .pdf-panel[data-no-material]>.pdf-title :is(.back,.pager,.page-number,.page-total,.find-toggle){display:none}
 .pdf-panel[data-no-material]>.pdf-title .pdf-select{
  border-color:transparent;background:transparent;color:var(--faint);appearance:none;-webkit-appearance:none;
  pointer-events:none;padding:0 var(--space-3);
+}
+/* Status que não cabe (P1 da rodada 6, medido em `reader-status-fit.mjs`): some
+   da vista com clip visual, sem sair do DOM nem perder o nome acessível — o
+   rótulo (largura natural) e o Mais opções continuam à vista. `absolute` tira o
+   seletor do flex sem mexer nos vizinhos. */
+.pdf-panel[data-no-material][data-status-hidden]>.pdf-title .pdf-select{
+ position:absolute;transform:scale(0);transform-origin:left center;
+ overflow:hidden;clip-path:inset(50%);white-space:nowrap;
 }
 .pdf-select{
  margin:0;border:1px solid var(--border);
@@ -171,9 +196,10 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
 .pdf-title .page-number{height:24px}
 .pdf-title .page-number[hidden]{display:none}
 /* Pager "1 / 3": texto clicável que vira campo de página (o `OpenPager` do
-   host troca um pelo outro). Sem caixa em repouso; o alvo é o da barra. */
+   host troca um pelo outro). Sem caixa em repouso; o alvo é o da barra.
+   Largura mínima de 24px (auditoria rodada 4, F3): "1 / 3" media 18px. */
 .pdf-title .pager{
- display:inline-flex;align-items:center;gap:3px;height:24px;padding:0 var(--space-1);
+ display:inline-flex;align-items:center;justify-content:center;gap:3px;height:24px;min-width:24px;padding:0 var(--space-1);
  border:1px solid transparent;border-radius:var(--r-2xs);background:transparent;
  color:var(--fg);font-size:var(--fs-sm);font-variant-numeric:tabular-nums;line-height:1;
 }
@@ -200,13 +226,18 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
 .more-item:hover{background:var(--hover)}
 .more-item:active{background:var(--active)}
 .more-item[aria-pressed="true"],.more-item[aria-expanded="true"]{background:var(--selected);color:var(--fg-strong)}
-/* Página escura (#42) é liga/desliga: o estado aparece escrito à direita. */
-.more-item.invert::after{content:'Desligada';margin-left:auto;padding-left:var(--space-3);font-size:var(--fs-xs);color:var(--faint)}
-.more-item.invert[aria-pressed="true"]::after{content:'Ligada';color:var(--accent-text)}
+/* Página escura (#42) é liga/desliga: o estado aparece escrito à direita. O texto
+   vem do catálogo (`pdf.view.invertOff/invertOn`, via `data-state` que o
+   `paintInvertState` do pdf.mjs mantém) para valer nos dois idiomas. */
+.more-item.invert::after{content:attr(data-state);margin-left:auto;padding-left:var(--space-3);font-size:var(--fs-xs);color:var(--faint)}
+.more-item.invert[aria-pressed="true"]::after{color:var(--accent-text)}
 .more-zoom{display:flex;align-items:center;justify-content:space-between;height:var(--ctl);padding:0 var(--space-1) 0 var(--space-2);font-size:var(--fs-sm);color:var(--fg)}
 .more-zoom-ctl{display:inline-flex;align-items:center}
 .more-zoom-fit{
- height:22px;padding:0 var(--space-2);border-color:transparent;background:transparent;box-shadow:none;
+ /* Mesma altura dos vizinhos do menu (auditoria rodada 4, F6): 28px como os
+    itens e os botões de zoom — o tipo menor (12px, discreto) segue no texto,
+    não na altura. Cobre o mínimo de 24px da F3 com folga. */
+ height:var(--ctl);padding:0 var(--space-2);border-color:transparent;background:transparent;box-shadow:none;
  color:var(--muted);font-size:var(--fs-xs);
 }
 .more-zoom-fit:hover{background:var(--hover);color:var(--fg)}
@@ -225,10 +256,12 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
     11px para o lado e surgia rolagem horizontal. */
  scrollbar-gutter:stable;
 }
-.pdf-viewport.inverted .pdf-page canvas,.pdf-viewport.inverted .pdf-page img{filter:invert(1) hue-rotate(180deg)}
-/* Página escura (#42): o papel atrás do desenho também vira escuro — sem
-   filete branco entre a página e a próxima. */
-.pdf-viewport.inverted .pdf-page{background:#000}
+/* Página escura (#42, tom em #107): o filtro e o papel vêm dos tokens, para a
+   escolha Inverter/Suave valer na hora. Só o desenho (canvas/img) é filtrado:
+   a camada de texto, a seleção e a busca ficam alinhadas e sem filtro, e o
+   recorte (`toBlob`) e a captura leem o canvas cru. */
+.pdf-viewport.inverted .pdf-page canvas,.pdf-viewport.inverted .pdf-page img{filter:var(--pdf-dark-filter)}
+.pdf-viewport.inverted .pdf-page{background:var(--pdf-dark-paper)}
 /* A página vai de uma borda à outra do leitor (o `render` do pdf.mjs mede a
    largura útil do palco); entre uma página e outra sobra uma faixa do palco. */
 .pdf-document{display:flex;flex-direction:column;align-items:center;gap:var(--space-2);min-width:max-content}
@@ -239,7 +272,8 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
 /* Cor fixa: o template do material redefine --muted dentro de .pdf-page. */
 .pdf-page::before{content:attr(data-page);position:absolute;right:var(--space-2);bottom:var(--space-1);font-size:var(--fs-2xs);color:#525252;opacity:.65}
 .pdf-page:not([data-rendered]){overflow:hidden}
-.pdf-page:not([data-rendered])::after{
+/* Só a página sendo desenhada brilha: as à espera fora da vista animavam sem parar e gastavam CPU com a Mesa parada. */
+.pdf-page[data-rendering]:not([data-rendered])::after{
  content:"";position:absolute;inset:0;
  background:linear-gradient(100deg,transparent 30%,var(--border-strong) 50%,transparent 70%);
  transform:translateX(-100%);animation:pdf-shimmer var(--t-loop) var(--ease-move) infinite;
@@ -324,6 +358,19 @@ body.dense .pdf-nav-pop{padding:var(--space-2);gap:var(--space-2)}
 #divider:hover,#divider:focus-visible{background:var(--muted)}
 body.chat-collapsed main{grid-template-columns:minmax(0,1fr) 1px 260px}
 body.chat-collapsed #chat{display:none}
+/* Chat na tela inteira (#98): a área de referências sai de vista (display:none,
+   sem recriar painéis) e a coluna do tutor fica sozinha, com o texto numa coluna
+   central (o padrão de 720px mora em `--reading-column`, no `style.css`; #106
+   permite estreitar ou alargar a leitura). A calculadora acompanha a mesma
+   coluna no pé. O modo é global e só da execução aberta: nada aqui depende da
+   aba. */
+body.chat-full main{grid-template-columns:minmax(0,1fr)}
+body.chat-full #references,body.chat-full #divider{display:none}
+body.chat-full #chat,body.chat-full #calc-divider,body.chat-full #calculator{
+ width:100%;max-width:calc(var(--reading-column) + 2 * var(--space-5));margin-inline:auto;
+}
+/* Só há uma coluna: o contorno de "painel ativo" desenharia a janela inteira. */
+body.chat-full #sidebar:focus-within::after{display:none}
 /* Com o tutor recolhido sobra a coluna da calculadora: o botão de reabrir
    mora no pé dela, onde o tutor volta, sem cobrir barra nenhuma. */
 #chat-restore{

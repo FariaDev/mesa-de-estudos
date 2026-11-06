@@ -16,7 +16,7 @@ await withArtifacts('claude-offline-queue',async ctx=>{
  fs.mkdirSync(fakeHome);
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Synthetic',name:'Synthetic',path:folder}]});
  writeDeskJson(runtime,{courseId:'Synthetic',session:file,courseStates:{Synthetic:{session:file,sessions:[{path:file}]}}});
- ctx.app=await launchDesk({runtime,pi:false,env:{HOME:fakeHome,USERPROFILE:fakeHome,PATH:noPiPath,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_CLAUDE:path.join(runtime,'absent-claude'),LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-gated-fake.mjs'),FAKE_CLAUDE_CONNECT_RELEASE:gate,FAKE_CLAUDE_LOG:log}});
+ ctx.app=await launchDesk({runtime,opencode:false,env:{HOME:fakeHome,USERPROFILE:fakeHome,PATH:noPiPath,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_CLAUDE:path.join(runtime,'absent-claude'),LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-gated-fake.mjs'),FAKE_CLAUDE_CONNECT_RELEASE:gate,FAKE_CLAUDE_LOG:log}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.waitForSelector('#tutor-state:not([hidden]) #connect');
  assert.equal(await page.locator('#status-dot.online').count(),0,'conversa inicia com tutor desligado');

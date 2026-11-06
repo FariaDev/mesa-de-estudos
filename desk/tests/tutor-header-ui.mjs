@@ -6,34 +6,48 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
- withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,PLOT_PNG,
+ withArtifacts,newRuntime,seedCourse,seedNativeSession,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,PLOT_PNG,
  reviewShot,screenshotDirectory,setTheme,freezeMotion,toastWait,sendEnabled,
  sessionTitle,currentSession,currentEngine,openSessionList,closeSessionList,sessionRows,openSessionById,
- openSessionLibrary,openNewSessionMenu,newSession,openTutorMore,tutorMore,visibleChars,resizeWindow
+ openSessionLibrary,openNewSessionMenu,newSession,openTutorMore,tutorMore,visibleChars,resizeWindow,DESK
 } from './helpers.mjs';
 import {layoutStable,nextFrames} from './waits.mjs';
 
 const out=screenshotDirectory('tutor-header');
+const CLAUDE_FIXTURE=path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs');
+
+/* Claude pronto, como no switch-engine-ui: sem o SDK simulado o Claude fica
+   visível mas não pronto, e a passagem com contexto (#87) recusa o destino. */
+function claudeTrap(runtime){
+ const file=path.join(runtime,'claude-fake.sh');
+ fs.writeFileSync(file,['#!/bin/sh',
+  'case "$1" in',
+  '  --version) echo "2.1.296 (Claude Code)";;',
+  '  auth) echo \'{"loggedIn":true,"authMethod":"oauth","apiProvider":"firstParty"}\';;',
+  '  *) exit 1;;',
+  'esac',''].join('\n'));
+ fs.chmodSync(file,0o755);
+ return file;
+}
 const size=(app,page,width,height)=>resizeWindow(app,page,width,height);
 const rect=(page,selector)=>page.evaluate(sel=>{const el=document.querySelector(sel);if(!el)return null;const b=el.getBoundingClientRect();return {top:b.top,bottom:b.bottom,left:b.left,right:b.right,width:b.width,height:b.height};},selector);
 const inside=(box,width,height,note)=>{
  assert.ok(box,`${note}: medido`);
  assert.ok(box.left>=-0.5&&box.top>=-0.5&&box.right<=width+0.5&&box.bottom<=height+0.5,`${note}: dentro da janela ${width}×${height} (${JSON.stringify(box)})`);
 };
-const seedJsonl=(file,text)=>fs.writeFileSync(file,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text}]}})+'\n');
 
 await withArtifacts('tutor-header',async ctx=>{
  const runtime=ctx.runtime=newRuntime('tutorhead');
  const course=seedCourse(runtime,'calc');
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites e derivadas'));
  const older=Date.now()-3*86400000,recent=Date.now()-86400000;
- const sessionA=path.join(runtime,`pi-${older}.jsonl`),sessionB=path.join(runtime,`pi-${recent}.jsonl`);
- seedJsonl(sessionA,'Quero estudar limites fundamentais e as suas propriedades algébricas com calma');
- seedJsonl(sessionB,'Uma dúvida sobre derivadas');
+ const sessionA=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'Quero estudar limites fundamentais e as suas propriedades algébricas com calma'}]}],{courseId:'calc',started:older,preview:'Quero estudar limites fundamentais e as suas propriedades algébricas com calma'});
+ const sessionB=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'Uma dúvida sobre derivadas'}]}],{courseId:'calc',started:recent,preview:'Uma dúvida sobre derivadas'});
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',session:sessionA,courseStates:{calc:{session:sessionA,sessions:[{path:sessionA,started:older},{path:sessionB,started:recent}],pdfs:[{path:pdf,page:1}],study:{title:'Limites',xopp:''}}}});
- // O fake-pi só devolve `eco: …` no modo fila; segura o turno por pouco tempo.
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_QUEUE_LOG:path.join(runtime,'queue.log'),FAKE_PI_QUEUE_HOLD_MS:'150'}});
+ // O fake do OpenCode segura o turno por pouco tempo no modo fila.
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_QUEUE_LOG:path.join(runtime,'queue.log'),FAKE_OPENCODE_QUEUE_HOLD_MS:'150',
+  LEARNING_DESK_CLAUDE:claudeTrap(runtime),LEARNING_DESK_CLAUDE_SDK_FACTORY:CLAUDE_FIXTURE}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await size(app,page,1440,900);
@@ -56,7 +70,7 @@ await withArtifacts('tutor-header',async ctx=>{
  assert.ok(parts['#session-title'].left<parts['#sidechat-toggle'].left&&parts['#sidechat-toggle'].left<parts['#new-session'].left&&parts['#new-session'].left<parts['#chat-more'].left,'título, chat lateral, sessão nova e mais opções, da esquerda para a direita');
  for(const [id,box] of Object.entries(parts))assert.ok(box.top>=head.top-0.5&&box.bottom<=head.bottom+0.5,`${id} fica na linha do cabeçalho`);
  assert.match(await sessionTitle(page),/limites fundamentais/i,'o título é o da sessão atual');
- assert.doesNotMatch(await sessionTitle(page),/Claude Code|Pi/,'o título não leva o nome do motor');
+ assert.doesNotMatch(await sessionTitle(page),/Claude Code|Pi|OpenCode/,'o título não leva o nome do motor');
  assert.equal(await currentSession(page),sessionA,'o título guarda a sessão aberta');
  /* O cabeçalho mostra o começo do título, nunca a data (#23): a data fica na lista. */
  const DATE=/\d{2}\/\d{2},\s\d{2}:\d{2}/;
@@ -129,12 +143,12 @@ await withArtifacts('tutor-header',async ctx=>{
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>!document.querySelector('#chat-library-dialog').open);
 
- /* ---------- sessão nova: três itens (Pi, Claude, OpenCode da #57); Esc fecha só o menu ---------- */
- await openNewSessionMenu(page);
- assert.deepEqual(await page.locator('#new-session-pop button').allTextContents().then(list=>list.map(text=>text.trim())),['Padrão','Claude (experimental)','OpenCode']);
- assert.equal((await page.locator('#new-session-pop .conv-head strong').textContent()).trim(),'Nova sessão com…','o menu aberto mostra com o que a sessão nasce');
- assert.equal(await page.locator('#new-session-pop .conv-head').getAttribute('aria-hidden'),'true','o cabeçalho repete o nome do grupo, então é decorativo');
- assert.equal(await page.locator('#new-session-pop').getAttribute('aria-label'),'Nova sessão com…','o menu diz com qual motor a sessão nasce');
+  /* ---------- sessão nova: motores prontos, atual primeiro (#87); Esc fecha só o menu ---------- */
+  await openNewSessionMenu(page);
+  assert.deepEqual(await page.locator('#new-session-pop button').allTextContents().then(list=>list.map(text=>text.trim())),['OpenCode (atual)','Claude (experimental)']);
+  assert.equal((await page.locator('#new-session-pop .conv-head strong').textContent()).trim(),'Nova sessão','o menu aberto mostra que nasce uma sessão nova');
+  assert.equal(await page.locator('#new-session-pop .conv-head').getAttribute('aria-hidden'),'true','o cabeçalho repete o nome do grupo, então é decorativo');
+  assert.equal(await page.locator('#new-session-pop').getAttribute('aria-label'),'Nova sessão','o menu diz que nasce uma sessão nova');
  assert.equal(await page.locator('#new-session').getAttribute('aria-expanded'),'true');
  await reviewShot(page,out,'sessao-nova-1440.png');
  await page.keyboard.press('Escape');
@@ -144,7 +158,7 @@ await withArtifacts('tutor-header',async ctx=>{
  await newSession(page);
  await page.waitForFunction(id=>document.querySelector('#session-title').dataset.session!==id,before,{timeout:30000});
  await statusOnline(page,{timeout:60000});
- assert.equal(await currentEngine(page),'pi','a sessão nova nasce no motor padrão');
+ assert.equal(await currentEngine(page),'opencode','a sessão nova nasce no motor padrão');
  assert.equal((await sessionRows(page)).length,3,'a sessão nova entra na lista');
  await closeSessionList(page);
  assert.equal(await page.locator('#prompt').inputValue(),'','a sessão nova começa sem rascunho');
@@ -175,12 +189,9 @@ await withArtifacts('tutor-header',async ctx=>{
  await page.locator('#more-context').click();
  await page.waitForFunction(()=>!document.querySelector('#more-context-menu').hidden);
  assert.equal(await page.locator('#more-context-slot #ctx-meter').count(),1,'o medidor vivo mora no encaixe do submenu');
- const auto=page.locator('#more-auto-compact');
- assert.equal(await auto.isDisabled(),false,'a compactação automática está disponível com o tutor ligado');
- const checked=await auto.getAttribute('aria-checked');
- await auto.click();
- await page.waitForFunction(was=>document.querySelector('#more-auto-compact').getAttribute('aria-checked')!==was,checked,{timeout:10000});
- assert.equal(await page.locator('#auto-compact').getAttribute('aria-pressed'),String(checked!=='true'),'o interruptor espelha o botão vivo da compactação');
+ /* O OpenCode compacta sozinho: o item automático sai; o manual continua. */
+ assert.equal(await page.locator('#more-auto-compact').isHidden(),true,'o OpenCode não expõe compactação automática');
+ assert.equal(await page.locator('#more-compact-now').isHidden(),false,'o Resumir agora continua disponível');
  await page.keyboard.press('Escape');
  await page.keyboard.press('Escape');
 
@@ -233,7 +244,7 @@ await withArtifacts('tutor-header',async ctx=>{
  await openSessionById(page,sessionA);
  await page.waitForFunction(id=>document.querySelector('#session-title').dataset.session===id,sessionA,{timeout:30000});
  await statusOnline(page,{timeout:60000});
- assert.equal(await currentEngine(page),'pi','a sessão atual nunca trocou de motor');
+ assert.equal(await currentEngine(page),'opencode','a sessão atual nunca trocou de motor');
 
  /* ---------- janela baixa: nada estoura e o cabeçalho fica à vista ---------- */
  for(const text of ['primeira pergunta','segunda pergunta','terceira pergunta','quarta pergunta']){

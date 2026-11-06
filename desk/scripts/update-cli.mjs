@@ -18,7 +18,6 @@
    e a confere no zip antes de aplicar.
 
    Uso: npm run update                  (checa e aplica a versão nova)
-        npm run update -- --pi          (só o Pi local, em desk/.pi-local)
         npm run update -- --versao X.Y.Z (aplica uma versão específica — modo zip)
         npm run update -- --sem-reabrir  (não reabre a Mesa no fim) */
 import fs from 'node:fs';
@@ -33,7 +32,6 @@ const updater = require('../updater.cjs');
 const desk = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root = path.dirname(desk);
 const args = process.argv.slice(2);
-const piOnly = args.includes('--pi');
 const reopen = args.includes('--sem-reabrir') ? null
  : process.platform === 'darwin' && fs.existsSync(path.join(root, 'Mesa de Estudos.app')) && !fs.existsSync(path.join(root, '.git'))
   ? {cmd: 'open', args: [path.join(root, 'Mesa de Estudos.app')]}
@@ -74,15 +72,6 @@ process.exitCode = await main();
 updater.releaseLock(lock.file);
 
 async function main() {
- if (piOnly) {
-  if (versionArg) {
-   console.error('--versao não se aplica ao Pi: ele vai para a última do registry.');
-   return 1;
-  }
-  const result = await updater.applyPiOnly({deskDir: desk, runtime, reopen});
-  return result.ok ? 0 : 1;
- }
-
  let target = String(versionArg || '').replace(/^v/, '');
  if (!target) {
   const check = await updater.checkForUpdates({current: pkg.version, manual: true, cacheFile});
@@ -104,10 +93,15 @@ async function main() {
   return 1;
  } else {
   console.log(`Aplicando v${target} por pedido (--versao; instalado: v${pkg.version}).`);
+  /* --versao é autoridade explícita do próprio usuário: só aqui a trava
+     anti-rollback é ignorada (reinstalar ou voltar versão por pedido). Sem
+     --versao o alvo veio da checagem (só sugere quando é mais nova) e a trava
+     do applyUpdate continua valendo. */
+  console.log('Aviso: --versao ignora a trava anti-rollback — confira a versão antes de confirmar.');
  }
 
  const publicKey = updater.readUpdatePublicKey(path.join(desk, 'update-signing-key.pub'));
- const result = await updater.applyUpdate({mode, rootDir: root, deskDir: desk, runtime, announcedVersion: target, sourceInfo: source, reopen, cacheFile, publicKey});
+ const result = await updater.applyUpdate({mode, rootDir: root, deskDir: desk, runtime, announcedVersion: target, sourceInfo: source, reopen, cacheFile, publicKey, allowOlder: Boolean(versionArg)});
  if (!result.ok) {
   console.error(`Atualização falhou (${result.reason}) — rollback aplicado; motivo em ${path.join(runtime, 'desk.log')}`);
   if (result.incomplete) console.error(`Atenção: recuperação incompleta — backup preservado em ${result.backup}`);

@@ -203,3 +203,19 @@ def holdAfterAnswer(busy: Bool, permissionPending: Bool, uncertain: Bool, cancel
       False{}
     case False{}:
       holdAfterAnswer.free(permissionPending, uncertain, cancelled)
+
+# Envio direto com a fila segurada: o `release` sai ANTES do `send` para o fim
+# de um turno rápido já encontrar a fila livre. Se o host não confirma o aceite,
+# a fila volta ao estado segurado — senão ficaria com itens, `held=false` e sem
+# "Enviar agora" na faixa. Fila que não estava segurada nunca volta a segurar,
+# mesmo com recusa (auditoria de máquinas de estado, fila #1).
+def reholdAfterSend(wasHeld: Bool, accepted: Bool) -> Bool:
+  match wasHeld:
+    case False{}:
+      False{}
+    case True{}:
+      match accepted:
+        case True{}:
+          False{}
+        case False{}:
+          True{}

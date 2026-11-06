@@ -1,14 +1,16 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import {tempDir as trackedTempDir} from './temp-dir.mjs';
 
 /* Fixtures sintéticas para os testes de backup/compartilhamento (nada de
    material real, nada de credencial de verdade, nada de sessão do usuário). */
 
 export const PDF_BYTES = Buffer.from('%PDF-1.4\n1 0 obj\n<</Type/Catalog>>\nendobj\ntrailer\n<</Root 1 0 R>>\n%%EOF\n');
 
+/* Delegado ao helper de remoção garantida (2026-11-05): o `cleanup` manual
+   só rodava no caminho feliz e os `mesa-rt-*`/`mesa-agente-*` enchiam o /tmp. */
 export function tempDir(tag = 'mesa-backup') {
-  return fs.mkdtempSync(path.join(os.tmpdir(), `${tag}-`));
+  return trackedTempDir(tag);
 }
 
 export function write(base, rel, data) {

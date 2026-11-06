@@ -8,18 +8,17 @@
  *   node scripts/prompts-leitura.mjs --stdout         # imprime em vez de gravar
  *
  * Monta tudo com o mesmo código do app (`desk-prompts.cjs`, as ferramentas do
- * Claude, as extensões do Pi pelo SDK instalado), sem modelo, login nem rede,
- * e conta com a régua de `measure-prompts.mjs`. O "antes" sai do git: as
- * pastas `desk/src` e `desk/templates` do commit vão para uma pasta temporária
- * e passam pelo mesmo coletor. Nada vem do perfil do usuário (`~/.pi`): o Pi
- * roda numa pasta temporária, sem extensões nem skills dele. */
+ * Claude e do OpenCode), sem modelo, login nem rede, e conta com a régua de
+ * `measure-prompts.mjs`. O "antes" sai do git: as pastas `desk/src` e
+ * `desk/templates` do commit vão para uma pasta temporária e passam pelo mesmo
+ * coletor. */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
-import {estimateTokens, claudeTools, piRequest, templateProfile} from './measure-prompts.mjs';
+import {estimateTokens, claudeTools, templateProfile} from './measure-prompts.mjs';
 
 const desk = path.resolve(import.meta.dirname, '..');
 const repoRoot = path.resolve(desk, '..');
@@ -39,7 +38,7 @@ export const OUTPUT = path.join(repoRoot, 'docs', 'reviews', 'prompts-leitura.md
  * Peças de texto puro: prompts de sistema dos dois motores e os templates.
  * @param {string} deskDir pasta do desk (a atual ou a extraída do git)
  * @returns {PromptPiece[]}
- * @example systemPieces(desk).map((piece) => piece.id) // ['pi-main', 'pi-side', ...]
+ * @example systemPieces(desk).map((piece) => piece.id) // ['claude-main', 'claude-side', ...]
  */
 export function systemPieces(deskDir) {
   const prompts = require(path.join(deskDir, 'src', 'agents', 'desk-prompts.cjs'));
@@ -48,13 +47,11 @@ export function systemPieces(deskDir) {
      baseline não a tem (a base antiga fixava o português). */
   const languageOptions = [['follow', 'Acompanhar minhas mensagens (padrão)'], ['pt-BR', 'Português'], ['en', 'English']];
   const languagePieces = prompts.TUTOR_LANGUAGE_LINES
-    ? languageOptions.map(([value, label]) => ({id: `tutor-language-${value}`, group: 'Idioma do tutor', title: `Idioma do tutor — ${label}`, note: value === 'follow' ? 'A frase entra na base comum, igual para o Pi e o Claude, em toda sessão. Vale na próxima conexão com o tutor.' : undefined, text: prompts.TUTOR_LANGUAGE_LINES[value]}))
+    ? languageOptions.map(([value, label]) => ({id: `tutor-language-${value}`, group: 'Idioma do tutor', title: `Idioma do tutor — ${label}`, note: value === 'follow' ? 'A frase entra na base comum, igual para o Claude e o OpenCode, em toda sessão. Vale na próxima conexão com o tutor.' : undefined, text: prompts.TUTOR_LANGUAGE_LINES[value]}))
     : [];
   const profileNote = 'Numa matéria, o TUTOR.md e o LEARNER.md vêm logo depois (os da matéria, do vault ou estes templates); na aba Livre, nada.';
   return [
-    {id: 'pi-main', group: 'Prompts de sistema', title: 'Pi — sessão principal', note: 'Anexado ao prompt do próprio Pi com `--append-system-prompt`. O TUTOR.md e o LEARNER.md chegam pelo overlay do usuário, fora deste texto. Os textos de sistema mostram o idioma do tutor no padrão (Acompanhar minhas mensagens); as outras duas opções trocam só a frase de idioma, mostrada abaixo.', text: prompts.piPrompt({materialTools: true})},
-    {id: 'pi-side', group: 'Prompts de sistema', title: 'Pi — chat lateral', note: 'Mesmo mecanismo; o chat lateral não tem as ferramentas de PDF e de quadro.', text: prompts.piPrompt()},
-    {id: 'claude-main', group: 'Prompts de sistema', title: 'Claude — sessão principal (matéria e aba Livre)', note: `Substitui o prompt do Claude Code. ${profileNote} Uma sessão Pi aberta no Claude leva ainda a transcrição importada, no fim.`, text: prompts.claudePrompt({tools: true})},
+    {id: 'claude-main', group: 'Prompts de sistema', title: 'Claude — sessão principal (matéria e aba Livre)', note: `Substitui o prompt do Claude Code. ${profileNote} Uma sessão antiga importada leva ainda a transcrição, no fim.`, text: prompts.claudePrompt({tools: true})},
     {id: 'claude-side', group: 'Prompts de sistema', title: 'Claude — chat lateral', note: profileNote, text: prompts.claudePrompt()},
     ...languagePieces,
     {id: 'tutor', group: 'Perfil de estudo (templates)', title: 'templates/TUTOR.md', note: 'O que uma matéria sem TUTOR.md próprio recebe. Quem já copiou o seu não é afetado.', text: tutor.text},
@@ -73,22 +70,15 @@ function toolPiece(engine, tool) {
 }
 
 /**
- * Ferramentas da Mesa nos dois motores. Sem o Pi instalado, só as do Claude.
+ * Ferramentas da Mesa nos motores.
  * @param {string} deskDir
- * @param {{piRequest?: typeof piRequest, claudeTools?: typeof claudeTools}} [deps]
- * @returns {Promise<{pieces: PromptPiece[], piSections: Record<string, string>|null, piVersion: string|null}>}
+ * @param {{claudeTools?: typeof claudeTools}} [deps]
+ * @returns {Promise<{pieces: PromptPiece[]}>}
  */
 export async function toolPieces(deskDir, deps = {}) {
   const loadClaude = deps.claudeTools || claudeTools;
-  const loadPi = deps.piRequest || piRequest;
   const pieces = (await loadClaude(deskDir)).map((tool) => toolPiece('Claude', tool));
-  const pi = await loadPi({materialTools: true, deskDir});
-  if (!pi) return {pieces, piSections: null, piVersion: null};
-  for (const tool of pi.tools.filter((item) => item.name.startsWith('mesa_'))) pieces.push(toolPiece('Pi', tool));
-  /* As seções do próprio Pi entram só como número: o texto delas traz a pasta
-     de instalação do Pi e a pasta temporária. */
-  const {cwd, addendum, ...own} = pi.sections;
-  return {pieces, piSections: own, piVersion: pi.version};
+  return {pieces};
 }
 
 /**
@@ -149,15 +139,14 @@ const SKILLS = [
   'A Mesa não carrega skill própria em nenhum motor.',
   '',
   '- **Claude:** `settingSources: []` e `strictMcpConfig: true` (`src/agents/claude-adapter.cjs`): nenhuma skill, nenhum `CLAUDE.md` nem MCP herdado. As ferramentas são só as da Mesa acima (`mcp__mesa__ler_pdf`, `mcp__mesa__propor_revisao`, PDF do tutor, mostrar, prévia do quadro, GeoGebra, cálculo, lista e nota). Não há `AskUserQuestion`, `Read`, `Glob`, `Grep`, shell nem política de caminhos (#91/#92).',
-  '- **Pi:** o perfil fixado (`profiles.cjs`) liga as extensões da Mesa e as do perfil do usuário. Skills, as extensões do overlay (`quiz`…) e o TUTOR.md lido pelo `learning-session` vêm de `~/.pi` e do vault, que são pessoais e ficam fora deste arquivo.',
 ].join('\n');
 
 /**
  * Monta o Markdown de leitura.
- * @param {{after: PromptPiece[], before: PromptPiece[], ref: string, piSections: Record<string, string>|null, piVersion: string|null}} input
+ * @param {{after: PromptPiece[], before: PromptPiece[], ref: string}} input
  * @returns {string}
  */
-export function renderReading({after, before, ref, piSections, piVersion}) {
+export function renderReading({after, before, ref}) {
   const out = [
     '# Prompts da Mesa — texto para leitura',
     '',
@@ -168,9 +157,6 @@ export function renderReading({after, before, ref, piSections, piVersion}) {
     summaryTable(after, before),
     '',
   ];
-  if (piSections) {
-    out.push(`O Pi ${piVersion} soma o prompt dele antes do adendo da Mesa (preâmbulo, lista de ferramentas, regras e docs: ${number(Object.values(piSections).reduce((sum, text) => sum + estimateTokens(text), 0))} tokens) e as ferramentas \`read\`, \`bash\`, \`edit\` e \`write\`. Esse texto é do Pi, não muda com a Mesa e traz caminhos da instalação, por isso não está aqui.`, '');
-  } else out.push('O Pi não está instalado nesta máquina: as ferramentas dele ficaram de fora.', '');
   let group = '';
   for (const piece of after) {
     if (piece.group !== group) out.push(`## ${(group = piece.group)}`, '');
@@ -182,7 +168,7 @@ export function renderReading({after, before, ref, piSections, piVersion}) {
 
 async function collect(deskDir, deps) {
   const tools = await toolPieces(deskDir, deps);
-  return {pieces: [...systemPieces(deskDir), ...tools.pieces], piSections: tools.piSections, piVersion: tools.piVersion};
+  return {pieces: [...systemPieces(deskDir), ...tools.pieces]};
 }
 
 /**
@@ -195,7 +181,7 @@ export async function buildReading({ref = BASELINE_REF} = {}) {
   const baseline = extractBaseline(ref);
   try {
     const old = await collect(baseline.deskDir);
-    return renderReading({after: now.pieces, before: old.pieces, ref, piSections: now.piSections, piVersion: now.piVersion});
+    return renderReading({after: now.pieces, before: old.pieces, ref});
   } finally {
     baseline.cleanup();
   }

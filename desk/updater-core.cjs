@@ -11,7 +11,6 @@ const {logEntryLine}=require('./src/log-entry.mjs');
 
 const RELEASES_URL='https://api.github.com/repos/FariaDev/mesa-de-estudos/releases/latest';
 const TAGS_URL='https://api.github.com/repos/FariaDev/mesa-de-estudos/tags';
-const PI_REGISTRY_URL='https://registry.npmjs.org/@earendil-works/pi-coding-agent/latest';
 const CLAUDE_REGISTRY_URL='https://registry.npmjs.org/@anthropic-ai/claude-code/latest';
 const XOURNAL_RELEASES_URL='https://api.github.com/repos/xournalpp/xournalpp/releases/latest';
 const XOURNAL_SITE_URL='https://github.com/xournalpp/xournalpp/releases/latest';
@@ -90,4 +89,4 @@ function markToasted(file,version){
  return done.then(()=>primeira);
 }
 
-module.exports={RELEASES_URL,TAGS_URL,PI_REGISTRY_URL,CLAUDE_REGISTRY_URL,XOURNAL_RELEASES_URL,XOURNAL_SITE_URL,CHECK_TTL,CODE_DIRS,CODE_ROOT_DIRS,CODE_ROOT_FILES,SKIP_TREE,appendLog,semverParse,semverCompare,isNewer,readCache,cacheWrite,writeCache,fresh,markToasted};
+module.exports={RELEASES_URL,TAGS_URL,CLAUDE_REGISTRY_URL,XOURNAL_RELEASES_URL,XOURNAL_SITE_URL,CHECK_TTL,CODE_DIRS,CODE_ROOT_DIRS,CODE_ROOT_FILES,SKIP_TREE,appendLog,semverParse,semverCompare,isNewer,readCache,cacheWrite,writeCache,fresh,markToasted};

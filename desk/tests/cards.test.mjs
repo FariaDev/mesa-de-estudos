@@ -4,9 +4,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {tempDir} from './temp-dir.mjs';
 
 const require = createRequire(import.meta.url);
 const {normalizeQuiz, normalizeAsk, normalizeQuizAnswer, normalizeAskAnswer} = await import('../src/cards/input.mjs');
@@ -21,7 +21,7 @@ const {mesaTools} = await import('../src/extensions/mesa-mcp/tools.mjs');
 const {showCard} = await import('../src/cards/client.mjs');
 
 function runtime() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-cards-'));
+  return tempDir('mesa-cards');
 }
 
 function quiz(overrides = {}) {

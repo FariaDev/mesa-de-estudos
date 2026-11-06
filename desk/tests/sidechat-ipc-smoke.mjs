@@ -1,4 +1,4 @@
-/* Smoke de CONTRATO do chat lateral na ponte real (preload + main + fake Pi):
+/* Smoke de CONTRATO do chat lateral na ponte real (preload + main + fake OpenCode):
    abre, promove o turno, lê histórico, salva rascunho, atualiza contexto,
    cancela e lista conversas — tudo por `window.desk`. Não usa o índice de
    teste (`npm test` não pega este arquivo); rode com `node tests/sidechat-ipc-smoke.mjs`.
@@ -11,12 +11,13 @@ import {fileURLToPath} from 'node:url';
 import {_electron as electron} from '@playwright/test';
 import {testEnv} from './electron-env.mjs';
 import {ptText} from './pt-text.mjs';
-import {tinyPdf} from './helpers.mjs';
+import {FAKE_OPENCODE,seedNativeSession,tinyPdf} from './helpers.mjs';
 
 const DESK = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const FAKE_PI = path.join(DESK, 'tests', 'fake-pi.mjs');
 const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-sidechat-ipc-smoke-'));
-fs.chmodSync(FAKE_PI, 0o755);
+fs.chmodSync(FAKE_OPENCODE, 0o755);
+const mainSession = seedNativeSession(runtime, [], {courseId: 'Synthetic'});
+const promptLog = path.join(runtime, 'prompts.jsonl');
 /* Curso sintético autorizado: o PDF entra na biblioteca da matéria (é o
    `validPdf` do main que valida as refs do open/prompt) e a página é != 1
    para o check não passar por default. */
@@ -30,10 +31,12 @@ fs.writeFileSync(path.join(runtime, 'config.json'), JSON.stringify({
   courses: [{id: 'Synthetic', name: 'Matemática sintética', path: courseDir}],
 }));
 
+fs.writeFileSync(path.join(runtime, 'desk.json'), JSON.stringify({session: mainSession, courseId: 'Synthetic'}));
+const quizCall = {name: 'quiz', input: {question: 'Quanto é 2+2?', options: [{label: '5'}, {label: '3'}, {label: '4'}], correctAnswer: '4'}};
 const launch = () => electron.launch({
   args: [path.join(DESK, 'main.cjs')],
   cwd: DESK,
-  env: testEnv({LEARNING_DESK_RUNTIME: runtime, LEARNING_DESK_PI: FAKE_PI}),
+  env: testEnv({LEARNING_DESK_RUNTIME: runtime, LEARNING_DESK_OPENCODE: FAKE_OPENCODE, FAKE_OPENCODE_QUEUE_LOG: promptLog, FAKE_OPENCODE_MCP_CALLS: JSON.stringify([null, quizCall])}),
 });
 const app = await launch();
 let app2 = null;
@@ -55,7 +58,7 @@ try {
     window.desk.onSidechatEvent((payload) => window.__scEvents.push(payload));
   });
   const opened = await page.evaluate((ref) => window.desk.sidechatOpen({refs: [ref]}), {path: pdfPath, page: 3});
-  check('abre como Pi', opened, (value) => value.engine === 'pi' && /^sc-/.test(value.id));
+  check('abre como OpenCode', opened, (value) => value.engine === 'opencode' && /^sc-/.test(value.id));
   check('contexto escopado à conversa principal', opened.context, (value) => typeof value.mainSession === 'string' && Array.isArray(value.refs));
   check('open preserva a ref PDF validada (path, página != 1)', opened.context.refs,
     (value) => value.length === 1 && value[0].path === pdfPath && value[0].page === 3);
@@ -65,16 +68,14 @@ try {
   const prompt = await page.evaluate((id) => window.desk.sidechatPrompt({id, text: 'teorema'}), opened.id);
   check('prompt aceito sem esperar o turno, com streaming medido', prompt, (value) => value.sent === true && typeof value.streaming === 'boolean');
   await page.waitForFunction(() => window.__scEvents.some((payload) => payload.event.type === 'agent_settled'), undefined, {timeout: 20000});
-  const lateralSession = path.join(runtime, 'sidechats', `${opened.id}.jsonl`);
-  const sentPromptText = (() => {
-    try {
-      return fs.readFileSync(lateralSession, 'utf8').split('\n').filter(Boolean)
-        .flatMap((line) => { try { return (JSON.parse(line).message?.content || []).filter((part) => part?.type === 'text').map((part) => part.text || ''); } catch { return []; } })
-        .join('\n');
-    } catch { return ''; }
-  })();
-  check('prompt do fake Pi carrega a ref do snapshot como PDF#page=3', sentPromptText,
-    (value) => value.includes(`${pdfPath}#page=3`));
+  let sentPromptText = '';
+  for (let i = 0; i < 200 && !sentPromptText; i += 1) {
+    try { sentPromptText = fs.readFileSync(promptLog, 'utf8').split('\n').filter(Boolean).map((line) => String(JSON.parse(line).message || '')).join('\n'); } catch { /* log ainda vazio */ }
+    // espera fixa: o log do fake é escrito fora do processo; 50 ms é o intervalo entre leituras
+    if (!sentPromptText) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  check('prompt do fake OpenCode carrega a ref do snapshot (página 3)', sentPromptText,
+    (value) => value.includes(pdfPath) && /\(p\. 3\)/.test(value));
   const descriptor = JSON.parse(fs.readFileSync(path.join(runtime, 'sidechats', `${opened.id}.json`), 'utf8'));
   check('descritor persistiu a ref validada (path, página)', descriptor.context.refs,
     (value) => value.length === 1 && value[0].path === pdfPath && value[0].page === 3);
@@ -90,7 +91,7 @@ try {
   check('contexto atualizado', ctx, (value) => typeof value.context.at === 'number' && value.draft === 'rascunho lateral');
   const abort = await page.evaluate((id) => window.desk.sidechatAbort({id}), opened.id);
   check('abort responde pelo canal', abort, (value) => value.aborted === true || value.aborted === false);
-  await page.evaluate(() => window.desk.newSession('pi'));
+  await page.evaluate(() => window.desk.newSession('opencode'));
   const afterSwitch = await page.evaluate((id) => window.desk.sidechatRead({id}).then(() => 'sem-erro', (error) => error.message), opened.id);
   check('trocar de conversa encerra o escopo do chat antigo', afterSwitch, (value) => /não pertence/.test(ptText(String(value))));
   const reopened = await page.evaluate(() => window.desk.sidechatOpen({refs: []}));
@@ -100,7 +101,7 @@ try {
   await page.waitForFunction((id) => window.__scEvents.some((payload) => payload.id === id && payload.event.type === 'card' && payload.event.cardType === 'shown'), reopened.id, {timeout: 20000});
   const card = await page.evaluate((id) => window.__scEvents.filter((payload) => payload.id === id && payload.event.type === 'card' && payload.event.cardType === 'shown').at(-1).event.card, reopened.id);
   check('cartão do quiz chega ao lateral', card, (value) => value?.kind === 'quiz' && value.options.length === 3);
-  const answered = await page.evaluate(({id, cardId}) => window.desk.sidechatCardAnswer({id, cardId, answer: {selected: [2]}}), {id: reopened.id, cardId: card.id});
+  const answered = await page.evaluate(({id, cardId}) => window.desk.sidechatCardAnswer({id, cardId, answer: {selected: [3]}}), {id: reopened.id, cardId: card.id});
   check('resposta do cartão roteada ao canal', answered, (value) => value?.answered === true && value.correct === true);
   const concluded = await page.evaluate(({id, cardId}) => window.desk.sidechatCardConclude({id, cardId}), {id: reopened.id, cardId: card.id});
   check('resultado do cartão enviado uma vez', concluded, (value) => value?.ok === true && value.card?.sendState === 'sent');
@@ -128,11 +129,11 @@ try {
   check('reinício: open recupera envio em voo como incerto (não fica transmitting eterno)', recovered,
     (value) => value.id === recoveryId && value.uncertain === true && value.delivery?.status === 'uncertain' && value.busy === false);
   const recoveredPrompt = await page2.evaluate((id) => window.desk.sidechatPrompt({id, text: 'teorema da retomada'}), recoveryId);
-  check('reinício: envio explícito é aceito depois da recuperação', recoveredPrompt, (value) => value.sent === true && typeof value.streaming === 'boolean');
-  await page2.waitForFunction((id) => window.__scEvents.some((payload) => payload.id === id && payload.event.type === 'agent_settled'), recoveryId, {timeout: 20000});
+  check('reinício: envio com entrega incerta é recusado (não repete sozinho)', recoveredPrompt,
+    (value) => value.sent === false && value.uncertain === true && value.retryable === false);
   const recoveredRead = await page2.evaluate((id) => window.desk.sidechatRead({id}), recoveryId);
   check('reinício: o histórico recuperado mantém as falas anteriores', recoveredRead,
-    (value) => value.messages.filter((message) => message.role === 'user').length >= 2 && value.delivery?.status === 'settled');
+    (value) => value.messages.filter((message) => message.role === 'user').length >= 2 && value.delivery?.status === 'uncertain');
   const fresh = await page2.evaluate(() => window.desk.sidechatOpen({refs: [], fresh: true}));
   check('fresh continua disponível depois da recuperação', fresh, (value) => /^sc-/.test(value.id) && value.id !== recoveryId && value.uncertain === false);
   console.log(failed ? 'SMOKE_FALHOU' : 'SMOKE_OK');

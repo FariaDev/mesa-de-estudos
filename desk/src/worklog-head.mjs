@@ -45,3 +45,25 @@ export function headBase(log,duration,toolish){
  if(log.reason)return t('work.head.interrupted',{duration});
  return toolish?t('work.head.worked',{duration}):t('work.head.thought',{duration});
 }
+
+/* E3 (auditoria rodada 3): turno interrompido com motivo e sem nenhum texto de
+   resposta começa com o diário aberto, para o motivo não exigir clique. Com
+   resposta parcial segue recolhido, como antes; o 429 do limite do grátis
+   também segue recolhido, porque o aviso próprio (`free-limit-notice.mjs`) já
+   mostra o motivo — abrir duplicaria a mensagem. É só dobra inicial: o
+   `touched` da visão (`worklog-view.mjs`) preserva o clique do aluno nas
+   repinturas, e vale no histórico quando o diário reconstruído traz o motivo.
+   Puro (sem DOM): a janela pinta a partir daqui.
+   @param {{reason?: string, text?: string, steps?: Array<{status?: string}>}} log
+   @param {{hasAnswer?: boolean, isFreeLimit?: boolean}} [facts]
+   @returns {boolean}
+   @example shouldStartOpen({reason:'error',text:'',steps:[{status:'error'}]}) // true
+   @example shouldStartOpen({reason:'error',text:'',steps:[{status:'error'}]},{hasAnswer:true}) // false
+*/
+export function shouldStartOpen(log,{hasAnswer=false,isFreeLimit=false}={}){
+ if(isFreeLimit||hasAnswer)return false;
+ if(String(log?.text||'').trim())return false;
+ const reason=String(log?.reason||'');
+ if(!reason||reason==='stopped')return false;
+ return (log?.steps||[]).some(step=>step?.status==='error');
+}

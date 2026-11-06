@@ -2,16 +2,17 @@
 // de atividades aguardam uma mutação da Mesa sem perder o escopo ou falhar.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import {launchDesk,withArtifacts,DESK,enterFree} from './helpers.mjs';
+import {launchDesk,withArtifacts,enterFree} from './helpers.mjs';
+import {tempDir} from './temp-dir.mjs';
+import {specFor} from './fixtures/activity-specs.mjs';
 import {pollUntil} from './waits.mjs';
 
 await withArtifacts('activity-concurrency',async ctx=>{
- ctx.runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-activity-concurrency-'));
- const pi=path.join(DESK,'tests/fixtures/mesa-interactive-pi.mjs');fs.chmodSync(pi,0o755);
+ ctx.runtime=tempDir('mesa-activity-concurrency');
  fs.writeFileSync(path.join(ctx.runtime,'config.json'),JSON.stringify({runtimePath:ctx.runtime,vaultPath:ctx.runtime,courses:[]}));
- ctx.app=await launchDesk({runtime:ctx.runtime,env:{LEARNING_DESK_PI:pi}});
+ const calls=['movimento','katex'].map((text,index)=>({name:'criar_atividade',id:`integrated-call-${index+1}`,input:specFor(text)}));
+ ctx.app=await launchDesk({runtime:ctx.runtime,env:{FAKE_OPENCODE_MCP_CALLS:JSON.stringify(calls)}});
  const page=await ctx.app.firstWindow();
  await enterFree(page);
  await page.evaluate(async()=>{await (await import('./src/state.mjs')).connect();});

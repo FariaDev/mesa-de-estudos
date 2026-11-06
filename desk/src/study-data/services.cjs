@@ -6,6 +6,7 @@ const stats=require('./statistics.cjs');
 const schedule=require('./review-schedule.cjs');
 const review=require('../../review.cjs');
 const courseNotes=require('./course-notes.cjs');
+const {MAX_NOTES_PER_TURN,createNoteTurnCap,turnCapError}=require('./note-turn-cap.cjs');
 const free=require('../../free-workspaces.cjs');
 const fs=require('node:fs');
 const path=require('node:path');
@@ -27,6 +28,12 @@ function createStudyServices({runtime,courses,scope,allowed,persist,log=()=>{}})
  const options=()=>({courses:courses()});
  const safe=fn=>{try{return fn();}catch(error){log('study',error.message);return null;}};
  const reviewOptions=()=>({courseId:scope().courseId,today:schedule.localDay(Date.now()),exists:fs.existsSync,allowed:file=>allowed().has(file)});
+  /* Teto de notas por turno do aluno (auditoria de segurança): o único funil
+     de `salvar_nota` dos dois motores — o Claude passa `provided` nulo e o
+     OpenCode passa o escopo do grant, mas a contagem usa o escopo atual mais
+     a época do turno. O host avisa o turno novo em `newStudentTurn`. */
+  const noteTurns=createNoteTurnCap();
+  const noteTurnKey=()=>{const current=scope();return JSON.stringify([current.courseId,current.conversation,current.freeSessionId]);};
  /* O cronômetro acompanha o estudo (#70): antes ele só ligava pelo botão das
     Estatísticas, ficava em "Pausado" para sempre e o tempo nunca contava. Com
     a janela à vista numa matéria, a sessão liga ou continua; trocar de matéria
@@ -40,6 +47,10 @@ function createStudyServices({runtime,courses,scope,allowed,persist,log=()=>{}})
  };
  const syncReview=()=>{const opts=reviewOptions();schedule.sync(runtime(),{...opts,items:review.readItems(runtime(),opts.courseId)});return opts;};
  return {
+   /* Turno novo do aluno: libera o teto de `salvar_nota` para a próxima
+      rodada. O host chama a cada mensagem aceita do aluno; resultado de
+      cartão não é turno e não chama. */
+   newStudentTurn(){noteTurns.newTurn();},
   search:payload=>{persist();return search.search(runtime(),{...payload,...options()});},
   /* O tutor busca só na matéria da sessão (e, na Livre, só na sessão atual).
      O grant da atividade carrega a sessão Livre mesmo numa matéria; ela só
@@ -70,15 +81,21 @@ function createStudyServices({runtime,courses,scope,allowed,persist,log=()=>{}})
    return {materials:materials.slice(0,MAX_LISTED_MATERIALS),truncated:materials.length>MAX_LISTED_MATERIALS};
   },
   /* Nota do tutor (#91): a raiz é a matéria ou o workspace da Livre; a gravação
-     (realpath, `O_EXCL`, sem sobrescrever) mora em `course-notes.cjs`. */
+      (realpath, `O_EXCL`, sem sobrescrever) mora em `course-notes.cjs`. No
+      máximo `MAX_NOTES_PER_TURN` gravadas por turno do aluno: a quarta recebe
+      `err.note.turnCap` antes de tocar no disco, e só o que foi gravado conta. */
   noteSave:(provided,payload)=>{
    const current=scope();
    if(provided&&!sameScope(provided,current))throw Error(message('err.note.sessionChanged'));
+    const turnKey=noteTurnKey();
+    if(!noteTurns.allows(turnKey))throw turnCapError(MAX_NOTES_PER_TURN);
    const root=current.freeSessionId
     ?free.workspaceDir(runtime(),current.freeSessionId)
     :(courses().find(course=>course.id===current.courseId)?.path||'');
    if(!root)throw Error(message('err.note.badRoot'));
-   return courseNotes.saveNote({root,title:payload?.titulo,content:payload?.conteudo});
+    const saved=courseNotes.saveNote({root,title:payload?.titulo,content:payload?.conteudo});
+    noteTurns.record(turnKey);
+    return saved;
   },
   catalog:()=>search.catalog(runtime(),options()),
   resolve:id=>search.resolve(runtime(),id,options()),

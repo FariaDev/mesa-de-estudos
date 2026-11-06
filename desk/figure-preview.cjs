@@ -22,6 +22,28 @@ const KINDS = ['plot', 'svg'];
 const MAX_SOURCE_CHARS = 8000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/* O compositor do Chromium pode não ter uma superfície pronta para copiar
+   quando a janela escondida acabou de mudar de tamanho; sob carga ele devolve
+   `UnknownVizError` em vez do PNG. A captura é idempotente, então tentar de
+   novo depois de dar tempo ao quadro é melhor que devolver um erro opaco para
+   a ferramenta do tutor (#95). */
+const CAPTURE_ATTEMPTS = 5;
+const TRANSIENT_CAPTURE = /UnknownVizError|CopyFromSurface|viz_main/i;
+
+/** @param {import('electron').WebContents} contents @param {{x: number, y: number, width: number, height: number}} rect */
+async function captureWithRetry(contents, rect) {
+  let last;
+  for (let attempt = 0; attempt < CAPTURE_ATTEMPTS; attempt++) {
+    try {
+      return await contents.capturePage(rect);
+    } catch (error) {
+      last = error;
+      if (!TRANSIENT_CAPTURE.test(String(error?.message || error))) throw error;
+      if (attempt + 1 < CAPTURE_ATTEMPTS) await sleep(100 + attempt * 100);
+    }
+  }
+  throw last;
+}
 
 /* Só o que a página importa: `src` (os catálogos ficam em `src/locales`, #72), `node_modules`, `style.css` e `highlight.mjs`. */
 function allowedFile(file) {
@@ -99,7 +121,7 @@ function createFigurePreview({createWindow = (size) => createFigureWindow(requir
       const height = Math.min(MAX_CAPTURE, Math.max(48, report.contentHeight));
       win.setContentSize(request.width, height);
       await sleep(120);
-      const image = await win.webContents.capturePage({x: 0, y: 0, width: request.width, height});
+      const image = await captureWithRetry(win.webContents, {x: 0, y: 0, width: request.width, height});
       const size = image.getSize();
       const scaled = size.width > request.width ? image.resize({width: request.width, height, quality: 'best'}) : image;
       const shot = scaled.getSize();
@@ -116,4 +138,4 @@ function createFigurePreview({createWindow = (size) => createFigureWindow(requir
   return {preview: (raw) => serial(() => draw(cleanRequest(raw)))};
 }
 
-module.exports = {createFigurePreview, cleanRequest, cleanWidth, lockFigureSession, allowedFile};
+module.exports = {createFigurePreview, cleanRequest, cleanWidth, lockFigureSession, allowedFile, captureWithRetry};

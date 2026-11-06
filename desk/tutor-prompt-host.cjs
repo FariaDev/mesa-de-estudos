@@ -13,7 +13,7 @@ const {validMentions,mentionBlock}=require('./mentions-host.cjs');
 
 /* Envio de mensagem ao tutor (`pi-prompt`; #43 fase 2: saiu do main.cjs).
    Monta o texto (refs de PDF, menções `@`, bloco de estudo) e entrega pelo
-   motor ativo: Claude e OpenCode (#57) direto no serviço nativo, Pi por
+   motor ativo: Claude e OpenCode (#57) direto no serviço nativo
    `deliverPrompt` (desk/send.cjs).
    O contexto do turno só conta como enviado no aceite. */
 
@@ -94,7 +94,10 @@ function registerTutorPromptHost({ipcMain,live,runtime,FREE_ID,allowedXopp,ggb,a
   if(mentionIds.length)promptText+=mentionBlock(mentionIds,live.languageHost.tutorLanguage());
   if(block.text)promptText+='\n\n'+block.text;
   if(pdfBlock)promptText+='\n\n'+pdfBlock;
-  const delivered=await deliver(promptText,{images:payload.images,steer:payload.steer===true,onAccepted(){live.lastContextKey=block.key;live.studyServices.accepted({id:crypto.randomUUID(),engine:kind,model:conversations.readClaudeConversation(live.session,{runtime})?.model});}});
+   const delivered=await deliver(promptText,{images:payload.images,steer:payload.steer===true,attemptId:payload.attemptId,onAccepted(){live.lastContextKey=block.key;live.studyServices.accepted({id:crypto.randomUUID(),engine:kind,model:conversations.readClaudeConversation(live.session,{runtime})?.model});
+    /* Turno novo do aluno: libera o teto de `salvar_nota` para esta rodada.
+       Resultado de cartão (`sendText`) não é turno e não libera. */
+    live.studyServices.newStudentTurn?.();}});
   return delivered;
  });
 
@@ -111,16 +114,19 @@ function registerTutorPromptHost({ipcMain,live,runtime,FREE_ID,allowedXopp,ggb,a
      na fila do cartão (retryable) em vez de correr com a troca. */
   try{assertNoFreeMutation();assertNoNav();}
   catch(error){return {sent:false,retryable:true,error:causeArg(error)};}
-  const delivered=/** @type {any} */ (await deliver(text,{images:[],steer:false,expectedConversation:String(conversationId||'')}));
+  /* O resultado do cartão não é fala do aluno e não pode esperar a vez da
+     fila: com o tutor ocupado, entra como steer para não sumir. */
+  const turnActive=live.bridge?.isTurnActive?.()??live.bridge?.isRunning?.();
+  const delivered=/** @type {any} */ (await deliver(text,{images:[],steer:!!turnActive,expectedConversation:String(conversationId||'')}));
   return delivered?.sent===false?delivered:{sent:true,...delivered};
  }
 
  /* A ordem do envio (validar anexo → conectar → escrever → confirmar → ler o
     estado) mora em `deliverPrompt` (desk/send.cjs): aqui fica só o que é do app.
-    `steer` (⌘/Ctrl+⏎ com o Pi ocupado): o Pi interrompe o turno e trata esta
+    `steer` (⌘/Ctrl+⏎ com o tutor ocupado): o motor interrompe o turno e trata esta
     mensagem agora; sem ele o prompt entra como follow-up — é o que a fila da
     Mesa manda quando chega a vez de cada item. */
- async function deliver(promptText,{images=[],steer=false,onAccepted=null,expectedConversation=''}={}){
+ async function deliver(promptText,{images=[],steer=false,attemptId='',onAccepted=null,expectedConversation=''}={}){
   /* Resultado de cartão amarrado à conversa dona: a troca de sessão no meio do
      envio não pode entregar na conversa que abriu depois. `connect()` pode
      demorar, então a checagem se repete depois dele. */
@@ -141,13 +147,13 @@ function registerTutorPromptHost({ipcMain,live,runtime,FREE_ID,allowedXopp,ggb,a
    try{b=await connect();}
    catch(error){return {sent:false,retryable:true,error:error.message};}
    if(wrongConversation())return notSent();
-   try{await b.request('prompt',{message:promptText,images:imageList,streamingBehavior:steer?'steer':'followUp'});
+   try{await b.request('prompt',{message:promptText,images:imageList,streamingBehavior:steer?'steer':'followUp',...(typeof attemptId==='string'&&attemptId?{attemptId}:{})});
     onAccepted?.();
     return {streaming:!!b.adapter.snapshot().busy};}
    catch(error){return {sent:false,retryable:error.notSent===true,error:error.message,uncertain:error.notSent!==true};}
   }
   return deliverPrompt({
-   request:{message:promptText,streamingBehavior:steer?'steer':'followUp'},
+   request:{message:promptText,streamingBehavior:steer?'steer':'followUp',...(typeof attemptId==='string'&&attemptId?{attemptId}:{})},
    images,
    validateImages:promptImages,
    connect:async()=>{

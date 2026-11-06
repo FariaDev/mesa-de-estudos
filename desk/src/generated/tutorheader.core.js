@@ -272,31 +272,13 @@ function $view_viewMapTextI(_xs_0) {
   return $view_viewMapTextI_go(_xs_0, 0);
 }
 function $headIds() {
-  return { $: "Con", head: "session-title", tail: { $: "Con", head: "sidechat-toggle", tail: { $: "Con", head: "new-session", tail: { $: "Con", head: "chat-more", tail: { $: "Nil" } } } } };
+  return { $: "Con", head: "session-title", tail: { $: "Con", head: "sidechat-toggle", tail: { $: "Con", head: "chat-full", tail: { $: "Con", head: "new-session", tail: { $: "Con", head: "chat-more", tail: { $: "Nil" } } } } } };
 }
 function $menuNode(_id_0, _role_0, _text_0, _icon_0, _handler_0, _extra_0) {
   return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrId(_id_0), tail: { $: "Con", head: $$view_attr("role", _role_0), tail: { $: "Nil" } } } }, tail: { $: "Con", head: _extra_0, tail: { $: "Con", head: { $: "Con", head: $$view_attrData("icon", _icon_0), tail: { $: "Con", head: $$view_attrOn("click", _handler_0), tail: { $: "Nil" } } }, tail: { $: "Nil" } } } }), { $: "Con", head: $$view_viewText(_text_0), tail: { $: "Nil" } });
 }
 function $item(_id_0, _text_0, _icon_0, _handler_0, _extra_0) {
   return $menuNode(_id_0, "menuitem", _text_0, _icon_0, _handler_0, _extra_0);
-}
-function $newSessionDefault() {
-  return $item("new-session-default", $$msg_msg("header.newSessionPi"), "plus", "NewSession", { $: "Nil" });
-}
-function $newSessionClaude() {
-  return $item("new-session-claude", $$msg_msg("header.newSessionClaude"), "plus", "NewSessionClaude", { $: "Nil" });
-}
-function $newSessionOpenCode() {
-  return $item("new-session-opencode", $$msg_msg("header.newSessionOpenCode"), "plus", "NewSessionOpenCode", { $: "Nil" });
-}
-function $newSessionItems() {
-  return { $: "Con", head: $$newSessionDefault(), tail: { $: "Con", head: $$newSessionClaude(), tail: { $: "Con", head: $$newSessionOpenCode(), tail: { $: "Nil" } } } };
-}
-function $newSessionHead() {
-  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("conv-head"), tail: { $: "Con", head: $$view_attr("aria-hidden", "true"), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewEl("strong", { $: "Nil" }, { $: "Con", head: $$view_viewText($$msg_msg("header.newSessionWith")), tail: { $: "Nil" } }), tail: { $: "Nil" } });
-}
-function $newSessionMenu() {
-  return { $: "Con", head: $$newSessionHead(), tail: { $: "Con", head: $$newSessionDefault(), tail: { $: "Con", head: $$newSessionClaude(), tail: { $: "Con", head: $$newSessionOpenCode(), tail: { $: "Nil" } } } } };
 }
 function $exportItem() {
   return $item("export-chat", $$msg_msg("header.export"), "download", "ExportSession", { $: "Nil" });
@@ -793,14 +775,10 @@ var $$view_attrOn = $view_attrOn;
 var $$view_attrJoin = $view_attrJoin;
 var $$view_viewText = $view_viewText;
 var $$msg_msg = $msg_msg;
-var $$newSessionDefault = $newSessionDefault;
-var $$newSessionClaude = $newSessionClaude;
-var $$newSessionOpenCode = $newSessionOpenCode;
-var $$view_attrClass = $view_attrClass;
-var $$view_viewEl = $view_viewEl;
-var $$newSessionHead = $newSessionHead;
 var $$Bool_not = $Bool_not;
 var $$view_attrWhen = $view_attrWhen;
+var $$view_attrClass = $view_attrClass;
+var $$view_viewEl = $view_viewEl;
 var $$view_attrAria = $view_attrAria;
 var $$contextRow = $contextRow;
 var $$autoCompactItem = $autoCompactItem;
@@ -893,12 +871,6 @@ var tutorheader_default = {
   headIds: run_lib(() => run_loop($headIds()), 0),
   menuNode: run_lib((a0, a1, a2, a3, a4, a5) => run_loop($menuNode(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4), a5)), 6),
   item: run_lib((a0, a1, a2, a3, a4) => run_loop($item(str_in(a0), str_in(a1), str_in(a2), str_in(a3), a4)), 5),
-  newSessionDefault: run_lib(() => run_loop($newSessionDefault()), 0),
-  newSessionClaude: run_lib(() => run_loop($newSessionClaude()), 0),
-  newSessionOpenCode: run_lib(() => run_loop($newSessionOpenCode()), 0),
-  newSessionItems: run_lib(() => run_loop($newSessionItems()), 0),
-  newSessionHead: run_lib(() => run_loop($newSessionHead()), 0),
-  newSessionMenu: run_lib(() => run_loop($newSessionMenu()), 0),
   exportItem: run_lib(() => run_loop($exportItem()), 0),
   endDayItem: run_lib((a0) => run_loop($endDayItem(a0)), 1),
   contextItem: run_lib(() => run_loop($contextItem()), 0),

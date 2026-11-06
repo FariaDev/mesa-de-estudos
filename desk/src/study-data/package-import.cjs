@@ -203,6 +203,11 @@ function writeClaudeTranscript({record, name, dir, newCourseId, written, log, en
     if (typeof record.model === 'string' && record.model) patch.model = record.model.slice(0, 400);
     if (typeof record.effort === 'string' && record.effort) patch.effort = record.effort.slice(0, 24);
     if (Array.isArray(record.messages)) patch.messages = record.messages;
+    /* A sessão "continua de…" nasce com `messages` vazio e o contexto mora no
+       `importedTranscript` (#87): ele atravessa o pacote. `origin`/`handoff`
+       ficam de fora de propósito — apontam para arquivos do runtime do autor
+       que não existem no destino. */
+    if (typeof record.importedTranscript === 'string' && record.importedTranscript.length <= 50000) patch.importedTranscript = record.importedTranscript;
     try {
       conversations.updateClaudeConversation(staged, patch, {runtime: staging});
     } catch (error) {

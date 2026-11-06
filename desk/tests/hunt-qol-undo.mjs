@@ -36,7 +36,7 @@ await withArtifacts('qol-undo',async ctx=>{
  assert.deepEqual((await page.evaluate(()=>window.desk.init())).review,beforeReview);
  const removal=await page.evaluate(item=>window.desk.reviewSave({mode:'remove',item}),beforeReview[0]);
  await page.evaluate(async()=>{
-  const data=await window.desk.newSession('pi');const {loadCourse}=await import('./src/state.mjs');await loadCourse(data);
+  const data=await window.desk.newSession('opencode');const {loadCourse}=await import('./src/state.mjs');await loadCourse(data);
  });
  assert.equal((await page.evaluate(token=>window.desk.reviewUndo({token}),removal.undoToken)).reason,'scope');
  assert.deepEqual(errors,[]);

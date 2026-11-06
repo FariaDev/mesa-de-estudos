@@ -1,21 +1,20 @@
-/* Executáveis das Configurações (#83): o caminho do Pi, do Claude Code e do
-   Xournal++ muda só por um diálogo aberto pelo main (`pick-executable`) ou
-   pela detecção do main (`detect-pi`). O `save-config` chega do renderer, então
-   nesses três campos ele aceita só: o valor salvo, vazio (volta ao automático)
-   ou um caminho que o main entregou nesta sessão. O resto é ignorado e o salvo
-   continua. O `config.json` segue editável à mão: é lido na partida, e quem
-   grava é o `save-config` com o que ele já aceitou. */
+/* Executáveis das Configurações (#83): o caminho do Claude Code, do Xournal++ e
+   do OpenCode (#102) muda só por um diálogo aberto pelo main (`pick-executable`).
+   O `save-config` chega do renderer, então nesses campos ele aceita só: o valor
+   salvo, vazio (volta ao automático) ou um caminho que o main entregou nesta
+   sessão. O resto é ignorado e o salvo continua. O `config.json` segue editável
+   à mão: é lido na partida, e quem grava é o `save-config` com o que ele já aceitou. */
 
-const KINDS = Object.freeze({pi: 'piPath', claude: 'claudePath', xournal: 'xournalPath'});
+const KINDS = Object.freeze({claude: 'claudePath', xournal: 'xournalPath', opencode: 'opencodePath'});
 const FIELDS = Object.freeze(Object.values(KINDS));
 const TITLE_KEYS = Object.freeze({
-  pi: 'settings.pickExecutable.pi',
   claude: 'settings.pickExecutable.claude',
   xournal: 'settings.pickExecutable.xournal',
+  opencode: 'settings.pickExecutable.opencode',
 });
 
 /**
- * Registra `pick-executable` e devolve o que o `save-config` e o `detect-pi` usam.
+ * Registra `pick-executable` e devolve o que o `save-config` usa.
  * `win` é acessor (o main reatribui a janela); `message` é o do `i18n.mjs`
  * (vira frase no renderer) e `t` devolve o texto pronto para o título do diálogo
  * nativo, que não passa pelo renderer.
@@ -50,11 +49,11 @@ function registerExecutableHost({ipcMain, dialog, win, message, t, log = () => {
   });
 
   /**
-   * Troca os três campos de executável do que chegou pelo que vale; os outros campos seguem como vieram.
+   * Troca os campos de executável do que chegou pelo que vale; os outros campos seguem como vieram.
    * @template {object} T
    * @param {T} incoming configuração normalizada que o renderer mandou
    * @param {Record<string, any>} saved configuração salva em memória
-   * @returns {T} `incoming` com os três caminhos aceitos
+   * @returns {T} `incoming` com os caminhos aceitos
    * @example keepSaved({xournalPath: '/tmp/x'}, {xournalPath: '/Apps/Xournal++'}).xournalPath // '/Apps/Xournal++'
    */
   function keepSaved(incoming, saved) {
@@ -66,4 +65,4 @@ function registerExecutableHost({ipcMain, dialog, win, message, t, log = () => {
   return {remember, keepSaved};
 }
 
-module.exports = {registerExecutableHost};
+module.exports = {registerExecutableHost, FIELDS, KINDS};

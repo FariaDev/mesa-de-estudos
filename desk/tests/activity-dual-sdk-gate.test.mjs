@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import {fakeSdk} from './claude-fixtures.mjs';
+import {tempDir} from './temp-dir.mjs';
 
 const require = createRequire(import.meta.url);
 const {ClaudeAdapter} = require('../src/agents/claude-adapter.cjs');
@@ -21,7 +21,7 @@ const SPEC = {title: 'Dual', objective: 'Explorar', alternativeMarkdown: 's = at
    auto-aprovadas pelo hook real do adaptador e executadas pelo transporte MCP
    real, precisam publicar duas atividades distintas — uma por ID nativo. */
 test('SDK real: payloads idênticos com tool_use_id distintos publicam itens distintos por ID nativo', async () => {
-  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-activity-dual-sdk-'));
+  const runtime = tempDir('mesa-activity-dual-sdk');
   const store = createActivityStore({runtime});
   const activityRuntime = createActivityRuntime({store});
   const conversationId = path.join(runtime, 'claude-dual.jsonl');

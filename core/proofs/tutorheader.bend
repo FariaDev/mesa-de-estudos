@@ -8,51 +8,6 @@ import ../view.bend as V
 # concretos fecham por computação (`{==}`); as leis sobre `endDay` abrem a
 # flag nos dois casos e fecham cada um por computação.
 
-def Laws.tutor_nova_sessao_tres_itens():
-  {==}
-
-def Laws.tutor_nova_sessao_ordem():
-  {==}
-
-def Laws.tutor_nova_sessao_cabecalho():
-  {==}
-
-def Laws.tutor_nova_sessao_cabecalho_classe():
-  {==}
-
-def Laws.tutor_nova_sessao_cabecalho_decorativo():
-  {==}
-
-def Laws.tutor_nova_sessao_menu():
-  {==}
-
-def Laws.tutor_nova_sessao_padrao_rotulo():
-  {==}
-
-def Laws.tutor_nova_sessao_padrao_clique():
-  {==}
-
-def Laws.tutor_nova_sessao_claude_rotulo():
-  {==}
-
-def Laws.tutor_nova_sessao_claude_clique():
-  {==}
-
-def Laws.tutor_nova_sessao_ids_estaveis():
-  {==}
-
-def Laws.tutor_nova_sessao_claude_id():
-  {==}
-
-def Laws.tutor_nova_sessao_opencode_rotulo():
-  {==}
-
-def Laws.tutor_nova_sessao_opencode_clique():
-  {==}
-
-def Laws.tutor_nova_sessao_opencode_id():
-  {==}
-
 def Laws.tutor_mais_quatro_acoes(endDay):
   match endDay:
     case True{}:
@@ -332,7 +287,7 @@ def Laws.tutor_indicador_desligado_texto():
 def Laws.tutor_cabecalho_controles():
   {==}
 
-def Laws.tutor_cabecalho_quatro_controles():
+def Laws.tutor_cabecalho_cinco_controles():
   {==}
 
 def Laws.tutor_indicador_rotulo_desligado_sem_rotulo():

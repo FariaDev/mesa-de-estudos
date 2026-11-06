@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {artifactDir,withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,tinyPdf,statusOnline,PLOT_PNG,tutorMore,resizeWindow} from './helpers.mjs';
+import {artifactDir,withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedNativeSession,writeDeskJson,writeConfigJson,tinyPdf,statusOnline,PLOT_PNG,tutorMore,resizeWindow} from './helpers.mjs';
 import {layoutStable,nextFrames} from './waits.mjs';
 
 /* R3 pós-R2 — a coluna da conversa x calculadora na geometria PADRÃO real
@@ -62,7 +62,7 @@ await withArtifacts('r3-coluna-1480x840',async ctx=>{
  const records=[{type:'message',message:{role:'user',content:[{type:'text',text:'Lista 1: limites'}]}}];
  for(let i=0;i<30;i++)records.push({type:'message',message:{role:i%2?'assistant':'user',content:[{type:'text',text:`resposta ${i}: texto de estudo com o tamanho suficiente para a conversa ocupar a coluna.`}]}});
  records.push({type:'message',message:{role:'assistant',content:[{type:'text',text:`Aqui está o gráfico:\n\n![curva de teste](file://${plot})`}]}});
- const sessionFile=seedSession(runtime,records);
+ const sessionFile=seedNativeSession(runtime,records,{courseId:'Test'});
  writeDeskJson(runtime,{session:sessionFile,courseId:'Test'});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Teste',path:course}],desk:{pinnedExtensions:false}});
  const app=ctx.app=await launchDesk({runtime});

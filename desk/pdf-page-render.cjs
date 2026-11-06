@@ -30,7 +30,7 @@ function withTimeout(promise, ms, label) {
  * Renderer de páginas: uma janela escondida, criada na primeira página e reaproveitada.
  * `readFile` lê o caminho autorizado no main; a janela de render não tem acesso ao disco.
  * @param {{createWindow: () => {loadFile: (html: string) => Promise<void>, webContents: {executeJavaScript: (script: string) => Promise<unknown>}, on?: (event: string, fn: () => void) => void, close?: () => void}, html: string, ipcMain: {handle: (channel: string, fn: (event: {sender: unknown}, file: unknown) => unknown) => void}, readFile?: (file: string) => Buffer, timeoutMs?: number}} deps
- * @returns {{render: (request: {file: string, page: number}) => Promise<string>, close: () => void}}
+ * @returns {{render: (request: {file: string, page: number, girar?: number, recorte?: import('./pdf-page-view.cjs').Recorte|null, ampliar?: number}) => Promise<string>, close: () => void}}
  * @example const renderer = createPdfPageRenderer({createWindow, html, ipcMain, readFile: fs.readFileSync});
  */
 function createPdfPageRenderer({createWindow, html, ipcMain, readFile = (file) => fs.readFileSync(file), timeoutMs = 20000}) {
@@ -84,11 +84,14 @@ function createPdfPageRenderer({createWindow, html, ipcMain, readFile = (file) =
     }
   }
 
-  async function renderOne({file, page}) {
+  async function renderOne({file, page, girar, recorte, ampliar}) {
     const win = await ensure();
     current = file;
     try {
-      const script = `window.mesaRenderPdfPage(${JSON.stringify(file)}, ${Number(page)})`;
+      /* Giro, recorte e ampliação são só dados: o caminho lido continua sendo
+         o da chamada em curso, e nenhuma opção abre outro arquivo (#114). */
+      const view = {girar: Number(girar) || 0, recorte: recorte || null, ampliar: Number(ampliar) || 1};
+      const script = `window.mesaRenderPdfPage(${JSON.stringify(file)}, ${Number(page)}, ${JSON.stringify(view)})`;
       const image = await withTimeout(win.webContents.executeJavaScript(script), timeoutMs, 'render da página');
       if (typeof image !== 'string' || !image) throw Error('a página não devolveu PNG');
       return image;

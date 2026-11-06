@@ -18,7 +18,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {artifactDir,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson} from './helpers.mjs';
+import {artifactDir,launchDesk,newRuntime,seedCourse,seedNativeSession,writeDeskJson,writeConfigJson} from './helpers.mjs';
 
 const STAMP=new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'');
 const ART=artifactDir(`hunt-nav-${STAMP}`);
@@ -109,9 +109,9 @@ if(only('navegacao')){
   fs.writeFileSync(pdf,pagesPdf(3));
   // O histórico pintado é o das mensagens do usuário (o fake Pi não devolve
   // mensagem nova): a citação entra na fala que o usuário já tinha.
-  const session=seedSession(runtime,[
+  const session=seedNativeSession(runtime,[
    {type:'message',message:{role:'user',content:[{type:'text',text:'Está no começo: veja Limites.pdf, p. 3 e depois volte para os exemplos.'}]}}
-  ]);
+  ],{courseId:'A'});
   writeDeskJson(runtime,{session,courseId:'A',courseStates:{A:{session,pdfs:[{path:pdf,page:1,zoom:1,scrollX:0,scrollY:0}],sessions:[{path:session,started:Date.now(),preview:'sessão com citação'}]}}});
   writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:course}]});
   const page=await s.launch();
@@ -253,9 +253,9 @@ if(only('dois leitores')){
   /* Três citações na mesma fala: a do nome com espaço, a do fim de uma frase
      longa (o corte antigo parava depois de cinco palavras) e a de um arquivo
      que não está na biblioteca (essa continua texto). */
-  const session=seedSession(runtime,[
+  const session=seedNativeSession(runtime,[
    {type:'message',message:{role:'user',content:[{type:'text',text:'Anota: o exercício está no Lista 2.pdf, p. 2 e o resumo que eu fiz está no arquivo que veio junto do material impresso é o Limites.pdf, p. 3. O gabarito inventado está no Inexistente.pdf, p. 4.'}]}}
-  ]);
+  ],{courseId:'A'});
   writeDeskJson(runtime,{session,courseId:'A',courseStates:{A:{session,pdfs:[
    {path:limites,page:1,zoom:1,scrollX:0,scrollY:0},
    {path:lista,page:1,zoom:1,scrollX:0,scrollY:0}

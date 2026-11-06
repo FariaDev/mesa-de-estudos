@@ -1,7 +1,7 @@
 import {icon} from '../icons.mjs';
 import {noteOwnScroll} from './chat-scroll-view.mjs';
 export {distanceFromEnd,revealInChat,applyChatScroll} from './chat-scroll-view.mjs';
-import {showHistory,resetAttachments,restoreAttachments} from './chat.mjs';
+import {showHistory,historyIdentityShown,resetAttachments,restoreAttachments} from './chat.mjs';
 import {adopt as adoptQueue} from './queue.mjs';
 import {setResumeRecord} from './resume.mjs';
 import {PdfPanel,makePdfDivider,setPdfSplitPct,pdfSplitValue,pdfRotationsSnapshot,restorePdfRotations} from './pdf.mjs';
@@ -18,6 +18,7 @@ import {build,renderChildren} from './view-host.mjs';
 import {applyHelpFlags} from './dialogs.mjs';
 import deliveryCore from './generated/agentdelivery.core.js';
 import {captureViewLayout} from './layout-presets.mjs';
+import {translatedPanelLabel,translatedPanelToggle} from './layout-settings.mjs';
 import {t,text as translate,formatDate,currentLanguage} from './ui-text.mjs';
 import {displayFreeTitle} from './free-names.mjs';
 import {message,parseMessage} from './i18n.mjs';
@@ -26,9 +27,11 @@ import {updateMeter,renderAutoCompact,refreshMeter,installContextMeter,meterUsag
 export {refreshMeter};
 import {applyEngineVisibility,setLegacySession} from './visible-engines-ui.mjs';
 import {loadReleaseNotesSeen,releaseNotesSeen} from './release-notes.mjs';import {shortModelName} from './model-picker.mjs';import {renderModelPicker,setModelPickerDisabled,loadModelRecents,modelRecentsSnapshot,loadModelFavorites,modelFavoritesSnapshot,loadModelDefault,modelDefaultSnapshot} from './model-picker-ui.mjs';import {renderEffortStrip,setEffortStripDisabled,effortLevelText} from './effort-strip.mjs';import {knownEngine,sessionEngine,isNativeEngine,defaultEffort,defaultCapability} from './engine-facts.mjs';
+import {detachConnectFlight,createConnectRunner} from './connect-flight.mjs';
+import {applyDisplayState} from './display-preferences.mjs';
 
 export function $(s){return document.querySelector(s);}
-export const S={supportsImages:true,switching:false,modelCatalog:[],library:[],panels:[],pdfDivider:null,connected:false,connecting:null,busy:false,connectCancelled:false,busySince:0,busyStall:0,healthFails:0,refVisible:true,saveTimer:0,currentSession:'',sessions:[],captureOk:false,includeRefs:true,appConfig:{},dialogPending:false,activeCourseName:'',currentTheme:'auto',currentAccent:'blue',ggbActive:false,currentCourseId:'',workspace:null,autoCompact:false,bookmarks:[],reviewItems:[],reviewActive:false,attachments:[],pdfAttachments:[],attachGen:0,deskVersion:'',engine:'pi',detected:{},capabilities:null,conversationStatus:null,uncertain:false,turnCancelled:false,effortLevels:[],effortLevel:'',visibleEngines:null,legacySession:false};
+export const S={supportsImages:true,switching:false,modelCatalog:[],library:[],panels:[],pdfDivider:null,connected:false,connecting:null,busy:false,connectCancelled:false,busySince:0,busyStall:0,healthFails:0,refVisible:true,saveTimer:0,currentSession:'',sessions:[],captureOk:false,includeRefs:true,appConfig:{},dialogPending:false,activeCourseName:'',currentTheme:'auto',currentAccent:'blue',readingSize:'normal',readingWidth:'normal',pdfDark:'invert',ggbActive:false,currentCourseId:'',workspace:null,autoCompact:false,sendAttemptId:'',bookmarks:[],reviewItems:[],reviewActive:false,attachments:[],pdfAttachments:[],attachGen:0,deskVersion:'',engine:'opencode',detected:{},capabilities:null,conversationStatus:null,uncertain:false,turnCancelled:false,effortLevels:[],effortLevel:'',visibleEngines:null,legacySession:false};
 /* Fatos do indicador de modelo e esforço (ticket #14): o estado de conexão
    (`state` + rótulo que o host já usa no ponto) e a escolha em uso. Quem mostra
    é o `tutor-header.mjs`; o evento `desk-tutor-link` evita o ciclo de imports.
@@ -41,7 +44,7 @@ function announceLink(){try{window.dispatchEvent(new Event('desk-tutor-link'));}
 export function setTutorChoice(model,level,provider='',id=''){S.choice={model:String(model||''),level:String(level||''),provider:String(provider||''),id:String(id||'')};announceLink();}
 /* Motor da conversa corrente e capacidades do transporte (contrato do host:
    `engine`, `capabilities` vêm em initialData/connect/troca de
-   conversa). Sem metadados, vale o comportamento atual do Pi — a UI não pode
+   conversa). Sem metadados, vale o comportamento do motor nativo — a UI não pode
    esconder recurso de um motor só porque o host é mais antigo. A escolha do
    motor da PRÓXIMA sessão é o item do menu de sessão nova (cabeçalho do tutor);
    o título e o status seguem a sessão aberta, nunca o menu. */
@@ -66,9 +69,9 @@ export function mayAdvanceQueue(){return deliveryCore.mayAdvanceQueue(!!S.busy,!
    compatibilidade com o serviço em transição. */
 export function applyEngineData(data){
  if(!data||typeof data!=='object'||!knownEngine(data.engine))return false;S.engine=data.engine;if(!S.detected)S.detected={};
- /* Presença de cada motor vem no mesmo payload (initialData e connect); o connect não repete `detectedPi`, então o anterior fica. */
- if(typeof data.detectedPi==='string')S.detected.pi=data.detectedPi;if(typeof data.detectedClaude==='string')S.detected.claude=data.detectedClaude;if(typeof data.detectedOpenCode==='string')S.detected.opencode=data.detectedOpenCode;
- /* Pi e Claude fora da vista somem de Configurações e dos créditos. */
+ /* Presença de cada motor vem no mesmo payload (initialData e connect); o connect não repete `detectedClaude`, então o anterior fica. */
+ if(typeof data.detectedClaude==='string')S.detected.claude=data.detectedClaude;if(typeof data.detectedOpenCode==='string')S.detected.opencode=data.detectedOpenCode;
+ /* Claude fora da vista some de Configurações e dos créditos. */
  applyEngineVisibility();
  /* O motor da sessão aberta fica num atributo do título (sem texto visível). */
  const engineMark=$('#session-title');if(engineMark)engineMark.dataset.engine=S.engine;
@@ -90,7 +93,7 @@ function applyEngineFacts(){
  const prompt=$('#prompt');
  if(prompt)prompt.setAttribute('aria-label',t('composer.messageAria'));
  const modelField=$('#model-field');if(modelField)modelField.hidden=caps.modelSelection!==true;
- /* Esforço fica à vista como no Pi: no Claude sem modelo explícito ele aparece
+ /* Esforço fica à vista: no Claude sem modelo explícito ele aparece
     desligado em "Padrão do Claude", dizendo como ajustar. */
  const effortField=$('#effort-field');if(effortField)effortField.hidden=caps.effort!==true&&!(isNativeEngine(S.engine)&&caps.modelSelection===true);
  if(caps.modelSelection!==true)setModelPickerDisabled(true);
@@ -98,7 +101,7 @@ function applyEngineFacts(){
  const auto=$('#auto-compact');if(auto&&caps.autoCompaction!==true)auto.hidden=true;
  /* "Resumir contexto" manual: só existe onde o motor compacta; a explicação é
     real (Claude experimental não oferece a compactação pela Mesa — nada de
-    chamar o Pi no lugar). O item vive em Mais opções (tutor-header). */
+    chamar o motor no lugar). O item vive em Mais opções (tutor-header). */
  if(caps.contextUsage!==true)updateMeter(null);
  /* Avisa o cabeçalho do tutor (indicador, popover e Mais opções) para
     re-sincronizar o que depende do motor; o evento evita o ciclo de imports
@@ -166,7 +169,7 @@ function connStateOf(state){
 /* Sem rótulo, o texto de ligado × desligado vem do núcleo (`tutorheader`
    → `linkLabel`); o host só passa o que é dele ("Chamando o tutor", "Tutor sem
    resposta"). O núcleo `statusview` é compartilhado com a Conversa e cairia em
-   "Pi desconectado" — por isso o rótulo nunca chega vazio. */
+   "Tutor desconectado" — por isso o rótulo nunca chega vazio. */
 export function connectionState(state,label,reason){
  const dot=$('#status-dot');if(!dot)return;
  const text=String(label||tutorHeaderCore.linkLabel(state==='online'));
@@ -245,7 +248,7 @@ function watchChatScroll(){
  const chat=$('#chat');if(!chat||chatScrollWatch)return;
  chatScrollWatch=new ResizeObserver(scheduleChatScrollMode);
  chatScrollWatch.observe(chat);
- for(const el of [chat.querySelector('.chat-head'),$('#goes-along'),$('#messages'),$('#activity'),$('#composer')]){
+ for(const el of [chat.querySelector('.chat-head'),$('#messages'),$('#activity'),$('#composer')]){
   if(el)chatScrollWatch.observe(el);
  }
  syncChatScrollMode();
@@ -271,7 +274,7 @@ export function studySnapshot(){return {title:$('#exercise-title').value.trim(),
 /* Páginas abertas (caminho + página) para o registro do Encerrar: os PDFs da
    mesa na ordem dos painéis — a forma e o teto saem do núcleo (`core/resume.bend`). */
 export function pageRefs(){return S.panels.filter(p=>p.path).map(p=>({path:p.path,page:p.page}));}
-export function layoutSnapshot(){return {draft:$('#prompt').value,study:studySnapshot(),pdfs:pdfSnapshot(),pdfRotations:pdfRotationsSnapshot(),pdfSplit:pdfSplitValue(),referenceVisible:S.refVisible,chatWidth:parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat')),calcHeight:calcHeightPx(),theme:S.currentTheme,accent:S.currentAccent,viewLayout:captureViewLayout(),modelRecents:modelRecentsSnapshot(),modelFavorites:modelFavoritesSnapshot(),modelDefault:modelDefaultSnapshot(),releaseNotesSeen:releaseNotesSeen()};}
+export function layoutSnapshot(){return {draft:$('#prompt').value,study:studySnapshot(),pdfs:pdfSnapshot(),pdfRotations:pdfRotationsSnapshot(),pdfSplit:pdfSplitValue(),referenceVisible:S.refVisible,chatWidth:parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat')),calcHeight:calcHeightPx(),theme:S.currentTheme,accent:S.currentAccent,readingSize:S.readingSize,readingWidth:S.readingWidth,pdfDark:S.pdfDark,viewLayout:captureViewLayout(),modelRecents:modelRecentsSnapshot(),modelFavorites:modelFavoritesSnapshot(),modelDefault:modelDefaultSnapshot(),releaseNotesSeen:releaseNotesSeen()};}
 /* A seta de Enviar só acende quando há o que enviar: texto (sem só espaços),
    imagem ou PDF na bandeja. A fila não conta: o botão envia o composer, e a
    fila tem o "Enviar agora" da própria faixa. O estado de Parar não muda. */
@@ -283,11 +286,12 @@ export function paintComposerSend(){
 }
 export function save(immediate=false){paintComposerSend();clearTimeout(S.saveTimer);if(immediate){window.desk.save(layoutSnapshot()).catch(e=>toast(e.message));return;}S.saveTimer=setTimeout(()=>window.desk.save(layoutSnapshot()).catch(e=>toast(e.message)),400);}
 export function refs(){return S.includeRefs?S.panels.filter((p,i)=>p.path&&(i===0||S.refVisible)).map(p=>({path:p.path,page:p.page})):[];}
-/* A linha "Vai junto" (ticket #15) acima da caixa de mensagem diz o que segue
-   com a próxima mensagem: matéria, lista/questão ativa, rascunho .xopp e os
-   materiais abertos com a página. O texto é decisão do `core/composerbox.bend`;
-   aqui só se juntam os fatos vivos (o nome do arquivo sai do caminho). Com a
-   flag `studyContext` desligada o contexto de estudo não vai (nem a matéria). */
+/* O resumo do contexto (ticket #15) diz o que segue com a próxima mensagem:
+   matéria, lista/questão ativa, rascunho .xopp e os materiais abertos com a
+   página. Desde a #123 ele mora em Mais opções → Contexto, não no composer. O
+   texto é decisão do `core/composerbox.bend`; aqui só se juntam os fatos vivos
+   (o nome do arquivo sai do caminho). Com a flag `studyContext` desligada o
+   contexto de estudo não vai (nem a matéria). */
 function fileName(path){return String(path||'').split(/[/\\]/).at(-1);}
 function bendStrings(items){return items.reduceRight((tail,head)=>({$:'Con',head,tail}),{$:'Nil'});}
 /* Os fatos entram crus: quem decide o que vai (a flag `studyContext` leva a
@@ -332,10 +336,13 @@ installContextMeter();
    (`courseSessions`) leva o prefixo do motor ("Claude Code · ") quando a sessão
    é do Claude Code; o cabeçalho mostra só o título e guarda o motor em
    `data-engine`. Sem rótulo conhecido, cai para "Sessão". */
-const ENGINE_PREFIX='Claude Code · ';
+const ENGINE_PREFIX=/^(?:Claude Code|OpenCode) · /;
 export function sessionTitleOf(session){
  const label=String(session?.label||'').trim();
- const bare=label.startsWith(ENGINE_PREFIX)?label.slice(ENGINE_PREFIX.length).trim():label;
+ /* O host prefixa o motor no rótulo; o cabeçalho mostra o assunto, não o
+    motor. Sem tirar o do OpenCode, a data e o prefixo viravam "assunto" e o
+    título repetia o motor (#57/#23). */
+ const bare=label.replace(ENGINE_PREFIX,'').trim();
  return bare||t('session.untitled');
 }
 /* O nome que o cabeçalho e a lista mostram (#23, #27): o rótulo do host abre com
@@ -384,7 +391,7 @@ export function fillSessions(data){
     sessão que está abrindo. */
  if(data&&typeof data==='object')applyEngineData(data);
  if(!data||typeof data!=='object')return;
- if(Array.isArray(data.sessions))S.sessions=data.sessions.filter(s=>s&&typeof s.path==='string'&&s.path).map(s=>({path:s.path,label:String(s.label||s.path),engine:sessionEngine(s.engine),preview:String(s.preview||''),started:Number(s.started||0)}));
+ if(Array.isArray(data.sessions))S.sessions=data.sessions.filter(s=>s&&typeof s.path==='string'&&s.path).map(s=>({path:s.path,label:String(s.label||s.path),engine:sessionEngine(s.engine),preview:String(s.preview||''),started:Number(s.started||0),...(s.origin?{origin:s.origin}:{}),...(s.handoff?{handoff:s.handoff}:{})}));
  const previousSession=S.currentSession;
  S.currentSession=data.session||S.currentSession;
  if(previousSession!==S.currentSession)window.dispatchEvent(new Event('desk-conversation-changed'));
@@ -449,9 +456,12 @@ function updateSettings(result){
  const current=result?.state?.model;
  /* Imagem: a capacidade do motor é estrutural (Claude transporte) e o modelo,
     quando conhecido, ainda precisa listar `image` — nunca dizemos "visão
-    validada". Sem modelo conhecido (ex.: Claude), vale a capacidade. */
- const known=!!current&&Array.isArray(current.input);
- S.supportsImages=capabilities().images===true&&(!known||current.input.includes('image'));
+    validada". A escolha do OpenCode chega sem capacidades (`{provider, id,
+    name}`); o `input` sai do catálogo. Sem modelo conhecido (ex.: Claude),
+    vale a capacidade. */
+ const catalogInput=current?S.modelCatalog.find(m=>m.provider===current.provider&&m.id===current.id)?.input:null;
+ const modelInput=Array.isArray(catalogInput)?catalogInput:(Array.isArray(current?.input)?current.input:null);
+ S.supportsImages=capabilities().images===true&&(!modelInput||modelInput.includes('image'));
  updateMeter(result?.contextUsage||result?.state?.contextUsage);
  renderAutoCompact(result?.state);
  updateCheckButton();
@@ -535,42 +545,24 @@ export async function cancelConnect(){
 }
 /* Ligar/ligando/sem resposta moram na coluna (`tutor-state.mjs`, bloco
    `#tutor-state`): o estado e o motivo seguem por `S.link`; a linha
-   `#activity` não repete "Chamando o tutor…" nem o erro de conexão. */
-export async function connect(){
- if(S.connected)return;
- if(S.connecting)return S.connecting;
- S.connectCancelled=false;
- setTabsDisabled(true);connectionState('connecting',message('tutor.link.connecting'));
- let hung=0;
- S.connecting=(async()=>{
-  const timer=setTimeout(()=>{hung=1;},90000);
-  try{
-   const result=await window.desk.connect();
-   /* Metadados do motor ANTES de qualquer gating/estado: o host roteia o
-      connect pelo motor da conversa (nunca inicia Pi numa conversa Claude). */
-   applyEngineData(result);
-   S.connected=true;S.healthFails=0;S.modelCatalog=result.models||[];if(result.captureAvailable!=null)S.captureOk=!!result.captureAvailable;updateSettings(result);fillSessions(result);updateWindowTitle();connectionState('online');
-   if(result.conversationStatus?.uncertain)toast(message('tutor.uncertainDelivery'));
-   if(result.messages?.length||result.cards?.length)showHistory(result.messages||[],result.cards||[]);
-  }catch(e){
-   if(S.connectCancelled){
-    /* Cancelar é decisão da pessoa: volta a desligado, sem erro nem aviso. */
-    S.connected=false;connectionState('');
-    const stop=Error(message('tutor.error.cancelled'));stop.cancelled=true;stop.connectFailure=true;
-    throw stop;
-   }
-   /* Sem aviso flutuante: a coluna já escreve o motivo (e a instrução do motor) com Chamar de novo ao lado (#23). */
-   try{applyEngineData(await window.desk.getConfig());}catch{/* a falha já é a que a coluna mostra */}
-   S.connected=false;connectionState('error',message('tutor.link.error'),hung?message('tutor.error.timeout'):e.message);
-   if(e&&typeof e==='object')e.connectFailure=true;
-   throw e;
-  }finally{
-   clearTimeout(timer);
-   S.connecting=null;setTabsDisabled(S.busy||S.switching);
-  }
- })();
- return S.connecting;
-}
+   `#activity` não repete "Chamando o tutor…" nem o erro de conexão. O voo tem
+   identidade própria (`connect-flight.mjs`): só o corrente escreve em `S.*`. */
+export const connect=createConnectRunner({S,setTabsDisabled,connectionState,applyEngineData,updateSettings,fillSessions,updateWindowTitle,showHistory,historyIdentityShown,message,toast});
+/* Quem para a ponte (save-config, troca de matéria/sessão, relink de provedor)
+   invalida o voo corrente: o `connect()` seguinte abre um voo novo mesmo na
+   mesma sessão, e o resultado tardio do antigo é ignorado (#r5-D). */
+export function invalidateConnect(){detachConnectFlight(S);}
+/* O main parou a ponte de propósito (`tutor-relink.cjs`, promoção Livre,
+   atualização de componente): o voo corrente não vale mais e a sessão corrente
+   religa pelo motor dela — o host roteia o connect pelo motor da conversa, e
+   religar só no OpenCode deixava a sessão Claude presa em "conectando" ou num
+   "online" falso (revisão connect-parar, achado 2). */
+/**
+ * Invalida o voo corrente e religa a sessão corrente, para qualquer motor.
+ * @returns {Promise<unknown>|undefined} o voo novo (ou nada, com o tutor ligado)
+ * @example reconnectAfterBridgeStop().catch(()=>{});
+ */
+export function reconnectAfterBridgeStop(){invalidateConnect();S.connected=false;return connect();}
 export function markCourseTab(id){
  for(const t of document.querySelectorAll('#course-tabs button[role="tab"]')){
   const active=t.dataset.id===id;t.classList.toggle('active',active);t.setAttribute('aria-selected',String(active));
@@ -590,7 +582,9 @@ function updateCourseFacts(data){
 }
 function applyDesk(desk){
  const title=desk?.title||'Mesa de Estudos';
- const specs=desk?.panels?.length?desk.panels:[{label:'Enunciado'},{label:'Formulário & apoio',toggle:'Formulário'}];
+ /* Os padrões do núcleo vêm em português; `translatedPanelLabel` os põe no
+    idioma da interface (auditoria rodada 5). O digitado passa direto. */
+ const specs=(desk?.panels?.length?desk.panels:[{label:'Enunciado'},{label:'Formulário & apoio',toggle:'Formulário'}]).map((spec)=>({...spec,label:translatedPanelLabel(spec.label),toggle:spec.toggle===undefined?spec.toggle:translatedPanelToggle(spec.toggle)}));
  const two=specs.length>1;
  /* `#reference-toggle` (hidden e rótulo) e `#xournal` (hidden) são decididos
     pelo `core/tabsview.bend` e aplicados no `renderMenus` do `main.mjs` — o
@@ -608,7 +602,6 @@ function applyDesk(desk){
  const facts={$:'DeskFlags',refsToggle:flags.refsToggle,includeRefs:!!S.includeRefs,studyContext:flags.studyContext,conferir:desk?.conferir!==false,calculator:desk?.calculator!==false};
  applyAttrsOn('#include-refs',deskFlagsCore.includeRefsButton(facts));
  applyAttrsOn('#study-context',deskFlagsCore.studyContextRow(facts));
- applyAttrsOn('#context-edit',deskFlagsCore.contextEditButton(facts));
  applyAttrsOn('#check',deskFlagsCore.conferirButton(facts));
  applyAttrsOn('#calc-divider',deskFlagsCore.calcDivider(facts));
  /* Itens do texto da ajuda: a decisão (`hidden`) vem do Bend (dialogsview). */
@@ -638,11 +631,11 @@ export async function loadCourse(data,{publishWorkspace=true}={}){
  $('#prompt').value=data.state.draft||'';
  paintComposerSend();
  applyTheme(data.state.theme);
- applyAccent(data.state.accent);loadModelRecents(data.state.modelRecents);loadModelFavorites(data.state.modelFavorites);loadModelDefault(data.state.modelDefault);loadReleaseNotesSeen(data.state.releaseNotesSeen);
+ applyAccent(data.state.accent);applyDisplayState(S,data.state);loadModelRecents(data.state.modelRecents);loadModelFavorites(data.state.modelFavorites);loadModelDefault(data.state.modelDefault);loadReleaseNotesSeen(data.state.releaseNotesSeen);
  // Esconder o recurso não apaga a questão nem o arquivo associado.
  applyStudy(data.state.study);
  /* Fila e bandeja guardadas da conversa: a faixa volta com o que ainda não foi
-    aceito pelo Pi e os anexos pendentes voltam para a bandeja. Fila de outra
+    aceito pelo tutor e os anexos pendentes voltam para a bandeja. Fila de outra
     execução nasce segurada — nada é enviado sozinho. */
  adoptQueue(data.pending);
  restoreAttachments(data.pending);
@@ -653,9 +646,9 @@ export async function loadCourse(data,{publishWorkspace=true}={}){
  restorePdfRotations(data.state.pdfRotations);
  /* Histórico Claude cacheado no descritor: o `init`/troca de conversa já o
     entrega e ele NÃO depende do connect ter dado certo — offline ou sem login,
-    o que já foi conversado continua na tela (nunca um fallback para o Pi). O
+    o que já foi conversado continua na tela (nunca um fallback para outro motor). O
     connect bem-sucedido reaplica a mesma lista depois. */
- if(Array.isArray(data.messages)||data.cards?.length)showHistory(Array.isArray(data.messages)?data.messages:[],data.cards||[]);
+ if(Array.isArray(data.messages)||data.cards?.length)showHistory(Array.isArray(data.messages)?data.messages:[],data.cards||[],data.historyIdentity);
  /* Favoritos nomeados da matéria (popover do leitor): a lista inteira vem do
     main a cada troca de matéria — o nav.mjs monta as linhas do popover com isto. */
  S.bookmarks=Array.isArray(data.bookmarks)?data.bookmarks:[];
@@ -712,23 +705,23 @@ export async function loadCourse(data,{publishWorkspace=true}={}){
  save();
  return true;
 }
-/* O Pi esperando resposta (`#pi-dialog` aberto) não é ocioso mesmo com o
+/* O tutor esperando resposta (`#pi-dialog` aberto) não é ocioso mesmo com o
    `busy` solto: trocar de matéria embora abandonaria a pergunta. */
-function piPromptPending(){return !!S.dialogPending;}
-async function waitIdle(){for(let i=0;i<80;i++){if(!S.busy&&!S.connecting&&!piPromptPending())return true;await new Promise(r=>setTimeout(r,150));}return !S.busy&&!S.connecting&&!piPromptPending();}
+function promptPending(){return !!S.dialogPending;}
+async function waitIdle(){for(let i=0;i<80;i++){if(!S.busy&&!S.connecting&&!promptPending())return true;await new Promise(r=>setTimeout(r,150));}return !S.busy&&!S.connecting&&!promptPending();}
 /* `{connect:false}`: a primeira matéria criada na primeira abertura não liga o
-   tutor sozinha quando o Pi não foi encontrado (o aviso da coluna já diz). */
+   tutor sozinha quando o motor não foi encontrado (o aviso da coluna já diz). */
 export async function switchCourse(id,{connect:autoConnect=true}={}){
  if(S.switching)return;
  /* Com o turno aberto a troca é recusada pelo host; avisar antes do `waitIdle`
     evita 12 s de silêncio no atalho (⌘2) até o toast de recusa. */
  if(S.busy){toast(message('course.stopFirst'));return;}
- if(piPromptPending()){toast(message('course.answerFirst'));return;}
+ if(promptPending()){toast(message('course.answerFirst'));return;}
  await waitIdle();
  deactivateGeogebra();
  const tab=document.querySelector(`#course-tabs button[data-id="${CSS.escape(id)}"]`);
  if(!tab||tab.classList.contains('active'))return;
- S.switching=true;setTabsDisabled(true);
+ S.switching=true;setTabsDisabled(true);invalidateConnect();
  try{
   clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
   const data=await window.desk.switchCourse(id);

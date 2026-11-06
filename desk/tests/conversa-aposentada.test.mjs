@@ -77,10 +77,10 @@ test('runtime antigo: a pasta handoff/ vai e volta no backup byte a byte, sem er
 test('a Mesa não carrega mais nada do bilhete nem de chat/', () => {
   /* Os hosts que saíram do main (#43 fase 2) continuam vigiados. */
   const hosts = fs.readdirSync(deskDir).filter((name) => /(-host|-ipc)\.cjs$/.test(name));
-  const vivos = ['main.cjs', 'preload.cjs', 'send.cjs', 'rpc.cjs', 'src/main.mjs', 'scripts/doctor.mjs', ...hosts];
+  const vivos = ['main.cjs', 'preload.cjs', 'send.cjs', 'src/main.mjs', 'scripts/doctor.mjs', ...hosts];
   for (const rel of vivos) {
     const text = fs.readFileSync(path.join(deskDir, rel), 'utf8');
-    assert.doesNotMatch(text, /handoff\.cjs|claimHand|recoverClaims|onHandoff|handoff-received|handoff-problem/, `${rel} ainda fala do bilhete`);
+    assert.doesNotMatch(text, /\bhandoff\.cjs\b|\bclaimHand\b|\brecoverClaims\b|\bonHandoff\b|\bhandoff-received\b|\bhandoff-problem\b/, `${rel} ainda fala do bilhete`);
     assert.doesNotMatch(text, /\.\.\/chat\b|\/chat\/(?:rpc|pi|handoff)/, `${rel} ainda depende de chat/`);
   }
   for (const gone of ['handoff.cjs', 'src/generated/handoff.core.js']) {

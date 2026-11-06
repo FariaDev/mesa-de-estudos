@@ -16,7 +16,6 @@ const {readConfig,writeConfig,seedConfig,normalize}=require('./config.cjs');
  */
 function applyEnvOverrides(config,env){
  if(env.LEARNING_VAULT)config.vaultPath=env.LEARNING_VAULT;
- if(env.LEARNING_DESK_PI)config.piPath=env.LEARNING_DESK_PI;
  if(env.LEARNING_DESK_CLAUDE)config.claudePath=env.LEARNING_DESK_CLAUDE;
  return config;
 }
@@ -32,7 +31,7 @@ function loadBootConfig({configFile,env,persist}){
  const envRuntime=env.LEARNING_DESK_RUNTIME;
  let config=readConfig(configFile);
  if(!config){
-  if(env.LEARNING_VAULT)config=normalize({vaultPath:env.LEARNING_VAULT,runtimePath:envRuntime||'',piPath:env.LEARNING_DESK_PI||'',xournalPath:'',courses:[]});
+  if(env.LEARNING_VAULT)config=normalize({vaultPath:env.LEARNING_VAULT,runtimePath:envRuntime||'',xournalPath:'',courses:[]});
   else{
    config=seedConfig({runtimePath:envRuntime||''});
    if(persist&&(config.vaultPath||config.courses.length))writeConfig(configFile,config);

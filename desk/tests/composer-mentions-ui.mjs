@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
  withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,
- reviewShot,screenshotDirectory,setTheme,freezeMotion,resizeWindow,DESK
+ reviewShot,screenshotDirectory,setTheme,freezeMotion,resizeWindow
 } from './helpers.mjs';
 import {layoutStable,nextFrames,pollUntil} from './waits.mjs';
 
@@ -36,9 +36,8 @@ await withArtifacts('composer-mentions',async ctx=>{
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',courseStates:{calc:{pdfs:[{path:pdf,page:1}],study:{title:'',xopp:''}}}});
- const piLog=path.join(runtime,'pi-messages.log');
- const pi=path.join(DESK,'tests/fixtures/mesa-geogebra-pi.mjs');fs.chmodSync(pi,0o755);
- ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,FAKE_PI_GGB_LOG:piLog}});
+ const promptLog=path.join(runtime,'prompts.jsonl');
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_QUEUE_LOG:promptLog}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await resizeWindow(ctx.app,page,1440,900);
  await statusOnline(page);
@@ -119,7 +118,7 @@ await withArtifacts('composer-mentions',async ctx=>{
  await page.keyboard.press('Enter');
  await field.fill('Explique a derivada de x².');
  await page.locator('#send').click();
- const received=await pollUntil(()=>{try{return fs.readFileSync(piLog,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line).message);}catch{return [];}},list=>list.length>0,{what:'a mensagem chegar ao Pi'});
+ const received=await pollUntil(()=>{try{return fs.readFileSync(promptLog,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line).message);}catch{return [];}},list=>list.length>0,{what:'a mensagem chegar ao OpenCode'});
  assert.match(received[0],/^Explique a derivada de x²\.\n\n\[Ferramenta pedida na Mesa: geogebra\]\n.*geogebra/,`a instrução vem logo depois do texto do aluno (${JSON.stringify(received[0])})`);
  await page.locator('#messages .message.user .body').first().waitFor();
  const bubble=await page.locator('#messages .message.user .body').first().textContent();

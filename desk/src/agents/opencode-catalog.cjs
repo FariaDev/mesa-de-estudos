@@ -35,7 +35,7 @@ const MAX_VARIANT_ID = 24;
 const MAX_MODEL_KEY = 400;
 
 /**
- * @typedef {{provider: string, id: string, name: string, variants: string[], cost?: {input: number, output: number}}} CatalogModel
+ * @typedef {{provider: string, id: string, name: string, variants: string[], cost?: {input: number, output: number}, contextWindow?: number, input?: string[], reasoning?: boolean}} CatalogModel
  * @typedef {{provider: string, id: string}} ModelKey
  * @typedef {{model: string|null, effort: string|null}} Selection
  * @typedef {{id: string, providerID: string, variant?: string}} ModelRef
@@ -122,6 +122,19 @@ function sanitizeModel(raw) {
   const model = {provider, id, name, variants: variantList(source.variants)};
   const cost = firstCost(/** @type {{cost?: unknown}} */ (raw).cost);
   if (cost) model.cost = cost;
+  /* O `/api/model` real também manda a janela de contexto e a entrada aceita
+     (`capabilities.input`); sem repassar, a segunda linha do seletor perdia a
+     janela e o "visão" que o Pi mostrava. Variante de esforço é raciocínio. */
+  const limit = /** @type {{limit?: unknown}} */ (raw).limit;
+  const context = isPlainObject(limit) ? /** @type {{context?: unknown}} */ (limit).context : null;
+  if (typeof context === 'number' && Number.isFinite(context) && context > 0) model.contextWindow = context;
+  const capabilities = /** @type {{capabilities?: unknown}} */ (raw).capabilities;
+  const input = isPlainObject(capabilities) ? /** @type {{input?: unknown}} */ (capabilities).input : null;
+  if (Array.isArray(input)) {
+    const kinds = input.filter((kind) => typeof kind === 'string' && kind).slice(0, 8);
+    if (kinds.length) model.input = kinds;
+  }
+  if (model.variants.length) model.reasoning = true;
   return model;
 }
 

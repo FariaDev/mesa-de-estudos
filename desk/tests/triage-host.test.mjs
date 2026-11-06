@@ -34,10 +34,12 @@ test('triage-report passa só motor e modelo, aparados, ao worker',async()=>{
 
 test('triage-open-issue só abre a issue nova do repositório',async()=>{
  const {ipcMain,opened}=setup();
- const good='https://github.com/FariaDev/mesa-e-conversa/issues/new?title=a&body=b';
+ const good='https://github.com/FariaDev/mesa-de-estudos/issues/new?title=a&body=b';
  assert.deepEqual(await ipcMain.invoke('triage-open-issue',{url:good}),{ok:true});
  const bad=await ipcMain.invoke('triage-open-issue',{url:'https://evil.example/issues/new?x'});
  assert.equal(bad.ok,false);
- assert.match(bad.error,/esperado https:\/\/github\.com\/FariaDev\/mesa-e-conversa\/issues\/new/);
+ assert.match(bad.error,/esperado https:\/\/github\.com\/FariaDev\/mesa-de-estudos\/issues\/new/);
+ const priv=await ipcMain.invoke('triage-open-issue',{url:'https://github.com/FariaDev/mesa-e-conversa/issues/new?title=a&body=b'});
+ assert.equal(priv.ok,false);
  assert.deepEqual(opened,[good]);
 });

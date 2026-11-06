@@ -154,6 +154,19 @@ function createBackupServices({
     const versions = root ? backup.list(root) : [];
     const lastVersion = versions[0] || null;
     const git = gitApi();
+    /* `.mesa-git` recusado não derruba o painel: o erro do git vai para o
+       `gitError` que o painel já mostra, e a lista de versões e o snapshot
+       continuam valendo (o backup agendado registra do mesmo jeito). */
+    let gitStatus = {available: false};
+    let gitStatusError = '';
+    if (git && fs.existsSync(git.gitDir)) {
+      try {
+        gitStatus = await git.status();
+      } catch (error) {
+        gitStatusError = String((error && error.message) || error);
+        gitStatus = {available: false, error: gitStatusError};
+      }
+    }
     return {
       available: !!root,
       destination: root,
@@ -169,11 +182,11 @@ function createBackupServices({
       },
       last: base.lastVersion || (lastVersion ? {id: lastVersion.snapshotId, created: lastVersion.created, bytes: lastVersion.bytes, entries: lastVersion.entries, reason: lastVersion.reason} : null),
       lastError: base.lastError || '',
-      gitError: base.gitError || '',
+      gitError: [base.gitError, gitStatusError].filter(Boolean).join(' — ') || '',
       gitAt: base.gitAt || '',
       auto: base.auto || {attemptedAt: '', snapshotId: '', error: ''},
       versions,
-      git: git && fs.existsSync(git.gitDir) ? await git.status() : {available: false},
+      git: gitStatus,
     };
   }
 

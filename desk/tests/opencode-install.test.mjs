@@ -11,6 +11,7 @@ import path from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {ptText} from './pt-text.mjs';
+import {trackTempDir} from './temp-dir.mjs';
 
 const require=createRequire(import.meta.url);
 const {runCommand,PINNED_VERSION,OpenCodeInstallError,openCodeTarget,openCodeInstallSupported,installOpenCode,placeBinary}=require('../src/agents/opencode-install.cjs');
@@ -55,7 +56,7 @@ test('openCodeTarget escolhe o pacote do instalador v2',()=>{
 });
 
 test('installOpenCode baixa o pacote fixado, confere o SRI e coloca o binário sem script remoto',async()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-install-'));
+ const root=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-install-')));
  const home=path.join(root,'home'),work=path.join(root,'work');
  try{
   fs.mkdirSync(path.join(work,'package','bin'),{recursive:true});
@@ -104,7 +105,7 @@ test('installOpenCode baixa o pacote fixado, confere o SRI e coloca o binário s
 });
 
 test('installOpenCode recusa SRI que não confere e plataforma desconhecida',async()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-install-bad-'));
+ const root=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-install-bad-')));
  try{
   const unsupported=await installOpenCode({home:root,platform:'freebsd',arch:'x64',...cpu()}).catch(error=>error);
   assert.equal(unsupported.code,'unsupported');
@@ -122,7 +123,7 @@ test('installOpenCode recusa SRI que não confere e plataforma desconhecida',asy
 
 test('a confirmação da atualização avisa que outros programas usam o mesmo OpenCode',()=>{
  assert.equal(ptBR['firstrun.tutor.opencodeOldConfirm'],'Atualizar o OpenCode {version}? A Mesa troca o programa pela versão 2.2.4. Outros programas no seu computador que usam esse OpenCode também passarão a usar a versão nova. Suas conversas e preferências continuam.');
- assert.equal(en['firstrun.tutor.opencodeOldConfirm'],'Update OpenCode {version}? The Mesa replaces the program with version 2.2.4. Other programs on your computer that use this OpenCode will also start using the new version. Your conversations and preferences stay.');
+ assert.equal(en['firstrun.tutor.opencodeOldConfirm'],'Update OpenCode {version}? The Desk replaces the program with version 2.2.4. Other programs on your computer that use this OpenCode will also start using the new version. Your conversations and preferences stay.');
  assert.doesNotMatch(ptBR['firstrun.tutor.opencodeOldConfirm'],/T3 Code|~\/\.opencode/);
  assert.doesNotMatch(en['firstrun.tutor.opencodeOldConfirm'],/T3 Code|~\/\.opencode/);
 });
@@ -138,7 +139,7 @@ test('o comando de login usa o caminho do binário, com ~ colável e aspas só c
 
 /* O Windows recusa renomear sobre arquivo aberto; o caminho dele é `replaceWindows`. */
 test('placeBinary troca por rename atômico e quem está rodando segue no arquivo antigo',{skip:process.platform==='win32'&&'rename sobre arquivo aberto é só POSIX'},async()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-atomic-'));
+ const root=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-atomic-')));
  try{
   const home=path.join(root,'home'),bin=path.join(home,'.opencode','bin');
   fs.mkdirSync(bin,{recursive:true});
@@ -157,7 +158,7 @@ test('placeBinary troca por rename atômico e quem está rodando segue no arquiv
 });
 
 test('placeBinary preserva symlink para dentro da pasta e recusa link para fora',async()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-symlink-'));
+ const root=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-symlink-')));
  try{
   const home=path.join(root,'home'),bin=path.join(home,'.opencode','bin');
   fs.mkdirSync(bin,{recursive:true});
@@ -183,7 +184,7 @@ test('placeBinary preserva symlink para dentro da pasta e recusa link para fora'
 });
 
 test('falha no meio não quebra o binário anterior nem deixa temporário',async()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-fail-'));
+ const root=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-fail-')));
  try{
   const home=path.join(root,'home'),bin=path.join(home,'.opencode','bin');
   fs.mkdirSync(bin,{recursive:true});
@@ -201,7 +202,7 @@ test('falha no meio não quebra o binário anterior nem deixa temporário',async
 });
 
 test('Windows: troca o .exe pelo .old-<timestamp> e falha em uso pede para fechar os programas',async()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-windows-'));
+ const root=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-opencode-windows-')));
  try{
   const home=path.join(root,'home'),bin=path.join(home,'.opencode','bin');
   fs.mkdirSync(bin,{recursive:true});

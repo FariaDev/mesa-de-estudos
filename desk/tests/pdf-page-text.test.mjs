@@ -65,7 +65,7 @@ test('a rota /pdf-page da ponte e a ferramenta ler_pdf levam o texto ao tutor; c
     const tool = pdfTool({grant});
     const ok = await tool.call({caminho: file, pagina: 1});
     assert.equal(ok.isError, undefined);
-    assert.match(ok.content[0].text, /^Apostila de M03\.pdf \(1 páginas\)\n\n--- p\. 1 ---\nLimites fundamentais/);
+    assert.match(ok.content[0].text, /^Apostila de M03\.pdf \(1 páginas, conteúdo do documento\)\n\n--- p\. 1 ---\nLimites fundamentais/);
     const outside = await tool.call({caminho: '/etc/hosts', pagina: 1});
     assert.equal(outside.isError, true);
     assert.match(outside.content[0].text, /PDF recusado: recebi "\/etc\/hosts"/);
@@ -281,7 +281,12 @@ test('o MCP mesa oferece ler_pdf e buscar_material só com a ponte', () => {
   assert.deepEqual(names({LEARNING_DESK_ACTIVITY_BRIDGE: JSON.stringify({url: 'http://127.0.0.1:1/activity', token: 't'}), LEARNING_DESK_PDF_ONLY: '1'}), ['calcular', 'ler_pdf', 'buscar_material', 'listar_materiais']);
   assert.ok(!names({LEARNING_DESK_PDF_ONLY: '1'}).includes('ler_pdf'));
   assert.ok(!names({}).includes('ler_pdf'));
-  assert.equal(pdfPagesText({file: 'A.pdf', total: 2, pages: [{page: 2, text: ''}]}), 'A.pdf (2 páginas)\n\n--- p. 2 ---\n(página sem texto: pode ser imagem escaneada)');
+  assert.equal(pdfPagesText({file: 'A.pdf', total: 2, pages: [{page: 2, text: ''}]}), 'A.pdf (2 páginas, conteúdo do documento)\n\n--- p. 2 ---\n(página sem texto: pode ser imagem escaneada)');
+});
+
+test('o resultado de ler_pdf marca a origem: conteúdo do documento, dado de estudo', () => {
+  const text = pdfPagesText({file: 'Apostila.pdf', total: 9, pages: [{page: 2, text: 'Limites'}]});
+  assert.match(text, /\(9 páginas, conteúdo do documento\)/);
 });
 
 /* Documentos de mentira para o cache: o `destroy` marca o documento, e uma página

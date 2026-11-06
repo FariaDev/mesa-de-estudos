@@ -4,8 +4,9 @@
    limpo: o prompt para Claude Code / Codex, o comando `opencode run` com um
    modelo grátis e o endereço da issue nova no GitHub, preenchida para a pessoa
    revisar e enviar. Nada aqui manda dado para fora: só monta texto. */
+import {SAFE_MODEL_ID} from './triage-free-model.mjs';
 
-export const ISSUE_REPO='FariaDev/mesa-e-conversa';
+export const ISSUE_REPO='FariaDev/mesa-de-estudos';
 const ISSUE_NEW=`https://github.com/${ISSUE_REPO}/issues/new`;
 /* O GitHub recusa endereço muito longo; 7500 caracteres cabem com folga nos navegadores. */
 const ISSUE_URL_MAX=7500;
@@ -74,8 +75,35 @@ export function shellQuote(text,platform){
 }
 
 /**
+ * Como chamar o OpenCode no terminal. A Mesa o instala em `~/.opencode/bin`, fora
+ * do PATH, onde `opencode` puro daria "command not found". Sem caminho pessoal.
+ * @param {string} found binário encontrado @param {string} home @param {string} platform
+ * @returns {string}
+ * @example opencodeLauncher('/Users/a/.opencode/bin/opencode', '/Users/a', 'darwin') // '~/.opencode/bin/opencode'
+ */
+export function opencodeLauncher(found,home,platform){
+ const dir=String(found||'').startsWith(String(home||'\0'))?String(found).slice(String(home).length).replace(/\\/g,'/'):'';
+ if(!/^\/\.opencode\/bin\/opencode(\.exe)?$/.test(dir))return 'opencode';
+ return platform==='win32'?`& "$HOME${dir.replace(/\//g,'\\')}"`:`~${dir}`;
+}
+
+/**
+ * Palavra que o shell passa sem aspas: só o formato de id de modelo (a mesma
+ * fonte do filtro de `freeZenIds`). O comando comum segue legível
+ * (`--model opencode/x-free` sem aspas); o que foge do formato vai citado
+ * íntegro — colar o modelo cru executaria na máquina de quem colou.
+ * @param {string} text @param {string} platform
+ * @returns {string}
+ * @example shellWord('opencode/x-free', 'darwin') // 'opencode/x-free'
+ */
+export function shellWord(text,platform){
+ if(text&&SAFE_MODEL_ID.test(String(text)))return String(text);
+ return shellQuote(String(text),platform);
+}
+
+/**
  * O comando do OpenCode, ou o motivo de não haver um.
- * @param {{opencode: boolean, freeModel: {model: string, policyKey: string} | null}} facts
+ * @param {{opencode: boolean, opencodeLauncher?: string, opencodeStandalone?: boolean, freeModel: {model: string, policyKey: string} | null}} facts
  * @param {string} report @param {string} platform
  * @returns {{command: string, model: string, policyKey: string} | {command: null, reason: 'triage.opencode.missing' | 'triage.opencode.noFree'}}
  */
@@ -83,24 +111,7 @@ export function opencodeCommand(facts,report,platform){
  if(!facts.opencode)return {command:null,reason:'triage.opencode.missing'};
  if(!facts.freeModel)return {command:null,reason:'triage.opencode.noFree'};
  const {model,policyKey}=facts.freeModel;
- return {command:`opencode run --model ${model} ${shellQuote(freePrompt(report),platform)}`,model,policyKey};
-}
-
-/**
- * O comando do Pi com o prompt completo, no modo interativo (a pessoa
- * acompanha e responde). Sem modelo, fica o padrão do Pi; o modelo só vem da
- * lista do próprio relatório (`piModels`), nunca de texto livre.
- * @param {{pi: boolean, piModels: string[]}} facts
- * @param {string} prompt `agentPrompt` @param {string} platform
- * @param {string} [model] um de `facts.piModels`; o primeiro é o padrão
- * @returns {{command: string, model: string} | {command: null, reason: 'triage.pi.missing'}}
- * @example piCommand({pi: true, piModels: ['xai/grok-4']}, 'p', 'darwin').command // "pi --model xai/grok-4 'p'"
- */
-export function piCommand(facts,prompt,platform,model=facts.piModels[0]||''){
- if(!facts.pi)return {command:null,reason:'triage.pi.missing'};
- const picked=facts.piModels.includes(model)?model:(facts.piModels[0]||'');
- const flag=picked?`--model ${/^[\w./:@+-]+$/.test(picked)?picked:shellQuote(picked,platform)} `:'';
- return {command:`pi ${flag}${shellQuote(prompt,platform)}`,model:picked};
+ return {command:`${facts.opencodeLauncher||'opencode'} run ${facts.opencodeStandalone?'--standalone ':''}--model ${shellWord(model,platform)} ${shellQuote(freePrompt(report),platform)}`,model,policyKey};
 }
 
 /**
@@ -108,7 +119,7 @@ export function piCommand(facts,prompt,platform,model=facts.piModels[0]||''){
  * relatório é cortado com um aviso para a pessoa colar o resto.
  * @param {string} report
  * @returns {{url: string, truncated: boolean}}
- * @example issueUrl('## Ambiente').url.startsWith('https://github.com/FariaDev/mesa-e-conversa/issues/new?') // true
+ * @example issueUrl('## Ambiente').url.startsWith('https://github.com/FariaDev/mesa-de-estudos/issues/new?') // true
  */
 export function issueUrl(report){
  const build=body=>`${ISSUE_NEW}?${new URLSearchParams({title:ISSUE_TITLE,body:[...ISSUE_FORM,body].join('\n')})}`;

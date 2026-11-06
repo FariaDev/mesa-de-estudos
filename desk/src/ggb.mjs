@@ -10,6 +10,7 @@ export function activateGeogebra(){
  S.ggbActive=true;
  $('#references').classList.add('ggb');
  $('#ggb-bar').hidden=false;
+ showBoardLoading();
  markCourseTab('geogebra');
  updateContextSummary();
  sendGgbRect();
@@ -19,6 +20,7 @@ export function deactivateGeogebra(){
  S.ggbActive=false;
  $('#references').classList.remove('ggb');
  $('#ggb-bar').hidden=true;
+ hideBoardLoading();
  window.desk.ggbSnapshot().catch(()=>{});
  window.desk.ggbShow({visible:false}).catch(()=>{});
 }
@@ -28,7 +30,7 @@ export function deactivateGeogebra(){
    aqui (ou ganha `dialog[open]`), nunca num caso por tela. A decisão é do núcleo
    (`core/overlay.bend`): "coberta" esconde a view sem fechar, então a construção
    e o retângulo ficam e ela volta no mesmo lugar. */
-export const OVERLAY_SELECTOR='dialog[open],#command-palette:not([hidden]),.activity-fullscreen';
+export const OVERLAY_SELECTOR='dialog[open],#command-palette:not([hidden]),.activity-fullscreen,body.chat-full';
 const openOverlays=()=>document.querySelectorAll(OVERLAY_SELECTOR).length;
 /* Arrasto do divisor do chat (ajustes do GeoGebra): a view nativa não segue o
    DOM e recarrega o applet a cada tamanho, então durante o arrasto ela vira uma
@@ -71,7 +73,11 @@ export function sendGgbRect(){
  const state=overlayCore.viewState(!!S.ggbActive,openOverlays()).$;
  if(state==='ViewOff')return Promise.resolve();
  const {x,y,width,height}=ggbArea();
- return window.desk.ggbShow({visible:true,covered:state==='ViewCovered',rect:{x,y,width,height}}).catch(()=>{});
+ /* A tela inteira do tutor tira as referências do layout: mandar esse retângulo
+    (0×0) faria o host encostar a view em 1×1 e o applet recarregaria (#98).
+    Sem área, a view só se cobre e guarda o último retângulo para a volta. */
+ const rect=width>0&&height>0?{x,y,width,height}:null;
+ return window.desk.ggbShow({visible:true,covered:state==='ViewCovered'||!rect,...(rect?{rect}:{})}).catch(()=>{});
 }
 window.addEventListener('resize',()=>{if(S.ggbActive)sendGgbRect();});
 /* A coluna das referências muda de largura sem `resize` da janela (divisor pelo
@@ -114,6 +120,38 @@ function showBoardNote(note){
  el.hidden=!note;
  if(note)noteTimer=setTimeout(()=>{el.hidden=true;el.textContent='';},12000);
 }
+/* A barra espelha o carregamento do applet (auditoria de UI/UX, rodada 1,
+   A4): "Carregando…" desde a abertura até o `ggb-ready` chegar; falha fica à
+   vista (sem o temporizador do aviso de uso) até a aba fechar ou reabrir. */
+let boardLoading=false;
+let boardFailed=false;
+function showBoardLoading(){
+ boardLoading=true;
+ boardFailed=false;
+ const el=$('#ggb-board-note');
+ clearTimeout(noteTimer);
+ el.textContent=t('ggb.bar.loading');
+ el.hidden=false;
+}
+function hideBoardLoading(){
+ if(!boardLoading&&!boardFailed)return;
+ boardLoading=false;
+ boardFailed=false;
+ const el=$('#ggb-board-note');
+ clearTimeout(noteTimer);
+ el.textContent='';
+ el.hidden=true;
+}
+window.desk.onGgbReady?.((status)=>{
+ if(status?.ok){hideBoardLoading();return;}
+ if(!S.ggbActive)return;
+ boardLoading=false;
+ boardFailed=true;
+ clearTimeout(noteTimer);
+ const el=$('#ggb-board-note');
+ el.textContent=t('ggb.bar.failed');
+ el.hidden=false;
+});
 export function showBoardStatus(status){
  const back=$('#ggb-back');
  const kept=Math.max(0,Number(status?.kept)||0);

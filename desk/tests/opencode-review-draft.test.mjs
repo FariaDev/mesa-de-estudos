@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {createFakeOpencodeServe} from './fake-opencode.mjs';
+import {trackTempDir} from './temp-dir.mjs';
 
 const require=createRequire(import.meta.url);
 const {createOpenCodeDraftBridge}=require('../src/agents/opencode-review-draft.cjs');
@@ -20,7 +21,7 @@ const DRAFT={question:'Limite lateral',attempt:'Dividi por x',difficulty:'Sinal 
 
 test('rascunho no OpenCode: consulta temporária, sem MCP e sem sessão salva', async (t) => {
  const serve=await createFakeOpencodeServe({password:PASSWORD,reply:()=>JSON.stringify(DRAFT)});
- const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-oc-draft-'));
+ const cwd=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-oc-draft-')));
  const bridge=createOpenCodeDraftBridge({
   cwd,
   systemPrompt:draftPrompt('pt-BR'),
@@ -40,7 +41,7 @@ test('rascunho no OpenCode: consulta temporária, sem MCP e sem sessão salva', 
 
 test('a sessão temporária some depois do rascunho, inclusive em cancelamento e erro (#93)', async (t) => {
  const serve=await createFakeOpencodeServe({password:PASSWORD,reply:()=>JSON.stringify(DRAFT),turnDelayMs:80});
- const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-oc-draft-limpa-'));
+ const cwd=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-oc-draft-limpa-')));
  t.after(async()=>{await serve.close();fs.rmSync(cwd,{recursive:true,force:true});});
  const bridge=()=>createOpenCodeDraftBridge({cwd,systemPrompt:draftPrompt('pt-BR'),acquire:async()=>({baseUrl:serve.url,password:PASSWORD,binary:'/fake/opencode'}),readVersion:async()=> 'opencode v2.2.4'});
  const item=await generateReviewDraft({bridge:bridge(),context:{question:'Quanto é 2 + 2?',attempt:'Somei.',answer:'É 4.'},ref:null});
@@ -71,7 +72,7 @@ test('a sessão temporária some depois do rascunho, inclusive em cancelamento e
 
 test('a conversa normal não apaga a sessão quando o serviço para (#93)', async (t) => {
  const serve=await createFakeOpencodeServe({password:PASSWORD,reply:()=>'Resposta'});
- const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-oc-normal-'));
+ const cwd=trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-oc-normal-')));
  const adapter=new OpenCodeAdapter({
   conversationId:'normal',sessionId:'',directory:cwd,
   acquire:async()=>({baseUrl:serve.url,password:PASSWORD,binary:'/fake/opencode'}),

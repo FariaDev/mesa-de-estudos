@@ -350,13 +350,36 @@ const deskApi={
  opencodeKeyTest:key=>invoke('opencode-key-test',key===undefined||key===''?{}:{key:asString(key,'Chave inválida.',400)}),
  opencodeKeyRemove:()=>invoke('opencode-key-remove'),
  opencodeAuthFileUse:()=>invoke('opencode-auth-file-use'),
+ /* Entrada por provedor do OpenCode (API v2 do `serve`): a chave de API passa
+    uma vez para o main e o host a entrega ao OpenCode; nenhum canal devolve
+    token, código ou URL de credencial para a janela. */
+ opencodeProviders:()=>invoke('opencode-providers'),
+ opencodeProviderLoginStart:request=>{
+  const raw=asPlain(request,'Login inválido.');const out={integrationID:asString(raw.integrationID,'Login inválido.',80)};
+  if(raw.methodID!==undefined)out.methodID=asString(raw.methodID,'Login inválido.',120);
+  if(raw.key!==undefined)out.key=asString(raw.key,'Chave inválida.',400);
+  if(raw.label!==undefined)out.label=asString(raw.label,'Login inválido.',120);
+  return invoke('opencode-provider-login-start',out);
+ },
+ opencodeProviderLoginStatus:request=>invoke('opencode-provider-login-status',{attemptID:asString(asPlain(request,'Login inválido.').attemptID,'Login inválido.',120)}),
+ opencodeProviderLoginOpen:request=>invoke('opencode-provider-login-open',{attemptID:asString(asPlain(request,'Login inválido.').attemptID,'Login inválido.',120)}),
+ opencodeProviderLoginComplete:request=>{const raw=asPlain(request,'Login inválido.');return invoke('opencode-provider-login-complete',{attemptID:asString(raw.attemptID,'Login inválido.',120),code:asString(raw.code,'Código inválido.',4000)});},
+ opencodeProviderLoginCancel:request=>invoke('opencode-provider-login-cancel',{attemptID:asString(asPlain(request,'Login inválido.').attemptID,'Login inválido.',120)}),
 
  opencodePaidAck:()=>invoke('opencode-paid-ack'),
  /* Relatar um problema (#62): o renderer manda só motor e modelo em uso; o relatório volta limpo. A issue abre só pelo endereço que o próprio main montou. */
  triageReport:choice=>{const raw=choice&&typeof choice==='object'?choice:{};return invoke('triage-report',{engine:typeof raw.engine==='string'?raw.engine.slice(0,40):'',model:typeof raw.model==='string'?raw.model.slice(0,200):''});},
  triageOpenIssue:url=>invoke('triage-open-issue',{url:asString(url,'Endereço inválido.',8000)}),
- init:()=>invoke('init'),switchCourse:id=>invoke('switch-course',id),settings:change=>invoke('pi-settings',change),openPDF:()=>invoke('open-pdf'),readPDF:p=>invoke('read-pdf',p),readImage:p=>invoke('read-image',p),openImage:p=>invoke('open-image',p),ggbShow:p=>invoke('ggb-view',p),ggbFreeze:()=>invoke('ggb-freeze'),ggbShot:()=>invoke('ggb-shot'),ggbSnapshot:()=>invoke('ggb-snapshot'),ggbBoard:()=>invoke('ggb-board'),ggbRestore:()=>invoke('ggb-restore'),onGgbOpen:fn=>ipcRenderer.on('ggb-open',fn),onGgbBoard:fn=>ipcRenderer.on('ggb-board',(_e,status)=>fn(status)),save:s=>invoke('save-state',s),
- connect:()=>invoke('pi-connect'),connectCancel:()=>invoke('pi-connect-cancel'),health:()=>invoke('pi-health'),prompt:p=>invoke('pi-prompt',p),tutorWarm:p=>invoke('tutor-warm',p),abort:()=>invoke('pi-abort'),compact:i=>invoke('pi-compact',i),commands:()=>invoke('pi-commands'),autoCompaction:e=>invoke('pi-auto-compaction',e),respond:d=>invoke('pi-response',d),newSession:engine=>invoke('new-session',{engine}),openSession:p=>invoke('open-session',p),captureReady:()=>invoke('capture-ready'),captureWindows:()=>invoke('capture-windows'),captureChoose:p=>invoke('capture-choose',p),captureDefault:()=>invoke('capture-default'),openXournal:()=>invoke('open-xournal'),exportChat:()=>invoke('export-chat'),
+ init:()=>invoke('init'),switchCourse:id=>invoke('switch-course',id),settings:change=>invoke('pi-settings',change),openPDF:()=>invoke('open-pdf'),readPDF:p=>invoke('read-pdf',p),readImage:p=>invoke('read-image',p),openImage:p=>invoke('open-image',p),ggbShow:p=>invoke('ggb-view',p),ggbFreeze:()=>invoke('ggb-freeze'),ggbShot:()=>invoke('ggb-shot'),ggbSnapshot:()=>invoke('ggb-snapshot'),ggbBoard:()=>invoke('ggb-board'),ggbRestore:()=>invoke('ggb-restore'),onGgbOpen:fn=>ipcRenderer.on('ggb-open',fn),onGgbBoard:fn=>ipcRenderer.on('ggb-board',(_e,status)=>fn(status)),onGgbReady:fn=>ipcRenderer.on('ggb-ready',(_e,status)=>fn(status)),save:s=>invoke('save-state',s),
+ connect:historyIdentity=>invoke('pi-connect',typeof historyIdentity==='string'?{historyIdentity}:{}),connectCancel:()=>invoke('pi-connect-cancel'),health:()=>invoke('pi-health'),prompt:p=>invoke('pi-prompt',p),tutorWarm:p=>invoke('tutor-warm',p),abort:attemptId=>invoke('pi-abort',typeof attemptId==='string'?{attemptId}:{}),compact:i=>invoke('pi-compact',i),commands:()=>invoke('pi-commands'),autoCompaction:e=>invoke('pi-auto-compaction',e),respond:d=>invoke('pi-response',d),newSession:options=>{
+  const raw=typeof options==='string'?{engine:options}:options&&typeof options==='object'?options:{};
+  const request={};
+  if(raw.engine!=null)request.engine=asString(raw.engine,'Sessão inválida.',24);
+  if(raw.carryFrom!=null)request.carryFrom=asString(raw.carryFrom,'Sessão inválida.',4096);
+  if(raw.mode!=null)request.mode=asString(raw.mode,'Sessão inválida.',16);
+  return invoke('new-session',request);
+ },
+ openSession:p=>invoke('open-session',p),captureReady:()=>invoke('capture-ready'),captureWindows:()=>invoke('capture-windows'),captureChoose:p=>invoke('capture-choose',p),captureDefault:()=>invoke('capture-default'),openXournal:()=>invoke('open-xournal'),exportChat:()=>invoke('export-chat'),
  /* Aba Livre: sessões avulsas do workspace virtual `mesa-free`. O renderer não
     passa escopo nem caminho — o main captura o workspace ativo, guarda o
     escopo antes/depois dos awaits nativos e revalida antes de gravar. */
@@ -420,7 +443,7 @@ const deskApi={
   return invoke('sidechat-respond',{...value,response:clean});
  },
  onSidechatEvent:fn=>ipcRenderer.on('sidechat-event',(_e,data)=>{if(typeof fn==='function')fn(data);}),
- getConfig:()=>invoke('get-config'),saveConfig:c=>invoke('save-config',c),pickFolder:()=>invoke('pick-folder'),pickXopp:()=>invoke('pick-xopp'),pickExecutable:kind=>invoke('pick-executable',kind),detectPi:()=>invoke('detect-pi'),logError:line=>invoke('desk-log',line),
+ getConfig:()=>invoke('get-config'),saveConfig:c=>invoke('save-config',c),pickFolder:()=>invoke('pick-folder'),pickXopp:()=>invoke('pick-xopp'),pickExecutable:kind=>invoke('pick-executable',kind),logError:line=>invoke('desk-log',line),
  openCodeInstall:()=>invoke('opencode-install'),openCodeInstallSupported:()=>invoke('opencode-install-supported'),
  onOpenCodeInstallProgress:fn=>{if(typeof fn!=='function')return()=>{};const l=(_e,d)=>fn(d);ipcRenderer.on('opencode-install-progress',l);return()=>ipcRenderer.removeListener('opencode-install-progress',l);},
  /* Fila e bandeja guardadas: `{items, held}` / `{images, held}`. */
@@ -455,7 +478,7 @@ const deskApi={
   const listener=(_event,data)=>fn(data);ipcRenderer.on('link-confirm',listener);
   return ()=>ipcRenderer.removeListener('link-confirm',listener);
  },
- updateCheck:o=>invoke('update-check',o),updateApply:()=>invoke('update-apply'),updatePi:()=>invoke('update-pi'),updateResult:()=>invoke('update-result'),components:o=>invoke('components',o),toolNotices:()=>invoke('tool-notices'),toolNoticesOpened:()=>invoke('tool-notices-opened'),toolNoticePostpone:id=>invoke('tool-notice-postpone',id),toolNoticeIgnore:id=>invoke('tool-notice-ignore',id),toolUpdateRun:id=>invoke('tool-update-run',id),openExternal:url=>invoke('open-external',url),openLog:()=>invoke('open-log'),
+ updateCheck:o=>invoke('update-check',o),updateOrigin:()=>invoke('update-origin'),updateApply:()=>invoke('update-apply'),updateResult:()=>invoke('update-result'),components:o=>invoke('components',o),toolNotices:()=>invoke('tool-notices'),toolNoticesOpened:()=>invoke('tool-notices-opened'),toolNoticePostpone:id=>invoke('tool-notice-postpone',id),toolNoticeIgnore:id=>invoke('tool-notice-ignore',id),toolUpdateRun:id=>invoke('tool-update-run',id),openExternal:url=>invoke('open-external',url),openLog:()=>invoke('open-log'),
  testMode:()=>invoke('test-mode'),
  conversations:()=>invoke('conversation-list'),
  libraryChats:()=>invoke('library-chats'),

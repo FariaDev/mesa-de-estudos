@@ -1,9 +1,11 @@
 'use strict';
 
 /* Núcleo do quadro (#42): tokens, paleta e espelho MCP Apps. */
+const fs = require('node:fs');
+const path = require('node:path');
 const activityView = require('./src/activity-view.mjs');
 const {normalizeSpec} = require('./activity-store.cjs');
-const {ACTIVITY_SCHEME, KATEX_HOST, LIB_HOST} = require('./activity-protocol.cjs');
+const {ACTIVITY_SCHEME, KATEX_DIST, KATEX_HOST, LIB_HOST} = require('./activity-protocol.cjs');
 const {CHART_THEME_SCRIPT, HOST_CSS, RUNTIME_SCRIPT} = require('./activity-page-script.cjs');
 const {LOCKDOWN_SCRIPT} = require('./activity-lockdown-script.cjs');
 
@@ -14,6 +16,21 @@ const {LOCKDOWN_SCRIPT} = require('./activity-lockdown-script.cjs');
 const escapeHtml = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const escapeInlineScript = (value) => String(value).replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\u0021--');
 const escapeInlineStyle = (value) => String(value).replace(/<\/style/gi, '<\\/style');
+/* KaTeX sem <link> (#76753cd6): o prelude remove TODO link do documento vivo
+   (o observer não distingue o do host), então o CSS entra embutido em <style>
+   com as fontes apontando para o esquema (font-src já aceita; medido: 24.8 KiB,
+   sem `</style` no conteúdo). */
+let cachedKatexCss = null;
+function katexCss() {
+  if (cachedKatexCss !== null) return cachedKatexCss;
+  try {
+    const raw = fs.readFileSync(path.join(KATEX_DIST, 'katex.min.css'), 'utf8');
+    cachedKatexCss = raw.replace(/url\(fonts\//g, `url(${ACTIVITY_SCHEME}://${KATEX_HOST}/fonts/`);
+  } catch {
+    cachedKatexCss = '';
+  }
+  return cachedKatexCss;
+}
 function cspFor(katex, charts = false) {
   const scheme = katex || charts ? ` ${ACTIVITY_SCHEME}:` : '';
   return [
@@ -47,7 +64,7 @@ function buildActivityDocument(spec, {id, version, hash, theme = 'system', accen
   const charts = clean.charts === true;
   const chartTail = charts ? `<script src="${ACTIVITY_SCHEME}://${LIB_HOST}/chart.umd.min.js"></script>\n<script>${CHART_THEME_SCRIPT}</script>` : '';
   const themeCss = activityView.documentThemeCss(theme, accent);
-  const katexHead = katex ? `<link rel="stylesheet" href="${ACTIVITY_SCHEME}://${KATEX_HOST}/katex.min.css">` : '';
+  const katexHead = katex ? `<style>${escapeInlineStyle(katexCss())}</style>` : '';
   const katexTail = katex ? `<script src="${ACTIVITY_SCHEME}://${KATEX_HOST}/katex.min.js"></script>` : '';
   const themeName = theme === 'dark' || theme === 'light' ? theme : 'system';
   return `<!doctype html>

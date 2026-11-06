@@ -13,8 +13,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:fs';
-import {tmpdir} from 'node:os';
+import {readFileSync, readdirSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
@@ -140,23 +139,6 @@ test('recusa comprovada (o bridge prova que nada foi escrito) vira notSent e nã
   assert.equal(aceitos, 0);
 });
 
-test('Pi ausente com a ponte de verdade é recusa, não entrega ambígua', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'mesa-send-'));
-  try {
-    const {PiBridge} = require('../rpc.cjs');
-    const bridge = new PiBridge({cwd: dir, session: join(dir, 'sessao.jsonl'), pi: ''});
-
-    const erro = await send.deliverPrompt({request: PEDIDO, connect: () => bridge})
-      .then(() => assert.fail('devia rejeitar'), (error) => error);
-
-    assert.match(ptText(erro.message), /Nada foi enviado ao tutor/);
-    assert.equal(erro.notSent, true);
-    assert.equal(bridge.child, undefined, 'nenhum processo do Pi chegou a existir');
-  } finally {
-    rmSync(dir, {recursive: true, force: true});
-  }
-});
-
 test('aceite confirmado: só então o contexto conta como entregue, e o estado vem depois', async () => {
   let aceitos = 0;
   const bridge = fakeBridge();
@@ -197,6 +179,6 @@ test('o host do envio liga o aceite do ciclo ao contexto do turno e o main não 
   assert.match(prompt, /onAccepted\(\)\{live\.lastContextKey=block\.key;/, 'o aceite atualiza o contexto do turno');
   const hosts = readdirSync(deskDir).filter((name) => name === 'main.cjs' || /(-host|-ipc)\.cjs$/.test(name));
   for (const name of hosts) {
-    assert.doesNotMatch(readFileSync(join(deskDir, name), 'utf8'), /handoff|bilhete/i, `${name}: o recebimento do bilhete saiu do main (#50)`);
+    assert.doesNotMatch(readFileSync(join(deskDir, name), 'utf8'), /bilhete/i, `${name}: o recebimento do bilhete saiu do main (#50)`);
   }
 });

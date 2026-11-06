@@ -1,100 +1,78 @@
-/* Prévia do quadro pelo tutor (#42, parte B), de ponta a ponta e sem modelo:
-   o Pi sintético chama a ferramenta de prévia pela ponte HTTP real da Mesa e a
-   Mesa monta o documento numa janela invisível e offline, com o mesmo quadro
-   isolado da conversa. Prova que:
-   - a prévia devolve um PNG, a altura do conteúdo e o console do documento;
-   - a largura padrão é a do texto da resposta e o tema/largura pedidos valem;
-   - um erro no documento aparece no console devolvido, com a linha;
-   - a prévia não grava nada: nenhuma atividade publicada, nenhum arquivo no
-     diretório de atividades e nada novo na conversa.
-   O caminho Claude da mesma prévia é o handler MCP de `activity-tools.cjs`,
-   coberto em `tests/activity-tools.test.mjs`. */
+/* Prévia do quadro pelo tutor (#42), de ponta a ponta e sem modelo: o fake do
+   OpenCode chama `previsualizar_atividade` no MCP real da Mesa e o texto que o
+   tutor recebe traz a medida, o console e o `previaId` da janela offline. Prova
+   que a largura pedida vale, que sem largura vale a da coluna de resposta, que
+   um erro no documento volta com a linha, e que a prévia não publica nada na
+   conversa nem no disco. O PNG e a altura são cobertos pela mesma ponte em
+   `activity-bridge.test.mjs`/`activity-tools.test.mjs` (o print vai como imagem
+   ao modelo, não no texto que a janela enxerga). */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import {launchDesk,withArtifacts,DESK,enterFree,freezeMotion,screenshotDirectory,resizeWindow} from './helpers.mjs';
-import {pollUntil} from './waits.mjs';
-
-const files=dir=>{const out=[];const walk=d=>{if(!fs.existsSync(d))return;for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else out.push(p);}};walk(dir);return out.sort();};
-const png=b64=>{const buf=Buffer.from(b64,'base64');return {magic:buf.subarray(0,8).toString('hex'),width:buf.readUInt32BE(16),height:buf.readUInt32BE(20)};};
+import {launchDesk,withArtifacts,enterFree} from './helpers.mjs';
+import {tempDir} from './temp-dir.mjs';
+import {layoutStable,pollUntil} from './waits.mjs';
+import {specFor} from './fixtures/activity-specs.mjs';
 
 await withArtifacts('activity-preview-ui',async ctx=>{
- ctx.runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-activity-preview-'));
- const pi=path.join(DESK,'tests/fixtures/mesa-interactive-pi.mjs');fs.chmodSync(pi,0o755);
- fs.writeFileSync(path.join(ctx.runtime,'config.json'),JSON.stringify({runtimePath:ctx.runtime,vaultPath:ctx.runtime,courses:[]}));
- const out=path.join(ctx.runtime,'preview.json');
- ctx.app=await launchDesk({runtime:ctx.runtime,env:{LEARNING_DESK_PI:pi,FAKE_PI_PREVIEW_OUT:out}});
+ ctx.runtime=tempDir('mesa-activity-preview');
+ const out=path.join(ctx.runtime,'preview.jsonl');
+ /* Uma chamada MCP por prompt, na ordem: largura pedida, largura padrão e
+    documento com erro. */
+ const calls=[
+  {name:'previsualizar_atividade',input:{...specFor('grafico'),width:390,theme:'escuro'}},
+  {name:'previsualizar_atividade',input:{...specFor('grafico')}},
+  {name:'previsualizar_atividade',input:{...specFor('grafico'),width:390,theme:'escuro',
+    js:'document.querySelector("#nada").textContent="x";'}},
+ ];
+ ctx.app=await launchDesk({runtime:ctx.runtime,env:{FAKE_OPENCODE_MCP_CALLS:JSON.stringify(calls),FAKE_OPENCODE_MCP_LOG:out}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await resizeWindow(ctx.app,page,1440,900,{content:true});
  await enterFree(page);
  await page.evaluate(async()=>{await (await import('./src/state.mjs')).connect();});
- await freezeMotion(page);
- const before=files(ctx.runtime).filter(f=>!f.endsWith('preview.json'));
- const column=await page.evaluate(()=>{const m=document.querySelector('#messages'),s=getComputedStyle(m);return Math.round(m.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight));});
- const run=async text=>{
-  fs.rmSync(out,{force:true});
-  await page.waitForFunction(()=>!document.querySelector('#send').disabled,undefined,{timeout:30000});
-  await page.locator('#prompt').fill(text);await page.locator('#send').click();
-  await pollUntil(()=>fs.existsSync(out),found=>found,{timeout:30000,interval:200,what:'o arquivo da prévia',onTimeout:'return'});
-  assert.ok(fs.existsSync(out),`a prévia respondeu ("${text}")`);
-  const result=JSON.parse(fs.readFileSync(out,'utf8'));
-  assert.equal(result.error,undefined,`sem erro de ferramenta (${result.error})`);
-  return result;
+ const columnNow=()=>page.evaluate(()=>{const m=document.querySelector('#messages'),s=getComputedStyle(m);return Math.round(m.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight));});
+ const readResult=()=>{try{return JSON.parse(fs.readFileSync(out,'utf8').trim().split('\n').at(-1)).result;}catch{return '';}};
+ const lineCount=()=>{try{return fs.readFileSync(out,'utf8').trim().split('\n').filter(Boolean).length;}catch{return 0;}};
+ const ask=async text=>{
+  const before=lineCount();
+  await page.locator('#prompt').fill(text);
+  await page.locator('#send').click();
+  await pollUntil(lineCount,count=>count>before,{timeout:60000,interval:200,what:`o resultado (${text})`});
+  return readResult();
  };
 
- /* ---- visualização: print, altura e console; largura da coluna por padrão ---- */
- const chart=await run('Faça uma previa do grafico.');
- assert.equal(chart.previewed,true);
- assert.match(chart.previaId,/^prv-[a-z0-9]{8,24}$/,'A3: a prévia devolve um id curto para publicar');
- assert.equal(chart.width,column,`largura padrão = texto da resposta (${chart.width} × ${column})`);
- assert.equal(chart.theme,'claro');
- assert.ok(chart.contentHeight>=300&&chart.contentHeight<=900,`altura do conteúdo plausível (${chart.contentHeight})`);
- const shot=png(chart.screenshot.data);
- assert.equal(shot.magic,'89504e470d0a1a0a','o print é um PNG');
- assert.equal(shot.width,chart.width,'o PNG tem a largura da prévia');
- assert.equal(shot.height,chart.capturedHeight,'o PNG tem a altura capturada');
- assert.ok(chart.consoleMessages.some(m=>m.level==='log'&&m.text==='pontos 7'),`console.log volta ao tutor (${JSON.stringify(chart.consoleMessages)})`);
- assert.equal(chart.consoleMessages.filter(m=>m.level==='error').length,0,'documento certo: sem erro');
+ /* ---- largura pedida, medida, console e previaId ---- */
+ const graphic=await ask('Faça uma prévia do quadro.');
+ assert.match(graphic,/Prévia em 390px \(escuro\): o conteúdo pede \d+px de altura/);
+ assert.match(graphic,/previaId "prv-[a-z0-9]{8,24}"/,'a prévia devolve o id curto para publicar');
+ assert.match(graphic,/\[log\] pontos 7/,'console.log volta ao tutor');
+ assert.match(graphic,/Console \(\d+\):/,'o console do documento volta ao tutor');
 
- /* ---- erro no documento: aparece no console, com a linha; tema e largura pedidos ---- */
- const broken=await run('Faça uma previa com erro.');
- assert.equal(broken.width,390,'largura pedida');
- assert.equal(broken.theme,'escuro','tema pedido');
- const levels=broken.consoleMessages.map(m=>m.level);
- assert.deepEqual(levels.slice(0,2),['log','warning'],`log e aviso na ordem (${JSON.stringify(broken.consoleMessages)})`);
- const error=broken.consoleMessages.find(m=>m.level==='error');
- assert.ok(error,'a exceção aparece no console devolvido');
- assert.match(error.text,/Cannot set properties of null/);
- assert.match(error.text,/linha \d+/,'com a linha');
- assert.equal(png(broken.screenshot.data).magic,'89504e470d0a1a0a');
+ /* ---- sem largura pedida, vale a da coluna de resposta ---- */
+ /* O turno muda a própria cena: a barra de rolagem aparece e tira 15 px, e
+    o host usa a última coluna que o ResizeObserver→IPC reportou — a de
+    antes (report atrasado, Mac rodada 4b) ou a de depois, já assentada.
+    Mede as duas pontas e aceita a que a prévia usou; default (360) ou
+    resto do turno anterior (390) não batem com nenhuma. */
+ let lastColumn=-1;
+ const settleColumn=()=>pollUntil(columnNow,width=>{const same=width===lastColumn;lastColumn=width;return same;},{timeout:3000,interval:100,what:'a largura da coluna assentar'});
+ const columnBefore=await settleColumn();
+ const plain=await ask('Prévia na largura padrão.');
+ const previewed=Number(/Prévia em (\d+)px \(claro\)/.exec(plain)?.[1]);
+ await layoutStable(page,'#messages .message:last-child');
+ lastColumn=-1;
+ const columnAfter=await settleColumn();
+ const nearBefore=Math.abs(previewed-columnBefore)<4,nearAfter=Math.abs(previewed-columnAfter)<4;
+ assert.ok(nearBefore||nearAfter,`a largura padrão é a do texto da resposta (antes ${columnBefore}, depois ${columnAfter}): ${plain}`);
 
- /* O que o tutor recebe, para revisão visual (só com MESA_REVIEW_SHOTS). */
- if(process.env.MESA_REVIEW_SHOTS){
-  const dir=screenshotDirectory('activity-preview');
-  fs.writeFileSync(path.join(dir,`previa-grafico-${chart.width}px-claro.png`),Buffer.from(chart.screenshot.data,'base64'));
-  fs.writeFileSync(path.join(dir,`previa-com-erro-${broken.width}px-escuro.png`),Buffer.from(broken.screenshot.data,'base64'));
- }
+ /* ---- documento com erro: o console devolve a exceção, com a linha ---- */
+ const broken=await ask('Faça uma prévia com erro.');
+ const failed=[...broken.matchAll(/- \[(error|warning|log|info)\] (.*)/g)].filter(match=>match[1]==='error');
+ assert.ok(failed.length,'a exceção aparece no console devolvido');
+ assert.match(broken,/Cannot set properties of null/);
+ assert.match(broken,/linha \d+/,'com a linha');
 
- /* ---- nada gravado ---- */
- const after=files(ctx.runtime).filter(f=>!f.endsWith('preview.json'));
- const added=after.filter(f=>!before.includes(f)).map(f=>path.relative(ctx.runtime,f)).filter(f=>/activit/i.test(f));
- assert.deepEqual(added,[],`nenhum arquivo de atividade foi gravado pela prévia (${JSON.stringify(added)})`);
- assert.equal((await page.evaluate(()=>window.desk.activityList())).items.length,0,'nenhuma atividade publicada');
+ assert.equal((await page.evaluate(()=>window.desk.activityList())).items.length,0,'a prévia não publica atividade');
  assert.equal(await page.locator('.activity-slot').count(),0,'nada apareceu na conversa');
- assert.equal(await page.evaluate(()=>[...document.querySelectorAll('iframe')].filter(f=>String(f.src).startsWith('mesa-activity:')).length),0,'nenhum quadro na janela da Mesa');
-
- /* ---- A3: publicar com o id da prévia grava exatamente o que ela mediu ---- */
- const published=await run('Faça uma previa e publica.');
- assert.equal(published.publicado?.published,true,`publicou com previaId (${published.publishError||''})`);
- assert.equal(published.publicado.reused,false);
- const listed=(await page.evaluate(()=>window.desk.activityList())).items;
- assert.equal(listed.length,1,'uma atividade publicada');
- assert.equal(listed[0].toolCallId,'previa-publicada');
- const read=await page.evaluate((item)=>window.desk.activityRead({id:item.id,version:item.version,scopeRef:item.scopeRef}),listed[0]);
- assert.equal(read.spec.title,'Publicado da prévia');
- assert.match(read.spec.html,/canvas id="chart"/,'o documento é o da prévia, não um reenvio vazio');
- assert.equal(read.spec.kind,'visualizacao','o tipo veio da prévia');
  assert.deepEqual(errors,[]);
+ console.log('activity-preview-ui: PASS — prévia real devolve medida, console e log e previaId, na largura pedida ou na da coluna, com o erro e a linha, sem publicar nada.');
 });
-console.log('activity-preview-ui: PASS — prévia offline devolve PNG, altura e console (com o erro e a linha), na largura da coluna ou na pedida, e não grava nada.');

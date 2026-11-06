@@ -73,9 +73,17 @@
  /* Na janela baixa o respiro vertical aperta para os botões do estado do
     tutor não ficarem sob o composer. Os lados seguem em 12px. */
  .composer-box .composer-field{min-height:34px}
+ /* O campo do tutor é fixo (#123); na janela baixa ele perde o respiro extra
+    para o composer não crescer além dos ~20px combinados. O lateral segue
+    crescendo como antes. */
+ #composer-box .composer-field{height:calc(3lh + 8px);min-height:calc(3lh + 8px);max-height:calc(3lh + 8px);padding-top:var(--space-1);padding-bottom:var(--space-1)}
  /* O mesmo aperto vertical vale para a casca dos estados, que divide a
     coluna com o composer; o respiro entre texto e ações continua. */
- .tutor-state{padding:var(--space-3) var(--pad) var(--space-2);gap:var(--space-3)}
+ /* A caixa do tutor reserva 24px no topo para alinhar com o escopo do
+    lateral (#123). Na janela baixa a reserva encolhe a área do estado e os
+    botões encostavam sob o composer; o respiro menor entre as linhas devolve
+    o que os botões precisam, sem mexer no composer. */
+ .tutor-state{padding:var(--space-3) var(--pad) var(--space-2);gap:var(--space-2)}
  /* As três saídas do estado cabem numa linha só na janela baixa; assim a
     terceira não fica sob a caixa de mensagem. */
  .tutor-state .ts-actions{gap:var(--space-1)}

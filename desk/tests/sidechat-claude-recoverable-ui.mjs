@@ -12,7 +12,7 @@ await withArtifacts('sidechat-claude-recoverable',async ctx=>{
  const release=path.join(runtime,'release-stream'),log=path.join(runtime,'prompts.log');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Synthetic',name:'Synthetic',path:folder}]});
  writeDeskJson(runtime,{courseId:'Synthetic',session:file,courseStates:{Synthetic:{session:file,sessions:[{path:file}]}}});
- ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-recoverable-fake.mjs'),FAKE_CLAUDE_RECOVERY_RELEASE:release,FAKE_CLAUDE_LOG:log}});
+ ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-recoverable-fake.mjs'),FAKE_CLAUDE_RECOVERY_RELEASE:release,FAKE_CLAUDE_LOG:log}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page,{timeout:30000});
  await page.locator('#sidechat-toggle').click();

@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import fs from 'node:fs';
-import path from 'node:path';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import {createTutorPdf} from '../src/extensions/tutor-pdf/client.mjs';
@@ -90,12 +88,9 @@ test('as duas ferramentas do tutor usam o mesmo texto e os ids do núcleo',async
   assert.deepEqual(tool.inputSchema.properties.modelo.enum,guide.MODEL_IDS);
   assert.ok(tool.inputSchema.properties.opcoes);
   assert.deepEqual([...tool.inputSchema.required].sort(),['markdown','title']);
-  /* #40: o esquema anunciado é o dos campos do guia — o mesmo que o Pi monta. */
+  /* #40: o esquema anunciado é o dos campos do guia. */
   const fields=await import('../src/extensions/tool-fields.mjs');
   assert.deepEqual(fields.canonical(tool.inputSchema),fields.canonicalFields(guide.FIELDS));
-  const source=fs.readFileSync(path.join(import.meta.dirname,'..','src','extensions','tutor-pdf','index.ts'),'utf8');
-  assert.match(source,/parameters:typeboxObject\(Type,FIELDS\)/);
-  assert.match(source,/text:resultText\(result\)/);
   const bad=await client.callTool({name:'criar_pdf',arguments:{...payload,modelo:'cartaz'}});
   assert.equal(bad.isError,true);
  }finally{await client.close();await server.instance.close();}

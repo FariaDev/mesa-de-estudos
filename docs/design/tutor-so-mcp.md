@@ -1,5 +1,7 @@
 # Tutor só com ferramentas da Mesa por MCP (#91)
 
+**Nota (2026-11-04):** a regra continua valendo, mas o texto é da época dos três motores. O Pi foi aposentado, só o OpenCode é visível e vários arquivos citados aqui (`tool-jail`, `opencode-jail`, `rpc.cjs` e outros) saíram do código; o estado atual está em [`docs/agents/mapa.md`](../agents/mapa.md).
+
 **Status:** implementado em 2026-11-01; decisões finais na ADR 0002; atualizado pela #92 (cartões `quiz`/`perguntar`).
 **Base:** `feat/tutor-sandbox` em `7efa55f`.
 **Decisão do Lucas:** o tutor fica só com as ferramentas da Mesa nos três

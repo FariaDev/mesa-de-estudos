@@ -11,9 +11,12 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {setMaxListeners} from 'node:events';
 import {pathToFileURL} from 'node:url';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {setUiLanguage} from '../src/ui-text.mjs';
+import {FREE_COURSE_ID} from '../src/free-names.mjs';
 
 const SRC = join(dirname(dirname(fileURLToPath(import.meta.url))), 'src');
 
@@ -71,6 +74,7 @@ class FakeNode {
   focus() {}
   showModal() { this.open = true; }
   close() { this.open = false; this.dispatch('close'); }
+  get firstChild() { return this.children[0] || null; }
   get options() { return this.children.filter((kid) => kid.tagName === 'OPTION'); }
 }
 
@@ -103,11 +107,15 @@ function installDom() {
   const document = {
     body,
     head,
+    documentElement: {},
+    querySelectorAll: () => [],
     createElement: (tag) => new FakeNode(tag),
     getElementById: (id) => find(body, `#${id}`) || find(head, `#${id}`),
   };
   globalThis.document = document;
-  globalThis.window = {confirm: () => true, addEventListener() {}};
+  const window = Object.assign(new EventTarget(), {confirm: () => true, desk: undefined});
+  setMaxListeners(50, window);
+  globalThis.window = window;
   return {body, head, document};
 }
 
@@ -235,6 +243,45 @@ test('a matéria filtrada aparece no seletor e no pedido', async () => {
   assert.equal(host.calls.at(-1)[1].courseId, 'B');
 });
 
+test('a tabela mostra a aba Livre pelo nome do idioma, não pelo id interno (#125)', async () => {
+  const freeSummary = {
+    ...summary,
+    courses: [{courseId: FREE_COURSE_ID, seconds: 1800, sessions: 1, prompts: 0, secondsLabel: '30 min'}],
+  };
+  const host = {...fakeHost(), studyStatsSummary: async () => freeSummary};
+  try {
+    setUiLanguage('pt-BR');
+    const panel = await loadPanel({state: {appConfig: {courses: [{id: 'A', name: 'Cálculo'}]}}, host});
+    await panel.reload();
+    assert.match(panel.coursesTable.textContent, /Livre/);
+    assert.doesNotMatch(panel.coursesTable.textContent, new RegExp(FREE_COURSE_ID));
+    setUiLanguage('en');
+    await panel.reload();
+    assert.match(panel.coursesTable.textContent, /Free/);
+    assert.doesNotMatch(panel.coursesTable.textContent, new RegExp(FREE_COURSE_ID));
+  } finally {
+    setUiLanguage('pt-BR');
+  }
+});
+
+test('o seletor de matérias chama a aba Livre pelo nome do idioma (#125)', async () => {
+  try {
+    setUiLanguage('pt-BR');
+    const panel = await loadPanel({
+      state: {currentCourseId: FREE_COURSE_ID, activeCourseName: 'Livre', appConfig: {courses: [{id: 'A', name: 'Cálculo'}]}},
+      host: fakeHost(),
+    });
+    await panel.reload();
+    const freeOption = () => panel.course.options.find((one) => one.getAttribute('value') === FREE_COURSE_ID);
+    assert.equal(freeOption()?.textContent, 'Livre');
+    setUiLanguage('en');
+    await panel.reload();
+    assert.equal(freeOption()?.textContent, 'Free');
+  } finally {
+    setUiLanguage('pt-BR');
+  }
+});
+
 test('uma ação só no cronômetro: começa, pausa, retoma e encerra pela ação discreta', async () => {
   const host = fakeHost();
   const panel = await loadPanel({state: {currentCourseId: 'A'}, host});
@@ -281,6 +328,16 @@ test('o reset exige confirmação e só então chama o host', async () => {
 function tick() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+test('o uso do tutor tem chevron visível no summary (auditoria rodada 7, D2)', async () => {
+  const panel = await loadPanel({state: {}, host: fakeHost()});
+  const summary = panel.usage.querySelector('summary');
+  assert.ok(summary, 'o details tem summary');
+  const chevron = summary.querySelector('.study-stats-usage-chevron');
+  assert.ok(chevron, 'o summary tem chevron visível em vez de parecer seção vazia');
+  assert.equal(chevron.getAttribute('aria-hidden'), 'true', 'o chevron é decorativo');
+  assert.match(summary.textContent, /Uso do tutor no período/, 'o título continua');
+});
 
 /* Espera as chamadas assíncronas do painel assentarem (host + refresh). */
 async function settle(host) {

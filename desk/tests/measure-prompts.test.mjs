@@ -24,15 +24,10 @@ test('M5: o OpenCode é medido no principal (treze) e no lateral (seis, com quiz
   assert.deepEqual(tools.side.map((tool) => tool.name), ['calcular', 'ler_pdf', 'buscar_material', 'listar_materiais', 'quiz', 'perguntar']);
 });
 
-test('M5: o relatório inclui o GeoGebra do Pi e a seção OpenCode', async (t) => {
+test('M5: o relatório mede a seção OpenCode', async () => {
   const data = await measure();
-  if (!data.pi) return t.skip('o Pi não está instalado nesta máquina');
-  assert.deepEqual(Object.keys(data.pi.tools).filter((name) => name.startsWith('mesa_')).sort(), [
-    'mesa_buscar_material', 'mesa_calcular', 'mesa_criar_atividade', 'mesa_criar_pdf', 'mesa_geogebra', 'mesa_ler_pdf',
-    'mesa_listar_materiais', 'mesa_perguntar', 'mesa_previsualizar_atividade', 'mesa_propor_revisao', 'mesa_quiz', 'mesa_salvar_nota', 'mesa_ver_figura',
-  ]);
   assert.deepEqual(Object.keys(data.opencode.tools).sort(), OPENCODE_TOOLS);
   assert.deepEqual(Object.keys(data.opencode.sideTools), ['calcular', 'ler_pdf', 'buscar_material', 'listar_materiais', 'quiz', 'perguntar']);
   assert.ok(data.opencode.prefixCourse.tokens > data.opencode.toolsTotal.tokens);
-  assert.ok(data.pi.sidePrefix.tokens > data.pi.sidechatAddendum.tokens);
+  assert.ok(data.opencode.prefixSidechat.tokens > data.opencode.sideToolsTotal.tokens);
 });

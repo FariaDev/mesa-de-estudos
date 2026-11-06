@@ -3,15 +3,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import {tempDir} from './temp-dir.mjs';
 
 const require = createRequire(import.meta.url);
 const conversations = require('../src/agents/conversations.cjs');
 
 test('cria, lê, classifica e atualiza o descritor OpenCode sem misturar com o Claude', () => {
-  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-conv-'));
+  const runtime = tempDir('mesa-oc-conv');
   const file = conversations.createClaudeConversation({runtime, courseId: 'calc', engine: 'opencode'});
   assert.match(path.basename(file), /^opencode-[0-9a-f-]{36}\.json$/);
   const record = conversations.readClaudeConversation(file, {runtime});

@@ -25,6 +25,10 @@ const clipped=(page,selector)=>page.evaluate(sel=>{
   const out=[];
   for(const el of document.querySelectorAll(`${sel} *`)){
     if(el.closest('[hidden]')||!el.getClientRects().length||el.matches('input,select,textarea,option,svg,svg *,code')||el.closest('.textLayer')||el.matches('.pdf-viewport,.pdf-divider'))continue;
+    /* Reticências (nome/nota do modelo) são o corte PEDIDO pela interface:
+       cabem na linha e o texto inteiro segue no title. */
+    const style=getComputedStyle(el);
+    if(style.textOverflow==='ellipsis'&&style.overflow==='hidden')continue;
     if(el.scrollWidth>el.clientWidth+1&&el.clientWidth>0)out.push(`${el.tagName.toLowerCase()}${el.id?'#'+el.id:''}${typeof el.className==='string'&&el.className?'.'+el.className.split(' ').join('.'):''}: ${(el.textContent||'').trim().slice(0,40)} (${el.scrollWidth}>${el.clientWidth})`);
   }
   const root=document.querySelector(sel).getBoundingClientRect();
@@ -52,7 +56,9 @@ function scenario(tag,{courses=true}={}){
     fs.writeFileSync(path.join(dir,'Limites.pdf'),tinyPdf('Exercise',3));
     list.push({id:'A',name:'Calculus',path:dir});
   }
-  /* Rótulos dos leitores são dado da pessoa (o padrão fica em português por regra do projeto): aqui, ASCII neutro. */
+  /* Rótulos dos leitores sem escolha da pessoa nascem no idioma da interface
+     (auditoria rodada 5); aqui, ASCII neutro e explícito para o teste não
+     depender do idioma. */
   const panels=[{label:'Problems',prefer:['Limites']},{label:'Support',prefer:['Formul'],toggle:'Formulas'}];
   writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:list,desk:{panels}});
   return runtime;
@@ -244,7 +250,6 @@ const TUTOR_POPUPS=[
   ['session-title','#conversations-pop'],
   ['chat-more','#chat-more-pop'],
   ['new-session','#new-session-pop'],
-  ['context-edit','#context-pop'],
 ];
 const closePopups=page=>page.keyboard.press('Escape');
 

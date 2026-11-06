@@ -411,13 +411,6 @@ function $reasonLine(_raw_0) {
   const _x_0 = $$exitKey();
   return $reasonLine_exit(string_contains(_raw_0, _x_0), _raw_0);
 }
-function $piMissingKey() {
-  return "tutor.error.piMissing";
-}
-function $piMissing(_reason_0) {
-  const _x_0 = $$piMissingKey();
-  return string_contains(_reason_0, _x_0);
-}
 function $opencodeMissingKey() {
   return "err.opencode.notFound";
 }
@@ -458,21 +451,17 @@ function $dotsView() {
 function $connectingView() {
   return $shell("connecting", { $: "Con", head: $$view_attr("role", "status"), tail: { $: "Nil" } }, $$leadView({ $: "Con", head: $$dotsView(), tail: { $: "Con", head: $$view_viewText($$msg_msg("tutor.connecting")), tail: { $: "Nil" } } }), { $: "Nil" }, { $: "Con", head: $$button("connect-cancel", "ts-secondary", $$msg_msg("tutor.cancel"), $$msg_msg("tutor.cancelTitle"), "Cancel"), tail: { $: "Nil" } });
 }
-function $failedActions(_missing_0) {
-  if (_missing_0) {
-    return { $: "Con", head: $$button("state-pi", "ts-primary", $$msg_msg("tutor.piSettings"), $$msg_msg("tutor.piSettingsTitle"), "OpenPiSettings"), tail: { $: "Con", head: $$button("connect", "ts-secondary", $$msg_msg("tutor.retry"), $$msg_msg("tutor.retryTitle"), "Connect"), tail: { $: "Con", head: $$button("state-log", "ts-ghost", $$msg_msg("tutor.log"), $$msg_msg("tutor.logTitle"), "OpenLog"), tail: { $: "Nil" } } } };
-  } else {
-    return { $: "Con", head: $$button("connect", "ts-primary", $$msg_msg("tutor.retry"), $$msg_msg("tutor.retryTitle"), "Connect"), tail: { $: "Con", head: $$button("state-log", "ts-secondary", $$msg_msg("tutor.log"), $$msg_msg("tutor.logTitle"), "OpenLog"), tail: { $: "Con", head: $$button("state-pi", "ts-ghost", $$msg_msg("tutor.piSettings"), $$msg_msg("tutor.piSettingsTitle"), "OpenPiSettings"), tail: { $: "Nil" } } } };
-  }
+function $failedActions() {
+  return { $: "Con", head: $$button("connect", "ts-primary", $$msg_msg("tutor.retry"), $$msg_msg("tutor.retryTitle"), "Connect"), tail: { $: "Con", head: $$button("state-log", "ts-secondary", $$msg_msg("tutor.log"), $$msg_msg("tutor.logTitle"), "OpenLog"), tail: { $: "Nil" } } };
 }
 function $opencodeActions() {
-  return { $: "Con", head: $$button("state-opencode-install", "ts-primary", $$msg_msg("tutor.opencode.install"), $$msg_msg("tutor.opencode.installTitle"), "OpenReleaseNotes"), tail: { $: "Con", head: $$button("state-log", "ts-secondary", $$msg_msg("tutor.log"), $$msg_msg("tutor.logTitle"), "OpenLog"), tail: { $: "Con", head: $$button("state-pi", "ts-ghost", $$msg_msg("tutor.piSettings"), $$msg_msg("tutor.piSettingsTitle"), "OpenPiSettings"), tail: { $: "Nil" } } } };
+  return { $: "Con", head: $$button("state-opencode-install", "ts-primary", $$msg_msg("tutor.opencode.install"), $$msg_msg("tutor.opencode.installTitle"), "OpenReleaseNotes"), tail: { $: "Con", head: $$button("state-log", "ts-secondary", $$msg_msg("tutor.log"), $$msg_msg("tutor.logTitle"), "OpenLog"), tail: { $: "Con", head: $$button("state-tutor-settings", "ts-secondary", $$msg_msg("tutor.engineSettings"), $$msg_msg("tutor.engineSettingsTitle"), "OpenTutorSettings"), tail: { $: "Nil" } } } };
 }
 function $opencodeMissingView(_reason_0) {
   return $shell("error", { $: "Nil" }, $$leadView($$say($$msg_msg("tutor.failed.lead"))), { $: "Con", head: $$fineView($$reasonLine(_reason_0)), tail: { $: "Nil" } }, $$opencodeActions());
 }
 function $failedView(_reason_0) {
-  return $shell("error", { $: "Nil" }, $$leadView($$say($$msg_msg("tutor.failed.lead"))), { $: "Con", head: $$fineView($$reasonLine(_reason_0)), tail: { $: "Nil" } }, $$failedActions($$piMissing(_reason_0)));
+  return $shell("error", { $: "Nil" }, $$leadView($$say($$msg_msg("tutor.failed.lead"))), { $: "Con", head: $$fineView($$reasonLine(_reason_0)), tail: { $: "Nil" } }, $$failedActions());
 }
 function $claudeFixButton(_about_0) {
   if (_about_0) {
@@ -885,7 +874,6 @@ var $$view_viewEl = $view_viewEl;
 var $$Bool_not = $Bool_not;
 var $$msg_isMsg = $msg_isMsg;
 var $$exitKey = $exitKey;
-var $$piMissingKey = $piMissingKey;
 var $$opencodeMissingKey = $opencodeMissingKey;
 var $$view_attrType = $view_attrType;
 var $$view_attrId = $view_attrId;
@@ -905,7 +893,6 @@ var $$view_attr = $view_attr;
 var $$dotsView = $dotsView;
 var $$reasonLine = $reasonLine;
 var $$opencodeActions = $opencodeActions;
-var $$piMissing = $piMissing;
 var $$failedActions = $failedActions;
 var $$claudeFixButton = $claudeFixButton;
 var $$opencodeMissing = $opencodeMissing;
@@ -1016,8 +1003,6 @@ var tutorstate_default = {
   "reasonLine.plain": run_lib((a0, a1) => str_out(run_loop($reasonLine_plain(a0, str_in(a1)))), 2),
   "reasonLine.exit": run_lib((a0, a1) => str_out(run_loop($reasonLine_exit(a0, str_in(a1)))), 2),
   reasonLine: run_lib((a0) => str_out(run_loop($reasonLine(str_in(a0)))), 1),
-  piMissingKey: run_lib(() => str_out(run_loop($piMissingKey())), 0),
-  piMissing: run_lib((a0) => run_loop($piMissing(str_in(a0))), 1),
   opencodeMissingKey: run_lib(() => str_out(run_loop($opencodeMissingKey())), 0),
   opencodeMissing: run_lib((a0) => run_loop($opencodeMissing(str_in(a0))), 1),
   button: run_lib((a0, a1, a2, a3, a4) => run_loop($button(str_in(a0), str_in(a1), str_in(a2), str_in(a3), str_in(a4))), 5),
@@ -1031,7 +1016,7 @@ var tutorstate_default = {
   inviteView: run_lib(() => run_loop($inviteView()), 0),
   dotsView: run_lib(() => run_loop($dotsView()), 0),
   connectingView: run_lib(() => run_loop($connectingView()), 0),
-  failedActions: run_lib((a0) => run_loop($failedActions(a0)), 1),
+  failedActions: run_lib(() => run_loop($failedActions()), 0),
   opencodeActions: run_lib(() => run_loop($opencodeActions()), 0),
   opencodeMissingView: run_lib((a0) => run_loop($opencodeMissingView(str_in(a0))), 1),
   failedView: run_lib((a0) => run_loop($failedView(str_in(a0))), 1),

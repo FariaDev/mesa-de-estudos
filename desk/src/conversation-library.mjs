@@ -9,6 +9,15 @@ const fold=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLo
 /* O título sem nome vem do main como mensagem marcada e o da sessão Livre sem título
    é gravado em português (#41): os dois se mostram no idioma da interface. */
 const localizedRow=row=>({...row,title:displayFreeTitle(translated(String(row.title||''))),courseName:translated(String(row.courseName||''))});
+/* A data da fileira: sem o ano no ano corrente, com o ano fora dele
+   (auditoria de UI/UX, rodada 1, B3). Sem data, o texto de "sem data". */
+function libraryDate(at){
+ const stamp=Number(at)||0;
+ if(!stamp)return t('chatlib.ui.noDate');
+ const date=new Date(stamp);
+ const current=date.getFullYear()===new Date().getFullYear();
+ return formatDate(date,current?{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}:{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
 export function initConversationLibrary({resume}){
  let dialog,rows=[],request=0;
  /* A janela é montada uma vez; ao trocar de idioma ela é refeita na próxima abertura. */
@@ -42,7 +51,7 @@ export function initConversationLibrary({resume}){
   const list=dialog.querySelector('#chat-library-list');list.replaceChildren();
   dialog.querySelector('#chat-library-status').textContent=t('chatlib.ui.count',{count:filtered.length});
   for(const row of filtered){
-   const date=row.at?formatDate(new Date(row.at),{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):t('chatlib.ui.noDate');
+   const date=libraryDate(row.at);
    const detail=[row.courseName,date,({claude:'Claude Code',opencode:'OpenCode'})[row.engine]||'Pi'].join(' · ');
    const article=build(view.row(row.id,row.title,detail,row.preview||t('chatlib.ui.noMessages'),row.topic||t('chatlib.ui.noTopic'),!!row.favorite,!!row.current),{
     ResumeChat:async()=>{try{if(await resume(row)){dialog.close();}}catch(error){toast(error.message);}},

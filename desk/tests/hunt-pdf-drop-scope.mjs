@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,tinyPdf,writeConfigJson,writeDeskJson} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,tinyPdf,writeConfigJson,writeDeskJson,statusOnline} from './helpers.mjs';
 
 await withArtifacts('pdf-drop-scope',async ctx=>{
  const runtime=ctx.runtime=newRuntime('pdf-drop-scope');
@@ -14,6 +14,8 @@ await withArtifacts('pdf-drop-scope',async ctx=>{
  writeDeskJson(runtime,{courseId:'A'});
  ctx.app=await launchDesk({runtime});const page=await ctx.app.firstWindow();
  await page.waitForSelector('.pdf-page[data-rendered] canvas');
+ await statusOnline(page);
+ await page.waitForFunction(()=>document.querySelector('#stop')?.hidden===true,undefined,{timeout:30000});
  await ctx.app.evaluate(({ipcMain})=>{
   const original=ipcMain._invokeHandlers.get('open-dropped-pdf');
   const gate=new Promise(resolve=>{globalThis.releasePdfDrop=resolve;});

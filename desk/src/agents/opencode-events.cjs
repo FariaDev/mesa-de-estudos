@@ -5,8 +5,9 @@
  * t3/opencode-provider; o envelope `{type, data:{sessionID…}}` foi conferido
  * de novo no binário em 2026-10-19).
  *
- * O turno real emite `session.text.*`, `session.reasoning.*`,
- * `session.tool.*` e termina em `session.execution.succeeded|failed|interrupted`.
+ * O turno real emite `session.step.started|streamed|ended`, `session.text.*`,
+ * `session.reasoning.*`, `session.tool.*` e termina em
+ * `session.execution.succeeded|failed|interrupted`.
  * O miolo do quadro fica em `data` (o adaptador já separa o envelope).
  * `message.part.*` e `session.idle` continuam como fallback e não são o que
  * o servidor emite hoje. Nome desconhecido é ignorado. */
@@ -44,6 +45,12 @@ class OpenCodeEventReader {
     if (type === 'session.reasoning.delta') return this.textDelta(data, 'thinking');
     if (type === 'session.text.ended') return this.textEnded(data, 'text');
     if (type === 'session.reasoning.ended') return this.textEnded(data, 'thinking');
+    /* Fim de um passo do modelo: a fala daquele passo está completa. Fechar
+       aqui entrega o `message_end` ANTES do próximo `message_start` (texto →
+       ferramenta → texto). O renderer guarda os blocos por id e limpa o mapa
+       quando o id muda; um `message_end` atrasado da fala anterior virava um
+       balão novo no fim do turno — a primeira frase repetida (#112). */
+    if (type === 'session.step.ended') return this.flush();
     if (type === 'session.tool.input.started') return this.rememberTool(data);
     if (type === 'session.tool.called') return this.toolCalled(data);
     if (type === 'session.tool.success') return this.toolFinished(data, false);
@@ -74,6 +81,10 @@ class OpenCodeEventReader {
     if (!delta) return;
     const messageID = String(data.assistantMessageID || '');
     if (messageID && !this.started.has(messageID)) {
+      /* Resposta nova no mesmo turno sem `step.ended` no fio (versões mais
+         velhas): fecha a anterior antes de abrir a próxima, pelo mesmo motivo
+         do `step.ended` (#112). */
+      this.flush();
       this.started.add(messageID);
       this.emit('message_start', {message: {role: 'assistant', id: messageID}});
     }
@@ -236,10 +247,14 @@ class OpenCodeEventReader {
  * @param {unknown} raw o `error` de `session.step.failed`/`session.execution.failed`
  * @returns {string}
  * @example providerFailureMessage({type: 'provider.auth', status: 403, response: {body: '{"error":{"type":"FreeTierError"}}'}}) // marca 'opencode.event.freeTier'
+ * @example providerFailureMessage({type: 'provider.free-limit', status: 429, response: {body: '{"error":{"type":"FreeUsageLimitError"}}'}}) // marca 'opencode.event.freeLimit'
  */
 function providerFailureMessage(raw) {
   if (isProviderAuthError(raw)) return message('opencode.event.providerAuth');
+  if (isFreeLimitError(raw)) return message('opencode.event.freeLimit');
   if (isFreeTierError(raw)) return message('opencode.event.freeTier');
+  if (isProviderUnreachableError(raw)) return message('opencode.event.providerUnreachable');
+  if (isNetworkError(raw)) return message('opencode.event.network');
   const reason = errorText(raw).split(MESSAGE_MARK).join('').split(MESSAGE_SEP).join(' ').trim();
   return reason ? message('opencode.event.providerFailed', {reason}) : message('opencode.event.turnFailed');
 }
@@ -251,11 +266,75 @@ function isProviderAuthError(raw) {
   return /\b401\b|invalid credential|invalid api key|unauthorized|authentication/i.test(errorText(raw));
 }
 
+/* Códigos que provam falta de rede (DNS, roteamento, tempo esgotado). O `fetch`
+ * do Node embrulha o original no `cause`, então o código vale nos dois níveis. */
+const NETWORK_CODES = ['ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ETIMEDOUT'];
+
+/* Recusa local e TLS (revisão rodada 5): porta parada, certificado vencido ou
+ * autoassinado e modelo parado não são "confira sua internet" — têm frase
+ * própria (`opencode.event.providerUnreachable`). */
+const UNREACHABLE_CODES = ['ECONNREFUSED'];
+
+/* O erro e o `cause` em cadeia (o `fetch` do Node embrulha o original uma vez;
+ * três níveis bastam e o `cause` de `Error` real também entra, porque
+ * `isPlainObject` aceita instância de `Error`). */
+function errorChain(raw) {
+  const chain = [];
+  let node = raw;
+  for (let depth = 0; depth < 3 && (typeof node === 'string' || isPlainObject(node)); depth++) {
+    chain.push(node);
+    if (!isPlainObject(node)) break;
+    node = node.cause;
+  }
+  return chain;
+}
+
+function errorCodes(raw) {
+  return errorChain(raw).filter(isPlainObject).map((node) => (typeof node.code === 'string' ? node.code.toUpperCase() : ''));
+}
+
+function errorMessageChain(raw) {
+  return errorChain(raw).map((node) => errorText(node)).filter(Boolean).join('\n');
+}
+
+function isProviderUnreachableError(raw) {
+  const codes = errorCodes(raw);
+  if (codes.some((code) => UNREACHABLE_CODES.includes(code) || code.startsWith('CERT_') || code.startsWith('ERR_TLS') || code.startsWith('ERR_SSL'))) return true;
+  return /connection refused|ECONNREFUSED|certificad|certificate|self[ -]signed|unable to verify|fails to verify|SSL handshake|\bTLS\b|model is offline/i.test(errorMessageChain(raw));
+}
+
+/* Sem rede (auditoria rodada 4, sem-conexão; revisão rodada 5): só o que é
+ * prova real — código de DNS/roteamento/tempo ou texto de DNS/rede. `fetch
+ * failed` sozinho segue rede (não há mais prova); com `cause` de recusa local
+ * ou TLS, quem decide é o `isProviderUnreachableError` acima, que roda antes.
+ * `offline` fora de frase de conexão ("model is offline") não é rede. */
+function isNetworkError(raw) {
+  const codes = errorCodes(raw);
+  if (codes.some((code) => NETWORK_CODES.includes(code))) return true;
+  const text = errorMessageChain(raw);
+  if (/getaddrinfo|network error|ERR_INTERNET_DISCONNECTED|internet desconectada|sem (conex[aã]o|internet|rede)|appears to be offline|you're offline|está offline/i.test(text)) return true;
+  return /fetch failed|failed to fetch/i.test(text);
+}
+
 /* O Zen responde 403 com corpo `FreeTierError` quando recusa o grátis. */
 function isFreeTierError(raw) {
   if (!isPlainObject(raw) || raw.status !== 403) return false;
   const response = isPlainObject(raw.response) ? raw.response : {};
   return String(response.body ?? '').includes('FreeTierError');
+}
+
+/* O 2.2.4 responde 429 com corpo `FreeUsageLimitError` quando o grátis bate
+   no limite do serviço (medido em 2026-11-05, sem credencial e com as travas
+   da Mesa): não é cota do aluno nem pedido de espera — é o grátis que não
+   respondeu aqui. O `type` exato decide; o texto e o corpo cobrem o mesmo erro
+   que chega sem o `type` (por exemplo, via `session.error`). */
+function isFreeLimitError(raw) {
+  if (isPlainObject(raw) && String(raw.type) === 'provider.free-limit') return true;
+  if (isPlainObject(raw) && Number(raw.status) === 429) {
+    const response = isPlainObject(raw.response) ? raw.response : {};
+    if (String(response.body ?? '').includes('FreeUsageLimitError')) return true;
+  }
+  return /free usage limit reached|freeusagelimit/i.test(errorText(raw));
 }
 
 function errorText(raw) {

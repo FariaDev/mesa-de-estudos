@@ -9,7 +9,7 @@ A local Electron app for studying with PDFs and an AI tutor in the same window. 
 ```
 Study Desk                              Xournal++ (or another app)
   problem set + formula sheet (PDF)       handwriting
-  tutor (OpenCode or Claude Code)        your attempt
+  tutor (OpenCode)                       your attempt
   calculator, GeoGebra, notebook          → Check sends the page to the tutor
 ```
 
@@ -20,7 +20,7 @@ In Portuguese the app is called **Mesa de Estudos**; the repository and the fold
 ## What it does
 
 - **Two independent PDF readers** with search, bookmarks, an outline, and clickable "File.pdf, p. N" citations in the tutor's answers.
-- **Tutor** with OpenCode (the default path) and Claude Code (experimental); Pi remains available to those who already use it. OpenCode uses the account or provider you already configured in it.
+- **Tutor** with OpenCode, the visible and default engine; provider sign-in happens in the app and the account stays in OpenCode. The Claude Code code remains in the repository for tests and old sessions; Pi is retired, and old sessions open read-only.
 - **Check** captures the window of your writing app and attaches it to the message. **Phone photo** shows a QR code that opens a page on the same network, and photos arrive on the desk in the order you sent them.
 - **Figures, charts and interactive activities** in the chat, all working offline. GeoGebra on demand, with an optional offline pack.
 - **PDF from the tutor:** problem list, handout, summary, mock exam and formula sheet, with an A4 preview and a review step before saving.
@@ -28,12 +28,12 @@ In Portuguese the app is called **Mesa de Estudos**; the repository and the fold
 - **Free** tab for studying without a course; **Create a course** moves the conversation and its PDFs into a new tab.
 - Interface and tutor in **English or Portuguese**, light or dark theme (Graphite), and six accent colors.
 
-**Not included:** ink canvas, PDF editing, telemetry, cloud account. The desk does not sign in to any provider or store any provider's token.
+**Not included:** ink canvas, PDF editing, telemetry, cloud account. Sign-in happens in the app and the provider account stays in OpenCode; the OpenCode Zen free-model key, when used, is encrypted with the system keychain.
 
 ## Requirements
 
 - Node **20+**, only to install from source (`npm ci`, `npm run setup`, `npm start`). The app and the tutor MCP server run on Electron's embedded Node, so studying does not depend on the system Node.
-- **OpenCode 2.2.4** (the desk installs it on first launch, with a pinned package) or **Claude Code** (accepted range 2.1.296 through the 2.1 series), which the desk detects and uses for new conversations. Pi, if already present, keeps working.
+- **OpenCode 2.2.4** (the desk installs it on first launch, with a pinned package). The Claude Code code still accepts the 2.1.296 through 2.1 series, but it is not shown in this release; old Pi sessions open read-only.
 - Your course PDFs in any folder.
 - macOS or Windows. Check works on both; day-to-day use has been tested by hand on macOS.
 
@@ -47,7 +47,7 @@ npm run doctor
 npm start
 ```
 
-On first launch the desk walks you through one step at a time: language and color, how the desk works, course name, PDF folder (subfolders count), tutor, and done. The course is only created at the last step. The chosen engine (OpenCode or Claude Code) asks for your provider credentials on first connection; they stay in that engine, not in the desk.
+On first launch the desk walks you through one step at a time: language and color, how the desk works, course name, PDF folder (subfolders count), tutor, and done. The course is only created at the last step. OpenCode asks for your provider sign-in on first connection; the account stays in OpenCode, not in the desk.
 
 `npm run doctor` checks the installed engine, policies, fonts, the visual extension (when applicable) and persistence without opening the app. On a Mac, `npm run install-app` builds **Mesa de Estudos.app**.
 
@@ -63,7 +63,7 @@ For an agent setting up the computer: [`desk/SETUP.md`](desk/SETUP.md) (in Portu
 
 ## Problems
 
-**Report a problem** (the tutor's More options) or `npm run triage` builds a clean report, with no keys, sessions, course names or PDF names, and offers a ready prompt for an agent and a prefilled GitHub issue for you to review. The app log opens from About.
+**Report a problem** (the tutor's More options) or `npm run triage` builds a clean report, with no keys, sessions, course names or PDF names, and offers a ready prompt for an agent and a prefilled issue in the public repository [`FariaDev/mesa-de-estudos`](https://github.com/FariaDev/mesa-de-estudos) for you to review. The app log opens from About.
 
 ## Development
 

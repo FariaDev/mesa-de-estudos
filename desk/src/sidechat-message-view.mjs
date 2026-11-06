@@ -64,7 +64,7 @@ export function hydrateSidechatAssets(node){
   window.desk.readImage(source).then(hit=>{
    if(!figure.isConnected)return;
    if(!hit){figure.replaceWith(build(talkCore.assetFallback(source)));return;}
-   renderChildren(figure,talkCore.assetKids({$:'AssetRow',src:hit.dataUrl,path:source,alt:caption||hit.name||'Imagem gerada',caption:caption||hit.name||''}));
+   renderChildren(figure,talkCore.assetKids({$:'AssetRow',src:hit.dataUrl,path:source,alt:caption||hit.name||uiT('dialogs.image.generated'),caption:caption||hit.name||''}));
   }).catch(()=>{if(figure.isConnected)figure.replaceWith(build(talkCore.assetFallback(source)));});
  }
 }

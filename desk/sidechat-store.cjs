@@ -71,9 +71,6 @@ function sidechatsDir(runtime) {
 function descriptorPath(runtime, id) {
   return path.join(sidechatsDir(runtime), `${id}.json`);
 }
-function piSessionPath(runtime, id) {
-  return path.join(sidechatsDir(runtime), `${id}.jsonl`);
-}
 function indexFile(runtime) {
   return path.join(sidechatsDir(runtime), 'index.json');
 }
@@ -127,7 +124,8 @@ function validDelivery(raw) {
   if (!STATUSES.has(raw.status)) return null;
   return {id: raw.id, status: raw.status, at: nowMs(raw.at) || Date.now()};
 }
-/* Descritor válido (schema exato). Fora disso é null — nunca se adivinha. */
+/* Descritor válido (schema exato). Fora disso é null — nunca se adivinha.
+   `pi` continua aceito para os descritores antigos, que abrem só para leitura. */
 function validDescriptor(raw, id) {
   if (!isPlainObject(raw)) return false;
   if (raw.schemaVersion !== SCHEMA_VERSION || raw.id !== id) return false;
@@ -219,9 +217,12 @@ function conversationList(sessions, {max = 100} = {}) {
       title: String(session?.label || ''),
       preview: String(session?.preview || '').slice(0, 200),
       at: nowMs(session?.started),
-      engine: session?.engine === 'claude' ? 'claude' : 'pi',
+      /* Conversa do Pi abre só para leitura: rotular como OpenCode faria parecer
+         retomável. O renderer não mostra rótulo para motor sem nome. */
+      engine: session?.engine === 'claude' || session?.engine === 'pi' ? session.engine : 'opencode',
+      ...(session?.origin ? {origin: session.origin} : {}),
     }))
     .filter((entry) => entry.id);
 }
 
-module.exports = {SCHEMA_VERSION, ID_RE, MAX_MESSAGE_ID, MAX_DIALOG_IDS, STATUS_BY_CORE, CORE_BY_STATUS, isPlainObject, nowMs, CONTEXT_END_MARKER, displayUserText, displayMessages, fail, sidechatsDir, descriptorPath, piSessionPath, readIndex, writeIndex, validDescriptor, readDescriptorRaw, saveDescriptor, normalizeRefs, appendMessage, conversationList};
+module.exports = {SCHEMA_VERSION, ID_RE, MAX_MESSAGE_ID, MAX_DIALOG_IDS, STATUS_BY_CORE, CORE_BY_STATUS, isPlainObject, nowMs, CONTEXT_END_MARKER, displayUserText, displayMessages, fail, sidechatsDir, descriptorPath, readIndex, writeIndex, validDescriptor, readDescriptorRaw, saveDescriptor, normalizeRefs, appendMessage, conversationList};

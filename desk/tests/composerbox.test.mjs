@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import {ptText} from './pt-text.mjs';
 
 /* Contrato do artefato `composerbox.core.js` (gerado de core/composerbox.bend,
-   ticket #15): a linha "Vai junto: …" e o encaixe Enviar/Parar da caixa de
-   mensagem única. As leis do módulo ficam em core/laws/composerbox.bend; aqui
-   se confere o que o app recebe — inclusive com texto de verdade (acento,
-   caminho com ponto) e a lista no formato que o host monta. */
+   ticket #15): o resumo do contexto ("Vai junto: …", hoje em Mais opções →
+   Contexto, #123) e o encaixe Enviar/Parar da caixa de mensagem única. As
+   leis do módulo ficam em core/laws/composerbox.bend; aqui se confere o que o
+   app recebe — inclusive com texto de verdade (acento, caminho com ponto) e a
+   lista no formato que o host monta. */
 
 const core = (await import('../src/generated/composerbox.core.js')).default;
 

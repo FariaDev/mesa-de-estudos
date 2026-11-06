@@ -1,7 +1,7 @@
-/* Idioma do tutor (#41): as três opções chegam ao Pi no prompt ENVIADO, sem
-   inferência real. A escolha mora em `desk.json`; o main monta o prompt ao ligar
-   o Pi e o Pi de teste (`fake-pi.mjs`, com `FAKE_PI_PROMPT_LOG`) grava o arquivo
-   que recebeu em `--append-system-prompt`. A frase vem da base comum
+/* Idioma do tutor (#41): as três opções chegam ao OpenCode no prompt ENVIADO,
+   sem inferência real. A escolha mora em `desk.json`; o main monta o prompt ao
+   ligar o tutor e o fake (`fake-opencode.mjs`, com `FAKE_OPENCODE_PROMPT_LOG`)
+   grava o arquivo que recebeu no canal de instruções. A frase vem da base comum
    (`desk-prompts.cjs`), a mesma que o Claude usa (testado em
    `desk-prompts.test.mjs`). */
 import assert from 'node:assert/strict';
@@ -20,7 +20,7 @@ async function sentPrompt(tutorLanguage,desk={}){
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'A',name:'Calculus',path:course}]});
  writeDeskJson(runtime,{tutorLanguage,...desk});
  const log=path.join(runtime,'prompt-recebido.md');
- const app=await launchDesk({runtime,env:{FAKE_PI_PROMPT_LOG:log}});
+ const app=await launchDesk({runtime,env:{FAKE_OPENCODE_PROMPT_LOG:log}});
  try{
   const page=await app.firstWindow();
   await statusOnline(page);
@@ -30,7 +30,7 @@ async function sentPrompt(tutorLanguage,desk={}){
 
 for(const option of OPTIONS){
  const prompt=await sentPrompt(option);
- assert.ok(!prompt.startsWith('ERRO'),`o Pi de teste leu o prompt: ${prompt.slice(0,120)}`);
+ assert.ok(!prompt.startsWith('ERRO'),`o OpenCode de teste leu o prompt: ${prompt.slice(0,120)}`);
  assert.ok(prompt.includes(TUTOR_LANGUAGE_LINES[option]),`tutor "${option}": o prompt enviado traz a frase "${TUTOR_LANGUAGE_LINES[option]}"`);
  for(const other of OPTIONS.filter(name=>name!==option)){
   assert.ok(!prompt.includes(TUTOR_LANGUAGE_LINES[other]),`tutor "${option}": o prompt enviado não traz a frase de "${other}"`);
@@ -48,7 +48,7 @@ console.log('programa de escrita: genérico sem escolha, nome com escolha');
 console.log('idioma do tutor: três opções no prompt enviado');
 
 /* Trocar o idioma do tutor religa o tutor para valer na hora (#41, fase 2). O Pi de
-   teste regrava `FAKE_PI_PROMPT_LOG` a cada subida; apagar o arquivo antes da troca
+   fake regrava `FAKE_OPENCODE_PROMPT_LOG` a cada subida; apagar o arquivo antes da troca
    prova que o prompt novo veio de uma subida nova, não da primeira. */
 const promptText=log=>fs.existsSync(log)?fs.readFileSync(log,'utf8'):'';
 const chooseTutorLanguage=(page,value)=>page.evaluate(choice=>{
@@ -62,7 +62,7 @@ async function relinkScenario(name,body){
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'A',name:'Calculus',path:course}]});
  writeDeskJson(runtime,{tutorLanguage:'pt-BR'});
  const log=path.join(runtime,'prompt-recebido.md');
- const app=await launchDesk({runtime,env:{FAKE_PI_PROMPT_LOG:log,FAKE_PI_QUEUE_LOG:path.join(runtime,'fila.log'),FAKE_PI_QUEUE_HOLD_MS:'2500'}});
+ const app=await launchDesk({runtime,env:{FAKE_OPENCODE_PROMPT_LOG:log,FAKE_OPENCODE_QUEUE_LOG:path.join(runtime,'fila.log'),FAKE_OPENCODE_QUEUE_HOLD_MS:'2500'}});
  try{
   const page=await app.firstWindow();
   await statusOnline(page);
@@ -77,7 +77,7 @@ await relinkScenario('tutor-language-relink-idle',async(page,log)=>{
  const prompt=await pollUntil(()=>promptText(log),text=>text.length>0,{what:'o prompt da subida nova'});
  assert.ok(prompt.includes(TUTOR_LANGUAGE_LINES.en),'tutor ocioso: o Pi religado recebeu a frase em inglês');
  await statusOnline(page);
- console.log('ok  tutor ocioso: religado na hora, prompt novo no Pi');
+ console.log('ok  tutor ocioso: religado na hora, prompt novo no OpenCode');
 });
 
 await relinkScenario('tutor-language-relink-busy',async(page,log)=>{

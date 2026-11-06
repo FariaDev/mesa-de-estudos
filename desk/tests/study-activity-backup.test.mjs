@@ -2,15 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import {createRequire} from 'node:module';
+import {tempDir} from './temp-dir.mjs';
 const require=createRequire(import.meta.url);
 const backup=require('../src/study-data/backup.cjs');
 const {createActivityStore}=require('../activity-store.cjs');
 const spec={title:'MRUV sintético',objective:'Explorar aceleração',alternativeMarkdown:'s(3)=6+4,5a',html:'<p>Explorar</p>',css:'',js:''};
 
 test('activity documents and attempt state remain reachable after backup relocation',async()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-activity-backup-'));
+ const root=tempDir('mesa-activity-backup');
  try{
   const source=path.join(root,'source'),target=path.join(root,'target'),dest=path.join(root,'snapshots');
   fs.mkdirSync(source);fs.mkdirSync(target);

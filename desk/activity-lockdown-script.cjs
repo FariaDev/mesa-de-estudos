@@ -81,6 +81,8 @@ const LOCKDOWN_SCRIPT = `(() => {
     insertNode: proto.Range.insertNode,
     surroundContents: proto.Range.surroundContents,
     removeAttribute: proto.Element.removeAttribute,
+    setAttribute: proto.Element.setAttribute,
+    setAttributeNS: proto.Element.setAttributeNS,
     getAttribute: proto.Element.getAttribute,
     getAttributeNames: proto.Element.getAttributeNames,
     hasAttribute: proto.Element.hasAttribute,
@@ -99,6 +101,42 @@ const LOCKDOWN_SCRIPT = `(() => {
       if (DANGEROUS[i] === text) return true;
     }
     return false;
+  };
+  /* 'link' (dns-prefetch/preconnect/prefetch, stylesheet ou script externo)
+     deixaria o autor do conteúdo codificar dados num subdomínio: a CSP não vê
+     dica de DNS e a guarda de sessão não vê o que não é http. NENHUM link mora
+     no documento vivo — o CSS do KaTeX entra embutido em <style> e o wrapper
+     já é <style> — então todo 'link' é do modelo: criar é recusado, o próprio
+     nó nunca entra (no-op silencioso) e o nó com link dentro é limpo antes de
+     inserir; rel/href não podem ser reaproveitados. */
+  const isLinkName = (name) => APPLY(TO_LOWER, STRING(name === undefined || name === null ? '' : name), []) === 'link';
+  const isLinkNode = (node) => read('nodeType', node) === 1 && isLinkName(read('localName', node));
+  /* O argumento pode ser qualquer objeto (string de append, nó de outro
+     documento); a leitura com getter capturado lança fora de um Node. */
+  const argIsLink = (value) => {
+    if (!value || typeof value !== 'object') return false;
+    try { return isLinkNode(value); } catch (error) { return false; }
+  };
+  const stripLinks = (root) => {
+    if (!root || typeof root !== 'object') return;
+    /* O próprio argumento pode ser o hospedeiro: template.content e shadow
+       root do NÓ passado (não só dos filhos), como descend já faz abaixo. */
+    descend(root, (inner) => { stripLinks(inner); return false; });
+    let node = null;
+    try { node = read('firstChild', root); } catch (error) { return; }
+    while (node) {
+      const next = read('nextSibling', node);
+      if (read('nodeType', node) === 1) {
+        if (isLinkName(read('localName', node))) {
+          const parent = read('parentNode', node);
+          if (parent) APPLY(ORIGINAL.removeChild, parent, [node]);
+        } else {
+          stripLinks(node);
+          descend(node, (inner) => { stripLinks(inner); return false; });
+        }
+      }
+      node = next;
+    }
   };
   const hasAttr = (node) => APPLY(ORIGINAL.hasAttribute, node, ['srcdoc']);
   const shadowDeclaration = (name) => APPLY(STARTS_WITH, APPLY(TO_LOWER, STRING(name), []), ['shadowroot']);
@@ -151,7 +189,7 @@ const LOCKDOWN_SCRIPT = `(() => {
     while (node) {
       const next = read('nextSibling', node);
       const isElement = read('nodeType', node) === 1;
-      if (isElement && (dangerous(read('localName', node)) || executableScript(node))) {
+      if (isElement && (dangerous(read('localName', node)) || executableScript(node) || isLinkName(read('localName', node)))) {
         const parent = read('parentNode', node);
         if (parent) APPLY(ORIGINAL.removeChild, parent, [node]);
         else cleanTree(node);
@@ -192,11 +230,35 @@ const LOCKDOWN_SCRIPT = `(() => {
   if (window.trustedTypes && typeof window.trustedTypes.createPolicy === 'function') {
     try { window.trustedTypes.createPolicy('default', {createHTML: sanitizeHTML}); } catch (error) { /* default já existe */ }
   }
-  const guard = (fn) => function () {
+  const frameError = () => new DOM_EXCEPTION('A atividade não pode criar quadros internos.', 'NotSupportedError');
+  /* Sinks de um nó só (appendChild/insertBefore/replaceChild/
+     insertAdjacentElement/insertNode/surroundContents): o nó a inserir mora no
+     índice at (no insertAdjacentElement, o segundo; no replaceChild, o novo). Se ELE
+     é um link, a inserção vira no-op silencioso e o nó volta sem nunca ter
+     conectado: o observer só o tiraria depois (tarde para a dica de DNS) e não
+     vê shadow root. */
+  const guardOne = (fn, at, noop) => function () {
+    if (argIsLink(arguments[at])) return typeof noop === 'function' ? noop(arguments) : arguments[at];
     for (let i = 0; i < arguments.length; i += 1) {
-      if (unsafeSubtree(arguments[i])) throw new DOM_EXCEPTION('A atividade não pode criar quadros internos.', 'NotSupportedError');
+      if (arguments[i] && typeof arguments[i] === 'object') stripLinks(arguments[i]);
+      if (unsafeSubtree(arguments[i])) throw frameError();
     }
     return APPLY(fn, this, arguments);
+  };
+  /* Sinks variádicos (append/prepend/before/after/replaceWith/replaceChildren):
+     cada link solto cai da lista em silêncio; se só sobrar link, a chamada vira
+     no-op — chamar replaceWith()/replaceChildren() sem nada REMOVERIA o alvo. */
+  const guardMany = (fn) => function () {
+    const kept = [];
+    for (let i = 0; i < arguments.length; i += 1) {
+      if (!argIsLink(arguments[i])) kept.push(arguments[i]);
+    }
+    if (kept.length === 0 && arguments.length > 0) return undefined;
+    for (let i = 0; i < kept.length; i += 1) {
+      if (kept[i] && typeof kept[i] === 'object') stripLinks(kept[i]);
+      if (unsafeSubtree(kept[i])) throw frameError();
+    }
+    return APPLY(fn, this, kept);
   };
   const lock = (target, name, value) => {
     if (!target || !Object.getOwnPropertyDescriptor(target, name)) return;
@@ -205,28 +267,49 @@ const LOCKDOWN_SCRIPT = `(() => {
   const blocked = (label) => function () { throw new DOM_EXCEPTION(label + ' não está disponível na atividade.', 'NotSupportedError'); };
   lock(proto.Document, 'createElement', function (tag) {
     if (typeof tag !== 'string' || dangerous(tag)) throw new DOM_EXCEPTION('A atividade não pode criar quadros internos.', 'NotSupportedError');
+    if (isLinkName(tag)) throw new DOM_EXCEPTION('A atividade não pode carregar recursos externos.', 'NotSupportedError');
     return APPLY(ORIGINAL.createElement, this, arguments);
   });
   lock(proto.Document, 'createElementNS', function (ns, tag) {
     if (typeof tag !== 'string' || dangerous(tag)) throw new DOM_EXCEPTION('A atividade não pode criar quadros internos.', 'NotSupportedError');
+    if (isLinkName(tag)) throw new DOM_EXCEPTION('A atividade não pode carregar recursos externos.', 'NotSupportedError');
     return APPLY(ORIGINAL.createElementNS, this, arguments);
   });
-  lock(proto.Node, 'appendChild', guard(ORIGINAL.appendChild));
-  lock(proto.Node, 'insertBefore', guard(ORIGINAL.insertBefore));
-  lock(proto.Node, 'replaceChild', guard(ORIGINAL.replaceChild));
+  /* 'rel'/'href' num 'link' viram dica de DNS: não há link do host para
+     reaproveitar (regra "todo link é do modelo"), então a escrita por atributo
+     é ignorada e a direta é neutra. */
+  lock(proto.Element, 'setAttribute', function (name, value) {
+    if (isLinkNode(this)) return undefined;
+    return APPLY(ORIGINAL.setAttribute, this, arguments);
+  });
+  if (ORIGINAL.setAttributeNS) lock(proto.Element, 'setAttributeNS', function (ns, name, value) {
+    if (isLinkNode(this)) return undefined;
+    return APPLY(ORIGINAL.setAttributeNS, this, arguments);
+  });
+  if (typeof HTMLLinkElement === 'function' && HTMLLinkElement.prototype) {
+    for (const prop of ['href', 'rel']) {
+      const own = Object.getOwnPropertyDescriptor(HTMLLinkElement.prototype, prop);
+      if (own && own.configurable && typeof own.set === 'function') {
+        try { Object.defineProperty(HTMLLinkElement.prototype, prop, {configurable: false, enumerable: own.enumerable, get: own.get, set: function () {}}); } catch (error) { /* já fixo */ }
+      }
+    }
+  }
+  lock(proto.Node, 'appendChild', guardOne(ORIGINAL.appendChild, 0));
+  lock(proto.Node, 'insertBefore', guardOne(ORIGINAL.insertBefore, 0));
+  lock(proto.Node, 'replaceChild', guardOne(ORIGINAL.replaceChild, 0, (args) => args[1]));
   for (const target of [proto.Document, proto.DocumentFragment, proto.Element]) {
-    lock(target, 'replaceChildren', guard(ORIGINAL.replaceChildren.shift()));
-    lock(target, 'append', guard(ORIGINAL.append.shift()));
-    lock(target, 'prepend', guard(ORIGINAL.prepend.shift()));
+    lock(target, 'replaceChildren', guardMany(ORIGINAL.replaceChildren.shift()));
+    lock(target, 'append', guardMany(ORIGINAL.append.shift()));
+    lock(target, 'prepend', guardMany(ORIGINAL.prepend.shift()));
   }
   for (const target of [proto.Element, proto.CharacterData]) {
-    lock(target, 'before', guard(ORIGINAL.before.shift()));
-    lock(target, 'after', guard(ORIGINAL.after.shift()));
-    lock(target, 'replaceWith', guard(ORIGINAL.replaceWith.shift()));
+    lock(target, 'before', guardMany(ORIGINAL.before.shift()));
+    lock(target, 'after', guardMany(ORIGINAL.after.shift()));
+    lock(target, 'replaceWith', guardMany(ORIGINAL.replaceWith.shift()));
   }
-  lock(proto.Element, 'insertAdjacentElement', guard(ORIGINAL.insertAdjacentElement));
-  lock(proto.Range, 'insertNode', guard(ORIGINAL.insertNode));
-  lock(proto.Range, 'surroundContents', guard(ORIGINAL.surroundContents));
+  lock(proto.Element, 'insertAdjacentElement', guardOne(ORIGINAL.insertAdjacentElement, 1));
+  lock(proto.Range, 'insertNode', guardOne(ORIGINAL.insertNode, 0, () => undefined));
+  lock(proto.Range, 'surroundContents', guardOne(ORIGINAL.surroundContents, 0, () => undefined));
   const replaceContents = (target, value) => {
     const fragment = parseFragment(value, target);
     let first = read('firstChild', target);
@@ -307,21 +390,30 @@ const LOCKDOWN_SCRIPT = `(() => {
   }
   try { Object.defineProperty(navigator, 'mediaDevices', {value: undefined, configurable: false}); } catch (error) { /* já bloqueado */ }
   try { Object.defineProperty(navigator, 'getBattery', {value: undefined, configurable: false}); } catch (error) { /* já bloqueado */ }
-  try {
-    new MutationObserver((records) => {
-      for (const record of records) {
-        const added = record.addedNodes;
-        const length = added.length;
-        for (let i = 0; i < length; i += 1) {
-          const node = NODE_LIST_ITEM ? APPLY(NODE_LIST_ITEM, added, [i]) : added[i];
-          if (node && read('nodeType', node) === 1 && unsafeSubtree(node)) {
-            const parent = read('parentNode', node);
-            if (parent) APPLY(ORIGINAL.removeChild, parent, [node]);
+    try {
+      new MutationObserver((records) => {
+        for (const record of records) {
+          const added = record.addedNodes;
+          const length = added.length;
+          for (let i = 0; i < length; i += 1) {
+            const node = NODE_LIST_ITEM ? APPLY(NODE_LIST_ITEM, added, [i]) : added[i];
+            if (!node || read('nodeType', node) !== 1) continue;
+            /* 'link' do modelo sai em silêncio (dica de DNS); subárvore com
+               quadro continua recusada como antes. */
+            if (isLinkNode(node)) {
+              const parent = read('parentNode', node);
+              if (parent) APPLY(ORIGINAL.removeChild, parent, [node]);
+              continue;
+            }
+            stripLinks(node);
+            if (unsafeSubtree(node)) {
+              const parent = read('parentNode', node);
+              if (parent) APPLY(ORIGINAL.removeChild, parent, [node]);
+            }
           }
         }
-      }
-    }).observe(document.documentElement, {childList: true, subtree: true});
-  } catch (error) { /* observer é a última linha de defesa */ }
+      }).observe(document.documentElement, {childList: true, subtree: true});
+    } catch (error) { /* observer é a última linha de defesa */ }
 })();`;
 
 module.exports = {DANGEROUS_TAGS, LOCKDOWN_SCRIPT};

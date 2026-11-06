@@ -10,6 +10,7 @@ export type DeskConfig = {
  piPath: string,
  claudePath: string,
  xournalPath: string,
+ opencodePath: string,
  courses: CourseEntry[],
  desk: DeskSettings,
 };

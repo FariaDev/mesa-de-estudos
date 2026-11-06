@@ -1,33 +1,19 @@
-/* Conversa Pi simulada; ferramenta HTTP, impressão, registro, abertura e UI reais. */
+/* Conversa OpenCode simulada; ferramenta HTTP, impressão, registro, abertura e UI reais. */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {pathToFileURL} from 'node:url';
 import {execFileSync} from 'node:child_process';
-import {DESK,fakePiSource,launchDesk,withArtifacts,openMore,enterFree,screenshotDirectory,freeMenuClick,resizeWindow} from './helpers.mjs';
+import {launchDesk,withArtifacts,openMore,enterFree,screenshotDirectory,freeMenuClick,resizeWindow} from './helpers.mjs';
 import {nextFrames} from './waits.mjs';
 /* Capturas só para revisão visual (`MESA_REVIEW_SHOTS=1`); a asserção não depende delas. */
 const out=process.env.MESA_REVIEW_SHOTS?screenshotDirectory('tutor-pdf-ui'):'';
 const markdown='# Teorema de Pitágoras\n\nEm um triângulo retângulo:\n\n$$a^2+b^2=c^2$$\n\n## Exemplo resolvido\n\nPara catetos de 3 cm e 4 cm:\n\n$$c=\\sqrt{3^2+4^2}=\\sqrt{25}=5\\text{ cm}$$\n\n## Pratique\n\n1. Calcule a hipotenusa com catetos de 5 cm e 12 cm.\n2. Explique como identificar a hipotenusa.';
 await withArtifacts('tutor-pdf-ui',async ctx=>{
  const runtime=ctx.runtime=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-tutor-pdf-ui-')));
- const demo=path.join(runtime,'pi-tutor-demo.mjs');
- const source=fakePiSource(),marker="else if(/quiz/i.test(studentText(e.message)))void emitQuiz(e.message);";assert.ok(source.includes(marker));
- const branch=`else if(String(e.message).includes('Prepare um PDF na Mesa')){
- streaming=true;emit({type:'agent_start'});
- (async()=>{
-  try{
-   const {createTutorPdf}=await import(${JSON.stringify(pathToFileURL(path.join(DESK,'src/extensions/tutor-pdf/client.mjs')).href)});
-   const result=await createTutorPdf(JSON.parse(process.env.LEARNING_DESK_MATERIAL_BRIDGE),{title:'Teorema de Pitágoras',markdown:${JSON.stringify(markdown)}});
-   fs.writeFileSync(${JSON.stringify(path.join(runtime,'tool-result.json'))},JSON.stringify(result));
-   streaming=false;emitText('Preparei o material **Teorema de Pitágoras** com um exemplo resolvido e exercícios. Revise a prévia e clique em Salvar PDF e abrir.');
-  }catch(error){streaming=false;emitText('Falha: '+error.message);}
- })();
- } ${marker}`;
- fs.writeFileSync(demo,source.replace(marker,()=>branch).replace('function emitText(text){',"function emitText(text){\n if(session)fs.appendFileSync(session,JSON.stringify({type:'message',message:{role:'assistant',content:[{type:'text',text}]}})+'\\n');"));fs.chmodSync(demo,0o755);
  fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({runtimePath:runtime,vaultPath:runtime,courses:[],desk:{title:'Mesa de Estudos',panels:[{label:'Material',prefer:[],toggle:''},{label:'Formulário',prefer:[],toggle:'Formulário'}]}}));
- ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:demo}});
+ const createPdf={name:'criar_pdf',input:{title:'Teorema de Pitágoras',markdown}};
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MCP_CALL:JSON.stringify(createPdf)}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await enterFree(page);
  await resizeWindow(ctx.app,page,1500,960);
@@ -54,7 +40,6 @@ await withArtifacts('tutor-pdf-ui',async ctx=>{
  await page.waitForFunction(()=>document.querySelector('#free-pdf-dialog').open&&!window.__mesaState.busy,undefined,{timeout:30000});
  assert.equal(await page.locator('#free-pdf-title').inputValue(),'Teorema de Pitágoras');
  assert.equal(await page.locator('#free-pdf-content').inputValue(),markdown);
- assert.equal(JSON.parse(fs.readFileSync(path.join(runtime,'tool-result.json'),'utf8')).prepared,true);
  assert.equal(await page.evaluate(()=>window.__mesaState.workspace.materials.length),0,'nenhum PDF é salvo antes da revisão');
  await shot('03-previa-tutor');
  await page.keyboard.press('Escape');

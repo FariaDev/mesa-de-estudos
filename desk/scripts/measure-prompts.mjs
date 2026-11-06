@@ -2,11 +2,8 @@
 /* Mede o que a Mesa manda aos dois motores, sem inferência, login nem rede.
  *
  * Monta o pedido de forma determinística com o mesmo código do app
- * (`src/agents/desk-prompts.cjs`, as ferramentas do Claude e as extensões do
- * Pi) e conta caracteres e tokens com um estimador local. O Pi entra pelo SDK
- * instalado (como em `tests/native-*.mjs`): numa pasta temporária, sem as
- * extensões nem o perfil do usuário, só para ler o prompt de sistema e o
- * esquema das ferramentas. Sem o Pi instalado, a parte dele é pulada.
+ * (`src/agents/desk-prompts.cjs`, as ferramentas do Claude e do OpenCode) e
+ * conta caracteres e tokens com um estimador local.
  *
  *   node scripts/measure-prompts.mjs          # tabela em Markdown
  *   node scripts/measure-prompts.mjs --json   # números para comparar
@@ -25,9 +22,8 @@ import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 const desk = path.resolve(import.meta.dirname, '..');
 const require = createRequire(path.join(desk, 'package.json'));
 const prompts = require('./src/agents/desk-prompts.cjs');
-const {mesaExtensionPaths} = require('./src/agents/mesa-tool-catalog.cjs');
 const {buildStudyContext} = require('./studycontext.cjs');
-/* Ponte de mentira comum às medições do Pi e do OpenCode: só o formato que os
+/* Ponte de mentira comum às medições dos motores: só o formato que os
    registros conferem, sem abrir porta nem chamar ninguém. */
 const FAKE_GRANT = {url: 'http://127.0.0.1:9/activity', token: 'medicao'};
 const FAKE_CARD_GRANT = {url: 'http://127.0.0.1:9/activity', token: 'medicao'};
@@ -103,56 +99,6 @@ export async function openCodeTools(deskDir = desk) {
   return {main: mesaTools(env).map(shape), side: mesaTools({...env, LEARNING_DESK_PDF_ONLY: '1'}).map(shape)};
 }
 
-/* ---------- Pi: o SDK instalado monta o prompt e as ferramentas ---------- */
-export async function piRequest({materialTools, deskDir = desk}) {
-  const {resolvePi} = require('./pi.cjs');
-  let bin;
-  try {
-    bin = resolvePi({deskDir: desk});
-  } catch {
-    return null;
-  }
-  if (!bin || !fs.existsSync(bin)) return null;
-  let pkg = path.dirname(fs.realpathSync(bin));
-  while (!fs.existsSync(path.join(pkg, 'package.json'))) pkg = path.dirname(pkg);
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-measure-'));
-  const agentDir = path.join(root, 'agent');
-  fs.mkdirSync(agentDir);
-  const saved = {...process.env};
-  process.env.PI_CODING_AGENT_DIR = agentDir;
-  /* A concessão de atividade existe nas duas sessões reais (o lateral lê PDF). */
-  process.env.LEARNING_DESK_ACTIVITY_BRIDGE = JSON.stringify(FAKE_GRANT);
-  process.env.LEARNING_DESK_MATERIAL_BRIDGE = materialTools ? JSON.stringify({url: 'http://127.0.0.1:9/pdf', token: 'medicao'}) : '';
-  process.env.LEARNING_DESK_CARD_BRIDGE = JSON.stringify(FAKE_CARD_GRANT);
-  /* O GeoGebra registra só com a ponte; o arquivo nem precisa existir (M5). */
-  process.env.LEARNING_DESK_GGB_BRIDGE = materialTools ? path.join(root, 'ggb-bridge.json') : '';
-  process.env.LEARNING_DESK_TUTOR_LANGUAGE = 'pt-BR';
-  try {
-    const sdk = await import(pathToFileURL(path.join(pkg, 'dist', 'index.js')));
-    const {buildSystemPromptSections} = await import(pathToFileURL(path.join(pkg, 'dist', 'core', 'system-prompt.js')));
-    const settingsManager = sdk.SettingsManager.create(root, agentDir);
-    const extensions = mesaExtensionPaths(deskDir, {material: materialTools});
-    const resourceLoader = new sdk.DefaultResourceLoader({
-      cwd: root, agentDir, settingsManager, noExtensions: true, noSkills: true, noPromptTemplates: true, noProjectContext: true,
-      appendSystemPrompt: [fromDesk(deskDir, 'src/agents/desk-prompts.cjs').piPrompt({materialTools})], additionalExtensionPaths: extensions,
-    });
-    await resourceLoader.reload();
-    const model = {id: 'fixture', name: 'Sem inferência', provider: 'fixture', api: 'openai-completions', baseUrl: 'http://127.0.0.1:9', reasoning: false, input: ['text'], cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}, contextWindow: 100000, maxTokens: 1000};
-    const {session} = await sdk.createAgentSession({cwd: root, agentDir, model, resourceLoader, settingsManager, sessionManager: sdk.SessionManager.inMemory()});
-    await session.bindExtensions({});
-    const sections = buildSystemPromptSections(session._baseSystemPromptOptions);
-    const tools = session.agent.state.tools.map((tool) => ({name: tool.name, description: tool.description, input_schema: tool.parameters}));
-    session.dispose?.();
-    return {version: JSON.parse(fs.readFileSync(path.join(pkg, 'package.json'), 'utf8')).version, sections, tools};
-  } finally {
-    for (const key of ['PI_CODING_AGENT_DIR', 'LEARNING_DESK_ACTIVITY_BRIDGE', 'LEARNING_DESK_MATERIAL_BRIDGE', 'LEARNING_DESK_CARD_BRIDGE', 'LEARNING_DESK_GGB_BRIDGE', 'LEARNING_DESK_TUTOR_LANGUAGE']) {
-      if (key in saved) process.env[key] = saved[key];
-      else delete process.env[key];
-    }
-    fs.rmSync(root, {recursive: true, force: true});
-  }
-}
-
 /* ---------- Resultados de ferramenta que voltam ao modelo ---------- */
 const PDF_RESULT = {
   prepared: true, reviewRequired: true, title: 'Lista 3 — Derivadas', model: 'lista',
@@ -177,12 +123,12 @@ async function toolResults() {
   const claudePdf = await (await createTutorPdfTool(async () => PDF_RESULT)).handler({title: PDF_RESULT.title, markdown: '1. x'}, {});
   const claudeActivity = await (await createActivityTool(async () => ACTIVITY_ITEM)).handler({title: 't', objective: 'o', alternativeMarkdown: 'a', kind: 'visualizacao'}, {});
   const bridgeReply = {published: true, id: ACTIVITY_ITEM.id, version: 1, hash: ACTIVITY_ITEM.hash, kind: 'activity', title: ACTIVITY_ITEM.title, reused: false, reviewRequired: false};
-  const piActivity = activityGuide.publishedText(bridgeReply, 'visualizacao');
+  const openCodeActivity = activityGuide.publishedText(bridgeReply, 'visualizacao');
   return {
     'PDF preparado — Claude': claudePdf.content[0].text,
-    'PDF preparado — Pi': pdfGuide.resultText(PDF_RESULT),
+    'PDF preparado — OpenCode': pdfGuide.resultText(PDF_RESULT),
     'Quadro mostrado — Claude': claudeActivity.content[0].text,
-    'Quadro mostrado — Pi': piActivity,
+    'Quadro mostrado — OpenCode': openCodeActivity,
   };
 }
 
@@ -204,7 +150,7 @@ const sum = (items) => items.reduce((acc, item) => ({chars: acc.chars + item.cha
 const toolSize = (tool) => size(JSON.stringify(tool));
 
 export async function measure() {
-  const out = {claude: {}, pi: {}, opencode: {}, results: {}, context: {}};
+  const out = {claude: {}, opencode: {}, results: {}, context: {}};
   const tools = await claudeTools();
   out.claude.tools = Object.fromEntries(tools.map((tool) => [tool.name, toolSize(tool)]));
   out.claude.toolsTotal = sum(Object.values(out.claude.tools));
@@ -227,25 +173,6 @@ export async function measure() {
     out.opencode.prefixSidechat = sum([out.opencode.systemSidechat, out.opencode.sideToolsTotal]);
   } else out.opencode = null;
 
-  const pi = await piRequest({materialTools: true});
-  if (pi) {
-    out.pi.version = pi.version;
-    out.pi.sections = Object.fromEntries(Object.entries(pi.sections).map(([name, text]) => [name, size(text)]));
-    out.pi.system = sum(Object.values(out.pi.sections));
-    out.pi.tools = Object.fromEntries(pi.tools.map((tool) => [tool.name, toolSize(tool)]));
-    out.pi.mesaTools = sum(Object.entries(out.pi.tools).filter(([name]) => name.startsWith('mesa_')).map(([, value]) => value));
-    out.pi.builtinTools = sum(Object.entries(out.pi.tools).filter(([name]) => !name.startsWith('mesa_')).map(([, value]) => value));
-    out.pi.prefix = sum([out.pi.system, out.pi.mesaTools, out.pi.builtinTools]);
-    out.pi.mesaPart = sum([out.pi.sections.addendum, out.pi.mesaTools]);
-    const side = await piRequest({materialTools: false});
-    if (side) {
-      out.pi.sidechatAddendum = side.sections.addendum && size(side.sections.addendum);
-      out.pi.sideTools = Object.fromEntries(side.tools.filter((tool) => tool.name.startsWith('mesa_')).map((tool) => [tool.name, toolSize(tool)]));
-      out.pi.sideToolsTotal = sum(Object.values(out.pi.sideTools));
-      out.pi.sidePrefix = sum([out.pi.sidechatAddendum || {chars: 0, tokens: 0}, out.pi.sideToolsTotal]);
-    } else out.pi.sidechatAddendum = null;
-  } else out.pi = null;
-
   out.results = Object.fromEntries(Object.entries(await toolResults()).map(([name, text]) => [name, size(text)]));
   out.context = Object.fromEntries(Object.entries(contextBlocks()).map(([name, text]) => [name, size(text)]));
   return out;
@@ -263,15 +190,6 @@ function markdown(data) {
   lines.push(row('Claude — sessão principal no sistema (citação e o que oferecer)', data.claude.toolPrompts));
   for (const [name, value] of Object.entries(data.claude.tools)) lines.push(row(`Claude — ferramenta ${name}`, value));
   lines.push(row('**Claude — prefixo da Mesa (sistema + ferramentas mesa)**', data.claude.prefixCourse));
-  if (data.pi) {
-    for (const [name, value] of Object.entries(data.pi.sections)) lines.push(row(`**Pi ${data.pi.version}** — seção ${name}`, value));
-    for (const [name, value] of Object.entries(data.pi.tools)) lines.push(row(`Pi — ferramenta ${name}`, value));
-    lines.push(row('**Pi — prefixo (sistema + ferramentas, sem o perfil do usuário)**', data.pi.prefix));
-    lines.push(row('Pi — parte da Mesa (adendo + ferramentas mesa_*)', data.pi.mesaPart));
-    lines.push(row('Pi — adendo do chat lateral', data.pi.sidechatAddendum));
-    for (const [name, value] of Object.entries(data.pi.sideTools || {})) lines.push(row(`Pi — ferramenta do chat lateral ${name}`, value));
-    lines.push(row('Pi — prefixo do chat lateral (adendo + ferramenta Mesa)', data.pi.sidePrefix));
-  } else lines.push('| Pi | não instalado | — |');
   if (data.opencode) {
     for (const [name, value] of Object.entries(data.opencode.tools)) lines.push(row(`**OpenCode** — ferramenta ${name}`, value));
     lines.push(row('OpenCode — ferramentas da sessão principal', data.opencode.toolsTotal));

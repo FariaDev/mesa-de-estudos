@@ -76,7 +76,7 @@ async function scenario(built,name,version,check){
   /* Sem `claudePath`: a Mesa acha o Claude Code onde o instalador oficial o põe. */
   writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Synthetic',name:'Synthetic',path:folder}]});
   writeDeskJson(runtime,{courseId:'Synthetic',session:file,courseStates:{Synthetic:{session:file,sessions:[{path:file}]}}});
-  ctx.app=await launchDesk({runtime,pi:false,execPath:built.exe,env:{
+  ctx.app=await launchDesk({runtime,opencode:false,execPath:built.exe,env:{
    ...NO_CONFLICT,
    HOME:home,
    PATH:`${bin}:/usr/bin:/bin:/usr/sbin:/sbin`,

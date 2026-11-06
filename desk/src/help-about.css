@@ -98,6 +98,12 @@
 .about-id{flex:1;min-width:0}
 .about-name{margin:0;font:500 24px/1.2 var(--serif);color:var(--fg-strong)}
 .about-lead{margin:2px 0 0;font-size:var(--fs-sm);color:var(--muted)}
+/* #109: de onde o app se atualiza. Uma linha discreta; o caminho corta por
+   CSS e o completo fica no `title` (o Sobre é do próprio usuário). */
+.about-origin{display:flex;align-items:baseline;min-width:0;margin:2px 0 0;font-size:var(--fs-xs);line-height:1.5;color:var(--faint);white-space:nowrap}
+.about-origin[hidden]{display:none}
+.about-origin-label{flex:none}
+.about-origin-path{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono);color:var(--muted)}
 .about-head .dialog-close{align-self:flex-start}
 .about-update{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-height:44px;padding:6px 20px;box-sizing:border-box;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--code);flex:none}
 .update-icon{flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font-size:12px;font-weight:700;line-height:1;background:var(--selected);color:var(--muted)}

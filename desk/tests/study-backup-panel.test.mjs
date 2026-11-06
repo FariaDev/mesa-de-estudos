@@ -342,6 +342,11 @@ test('painel: formatação e view model são puros e em português', () => {
   assert.equal(view.versions.length, 1);
   assert.equal(view.versions[0].size, '1.0 KB');
   assert.match(view.status.lastAt, /^07\/10\/2026/);
+  /* B3 (auditoria rodada 8): o rótulo diz o que o campo faz de verdade — o
+     automático só roda depois de X min de inatividade
+     (`shouldAutoBackup`, em `study-data/backup-schedule.cjs`). */
+  const idle = renderBackupPanelView(buildBackupPanelView({config: {auto: true}}));
+  assert.match(idle.sections, /depois de .* min sem uso/);
   const html = renderBackupPanelView(view);
   assert.match(html.nav, /data-bkp-nav="backup" aria-current="true"/);
   assert.match(html.nav, /data-bkp-nav="restaurar"/);
@@ -370,6 +375,64 @@ test('painel: CSS escopado é injetado uma vez e usa os tokens do app', () => {
   assert.match(style.textContent, /var\(--primary,#6d28d9\)/);
   assert.equal(ensureStyles(document), style, 'não injeta de novo');
   assert.equal(document.head.children.length, 1);
+});
+
+/* B1 (auditoria rodada 8): com o automático desligado, os três ajustes que
+   dependem dele nascem com `disabled`; marcar reabilita, desmarcar desabilita
+   de novo, sem tocar no valor. */
+test('painel: ajustes do automático desabilitam com ele desligado, nos dois sentidos', () => {
+  const off = renderBackupPanelView(buildBackupPanelView({config: {auto: false, intervalHours: 24, idleMinutes: 30, keep: 5}}));
+  for (const id of ['mesa-bkp-intervalo', 'mesa-bkp-parado', 'mesa-bkp-guardar']) {
+    assert.match(off.sections, new RegExp(`id="${id}"[^>]*disabled`), `${id} nasce desabilitado`);
+  }
+  const on = renderBackupPanelView(buildBackupPanelView({config: {auto: true, intervalHours: 24, idleMinutes: 30, keep: 5}}));
+  for (const id of ['mesa-bkp-intervalo', 'mesa-bkp-parado', 'mesa-bkp-guardar']) {
+    const tag = on.sections.match(new RegExp(`<input[^>]*id="${id}"[^>]*>`))?.[0] || '';
+    assert.ok(!/disabled/.test(tag), `${id} nasce habilitado com o automático ligado`);
+  }
+});
+
+test('painel: alternar o automático liga e desliga os ajustes na hora, e o valor continua', async () => {
+  const document = makeDocument();
+  const model = fakeModel();
+  const panel = initBackupPanel(document, model.ipc, {alvo: document.body});
+  await panel.abrir();
+  const dialog = panel.element;
+  const auto = dialog.querySelector('#mesa-bkp-auto');
+  assert.ok(auto && !auto.checked, 'o fake parte com o automático desligado');
+  for (const id of ['#mesa-bkp-intervalo', '#mesa-bkp-parado', '#mesa-bkp-guardar']) {
+    assert.equal(dialog.querySelector(id).getAttribute('disabled'), '', `${id} abre desabilitado`);
+  }
+  auto.checked = true;
+  dialog.dispatch('change', {target: auto});
+  for (const id of ['#mesa-bkp-intervalo', '#mesa-bkp-parado', '#mesa-bkp-guardar']) {
+    assert.equal(dialog.querySelector(id).hasAttribute('disabled'), false, `${id} reabilita ao marcar`);
+  }
+  dialog.querySelector('#mesa-bkp-intervalo').value = '48';
+  dialog.dispatch('click', {target: findAction(dialog, 'salvar')});
+  await flush();
+  const saved = model.calls.find((call) => call.fn === 'definirConfig');
+  assert.equal(saved.patch.intervalHours, 48, 'o valor digitado com o automático ligado é salvo');
+  await panel.abrir();
+  auto.checked = false;
+  dialog.dispatch('change', {target: auto});
+  for (const id of ['#mesa-bkp-intervalo', '#mesa-bkp-parado', '#mesa-bkp-guardar']) {
+    assert.equal(dialog.querySelector(id).getAttribute('disabled'), '', `${id} desabilita ao desmarcar`);
+  }
+  /* Salvar com os campos desabilitados não zera nem troca pelo padrão o que
+     estava lá (revisão do B1): o automático desliga e os números ficam. */
+  dialog.querySelector('#mesa-bkp-parado').value = '45';
+  dialog.querySelector('#mesa-bkp-guardar').value = '12';
+  const interval = Number(dialog.querySelector('#mesa-bkp-intervalo').value);
+  model.calls.length = 0;
+  dialog.dispatch('click', {target: findAction(dialog, 'salvar')});
+  await flush();
+  const off = model.calls.find((call) => call.fn === 'definirConfig');
+  assert.ok(off, 'salvar com o automático desligado grava');
+  assert.equal(off.patch.auto, false);
+  assert.equal(off.patch.intervalHours, interval, 'o intervalo desabilitado sai como estava no campo');
+  assert.equal(off.patch.idleMinutes, 45);
+  assert.equal(off.patch.keep, 12);
 });
 
 /* ---------- painel completo ---------- */

@@ -32,7 +32,7 @@
 .session-title-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .session-title .icon{flex:none;color:var(--faint)}
 .chat-head-actions,.sidechat-head-actions{display:flex;align-items:center;gap:var(--space-1);flex:none;margin-right:calc(var(--bar-end) - var(--pad))}
-#sidechat-toggle[aria-pressed="true"]{background:var(--selected);color:var(--fg-strong)}
+#sidechat-toggle[aria-pressed="true"],#chat-full[aria-pressed="true"]{background:var(--selected);color:var(--fg-strong)}
 #chat>#ctx-meter,#chat>#auto-compact{display:none}
 /* Menus do cabeçalho (sessão nova e mais opções): mesma forma do `.pdf-more-pop`. */
 .chat-pop{
@@ -58,10 +58,13 @@
 .chat-pop button[hidden]{display:none}
 .chat-pop button:disabled{opacity:.5;cursor:default}
 .chat-pop button:disabled:hover{background:transparent}
+/* Interruptor da compactação automática: o estado sai no `::after` a partir do
+   `data-state` que o `syncMore` traduz (`more.autoCompact.on/off`), nos dois
+   idiomas — o CSS não fixa mais "Desativada"/"Ativada". */
 .chat-pop button[role="menuitemcheckbox"]::after{
- content:'Desativada';margin-left:auto;padding-left:var(--space-3);font-size:var(--fs-xs);color:var(--faint);
+ content:attr(data-state);margin-left:auto;padding-left:var(--space-3);font-size:var(--fs-xs);color:var(--faint);
 }
-.chat-pop button[role="menuitemcheckbox"][aria-checked="true"]::after{content:'Ativada';color:var(--accent-text)}
+.chat-pop button[role="menuitemcheckbox"][aria-checked="true"]::after{color:var(--accent-text)}
 /* Contexto abre no próprio menu: o submenu entra recuado logo abaixo do
    gatilho, sem flyout (o menu do tutor não tem outro padrão de submenu). */
 .chat-pop #more-context::after{content:'›';margin-left:auto;padding-left:var(--space-3);color:var(--faint)}
@@ -114,6 +117,10 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 /* A mensagem do estado não pode ser cortada: sem clamp, quebra dentro da
    coluna, inclusive em largura estreita (ticket de polimento visual). */
 .ts-text{display:flex;flex-direction:column;gap:var(--space-0);min-width:0}
+/* Ligado sem mensagens (auditoria de UI/UX, rodada 1, A1): um convite de uma
+   linha no lugar da coluna vazia. Só texto em cor faint, sem cartão, ícone
+   ou botão; some assim que há conteúdo. */
+.tutor-online-invite{margin:0;padding:var(--space-4) var(--space-5);font-size:var(--fs-md);line-height:1.45;color:var(--faint);overflow-wrap:anywhere}
 .ts-lead{margin:0;font-size:var(--fs-xl);line-height:1.4;color:var(--fg-strong);overflow-wrap:anywhere}
 .ts-lead strong{font-weight:600}
 .tutor-state[data-state=error] .ts-lead{font-weight:600}
@@ -134,7 +141,11 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 
 /* Texto quebra só palavra que não cabe (break-word); código e links, que são
    tiras longas sem espaço, podem quebrar em qualquer ponto (#61). */
-.message{margin:0 0 var(--space-6);line-height:1.6;font-size:var(--fs-xl);overflow-wrap:break-word;position:relative}
+.message{margin:0 0 var(--space-6);line-height:1.6;font-size:var(--reading-size);overflow-wrap:break-word;position:relative}
+/* #106: a coluna de leitura limita o texto só quando o painel é mais largo do
+   que ela (no tutor padrão de 390px e no lateral estreito não muda nada). O
+   composer continua de ponta a ponta na coluna; o que centraliza é a mensagem. */
+:is(#messages,#sidechat-messages)>.message{width:100%;max-width:var(--reading-column);margin-inline:auto}
 /* #67: numa sessão longa, as mensagens fora da vista não entram no layout de
    cada turno (1000 mensagens davam ~72 mil nós recalculados a cada resposta).
    A última fica de fora: é a que cresce durante o streaming. `auto` na altura
@@ -178,9 +189,9 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
    30px na coluna de 390px. Todos em negrito; o h4 se separa do h3 pela cor. */
 .message :is(h1,h2,h3,h4){margin:var(--space-6) 0 var(--space-2);font-weight:600;line-height:1.35;color:var(--fg-strong)}
 .message :is(h1,h2,h3,h4):first-child{margin-top:0}
-.message h1{font-size:17px}
-.message h2{font-size:16px}
-.message :is(h3,h4){font-size:var(--fs-xl)}
+.message h1{font-size:var(--reading-h1-size)}
+.message h2{font-size:var(--reading-h2-size)}
+.message :is(h3,h4){font-size:var(--reading-size)}
 .message h4{color:var(--muted)}
 .message ul,.message ol{padding-left:22px}
 /* Citação ("> ", o botão Citar): sem regra, o navegador dava 40px de recuo e
@@ -190,9 +201,9 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .message blockquote>:last-child{margin-bottom:0}
 .message pre{
  overflow:auto;background:var(--code);border:1px solid var(--border);border-radius:var(--r-lg);
- padding:var(--space-5);font-size:var(--fs-md);line-height:1.55;
+ padding:var(--space-5);font-size:var(--reading-code-size);line-height:1.55;
 }
-.message code{font-family:var(--font-mono);font-size:var(--fs-md)}
+.message code{font-family:var(--font-mono);font-size:var(--reading-code-size)}
 /* Bloco de código (ticket de polimento visual): a moldura é do bloco, a faixa
    de cabeçalho leva a linguagem à esquerda e o copiar à direita, e o código
    começa abaixo dela com o mesmo respiro nos quatro lados. Vale no tutor, na
@@ -201,7 +212,7 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .codeblock pre,
 .message .codeblock pre{
  margin:0;border:0;border-radius:0;background:transparent;
- padding:var(--space-5);font-size:var(--fs-md);line-height:1.55;
+ padding:var(--space-5);font-size:var(--reading-code-size);line-height:1.55;
 }
 .code-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:var(--ctl);padding:0 var(--space-2) 0 var(--space-5);border-bottom:1px solid var(--border)}
 .code-lang{min-width:0;font-size:var(--fs-2xs);letter-spacing:.08em;color:var(--faint);pointer-events:none;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -226,10 +237,20 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 [data-hl="type"]{color:var(--code-type)}
 .message a{color:var(--accent-text)}
 .message a:hover{color:color-mix(in oklab,var(--accent-text) 72%,var(--fg-strong))}
-.message .katex-display{overflow:auto;max-width:100%;padding:var(--space-1) 0}
-.message table{border-collapse:collapse;max-width:100%;font-size:var(--fs-sm)}
+/* Bloco de fórmula (auditoria rodada 4, F1): só rola na horizontal; o `auto`
+   nos dois eixos abria barra vertical por 2px (`clientHeight=53`,
+   `scrollHeight=55`). Vale no tutor e no lateral (mesmo `.message`). */
+.message .katex-display{overflow-x:auto;overflow-y:hidden;max-width:100%;padding:var(--space-1) 0}
+/* Fórmula ainda chegando no stream (auditoria rodada 5, D3): linha quieta no
+   lugar da fonte crua até o delimitador fechar; fechou, renderiza. */
+.message .math-pending{color:var(--muted);font-style:italic}
+.message table{border-collapse:collapse;max-width:100%;font-size:var(--reading-table-size)}
 .message td,.message th{border:1px solid var(--border);padding:5px}
-.message img{max-width:100%;background:var(--code)}
+.message img{max-width:100%;height:auto;background:var(--code)}
+/* Teto honesto contra `width`/`height` gigantes do modelo (`<img width=20000>`):
+   a coluna não passa da mensagem. `plot`, `shot` e `asset` têm regra própria e
+   não mudam (medido no corpo honesto). */
+.message img:not(.plot):not(.shot){max-width:100%;height:auto}
 /* Figura gerada pelo tutor (#42) aparece sobre um papel claro: PNG
    transparente com traço escuro nunca some no tema escuro. */
 .message:not(.user) img:not(.plot){background:#ffffff;padding:var(--space-2);border-radius:var(--r-md)}
@@ -245,6 +266,9 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 .img-wrap:hover .img-copy,.img-wrap:focus-within .img-copy{opacity:1;pointer-events:auto}
 .img-wrap .img-copy:hover{opacity:.85}
 .message figure.asset{margin:var(--space-3) 0}
+/* Figura ainda não carregada reserva espaço: o vão zerado virava um pulo na
+   rolagem quando a hidratação trocava o placeholder pela imagem. */
+.message figure.asset:empty{min-height:160px}
 .message figure.asset img.plot{margin:0}
 .message figure.asset figcaption{font-size:var(--fs-xs);color:var(--muted);margin-top:var(--space-1);overflow-wrap:anywhere}
 
@@ -255,7 +279,14 @@ h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em;margin:0}
 }
 .message .plot-figure{margin:var(--space-3) 0;color:var(--fg)}
 .message .plot-figure svg{display:block;max-width:min(100%,720px);height:auto}
-.message :is(p,div,li,td,th,blockquote)>svg[viewBox]:not([class]){display:block;width:100%;max-width:min(100%,480px);height:auto}
+.message :is(p,div,li,td,th,blockquote)>svg[viewBox]:not([class]){display:block;width:100%;max-width:min(100%,480px);height:auto;max-height:min(78vh,600px)}
+/* Teto de todo SVG do modelo (quarta contraprova, #seg-markup): o limite NÃO
+   depende de `viewBox` — `<svg width="20000">` sem ele (ou com dimensão
+   inválida, que não deriva `viewBox`) estourava a coluna em 20 mil px porque
+   nenhuma regra casava. Vale para o aninhado também (descendente, não só
+   filho direto); sem `display`/`width` forçados, para não esticar o honesto
+   pequeno nem o KaTeX. Ícone da interface tem `class` e fica de fora. */
+.message :is(p,div,li,td,th,blockquote) svg:not([class]){max-width:100%;max-height:min(78vh,600px)}
 .message .plot-warning{margin:var(--space-3) 0;padding:var(--space-2) var(--space-3);border-left:3px solid var(--warn);background:var(--code);border-radius:var(--r-xs);font-size:var(--fs-xs);color:var(--muted)}
 .message .plot-warning>span{display:block}
 .message .plot-warning-got,.message .plot-warning-want{font-family:var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere}

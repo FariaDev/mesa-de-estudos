@@ -13,9 +13,8 @@ export const LAMP_STATES = /** @type {const} */ ([
 ]);
 
 const hasEngine = (/** @type {any} */ facts) => {
-  const visible = facts?.visibleEngines || ['pi', 'claude', 'opencode'];
-  return (!!facts?.piFound && visible.includes('pi'))
-    || (!!facts?.claudeFound && visible.includes('claude'))
+  const visible = facts?.visibleEngines || ['claude', 'opencode'];
+  return (!!facts?.claudeFound && visible.includes('claude'))
     || (!!facts?.opencodeFound && visible.includes('opencode'));
 };
 

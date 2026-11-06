@@ -11,9 +11,6 @@ function run_lib(f, n) {
 }
 var $0eff = Object.create(null);
 var io_file_append = new Set;
-function $piCaps() {
-  return { $: "Caps", images: true, permissions: true, steer: true, compact: true, autoCompaction: true, modelSelection: true, effort: true, reviewDraft: true, commands: true, geogebra: true, quiz: true, contextUsage: true };
-}
 function $claudeCaps() {
   return { $: "Caps", images: true, permissions: true, steer: true, compact: true, autoCompaction: false, modelSelection: false, effort: false, reviewDraft: true, commands: true, geogebra: true, quiz: true, contextUsage: true };
 }
@@ -110,7 +107,6 @@ function $Bool_not(_b_0) {
 var $$imagesAllowed = $imagesAllowed;
 var $$Bool_not = $Bool_not;
 var agentcaps_default = {
-  piCaps: run_lib(() => run_loop($piCaps()), 0),
   claudeCaps: run_lib(() => run_loop($claudeCaps()), 0),
   claudeControlCaps: run_lib((a0, a1) => run_loop($claudeControlCaps(a0, a1)), 2),
   opencodeCaps: run_lib(() => run_loop($opencodeCaps()), 0),

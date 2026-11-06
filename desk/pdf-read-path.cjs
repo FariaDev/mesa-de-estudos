@@ -18,7 +18,7 @@ const PAGE_TAIL = /(?:\s+\(p\.\s*\d+\s*\)|#page=\d+)\s*$/i;
 
 /**
  * O `read` nativo de PDF pede o poppler (`pdftoppm`). A frase é a mesma no
- * Claude e no Pi, com o nome da ferramenta daquele motor.
+ * Claude e no OpenCode, com o nome da ferramenta daquele motor.
  * @param {string} tool
  * @returns {string}
  */

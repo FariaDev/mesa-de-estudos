@@ -6,9 +6,10 @@
    vale dentro do quadro. Nos dois temas, em 1440×900 e 900×650. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import {launchDesk,withArtifacts,DESK,screenshotDirectory,enterFree,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
+import {launchDesk,withArtifacts,screenshotDirectory,enterFree,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
+import {tempDir} from './temp-dir.mjs';
+import {specFor} from './fixtures/activity-specs.mjs';
 import {layoutStable} from './waits.mjs';
 
 const measureCard=()=>{
@@ -38,10 +39,10 @@ const measureFrame=()=>{
 };
 
 await withArtifacts('activity-card-ui',async ctx=>{
- ctx.runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-activity-card-'));
- const pi=path.join(DESK,'tests/fixtures/mesa-interactive-pi.mjs');fs.chmodSync(pi,0o755);
+ ctx.runtime=tempDir('mesa-activity-card');
  fs.writeFileSync(path.join(ctx.runtime,'config.json'),JSON.stringify({runtimePath:ctx.runtime,vaultPath:ctx.runtime,courses:[]}));
- ctx.app=await launchDesk({runtime:ctx.runtime,env:{LEARNING_DESK_PI:pi}});
+ const call={name:'criar_atividade',id:'integrated-call-1',input:specFor('movimento')};
+ ctx.app=await launchDesk({runtime:ctx.runtime,env:{FAKE_OPENCODE_MCP_CALL:JSON.stringify(call)}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await enterFree(page);
  await page.evaluate(async()=>{await (await import('./src/state.mjs')).connect();});

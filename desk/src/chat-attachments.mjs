@@ -228,19 +228,21 @@ export function installAttachmentListeners(){
  $('#attachments').addEventListener('click',e=>{
    if(e.target.closest?.('.attachment-remove'))return;
    const img=e.target.closest?.('.attachment img');
-   if(img)openImageDialog('',img.src,img.alt||'Imagem anexada');
+   if(img)openImageDialog('',img.src,img.alt||t('attach.altImage'));
  });
  initAttachMenu();
  $('#attach-input').onchange=()=>{addAttachments($('#attach-input').files);$('#attach-input').value='';};
  document.addEventListener('paste',e=>{
-  if(S.busy)return;
+  /* Colar durante a resposta entra na bandeja como o texto digitado: o envio
+     com o tutor ocupado enfileira (followUp) pelo caminho do texto, levando o
+     anexo no item da fila. */
   const files=[...(e.clipboardData?.items||[])].filter(item=>item.kind==='file'&&item.type.startsWith('image/')).map(item=>item.getAsFile()).filter(Boolean);
   if(files.length){e.preventDefault();addAttachments(files);}
  });
  document.addEventListener('dragover',e=>{if([...(e.dataTransfer?.types||[])].includes('Files'))e.preventDefault();});
  document.addEventListener('drop',e=>{if([...(e.dataTransfer?.types||[])].includes('Files'))e.preventDefault();});
  const chatEl=$('#chat');
- chatEl.addEventListener('dragover',e=>{if([...(e.dataTransfer?.types||[])].includes('Files')){e.preventDefault();if(!S.busy)chatEl.classList.add('dropping');}});
+ chatEl.addEventListener('dragover',e=>{if([...(e.dataTransfer?.types||[])].includes('Files')){e.preventDefault();chatEl.classList.add('dropping');}});
  chatEl.addEventListener('dragleave',e=>{if(!chatEl.contains(e.relatedTarget))chatEl.classList.remove('dropping');});
- chatEl.addEventListener('drop',e=>{chatEl.classList.remove('dropping');const files=[...(e.dataTransfer?.files||[])];if(files.length){e.preventDefault();if(!S.busy)addAttachments(files);}});
+ chatEl.addEventListener('drop',e=>{chatEl.classList.remove('dropping');const files=[...(e.dataTransfer?.files||[])];if(files.length){e.preventDefault();addAttachments(files);}});
 }

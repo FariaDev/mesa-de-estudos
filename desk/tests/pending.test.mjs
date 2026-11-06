@@ -15,6 +15,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createRequire} from 'node:module';
 
+import pendingCore from '../src/generated/pending.core.js';
+
 const require = createRequire(import.meta.url);
 const pending = require('../pending.cjs');
 
@@ -182,6 +184,13 @@ test('teto de disco: a fila entra primeiro e a bandeja perde as últimas imagens
     assert.equal(queue.items.length, 2, 'a fila inteira fica quando ela sozinha cabe');
     assert.ok(queue.attachments.length < before.attachments.length, 'a bandeja cede espaço para a fila');
   });
+});
+
+test('reholdAfterSend: só a fila segurada com envio recusado volta a segurar', () => {
+  assert.equal(pendingCore.reholdAfterSend(true, false), true, 'recusa devolve a fila ao estado segurado');
+  assert.equal(pendingCore.reholdAfterSend(true, true), false, 'aceite solta a fila');
+  assert.equal(pendingCore.reholdAfterSend(false, false), false, 'fila que não estava segurada nunca volta a segurar');
+  assert.equal(pendingCore.reholdAfterSend(false, true), false, 'aceite de fila solta não segura');
 });
 
 test('poda: a conversa cujo arquivo sumiu sai do pending.json', () => {

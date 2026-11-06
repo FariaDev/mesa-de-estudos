@@ -41,10 +41,10 @@ _Avoid_: curso, disciplina
 
 **Tutor**:
 O assistente com quem o usuário conversa. É a palavra da interface.
-_Avoid_: Pi (fora de Configurações e Sobre), IA, assistente
+_Avoid_: Pi (só ao falar de sessão antiga), IA, assistente
 
 **Pi**:
-O programa que faz o tutor funcionar. Detalhe técnico, visível só em Configurações e Sobre.
+Motor aposentado. Sessões JSONL antigas continuam legíveis, mas a Mesa não o inicia nem o oferece.
 
 **Sessão**:
 Uma sessão de estudo: a sequência de mensagens com o tutor dentro de uma matéria, que pode ser retomada depois.

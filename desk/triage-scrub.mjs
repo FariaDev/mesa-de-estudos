@@ -28,6 +28,16 @@ const FILE_NAMES=[
  {pattern:/[^\s/\\"'`:;,()[\]<>]+(?: [^\s/\\"'`:;,()[\]<>]+)*\.(?:xopp|png|jpe?g|heic|webp)\b/gi,label:'<arquivo>'},
  {pattern:/[^\s/\\"'`:;,()[\]<>]+(?: [^\s/\\"'`:;,()[\]<>]+)*\.jsonl\b/gi,label:'<sessão>'},
 ];
+/* Nome depois de barra (`/` ou `\`): apaga o segmento inteiro desde a última
+   barra até a extensão, com vírgula, ponto e vírgula, parênteses e acento
+   dentro (C-01: `~/Downloads/Lista, <pdf>` vazava o prefixo). Só barra, aspas,
+   crase, dois-pontos e `<>` param o segmento; sem quantificador aninhado, para
+   a linha hostil não explodir (só classe negada + extensão literal). */
+const PATH_FILE_NAMES=[
+ {pattern:/[/\\][^/\\"'`:<>]+?\.pdf\b/gi,label:'<pdf>'},
+ {pattern:/[/\\][^/\\"'`:<>]+?\.(?:xopp|png|jpe?g|heic|webp)\b/gi,label:'<arquivo>'},
+ {pattern:/[/\\][^/\\"'`:<>]+?\.jsonl\b/gi,label:'<sessão>'},
+];
 /* Casa de outra pessoa (outro usuário, cópia de caminho de outra máquina). */
 const OTHER_HOMES=[/\/Users\/[^/\s"'`]+/g,/\/home\/[^/\s"'`]+/g,/[A-Za-z]:\\Users\\[^\\\s"'`]+/g];
 /* Uma linha de log que traz conteúdo de sessão (JSONL do Pi/Claude/OpenCode) não é diagnóstico. */
@@ -77,11 +87,12 @@ export function createScrubber({home,paths=[],names=[]}){
   ...names,
   ...pathForms(home||'').map(text=>({text,label:'~'})),
  ]).map(item=>({pattern:new RegExp(escapeRegExp(item.text),'giu'),label:item.label}));
- return function scrub(text){
-  let out=String(text??'');
-  for(const {pattern,label} of exact)out=out.replace(pattern,label);
-  for(const pattern of OTHER_HOMES)out=out.replace(pattern,'~');
-  for(const {pattern,label} of FILE_NAMES)out=out.replace(pattern,label);
+  return function scrub(text){
+   let out=String(text??'');
+   for(const {pattern,label} of exact)out=out.replace(pattern,label);
+   for(const pattern of OTHER_HOMES)out=out.replace(pattern,'~');
+   for(const {pattern,label} of PATH_FILE_NAMES)out=out.replace(pattern,label);
+   for(const {pattern,label} of FILE_NAMES)out=out.replace(pattern,label);
   out=redactSecrets(out);
   for(const pattern of EXTRA_SECRETS)out=out.replace(pattern,'[oculto]');
   return out;

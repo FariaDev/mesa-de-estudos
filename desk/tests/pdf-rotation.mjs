@@ -261,6 +261,15 @@ await withArtifacts('pdf-rotation',async ctx=>{
   // sendo digitada: foca, digita 1, força um render com o redimensionamento e
   // só então confirma com Enter — o valor tem de sobreviver até lá.
   const pageInput=H.field(0,'.page-number');
+  // Campo em edição sem confirmar (sem `change`, como no teclado real do macOS):
+  // a rolagem muda a página pelo centro e o updateCurrentPage não pode gravar
+  // por cima do que o aluno digitou (falha do Mac, rodada 4b). Esc devolve o botão.
+  await H.field(0,'.pager').click();
+  await page.evaluate(()=>{const panel=document.querySelectorAll('.pdf-panel')[0],input=panel.querySelector('.page-number'),box=panel.querySelector('.pdf-viewport');input.focus();input.value='2';box.scrollTop=0;});
+  await page.waitForFunction(()=>document.querySelectorAll('.pdf-panel')[0].querySelector('.pager')?.textContent.trim().startsWith('1'),undefined,{timeout:10000});
+  check('rolar com o campo em edição não apaga a página digitada',(await pageInput.inputValue())==='2',await pageInput.inputValue());
+  await page.keyboard.press('Escape');
+  await H.gotoPage(0,2);
   await H.field(0,'.pager').click();
   await pageInput.click();await page.keyboard.press('ControlOrMeta+a');await page.keyboard.type('1');
   await resizeWindow(app,page,1462,852);

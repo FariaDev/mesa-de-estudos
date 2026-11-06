@@ -44,7 +44,7 @@ async function scenario(name,version,check){
   const id=conversations.readClaudeConversation(file,{runtime}).nativeSessionId;
   writeConfigJson(runtime,{vaultPath:runtime,claudePath:user,courses:[{id:'Synthetic',name:'Synthetic',path:folder}]});
   writeDeskJson(runtime,{courseId:'Synthetic',session:file,courseStates:{Synthetic:{session:file,sessions:[{path:file}]}}});
-  ctx.app=await launchDesk({runtime,pi:false,env:{
+  ctx.app=await launchDesk({runtime,opencode:false,env:{
    ...NO_CONFLICT,
    LEARNING_DESK_CLAUDE:user,
    LEARNING_DESK_CLAUDE_DETECT:'1',

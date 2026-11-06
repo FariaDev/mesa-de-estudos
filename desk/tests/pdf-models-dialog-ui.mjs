@@ -7,9 +7,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {pathToFileURL} from 'node:url';
 import {execFileSync} from 'node:child_process';
-import {DESK,fakePiSource,launchDesk,withArtifacts,enterFree,screenshotDirectory,freeMenuClick,setTheme,freezeMotion} from './helpers.mjs';
+import {launchDesk,withArtifacts,enterFree,screenshotDirectory,freeMenuClick,setTheme,freezeMotion} from './helpers.mjs';
 import {layoutStable,nextFrames} from './waits.mjs';
 
 const out=process.env.MESA_REVIEW_SHOTS?screenshotDirectory('pdf-models-dialog-ui'):'';
@@ -33,22 +32,9 @@ const markdown=`# Lista de exemplo — razões trigonométricas
 
 await withArtifacts('pdf-models-dialog-ui',async ctx=>{
  const runtime=ctx.runtime=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-pdf-models-ui-')));
- const demo=path.join(runtime,'pi-models-demo.mjs');
- const source=fakePiSource(),marker="else if(/quiz/i.test(studentText(e.message)))void emitQuiz(e.message);";assert.ok(source.includes(marker));
- const branch=`else if(String(e.message).includes('Prepare um PDF na Mesa')){
- streaming=true;emit({type:'agent_start'});
- (async()=>{
-  try{
-   const {createTutorPdf}=await import(${JSON.stringify(pathToFileURL(path.join(DESK,'src/extensions/tutor-pdf/client.mjs')).href)});
-   const result=await createTutorPdf(JSON.parse(process.env.LEARNING_DESK_MATERIAL_BRIDGE),{title:'Lista de exemplo',markdown:${JSON.stringify(markdown)},modelo:'lista',opcoes:{colunas:'auto',gabarito:true}});
-   fs.writeFileSync(${JSON.stringify(path.join(runtime,'tool-result.json'))},JSON.stringify(result));
-   streaming=false;emitText('Preparei a **Lista de exemplo**. Revise a prévia e clique em Salvar PDF e abrir.');
-  }catch(error){streaming=false;emitText('Falha: '+error.message);}
- })();
- } ${marker}`;
- fs.writeFileSync(demo,source.replace(marker,()=>branch).replace('function emitText(text){',"function emitText(text){\n if(session)fs.appendFileSync(session,JSON.stringify({type:'message',message:{role:'assistant',content:[{type:'text',text}]}})+'\\n');"));fs.chmodSync(demo,0o755);
  fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({runtimePath:runtime,vaultPath:runtime,courses:[],desk:{title:'Mesa de Estudos',panels:[{label:'Material',prefer:[],toggle:''},{label:'Formulário',prefer:[],toggle:'Formulário'}]}}));
- ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:demo}});
+ const createPdf={name:'criar_pdf',input:{title:'Lista de exemplo',markdown,modelo:'lista',opcoes:{colunas:'auto',gabarito:true}}};
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MCP_CALL:JSON.stringify(createPdf)}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await enterFree(page);
  /* A janela da página, não a primeira da lista: a prévia do PDF abre uma
@@ -66,7 +52,7 @@ await withArtifacts('pdf-models-dialog-ui',async ctx=>{
  await page.locator('#tutor-pdf-request').fill('Uma lista curta de trigonometria.');
  await page.locator('#tutor-pdf-send').click();
  await page.waitForFunction(()=>document.querySelector('#free-pdf-dialog').open&&!window.__mesaState.busy,undefined,{timeout:30000});
- assert.equal(JSON.parse(fs.readFileSync(path.join(runtime,'tool-result.json'),'utf8')).prepared,true);
+ assert.equal(await page.locator('#free-pdf-dialog').isVisible(),true,'a ponte de material abriu o diálogo de revisão');
 
  const state=()=>page.evaluate(()=>{
   const checked=document.querySelector('#pdf-model-strip [role=radio][aria-checked=true]');

@@ -29,6 +29,7 @@ await withArtifacts('configuracoes-executaveis',async ctx=>{
  ctx.app=await electron.launch({args:[entry],cwd:DESK,env});
  const page=await ctx.app.firstWindow();
  await page.waitForFunction(()=>window.desk&&typeof window.desk.pickExecutable==='function');
+ await page.waitForSelector('#status-dot.online',{state:'attached',timeout:30000});
  const current=async()=>(await page.evaluate(()=>window.desk.getConfig())).config;
  const save=config=>page.evaluate(next=>window.desk.saveConfig(next),config);
 

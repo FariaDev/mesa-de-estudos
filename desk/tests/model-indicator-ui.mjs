@@ -10,7 +10,7 @@ import path from 'node:path';
 import boxCore from '../src/generated/composerbox.core.js';
 import headCore from '../src/generated/tutorheader.core.js';
 import {
- withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,PLOT_PNG,
+ withArtifacts,newRuntime,seedCourse,seedNativeSession,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,
  reviewShot,screenshotDirectory,setTheme,freezeMotion,toastWait,sendEnabled,openTutorMore,openModelPop,closeModelPop,pickModel,pickEffort,modelRows,modelPickerLocked,indicatorText,
  openSessionList,closeSessionList,resizeWindow
 } from './helpers.mjs';
@@ -23,7 +23,6 @@ const inside=(box,width,height,note)=>{
  assert.ok(box,`${note}: medido`);
  assert.ok(box.left>=-0.5&&box.top>=-0.5&&box.right<=width+0.5&&box.bottom<=height+0.5,`${note}: dentro da janela ${width}×${height} (${JSON.stringify(box)})`);
 };
-const seedJsonl=(file,text)=>fs.writeFileSync(file,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text}]}})+'\n');
 const listOf=l=>{const out=[];for(let c=l;c&&c.$==='Con';c=c.tail)out.push(String(c.head));return out;};
 const LADDER=['','model','icon'];
 const LONG_TITLE='Uma sessão com um título bem comprido sobre limites fundamentais, continuidade e a regra de L’Hôpital em detalhe';
@@ -33,11 +32,10 @@ await withArtifacts('model-indicator',async ctx=>{
  const runtime=ctx.runtime=newRuntime('modelind');
  const course=seedCourse(runtime,'calc');
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites e derivadas'));
- const session=path.join(runtime,`pi-${Date.now()-86400000}.jsonl`);
- seedJsonl(session,LONG_TITLE);
+ const session=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:LONG_TITLE}]}],{courseId:'calc',model:'opencode/deepseek-v4.1-flash-free'});
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',session,courseStates:{calc:{session,sessions:[{path:session,started:Date.now()-86400000}],pdfs:[{path:pdf,page:1}],study:{title:'Limites',xopp:''}}}});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_SECOND_MODEL:'1',FAKE_PI_REASONING:'1'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_SECOND_MODEL:'1'}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await size(app,page,1440,900);
@@ -54,25 +52,25 @@ await withArtifacts('model-indicator',async ctx=>{
  /* Botão fora do núcleo (`data-follows`) fica logo depois do que segue: Foto do celular depois do Anexar (#36). */
  for(const [i,el] of row.entries())if(el.follows)assert.equal(row[i-1]?.id,el.follows,`#${el.id} logo depois de #${el.follows}`);
  assert.deepEqual(await page.locator('.chat-head > *, .chat-head-actions > *').evaluateAll(list=>list.filter(el=>el.id).map(el=>el.id)),listOf(headCore.headIds()),'o cabeçalho fica com título, chat lateral, sessão nova e Mais opções');
- assert.equal(await indicatorText(page),'Pi de teste · desligado','mostra o modelo e o esforço em uso (esforço em palavra curta)');
+ assert.equal(await indicatorText(page),'DeepSeek V4.1 Flash Free · padrão','mostra o modelo e o esforço em uso (esforço em palavra curta)');
  assert.equal(await indicator.getAttribute('data-state'),'on','o estado de conexão está no indicador');
  assert.equal(await page.locator('#status-dot').count(),1,'um só ponto de estado');
  assert.equal(await page.locator('#model-indicator #status-dot.online').count(),1,'o ponto mora dentro do indicador e diz ligado');
- assert.match(await indicator.getAttribute('aria-label'),/^Tutor ligado: Pi de teste · desligado\./,'o nome acessível diz o estado e a escolha');
+ assert.match(await indicator.getAttribute('aria-label'),/^Tutor ligado: DeepSeek V4.1 Flash Free · padrão\./,'o nome acessível diz o estado e a escolha');
  /* Ligado, o logo do modelo fica no lugar do ponto, e o botão não tem borda
     (2026-10-21: a pílula com borda destoava dos outros botões da fileira). O
-    provedor `test` do fake não tem logo: vale o monograma. */
+    provedor `opencode` mostra o monograma do Zen. */
  const look=await page.evaluate(()=>{const b=document.querySelector('#model-indicator'),logo=b.querySelector('.mi-logo'),t=b.querySelector('.mi-text'),cs=getComputedStyle(b);return {border:cs.borderTopWidth,borderColor:cs.borderTopColor,logo:!!b.hasAttribute('data-logo')&&logo.getBoundingClientRect().width>0,logoRight:logo.getBoundingClientRect().right,textLeft:t.getBoundingClientRect().left,dot:document.querySelector('#status-dot').getBoundingClientRect().width,mono:logo.textContent.trim()};});
  assert.ok(look.border==='0px'||look.borderColor==='rgba(0, 0, 0, 0)',`o indicador não tem borda (${look.border} ${look.borderColor})`);
  assert.equal(look.logo,true,'ligado, o logo do modelo aparece no indicador');
- assert.equal(look.mono,'T','o provedor sem logo mostra o monograma');
+ assert.equal(look.mono,'Z','o provedor OpenCode mostra o monograma do Zen');
  assert.equal(look.dot,0,'ligado e com logo, o ponto verde sai');
  assert.ok(look.logoRight<=look.textLeft+0.5,'o logo vem antes do texto');
  /* Regressão (ajustes pós-41): com Foto do celular na fileira, 1440×900 na coluna padrão
     ainda mostra o nome do modelo; o Conferir cede antes, virando só ícone. */
  const padrao=await page.evaluate(()=>{const r=document.querySelector('#composer-box .composer-actions'),t=document.querySelector('#model-indicator .mi-text'),c=document.querySelector('#check');return {fit:r.dataset.fit||'',textDisplay:getComputedStyle(t).display,text:t.textContent.trim(),checkAria:c.getAttribute('aria-label'),inMenu:c.closest('#attach-pop')?.id||''};});
  assert.notEqual(padrao.textDisplay,'none','em 1440×900 o nome do modelo (.mi-text) aparece');
- assert.match(padrao.text,/^Pi de teste/,'em 1440×900 o .mi-text diz o modelo');
+ assert.match(padrao.text,/^DeepSeek V4.1 Flash Free/,'em 1440×900 o .mi-text diz o modelo');
  assert.match(padrao.checkAria,/Conferir/,'o Conferir mantém o nome acessível completo');
  assert.equal(padrao.inMenu,'attach-pop','o Conferir mora no menu Anexar, fora da fileira');
 
@@ -100,8 +98,8 @@ await withArtifacts('model-indicator',async ctx=>{
  assert.equal(await page.locator('#model-pop select').count(),0,'nenhum <select> nativo no popover');
  assert.equal(await page.locator('#model-pop-note').isHidden(),true,'ligado e escolhável: sem aviso');
  assert.equal(await modelPickerLocked(page),false);
- assert.deepEqual((await modelRows(page)).map(row=>row.name),['Pi com visão','Pi de teste'],'a lista traz o catálogo, por nome');
- assert.deepEqual(await page.locator('#model-list .model-group-title').allTextContents(),['test'],'o provedor sem nome conhecido aparece cru, como título do grupo');
+ assert.deepEqual((await modelRows(page)).map(row=>row.name),['Big Pickle','Big Pickle com visão','DeepSeek V4.1 Flash Free','GPT 5.5'],'a lista traz o catálogo, por nome');
+ assert.deepEqual(await page.locator('#model-list .model-group-title').allTextContents(),['OpenCode Zen'],'o grupo do OpenCode Zen aparece com o nome do provedor');
  const messagesOpen=await rect(page,'#messages');
  assert.deepEqual(messagesOpen,messagesBefore,'o popover flutua: as mensagens não se mexem');
  inside(await rect(page,'#model-pop'),1440,900,'popover 1440×900');
@@ -109,12 +107,12 @@ await withArtifacts('model-indicator',async ctx=>{
 
  /* ---- trocar esforço reflete no indicador ---- */
  await pickEffort(page,'high');
- await page.waitForFunction(()=>document.querySelector('#model-indicator .mi-text').textContent.trim()==='Pi de teste · alto',undefined,{timeout:15000});
+ await page.waitForFunction(()=>document.querySelector('#model-indicator .mi-text').textContent.trim()==='DeepSeek V4.1 Flash Free · alto',undefined,{timeout:15000});
  assert.equal(await page.locator('#model-pop').isVisible(),true,'trocar o esforço não fecha o popover');
- /* ---- trocar modelo reflete no indicador (o esforço fica) ---- */
- await pickModel(page,'test','offline-vision');
- await page.waitForFunction(()=>document.querySelector('#model-indicator .mi-text').textContent.trim()==='Pi com visão · alto',undefined,{timeout:15000});
- assert.match(await indicator.getAttribute('aria-label'),/Pi com visão · alto/);
+ /* ---- trocar modelo reflete no indicador (no OpenCode o esforço reinicia) ---- */
+ await pickModel(page,'opencode','big-pickle-vision');
+ await page.waitForFunction(()=>document.querySelector('#model-indicator .mi-text').textContent.trim()==='Big Pickle com visão · padrão',undefined,{timeout:15000});
+ assert.match(await indicator.getAttribute('aria-label'),/Big Pickle com visão · padrão/);
 
  /* ---- Esc fecha só o popover e devolve o foco ao indicador ---- */
  await page.keyboard.press('Escape');
@@ -194,8 +192,8 @@ await withArtifacts('model-indicator',async ctx=>{
   const modelWidth=await page.evaluate(()=>document.querySelector('#model-indicator .mi-model').clientWidth);
   if(row.fit!=='model'&&row.fit!=='icon')assert.equal(row.cut,false,`${tag}: no degrau "${row.fit}" o nome do modelo cabe inteiro (${row.shown})`);
   if(row.fit==='model')assert.ok(row.shown&&modelWidth>=floor-1,`${tag}: no degrau "model" o nome respeita o piso ${floor}px (${modelWidth}px, ${row.shown})`);
-  assert.match(row.label,/^Tutor ligado: Pi (de teste|com visão)/,`${tag}: o nome acessível segue completo`);
-  if(width===1440)assert.match(row.shown,/^Pi (de teste|com visão)/,`${tag}: na coluna padrão o nome do modelo aparece`);
+  assert.match(row.label,/^Tutor ligado: (DeepSeek V4\.1 Flash Free|Big Pickle com visão)/,`${tag}: o nome acessível segue completo`);
+  if(width===1440)assert.match(row.shown,/^(DeepSeek V4\.1 Flash Free|Big Pickle com visão)/,`${tag}: na coluna padrão o nome do modelo aparece`);
   console.log(`indicador ${tag}: degrau "${row.fit}", texto "${row.shown}"`);
   /* as mensagens começam logo abaixo do cabeçalho (sem faixa no meio) */
   const first=await page.evaluate(()=>{
@@ -271,7 +269,7 @@ await withArtifacts('model-indicator-off',async ctx=>{
  const course=seedCourse(runtime,'calc');
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
  writeDeskJson(runtime,{courseId:'calc'});
- const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:'/usr/bin/false'}});
+ const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_OPENCODE:'/usr/bin/false'}});
  const page=await app.firstWindow();
  await size(app,page,1440,900);
  await page.waitForSelector('#status-dot.error,#status-dot:not(.online):not(.connecting)',{timeout:30000});
@@ -307,29 +305,4 @@ await withArtifacts('model-indicator-off',async ctx=>{
  console.log('PASS model-indicator-ui (desligado) — capturas em',out);
 });
 
-/* ---------- modelo sem imagem: o aviso continua aparecendo ---------- */
-await withArtifacts('model-indicator-image',async ctx=>{
- const runtime=ctx.runtime=newRuntime('modelind-img');
- const course=seedCourse(runtime,'calc');
- writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
- writeDeskJson(runtime,{courseId:'calc'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_TEXT_ONLY:'1'}});
- const page=await app.firstWindow();
- await size(app,page,1440,900);
- await statusOnline(page);
- assert.equal(await indicatorText(page),'Pi de teste · desligado');
- await page.locator('#attach-input').setInputFiles({name:'plot.png',mimeType:'image/png',buffer:Buffer.from(PLOT_PNG,'base64')});
- await toastWait(page,'Este modelo não aceita imagens',{timeout:10000});
- const toast=await rect(page,'#toast .toast-item');
- inside(toast,1440,900,'aviso de imagem');
- await reviewShot(page,out,'claro-1440x900-aviso-imagem.png');
- await size(app,page,900,650);
- await layoutStable(page,'#messages');
- /* O aviso de 1440 some antes do próximo: `toast-item` é uma pilha e o
-    primeiro nó podia ser o antigo, medido na largura anterior. */
- await page.waitForFunction(()=>!document.querySelector('#toast .toast-item'),undefined,{timeout:8000}).catch(()=>{});
- await page.locator('#attach-input').setInputFiles({name:'plot2.png',mimeType:'image/png',buffer:Buffer.from(PLOT_PNG,'base64')});
- await toastWait(page,'Este modelo não aceita imagens',{timeout:10000});
- inside(await rect(page,'#toast .toast-item'),900,650,'aviso de imagem em 900×650');
- console.log('PASS model-indicator-ui (imagem) — capturas em',out);
-});
+

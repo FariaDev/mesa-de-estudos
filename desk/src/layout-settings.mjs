@@ -1,12 +1,14 @@
 /* Editor visual do `desk.panels` (Configurações → Leitores de PDF).
 
    O casco `#cfg-layout` é do host; aqui ficam o DOM e a leitura dos campos.
-   O contrato (dono UI):
+    O contrato (dono UI):
      mountLayoutSettings(container) — monta UMA vez, devolve o container;
-     fillLayoutSettings(desk)       — reflete o desk NORMALIZADO;
+     fillLayoutSettings(desk)       — reflete o desk NORMALIZADO, com os
+     defaults em português traduzidos para o idioma da interface (D1);
      readLayoutSettings(existingDesk) — cópia do desk com `panels` lidos,
-     sem mutar a original. Nada aqui toca disco/config: quem salva é o fluxo
-     atual (Salvar → save-config → normalizeDesk no main).
+     sem mutar a original; o default traduzido não editado volta como estava
+     salvo, o digitado grava como digitado. Nada aqui toca disco/config:
+     quem salva é o fluxo atual (Salvar → save-config → normalizeDesk no main).
 
    Regras que valem lembrar:
    - 1 ou 2 leitores: no vaivém 2→1→2 DENTRO da mesma abertura o 2º fieldset
@@ -25,11 +27,91 @@ import {t, LANGUAGE_EVENT} from './ui-text.mjs';
 import {invalidValue} from './error-detail.mjs';
 
 /* Os padrões abaixo são os valores que o `normalizeDesk` herda (`config.cjs`):
-   aparecem como dado, no idioma do config, e não passam pelo catálogo. */
+   aparecem como dado, no idioma do config na criação, e os termos de busca
+   (`prefer`) nunca passam pelo catálogo (casam com o nome do arquivo). Rótulo
+   e atalho traduzem na hora (auditoria rodada 5: o editor em inglês mostrava
+   "Enunciado"). */
 const DEFAULTS = [
- {label:'Enunciado',prefer:['Limites'],toggle:''},
- {label:'Formulário & apoio',prefer:['Formul'],toggle:'Formulário'},
+ {prefer:['Limites'],toggle:''},
+ {prefer:['Formul'],toggle:''},
 ];
+
+/* Rótulo padrão do núcleo no idioma de agora; o digitado passa direto.
+   O núcleo preenche em português (`configCore.defaultDesk`); a borda do
+   renderer traduz os três padrões conhecidos (auditoria rodada 5).
+   @param {string} label
+   @returns {string}
+   @example translatedPanelLabel('Enunciado') // 'Problems' em inglês */
+export function translatedPanelLabel(label){
+ if(label === 'Enunciado')return t('tabs.panel.statement');
+ if(label === 'Formulário & apoio')return t('tabs.panel.formula');
+ return label;
+}
+
+/* Atalho padrão do núcleo no idioma de agora; o digitado passa direto.
+   @param {string} toggle
+   @returns {string} */
+export function translatedPanelToggle(toggle){
+ if(toggle === 'Formulário')return t('tabs.referenceToggle');
+ return toggle;
+}
+
+/* Defaults conhecidos nos dois idiomas (auditoria rodada 7, D1): o núcleo
+   grava em português (`Enunciado`, `Formulário & apoio`, `Formulário`) e o
+   catálogo inglês diz `Problems`, `Formula sheet & support`, `Formula sheet`
+   (`tabs.panel.*`, `tabs.referenceToggle`). Serve para reconhecer o default
+   na troca de idioma com o diálogo aberto: o não editado vira o default do
+   idioma novo, o digitado passa direto. */
+const KNOWN_LABELS = [
+ ['Enunciado', 'Problems'],
+ ['Formulário & apoio', 'Formula sheet & support'],
+];
+const KNOWN_TOGGLE = ['Formulário', 'Formula sheet'];
+
+/* Diz se o valor é default conhecido do slot (nome próprio dá false).
+   @param {string} value
+   @param {number} i 0 ou 1
+   @returns {boolean} */
+function isKnownLabel(value, i){
+ return (KNOWN_LABELS[i] || []).includes(text(value).trim());
+}
+
+/* Atalho conhecido do 2º painel, ou nome próprio.
+   @param {string} value
+   @returns {boolean} */
+function isKnownToggle(value){
+ return KNOWN_TOGGLE.includes(text(value).trim());
+}
+
+/* O que o campo mostra para o valor salvo: default traduzido, nome vazio
+   continua vazio (o placeholder diz o default herdado), nome próprio passa.
+   @param {unknown} saved
+   @returns {string}
+   @example displayPanelLabel('Enunciado') // 'Problems' em inglês */
+function displayPanelLabel(saved){
+ const raw = text(saved);
+ if(!raw)return '';
+ return translatedPanelLabel(raw);
+}
+
+/* O que o atalho mostra para o valor salvo.
+   @param {unknown} saved
+   @returns {string} */
+function displayPanelToggle(saved){
+ const raw = text(saved);
+ if(!raw)return '';
+ return translatedPanelToggle(raw);
+}
+
+/* Rótulo padrão do painel no idioma de agora. @param {number} i 0 ou 1 */
+function defaultPanelLabel(i){
+ return t(i === 0 ? 'tabs.panel.statement' : 'tabs.panel.formula');
+}
+
+/* Atalho padrão do 2º painel no idioma de agora. */
+function defaultPanelToggle(){
+ return t('tabs.referenceToggle');
+}
 const MAX_PANELS = DEFAULTS.length;
 const RADIO_NAME = 'cfg-layout-count';
 
@@ -158,12 +240,12 @@ function countFieldset(m){
 function panelFieldset(m, i){
  const doc = m.doc;
  const n = i + 1;
- const labelInput = make(doc, 'input', {
-  type:'text',
-  id:`cfg-layout-label-${n}`,
-  class:'cfg-layout-label',
-  placeholder:DEFAULTS[i].label,
- });
+  const labelInput = make(doc, 'input', {
+   type:'text',
+   id:`cfg-layout-label-${n}`,
+   class:'cfg-layout-label',
+   placeholder:defaultPanelLabel(i),
+  });
  const preferTitleId = `cfg-layout-prefer-title-${n}`;
  const preferList = make(doc, 'div', {class:'cfg-layout-prefer-list', id:`cfg-layout-prefer-list-${n}`});
  const add = make(doc, 'button', {
@@ -196,13 +278,13 @@ function panelFieldset(m, i){
    ]),
   ]),
  ];
- if(i === 1){
-  const toggleInput = make(doc, 'input', {
-   type:'text',
-   id:'cfg-layout-toggle-2',
-   class:'cfg-layout-toggle',
-   placeholder:DEFAULTS[1].toggle,
-  });
+  if(i === 1){
+   const toggleInput = make(doc, 'input', {
+    type:'text',
+    id:'cfg-layout-toggle-2',
+    class:'cfg-layout-toggle',
+    placeholder:defaultPanelToggle(),
+   });
   m.toggle = toggleInput;
   kids.push(
    make(doc, 'label', {for:'cfg-layout-toggle-2'}, [textNode(doc, t('settings.layout.toggleLabel'))]),
@@ -271,11 +353,11 @@ function updatePreview(){
   const on = i === 0 || two;
   m.previewPane[i].hidden = !on;
   if(!on)continue;
-  m.previewLabel[i].textContent = text(m.label[i]?.value).trim() || DEFAULTS[i].label;
-  const term = m.rows[i].map((input) => text(input.value).trim()).find(Boolean);
-  m.previewPrefer[i].textContent = term || t('settings.layout.previewDefault', {term:DEFAULTS[i].prefer[0]});
- }
- if(m.previewToggle)m.previewToggle.textContent = text(m.toggle?.value).trim() || DEFAULTS[1].toggle;
+   m.previewLabel[i].textContent = text(m.label[i]?.value).trim() || defaultPanelLabel(i);
+   const term = m.rows[i].map((input) => text(input.value).trim()).find(Boolean);
+   m.previewPrefer[i].textContent = term || t('settings.layout.previewDefault', {term:DEFAULTS[i].prefer[0]});
+  }
+  if(m.previewToggle)m.previewToggle.textContent = text(m.toggle?.value).trim() || defaultPanelToggle();
 }
 
 /* ---------- contrato do host ---------- */
@@ -305,7 +387,8 @@ export function mountLayoutSettings(container, hooks = {}){
 }
 
 /* Trocar o idioma refaz o editor no idioma novo, levando junto o que já foi
-   digitado (a mesma ideia do 2→1→2: o não salvo não se perde). */
+   digitado (a mesma ideia do 2→1→2: o não salvo não se perde). O default não
+   editado vira o default do idioma novo (D1); nome próprio passa direto. */
 function relabelLayoutSettings(){
  if(!mounted)return;
  const m = mounted;
@@ -322,10 +405,12 @@ function relabelLayoutSettings(){
  next.count[0].checked = !typed.two;
  next.count[1].checked = typed.two;
  for(let i = 0;i < MAX_PANELS;i++){
-  next.label[i].value = typed.labels[i];
+  /* Sem reabrir do desk aqui: o que vale é o digitado; default conhecido
+     vira o default novo para o read continuar preservando o original. */
+  next.label[i].value = isKnownLabel(typed.labels[i], i) ? defaultPanelLabel(i) : typed.labels[i];
   setPrefer(next, i, typed.prefer[i]);
  }
- next.toggle.value = typed.toggle;
+ next.toggle.value = isKnownToggle(typed.toggle) ? defaultPanelToggle() : typed.toggle;
  applyCount();
  updatePreview();
 }
@@ -341,12 +426,14 @@ export function fillLayoutSettings(desk){
     da config) chama fill de novo e deve limpar o que ficou para trás.
     Sem `panels[1]`, o slot 2 volta vazio: placeholder + nota dizem o default
     que o `normalizeDesk` herda, e o read passa vazio. */
- for(let i = 0;i < MAX_PANELS;i++){
-  const saved = isObject(panels[i]) ? panels[i] : {};
-  m.label[i].value = text(saved.label);
-  setPrefer(m, i, Array.isArray(saved.prefer) ? saved.prefer : []);
- }
- m.toggle.value = text((isObject(panels[1]) ? panels[1] : {}).toggle);
+  for(let i = 0;i < MAX_PANELS;i++){
+   const saved = isObject(panels[i]) ? panels[i] : {};
+   /* Default em português sai traduzido como na barra (D1); vazio e nome
+      próprio passam como vieram. */
+   m.label[i].value = displayPanelLabel(saved.label);
+   setPrefer(m, i, Array.isArray(saved.prefer) ? saved.prefer : []);
+  }
+  m.toggle.value = displayPanelToggle((isObject(panels[1]) ? panels[1] : {}).toggle);
  applyCount();
  updatePreview();
 }
@@ -362,9 +449,18 @@ export function readLayoutSettings(existingDesk){
 
 function readPanel(m, i, basePanel){
  const panel = isObject(basePanel) ? {...basePanel} : {};
- panel.label = text(m.label[i].value).trim();
+ /* Salvar sem editar não grava o default traduzido no lugar do original
+    (D1): o digitado igual ao mostrado volta como estava salvo (em português
+    por padrão); o que mudou de verdade grava o digitado. */
+ const baseLabel = text(panel.label ?? '');
+ const typedLabel = text(m.label[i].value).trim();
+ panel.label = typedLabel === displayPanelLabel(baseLabel) ? baseLabel : typedLabel;
  panel.prefer = m.rows[i].map((input) => text(input.value).trim()).filter(Boolean);
- if(i === 1)panel.toggle = text(m.toggle.value).trim();
+ if(i === 1){
+  const baseToggle = text(panel.toggle ?? '');
+  const typedToggle = text(m.toggle.value).trim();
+  panel.toggle = typedToggle === displayPanelToggle(baseToggle) ? baseToggle : typedToggle;
+ }
  else if(panel.toggle === undefined)panel.toggle = '';
  return panel;
 }

@@ -24,17 +24,16 @@ function bendList(items) {
 
 /**
  * Uma referência = o que o usuário abriu na mesa, no formato que o `read` do
- * motor entende. `#page=N` é a forma que o Pi lê (`read path#page=N`), então o
- * alvo do "confere minha resposta" é literal. O `read` do OpenCode não tem
- * página e procurava um arquivo chamado `….pdf#page=53` (#70): para ele o
- * caminho vai limpo e a página à parte.
+ * motor entende. O `read` do OpenCode não tem página e procurava um arquivo
+ * chamado `….pdf#page=53` (#70): para ele o caminho vai limpo e a página à
+ * parte. Claude e o histórico Pi leem `#page=N`.
  * @param {string} file caminho do PDF já validado
  * @param {unknown} page página pedida (1 em diante; o resto vira 1)
- * @param {string} [engine] 'pi' | 'claude' | 'opencode'
+ * @param {string} [engine] 'claude' | 'opencode' | 'pi'
  * @returns {string}
  * @example formatRef('/c/Limites.pdf', 3, 'opencode') // '/c/Limites.pdf (p. 3)'
  */
-function formatRef(file, page, engine = 'pi') {
+function formatRef(file, page, engine = 'opencode') {
   const at = Math.max(1, Math.trunc(Number(page)) || 1);
   return engine === 'opencode' ? `${file} (p. ${at})` : `${file}#page=${at}`;
 }

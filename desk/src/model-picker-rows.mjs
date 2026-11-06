@@ -177,14 +177,17 @@ function defaultAction(on, rowId) {
 }
 
 /** @param {string[]} parts */
-function metaOf(parts) {
-  const meta = document.createElement('span');
-  meta.className = 'model-row-meta';
-  const line = document.createElement('span');
-  line.className = 'model-row-note';
-  line.textContent = parts.join(' · ');
-  meta.append(line);
-  return meta;
+function metaOf(parts){
+ const meta=document.createElement('span');
+ meta.className='model-row-meta';
+ const line=document.createElement('span');
+ line.className='model-row-note';
+ line.textContent=parts.join(' · ');
+ /* A nota corta no meio da palavra em coluna estreita: o texto cheio fica no
+    title (auditoria de UI/UX, rodada 1, B1). */
+ line.title=line.textContent;
+ meta.append(line);
+ return meta;
 }
 
 /** Nos grupos mistos: o logo e o nome do provedor, e a política do grátis. @param {PickerItem} item @param {string[]} notes */
@@ -262,6 +265,9 @@ function baseRow(id, name) {
   const title = document.createElement('span');
   title.className = 'model-row-name';
   title.textContent = name;
+  /* G8: o nome corta com reticências em coluna estreita — o texto completo fica
+    no title, como a nota já fazia. */
+  if (name) title.title = name;
   top.append(title);
   label.append(top);
   const check = document.createElement('span');

@@ -146,8 +146,8 @@ await withArtifacts('sidechat-claude-ipc',async ctx=>{
  });
  const turn=logEntries(claudeLog).find(e=>String(e.text||'').includes('confira a página três'));
  must('fakeClaude recebeu o prompt do lateral',turn,Boolean);
- must('prompt do lateral carrega a ref do snapshot como PDF#page=3',turn?.text,
-  t=>String(t).includes(`${pdfPath}#page=3`));
+ must('prompt do lateral carrega a ref do snapshot com a página 3',turn?.text,
+  t=>String(t).includes(pdfPath)&&String(t).includes('(p. 3)'));
  must('prompt do lateral carrega a questão ativa do principal',turn?.text,
   t=>String(t).includes(`- exercício ativo: ${QUESTION}`));
  must('prompt do lateral carrega a matéria ativa',turn?.text,

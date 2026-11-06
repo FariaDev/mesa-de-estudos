@@ -38,6 +38,4 @@ test('cacheOnly: ao abrir a Mesa o ponto lê o que já se sabe e não dispara re
     fetchJson: async () => { throw Error('cacheOnly não pede rede'); },
   });
   assert.deepEqual(r, {version: '2.1.300', known: true}, 'cache velho vale: a checagem diária refaz');
-  const vazio = await updater.piLatest({cacheFile: tmp(), cacheOnly: true, fetchJson: async () => { throw Error('rede'); }});
-  assert.deepEqual(vazio, {version: '', known: false});
 });

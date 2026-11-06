@@ -12,12 +12,12 @@ const SPAWN_FAILURE_CODES = new Set(['ENOENT', 'EACCES', 'ENOEXEC', 'EISDIR', 'E
  * - anexo inválido e falha de conexão acontecem ANTES de qualquer escrita: nada
  *   foi entregue e o contexto da Mesa não conta como enviado;
  * - falha na escrita é AMBÍGUA, não recusa: o pedido só é recusado depois de
- *   tentar escrever no stdin (ou por tempo), então o Pi pode ter recebido;
+ *   tentar escrever no stdin (ou por tempo), então o tutor pode ter recebido;
  * - erro de spawn (binário ausente/sem permissão) acontece ANTES do stdin: é
  *   recusa, como a falha de `connect()`;
  * - `get_state` vem depois de um prompt já aceito: se ele falhar, a entrega
  *   aconteceu e o envio NÃO é erro — volta com aviso e estado desconhecido, para
- *   a fila não repetir uma mensagem que o Pi já recebeu.
+ *   a fila não repetir uma mensagem que o tutor já recebeu.
  *
  * `onAccepted` é quem atualiza o que o app lembra do turno (`lastContextKey`):
  * ele é chamado uma vez, e só depois do aceite.
@@ -83,7 +83,7 @@ async function deliverPrompt({
     /* Só agora o contexto conta como entregue. */
     if (typeof onAccepted === 'function') onAccepted();
   } else if (outcome === 'ambiguous') {
-    /* O motivo do Pi vai junto: sem ele não se sabe se foi tempo, conexão ou
+    /* O motivo do motor vai junto: sem ele não se sabe se foi tempo, conexão ou
        escrita, e as três pedem coisas diferentes do usuário. */
     throw Error(uiMsg('err.send.ambiguous', {reason: motivoDoEnvio}));
   } else {
@@ -95,7 +95,7 @@ async function deliverPrompt({
   /* `get_state` vem DEPOIS de um prompt já aceito: a resposta está entregue e
      essa leitura é acessória. Falhar aqui NÃO pode virar erro do envio — o
      renderer trataria como não enviado, a fila repetiria o item e a mesma
-     mensagem chegaria duas vezes ao Pi. O envio conta como feito, o estado fica
+     mensagem chegaria duas vezes ao tutor. O envio conta como feito, o estado fica
      DESCONHECIDO (`streaming` ausente, nem true nem false) e o aviso diz o que
      não deu para ler. */
   let current;

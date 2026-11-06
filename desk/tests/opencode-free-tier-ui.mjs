@@ -22,7 +22,7 @@ await withArtifacts('opencode-free-tier',async ctx=>{
  const first=conversations.createClaudeConversation({runtime,courseId:'Calculo',engine:'opencode'});
  writeDeskJson(runtime,{courseId:'Calculo',session:first,courseStates:{Calculo:{session:first,sessions:[{path:first}]}}});
  fs.chmodSync(FAKE_OPENCODE_BIN,0o755);
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_OPENCODE:FAKE_OPENCODE_BIN,FAKE_OPENCODE_FAIL:'free-tier'}});
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_OPENCODE:FAKE_OPENCODE_BIN,FAKE_OPENCODE_FAIL:'free-tier'}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
 

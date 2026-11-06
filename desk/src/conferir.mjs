@@ -118,8 +118,8 @@ export function closeConferirNote({restoreFocus=false}={}){
  if(restoreFocus&&hadFocus)trigger()?.focus();
 }
 
-/* Flutuante (position:fixed), como o `#context-pop`: acima da caixa de mensagem
-   quando cabe, senão abaixo da linha "Vai junto". */
+/* Flutuante (position:fixed), como os popovers do cabeçalho: acima da caixa de mensagem
+   quando cabe, senão colada ao cabeçalho do tutor. */
 export function placeConferirNote(){
  const el=note();if(!el||el.hidden)return;
  const anchor=$('#composer-box')||$('#composer');

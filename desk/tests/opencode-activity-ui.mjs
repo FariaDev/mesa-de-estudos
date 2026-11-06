@@ -25,7 +25,7 @@ await withArtifacts('opencode-activity',async ctx=>{
  const first=conversations.createClaudeConversation({runtime,courseId:'Calculo',engine:'opencode'});
  writeDeskJson(runtime,{courseId:'Calculo',session:first,courseStates:{Calculo:{session:first,sessions:[{path:first}]}}});
  fs.chmodSync(FAKE_OPENCODE_BIN,0o755);
- ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_OPENCODE:FAKE_OPENCODE_BIN,FAKE_OPENCODE_MCP_CALL:JSON.stringify({name:'criar_atividade',input:ACTIVITY})}});
+ ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_OPENCODE:FAKE_OPENCODE_BIN,FAKE_OPENCODE_MCP_CALL:JSON.stringify({name:'criar_atividade',input:ACTIVITY})}});
  const page=await ctx.app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await statusOnline(page,{timeout:60000});

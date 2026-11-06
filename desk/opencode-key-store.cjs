@@ -4,21 +4,29 @@
    `desk.json`, log nem linha de comando: aqui ela só existe cifrada pelo cofre
    do sistema (Keychain do macOS, Credential Manager do Windows, chaveiro do
    Linux — `safeStorage` do Electron) e, em claro, na memória do processo ao
-   lançar o Pi (`OPENCODE_API_KEY` no ambiente dele, ver `opencode-host.cjs`).
-   Por que o ambiente e não o `auth.json` do Pi: gravar lá mexeria no perfil
-   `~/.pi` do usuário, que a Mesa não toca (fora do escopo da #44); o Pi lê a
+   lançar o OpenCode (`OPENCODE_API_KEY` no ambiente dele, ver `opencode-host.cjs`).
+   Por que o ambiente e não o `auth.json` do OpenCode: gravar lá mexeria no perfil
+   `~/.opencode` do usuário, que a Mesa não toca (fora do escopo da #44); o OpenCode lê a
    variável do provedor `opencode` por conta própria.
 
    A cifra entra por parâmetro: `{available, encrypt, decrypt, decryptSync?}`.
    Sem cofre disponível a chave não é guardada (nada de texto plano de reserva).
    A API é assíncrona desde o Electron 45 (`encryptStringAsync`); `decryptSync`
    é só a ponte de leitura para o blob gravado pela API antiga, que é regravado
-   no formato novo assim que lido. */
+   no formato novo assim que lido.
+
+   Desde a #104 o arquivo leva a marca `BLOB_MAGIC` antes do ciphertext. Com
+   ela, uma falha do cofre (acesso recusado, chaveiro indisponível) NUNCA cai
+   na API síncrona: `decryptString` bloqueia o processo principal enquanto o
+   macOS mostra o pedido do Chaves, e era isso que impedia fechar o app. Só o
+   blob sem a marca (formato anterior, inclusive o da 1.0.2) usa a ponte
+   síncrona; assim que é lido, é regravado com a marca. */
 const fs = require('node:fs');
 const path = require('node:path');
 const {message} = require('./src/i18n.mjs');
 
 const KEY_FILE = 'opencode-key.bin';
+const BLOB_MAGIC = Buffer.from('mesa-safe1\n');
 
 /**
  * @typedef {{result: string, shouldReEncrypt: boolean}} CipherPlaintext
@@ -89,7 +97,7 @@ function createKeyStore({dir, cipher}) {
   async function writeBlob(blob) {
     await fs.promises.mkdir(dir, {recursive: true});
     const temp = `${file}.tmp-${process.pid}`;
-    await fs.promises.writeFile(temp, blob, {mode: 0o600});
+    await fs.promises.writeFile(temp, Buffer.concat([BLOB_MAGIC, Buffer.from(blob)]), {mode: 0o600});
     await fs.promises.rename(temp, file);
   }
 
@@ -118,14 +126,20 @@ function createKeyStore({dir, cipher}) {
   }
 
   async function decryptStored(at) {
-    let blob;
-    try { blob = await fs.promises.readFile(file); } catch { return ''; }
+    let raw;
+    try { raw = await fs.promises.readFile(file); } catch { return ''; }
     if (revision !== at) return memory ?? '';
+    const tagged = raw.subarray(0, BLOB_MAGIC.length).equals(BLOB_MAGIC);
+    const blob = tagged ? raw.subarray(BLOB_MAGIC.length) : raw;
     let parsed;
     try { parsed = plaintextOf(await cipher.decrypt(blob)); } catch { parsed = null; }
-    if (!parsed || !parsed.result) return decryptLegacy(blob, at);
+    /* Só o formato antigo (sem marca) pode precisar da API síncrona. */
+    if ((!parsed || !parsed.result) && !tagged) return decryptLegacy(blob, at);
+    if (!parsed || !parsed.result) return '';
     if (revision !== at) return memory ?? '';
-    if (parsed.shouldReEncrypt) {
+    /* Blob antigo lido pela API assíncrona: regrava com a marca para a próxima
+       falha não cair na ponte síncrona (que trava o fechamento, #104). */
+    if (!tagged || parsed.shouldReEncrypt) {
       try { await save(parsed.result); } catch { /* a chave lida continua valendo */ }
     }
     if (revision !== at) return memory ?? '';
@@ -133,23 +147,43 @@ function createKeyStore({dir, cipher}) {
     return memory;
   }
 
-  /** A chave guardada, ou '' (sem arquivo, cofre indisponível ou arquivo ilegível). */
-  async function load() {
-    /* Arquivo ou cofre ausente: a memória sai junto. Senão a próxima leitura,
-       com o arquivo de volta, entregaria a chave antiga sem decifrar. */
-    if (!has() || !(await cipher.available())) {
+  /**
+   * O que a Mesa sabe da chave guardada. `saved` é só o arquivo existir;
+   * `readable` diz se a decifragem desta execução deu certo. Abrir
+   * Configurações usa `has`/`peek` e nunca chega ao cofre.
+   * @returns {Promise<{key: string, saved: boolean, vaultAvailable: boolean, readable: boolean}>}
+   * @example const {key, saved, readable} = await store.read();
+   */
+  async function read() {
+    /* Arquivo ausente: a memória sai junto e o cofre nem é consultado. */
+    if (!has()) {
       memory = null;
-      return '';
+      return {key: '', saved: false, vaultAvailable: true, readable: false};
     }
-    if (memory !== null) return memory;
+    if (!(await cipher.available())) {
+      memory = null;
+      return {key: '', saved: true, vaultAvailable: false, readable: false};
+    }
+    if (memory !== null) return {key: memory, saved: true, vaultAvailable: true, readable: true};
     if (!pending) {
       const at = revision;
       let task;
       task = decryptStored(at).catch(() => '').finally(() => { if (pending === task) pending = null; });
       pending = task;
     }
-    return pending;
+    const key = await pending;
+    /* Removeram o arquivo enquanto a leitura corria: não há chave guardada. */
+    const stillSaved = has();
+    return {key: stillSaved ? key : '', saved: stillSaved, vaultAvailable: true, readable: stillSaved && key !== ''};
   }
+
+  /** A chave guardada, ou '' (sem arquivo, cofre indisponível ou arquivo ilegível). */
+  async function load() {
+    return (await read()).key;
+  }
+
+  /** A chave já decifrada nesta execução, sem tocar no cofre (para a máscara). @returns {string|null} */
+  function peek() { return memory; }
 
   function clear() {
     revision += 1;
@@ -158,7 +192,7 @@ function createKeyStore({dir, cipher}) {
     fs.rmSync(file, {force: true});
   }
 
-  return {save, load, clear, has, available: async () => cipher.available(), file};
+  return {save, load, read, peek, clear, has, available: async () => cipher.available(), file};
 }
 
-module.exports = {createKeyStore, electronCipher, KEY_FILE};
+module.exports = {createKeyStore, electronCipher, KEY_FILE, BLOB_MAGIC};

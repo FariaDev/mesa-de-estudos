@@ -61,7 +61,6 @@ const SELECTORS = {
   'dialog[open]': 'dialog',
   '#command-palette:not([hidden])': 'palette',
   '#course-menu.open, #study-menu.open, #settings-menu.open': 'menu',
-  '#context-pop:not([hidden])': 'contextpop',
   '#attach-pop:not([hidden])': 'attachpop',
   '#phone-pop:not([hidden])': 'phonepop',
   '#check-note:not([hidden])': 'checknote',
@@ -92,7 +91,7 @@ function fakeDoc(present = []) {
 }
 
 test('collector mapeia cada camada ao seu seletor exato', () => {
-  const doc = fakeDoc(['dialog', 'palette', 'menu', 'contextpop', 'sidechat', 'quote', 'find']);
+  const doc = fakeDoc(['dialog', 'palette', 'menu', 'sidechat', 'quote', 'find']);
   const facts = collectEscapeFacts(doc, {busy: true, panels: []});
   assert.deepEqual(facts, {
     dialog: true,

@@ -4,7 +4,8 @@
 <script type="module">
 /* O mesmo pdf.js da janela de PDF (`src/pdf.mjs`). Sem poppler e sem binário
    do sistema: o Chromium desenha a página e devolve PNG. A janela está em
-   sandbox: os bytes chegam pelo preload, que os pede ao processo principal. */
+   sandbox: os bytes chegam pelo preload, que os pede ao processo principal.
+   Girar, recortar e ampliar (#114) transformam só o PNG desta chamada. */
 import * as pdfjs from './node_modules/pdfjs-dist/build/pdf.mjs';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('./node_modules/pdfjs-dist/build/pdf.worker.mjs', import.meta.url).href;
@@ -12,30 +13,91 @@ const standardFontDataUrl = new URL('./node_modules/pdfjs-dist/standard_fonts/',
 const cMapUrl = new URL('./node_modules/pdfjs-dist/cmaps/', import.meta.url).href;
 const wasmUrl = new URL('./node_modules/pdfjs-dist/wasm/', import.meta.url).href;
 const LONG_EDGE = 1200;
+const MIN_LONG_EDGE = 320;
 const MAX_IMAGE_CHARS = 1800000;
+const SHRINK = 0.8;
 
-window.mesaRenderPdfPage = async (file, pageNumber) => {
+/* Frações da página já girada: x e y saem do canto superior esquerdo. O
+   recorte é arredondado para pixels e nunca passa da borda do canvas. */
+function cropPixels(recorte, viewport) {
+  if (!recorte) return null;
+  const x = Math.max(0, Math.min(Math.floor(viewport.width * recorte.x), Math.ceil(viewport.width) - 1));
+  const y = Math.max(0, Math.min(Math.floor(viewport.height * recorte.y), Math.ceil(viewport.height) - 1));
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(Math.ceil(viewport.width) - x, Math.ceil(viewport.width * recorte.largura))),
+    height: Math.max(1, Math.min(Math.ceil(viewport.height) - y, Math.ceil(viewport.height * recorte.altura))),
+  };
+}
+
+function pngOf(canvas) {
+  return canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+}
+
+function shrink(canvas) {
+  const next = document.createElement('canvas');
+  next.width = Math.max(1, Math.floor(canvas.width * SHRINK));
+  next.height = Math.max(1, Math.floor(canvas.height * SHRINK));
+  const ctx = next.getContext('2d', {alpha: false});
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, next.width, next.height);
+  ctx.drawImage(canvas, 0, 0, next.width, next.height);
+  return next;
+}
+
+/* O teto vale para o PNG que sai daqui: reduz a imagem em degraus até caber.
+   Só falha se nem a menor redução couber, e aí o main transforma o erro em
+   aviso de texto para o tutor. */
+function pngUnderCap(canvas) {
+  let current = canvas;
+  let data = pngOf(current);
+  while (data.length > MAX_IMAGE_CHARS && Math.max(current.width, current.height) > MIN_LONG_EDGE) {
+    const next = shrink(current);
+    if (current !== canvas) {
+      current.width = 0;
+      current.height = 0;
+    }
+    current = next;
+    data = pngOf(current);
+  }
+  if (current !== canvas) {
+    current.width = 0;
+    current.height = 0;
+  }
+  if (data.length > MAX_IMAGE_CHARS) throw Error(`imagem com ${data.length} caracteres; o teto é ${MAX_IMAGE_CHARS}`);
+  return data;
+}
+
+window.mesaRenderPdfPage = async (file, pageNumber, options = {}) => {
+  const girar = Number(options.girar) || 0;
+  const ampliar = Number(options.ampliar) || 1;
+  const recorte = options.recorte || null;
   const bytes = new Uint8Array(await window.mesaPdf.read(file));
   const loading = pdfjs.getDocument({data: bytes, standardFontDataUrl, cMapUrl, cMapPacked: true, wasmUrl, isEvalSupported: false, verbosity: 0});
   const doc = await loading.promise;
+  let canvas = null;
   try {
     const page = await doc.getPage(pageNumber);
-    const base = page.getViewport({scale: 1});
+    const rotation = ((Number(page.rotate) || 0) + girar) % 360;
+    const base = page.getViewport({scale: 1, rotation});
     const longEdge = Math.max(base.width, base.height) || 1;
-    const viewport = page.getViewport({scale: LONG_EDGE / longEdge});
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.ceil(viewport.width));
-    canvas.height = Math.max(1, Math.ceil(viewport.height));
+    const viewport = page.getViewport({scale: (LONG_EDGE * ampliar) / longEdge, rotation});
+    const crop = cropPixels(recorte, viewport);
+    canvas = document.createElement('canvas');
+    canvas.width = crop ? crop.width : Math.max(1, Math.ceil(viewport.width));
+    canvas.height = crop ? crop.height : Math.max(1, Math.ceil(viewport.height));
     const ctx = canvas.getContext('2d', {alpha: false});
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({canvasContext: ctx, viewport, intent: 'display'}).promise;
-    const data = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
-    canvas.width = 0;
-    canvas.height = 0;
-    if (data.length > MAX_IMAGE_CHARS) throw Error(`imagem com ${data.length} caracteres; o teto é ${MAX_IMAGE_CHARS}`);
-    return data;
+    const transform = crop ? [1, 0, 0, 1, -crop.x, -crop.y] : undefined;
+    await page.render({canvasContext: ctx, viewport, intent: 'display', ...(transform ? {transform} : {})}).promise;
+    return pngUnderCap(canvas);
   } finally {
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+    }
     await loading.destroy();
   }
 };

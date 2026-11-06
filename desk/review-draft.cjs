@@ -35,7 +35,7 @@ function generateReviewDraft({bridge,context,ref,signal,timeoutMs=30000}){
    clearTimeout(timer);signal?.removeEventListener('abort',abort);
    bridge.removeListener('event',event);
    /* A sessão temporária do OpenCode some antes de o rascunho terminar (#93);
-      para o Pi/Claude o `stop()` segue síncrono. */
+      para o Claude o `stop()` segue síncrono. */
    Promise.resolve(bridge.stop()).then(()=>{error?reject(error):resolve(value);},()=>{error?reject(error):resolve(value);});
   };
   const abort=()=>finish(Error(message('review.error.cancelled')));
@@ -61,15 +61,4 @@ function generateReviewDraft({bridge,context,ref,signal,timeoutMs=30000}){
   catch(error){finish(error);}
  });
 }
-/**
- * Argumentos do Pi que gera o rascunho: sem nenhuma ferramenta, nativa, de
- * extensão ou MCP (#78). `--no-tools` não fala de MCP, então `--no-mcp` vai junto.
- * @param {{provider?: string, id?: string}} [model] modelo da conversa aberta.
- * @returns {string[]} ex.: `draftPiArgs({provider:'x',id:'y'})` termina em `--provider x --model y`.
- */
-function draftPiArgs(model){
- const args=['--no-tools','--no-mcp','--no-extensions','--no-skills','--no-prompt-templates','--no-session'];
- if(model?.provider&&model?.id)args.push('--provider',model.provider,'--model',model.id);
- return args;
-}
-module.exports={DRAFT_PROMPT,draftPrompt,draftContext,parseDraft,generateReviewDraft,draftPiArgs};
+module.exports={DRAFT_PROMPT,draftPrompt,draftContext,parseDraft,generateReviewDraft};

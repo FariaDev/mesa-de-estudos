@@ -1,4 +1,5 @@
 // @ts-check
+import {opencodeLauncher} from './triage-outputs.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +12,6 @@ const {spawnPlan}=winCmdSpawn;
 import {doctorChecks,doctorText} from './doctor-checks.mjs';
 import {createScrubber,cleanLogLines} from './triage-scrub.mjs';
 import {freeZenIds,pickTriageModel} from './triage-free-model.mjs';
-import {piModelChoices} from './triage-pi-model.mjs';
 
 /* Coleta do "Relatar um problema" (#62): o ambiente (versões, commit,
    motores), o doctor, o motor e o modelo em uso e as últimas linhas de erro do
@@ -23,7 +23,6 @@ import {piModelChoices} from './triage-pi-model.mjs';
 
 const require=createRequire(import.meta.url);
 const {courseLibrary}=require('./courses.cjs');
-const {resolvePi}=require('./pi.cjs');
 const {findOpenCodeLauncher}=require('./src/agents/opencode-process.cjs');
 const deskDir=path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,8 +33,9 @@ const deskDir=path.dirname(fileURLToPath(import.meta.url));
  * @typedef {{
  *   mesa: string, commit: string, electron: string, os: string, node: string,
  *   engines: TriageEngine[], doctor: string, choices: TriageChoice[], log: string[],
- *   freeModel: import('./triage-free-model.mjs').TriageModel | null, opencode: boolean,
- *   pi: boolean, piModels: string[]
+ *   freeModel: import('./triage-free-model.mjs').TriageModel | null, opencode: boolean
+ *   opencodeLauncher?: string,
+ *   opencodeStandalone?: boolean,
  * }} TriageFacts
  */
 
@@ -70,17 +70,15 @@ function systemLabel(run,platform){
 }
 
 /**
- * Pi, Claude Agent SDK e OpenCode, com a versão de quem está instalado.
+ * Claude Agent SDK e OpenCode, com a versão de quem está instalado.
  * @param {{run: RunCommand, env: NodeJS.ProcessEnv, home: string, config: any}} options
- * @returns {{engines: TriageEngine[], opencodeBin: string, piBin: string}}
+ * @returns {{engines: TriageEngine[], opencodeBin: string}}
  */
 function engineVersions({run,env,home,config}){
  const missing='não instalado';
- const pi=resolvePi({configPath:config.piPath,deskDir,envPath:env.LEARNING_DESK_PI||''});
  const sdk=packageVersion(path.join(deskDir,'node_modules','@anthropic-ai','claude-agent-sdk','package.json'));
- const opencodeBin=findOpenCodeLauncher({envPath:env.LEARNING_DESK_OPENCODE||'',home});
- return {opencodeBin,piBin:pi||'',engines:[
-  {name:'Pi',version:pi?(firstLine(run,pi,['--version'])||'não respondeu'):missing},
+ const opencodeBin=findOpenCodeLauncher({envPath:env.LEARNING_DESK_OPENCODE||'',configuredPath:config.opencodePath||'',home});
+ return {opencodeBin,engines:[
   {name:'Claude Agent SDK',version:sdk||missing},
   {name:'OpenCode',version:opencodeBin?(firstLine(run,opencodeBin,['--version'])||'não respondeu'):missing},
  ]};
@@ -157,14 +155,14 @@ function profileScrubber({runtime,vault,courses},home){
  * @param {{env?: NodeJS.ProcessEnv, home?: string, platform?: string, run?: RunCommand,
  *   choice?: TriageChoice | null, electron?: string, logLimit?: number}} [options]
  * @returns {{facts: TriageFacts, scrub: (text: string) => string}}
- * @example const {facts}=collectTriage({choice: {engine: 'pi', model: 'xai/grok-4'}});
+ * @example const {facts}=collectTriage({choice: {engine: 'opencode', model: 'opencode/big-pickle'}});
  */
 export function collectTriage({env=process.env,home=os.homedir(),platform=process.platform,run=runCommand,choice=null,electron='',logLimit=20}={}){
  const {rows,context}=doctorChecks({env,home});
  const scrub=profileScrubber(context,home);
- const {engines,opencodeBin,piBin}=engineVersions({run,env,home,config:context.config});
+ const {engines,opencodeBin}=engineVersions({run,env,home,config:context.config});
  const state=readDeskState(context.runtime);
- const models=opencodeBin?commandOutput(run,opencodeBin,['models','opencode']):'';
+ const models=opencodeBin?opencodeModels(run,opencodeBin):{output:'',standalone:false};
  const facts={
   mesa:packageVersion(path.join(deskDir,'package.json')),
   commit:firstLine(run,'git',['describe','--always','--dirty'],path.dirname(deskDir))||'fora de um clone git',
@@ -175,12 +173,20 @@ export function collectTriage({env=process.env,home=os.homedir(),platform=proces
   doctor:scrub(doctorText(rows)),
   choices:readChoices(state,choice).map(item=>({engine:scrub(item.engine),model:scrub(item.model)})),
   log:cleanLogLines(readDeskLog(context.runtime),{scrub,limit:logLimit}),
-  freeModel:opencodeBin?pickTriageModel(freeZenIds(models)):null,
+  freeModel:opencodeBin?pickTriageModel(freeZenIds(models.output)):null,
   opencode:!!opencodeBin,
-  pi:!!piBin,
-  piModels:piModelChoices({current:choice,state}).map(scrub),
+ opencodeLauncher:opencodeLauncher(opencodeBin,home,platform),
+ opencodeStandalone:models.standalone,
  };
  return {facts,scrub};
+}
+
+/* Sem `--standalone`, o OpenCode 2.x deixa um `serve --service` vivo depois de
+   responder: relatar um problema não pode largar processo na máquina. */
+/** @param {RunCommand} run @param {string} bin @returns {{output: string, standalone: boolean}} */
+function opencodeModels(run,bin){
+ const output=commandOutput(run,bin,['models','--standalone']);
+ return output?{output,standalone:true}:{output:commandOutput(run,bin,['models']),standalone:false};
 }
 
 /** @param {RunCommand} run @param {string} command @param {string[]} args @returns {string} */

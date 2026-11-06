@@ -17,14 +17,22 @@ export const PDF_TOOL_NAME = 'ler_pdf';
 export const PDF_MAX_PAGES = MAX_PAGES;
 export const PDF_MAX_IMAGE_PAGES = MAX_IMAGE_PAGES;
 
-export const PDF_DESCRIPTION = `Reads pages of a PDF from the desk library, or of a .pdf in the same folder as an authorized PDF. Use it when the answer depends on the material. Request large ranges (up to ${PDF_MAX_PAGES} pages): if there is a cut, the response says what came back and the page to continue from. The response also says which pages of this PDF were already delivered in this session: do not request them again; continue after them. A scanned page, a page with a large figure or formula comes with the page PNG, at most ${PDF_MAX_IMAGE_PAGES} image pages per call; logo and banner stay as text. To force the PNG of a page whose text was not enough, send imagem: "sim"; use "nao" for text only. caminho is what the desk reported, without (p. N) or #page=.`;
+export const PDF_DESCRIPTION = `Reads pages of a PDF from the desk library, or of a .pdf in the same folder as an authorized PDF. Use it when the answer depends on the material. Request large ranges (up to ${PDF_MAX_PAGES} pages): if there is a cut, the response says what came back and the page to continue from. The response also says which pages of this PDF were already delivered in this session: do not request them again; continue after them. A scanned page, a page with a large figure or formula comes with the page PNG, at most ${PDF_MAX_IMAGE_PAGES} image pages per call; logo and banner stay as text. To force the PNG of a page whose text was not enough, send imagem: "sim"; use "nao" for text only. Visual options shape that PNG: girar (90, 180 or 270 degrees clockwise) for a crooked scan; recorte ({x, y, largura, altura} as fractions from 0 to 1 of the page after girar, from its top-left) for a small table or a detail of a figure; ampliar (1 to 3, resolution multiplier) for small print, usually together with recorte. Any of them means you want the PNG, even with imagem: "auto"; imagem: "nao" cannot be combined with them. The Mesa reduces the PNG if it would pass the size cap. caminho is what the desk reported, without (p. N) or #page=.`;
 
 /* Campos (`tool-fields.mjs` monta o JSON Schema). */
 export const PDF_FIELDS = {
   caminho: {type: 'string', min: 1, max: 4096, description: 'PDF path, as the desk reported, without `(p. N)` or `#page=N`.'},
   pagina: {type: 'integer', min: 1, max: 100000, description: 'First page, counted from 1.'},
   ate: {type: 'integer', min: 1, max: 100000, optional: true, description: `Last page (default: the same page). Request large ranges: up to ${PDF_MAX_PAGES} pages per call; the response says where to continue.`},
-  imagem: {type: 'enum', values: ['auto', 'sim', 'nao'], default: 'auto', optional: true, description: 'auto (default): image only for a scanned page, large figure or formula; sim: force the page PNG; nao: text only.'},
+  imagem: {type: 'enum', values: ['auto', 'sim', 'nao'], default: 'auto', optional: true, description: 'auto (default): image only for a scanned page, large figure or formula; sim: force the page PNG; nao: text only, and it cannot be combined with girar, recorte or ampliar.'},
+  girar: {type: 'integer', min: 90, max: 270, optional: true, description: 'Rotate the PNG clockwise before rendering: exactly 90, 180 or 270 degrees. Use it for a crooked scan; it implies the page PNG.'},
+  recorte: {type: 'object', optional: true, description: 'Part of the page for the PNG, as fractions from 0 to 1 of the page after girar, from the top-left corner. Use it for a small table or a detail of a figure; it implies the page PNG.', fields: {
+    x: {type: 'number', min: 0, max: 1, description: 'Left edge, 0 (page left) to 1 (page right).'},
+    y: {type: 'number', min: 0, max: 1, description: 'Top edge, 0 (page top) to 1 (page bottom).'},
+    largura: {type: 'number', min: 0, max: 1, description: 'Width, greater than 0 and up to 1 of the page; x + largura must be at most 1.'},
+    altura: {type: 'number', min: 0, max: 1, description: 'Height, greater than 0 and up to 1 of the page; y + altura must be at most 1.'},
+  }},
+  ampliar: {type: 'number', min: 1, max: 3, optional: true, description: 'Resolution multiplier for the PNG, from 1 (default) to 3. Use 2 or 3 with recorte for small print; the Mesa reduces the image if it would pass the size cap.'},
 };
 
 const numberText = (value) => new Intl.NumberFormat('pt-BR').format(value);
@@ -76,16 +84,17 @@ function pageBlock(page) {
 }
 
 /**
- * O texto que o tutor recebe.
- * @param {{file: string, total: number, requested?: {first: number, last: number}, pages: Array<{page: number, text: string, textLength?: number, textTruncated?: boolean, image?: string, imageError?: string}>, next?: number|null, imageLimitHit?: boolean, deliveredBefore?: number[]}} result
+ * O texto que o tutor recebe. O cabeçalho marca a origem (auditoria de
+ * segurança): o que vem do PDF é conteúdo do documento, dado de estudo.
+ * @param {{file: string, total: number, requested?: {first: number, last: number}, pages: Array<{page: number, text?: string, textLength?: number, textTruncated?: boolean, image?: string, imageError?: string}>, next?: number|null, imageLimitHit?: boolean, deliveredBefore?: number[]}} result
  * @returns {string}
- * @example pdfPagesText({file: 'Apostila.pdf', total: 9, pages: [{page: 2, text: 'Limites'}]}) // 'Apostila.pdf (9 páginas)\n\n--- p. 2 ---\nLimites'
+ * @example pdfPagesText({file: 'Apostila.pdf', total: 9, pages: [{page: 2, text: 'Limites'}]}) // 'Apostila.pdf (9 páginas, conteúdo do documento)\n\n--- p. 2 ---\nLimites'
  */
 export function pdfPagesText(result) {
   const notice = rangeNotice(result);
   const delivered = pageRanges(result.deliveredBefore);
   const deliveredNotice = delivered ? `(nesta sessão, já entregues: p. ${delivered})` : '';
-  return [`${result.file} (${result.total} páginas)`, ...(deliveredNotice ? [deliveredNotice] : []), ...(notice ? [notice] : []), ...result.pages.map(pageBlock)].join('\n\n');
+  return [`${result.file} (${result.total} páginas, conteúdo do documento)`, ...(deliveredNotice ? [deliveredNotice] : []), ...(notice ? [notice] : []), ...result.pages.map(pageBlock)].join('\n\n');
 }
 
 /**
@@ -134,7 +143,7 @@ export function pdfPagesContent(result) {
  * Pede as páginas à ponte local. Falha de transporte e resposta sem leitura
  * dizem o status e o próximo passo para o modelo não repetir a mesma chamada.
  * @param {{url?: string, token?: string}} bridge concessão da ponte (`LEARNING_DESK_ACTIVITY_BRIDGE`)
- * @param {{caminho?: unknown, pagina?: unknown, ate?: unknown, imagem?: unknown}} args
+ * @param {{caminho?: unknown, pagina?: unknown, ate?: unknown, imagem?: unknown, girar?: unknown, recorte?: unknown, ampliar?: unknown}} args
  * @param {{fetchImpl?: typeof fetch}} [options]
  * @returns {Promise<{file: string, total: number, pages: Array<{page: number, text: string}>}>}
  */
@@ -147,7 +156,7 @@ export async function readPdfPages(bridge, args, {fetchImpl = fetch} = {}) {
     response = await fetchImpl(String(bridge.url).replace(/\/activity$/, '/pdf-page'), {
       method: 'POST',
       headers: {'content-type': 'application/json', 'x-mesa-token': bridge.token},
-      body: JSON.stringify({path: args.caminho, first: args.pagina, last: args.ate, imagem: args.imagem}),
+      body: JSON.stringify({path: args.caminho, first: args.pagina, last: args.ate, imagem: args.imagem, girar: args.girar, recorte: args.recorte, ampliar: args.ampliar}),
       signal: AbortSignal.timeout(30000),
     });
   } catch (error) {

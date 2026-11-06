@@ -103,16 +103,13 @@ def Laws.tutorstate_cancelar():
 def Laws.tutorstate_cancelar_unico():
   {==}
 
-def Laws.tutorstate_erro_tres_acoes():
+def Laws.tutorstate_erro_duas_acoes():
   {==}
 
 def Laws.tutorstate_erro_chamar_de_novo():
   {==}
 
 def Laws.tutorstate_erro_ver_log():
-  {==}
-
-def Laws.tutorstate_erro_ajustes_do_pi():
   {==}
 
 def Laws.tutorstate_retomada_tres_acoes():
@@ -161,21 +158,6 @@ def Laws.tutorstate_reason_outro_motivo_intacto():
 def Laws.tutorstate_erro_saida_texto():
   {==}
 
-def Laws.tutorstate_pi_ausente_marca():
-  {==}
-
-def Laws.tutorstate_pi_presente_nao_marca():
-  {==}
-
-def Laws.tutorstate_pi_ausente_ajustes_principal():
-  {==}
-
-def Laws.tutorstate_pi_ausente_chamar_secundario():
-  {==}
-
-def Laws.tutorstate_pi_ausente_tres_acoes():
-  {==}
-
 def Laws.tutorstate_opencode_ausente_marca():
   {==}
 
@@ -185,10 +167,13 @@ def Laws.tutorstate_opencode_presente_nao_marca():
 def Laws.tutorstate_opencode_ausente_instalar_principal():
   {==}
 
-def Laws.tutorstate_opencode_ausente_sem_chamar():
+def Laws.tutorstate_opencode_ausente_tres_acoes():
   {==}
 
 def Laws.tutorstate_opencode_ausente_log_secundario():
+  {==}
+
+def Laws.tutorstate_opencode_ausente_ajustes_secundario():
   {==}
 
 def Laws.tutorstate_opencode_ausente_escolhe_view():

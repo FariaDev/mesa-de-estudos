@@ -20,7 +20,7 @@ const {message}=require('./src/i18n.mjs');
  *   win: () => import('./types/host-deps').BrowserWindow, runtime: string,
  *   courses: () => Array<{id: string, name: string}>, courseId: () => string, session: () => string,
  *   freeSessionId: () => string, state: () => import('./types/desk-state').DeskState,
- *   setState: (next: import('./types/desk-state').DeskState) => void, allowed: Set<string>, freeJobs: Set<AbortController>,
+ *   setState: (next: import('./types/desk-state').DeskState) => void, pdfGrants: import('./pdf-grants.cjs').PdfGrants, freeJobs: Set<AbortController>,
  *   isFree: () => boolean, isPromotedRecord: (record: object) => boolean,
  *   freeMutate: import('./types/host-deps').Mutate, assertIdle: (reason: string) => Promise<void>,
  *   focusFreeMaterial: (material: object) => void,
@@ -31,7 +31,7 @@ const {message}=require('./src/i18n.mjs');
  * }} deps
  * @example registerFreeHost({ipcMain, dialog, win: () => win, runtime, ...accessors});
  */
-function registerFreeHost({ipcMain,dialog,win,runtime,courses,courseId,session,freeSessionId,state,setState,allowed,freeJobs,isFree,isPromotedRecord,freeMutate,assertIdle,focusFreeMaterial,runFreePromotion,persist,initialData,appendLog,contextName=()=>'',rememberPdfModel=()=>{},t=key=>key}){
+function registerFreeHost({ipcMain,dialog,win,runtime,courses,courseId,session,freeSessionId,state,setState,pdfGrants,freeJobs,isFree,isPromotedRecord,freeMutate,assertIdle,focusFreeMaterial,runFreePromotion,persist,initialData,appendLog,contextName=()=>'',rememberPdfModel=()=>{},t=key=>key}){
  ipcMain.handle('free-open-pdf',async()=>{
   const out=await freeMutate('open-pdf',async()=>{
    if(!isFree()||!freeSessionId())throw Error(message('err.free.inactive'));
@@ -89,7 +89,8 @@ function registerFreeHost({ipcMain,dialog,win,runtime,courses,courseId,session,f
    const material=await materialPdf.savePdf({dir:courseMaterials.materialDirectory(target),stem:materialPdf.sanitizeStem(payload?.title),title:payload?.title,markdown:payload?.markdown,model:payload?.model,options:payload?.options,context:target.name,signal:controller.signal,timeoutMs:60000});
    try{rememberPdfModel({model:payload?.model,options:payload?.options});}catch(error){appendLog('tutor-pdf',`PDF salvo; modelo não lembrado: ${error.message}`);}
    try{courseMaterials.clearDraft(runtime,scope,payload?.draftId);}catch(error){appendLog('tutor-pdf',`PDF salvo; prévia preservada: ${error.message}`);}
-   allowed.add(material.path);setState({...state(),pdfs:[{path:material.path,page:1,zoom:1},...(state().pdfs||[]).slice(1,2)]});persist();
+   /* Material salvo na pasta da matéria: vira biblioteca (pasta irmã vale). */
+   pdfGrants.addLibrary([material.path]);setState({...state(),pdfs:[{path:material.path,page:1,zoom:1},...(state().pdfs||[]).slice(1,2)]});persist();
    return {saved:true,material,data:initialData()};
   }finally{freeJobs.delete(controller);}
  }));

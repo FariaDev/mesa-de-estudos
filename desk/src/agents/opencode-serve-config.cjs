@@ -8,45 +8,58 @@
    sobe com o MESMO JSON em `OPENCODE_CONFIG_CONTENT`, nunca com permissão
    `ask` herdada de outro app.
 
-   O 1.19.5 também lê `tools` e `permission`, mas não roda o turno da Mesa: o
-   adaptador fala a API v2 do `serve` e ele responde 400 `Missing key at
-   ["prompt"]` (antes da #91; ver `opencode-version.cjs`). O 2.2.4 traduz
-   `tools` para as permissões `shell`/`edit`/`read` em `deny` (e
-   `write`/`patch` caem em `edit`). O `tools` sozinho não basta no 2.2.4:
-   `execute` (Code Mode, com `fetch`), `skill` e os `opencode_*` ficam fora
-   dele. Por isso a regra `*: deny` fecha tudo e `mesa_*: allow` abre só as
-   ferramentas do MCP da Mesa — medido no 2.2.4: sem ela, `execute` chamava
-   `fetch` e a lista de ferramentas nativas aparecia. */
+   Achado de 2026-11-05 (Zen/Go, OpenCode 2.2.4): o servidor responde 429
+   `FreeUsageLimitError` a qualquer modelo — grátis sem chave ou Go com chave —
+   quando a ferramenta `read` NÃO é oferecida. A bisseção com o binário real
+   mostrou que só `read` destrava; a chave `tools` não resolve. Por isso este
+   config NÃO tem `tools` (com ela, mesmo com `read` ligado, o 429 volta) e
+   mantém `read` na lista que o servidor manda ao modelo.
+
+   A barreira continua no servidor do OpenCode, não no cliente: `read` é
+   oferecida, mas `permission.read` nega TODOS os caminhos reais com
+   `'*': 'deny'`. A única regra `allow` é o sentinela `/mesa-nada-existe/*`,
+   que não existe e que ninguém cria — o modelo não tem `write`/`edit`/`bash`.
+   Sem essa regra `allow`, o 2.2.4 retira `read` da lista (medido), e o grátis
+   volta ao 429; por isso o sentinela fica. Leitura real deu
+   "Permission denied: read" dentro do workspace e "external_directory" fora;
+   symlink e `..` também são negados, e nenhum conteúdo chega ao modelo.
+
+   O `skill` ainda aparece na lista (o 2.2.4 o injeta), mas `'*': 'deny'`
+   recusa a chamada e a descoberta só vê as skills embutidas: nada de `HOME`,
+   do projeto nem do workspace. O 1.19.5 também lê `tools` e `permission`, mas
+   não roda o turno da Mesa: o adaptador fala a API v2 do `serve` e ele
+   responde 400 `Missing key at ["prompt"]` (antes da #91; ver
+   `opencode-version.cjs`). */
 
 const fs = require('node:fs');
 const path = require('node:path');
 const {readPersonalConfig, sanitizePersonalConfig} = require('./opencode-personal-config.cjs');
 
-/** Ferramentas nativas do OpenCode desligadas no tutor. */
-const NATIVE_TOOLS = Object.freeze([
-  'bash', 'shell', 'edit', 'write', 'multiedit', 'apply_patch', 'patch',
-  'read', 'glob', 'grep', 'list', 'task', 'subagent', 'webfetch', 'websearch',
-  'browser', 'todowrite', 'todoread', 'question', 'skill',
-]);
+/* O caminho que só existe para o 2.2.4 manter `read` na lista. É absoluto,
+   fora do workspace e não é criado por nenhuma ferramenta da Mesa. A barreira
+   não depende de ele não existir: no Windows ele resolve para `C:\\mesa-nada-
+   existe`, que um usuário comum pode criar. O que nega é `external_directory`
+   sob `*: deny` (medido no Linux com a pasta existindo; Windows não foi medido). */
+const READ_SENTINEL = '/mesa-nada-existe/*';
 
-const TOOLS = Object.freeze(Object.fromEntries(NATIVE_TOOLS.map((name) => [name, false])));
-
-/* O `permission` é a segunda trava e a forma que o 2.2.4 resolve.
-   `*: deny` vem antes de `mesa_*: allow`: a última regra que casa decide, e
-   as ferramentas do MCP `mesa` são as únicas que o tutor pode chamar. */
+/* O `permission` é a trava e a forma que o 2.2.4 resolve. A ORDEM importa: a
+   última regra que casa decide. `*: deny` fecha tudo e vem primeiro;
+   `mesa_*: allow` e o objeto do `read` vêm depois, senão o `*` desfaria o
+   `allow` do sentinela e o 2.2.4 retiraria `read` da lista (medido). */
 const PERMISSION = Object.freeze({
+  '*': 'deny',
+  'mesa_*': 'allow',
   bash: 'deny',
   shell: 'deny',
   edit: 'deny',
   write: 'deny',
-  read: 'deny',
-  '*': 'deny',
-  'mesa_*': 'allow',
+  read: Object.freeze({'*': 'deny', [READ_SENTINEL]: 'allow'}),
 });
 
+/* Sem `tools`: a chave desliga a ferramenta antes de o `read` destravar o
+   grátis (ver o comentário do topo). */
 const CONFIG = Object.freeze({
   $schema: 'https://opencode.ai/config.json',
-  tools: TOOLS,
   permission: PERMISSION,
 });
 
@@ -74,7 +87,7 @@ function writeServeConfig({runtime}) {
  * @param {{provider?: Record<string, unknown>, model?: string, small_model?: string}} [personal]
  * @returns {Record<string, string|undefined>}
  * @example serveEnv({OPENCODE_CONFIG_CONTENT: '{}'}, '/r/opencode-config').OPENCODE_CONFIG_DIR // '/r/opencode-config'
- * @example serveEnv({}, null).OPENCODE_CONFIG_CONTENT // '{"tools":…,"permission":…}'
+ * @example serveEnv({}, null).OPENCODE_CONFIG_CONTENT // '{"permission":…}'
  */
 function serveEnv(env, configDir, personal = {}) {
   /** @type {Record<string, string|undefined>} */
@@ -103,6 +116,9 @@ function serveEnv(env, configDir, personal = {}) {
   out.OPENCODE_DISABLE_CLAUDE_CODE = '1';
   const allowed = sanitizePersonalConfig(personal);
   const hasPersonal = Object.keys(allowed).length > 0;
+  /* CONFIG por último: `permission` e a ausência de `tools` vencem qualquer
+     coisa que a pessoa tenha no config dela (a lista permitida já descarta
+     `permission`/`tools`, mas a precedência fica explícita). */
   const merged = hasPersonal ? {...allowed, ...CONFIG} : CONFIG;
   if (configDir) {
     out.OPENCODE_CONFIG_DIR = configDir;
@@ -114,4 +130,4 @@ function serveEnv(env, configDir, personal = {}) {
   return out;
 }
 
-module.exports = {NATIVE_TOOLS, TOOLS, PERMISSION, CONFIG, readPersonalConfig, serveEnv, writeServeConfig};
+module.exports = {READ_SENTINEL, PERMISSION, CONFIG, readPersonalConfig, serveEnv, writeServeConfig};

@@ -85,15 +85,6 @@ def reasonLine.exit(isExit: Bool, +text: String) -> String:
 def reasonLine(+raw: String) -> String:
   reasonLine.exit(String.contains(raw, exitKey()), raw)
 
-# O motor não foi achado (`tutor.error.piMissing`: "Tutor não encontrado. Rode
-# npm run setup …"): chamar de novo não adianta antes de ajustar o caminho — é a
-# mesma causa da primeira abertura sem o Pi, e a ação principal é a mesma (#27).
-def piMissingKey() -> String:
-  "tutor.error.piMissing"
-
-def piMissing(+reason: String) -> Bool:
-  String.contains(reason, piMissingKey())
-
 # O OpenCode não está instalado (`err.opencode.notFound`): a tela não repete o
 # caminho nem a variável — o detalhe técnico fica no log —; a ação principal é
 # instalar pelas novidades. Chamar de novo não adianta antes de instalar.
@@ -164,26 +155,17 @@ def connectingView() -> V.ViewNode:
     [button("connect-cancel", "ts-secondary", M.msg("tutor.cancel"), M.msg("tutor.cancelTitle"), "Cancel")]
   )
 
-def failedActions(missing: Bool) -> List<&2, V.ViewNode>:
-  match missing:
-    case True{}:
-      [
-        button("state-pi", "ts-primary", M.msg("tutor.piSettings"), M.msg("tutor.piSettingsTitle"), "OpenPiSettings"),
-        button("connect", "ts-secondary", M.msg("tutor.retry"), M.msg("tutor.retryTitle"), "Connect"),
-        button("state-log", "ts-ghost", M.msg("tutor.log"), M.msg("tutor.logTitle"), "OpenLog")
-      ]
-    case False{}:
-      [
-        button("connect", "ts-primary", M.msg("tutor.retry"), M.msg("tutor.retryTitle"), "Connect"),
-        button("state-log", "ts-secondary", M.msg("tutor.log"), M.msg("tutor.logTitle"), "OpenLog"),
-        button("state-pi", "ts-ghost", M.msg("tutor.piSettings"), M.msg("tutor.piSettingsTitle"), "OpenPiSettings")
-      ]
+def failedActions() -> List<&2, V.ViewNode>:
+  [
+    button("connect", "ts-primary", M.msg("tutor.retry"), M.msg("tutor.retryTitle"), "Connect"),
+    button("state-log", "ts-secondary", M.msg("tutor.log"), M.msg("tutor.logTitle"), "OpenLog")
+  ]
 
 def opencodeActions() -> List<&2, V.ViewNode>:
   [
     button("state-opencode-install", "ts-primary", M.msg("tutor.opencode.install"), M.msg("tutor.opencode.installTitle"), "OpenReleaseNotes"),
     button("state-log", "ts-secondary", M.msg("tutor.log"), M.msg("tutor.logTitle"), "OpenLog"),
-    button("state-pi", "ts-ghost", M.msg("tutor.piSettings"), M.msg("tutor.piSettingsTitle"), "OpenPiSettings")
+    button("state-tutor-settings", "ts-secondary", M.msg("tutor.engineSettings"), M.msg("tutor.engineSettingsTitle"), "OpenTutorSettings")
   ]
 
 def opencodeMissingView(+reason: String) -> V.ViewNode:
@@ -201,7 +183,7 @@ def failedView(+reason: String) -> V.ViewNode:
     Nil{},
     leadView(say(M.msg("tutor.failed.lead"))),
     [fineView(reasonLine(reason))],
-    failedActions(piMissing(reason))
+    failedActions()
   )
 
 # ---------- Claude Code fora da faixa (#51) ----------

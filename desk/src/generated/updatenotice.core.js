@@ -511,8 +511,6 @@ function $noticeLinesFor(_s_0, _ls_0) {
 function $hasAction(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return false;
-  } else if (_a_0.$ === "ToolLocal") {
-    return true;
   } else if (_a_0.$ === "ToolAsk") {
     return true;
   } else if (_a_0.$ === "ToolWait") {
@@ -520,9 +518,6 @@ function $hasAction(_a_0) {
   } else {
     return true;
   }
-}
-function $localButton() {
-  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-pi"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update"), tail: { $: "Con", head: $$view_attrOn("click", "UpdatePi"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$msg_msg("update.pi")), tail: { $: "Nil" } });
 }
 function $askButton(_command_0) {
   return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $$view_attrData("command", _command_0), tail: { $: "Con", head: $$view_attrOn("click", "AskUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$updateLabel()), tail: { $: "Nil" } });
@@ -536,8 +531,6 @@ function $copyButton(_command_0) {
 function $actionNodes(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return { $: "Nil" };
-  } else if (_a_0.$ === "ToolLocal") {
-    return { $: "Con", head: $$localButton(), tail: { $: "Nil" } };
   } else if (_a_0.$ === "ToolAsk") {
     const _command_0 = _a_0["command"];
     return { $: "Con", head: $$askButton(_command_0), tail: { $: "Nil" } };
@@ -819,18 +812,17 @@ var $$seeAboutLabel = $seeAboutLabel;
 var $$seeAboutButton = $seeAboutButton;
 var $$noticeLineFor = $noticeLineFor;
 var $$noticeLinesFor = $noticeLinesFor;
-var $$view_attrId = $view_attrId;
-var $$msg_msg = $msg_msg;
 var $$updateLabel = $updateLabel;
 var $$view_attr = $view_attr;
 var $$waitHint = $waitHint;
+var $$view_attrId = $view_attrId;
 var $$waitShort = $waitShort;
 var $$msg_msg1 = $msg_msg1;
 var $$copyLabel = $copyLabel;
-var $$localButton = $localButton;
 var $$askButton = $askButton;
 var $$copyButton = $copyButton;
 var $$commandNode = $commandNode;
+var $$msg_msg = $msg_msg;
 var $$willRunText = $willRunText;
 var $$runLine = $runLine;
 var $$cancelLabel = $cancelLabel;
@@ -951,7 +943,6 @@ var updatenotice_default = {
   noticeLineFor: run_lib((a0, a1) => run_loop($noticeLineFor(a0, a1)), 2),
   noticeLinesFor: run_lib((a0, a1) => run_loop($noticeLinesFor(a0, a1)), 2),
   hasAction: run_lib((a0) => run_loop($hasAction(a0)), 1),
-  localButton: run_lib(() => run_loop($localButton()), 0),
   askButton: run_lib((a0) => run_loop($askButton(str_in(a0))), 1),
   waitNodes: run_lib(() => run_loop($waitNodes()), 0),
   copyButton: run_lib((a0) => run_loop($copyButton(str_in(a0))), 1),

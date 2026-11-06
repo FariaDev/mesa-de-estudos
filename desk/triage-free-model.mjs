@@ -18,6 +18,12 @@ const PREFERRED_FAMILIES=[/deepseek.*flash/i,/minimax/i];
 
 /** @typedef {{id: string, model: string, policy: string, policyKey: string}} TriageModel */
 
+/* O formato dos ids que o OpenCode lista (`provedor/id`, como em
+   `free-models.json` e nos testes): fora dele, o id não entra na lista — um id
+   com aspa ou `;` passaria no `isFree` do núcleo e quebraria o comando que a
+   pessoa cola no terminal. A mesma fonte do `shellWord` de triage-outputs.mjs. */
+export const SAFE_MODEL_ID=/^[A-Za-z0-9._/-]+$/;
+
 /**
  * Os ids grátis do Zen na saída do `opencode models` (uma linha `provedor/id`).
  * @param {string} output
@@ -29,7 +35,7 @@ export function freeZenIds(output){
  for(const line of String(output||'').split('\n')){
   const [provider,...rest]=line.trim().split('/');
   const id=rest.join('/');
-  if(id&&provider===core.zenProvider()&&core.isFree(provider,id,false)&&!Object.hasOwn(policyTable.excluded||{},id))ids.push(id);
+  if(id&&SAFE_MODEL_ID.test(id)&&provider===core.zenProvider()&&core.isFree(provider,id,false)&&!Object.hasOwn(policyTable.excluded||{},id))ids.push(id);
  }
  return [...new Set(ids)];
 }

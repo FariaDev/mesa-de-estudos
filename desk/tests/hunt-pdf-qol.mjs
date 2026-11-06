@@ -14,7 +14,7 @@ import {reviewShot,screenshotDirectory,resizeWindow} from './helpers.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,writeDeskJson,writeConfigJson,toastWait,menuLocator} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,writeDeskJson,writeConfigJson,toastWait,menuLocator,statusOnline} from './helpers.mjs';
 import {pdfRenderIdle} from './waits.mjs';
 
 const SIZE_SMALL = {width: 900, height: 650};
@@ -406,6 +406,9 @@ await withArtifacts('pdf-qol-livre', async (ctx) => {
   try {
     await page.waitForFunction(() => document.querySelectorAll('.pdf-panel').length === 2, undefined, {timeout: 30000});
     await page.waitForFunction(() => !!document.querySelector('.pdf-panel .pdf-placeholder'), undefined, {timeout: 15000});
+    await page.waitForFunction(() => !document.querySelector('#send')?.disabled, undefined, {timeout: 30000});
+    await page.waitForFunction(() => document.querySelector('#stop')?.hidden === true, undefined, {timeout: 30000});
+    await statusOnline(page,{timeout:30000});
     await ensureQolCss(page);
     check('Livre: os dois leitores nascem vazios', await page.evaluate(() => [...document.querySelectorAll('.pdf-panel .pdf-placeholder')].length === 2));
     await dropProbeInput(page);

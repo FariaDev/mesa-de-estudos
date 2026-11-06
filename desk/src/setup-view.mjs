@@ -12,7 +12,6 @@ import {lampStateOf,nameLineScale} from './setup-lamp.mjs';
 /**
  * @typedef {object} SetupFacts
  * @property {string} kind "setup" ou "empty"
- * @property {boolean} piFound
  * @property {boolean} claudeFound
  * @property {boolean} opencodeFound
  * @property {string} opencodeBinary
@@ -25,7 +24,7 @@ import {lampStateOf,nameLineScale} from './setup-lamp.mjs';
  * @property {string[]} [visibleEngines]
  */
 
-/** @typedef {{Connect:()=>void, UseFreeModels:()=>void, OpenPiSettings:()=>void, ChangeDataFolder:()=>void, InstallOpenCode:()=>void, UpdateOpenCode:()=>void, OpenOpenCodeHelp:()=>void}} SetupActions */
+/** @typedef {{Connect:()=>void, UseFreeModels:()=>void, OpenPiSettings:()=>void, OpenTutorSettings:()=>void, ChangeDataFolder:()=>void, InstallOpenCode:()=>void, UpdateOpenCode:()=>void, ChooseOpenCode:()=>void, OpenOpenCodeHelp:()=>void}} SetupActions */
 
 /** @typedef {{state:'idle'|'installing'|'done'|'error', phase?:string, percent?:number, errorCode?:string, error?:string, version?:string}} SetupInstall */
 
@@ -85,13 +84,11 @@ function paintFolder(state,facts){
 }
 
 /* O tutor de hoje (o `tutorView` da #21): qualquer motor achado — Chamar o
-   tutor; nenhum — a tela oferece a instalação do OpenCode e os Ajustes. Quem
-   não tem Pi não vê o aviso de Codex e Grok; quem já tem continua igual. */
+   tutor; nenhum — a tela oferece a instalação do OpenCode. */
 /** @param {SetupFacts} facts @returns {string} */
 function enginesFoundText(facts){
- const visible=facts.visibleEngines||['pi','claude','opencode'];
+ const visible=facts.visibleEngines||['claude','opencode'];
  const names=[
-  ...(facts.piFound&&visible.includes('pi')?['pi']:[]),
   ...(facts.claudeFound&&visible.includes('claude')?['claude']:[]),
   ...(facts.opencodeFound&&visible.includes('opencode')?['opencode']:[]),
  ].map(name=>t(`firstrun.engine.${name}`));
@@ -169,14 +166,13 @@ function paintTutor(state,facts,actions,install){
  setText($('#setup-tutor-title'),t(state.online?'firstrun.tutor.onlineLead':'firstrun.tutor.lead'));
  setText($('#setup-tutor-text'),t(state.online?'firstrun.tutor.onlineFine':'firstrun.tutor.intro'));
  $('#setup-tutor-off').hidden=state.online;
- const visible=facts.visibleEngines||['pi','claude','opencode'];
- const anyFound=(facts.piFound&&visible.includes('pi'))||(facts.claudeFound&&visible.includes('claude'))||(facts.opencodeFound&&visible.includes('opencode'));
+ const visible=facts.visibleEngines||['claude','opencode'];
+ const anyFound=(facts.claudeFound&&visible.includes('claude'))||(facts.opencodeFound&&visible.includes('opencode'));
  const status=$('#setup-pi');
  status.dataset.pi=anyFound?'found':'missing';
  setText(status,enginesFoundText(facts));
  paintLoginHint($('#setup-login-hint'),facts.opencodeFound&&!state.online,facts);
- $('#setup-codex-grok').hidden=!facts.piFound||!visible.includes('pi');
- const key=JSON.stringify([facts.piFound,facts.claudeFound,facts.opencodeFound,facts.opencodeBinary,facts.opencodeOldVersion,facts.installSupported,facts.platform,visible,install.state,install.phase,install.percent,install.errorCode,install.error,currentLanguage()]);
+ const key=JSON.stringify([facts.claudeFound,facts.opencodeFound,facts.opencodeBinary,facts.opencodeOldVersion,facts.installSupported,facts.platform,visible,install.state,install.phase,install.percent,install.errorCode,install.error,currentLanguage()]);
  const box=$('#setup-tutor-actions');
  if(box.dataset.painted===key)return;
  box.dataset.painted=key;
@@ -192,7 +188,8 @@ function paintTutor(state,facts,actions,install){
   return el;
  };
  const connect=button('connect','primary','tutor.connect','tutor.connectTitle',actions.Connect);
- const settings=button('state-pi','','tutor.engineSettings','tutor.engineSettingsTitle',actions.OpenPiSettings);
+ /* Os Ajustes do tutor continuam à mão no setup; só o atalho do Pi saiu. */
+ const settings=button('setup-settings','','tutor.engineSettings','tutor.engineSettingsTitle',actions.OpenTutorSettings);
  if(install.state==='installing'){
   const busy=installButton();
   busy.setAttribute('disabled','');
@@ -220,6 +217,9 @@ function paintTutor(state,facts,actions,install){
    help.append(button('open-opencode-docs','setup-link','firstrun.install.openDocs','firstrun.install.openDocsTitle',actions.OpenOpenCodeHelp));
    parts.push(help);
   }
+  /* Instalado por bun/npm fora dos caminhos fixos: o shell de login já foi
+     perguntado (#102); se ainda não achou, a pessoa aponta o executável. */
+  parts.push(button('pick-opencode','setup-link','firstrun.tutor.pickOpenCode','firstrun.tutor.pickOpenCodeTitle',actions.ChooseOpenCode));
  }
  parts.push(settings);
  box.replaceChildren(...parts);
@@ -257,10 +257,12 @@ function paintFoot(state){
  const next=/** @type {HTMLButtonElement} */($('#setup-next'));
  next.disabled=setupBlocked(state);
  setText(next,t(primaryKey(state)));
- /* Enquanto "Instalar o OpenCode" está na tela, ele é o caminho principal: o
-    "Pular por agora" do rodapé fica secundário (um só botão forte por passo). */
- const installOffered=id==='tutor'&&!!document.querySelector('#setup-tutor-actions #install-opencode');
- next.classList.toggle('primary',!installOffered);
+  /* Enquanto "Instalar o OpenCode" ou "Chamar o tutor" está na tela, ele é o
+     caminho principal: o "Pular por agora" do rodapé fica secundário (um só
+     botão forte por passo; auditoria rodada 5, D1). Com o tutor ligado o
+     painel some (`hidden`), e o "Continuar" do rodapé volta a ser o único. */
+  const mainOffered=id==='tutor'&&!state.online&&!!document.querySelector('#setup-tutor-actions #install-opencode, #setup-tutor-actions #connect');
+  next.classList.toggle('primary',!mainOffered);
 }
 
 /**

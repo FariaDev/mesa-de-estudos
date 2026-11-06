@@ -7,9 +7,7 @@ const pending=require('./pending.cjs');
 const resume=require('./resume.cjs');
 const bookmarks=require('./bookmarks.cjs');
 const review=require('./review.cjs');
-const {PiBridge}=require('./rpc.cjs');
-const {spawnEnv}=require('./pi.cjs');
-const {draftPrompt,draftContext,generateReviewDraft,draftPiArgs}=require('./review-draft.cjs');
+const {draftPrompt,draftContext,generateReviewDraft}=require('./review-draft.cjs');
 const {createClaudeDraftBridge}=require('./src/agents/claude-review-draft.cjs');
 const conversations=require('./src/agents/conversations.cjs');
 const {isPlainObject,asString}=require('./desk-state-sanitize.cjs');
@@ -18,25 +16,25 @@ const {invalidRequest}=require('./src/error-detail.mjs');
 
 /* Registros de estudo da matéria ativa (#43 fase 2: saíram do main.cjs): fila
    e bandeja guardadas, o "Encerrar por hoje", favoritos e o caderno de
-   revisão (com o rascunho gerado pelo Pi ou, numa consulta temporária, pelo
-   Claude Code; #58). O host só aceita o que a matéria
-   autoriza (biblioteca aberta e `.xopp` liberado). */
+   revisão (rascunho numa consulta temporária do Claude Code ou do OpenCode;
+   #58/#93). O host só aceita o que a matéria autoriza (biblioteca aberta e
+   `.xopp` liberado). */
 
 /**
  * Registra os handlers de fila, bandeja, encerramento, favoritos e revisão.
  * Recebe o `ipcMain`, o `live` do main, o runtime, os conjuntos de autorização
  * e as funções do main que montam os payloads e as guardas de mutação.
  * @param {{ipcMain: import('./types/host-deps').IpcMain, live: import('./main.cjs').DeskLive, runtime: string, allowed: Set<string>, allowedXopp: Set<string>,
- *   appendLog: import('./types/host-deps').AppendLog, engine: import('./types/main-hosts').TutorEngineHost['engine'], piBinary: import('./types/main-hosts').TutorEngineHost['piBinary'],
+ *   engine: import('./types/main-hosts').TutorEngineHost['engine'],
  *   claudeBinary: import('./types/main-hosts').TutorEngineHost['claudeBinary'], claudeDetector: import('./types/main-hosts').TutorEngineHost['claudeDetector'],
  *   testClaudeSdkLoader: import('./types/main-hosts').TutorEngineHost['testClaudeSdkLoader'],
  *   openCodeDraft: import('./types/main-hosts').OpenCodeTutorHost['draft'],
  *   bookmarksPayload: import('./types/main-hosts').CourseStateHost['bookmarksPayload'], reviewPayload: import('./types/main-hosts').CourseStateHost['reviewPayload'],
  *   assertNoFreeMutation: import('./types/main-hosts').DeskGuards['assertNoFreeMutation'], assertNoNav: import('./types/main-hosts').DeskGuards['assertNoNav']}} options
  * @returns {{cancelReviewDraft:()=>Promise<void>|null}} aborta e espera o rascunho de revisão em curso (o app chama ao encerrar)
- * @example const {cancelReviewDraft}=registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appendLog,engine,piBinary,claudeBinary,claudeDetector,testClaudeSdkLoader,openCodeDraft,bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav});
+ * @example const {cancelReviewDraft}=registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,engine,claudeBinary,claudeDetector,testClaudeSdkLoader,openCodeDraft,bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav});
  */
-function registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appendLog,engine,piBinary,claudeBinary,claudeDetector,testClaudeSdkLoader,openCodeDraft,bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav}){
+function registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,engine,claudeBinary,claudeDetector,testClaudeSdkLoader,openCodeDraft,bookmarksPayload,reviewPayload,assertNoFreeMutation,assertNoNav}){
  /* Claude Code (#58): adaptador temporário, sem ferramenta e sem sessão salva;
     o modelo e o esforço são os do descritor da conversa, que não é tocada. */
  function nativeDraftSelection(){
@@ -105,13 +103,7 @@ function registerStudyRecordsHost({ipcMain,live,runtime,allowed,allowedXopp,appe
    /* OpenCode (#93): consulta temporária no mesmo servidor, sem MCP nem
       ferramenta nativa; o modelo e o esforço são os da conversa aberta. */
    if(engine()==='opencode'){worker=openCodeDraft({cwd:folder,systemPrompt:draftPrompt(live.languageHost.tutorLanguage()),selection:nativeDraftSelection()});return await generateReviewDraft({bridge:worker,context,ref:source.ref,signal:controller.signal});}
-   // Match the selected conversation model without changing that conversation.
-   const current=live.bridge?await live.bridge.request('get_state',{},5000).catch(error=>{appendLog('review-draft',`Estado indisponível; usando o modelo padrão do tutor: ${error.message}`);return {};}):{};
-   if(controller.signal.aborted)throw Error(message('review.error.cancelled'));
-   const file=path.join(folder,'prompt.md');fs.writeFileSync(file,draftPrompt(live.languageHost.tutorLanguage()));
-   const extraArgs=draftPiArgs(current.model);
-   worker=new PiBridge({cwd:folder,session:path.join(folder,'session.jsonl'),pi:piBinary(),env:{...spawnEnv(piBinary()),...await live.opencodeHost.keyEnv()},promptFile:file,extraArgs});
-   return await generateReviewDraft({bridge:worker,context,ref:source.ref,signal:controller.signal});
+   throw Error(message('review.error.failed'));
   }finally{
    await worker?.stop();if(folder)fs.rmSync(folder,{recursive:true,force:true});
    if(activeReviewDraft===task)activeReviewDraft=null;

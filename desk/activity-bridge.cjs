@@ -188,7 +188,7 @@ function pickPayload(raw) {
 /**
  * @param {{publish?: (scope: object, spec: object, caller: {toolCallId: string, callRef?: string}) => Promise<unknown>,
  *   preview?: ((raw: unknown, options: object) => Promise<unknown>) | null,
- *   figure?: ((raw: unknown) => Promise<unknown>) | null, pdfPage?: ((raw: {path?: unknown, first?: unknown, last?: unknown, imagem?: unknown}) => Promise<object>) | null,
+ *   figure?: ((raw: unknown) => Promise<unknown>) | null, pdfPage?: ((raw: {path?: unknown, first?: unknown, last?: unknown, imagem?: unknown, girar?: unknown, recorte?: unknown, ampliar?: unknown}) => Promise<object>) | null,
  *   searchMaterial?: ((scope: object, raw: {consulta?: unknown, limite?: unknown}) => Promise<object>) | null,
  *   materialList?: ((scope: object) => Promise<object>) | null,
  *   reviewProposal?: ((scope: object, raw: object, options: {signal?: AbortSignal}) => Promise<object>) | null,
@@ -197,7 +197,7 @@ function pickPayload(raw) {
  *   `tutorText` põe a mensagem marcada no idioma do tutor: a resposta vai ao
  *   modelo, que não lê a marca U+E000 (#43 fase 3).
  */
-function createActivityBridge({publish, preview = null, figure = null, pdfPage = null, searchMaterial = null, materialList = null, reviewProposal = null, card = null, engine = 'pi', maxBodyBytes = MAX_BODY_BYTES, tutorText = (raw) => raw} = {}) {
+function createActivityBridge({publish, preview = null, figure = null, pdfPage = null, searchMaterial = null, materialList = null, reviewProposal = null, card = null, engine = 'opencode', maxBodyBytes = MAX_BODY_BYTES, tutorText = (raw) => raw} = {}) {
   if (typeof publish !== 'function') throw new Error(invalidValue('publish', publish, 'function'));
   const grants = new Map();
   let port = 0;
@@ -401,7 +401,7 @@ function paramsHashOfToolInput(input) {
    muda de host para host: store, runtime, registry (Claude), isScopeActive
    (revalida a conversa capturada no momento da publicação) e emit (evento ao
    renderer). Nenhum caminho/URL do modelo atravessa esta função. */
-function createActivityService({store, runtime, registry, emit, isScopeActive, engine = 'pi'} = {}) {
+function createActivityService({store, runtime, registry, emit, isScopeActive, engine = 'opencode'} = {}) {
   if (!store || typeof store.publish !== 'function') throw new Error(invalidValue('store', store, '{publish, ...}'));
   if (!runtime || typeof runtime.remember !== 'function') throw new Error(invalidValue('runtime', runtime, '{remember, ...}'));
   const fail = (code, message) => {

@@ -6,7 +6,7 @@ Mesa de referências local (Electron) ao lado do Xournal++. Código em `desk/` (
 
 - **Não altere os defaults de `desk/config.cjs`.** A mesa do autor já está no jeito dele; para outra pessoa, personalize o `config.json` **dela**. Prefira `config.json` a editar `renderer.mjs` / `index.html`.
 - **Não altere PDFs nem materiais de curso.**
-- **Não publique** sessões JSONL, credenciais do Pi, capturas com material de curso, nem o bundle `Mesa de Estudos.app`. O runtime fica em `desk/.runtime/` e não é versionado.
+- **Não publique** sessões JSONL, credenciais dos motores, capturas com material de curso, nem o bundle `Mesa de Estudos.app`. O runtime fica em `desk/.runtime/` e não é versionado.
 - **Dois apps:** a Mesa e um programa de escrita (Xournal++ por padrão; o Conferir aceita outra janela, e o app escolhido fica no estado de interface, fora do `config.json`). **Não implemente canvas de tinta na Mesa.**
 - **Chat avulso mora na aba Livre da Mesa** (sessões e leitores da Mesa para estudo avulso, geração revisada de PDF e criação de matéria; aprovada pelo usuário em 2026-10-06). O app Conversa (`chat/`) foi aposentado na #50: o código está só na tag local `conversa-final`, e não volta a existir um segundo app de chat.
 - **Regra que custaria algo ao aluno mora no núcleo Bend**, com leis em `core/laws/` e provas em `core/proofs/` que fecham; os artefatos regenerados (`desk/src/generated/*`) vão commitados. Isso vale para invariante de domínio e para regra de interface com consequência ("a resposta certa não aparece antes da resposta"). A pergunta é "a lei diz algo que o código sozinho não diz, e a quebra custaria algo ao aluno?". O que a lei só repetiria (classe CSS, `tabindex`, ordem de nós, texto, rótulo, posição) fica em JS com teste ([ADR 0003](docs/adr/0003-bend-pelo-que-a-lei-prova.md)).
@@ -44,7 +44,7 @@ Antes de mexer numa feature, procure a linha dela com `rg -n "termo" docs/agents
 - Comentário diz o porquê e cita o ticket ou commit; não o apague em refactor. Comentário que repete o código sai.
 - Função pública ganha JSDoc com tipos, intenção e um exemplo.
 - Função nova ganha teste; toda correção ganha teste de regressão.
-- I/O externo nos testes entra por fakes com nome (como `fake-pi.mjs`), não por stubs inline.
+- I/O externo nos testes entra por fakes com nome (como `fake-opencode.mjs`), não por stubs inline.
 - Dependência entra por parâmetro ou acessor (o padrão dos `*-host.cjs`); biblioteca de terceiros fica atrás de uma casca da Mesa.
 - Não rode formatador no repositório inteiro: apagaria o `git blame` e colidiria com os tickets abertos. Mantenha o estilo do arquivo.
 
@@ -56,6 +56,7 @@ Antes de mexer numa feature, procure a linha dela com `rg -n "termo" docs/agents
 - [`docs/agents/portoes.md`](docs/agents/portoes.md): cache do portão, hunts, ui e capturas.
 - Fluxo de estudo: [`desk/README.md`](desk/README.md). Conferir Xournal++: [`visual-check/README.md`](visual-check/README.md).
 - Contexto de usuário novo: [`README.md`](README.md), [`desk/SETUP.md`](desk/SETUP.md) e [`desk/config.example.json`](desk/config.example.json).
+- Arquivos datados em `docs/` (`STATUS-*`, `PLANO-*`, `REVIEW-*`, `RESILIENCE-*`, `RELEASE-0.5.0.md`, `PI-*`, `RESEARCH.md`, `DECISIONS.md`) e tudo em `docs/reviews/` são histórico: não descrevem o estado atual. A porta de entrada é [`docs/START-HERE.md`](docs/START-HERE.md).
 
 ## Agent skills
 

@@ -97,14 +97,34 @@ function messageQuote(selection){
  return text;
 }
 export function hideQuoteButton(){$('#quote-btn').hidden=true;}
-let quotePending=null,quoteTimer;
+/* Rect zerado com a seleção intacta: o conteúdo com `content-visibility`
+   ainda não materializou (Mac rodada 4b). */
+const QUOTE_RETRIES=4,QUOTE_RETRY_MS=80;
+let quotePending=null,quoteTimer,quoteTries=0;
+/**
+ * Decide o botão de citar a partir da medida: com texto mas rect zerado tenta
+ * de novo (até `QUOTE_RETRIES`); sem texto, fora da vista ou com as tentativas
+ * esgotadas, esconde. Pura para teste unitário; quem agenda e mexe no DOM é
+ * o `updateQuoteButton`.
+ * @param {{hasText: boolean, rect: {width: number, height: number, top: number, bottom: number}|null, tries: number, viewportHeight: number}} facts
+ * @returns {{action: 'show'|'retry'|'hide'}}
+ * @example quoteButtonDecision({hasText: true, rect: null, tries: 0, viewportHeight: 800}) // {action: 'retry'}
+ */
+export function quoteButtonDecision({hasText,rect,tries,viewportHeight}){
+ if(!hasText)return {action:'hide'};
+ if(!rect||(!rect.width&&!rect.height))return {action:tries<QUOTE_RETRIES?'retry':'hide'};
+ if(rect.bottom<0||rect.top>viewportHeight)return {action:'hide'};
+ return {action:'show'};
+}
 function updateQuoteButton(){
  clearTimeout(quoteTimer);
  quoteTimer=setTimeout(()=>{
   const text=selectionQuote();
-  if(!text){hideQuoteButton();return;}
-  const rect=window.getSelection().getRangeAt(0).getBoundingClientRect();
-  if(!rect||(!rect.width&&!rect.height)||rect.bottom<0||rect.top>innerHeight){hideQuoteButton();return;}
+  const rect=text?window.getSelection().getRangeAt(0).getBoundingClientRect():null;
+  const decision=quoteButtonDecision({hasText:!!text,rect,tries:quoteTries,viewportHeight:innerHeight});
+  if(decision.action==='retry'){quoteTries+=1;quoteTimer=setTimeout(updateQuoteButton,QUOTE_RETRY_MS);return;}
+  quoteTries=0;
+  if(decision.action!=='show'){hideQuoteButton();return;}
   const button=$('#quote-btn');
   button.hidden=false;
   button.style.left=Math.round(Math.max(8,Math.min(rect.right-24,innerWidth-70)))+'px';
@@ -118,11 +138,15 @@ function insertQuote(){
  const {text,crop}=quote;
  if(crop)attachCrop(crop);
  const prompt=$('#prompt');
+ /* A seleção da conversa/PDF sai ANTES de focar o campo (#110): com o composer
+    focado, o `window.getSelection()` do Chromium é a seleção interna do
+    textarea, e `removeAllRanges()` zerava o cursor recém-postado no fim. */
+ window.getSelection()?.removeAllRanges();
  const sep=!prompt.value?'':(prompt.value.endsWith('\n\n')?'':(prompt.value.endsWith('\n')?'\n':'\n\n'));
  prompt.value=prompt.value+sep+text.split('\n').map(line=>line?`> ${line}`:'>').join('\n')+'\n\n';
  prompt.focus();
  prompt.setSelectionRange(prompt.value.length,prompt.value.length);
- save();hideQuoteButton();window.getSelection()?.removeAllRanges();
+ save();hideQuoteButton();
 }
 /* Chat lateral → principal: insere o texto no rascunho SEM enviar e SEM tocar no
    que já estava digitado (append previsível — separador só quando já há texto).

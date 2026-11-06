@@ -15,6 +15,9 @@ const {createActivityBridge, createCallRegistry, createActivityService, paramsHa
 
 const DIR = __dirname;
 const runtime = process.env.ACTIVITY_RUNTIME || fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-activity-ui-'));
+/* Pasta criada aqui dentro do Electron: o app é morto sem cerimônia e não há
+   quem limpe depois (2026-11-05) — varre na saída do próprio processo. */
+if (!process.env.ACTIVITY_RUNTIME) process.once('exit', () => { try { fs.rmSync(runtime, {recursive: true, force: true}); } catch {} });
 let win = null;
 let globalUi = null;
 
@@ -58,7 +61,7 @@ app.whenReady().then(async () => {
   let grant = bridge.grant({...currentScope()});
 
   activityRuntime.installProtocol(session.defaultSession);
-  activityRuntime.installSessionGuards(session.defaultSession);
+  activityRuntime.installSessionGuards(session.defaultSession, {appRoot: path.resolve(DIR, '..', '..', '..')});
 
   ipcMain.handle('activity-list', () => ({items: store.list({conversationId}).map((item) => ({...item, scopeRef}))}));
   ipcMain.handle('activity-read', (_event, payload) => {

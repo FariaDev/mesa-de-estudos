@@ -31,7 +31,7 @@ await withArtifacts('tutor-state-opencode',async ctx=>{
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',pdfs:[{path:pdf,page:1}],study:{title:'Lista 2 · 7b',xopp:''}});
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_VISIBLE_ENGINES:'opencode',LEARNING_DESK_OPENCODE:'',LEARNING_DESK_CLAUDE_HOME:''}});
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_VISIBLE_ENGINES:'opencode',LEARNING_DESK_OPENCODE:'',LEARNING_DESK_CLAUDE_HOME:''}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await resizeWindow(app,page,1440,900);

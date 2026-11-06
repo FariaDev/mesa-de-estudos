@@ -13,7 +13,7 @@ await withArtifacts('watchdog',async ctx=>{
  seedCourse(runtime,'Watch');
  writeDeskJson(runtime,{courseId:'Watch'});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Watch',name:'Matéria Watch',path:runtime+'/learning/Courses/Watch'}]});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'stall'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_CHAOS:'stall'}});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
  await page.locator('#prompt').fill('responda e trave no meio');

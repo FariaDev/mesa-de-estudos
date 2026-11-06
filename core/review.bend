@@ -722,15 +722,13 @@ def currentId(+m: Maybe<&2, ReviewEntry>) -> String:
 
 # ---------- a tela inteira (o conteúdo de `#review-view`) ----------
 
-# Vazio: um bloco só, no centro — o título, uma frase que explica o Guardar para
-# revisar e a miniatura da fileira de ações da resposta.
+# Vazio: um bloco só, no centro — o título e uma frase que diz onde fica o
+# Guardar (na fileira de ações da resposta). Sem amostra de botão: ela parecia
+# ação e não fazia nada (auditoria de UI/UX, rodada 1, A5).
 def reviewEmpty() -> V.ViewNode:
   V.viewEl("div", [V.attrClass("review-empty-block")], [
     V.viewEl("h3", [V.attrClass("review-empty-title")], [V.viewText(emptyTitle())]),
-    V.viewEl("p", [V.attrClass("review-empty")], [V.viewText(emptyBody())]),
-    V.viewEl("div", [V.attrClass("review-empty-sample"), V.attrAria("hidden", "true")], [
-      V.viewEl("span", [V.attrClass("review-empty-save")], [V.viewText(saveActionLabel())])
-    ])
+    V.viewEl("p", [V.attrClass("review-empty")], [V.viewText(emptyBody())])
   ])
 
 def reviewBoard.full(+xs: List<&2, ReviewEntry>, +m: Maybe<&2, ReviewEntry>, +done: Nat, +grades: Bool) -> List<&2, V.ViewNode>:

@@ -63,6 +63,7 @@ function sheets(page){
     hasSheet:!!sheet,viewport:viewport?rect(viewport):null,
     hScroll:viewport?viewport.scrollWidth>viewport.clientWidth+1:false,
     placeholder:!!panel.querySelector('.pdf-placeholder'),
+    statusHidden:panel.hasAttribute('data-status-hidden'),
     barKids:[...panel.querySelectorAll(':scope>.pdf-title>*')].filter(el=>{const b=el.getBoundingClientRect();return b.width>0&&b.height>0;}).map(el=>el.tagName==='STRONG'?'label':el.tagName==='SELECT'?'select':(el.className||'').split(/\s+/)[0])
    };
    if(!sheet)return out;
@@ -101,8 +102,18 @@ function assertSheets(list,label,{readers}){
   assert.equal(s.placeholder,false,`${tag}: o texto antigo do leitor vazio saiu`);
   assert.equal(s.barMaterial,'Nenhum material',`${tag}: a barra diz "Nenhum material"`);
   /* #27 B3: sem material a barra é rótulo, "Nenhum material" e Mais opções. */
-  /* O rótulo cede em leitor estreito (container query da barra), então só ele pode faltar. */
-  assert.deepEqual(s.barKids.filter(k=>k!=='label'),['select','more'],`${tag}: a barra sem material só tem rótulo, "Nenhum material" e Mais opções (${s.barKids})`);
+  /* O rótulo cede em leitor estreito COM material (container query da barra),
+     mas sem material ele fica (auditoria rodada 4, F2): só ele diz qual leitor
+     é qual. O teste fino mora em reader-empty-label-ui.mjs. */
+  /* P1 da rodada 6 (50534fcc): quando rótulo + status não cabem, o status
+     sai de vista (segue no DOM com nome; prova fina em reader-empty-label-ui).
+     O rótulo fica: é ele que diz qual leitor é qual. */
+  /* Na largura grande o status cabe e tem de aparecer: sem isto, um status
+     sempre escondido passaria (revisão de 3db07230). */
+  if(label.endsWith(WIDE.join('x')))assert.equal(s.statusHidden,false,`${tag}: em ${WIDE.join('x')} o "Nenhum material" fica à vista`);
+  const expectedKids=s.statusHidden?['more']:['select','more'];
+  assert.deepEqual(s.barKids.filter(k=>k!=='label'),expectedKids,`${tag}: a barra sem material só tem rótulo, "Nenhum material" (se couber) e Mais opções (${s.barKids})`);
+  assert.ok(s.barKids.includes('label'),`${tag}: o rótulo do leitor fica à vista (${s.barKids})`);
   assert.deepEqual(s.links,['Abrir','Pasta','Pedir ao tutor'],`${tag}: três atalhos pequenos embaixo`);
   assert.deepEqual(s.actions.map(a=>a.text),['Abrir','Pasta','Pedir ao tutor'],`${tag}: cada atalho traz a ação`);
   /* #90: o vazio é interface, não página de PDF. Nada de serifa, título de

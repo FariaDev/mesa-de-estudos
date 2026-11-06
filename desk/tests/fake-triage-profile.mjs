@@ -9,7 +9,7 @@ import path from 'node:path';
    cada texto que o teste de vazamento procura na saída.
 
    Traz também um `opencode` e um `pi` falsos que só respondem a `--version` e
-   `models`; qualquer outro subcomando (como `opencode run`) grava em
+   `models --standalone` (sem o flag, o 2.x deixa um serviço em segundo plano); qualquer outro subcomando (como `opencode run`) grava em
    `forbiddenLog` e sai com erro, para o teste provar que a triagem nunca chama
    inferência. Só macOS/Linux (scripts `sh`). */
 
@@ -26,6 +26,8 @@ const KEY_OPENCODE_AUTH='oc-zen-CHAVEDOOPENCODE1122334455';
 const SESSION_TEXT='minha dúvida particular sobre a questão 7';
 const SESSION_TITLE='Sessão sobre o divórcio dos meus pais';
 const CAPTURE='captura-do-caderno-da-ana.png';
+const PDF_COMMA='Lista, Cálculo (1).pdf';
+const XOPP_SEMI='estudo;a.xopp';
 
 /** @param {string} file @param {string} text */
 function put(file,text){
@@ -55,8 +57,10 @@ function deskLog({home,runtime,vault}){
   logLine({ts:'2026-10-21T10:05:00Z',level:'error',area:'conferir',msg:`captura ${path.join(home,'Desktop',CAPTURE)} falhou`}),
   logLine({ts:'2026-10-21T10:06:00Z',level:'info',area:'pi',msg:`chave carregada ${KEY_PI_AUTH}`}),
   logLine({ts:'2026-10-21T10:07:00Z',level:'error',area:'opencode',msg:`auth: {"opencode":{"type":"api","key":"${KEY_OPENCODE_AUTH}"}}`}),
-  `Error: erro antigo em texto em ${path.join(vault,COURSE_B)} e C:\\Users\\ana.secreta\\Documents\\${PDF_B}`,
- ].join('\n')+'\n';
+   `Error: erro antigo em texto em ${path.join(vault,COURSE_B)} e C:\\Users\\ana.secreta\\Documents\\${PDF_B}`,
+   logLine({ts:'2026-10-21T10:08:00Z',level:'error',area:'pdf',msg:`não abriu ${path.join(vault,PDF_COMMA)}: ENOENT`}),
+   logLine({ts:'2026-10-21T10:09:00Z',level:'error',area:'study',msg:`falhou ${path.join(runtime,XOPP_SEMI)}: ENOENT`}),
+  ].join('\n')+'\n';
 }
 
 /** @param {string} home @param {string} vault @param {string} runtime */
@@ -80,7 +84,7 @@ function engines(home,forbiddenLog,freeIds){
  const models=['opencode/gpt-5.5',...freeIds.map(id=>`opencode/${id}`)].join('\\n');
  const forbid=`echo "$@" >> '${forbiddenLog}'; exit 3`;
  executable(path.join(home,'.opencode','bin','opencode'),
-  `case "$1" in\n --version) echo 0.15.2 ;;\n models) printf '${models}\\n' ;;\n *) ${forbid} ;;\nesac`);
+  `case "$1" in\n --version) echo 0.15.2 ;;\n models) [ "$2" = '--standalone' ] || { ${forbid}; }; printf '${models}\\n' ;;\n *) ${forbid} ;;\nesac`);
  executable(path.join(home,'bin','pi'),`case "$1" in\n --version) echo 0.99.4 ;;\n *) ${forbid} ;;\nesac`);
 }
 
@@ -108,7 +112,8 @@ export function createFakeTriageProfile({opencode=true,freeIds=['big-pickle','de
  };
  const secrets=[
   root,home,runtime,vault,'ana.secreta','Cofre Particular da Ana','MesaRuntimePrivada',
-  COURSE_A,COURSE_B,COURSE_C,'calc-sigiloso',PDF_A,PDF_B,PDF_A.replace('.pdf',''),PDF_B.replace('.pdf',''),'Professor Zé',
+   COURSE_A,COURSE_B,COURSE_C,'calc-sigiloso',PDF_A,PDF_B,PDF_A.replace('.pdf',''),PDF_B.replace('.pdf',''),'Professor Zé',
+   PDF_COMMA,PDF_COMMA.replace('.pdf',''),XOPP_SEMI,XOPP_SEMI.replace('.xopp',''),
   KEY_LOG,KEY_BEARER,KEY_GITHUB,KEY_PI_AUTH,KEY_OPENCODE_AUTH,
   SESSION_TEXT,SESSION_TITLE,'2026-10-21_abc',CAPTURE,'caderno-da-ana',
  ];

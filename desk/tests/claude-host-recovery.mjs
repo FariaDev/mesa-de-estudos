@@ -13,7 +13,7 @@ await withArtifacts('claude-recovery',async ctx=>{
  fs.writeFileSync(trap,`#!/bin/sh\nprintf started >> '${starts}'\nexit 1\n`,{mode:0o755});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Recovery',name:'Recovery',path:folder}]});
  writeDeskJson(runtime,{courseId:'Recovery',session:file,courseStates:{Recovery:{session:file,sessions:[{path:file}]}}});
- const launch=()=>launchDesk({runtime,pi:false,env:{LEARNING_DESK_PI:trap,LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs')}});
+ const launch=()=>launchDesk({runtime,opencode:false,env:{LEARNING_DESK_PI:trap,LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs')}});
  let app=ctx.app=await launch(),page=await app.firstWindow();
  await page.waitForSelector('.pdf-panel');
  const recovered=await page.evaluate(()=>window.desk.init());

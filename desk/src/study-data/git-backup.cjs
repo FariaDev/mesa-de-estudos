@@ -36,6 +36,25 @@ const LEDGER = 'ledger.json';
 const BRANCH = 'main';
 const GIT_ERROR = 'MESA_GIT_BACKUP_ERROR';
 
+/* Chaves que o `git init` gera (macOS, Linux e Windows) mais o que o próprio
+   app grava (B-02: `core.bare`, `core.worktree` via `ensureRoot`): todo o
+   resto em `.mesa-git/config` — `core.fsmonitor`, `core.sshCommand`,
+   `core.pager`, `core.gitProxy`, `filter.*.clean` (com `.gitattributes` da
+   árvore), `diff.external`, `credential.helper`, `include.path` e outros —
+   executa comando e é recusado antes de qualquer uso. */
+const ALLOWED_REPO_KEYS = new Set([
+  'core.repositoryformatversion',
+  'core.filemode',
+  'core.bare',
+  'core.worktree',
+  'core.logallrefupdates',
+  'core.ignorecase',
+  'core.precomposeunicode',
+  'core.symlinks',
+]);
+
+const HOOK_NOISE = new Set(['.DS_Store', 'desktop.ini', 'Thumbs.db']);
+
 class GitBackupError extends Error {
   constructor(message, code = GIT_ERROR) {
     super(message);
@@ -64,8 +83,13 @@ function removeQuiet(abs) {
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
 
-function defaultRunner({gitDir, args, cwd, input = null, env = {}, timeoutMs = DEFAULT_TIMEOUT_MS, maxBuffer = DEFAULT_MAX_BUFFER}) {
-  const full = gitDir ? ['--git-dir', gitDir, ...args] : [...args];
+function defaultRunner({gitDir, workTree = '', args, cwd, input = null, env = {}, timeoutMs = DEFAULT_TIMEOUT_MS, maxBuffer = DEFAULT_MAX_BUFFER}) {
+  /* `--work-tree` à frente: o `core.worktree` do arquivo NÃO vence a linha de
+     comando (prova: `-c core.worktree=` perde do arquivo; `--work-tree` vence).
+     Todo comando do app passa por aqui com a árvore real, então um valor hostil
+     no config não desvia `add`/`clean` para fora do destino — e pasta movida
+     continua legítima. */
+  const full = gitDir ? ['--git-dir', gitDir, ...(workTree ? ['--work-tree', workTree] : []), ...args] : [...args];
   try {
     const stdout = execFileSync('git', full, {
       cwd,
@@ -94,6 +118,16 @@ function defaultRunner({gitDir, args, cwd, input = null, env = {}, timeoutMs = D
       overflow,
     };
   }
+}
+
+/* `--ref-format` no `init` só existe desde o git 2.45: fora dele o init segue
+   sem a trava (git antigo nem entende reftable).
+   @param {string} version a saída de `git --version`
+   @example refFormatSupported('git version 2.47.3') // true */
+function refFormatSupported(version) {
+  const match = /(\d+)\.(\d+)/.exec(String(version || ''));
+  if (!match) return false;
+  return Number(match[1]) > 2 || (Number(match[1]) === 2 && Number(match[2]) >= 45);
 }
 
 function gitAvailable(runner = defaultRunner) {
@@ -188,15 +222,69 @@ function api({root, runner = defaultRunner, deskDir = '', repoRoot = '', runtime
   }
   const ignoreLines = ['.mesa-git/', 'mesas/', 'ledger.json', ...ignoredRels];
 
-  const run = (args, options = {}) => runner({gitDir, cwd: dest, args, ...options});
+  const run = (args, options = {}) => { assertRepoTrusted(); return runner({gitDir, workTree: dest, cwd: dest, args, ...options}); };
   const runPlain = (args, options = {}) => runner({gitDir: '', cwd: dest, args, ...options});
 
   const identity = ['-c', 'user.name=Mesa de Estudos', '-c', 'user.email=mesa@localhost'];
   const cleanConfig = [
     '-c', 'commit.gpgsign=false',
     '-c', 'core.hooksPath=/dev/null',
+    '-c', 'core.fsmonitor=false',
     '-c', 'merge.autoEditMixedEOLs=false',
   ];
+
+  /* B-02: antes de qualquer comando num `.mesa-git` existente, recusa o
+     repositório que o app não reconhece. A leitura é
+     `git config --file <config> --list` (só interpreta o arquivo, nada
+     executa) e a checagem cobre chaves, ganchos e links. Sem apagar nada do
+     usuário e sem tocar no backup em snapshot, que é independente. A pasta
+     pode mudar entre operações, então vale a cada comando. */
+  function assertRepoTrusted() {
+    if (!fs.existsSync(gitDir)) return true;
+    for (const probe of [gitDir, path.join(gitDir, 'config'), path.join(gitDir, 'hooks')]) {
+      let stat;
+      try {
+        stat = fs.lstatSync(probe);
+      } catch {
+        continue;
+      }
+      if (stat.isSymbolicLink()) {
+        throw new GitBackupError(uiMsg('err.git.untrusted', {detail: `link simbólico em ${path.basename(probe)}`}));
+      }
+    }
+    const configFile = path.join(gitDir, 'config');
+    let listed;
+    try {
+      listed = runner({gitDir: '', cwd: dest, args: ['config', '--file', configFile, '--list']});
+    } catch (error) {
+      throw new GitBackupError(uiMsg('err.git.untrusted', {detail: String((error && error.message) || error)}));
+    }
+    if (!listed || listed.code !== 0) {
+      throw new GitBackupError(uiMsg('err.git.untrusted', {detail: String((listed && (listed.stderr || listed.stdout)) || 'configuração ilegível').trim().slice(0, 200)}));
+    }
+    const bad = [];
+    for (const line of String(listed.stdout || '').split('\n')) {
+      if (!line.trim()) continue;
+      const key = line.split('=')[0].trim().toLowerCase();
+      if (!ALLOWED_REPO_KEYS.has(key)) bad.push(key);
+    }
+    if (bad.length) {
+      throw new GitBackupError(uiMsg('err.git.untrusted', {detail: `chave não reconhecida: ${[...new Set(bad)].slice(0, 3).join(', ')}`}));
+    }
+    let hooks;
+    try {
+      hooks = fs.readdirSync(path.join(gitDir, 'hooks'));
+    } catch {
+      hooks = [];
+    }
+    /* Ruído conhecido do sistema (Finder/Explorer) não é gancho: o resto segue
+       recusado, para um hook novo de versão futura do git não passar. */
+    const foreign = hooks.filter((name) => !name.endsWith('.sample') && !HOOK_NOISE.has(name));
+    if (foreign.length) {
+      throw new GitBackupError(uiMsg('err.git.untrusted', {detail: `gancho em hooks/: ${foreign.slice(0, 3).join(', ')}`}));
+    }
+    return true;
+  }
 
   function ensureRoot() {
     const clash = looksLikeAppRepo(dest, {deskDir, repoRoot});
@@ -218,7 +306,10 @@ function api({root, runner = defaultRunner, deskDir = '', repoRoot = '', runtime
     fs.mkdirSync(dest, {recursive: true});
     /* `ledger.json` sozinho não é repositório: um destino que já teve backup
        local e agora ganha git precisa ser preparado. Só `gitDir` conta. */
-    if (fs.existsSync(gitDir)) return false;
+    if (fs.existsSync(gitDir)) {
+      assertRepoTrusted();
+      return false;
+    }
     /* Repositório alheio no destino é recusado ANTES da checagem de pasta
        vazia, para a mensagem dizer o motivo real. */
     const clashGit = looksLikeGitInTree(dest);
@@ -234,8 +325,30 @@ function api({root, runner = defaultRunner, deskDir = '', repoRoot = '', runtime
     }
     const probe = gitAvailable(runner);
     if (!probe.available) throw new GitBackupError(uiMsg('err.git.notFound', {detail: String(probe.error)}));
-    const init = runPlain(['init', '-q', '--bare', GIT_DIR]);
+    /* O `init` nasce surdo ao `init.*` global: `--template=` vazio ignora
+       template com hook, `--object-format=sha1` ignora `defaultObjectFormat`
+       e `--ref-format=files` ignora `defaultRefFormat` (reftable envenenaria o
+       `.mesa-git` recém-criado). `--ref-format` só existe desde o git 2.45:
+       git antigo recebe o init sem ele. */
+    const initBase = ['init', '-q', '--bare', '--template=', '--object-format=sha1'];
+    const initArgs = refFormatSupported(probe.version) ? [...initBase, '--ref-format=files'] : [...initBase];
+    let init = runPlain([...initArgs, GIT_DIR]);
+    if (init.code !== 0 && initArgs.includes('--ref-format=files') && /ref-format|unknown option/i.test(init.stderr || '')) {
+      removeQuiet(gitDir);
+      init = runPlain([...initBase, GIT_DIR]);
+    }
     if (init.code !== 0) throw new GitBackupError(uiMsg('err.git.initFailed', {detail: (init.stderr || '').trim()}));
+    /* `--template=` vazio pula os exemplos do template (e a pasta `hooks/`):
+       recria a pasta vazia para o layout seguir igual ao de antes. */
+    fs.mkdirSync(path.join(gitDir, 'hooks'), {recursive: true});
+    /* O `init` foi feito por este processo: se a validação recusar, apaga SÓ o
+       `.mesa-git` recém-criado (nada do usuário) para a próxima tentativa nascer limpa. */
+    try {
+      assertRepoTrusted();
+    } catch (error) {
+      removeQuiet(gitDir);
+      throw error;
+    }
     /* `git init` segue o `init.defaultBranch` da máquina (no Linux sem config
        nasce em `master`), mas o backup fala `main` no ledger e no push: fixa o
        HEAD sem depender de config nem de versão do git. */
@@ -390,7 +503,7 @@ function api({root, runner = defaultRunner, deskDir = '', repoRoot = '', runtime
       return {pushed: false, error: clean.reason || 'remoto vazio'};
     }
     if (clean.insecure) log(`git: ${clean.reason}`);
-    const result = run(['push', clean.url, `HEAD:refs/heads/${branch}`], {input: ''});
+    const result = run([...cleanConfig, 'push', '--no-verify', clean.url, `HEAD:refs/heads/${branch}`], {input: ''});
     const ok = result.code === 0;
     writeLedger({
       push: {
@@ -417,7 +530,7 @@ function api({root, runner = defaultRunner, deskDir = '', repoRoot = '', runtime
   function bundle({out = '', log = () => {}}) {
     ensureRoot();
     const target = out ? path.resolve(out) : path.join(dest, `snapshot-${Date.now()}.bundle`);
-    const result = run(['bundle', 'create', target, '--all']);
+    const result = run([...cleanConfig, 'bundle', 'create', target, '--all']);
     if (result.code !== 0) throw new GitBackupError(uiMsg('err.git.bundleFailed', {detail: (result.stderr || '').trim()}));
     log(`git: bundle ${target}`);
     return target;
@@ -555,11 +668,13 @@ module.exports = {
   GIT_DIR,
   LEDGER,
   BRANCH,
+  ALLOWED_REPO_KEYS,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_MAX_BUFFER,
   api,
   asyncApi,
   gitAvailable,
+  refFormatSupported,
   sanitizeRemote,
   looksLikeAppRepo,
   looksLikeGitInTree,

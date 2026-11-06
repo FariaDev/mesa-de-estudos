@@ -5,19 +5,19 @@
 // internas), logos no trilho, linhas em duas camadas, estrela de favorito
 // (Favoritos no topo, no desk.json), faixa de esforço no rodapé e nenhuma linha
 // cortada ao abrir. Mede nos dois temas, em 1440×900 e 900×650, e grava
-// capturas só com MESA_REVIEW_SHOTS. O catálogo vem do Pi de mentira (FAKE_PI_MANY_MODELS).
+// capturas só com MESA_REVIEW_SHOTS. O catálogo vem do Pi de mentira (FAKE_OPENCODE_MANY_MODELS).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
- withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,
+ withArtifacts,newRuntime,seedCourse,seedNativeSession,writeConfigJson,writeDeskJson,launchDesk,statusOnline,
  reviewShot,screenshotDirectory,setTheme,freezeMotion,openModelPop,closeModelPop,pickModel,modelRows,selectedModelKey,
  modelPickerLocked,indicatorText,resizeWindow,effortState
 } from './helpers.mjs';
 import {pollUntil,nextFrames} from './waits.mjs';
 
 const out=screenshotDirectory('seletor-modelo');
-const ENV={FAKE_PI_MANY_MODELS:'1',FAKE_PI_SECOND_MODEL:'1',FAKE_PI_REASONING:'1'};
+const ENV={FAKE_OPENCODE_MANY_MODELS:'1',FAKE_OPENCODE_SECOND_MODEL:'1',FAKE_PI_REASONING:'1'};
 const names=page=>modelRows(page).then(rows=>rows.map(row=>row.name));
 const titles=page=>page.locator('#model-list .model-group-title').allTextContents();
 const activeName=page=>page.evaluate(()=>{
@@ -36,7 +36,8 @@ await withArtifacts('model-picker',async ctx=>{
  const runtime=ctx.runtime=newRuntime('modelpicker');
  const course=seedCourse(runtime,'calc');
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
- writeDeskJson(runtime,{courseId:'calc'});
+ const session=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'modelo atual'}]}],{courseId:'calc',model:'opencode/deepseek-v4.1-flash-free'});
+ writeDeskJson(runtime,{courseId:'calc',session});
  let app=ctx.app=await launchDesk({runtime,env:ENV});
  let page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -61,28 +62,31 @@ await withArtifacts('model-picker',async ctx=>{
  });
  assert.ok(surface.width>=340&&surface.width<=360,`o popover largo, como o do T3 (${surface.width}px)`);
  assert.deepEqual({...surface,width:0},{picker:'0px',rail:'0px',popPad:'0px',width:0,scrollbar:'thin'},'uma superfície só, sem bordas internas e com barra fina');
- assert.deepEqual(await titles(page),['Anthropic','meu-provedor','OpenAI','test','xAI'],'um grupo por provedor, A–Z; o id desconhecido aparece cru');
+ assert.deepEqual(await titles(page),['Anthropic','meu-provedor','OpenAI','OpenCode Zen','xAI'],'um grupo por provedor, A–Z; o id desconhecido aparece cru');
  assert.equal(await page.locator('#model-list [role="group"]').count(),5);
  assert.equal(await page.locator('#model-list [role="group"]').first().getAttribute('aria-labelledby'),'model-group-0');
- assert.deepEqual(await names(page),['Sonnet 5','Modelo caseiro','GPT 5.5','Pi com visão','Pi de teste','Grok 4','Grok 4 Fast'],'dentro do grupo a ordem é por nome, sem caixa nem acento (ajustes do seletor)');
- assert.equal(await page.locator('#model-list [role="option"]').count(),7);
+ assert.deepEqual(await names(page),['Sonnet 5','Modelo caseiro','GPT 5.5 Pro','Big Pickle','Big Pickle com visão','DeepSeek V4.1 Flash Free','GPT 5.5','Grok 4','Grok 4 Fast'],'dentro do grupo a ordem é por nome, sem caixa nem acento (ajustes do seletor)');
+ assert.equal(await page.locator('#model-list [role="option"]').count(),10);
  assert.equal(await page.locator('#model-list [role="option"][aria-selected="true"]').count(),1,'uma linha só marcada como em uso');
- assert.equal(await selectedModelKey(page),JSON.stringify(['test','offline']),'a linha em uso é o modelo da sessão');
+ assert.equal(await selectedModelKey(page),JSON.stringify(['opencode','deepseek-v4.1-flash-free']),'a linha em uso é o modelo da sessão');
  assert.equal(await page.locator('#model-list .model-group[data-kind="recent"]').count(),0,'sem uso anterior, sem Recentes');
- assert.equal(await activeName(page),'Pi de teste','ao abrir, a linha ativa é a em uso');
+ assert.equal(await activeName(page),'DeepSeek V4.1 Flash Free','ao abrir, a linha ativa é a em uso');
  await reviewShot(page,out,'claro-1440x900-lista.png');
 
  /* ---- trilho de provedores (como o do T3 Code): uma entrada por grupo, pula até ele ---- */
  assert.deepEqual(await page.locator('#model-rail .model-rail-item').evaluateAll(items=>items.map(item=>[item.dataset.tip,item.getAttribute('aria-label'),item.textContent,item.querySelector('svg')?.dataset.brand||'monograma'])),
-  [['Anthropic','Anthropic','','anthropic'],['meu-provedor','meu-provedor','MP','monograma'],['OpenAI','OpenAI','','openai'],['test','test','T','monograma'],['xAI','xAI','','grok']],'o trilho tem o logo do provedor (o xAI com o do Grok); sem logo, o monograma com as letras do nome; a dica e o nome acessível dizem o provedor (logos dos fabricantes)');
+  [['Anthropic','Anthropic','','anthropic'],['meu-provedor','meu-provedor','MP','monograma'],['OpenAI','OpenAI','','openai'],['OpenCode Zen (por uso)','OpenCode Zen (por uso)','Z','opencode'],['xAI','xAI','','grok']],'o trilho tem o logo do provedor (o xAI com o do Grok); sem logo, o monograma com as letras do nome; a dica e o nome acessível dizem o provedor (logos dos fabricantes)');
  assert.equal(await page.locator('#model-rail').getAttribute('aria-hidden'),'true','o trilho é só visual: os grupos já têm título');
- assert.equal(await page.locator('#model-rail .model-rail-item.active').getAttribute('data-tip'),'test','o trilho marca o grupo da linha ativa');
+ assert.equal(await page.locator('#model-rail .model-rail-item.active').getAttribute('data-tip'),'OpenCode Zen (por uso)','o trilho marca o grupo da linha ativa');
  /* duas camadas: o nome em cima; no grupo do provedor, os fatos do catálogo embaixo
     (o provedor já está no título, ajustes do seletor); a estrela à direita */
  assert.deepEqual(await page.locator(`#model-list [data-key='${JSON.stringify(['anthropic','sonnet-5'])}']`).evaluate(row=>[
   row.querySelector('.model-row-top .model-row-name')?.textContent,row.querySelector('.model-row-meta .model-row-provider')?.textContent??null,
   row.querySelector('.model-row-meta .model-row-note')?.textContent,!!row.querySelector('.model-row-star svg'),row.querySelector('.model-row-badge')]),
-  ['Sonnet 5',null,'visão · raciocínio',true,null],'linha em duas camadas: no grupo do provedor, os fatos no lugar do nome dele; a estrela; sem selo (não é grátis)');
+  ['Sonnet 5',null,'200 mil · visão · raciocínio · US$\u00a01,00/US$\u00a02,00 por mi',true,null],'linha em duas camadas: no grupo do provedor, os fatos no lugar do nome dele; a estrela; sem selo (não é grátis)');
+ /* A nota corta no meio da palavra em coluna estreita: o texto cheio fica no title (B1). */
+ assert.equal(await page.locator(`#model-list [data-key='${JSON.stringify(['anthropic','sonnet-5'])}'] .model-row-note`).evaluate(el=>el.title||null),
+  '200 mil · visão · raciocínio · US$\u00a01,00/US$\u00a02,00 por mi','a nota cortada mostra o texto cheio no title');
  const focusBefore=await page.evaluate(()=>document.activeElement?.id);
  await page.locator('#model-rail .model-rail-item[data-tip="xAI"]').click();
  assert.equal(await activeName(page),'Grok 4','clicar no provedor leva a linha ativa ao primeiro modelo dele');
@@ -99,14 +103,14 @@ await withArtifacts('model-picker',async ctx=>{
  assert.equal(await page.locator('#model-rail .model-rail-item[data-kind="favorite"] svg').count(),1);
  assert.equal(await star('xai','grok-4').getAttribute('data-favorite'),'1','a estrela fica acesa');
  assert.match(await star('xai','grok-4').getAttribute('title'),/^Tirar dos favoritos \((⌘D|Ctrl\+D)\)$/,'a dica diz o atalho (#58)');
- assert.equal(await selectedModelKey(page),JSON.stringify(['test','offline']),'a estrela não troca o modelo');
- await pollUntil(()=>favoritesOnDisk(runtime),favorites=>favorites?.pi?.length===1,{what:'o favorito no desk.json'});
- assert.deepEqual(favoritesOnDisk(runtime),{pi:[['xai','grok-4']]});
+ assert.equal(await selectedModelKey(page),JSON.stringify(['opencode','deepseek-v4.1-flash-free']),'a estrela não troca o modelo');
+ await pollUntil(()=>favoritesOnDisk(runtime),favorites=>favorites?.opencode?.length===1,{what:'o favorito no desk.json'});
+ assert.deepEqual(favoritesOnDisk(runtime),{opencode:[['xai','grok-4']]});
  await star('anthropic','sonnet-5').click();
  await pollUntil(()=>groupNames(page,'favorite'),list=>list.join()==='Grok 4,Sonnet 5',{what:'favoritos na ordem em que foram marcados'});
  await star('anthropic','sonnet-5').click();
  await pollUntil(()=>groupNames(page,'favorite'),list=>list.join()==='Grok 4',{what:'desmarcar tira do grupo'});
- await pollUntil(()=>favoritesOnDisk(runtime),favorites=>favorites?.pi?.length===1,{what:'o desmarcado sai do desk.json'});
+ await pollUntil(()=>favoritesOnDisk(runtime),favorites=>favorites?.opencode?.length===1,{what:'o desmarcado sai do desk.json'});
  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(path.join(runtime,'config.json'),'utf8')),'modelFavorites'),false,'os favoritos não vão para o config.json');
 
  /* ---- estrela pelo teclado (#58): ⌘D/Ctrl+D na linha ativa, foco na busca ---- */
@@ -117,40 +121,40 @@ await withArtifacts('model-picker',async ctx=>{
  });
  const keySearch=page.locator('#model-search');
  await keySearch.focus();
- await keySearch.fill('GPT 5.5');
- await pollUntil(()=>activeName(page),name=>name==='GPT 5.5',{what:'a busca põe o GPT 5.5 na linha ativa'});
+ await keySearch.fill('GPT 5.5 Pro');
+ await pollUntil(()=>activeName(page),name=>name==='GPT 5.5 Pro',{what:'a busca põe o GPT 5.5 na linha ativa'});
  let starState=await activeStar();
  assert.equal(starState.hidden,null,'a estrela não está mais escondida do leitor de tela');
  assert.match(starState.described,/^(⌘D|Ctrl\+D) favorita$/,'a linha descreve o estado e o atalho');
  await keySearch.press('ControlOrMeta+d');
- await pollUntil(()=>page.locator('#model-picker-status').textContent(),text=>text==='GPT 5.5 nos favoritos',{what:'o anúncio da estrela ligada'});
+ await pollUntil(()=>page.locator('#model-picker-status').textContent(),text=>text==='GPT 5.5 Pro nos favoritos',{what:'o anúncio da estrela ligada'});
  starState=await activeStar();
- assert.equal(starState.name,'GPT 5.5','a linha ativa segue o mesmo modelo');
+ assert.equal(starState.name,'GPT 5.5 Pro','a linha ativa segue o mesmo modelo');
  assert.equal(starState.favorite,'1');
  assert.match(starState.described,/^Favorito; (⌘D|Ctrl\+D) tira dos favoritos$/);
  assert.equal(await page.evaluate(()=>document.activeElement?.id),'model-search','o foco fica na busca');
- await pollUntil(()=>favoritesOnDisk(runtime),favorites=>favorites?.pi?.length===2,{what:'o favorito do teclado no desk.json'});
+ await pollUntil(()=>favoritesOnDisk(runtime),favorites=>favorites?.opencode?.length===2,{what:'o favorito do teclado no desk.json'});
  await keySearch.press('ControlOrMeta+d');
- await pollUntil(()=>page.locator('#model-picker-status').textContent(),text=>text==='GPT 5.5 fora dos favoritos',{what:'o anúncio da estrela desligada'});
- await pollUntil(()=>favoritesOnDisk(runtime),favorites=>favorites?.pi?.length===1,{what:'desmarcar pelo teclado sai do desk.json'});
- assert.equal(await keySearch.inputValue(),'GPT 5.5','o atalho não escreve na busca');
+ await pollUntil(()=>page.locator('#model-picker-status').textContent(),text=>text==='GPT 5.5 Pro fora dos favoritos',{what:'o anúncio da estrela desligada'});
+ await pollUntil(()=>favoritesOnDisk(runtime),favorites=>favorites?.opencode?.length===1,{what:'desmarcar pelo teclado sai do desk.json'});
+ assert.equal(await keySearch.inputValue(),'GPT 5.5 Pro','o atalho não escreve na busca');
  await keySearch.fill('');
- await pollUntil(()=>selectedModelKey(page),key=>key===JSON.stringify(['test','offline']),{what:'o atalho não troca o modelo'});
+ await pollUntil(()=>selectedModelKey(page),key=>key===JSON.stringify(['opencode','deepseek-v4.1-flash-free']),{what:'o atalho não troca o modelo'});
 
  /* ---- clicar escolhe, mantém o popover aberto e põe o modelo nos recentes ---- */
- await pickModel(page,'openai','gpt-5.5');
- await pollUntil(()=>indicatorText(page),text=>text.startsWith('GPT 5.5'),{what:'o indicador com o modelo novo'});
+ await pickModel(page,'openai','gpt-5.5-pro');
+ await pollUntil(()=>indicatorText(page),text=>text.startsWith('GPT 5.5 Pro'),{what:'o indicador com o modelo novo'});
  assert.equal(await page.locator('#model-pop').isVisible(),true,'escolher não fecha o popover (o esforço vem a seguir)');
- assert.equal(await selectedModelKey(page),JSON.stringify(['openai','gpt-5.5']));
+ assert.equal(await selectedModelKey(page),JSON.stringify(['openai','gpt-5.5-pro']));
  await pollUntil(()=>titles(page),list=>list.slice(0,2).join()==='Favoritos,Recentes',{what:'Recentes logo abaixo dos Favoritos'});
- assert.deepEqual(await page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),['GPT 5.5']);
+ assert.deepEqual(await page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),['GPT 5.5 Pro']);
  assert.equal(await page.locator('#model-list .model-group[data-kind="recent"] .model-row-provider').first().textContent(),'OpenAI','no grupo Recentes a linha diz o provedor');
  await pickModel(page,'xai','grok-4');
  await pollUntil(()=>indicatorText(page),text=>text.startsWith('Grok 4'),{what:'o segundo modelo'});
- await pollUntil(()=>page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),list=>list.join()==='GPT 5.5',{what:'Recentes sem repetir o favorito'});
+ await pollUntil(()=>page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),list=>list.join()==='GPT 5.5 Pro',{what:'Recentes sem repetir o favorito'});
  assert.equal(await groupNames(page,'recent').then(list=>list.includes('Grok 4')),false,'Grok 4 já está em Favoritos, não se repete em Recentes');
- await pollUntil(()=>recentsOnDisk(runtime),recents=>recents?.pi?.[0]?.[1]==='grok-4',{what:'os recentes no desk.json'});
- assert.deepEqual(recentsOnDisk(runtime).pi,[['xai','grok-4'],['openai','gpt-5.5']]);
+ await pollUntil(()=>recentsOnDisk(runtime),recents=>recents?.opencode?.[0]?.[1]==='grok-4',{what:'os recentes no desk.json'});
+ assert.deepEqual(recentsOnDisk(runtime).opencode,[['xai','grok-4'],['openai','gpt-5.5-pro']]);
  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(path.join(runtime,'config.json'),'utf8')),'modelRecents'),false,'os recentes não vão para o config.json');
 
  /* ---- busca: nome, id e provedor; sem acento nem caixa; Recentes saem ---- */
@@ -159,7 +163,7 @@ await withArtifacts('model-picker',async ctx=>{
  assert.deepEqual(await names(page),['Grok 4','Grok 4 Fast']);
  assert.deepEqual(await titles(page),['xAI'],'sem Recentes na busca; grupos sem resultado somem');
  await search.fill('openai gpt');
- assert.deepEqual(await names(page),['GPT 5.5']);
+ assert.deepEqual(await names(page),['GPT 5.5 Pro']);
  await search.fill('caseiro');
  assert.deepEqual(await names(page),['Modelo caseiro']);
  await search.fill('zzz');
@@ -192,12 +196,12 @@ await withArtifacts('model-picker',async ctx=>{
  /* ---- linha sob o mouse mais clara que a selecionada, nos dois temas ---- */
  for(const theme of ['light','dark']){
   await setTheme(page,theme);
-  await page.locator('#model-list .model-row:not([aria-selected="true"])').first().hover();
+  await page.locator('#model-list .model-row[data-row]:not([aria-selected="true"])').first().hover();
   await nextFrames(page);
   const colors=await page.evaluate(()=>{
    const rows=[...document.querySelectorAll('#model-list .model-row')];
    const selected=rows.find(row=>row.getAttribute('aria-selected')==='true');
-   const hovered=rows.find(row=>row.classList.contains('active')&&row!==selected);
+   const hovered=rows.find(row=>row.matches(':hover')&&row!==selected);
    const pop=document.querySelector('#model-pop');
    return {selected:getComputedStyle(selected).backgroundColor,hovered:hovered?getComputedStyle(hovered).backgroundColor:'',pop:getComputedStyle(pop).backgroundColor};
   });
@@ -232,7 +236,7 @@ await withArtifacts('model-picker',async ctx=>{
  await page.keyboard.press('Escape');
  await page.locator('#model-pop').waitFor({state:'hidden'});
  assert.equal(await page.evaluate(()=>document.activeElement.id),'model-indicator','Esc devolve o foco ao indicador');
- await pollUntil(()=>recentsOnDisk(runtime),recents=>recents?.pi?.[0]?.[1]==='grok-4-fast',{what:'⏎ também entra nos recentes'});
+ await pollUntil(()=>recentsOnDisk(runtime),recents=>recents?.opencode?.[0]?.[1]==='grok-4-fast',{what:'⏎ também entra nos recentes'});
 
  /* ---- reabrir o popover limpa a busca e deixa a linha em uso à vista ---- */
  await openModelPop(page);
@@ -251,7 +255,7 @@ await withArtifacts('model-picker',async ctx=>{
  await resizeWindow(app,page,1440,900);
  await statusOnline(page);
  await openModelPop(page);
- await pollUntil(()=>page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),list=>list.join()==='Grok 4 Fast,GPT 5.5',{what:'recentes de volta depois de reabrir'});
+ await pollUntil(()=>page.locator('#model-list .model-group[data-kind="recent"] .model-row-name').allTextContents(),list=>list.join()==='Grok 4 Fast,GPT 5.5 Pro',{what:'recentes de volta depois de reabrir'});
  assert.deepEqual(await groupNames(page,'favorite'),['Grok 4'],'favoritos de volta depois de reabrir');
 
  /* ---- medidas: os dois temas, 1440×900 e 900×650 ---- */

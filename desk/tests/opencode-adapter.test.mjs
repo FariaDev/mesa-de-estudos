@@ -139,6 +139,19 @@ test('envio aceito abre o turno, a resposta chega pelo SSE e o turno fecha como 
   assert.equal(adapter.snapshot().busy, false);
 });
 
+test('Parar interrompe o turno e fecha a entrega como settled (não incerta)', async (t) => {
+  const serve = await createFakeOpencodeServe({password: PASSWORD, turnDelayMs: 60000});
+  t.after(() => serve.close());
+  const {adapter, events, deliveries} = createHarness(serve);
+  t.after(() => adapter.stop());
+  await adapter.send({id: 'u1', text: 'pergunta longa'});
+  const stopped = await adapter.cancel();
+  assert.deepEqual(stopped, {aborted: true});
+  await waitFor(events, (item) => item.type === 'turn_end' && item.cancelled === true, 'turn_end cancelado');
+  assert.deepEqual(deliveries.map((item) => item.status), ['accepted', 'settled'], 'a mensagem chegou; só a resposta foi cancelada');
+  assert.equal(adapter.snapshot().busy, false);
+});
+
 test('as instruções da Mesa vão no canal da sessão e saem do histórico', async (t) => {
   const serve = await createFakeOpencodeServe({password: PASSWORD});
   t.after(() => serve.close());
@@ -275,7 +288,7 @@ test('pedido de permissão inesperado é recusado na hora, sem diálogo', async 
   await adapter.send({id: 'u1', text: 'liste'});
   const warning = await waitFor(events, (item) => item.type === 'warning' && item.code === 'OPENCODE_PERMISSION_REFUSED', 'aviso de recusa');
   assert.ok(warning.message);
-  const reply = serve.requests.find((item) => item.method === 'POST' && item.url.includes('/permission/') && item.url.endsWith('/reply'));
+  const reply = await waitFor(serve.requests, (item) => item.method === 'POST' && item.url.includes('/permission/') && item.url.endsWith('/reply'), 'reply de recusa');
   assert.deepEqual(reply.body, {decision: 'reject'});
   assert.equal(events.some((item) => item.type === 'permission_request'), false, 'nunca abre diálogo');
 });
@@ -363,6 +376,26 @@ test('403 do grátis no SSE vira error não fatal com a frase própria e fecha o
   assert.deepEqual(deliveries.map((item) => item.status), ['accepted', 'settled']);
 });
 
+test('limite do grátis (429 FreeUsageLimitError) falha no grátis e passa no pago, com a frase própria', async (t) => {
+  const serve = await createFakeOpencodeServe({password: PASSWORD, failTurn: 'free-limit'});
+  t.after(() => serve.close());
+  const {adapter, events} = createHarness(serve);
+  t.after(() => adapter.stop());
+  await adapter.setControls({model: 'opencode/deepseek-v4.1-flash-free'});
+  await adapter.send({id: 'u1', text: 'Diga só: oi'});
+  const end = await waitFor(events, (item) => item.type === 'turn_end', 'turn_end do grátis');
+  assert.equal(keyOf(events.find((item) => item.type === 'error')), 'opencode.event.freeLimit');
+  assert.equal(end.isError, true);
+  const errorsBefore = events.filter((item) => item.type === 'error').length;
+  /* Modelo pago: reenviar funciona na mesma conversa (a sessão não trava). */
+  await adapter.setControls({model: 'opencode/gpt-5.5'});
+  await adapter.send({id: 'u2', text: 'Diga só: oi'});
+  const answer = await waitFor(events, (item) => item.type === 'message_end', 'resposta do pago');
+  assert.match(String(answer.message?.content?.[0]?.text || ''), /Resposta do OpenCode falso/);
+  assert.equal(events.filter((item) => item.type === 'error').length, errorsBefore, 'o pago não repete o erro do grátis');
+  assert.equal(events.filter((item) => item.type === 'turn_end').length, 2);
+});
+
 test('o MCP sobe junto com o catálogo e o SSE só começa depois da sessão', async (t) => {
   const serve = await createFakeOpencodeServe({password: PASSWORD});
   t.after(() => serve.close());
@@ -432,6 +465,23 @@ test('erro imediato do provedor chega DEPOIS do turn_start e abre o diário (#89
 });
 
 
+test('stop cancela a subida pendente em vez de deixar a coluna em Chamando', async () => {
+  /* Regressão do send-offline-ui: cancelar enquanto o servidor sobe precisa
+     rejeitar o connect pendente; só limpar `live.bridge` deixava a janela
+     presa em "Chamando o tutor…". */
+  let rejectAcquire;
+  let cancelCalls = 0;
+  const adapter = new OpenCodeAdapter({conversationId: 'conv-cancel', sessionId: '', directory: '/tmp/mesa-ws/conv-cancel',
+    acquire: () => new Promise((_resolve, reject) => { rejectAcquire = reject; }),
+    cancelAcquire: () => { cancelCalls += 1; rejectAcquire?.(Error('subida cancelada')); },
+    readVersion: fakeReadVersion, log: () => {}});
+  const connecting = adapter.connect();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  adapter.stop();
+  await assert.rejects(connecting, /subida cancelada/);
+  assert.equal(cancelCalls, 1);
+});
+
 test('a sessão temporária é apagada com a pasta na query; 404 vira log, não sucesso (#93)', async (t) => {
   const serve = await createFakeOpencodeServe({password: PASSWORD});
   t.after(() => serve.close());
@@ -454,4 +504,119 @@ test('a sessão temporária é apagada com a pasta na query; 404 vira log, não 
   await failing.deleteTemporarySession();
   assert.equal(failures.length, 1, 'a recusa é registrada');
   assert.match(failures[0], /ses_404.*HTTP 404/);
+});
+
+/* Revisão do release: o lease ficava gravado depois da falha, e o segundo
+   connect voltava cedo, "online" sobre uma sessão que nunca existiu. */
+test('connect depois de falha ao criar a sessão tenta de novo e fica de fato conectado', async (t) => {
+  const serve = await createFakeOpencodeServe({password: PASSWORD});
+  t.after(() => serve.close());
+  let failures = 1;
+  const failingFetch = async (url, init) => {
+    if (failures > 0 && init?.method === 'POST' && new URL(url).pathname === '/api/session') {
+      failures -= 1;
+      return new Response(JSON.stringify({error: 'indisponível'}), {status: 500, headers: {'content-type': 'application/json'}});
+    }
+    return fetch(url, init);
+  };
+  const {adapter, events} = createHarness(serve, {fetch: failingFetch});
+  t.after(() => adapter.stop());
+  await assert.rejects(adapter.connect());
+  await adapter.connect();
+  assert.ok(events.some((event) => event.type === 'init' && event.sessionId));
+  assert.ok(serve.requests.filter((item) => item.method === 'POST' && item.url === '/api/session').length >= 1);
+});
+
+/* `stop()` no meio do `bind()` invalida a ligação em voo: quando o `acquire`
+   resolve (a subida segue para outra conversa), nada é instalado e nenhuma
+   sessão é aberta. É geração, não flag: o adaptador religa depois (#57). */
+test('stop invalida o bind pendente e o adaptador religa depois', async (t) => {
+  let releaseAcquire;
+  let cancelCalls = 0;
+  const adapter = new OpenCodeAdapter({conversationId: 'conv-stale', sessionId: '', directory: '/tmp/mesa-ws/conv-stale',
+    acquire: () => new Promise((resolve) => { releaseAcquire = resolve; }),
+    /* Servidor dividido: cancelar aqui não aborta, a subida segue para outra conversa. */
+    cancelAcquire: () => { cancelCalls += 1; },
+    readVersion: fakeReadVersion, log: () => {}});
+  const connecting = adapter.connect().then(() => ({ok: true}), (error) => ({error}));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  adapter.stop();
+  assert.equal(cancelCalls, 1);
+  releaseAcquire({baseUrl: 'http://127.0.0.1:9', password: 'x', binary: '/fake/opencode'});
+  const outcome = await connecting;
+  assert.equal(outcome.error?.notSent, true, 'o bind parado rejeita como cancelado');
+  assert.equal(adapter.lease, null, 'nada instalado');
+  assert.equal(adapter.client, null, 'nada instalado');
+  assert.equal(adapter.sessionId, '', 'nenhum ses_ adotado');
+  const serve = await createFakeOpencodeServe({password: PASSWORD});
+  t.after(() => serve.close());
+  t.after(() => adapter.stop());
+  adapter.options.acquire = async () => ({baseUrl: serve.url, password: PASSWORD, binary: '/fake/opencode'});
+  await adapter.connect();
+  assert.ok(serve.sessions.has(adapter.sessionId), 'depois do stop o adaptador volta a ligar');
+  assert.equal(serve.requests.filter((item) => item.method === 'POST' && item.url === '/api/session').length, 1,
+    'nenhuma sessão foi aberta pelo bind parado');
+});
+
+/* O eco `session.execution.interrupted` do turno cancelado não fecha o turno
+   novo: o `cancel()` já liquidou a entrega pelo HTTP e o evento do SSE chega
+   depois, sem identificador de turno (#57). */
+test('eco atrasado do interrupt não fecha o turno novo, e o interrupt de verdade fecha', async (t) => {
+  const serve = await createFakeOpencodeServe({password: PASSWORD, turnDelayMs: 60000});
+  t.after(() => serve.close());
+  const {adapter, events, deliveries} = createHarness(serve);
+  t.after(() => adapter.stop());
+  await adapter.send({id: 'u1', text: 'primeira'});
+  await adapter.cancel();
+  await waitFor(events, (item) => item.type === 'turn_end', 'fim do turno cancelado');
+  /* Eco perdido no caminho: o evento nunca veio pelo SSE (a conta segue
+     devendo um eco, sem pendurar nada). */
+  adapter.closeStream();
+  await adapter.send({id: 'u2', text: 'segunda'});
+  /* O fechamento acima zera a conta; o eco a dever é o do cenário. */
+  adapter.turnGuard.noteInterrupt();
+  assert.equal(adapter.snapshot().busy, true, 'o turno novo está em voo');
+  const endsBefore = events.filter((item) => item.type === 'turn_end').length;
+  /* O eco atrasado do turno antigo chega com o turno novo em voo. */
+  adapter.receive('execution', {status: 'interrupted'});
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(events.filter((item) => item.type === 'turn_end').length, endsBefore, 'o eco não fecha o turno novo');
+  assert.equal(adapter.snapshot().busy, true, 'o turno novo segue em voo');
+  assert.deepEqual(deliveries.map((item) => item.status), ['accepted', 'settled', 'accepted'],
+    'a entrega nova não é marcada como settled');
+  /* E o interrupt de verdade (sem eco pendente) continua fechando o turno. */
+  adapter.receive('execution', {status: 'interrupted'});
+  const end = await waitFor(events, (item) => item.type === 'turn_end' && events.filter((e) => e.type === 'turn_end').length > endsBefore, 'fim do turno novo');
+  assert.equal(end.cancelled, true);
+  assert.deepEqual(deliveries.map((item) => item.status), ['accepted', 'settled', 'accepted', 'settled']);
+});
+
+test('eco que chega antes da resposta do interrupt não fica devendo', async (t) => {
+  const serve = await createFakeOpencodeServe({password: PASSWORD, turnDelayMs: 60000});
+  t.after(() => serve.close());
+  const {adapter, events} = createHarness(serve);
+  t.after(() => adapter.stop());
+  await adapter.send({id: 'u1', text: 'primeira'});
+  adapter.receive('execution', {status: 'interrupted'});
+  await adapter.cancel();
+  assert.equal(adapter.turnGuard.interruptEchoes, 0, 'o eco já fechou o turno');
+  const ends = events.filter((item) => item.type === 'turn_end').length;
+  assert.equal(ends, 1);
+});
+
+/* Regressão do model-indicator-fit-ui: o Parar pode chegar antes de o prompt
+   ser aceito (o botão nasce com o `busy` otimista). Sem esperar o envio, o
+   interrupt não acha turno e o prompt seguinte abre o turno de novo — Parar
+   perdido. */
+test('Parar durante o envio espera o aceite e interrompe o turno', async (t) => {
+  const serve = await createFakeOpencodeServe({password: PASSWORD, turnDelayMs: 60000});
+  t.after(() => serve.close());
+  const {adapter, events} = createHarness(serve);
+  t.after(() => adapter.stop());
+  const sending = adapter.send({id: 'u-race', text: 'pergunta imediata'});
+  const stopped = await adapter.cancel();
+  assert.deepEqual(stopped, {aborted: true}, 'o Parar vale mesmo antes do aceite');
+  await sending;
+  await waitFor(events, (item) => item.type === 'turn_end' && item.cancelled === true, 'turn_end cancelado');
+  assert.equal(adapter.snapshot().busy, false, 'a coluna volta ao convite, não fica presa em Parar');
 });

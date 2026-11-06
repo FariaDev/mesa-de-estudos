@@ -11,7 +11,7 @@ await withArtifacts('mesa-claude-activity',async ctx=>{
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Synthetic',name:'Física sintética',path:folder}]});
  writeDeskJson(runtime,{courseId:'Synthetic',session:file,courseStates:{Synthetic:{session:file,sessions:[{path:file}]}}});
  const previewOut=path.join(runtime,'claude-preview.json');
- ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-activity-fake.mjs'),FAKE_CLAUDE_PREVIEW_OUT:previewOut}});
+ ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-activity-fake.mjs'),FAKE_CLAUDE_PREVIEW_OUT:previewOut}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page,{timeout:30000});
  await page.locator('#prompt').fill('Explorar a aceleração.');await page.locator('#send').click();

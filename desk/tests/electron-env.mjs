@@ -26,11 +26,16 @@ export function testEnv(extra={}){
  guardChildren();
  const env={...process.env,...extra};
  env.DESK_TEST='1';
+ /* O serve falso sai quando o PROCESSO DO TESTE morre, não só quando o
+    Electron morre (#105): sem isto, um teste avulso morto por SIGKILL deixa o
+    Electron e o serve detached vivos. Só o fake lê esta variável. */
+ if(!Object.hasOwn(extra,'MESA_TEST_OWNER_PID'))env.MESA_TEST_OWNER_PID=String(process.pid);
  /* O idioma do sistema decide o da interface quando ninguém escolheu (#41): o teste fixa pt-BR, que é o que as asserções esperam. */
  if(!Object.hasOwn(extra,'LEARNING_DESK_LOCALE'))env.LEARNING_DESK_LOCALE='pt-BR';
  if(!Object.hasOwn(extra,'LEARNING_DESK_CLAUDE_HOME'))env.LEARNING_DESK_CLAUDE_HOME=guardClaudeHome();
- /* A suíte usa os fakes de Pi/Claude como motores visíveis (chave só de teste). */
- if(!Object.hasOwn(extra,'LEARNING_DESK_VISIBLE_ENGINES'))env.LEARNING_DESK_VISIBLE_ENGINES='pi,claude,opencode';
+ /* A suíte usa os fakes de OpenCode/Claude como motores visíveis (chave só de
+    teste). O Pi saiu com o motor; o nome dele não reabre nada. */
+ if(!Object.hasOwn(extra,'LEARNING_DESK_VISIBLE_ENGINES'))env.LEARNING_DESK_VISIBLE_ENGINES='claude,opencode';
  delete env.LEARNING_DESK_CLAUDE_SDK_BINARY;
  delete env.ELECTRON_RUN_AS_NODE;
  return env;

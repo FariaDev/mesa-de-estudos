@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';import path from 'node:path';import fs from 'node:fs';
-import {captureFixtureEnv,screenshotDirectory,pickTheme,withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,tinyPdf,tinyPdfPages,toastWait,sendEnabled,statusOnline,PLOT_PNG,menuLocator,tutorMore,sessionIds,openSessionById,openSessionList,closeSessionList,openTutorMore,fillStudyTitle,resizeWindow,pageWindow} from './helpers.mjs';
+import {captureFixtureEnv,screenshotDirectory,pickTheme,withArtifacts,launchDesk,newRuntime,newSession,seedCourse,seedPlot,seedNativeSession,writeDeskJson,writeConfigJson,tinyPdf,tinyPdfPages,toastWait,sendEnabled,statusOnline,PLOT_PNG,menuLocator,tutorMore,sessionIds,openSessionById,openSessionList,closeSessionList,openTutorMore,fillStudyTitle,resizeWindow,pageWindow} from './helpers.mjs';
 import {layoutStable,nextFrames,pollUntil} from './waits.mjs';
 const deskJson=runtime=>{try{return JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));}catch{return null;}};
 
@@ -9,10 +9,17 @@ await withArtifacts('smoke',async ctx=>{
  fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdfPages(3,'Limites e derivadas'));
  fs.writeFileSync(path.join(course,'Formulario.pdf'),tinyPdfPages(2,'Formulario e apoio'));
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calculus I',name:'Cálculo I',path:course}]});
- const plot=seedPlot(runtime,'Calculus I');
- const sessionFile=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:`Aqui está o gráfico:\n\n![curva de teste](file://${plot})`}]}}]);
- writeDeskJson(runtime,{session:sessionFile,courseId:'Calculus I'});
- const app=ctx.app=await launchDesk({runtime,env:captureFixtureEnv(runtime)});
+  const plot=seedPlot(runtime,'Calculus I');
+  const sessionFile=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:`Aqui está o gráfico:\n\n![curva de teste](file://${plot})`}]}],{courseId:'Calculus I'});
+  writeDeskJson(runtime,{session:sessionFile,courseId:'Calculus I'});
+  /* Quiz via MCP do fake OpenCode (#57): o primeiro é simples com LaTeX, o
+     segundo é múltipla escolha (as duas opções certas). */
+  const smokeQuiz=(question,options,correctAnswer,explanation,multiSelect)=>({name:'quiz',input:{question,details:'Pergunta de teste',options:options.map(label=>({label})),correctAnswer,explanation,...(multiSelect?{multiSelect:true}:{})}});
+  const app=ctx.app=await launchDesk({runtime,env:captureFixtureEnv(runtime,{FAKE_OPENCODE_MCP_CALLS:JSON.stringify([
+   smokeQuiz('Quanto é $x^2$ com $x=3$?',['$6$','$9$'],'$9$','Porque $3^2=9$.'),
+   smokeQuiz('Marque os pares',['$2$','$4$'],['$2$','$4$'],'Pares: $2$ e $4$.',true),
+   smokeQuiz('Quanto é $1+1$?',['$1$','$2$'],'$2$','Porque $1+1=2$.'),
+  ])})});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE',m.text());});
  assert.equal(await (await pageWindow(app,page)).evaluate(win=>win.isVisible()),false,'janela oculta em testes');
  if(process.platform==='darwin')assert.equal(await app.evaluate(({app})=>app.dock.isVisible()),false,'Dock oculta em testes');
@@ -125,13 +132,13 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  await page.locator('#image-copy').click();
  await page.waitForFunction(()=>document.querySelector('#toast')&&!document.querySelector('#toast').hidden&&document.querySelector('#toast').textContent.includes('Imagem copiada'));
  await page.locator('#image-dialog .dialog-close').click();
- // menu de comandos slash: local (/compact) + os que o Pi listar
- await page.locator('#prompt').fill('/');
- await page.waitForSelector('#slash-menu:not([hidden])',{timeout:15000});
- const slashItems=await page.locator('#slash-menu .slash-item').count();
- assert.ok(slashItems>=2,`menu slash com locais + Pi (viu ${slashItems})`);
- assert.match(await page.locator('#slash-menu .slash-item').first().textContent(),/\/compact/,'comando local /compact no topo');
- assert.ok(await page.locator('#slash-menu .slash-item').filter({hasText:'/help'}).count()>=1,'comando do Pi listado');
+  // menu de comandos slash: local (/compact) + os que o OpenCode listar
+  await page.locator('#prompt').fill('/');
+  await page.waitForSelector('#slash-menu:not([hidden])',{timeout:15000});
+  const slashItems=await page.locator('#slash-menu .slash-item').count();
+  assert.ok(slashItems>=2,`menu slash com locais + OpenCode (viu ${slashItems})`);
+  assert.match(await page.locator('#slash-menu .slash-item').first().textContent(),/\/compact/,'comando local /compact no topo');
+  assert.ok(await page.locator('#slash-menu .slash-item').filter({hasText:'/review'}).count()>=1,'comando do OpenCode listado');
  // a casca e as linhas vêm do núcleo compartilhado (core/slashview.bend)
  assert.equal(await page.locator('#slash-menu').getAttribute('class'),'slash-pop');
  assert.equal(await page.locator('#slash-menu .slash-head').textContent(),'Comandos');
@@ -143,9 +150,9 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  assert.equal(await page.locator('#slash-menu .slash-item.active').getAttribute('aria-selected'),'true');
  assert.ok(await page.locator('#slash-menu .slash-item').first().getAttribute('data-key'),'a key da linha vira dataset.key');
  assert.equal(await page.locator('#slash-menu .slash-check svg.icon').count(),slashItems,'o SVG do check ocupa o slot do Bend em toda linha');
- await page.locator('#prompt').fill('/hel');
- await page.waitForFunction(()=>document.querySelectorAll('#slash-menu .slash-item').length===1);
- assert.match(await page.locator('#slash-menu .slash-item.active .slash-name').textContent(),/^\/help/,'o filtro repinta a árvore com o ativo certo');
+  await page.locator('#prompt').fill('/rev');
+  await page.waitForFunction(()=>document.querySelectorAll('#slash-menu .slash-item').length===1);
+  assert.match(await page.locator('#slash-menu .slash-item.active .slash-name').textContent(),/^\/review/,'o filtro repinta a árvore com o ativo certo');
  await page.locator('#prompt').fill('/');
  await page.keyboard.press('Escape');
  await page.waitForFunction(()=>document.querySelector('#slash-menu').hidden===true,undefined,{timeout:5000});
@@ -230,17 +237,12 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  await page.locator('#prompt').fill('/compact foque nos quizzes');
  await page.locator('#send').click();
  await page.waitForFunction(()=>document.querySelector('#toast')&&!document.querySelector('#toast').hidden&&document.querySelector('#toast').textContent.includes('Contexto compactado'));
- assert.equal(await page.locator('#messages .message').count(),msgsBefore,'/compact should not add chat messages');
- /* Compactação automática: o item de Mais opções aciona o botão vivo `#auto-compact`
-    (ele mora fora da coluna, escondido; o menu é o lugar da escolha). */
- await page.waitForSelector('#auto-compact',{state:'attached'});
- const pressed0=await page.locator('#auto-compact').getAttribute('aria-pressed');
- await tutorMore(page,'#more-auto-compact').click();
- await page.waitForFunction(prev=>{const t=document.querySelector('#toast');return document.querySelector('#auto-compact').getAttribute('aria-pressed')!==prev&&t&&!t.hidden&&t.textContent.includes('Compactação automática');},pressed0,{timeout:8000});
- await tutorMore(page,'#more-auto-compact').click(); // o menu fecha depois do toast: reabre pelo proxy
- await page.waitForFunction(prev=>document.querySelector('#auto-compact').getAttribute('aria-pressed')===prev,pressed0,{timeout:8000});
- await page.keyboard.press('Escape');
- await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#messages .message').count(),msgsBefore,'/compact should not add chat messages');
+  /* Sem compactação automática no OpenCode (o motor compacta sozinho; #93):
+     o item sai do menu em vez de virar controle morto. */
+  await openTutorMore(page);
+  assert.equal(await page.locator('#more-auto-compact').evaluate(el=>el.hidden),true,'sem autoCompaction, o item some do menu');
+  await page.keyboard.press('Escape');
  // cabeça do chat: ponto, medidor e compactação vêm da view do Bend
  // (`core/statusview.bend`); o medidor mantém os nós vivos (animação da barra)
  const head=await page.evaluate(()=>{
@@ -249,11 +251,11 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
   return {dotTip:dot.getAttribute('data-tip'),dotTitle:dot.hasAttribute('title'),width:meter.querySelector('i').getAttribute('style'),pct:em.textContent,cls:meter.className,autoTip:auto.getAttribute('data-tip'),autoOn:auto.getAttribute('aria-pressed'),autoCls:auto.getAttribute('class')};
  });
  assert.equal(head.dotTitle,false,'o indicador (ponto de conexão) usa data-tip, não title (view do Bend)');
- assert.match(head.dotTip,/Tutor ligado/,'o tooltip do indicador é o rótulo do fato');
- assert.equal(head.width,`--meter:${head.pct}`,'a barra do medidor enche pelo preenchimento da view (scaleX, #63)');
- assert.equal(head.cls,parseInt(head.pct,10)>=85?'hot':parseInt(head.pct,10)>=60?'warn':'','a cor do medidor segue os cortes da view');
- assert.match(head.autoTip,/Compactação automática/,'o botão de compactação usa o data-tip da view');
- assert.equal(head.autoCls,head.autoOn==='true'?'on':'','a classe .on acompanha o aria-pressed da view');
+  assert.match(head.dotTip,/Tutor ligado/,'o tooltip do indicador é o rótulo do fato');
+  assert.equal(head.width,`--meter:${head.pct}`,'a barra do medidor enche pelo preenchimento da view (scaleX, #63)');
+  assert.equal(head.cls,parseInt(head.pct,10)>=85?'hot':parseInt(head.pct,10)>=60?'warn':'','a cor do medidor segue os cortes da view');
+  /* Sem autoCompaction no OpenCode, o botão vivo some junto com o item. */
+  assert.equal(await page.locator('#auto-compact').evaluate(el=>el.hidden),true,'sem autoCompaction, o botão some');
  await resizeWindow(app,page,windowSize.width,windowSize.height);
  /* Com o leitor 40px mais alto, o resize acima deixa o Enunciado na página 3 (a rolagem
     segue o mesmo deslocamento); o que o roteiro adiante lê é a página 2 do clique em Próxima. */
@@ -275,7 +277,7 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
   /* Relatar um problema (#62) nomeia o programa `pi` do terminal, não o tutor. */
   /* A primeira abertura (#93) diz que Codex e Grok exigem o Pi; é escolha de motor, como Configurações. */
   const skip=['#setup','#settings-dialog','#about-dialog','#triage-dialog','#new-session-claude','#model-list','#model-indicator','#model-pop'];
-  const allowed=[/Chat lateral/gi,/chat lateral/gi,/Pi \/ Claude Code/g];
+   const allowed=[/Chat lateral/gi,/chat lateral/gi,/Chat na tela inteira/gi,/Pi \/ Claude Code/g];
   const found=[];
   const scrub=text=>allowed.reduce((out,re)=>out.replace(re,' '),text);
   const inSkipped=el=>skip.some(sel=>el.closest(sel));
@@ -296,7 +298,7 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  const paletteVocab=await page.evaluate(()=>{
   const root=document.querySelector('#command-palette');
   const bad=v=>/\bPi\b/.test(v)||/\b(conversas?|chats?|threads?)\b/i.test(v);
-  const scrub=t=>t.replace(/Chat lateral/gi,' ');
+   const scrub=t=>t.replace(/Chat lateral|Chat na tela inteira/gi,' ');
   const found=[];
   const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
   while(walker.nextNode())found.push(walker.currentNode.nodeValue);
@@ -306,17 +308,24 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  assert.deepEqual(paletteVocab,[],'a paleta de comandos usa Tutor e Sessão');
  await page.keyboard.press('Escape');
  await page.waitForSelector('#command-palette',{state:'hidden'});
- // indicador de modelo e esforço desenhado pelo Bend (valores empurrados pelo state.mjs)
- await page.waitForFunction(()=>/·/.test(document.querySelector('#model-indicator .mi-text')?.textContent||''));
- const indicator=await page.evaluate(()=>{
+  // indicador de modelo e esforço desenhado pelo Bend (valores empurrados pelo state.mjs)
+  /* No OpenCode sem modelo escolhido o indicador mostra o estado (sem par
+     modelo · esforço); com modelo, o par. */
+  await page.waitForFunction(()=>document.querySelector('#model-indicator')?.dataset.state==='on');
+  const indicator=await page.evaluate(()=>{
   const el=document.querySelector('#model-indicator');
   return {title:el.hasAttribute('title'),tip:el.getAttribute('data-tip')||'',aria:el.getAttribute('aria-label')||'',text:el.querySelector('.mi-text').textContent.trim(),state:el.dataset.state};
  });
- assert.equal(indicator.title,false,'indicador usa data-tip, não title');
- assert.match(indicator.tip,/Tutor ligado/,'tooltip do indicador diz que o tutor está ligado');
- assert.match(indicator.aria,/·/,'aria-label do indicador junta modelo e esforço');
- assert.match(indicator.text,/ · /,'texto do indicador: modelo · esforço');
- assert.equal(indicator.state,'on');
+  assert.equal(indicator.title,false,'indicador usa data-tip, não title');
+  assert.match(indicator.tip,/Tutor ligado/,'tooltip do indicador diz que o tutor está ligado');
+  if(indicator.text.includes('·')){
+   assert.match(indicator.aria,/·/,'aria-label do indicador junta modelo e esforço');
+   assert.match(indicator.text,/ · /,'texto do indicador: modelo · esforço');
+  }else{
+   assert.ok(indicator.text.length>0,'indicador mostra o estado sem modelo escolhido');
+   assert.ok(indicator.aria.length>0,'aria-label do indicador não fica vazio');
+  }
+  assert.equal(indicator.state,'on');
  await page.evaluate(()=>{
   const p=[...document.querySelectorAll('#messages .message.assistant .body p')].find(el=>el.textContent.includes('Pitágoras'));
   p.scrollIntoView({block:'center'});
@@ -339,16 +348,27 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  await page.locator('#send').click();
  await page.waitForFunction(()=>[...document.querySelectorAll('.message.user')].some(el=>el.textContent.includes('Por que isso vale?')));
  await page.waitForFunction(()=>!document.querySelector('#send').disabled);
- await page.locator('#prompt').fill('');
- await page.evaluate(()=>{
-  const katex=document.querySelectorAll('#messages .message.assistant:not(.quiz) .katex')[0];
-  katex.scrollIntoView({block:'center'});
-  const range=document.createRange();range.selectNodeContents(katex);
-  const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
- });
- await page.waitForSelector('#quote-btn:not([hidden])');
- await page.evaluate(()=>document.querySelector('#quote-btn').click());
- await page.waitForFunction(()=>document.querySelector('#prompt').value.trim()==='> $a^2 + b^2 = c^2$');
+  await page.locator('#prompt').fill('');
+  // A resposta citada já não é a última (content-visibility:auto) e o seguir
+  // pode estar ligado: para o seguir com gesto real antes de selecionar (Mac
+  // rodada 4b). O scrollIntoView é rolagem de layout, longe do fim e sem
+  // gesto, então não religa o seguir.
+  await page.locator('#messages').hover();
+  await page.mouse.wheel(0,-600);
+  await nextFrames(page,2);
+  await page.evaluate(()=>{
+   const katex=document.querySelectorAll('#messages .message.assistant:not(.quiz) .katex')[0];
+   katex.scrollIntoView({block:'center'});
+  });
+  await nextFrames(page,2);
+  await page.evaluate(()=>{
+   const katex=document.querySelectorAll('#messages .message.assistant:not(.quiz) .katex')[0];
+   const range=document.createRange();range.selectNodeContents(katex);
+   const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
+  });
+  await page.waitForSelector('#quote-btn:not([hidden])');
+  await page.evaluate(()=>document.querySelector('#quote-btn').click());
+  await page.waitForFunction(()=>document.querySelector('#prompt').value.trim()==='> $a^2 + b^2 = c^2$');
  await page.locator('#prompt').fill('');
  await page.evaluate(()=>{
   const display=document.querySelector('#messages .message.assistant:not(.quiz) .katex-display');
@@ -401,6 +421,9 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  await page.locator('#send').click();
  await page.waitForSelector('#messages .message.user img.shot');
  await page.waitForFunction(()=>document.querySelector('#attachments').hidden);
+ /* Colar com o turno em voo iria para a fila (attach-busy-queue-ui cobre):
+    aqui o anexo grande precisa sair direto, então espera o turno acabar. */
+ await sendEnabled(page);
  // anexo grande (>1568 px) é reduzido antes de entrar na fila
  await page.evaluate(()=>{
   const canvas=document.createElement('canvas');canvas.width=2200;canvas.height=900;
@@ -426,13 +449,17 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  await page.locator('#end-day-dialog button[value="cancel"]').click();await page.waitForFunction(()=>!document.querySelector('#end-day-dialog').open);
  await tutorMore(page,'#end-day').click();await page.locator('#end-where').fill('terminei a questão 7b');await page.locator('#end-next').fill('começar a questão 8');await page.locator('#end-day-save').click();
  await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('terminei a questão 7b')&&document.querySelector('#messages').textContent.includes('começar a questão 8'));
- const saved=fs.readdirSync(runtime).filter(name=>name.endsWith('.jsonl')).map(name=>fs.readFileSync(path.join(runtime,name),'utf8')).join('\n');assert.match(saved,/Onde parei: terminei a questão 7b/);assert.match(saved,/Próximo passo: começar a questão 8/);
+  const savedText=()=>{const files=fs.readdirSync(runtime).filter(name=>name.endsWith('.jsonl')).map(name=>path.join(runtime,name));const convDir=path.join(runtime,'conversations');if(fs.existsSync(convDir))for(const name of fs.readdirSync(convDir).filter(n=>n.endsWith('.json')))files.push(path.join(convDir,name));return files.map(f=>{try{return fs.readFileSync(f,'utf8');}catch{return '';}}).join('\n');};
+  /* O nativo grava no fim do turno (ou no teto de 8 s): espera assentar. */
+  await sendEnabled(page,{timeout:60000});
+  await pollUntil(savedText,text=>/Onde parei: terminei a questão 7b/.test(text)&&/Próximo passo: começar a questão 8/.test(text),{timeout:30000,what:'o registro do Encerrar no arquivo da sessão'});
+  const saved=savedText();assert.match(saved,/Onde parei: terminei a questão 7b/);assert.match(saved,/Próximo passo: começar a questão 8/);
  assert.match(saved,/Por que isso vale/);
  assert.match(saved,/> A identidade de Pitágoras: \$a\^2 \+ b\^2 = c\^2\$ vale/);
  assert.match(saved,/"type":"image","data":"iVBOR/);
  assert.match(saved,/"mimeType":"image\/png"/);
  await page.locator('#study-menu .nav-trigger').click();
- assert.match(await page.locator('#context-summary').textContent(),/Limites\.pdf p\.\s?\d+/,'a linha Vai junto nomeia cada material e a página');
+ assert.match(await page.locator('#context-summary').textContent(),/Limites\.pdf p\.\s?\d+/,'o resumo do contexto nomeia cada material e a página');
  await page.locator('#reference-toggle').click();assert.equal(await page.locator('.pdf-panel').nth(1).isVisible(),false);assert.match(await page.locator('#context-summary').textContent(),/Limites\.pdf p\.\d+/);await page.locator('#reference-toggle').click();assert.match(await page.locator('#context-summary').textContent(),/Limites\.pdf p\.\s?\d+/);assert.match(await page.locator('#context-summary').textContent(),/Formulario\.pdf p\.\s?\d+/);
  const continuous=await page.locator('.pdf-viewport').first().evaluate(el=>{const pages=el.querySelectorAll('.pdf-page');el.scrollTop=Math.max(0,pages[1].offsetTop-40);el.dispatchEvent(new Event('scroll'));return {pages:pages.length,top:el.scrollTop,second:pages[1].offsetTop};});
  assert.ok(continuous.pages>1&&continuous.top>0&&continuous.top<continuous.second,'PDF scroll should remain between pages');
@@ -596,8 +623,11 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  assert.match(await page.locator('#about-lead').textContent(),/^Versão \d.*licença MIT$/,'o lead do Sobre carrega a versão');
  await page.locator('#about-dialog .dialog-close').click();
  await page.waitForFunction(()=>!document.querySelector('#about-dialog').open);
- // Conferir Xournal++ virou anexo: captura → bandeja → envio com UMA imagem no JSONL
- if(process.platform==='darwin'){
+ // Conferir Xournal++ virou anexo: captura → bandeja → envio com UMA imagem na sessão
+ /* O fluxo usa o fixture de captura e o `capture-ready` falso: roda em qualquer
+    plataforma (a captura real é macOS/Windows) e confere o registro em toda
+    rodada — o bloco era darwin-only e só o Mac pegou a leitura velha (#57). */
+ {
   await app.evaluate(({ipcMain})=>{ipcMain.removeHandler('capture-ready');ipcMain.handle('capture-ready',async()=>({title:'Xournal++',dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='}));});
   const msgsBeforeCapture=await page.locator('#messages .message').count();
   await page.locator('#attach').click();
@@ -611,16 +641,25 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
   await page.locator('#prompt').fill('Confere a captura anexada');
   await page.locator('#send').click();
   await page.waitForFunction(()=>!document.querySelector('#send').disabled);
-  const lastUser=fs.readFileSync(sessionFile,'utf8').trim().split('\n').map(l=>JSON.parse(l)).reverse().find(r=>r.message?.role==='user');
-  assert.equal(lastUser.message.content.filter(p=>p?.type==='image').length,1,'o JSONL guarda exatamente UMA imagem');
+  /* A sessão é nativa (#57): o registro sai do descritor em `conversations/*.json`
+     (mensagens com `role`/`content`), não mais do JSONL do Pi. A gravação é
+     assíncrona, então sonda até a mensagem com a imagem chegar. */
+  const userMessages=await pollUntil(()=>{
+   try{return (JSON.parse(fs.readFileSync(sessionFile,'utf8')).messages||[]).filter(message=>message.role==='user');}catch{return [];}
+  },list=>list.some(message=>(message.content||[]).some(part=>part?.type==='image')),{timeout:15000,what:'o registro da imagem da captura na sessão'});
+  const lastUser=userMessages.at(-1);
+  assert.equal(lastUser.content.filter(p=>p?.type==='image').length,1,'a sessão guarda exatamente UMA imagem');
   assert.equal(await page.locator('#attachments').isHidden(),true,'a bandeja esvazia no envio');
+  /* O motor responde sempre (#57), então a contagem base é medida depois do
+     turno do envio: o que o bloco prova é que o /conferir não fala sozinho. */
+  const countAfterSend=await page.locator('#messages .message').count();
   // /conferir digitado na mão redireciona para o anexo e devolve a observação
   await page.locator('#prompt').fill('/conferir olha o passo 3');
   await page.locator('#send').click();
   await page.waitForFunction(()=>document.querySelectorAll('#attachments .attachment').length===1,undefined,{timeout:8000});
   assert.equal(await page.locator('#attachments .attachment').count(),1,'/conferir vira anexo, não envio');
   await page.waitForFunction(()=>document.querySelector('#prompt')?.value==='olha o passo 3',undefined,{timeout:8000});
-  assert.equal(await page.locator('#messages .message').count(),msgsBeforeCapture+1,'o /conferir não enviou mensagem');
+  assert.equal(await page.locator('#messages .message').count(),countAfterSend,'o /conferir não enviou mensagem');
   await page.locator('#attachments .attachment-remove').click();
   await page.locator('#prompt').fill('');
  }
@@ -632,7 +671,7 @@ assert.deepEqual(shell.menu,['page-shot','more-zoom','invert','rotate','nav','co
  assert.equal(await activeTab.getAttribute('data-id'),'Calculus I','the persisted course is the active tab');
  assert.equal(await activeTab.getAttribute('aria-selected'),'true','active tab is aria-selected');
  await resizeWindow(app,page,1050,760);await layoutStable(page,'#messages');await page.screenshot({path:path.join(screenshotDirectory('ui-smoke'),'ui-compact.png')});
- assert.deepEqual(errors,[]);console.log('UI PASSED: PDFs, live context summary, end-of-day JSONL, calculator, in-chat images, quiz cards (incl. dont-know), quote with inline/display LaTeX, attachments, settings/help/about (rows and version from the Bend view), single toast, chat collapse (⌘\\), ⌘F find, invertible pages, desktop/compact.');
+ assert.deepEqual(errors,[]); console.log('UI PASSED: PDFs, live context summary, end-of-day record, calculator, in-chat images, quiz cards (incl. dont-know), quote with inline/display LaTeX, attachments, settings/help/about (rows and version from the Bend view), single toast, chat collapse (⌘\\), ⌘F find, invertible pages, desktop/compact.');
 });
 
 await withArtifacts('flags',async ctx=>{
@@ -646,7 +685,7 @@ await withArtifacts('flags',async ctx=>{
  assert.equal(await page.locator('#include-refs').isHidden(),true,'refsToggle flag hides the references button');
  assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'true','sem o botão as referências ficam ligadas (view do Bend)');
  assert.equal(await page.locator('#end-day').getAttribute('hidden'),'','endDay flag hides the end-of-day menu item');
- assert.equal(await page.locator('#context-edit').isHidden(),true,'studyContext flag hides the study context editing');
+ assert.equal(await page.locator('#study-context').evaluate(el=>el.hidden),true,'studyContext flag hides the study context editing');
  assert.equal(await page.locator('#calculator').isHidden(),true,'calculator flag hides the calculator section (view do Bend)');
  assert.equal(await page.locator('#calc-divider').isHidden(),true,'calculator flag hides the calc divider');
  assert.equal(await page.locator('#check').isHidden(),true,'conferir flag hides the check button');
@@ -681,12 +720,11 @@ await withArtifacts('tabs',async ctx=>{
  seedCourse(runtime,'A');seedCourse(runtime,'B');
  const textPdf=path.join(runtime,'learning','Courses','A','Integral.pdf');
  fs.writeFileSync(textPdf,tinyPdf('Integral de teste para citar',3));
- const seededSession=seedSession(runtime,[
-  {type:'message',message:{role:'user',content:[{type:'text',text:'Integral: como você resolveria a questão 2?'}]}},
-  {type:'message',message:{role:'assistant',content:[{type:'text',text:'Pense em fatias sob a curva; depois use o quiz para checar.\n\n```js\nconst area = fatias.reduce((s, f) => s + f, 0);\n```'}]}}
- ]);
- const olderSession=path.join(runtime,'pi-1700000000000.jsonl');
- fs.writeFileSync(olderSession,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text:'sessão anterior curta'}]}})+'\n');
+  const seededSession=seedNativeSession(runtime,[
+   {role:'user',content:[{type:'text',text:'Integral: como você resolveria a questão 2?'}]},
+   {role:'assistant',content:[{type:'text',text:'Pense em fatias sob a curva; depois use o quiz para checar.\n\n```js\nconst area = fatias.reduce((s, f) => s + f, 0);\n```'}]}
+  ],{courseId:'A'});
+  const olderSession=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'sessão anterior curta'}]}],{courseId:'A',started:1700000000000,preview:'sessão anterior curta'});
  writeDeskJson(runtime,{session:seededSession,courseId:'A',courseStates:{A:{session:seededSession,pdfs:[{path:textPdf,page:1,zoom:1,scrollX:0,scrollY:0}],sessions:[{path:seededSession,started:Date.now(),preview:'sessão integral'},{path:olderSession,started:1700000000000,preview:'sessão anterior curta'}]}}});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:path.join(runtime,'learning','Courses','A')},{id:'B',name:'Matéria B',path:path.join(runtime,'learning','Courses','B')}]});
  const app=ctx.app=await launchDesk({runtime,env:{LEARNING_VAULT:runtime}});
@@ -705,7 +743,7 @@ await withArtifacts('tabs',async ctx=>{
  // abas e menus vêm da view do Bend (core/tabsview.bend): ids/ordem e andaime limpo
  assert.equal(await page.locator('#new-tab').getAttribute('title'),'Nova matéria (abre as Configurações)','o "+" é o nó da view');
  assert.deepEqual(await page.locator('#study-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['study-search-open','study-review-today','study-notes-open','study-stats-open','study-backup-open','study-share-open','study-tutor-pdf','xournal','reference-toggle'],'itens do menu Estudar na ordem (o Encerrar mora no Mais opções do tutor)');
- assert.deepEqual(await page.locator('#new-session-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['new-session-default','new-session-claude','new-session-opencode'],'itens da sessão nova na ordem');
+  assert.deepEqual(await page.locator('#new-session-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['new-session-opencode','new-session-claude'],'itens da sessão nova: o motor atual primeiro (#87), sem Pi');
  assert.deepEqual(await page.locator('#chat-more-pop [role^="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['more-context','more-auto-compact','more-compact-now','end-day','export-chat','chat-collapse'],'itens do Mais opções do tutor na ordem');
  assert.deepEqual(await page.locator('#settings-pop button[role="menuitem"]').evaluateAll(es=>es.map(e=>e.id)),['settings','help','shortcuts','release-notes','about'],'itens do menu Ajustes na ordem');
  assert.equal(await page.locator('#course-tabs [data-icon],#study-pop [data-icon],#settings-pop [data-icon],#new-session-pop [data-icon],#chat-more-pop [data-icon]').count(),0,'o andaime data-icon sai do DOM');
@@ -795,7 +833,7 @@ await withArtifacts('tabs',async ctx=>{
  const exported=fs.readdirSync(exportDir).filter(n=>n.endsWith('.md'));
  assert.equal(exported.length,1,'export writes one markdown file into the vault folder');
  const markdown=fs.readFileSync(path.join(exportDir,exported[0]),'utf8');
- assert.match(markdown,/## Pi/);assert.match(markdown,/## Você/);
+  assert.match(markdown,/## OpenCode/);assert.match(markdown,/## Você/);
  assert.match(markdown,/Integral/);assert.match(markdown,/quiz/);
  await pickTheme(page,'light');
  assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light','a busca de comandos aplica o tema claro');
@@ -863,31 +901,47 @@ await withArtifacts('tabs',async ctx=>{
  console.log('LOG PASSED: window error events reach the rotating .runtime/desk.log.');
 });
 
-// CHAOS: um runtime por cenário, cada modo do fake-pi dispara uma vez e a UI recupera.
+// CHAOS: um runtime por cenário, cada modo do falso OpenCode dispara uma vez e a UI recupera.
 await withArtifacts('chaos-stream-abort',async ctx=>{
  const runtime=ctx.runtime=newRuntime('chaos-abort');
  const course=seedCourse(runtime,'Chaos');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Chaos',name:'Chaos',path:course}]});
  writeDeskJson(runtime,{courseId:'Chaos'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'stream-abort'}});
+ const queueLog=path.join(runtime,'queue.jsonl');
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_CHAOS:'stream-abort',FAKE_OPENCODE_QUEUE_LOG:queueLog}});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
  await page.locator('#prompt').fill('comece a responder e caia no meio');
  await page.locator('#send').click();
- await page.waitForSelector('#tutor-state[data-state="error"]',{timeout:20000});
- assert.equal(await page.locator('#toast > *').count(),0,'a queda não repete o aviso: a coluna do tutor escreve o motivo (#27)');
+ /* Queda do SSE depois do aceite: entrega incerta com aviso, sem erro na coluna. */
+ await page.waitForFunction(()=>!document.querySelector('#toast').hidden&&document.querySelector('#toast').textContent.includes('Entrega incerta'),undefined,{timeout:20000});
+ assert.equal(await page.locator('#tutor-state[data-state="error"]').count(),0,'a queda do SSE não vira erro na coluna do tutor');
  await sendEnabled(page,{timeout:15000});
- assert.match(await page.locator('#status-dot').getAttribute('class'),/error/,'status dot shows the Pi failure');
- assert.equal(await page.locator('#stop').isHidden(),true,'Parar desaparece quando o busy destrava');
- await page.locator('#prompt').fill('quiz de recuperação');
+ assert.match(await page.locator('#status-dot').getAttribute('class'),/online/,'a conexão do OpenCode segue ligada');
+ assert.equal(await page.locator('#stop').isHidden(),true,'Parar desaparece quando a coluna destrava');
+ const sentOnce=()=>{try{return fs.readFileSync(queueLog,'utf8').split('\n').filter(Boolean).map(line=>JSON.parse(line).message);}catch{return [];}};
+ /* Reenviar a mesma fala é recusado (manda abrir outra sessão) e não duplica no servidor. */
+ await page.locator('#prompt').fill('comece a responder e caia no meio');
  await page.locator('#send').click();
- await page.waitForSelector('.message.quiz .quiz-option',{timeout:30000});
- await page.locator('.message.quiz .quiz-option').nth(1).click();
- await page.waitForFunction(()=>[...document.querySelectorAll('.quiz-verdict')].some(el=>el.textContent.includes('Correta')),undefined,{timeout:20000});
+ await page.waitForFunction(()=>!document.querySelector('#toast').hidden&&document.querySelector('#toast').textContent.includes('Abra outra sessão'),undefined,{timeout:15000});
+  await pollUntil(sentOnce,lines=>lines.filter(text=>text.startsWith('comece a responder e caia no meio')).length===1,{timeout:10000,what:'a fala incerta chega uma vez só ao servidor'});
+  /* Levar a conversa para outra sessão é recusado com entrega incerta (lei do
+     core/sessionhandoff.bend, #87): não copia esse ponto e não cria sessão. */
+  const beforeRefused=(await page.evaluate(()=>window.desk.conversations())).length;
+  await newSession(page,{opencode:true});
+  await page.waitForFunction(()=>!document.querySelector('#toast').hidden&&document.querySelector('#toast').textContent.includes('entrega incerta'),undefined,{timeout:15000});
+  assert.equal((await page.evaluate(()=>window.desk.conversations())).length,beforeRefused,'a passagem recusada não cria sessão');
+  /* O "+" abre sessão limpa, a saída que o aviso manda usar, e a conversa funciona de novo. */
+  await newSession(page);
+  await page.waitForFunction(()=>document.querySelectorAll('#messages .message.user').length===0,undefined,{timeout:15000});
+  await statusOnline(page);
+ await page.locator('#prompt').fill('explique o teorema de Pitágoras');
+ await page.locator('#send').click();
+ await page.waitForSelector('#messages .message.assistant:not(.quiz) .katex',{timeout:30000});
  await sendEnabled(page);
  await page.waitForFunction(()=>document.querySelector('#status-dot').classList.contains('online'),undefined,{timeout:30000});
  assert.deepEqual(errors,[]);
- console.log('CHAOS stream-abort PASSED: Pi morto no meio do stream destrava busy com toast e a mensagem seguinte funciona.');
+ console.log('CHAOS stream-abort PASSED: queda do SSE vira entrega incerta com aviso; a fala não é reenviada e a sessão nova funciona.');
 });
 
 await withArtifacts('chaos-desk-error',async ctx=>{
@@ -895,49 +949,57 @@ await withArtifacts('chaos-desk-error',async ctx=>{
  const course=seedCourse(runtime,'Chaos');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Chaos',name:'Chaos',path:course}]});
  writeDeskJson(runtime,{courseId:'Chaos'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'desk-error'}});
+ const queueLog=path.join(runtime,'queue.jsonl');
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_CHAOS:'desk-error',FAKE_OPENCODE_QUEUE_LOG:queueLog}});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
  await page.locator('#prompt').fill('comece e falhe no meio');
  await page.locator('#send').click();
- /* Queda de verdade: a coluna do tutor escreve o motivo; o aviso não o repete (#27). */
- await page.waitForFunction(()=>/Falha de teste no meio da resposta/.test(document.querySelector('#tutor-state')?.textContent||''),undefined,{timeout:20000});
- assert.equal(await page.locator('#toast > *').count(),0,'a queda não repete o aviso: a coluna do tutor escreve o motivo');
+ /* Falha no meio da resposta vira aviso, sem mudar a conexão: com resposta
+    parcial o diário fica recolhido, então o aviso é quem mostra o motivo (G7
+    só tira o aviso quando o diário abre sozinho). */
+ await page.waitForFunction(()=>!document.querySelector('#toast').hidden&&document.querySelector('#toast').textContent.includes('Falha de teste no meio da resposta'),undefined,{timeout:20000});
+ assert.equal(await page.locator('#tutor-state[data-state="error"]').count(),0,'a falha vira aviso e não erro de conexão na coluna');
  await sendEnabled(page,{timeout:15000});
- assert.match(await page.locator('#status-dot').getAttribute('class'),/error/,'status dot shows the desk_error');
+ assert.match(await page.locator('#status-dot').getAttribute('class'),/online/,'a conexão do OpenCode segue ligada');
+ assert.equal(await page.locator('#stop').isHidden(),true,'Parar desaparece quando a coluna destrava');
+ await page.locator('#prompt').fill('explique o teorema de Pitágoras');
+ await page.locator('#send').click();
+ await page.waitForSelector('#messages .message.assistant:not(.quiz) .katex',{timeout:30000});
+ await sendEnabled(page);
+ await page.waitForFunction(()=>document.querySelector('#status-dot').classList.contains('online'),undefined,{timeout:30000});
+ const sent=()=>{try{return fs.readFileSync(queueLog,'utf8').split('\n').filter(Boolean).map(line=>JSON.parse(line).message);}catch{return [];}};
+ await pollUntil(sent,lines=>lines.some(text=>text.startsWith('comece e falhe no meio'))&&lines.some(text=>text.startsWith('explique o teorema de Pitágoras')),{timeout:10000,what:'as duas falas chegam uma vez só ao servidor'});
+ assert.deepEqual(errors,[]);
+ console.log('CHAOS desk-error PASSED: falha no meio do stream vira aviso sem mudar a conexão e a mensagem seguinte funciona.');
+});
+
+await withArtifacts('chaos-stall',async ctx=>{
+ const runtime=ctx.runtime=newRuntime('chaos-stall');
+ const course=seedCourse(runtime,'Chaos');
+ writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Chaos',name:'Chaos',path:course}]});
+ writeDeskJson(runtime,{courseId:'Chaos'});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_CHAOS:'stall'}});
+ const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await statusOnline(page);
+ /* Turno travado (o servidor para no meio e nunca fecha): a coluna mostra o
+    começo, o Parar segue à vista e interromper destrava sem erro de conexão. */
+ await page.locator('#prompt').fill('comece e trave no meio');
+ await page.locator('#send').click();
+ await page.waitForFunction(()=>[...document.querySelectorAll('#messages .message.assistant .body')].some(el=>el.textContent.includes('Vou travar agora')),undefined,{timeout:20000});
+ assert.equal(await page.locator('#stop').isHidden(),false,'com o turno travado, o Parar segue à vista');
+ await page.locator('#stop').click();
+ await sendEnabled(page,{timeout:15000});
+ assert.equal(await page.locator('#stop').isHidden(),true,'Parar destrava a coluna');
+ assert.match(await page.locator('#status-dot').getAttribute('class'),/online/,'parar o turno travado não derruba a conexão');
+ // a conversa volta ao normal no uso seguinte
  await page.locator('#prompt').fill('explique o teorema de Pitágoras');
  await page.locator('#send').click();
  await page.waitForSelector('#messages .message.assistant:not(.quiz) .katex',{timeout:30000});
  await sendEnabled(page);
  await page.waitForFunction(()=>document.querySelector('#status-dot').classList.contains('online'),undefined,{timeout:30000});
  assert.deepEqual(errors,[]);
- console.log('CHAOS desk-error PASSED: desk_error no meio do stream destrava busy com toast e a mensagem seguinte funciona.');
-});
-
-await withArtifacts('chaos-rpc-timeout',async ctx=>{
- const runtime=ctx.runtime=newRuntime('chaos-timeout');
- const course=seedCourse(runtime,'Chaos');
- writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Chaos',name:'Chaos',path:course}]});
- writeDeskJson(runtime,{courseId:'Chaos'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'rpc-timeout',FAKE_PI_TIMEOUT_MS:'21000'}});
- const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await statusOnline(page);
- // o ping de saúde recebe uma resposta atrasada (FAKE_PI_TIMEOUT_MS, default 30s) → o timeout de 20s do health estoura antes
- /* O erro vive na coluna do tutor (sem aviso flutuante repetindo, #23). */
- await page.waitForSelector('#tutor-state[data-state="error"]',{timeout:60000});
- assert.match(await page.locator('#tutor-state .ts-fine').textContent(),/demorou demais/,'a coluna diz o motivo do ping');
- assert.equal(await page.locator('#toast > *').count(),0,'sem aviso flutuante repetindo o erro da coluna');
- assert.match(await page.locator('#status-dot').getAttribute('class'),/error/,'status dot shows the timed out ping');
- // a conversa volta ao normal no uso seguinte; o ping seguinte responde no prazo
- await page.locator('#prompt').fill('quiz depois do timeout');
- await page.locator('#send').click();
- await page.waitForSelector('.message.quiz .quiz-option',{timeout:30000});
- await page.locator('.message.quiz .quiz-option').nth(1).click();
- await page.waitForFunction(()=>[...document.querySelectorAll('.quiz-verdict')].some(el=>el.textContent.includes('Correta')),undefined,{timeout:20000});
- await sendEnabled(page);
- await page.waitForFunction(()=>document.querySelector('#status-dot').classList.contains('online'),undefined,{timeout:30000});
- assert.deepEqual(errors,[]);
- console.log('CHAOS rpc-timeout PASSED: ping além de 20s vira erro visível e a conexão volta no ping seguinte.');
+ console.log('CHAOS stall PASSED: turno travado destrava no Parar sem erro de conexão e a mensagem seguinte funciona.');
 });
 
 await withArtifacts('codigo',async ctx=>{
@@ -969,11 +1031,9 @@ await withArtifacts('worklog',async ctx=>{
  const runtime=ctx.runtime=newRuntime('worklog');
  const course=seedCourse(runtime,'Calc');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calc',name:'Calc',path:course}]});
- const live=path.join(runtime,'pi-1700000002000.jsonl');
- const other=path.join(runtime,'pi-1700000003000.jsonl');
- fs.writeFileSync(live,'');
- fs.writeFileSync(other,'');
- writeDeskJson(runtime,{session:live,courseId:'Calc',courseStates:{Calc:{session:live,sessions:[{path:live,started:1700000002000,preview:'diário'},{path:other,started:1700000003000,preview:'outra'}]}}});
+  const live=seedNativeSession(runtime,[],{courseId:'Calc',started:1700000002000,preview:'diário'});
+  const other=seedNativeSession(runtime,[],{courseId:'Calc',started:1700000003000,preview:'outra'});
+  writeDeskJson(runtime,{session:live,courseId:'Calc',courseStates:{Calc:{session:live,sessions:[{path:live,started:1700000002000,preview:'diário'},{path:other,started:1700000003000,preview:'outra'}]}}});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
@@ -996,27 +1056,33 @@ await withArtifacts('worklog',async ctx=>{
  assert.match(labels[1],/^Procurou na web: «kojima xbox»$/);
  await work.locator('.step-toggle').first().click();
  await page.waitForFunction(()=>{const pre=document.querySelector('.work-step .step-text');return pre&&!pre.hidden&&pre.textContent.includes('Vou considerar');});
- // histórico: trocar de sessão e voltar reconstrói o diário recolhido do JSONL
- await page.waitForFunction(()=>{const s=document.querySelector('#session-title');return s&&!s.disabled;},undefined,{timeout:20000});
- const otherValue=(await sessionIds(page)).find(v=>v.endsWith('pi-1700000003000.jsonl'));
- assert.ok(otherValue,'a outra sessão aparece na lista');
- await openSessionById(page,otherValue);
- await page.waitForFunction(()=>document.querySelector('#session-title').dataset.session.endsWith('pi-1700000003000.jsonl'));
- await page.waitForFunction(()=>{const s=document.querySelector('#session-title');return s&&!s.disabled;},undefined,{timeout:20000});
- const liveValue=(await sessionIds(page)).find(v=>v.endsWith('pi-1700000002000.jsonl'));
- // O guard da troca recusa enquanto a conexão anterior não assentou: tenta de novo.
- let back=false;
- for(let attempt=0;attempt<20&&!back;attempt++){
-  await openSessionById(page,liveValue).catch(()=>{});
-  back=await pollUntil(()=>page.evaluate(()=>document.querySelector('#session-title').dataset.session.endsWith('pi-1700000002000.jsonl')),Boolean,{timeout:1500,interval:50,what:'a conversa do diário ativa'}).catch(()=>false);
- }
- assert.equal(back,true,'voltou para a conversa do diário');
- await page.waitForFunction(()=>[...document.querySelectorAll('.message.assistant .body')].some(el=>el.textContent.includes('É o OD.')),undefined,{timeout:20000});
- const hist=page.locator('.work').last();
- assert.equal(await hist.getAttribute('data-live'),'false');
- assert.match(await hist.locator('.work-title').textContent(),/^Trabalhou por .* · 1 busca$/);
- await hist.locator('.work-head').click();
- assert.match((await hist.locator('.step-label').allTextContents()).join(' | '),/Procurou na web: «kojima xbox»/);
+  // histórico: trocar de sessão e voltar reconstrói o diário recolhido do histórico nativo
+  await page.waitForFunction(()=>{const s=document.querySelector('#session-title');return s&&!s.disabled;},undefined,{timeout:20000});
+  const otherValue=(await sessionIds(page)).find(v=>v===other);
+  assert.ok(otherValue,'a outra sessão aparece na lista');
+  await openSessionById(page,otherValue);
+  await page.waitForFunction(sess=>document.querySelector('#session-title').dataset.session===sess,other,{timeout:20000});
+  await page.waitForFunction(()=>{const s=document.querySelector('#session-title');return s&&!s.disabled;},undefined,{timeout:20000});
+  const liveValue=(await sessionIds(page)).find(v=>v===live);
+  // O guard da troca recusa enquanto a conexão anterior não assentou: tenta de novo.
+  let back=false;
+  for(let attempt=0;attempt<20&&!back;attempt++){
+   await openSessionById(page,liveValue).catch(()=>{});
+   back=await pollUntil(()=>page.evaluate(sess=>document.querySelector('#session-title').dataset.session===sess,live),Boolean,{timeout:1500,interval:50,what:'a conversa do diário ativa'}).catch(()=>false);
+  }
+  assert.equal(back,true,'voltou para a conversa do diário');
+  await page.waitForFunction(()=>[...document.querySelectorAll('.message.assistant .body')].some(el=>el.textContent.includes('É o OD.')),undefined,{timeout:20000});
+  /* O histórico nativo guarda pensamento, busca e texto; a volta reconstrói o
+     diário recolhido com a busca (o título sem contagem na reconstrução é
+     quirk do cabeçalho, não perda do passo). */
+  const hist=page.locator('.work').last();
+  assert.equal(await hist.getAttribute('data-live'),'false');
+  assert.equal(await hist.getAttribute('data-expanded'),'false','o diário volta recolhido do histórico');
+  await hist.locator('.work-head').click();
+  /* No Mac o histórico repinta em dois tempos (pensamento, depois a busca):
+     espera o passo da busca antes de ler (Mac rodada 4d). */
+  await page.waitForFunction(()=>{const w=[...document.querySelectorAll('.work')].at(-1);return !!w&&[...w.querySelectorAll('.step-label')].some(el=>el.textContent.includes('Procurou na web'));},undefined,{timeout:10000});
+  assert.match((await hist.locator('.step-label').allTextContents()).join(' | '),/Procurou na web: «kojima xbox»/,'a busca volta do histórico');
  assert.deepEqual(errors,[]);
  console.log('WORKLOG PASSED: o diário mostra o pensamento e a busca, recolhe em "Trabalhou por…" (sem bloco vazio) e volta recolhido do histórico.');
 });
@@ -1050,7 +1116,8 @@ await withArtifacts('ipc-error-once',async ctx=>{
  seedCourse(runtime,'A');
  writeDeskJson(runtime,{courseId:'A'});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:path.join(runtime,'learning','Courses','A')}]});
- const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:'/usr/bin/false'}});
+ /* Sem Pi: o motor é o OpenCode; quebrar o serve prova a mesma via única. */
+ const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_OPENCODE:'/usr/bin/false'}});
  const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  /* A falha de conexão aparece UMA vez, escrita na coluna do tutor (#23): sem
     aviso flutuante repetindo o mesmo texto e sem o embrulho do Electron. */
@@ -1059,10 +1126,10 @@ await withArtifacts('ipc-error-once',async ctx=>{
  const column=await page.evaluate(()=>({toasts:[...document.querySelectorAll('#toast .toast-item')].map(el=>el.textContent),state:document.querySelector('#tutor-state').textContent}));
  assert.equal(column.toasts.length,0,'a falha de conexão não gera aviso flutuante: a coluna já a escreve');
  assert.doesNotMatch(column.state,/Error invoking remote method/,'a coluna não vaza boilerplate do Electron');
- /* Título e detalhe são frases diferentes ("O tutor não atendeu." + "O tutor
-    fechou sem aviso." no Mac): cada uma aparece no máximo uma vez, e pelo menos
+ /* Título e detalhe são frases diferentes ("O tutor não atendeu." + "Fechou
+    sozinho antes de responder." no Mac): cada uma aparece no máximo uma vez, e pelo menos
     uma aparece. Contar as três juntas reprovava o Mac (relatório 2026-10-31). */
- const phrases=['O tutor não atendeu','O tutor fechou sem aviso','Tutor não encontrado'].map(text=>column.state.split(text).length-1);
+ const phrases=['O tutor não atendeu','Fechou sozinho antes de responder','Tutor não encontrado'].map(text=>column.state.split(text).length-1);
  assert.ok(phrases.every(count=>count<=1)&&phrases.some(count=>count===1),`a mensagem original aparece uma vez: ${JSON.stringify(column.state)}`);
  assert.match(await page.locator('#status-dot').getAttribute('class'),/error/,'o ponto de conexão acusa o erro');
  assert.equal(await page.locator('#send').isEnabled(),true,'send continua habilitado depois da falha');
@@ -1084,7 +1151,7 @@ await withArtifacts('token-longo',async ctx=>{
   {type:'message',message:{role:'assistant',content:[{type:'text',text:big}]}},
  ];
  for(let i=0;i<100;i++)records.push({type:'message',message:{role:i%2?'assistant':'user',content:[{type:'text',text:`m ${i}`}]}});
- const sessionFile=seedSession(runtime,records);
+  const sessionFile=seedNativeSession(runtime,records,{courseId:'Test'});
  seedCourse(runtime,'Test');
  writeDeskJson(runtime,{session:sessionFile,courseId:'Test'});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Test',path:path.join(runtime,'learning','Courses','Test')}]});
@@ -1099,7 +1166,7 @@ await withArtifacts('token-longo',async ctx=>{
   return {first:els.slice(0,2).map(el=>({user:el.classList.contains('user'),assistant:el.classList.contains('assistant'),text:el.textContent.slice(0,60)})),giant:els.some(el=>el.textContent.includes('fim do bloco gigante'))};
  });
  assert.equal(head.first[0].user,true,'o histórico começa no usuário');
- assert.equal(head.first[1].assistant,true,'a mensagem gigante vem do Pi');
+  assert.equal(head.first[1].assistant,true,'a mensagem gigante vem do tutor');
  assert.ok(head.giant,'o token gigante aparece inteiro');
  const count=await page.locator('#messages .message').count();
  assert.ok(count>=102,`o histórico inteiro renderiza (${count} mensagens)`);
@@ -1146,8 +1213,8 @@ await withArtifacts('atualizacao',async ctx=>{
   ipcMain.handle('update-check',async()=>({status:'update',version:'9.9.9',notes:'Corpo da Release de teste',url:'https://example.com/release-notes',current:'0.4.0'}));
   ipcMain.removeHandler('components');
   ipcMain.handle('components',async()=>({rows:[
-   {id:'pi',label:'Pi',version:'0.86.1',state:'ok',hint:'Em desk/node_modules (atualizável pela Mesa).',canUpdate:true},
-   {id:'node',label:'Node',version:'22.18.0',state:'warn',note:'abaixo de 22.19 — o Pi exige Node 22.19+'},
+   {id:'claude',label:'Claude Code',version:'2.1.302',state:'ok',hint:'Em ~/.local/bin.',canUpdate:true},
+   {id:'node',label:'Node',version:'22.18.0',state:'warn',note:'abaixo de 22.19 — o motor exige Node 22.19+'},
    {id:'xournal',label:'Xournal++',version:'1.2.5',state:'outdated',latest:'1.2.7',link:'https://github.com/xournalpp/xournalpp/releases/latest',linkLabel:'Abrir o site'},
   ]}));
  });
@@ -1160,15 +1227,14 @@ await withArtifacts('atualizacao',async ctx=>{
  assert.equal(await page.locator('#update-notes').getAttribute('data-url'),'https://example.com/release-notes','O que mudou abre pelo handler OpenLink');
  assert.equal(await page.locator('#update-apply').textContent(),'Atualizar e reiniciar');
  assert.equal(await page.locator('#about-update .update-notes').textContent(),'Corpo da Release de teste','o que mudou é o corpo da Release');
- assert.deepEqual(await page.locator('#component-rows .component-row').evaluateAll(es=>es.map(e=>e.dataset.id)),['pi','node','xournal'],'ordem: Pi, Node, Xournal++ (a Mesa não é linha)');
+ assert.deepEqual(await page.locator('#component-rows .component-row').evaluateAll(es=>es.map(e=>e.dataset.id)),['claude','node','xournal'],'ordem: Claude Code, Node, Xournal++ (a Mesa não é linha)');
  // o painel nasce "Verificando…" e a checagem (falsa) chega no mesmo lugar (C3)
  await page.waitForFunction(()=>![...document.querySelectorAll('#component-rows .component-state')].some(e=>e.textContent==='Verificando…'),undefined,{timeout:8000});
- assert.equal(await page.locator('#component-rows [data-id="pi"] .component-state').textContent(),'em dia');
- assert.equal(await page.locator('#component-rows [data-id="node"] .component-state').textContent(),'abaixo de 22.19 — o Pi exige Node 22.19+','aviso de Node antigo vem do núcleo');
- assert.equal(await page.locator('#update-pi').isVisible(),true,'Pi local com versão nova mostra Atualizar o Pi');
+ assert.equal(await page.locator('#component-rows [data-id="claude"] .component-state').textContent(),'em dia');
+ assert.equal(await page.locator('#component-rows [data-id="node"] .component-state').textContent(),'abaixo de 22.19 — o motor exige Node 22.19+','aviso de Node antigo vem do núcleo');
  assert.equal(await page.locator('#component-rows [data-id="xournal"] .component-link').textContent(),'Abrir o site');
  assert.equal(await page.locator('#component-rows [data-id="xournal"] .component-update').count(),0,'Xournal++ é só informativo (nunca ganha botão)');
- // o mesmo botão manual cobre o painel todo (Pi + Xournal sob demanda)
+ // o mesmo botão manual cobre o painel todo (Claude + Xournal sob demanda)
  await page.locator('#components-refresh').click();
  await page.waitForFunction(()=>document.querySelector('#about-update .update-text')?.textContent.includes('v9.9.9'),undefined,{timeout:8000});
  // sem versão nova a faixa diz "Atualizada." com a hora conferida e o ícone de verificar continua lá
@@ -1183,13 +1249,13 @@ await withArtifacts('atualizacao',async ctx=>{
 });
 
 // Fila guardada + bandeja + registro do Encerrar: o estado em que o app abre
-// depois de fechar com trabalho pendente (runtime temporário, fake Pi).
+// depois de fechar com trabalho pendente (runtime temporário, falso OpenCode).
 await withArtifacts('fila-guardada',async ctx=>{
  const runtime=ctx.runtime=newRuntime('fila-guardada');
  const course=seedCourse(runtime,'Calc');
  const pdf=path.join(course,'lista.pdf');fs.writeFileSync(pdf,tinyPdf('Lista 2 · 7b'));
  const xopp=path.join(runtime,'rascunho.xopp');fs.writeFileSync(xopp,'');
- const session=seedSession(runtime,[{type:'message',message:{role:'user',content:[{type:'text',text:'corrente'}],timestamp:1700000002000}}]);
+  const session=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'corrente'}],timestamp:1700000002000}],{courseId:'Calc'});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{session,courseId:'Calc',pdfs:[{path:pdf,page:1}],study:{title:'Lista 2 · 7b',xopp}});
  fs.writeFileSync(path.join(runtime,'pending.json'),JSON.stringify({
@@ -1210,7 +1276,7 @@ await withArtifacts('fila-guardada',async ctx=>{
  });
  assert.deepEqual(order.column,['#composer-box'],'a caixa única é a filha visível da coluna');
  assert.deepEqual(order.chat,['#messages','#tutor-state','#activity','#composer'],'o "onde parei" mora na coluna, entre as mensagens e a caixa');
- assert.deepEqual(order.box.slice(0,3),['.queue-strip','#goes-along','#attachments'],'fila, pílula de contexto e bandeja moram dentro da caixa, acima do campo');
+ assert.deepEqual(order.box.slice(0,3),['.queue-strip','#attachments','#prompt'],'fila, bandeja e campo moram dentro da caixa; o contexto saiu para Mais opções (#123)');
  assert.equal(await page.locator('.queue-label').textContent(),'Recuperadas · 1','a fila guardada diz de onde veio, com a contagem');
  assert.equal(await page.locator('.queue-send-now').isVisible(),true,'Enviar agora no lugar do envio automático');
  assert.equal(await page.locator('.queue-clear').isVisible(),false,'com uma mensagem só, o × é quem descarta (Limpar só com 2+)');

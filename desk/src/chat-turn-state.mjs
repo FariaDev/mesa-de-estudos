@@ -32,6 +32,11 @@ const turnState={
     parcial. É limpo em qualquer recolhimento/erro fatal. */
  promptArmed:false,
  turnActivityCalls:new Set(),
+ /* E3: o diário do turno interrompido começa aberto só quando não há nenhum
+    texto de resposta (`turnHadAnswer`) e não é o 429 do limite do grátis
+    (`turnFreeLimit`, que já tem aviso próprio). Nascem no `openTurnLog` e o
+    `settleTurn` os lê antes de recolher. */
+ turnHadAnswer:false,turnFreeLimit:false,
  /* Avisos visíveis desta conversa (o adaptador avisa por `warning`→`desk_warn`;
     o serviço repassa `code`/`rateLimit`/`detail`). O limite é guardado POR
     JANELA (tipo + reset) num passo puro (`limitNoticeState`): `allowed`/

@@ -240,10 +240,15 @@ try {
   check('cena 2: as duas revisões têm pid próprio (#89)', !!revFrames && revFrames.loop.osPid !== revFrames.healthy.osPid, JSON.stringify(revFrames));
   const revLoopPid = revFrames ? revFrames.loop.osPid : 0;
   const revHealthyPid = revFrames ? revFrames.healthy.osPid : 0;
-  await sleep(1500); // espera fixa: laço real da v1 rodando antes da amostragem
-  const revMetrics = await app.evaluate(() => global.__wd.metrics());
-  const revBusy = revMetrics.find((metric) => metric.pid === revLoopPid);
-  check('cena 2: processo do laço real queima CPU', !!revBusy && revBusy.cpu >= 5, JSON.stringify(revBusy || revMetrics));
+  /* A CPU de `getAppMetrics` é a média desde a leitura anterior: a primeira
+     amostra de um processo novo pode vir 0. Amostra de novo até o laço aparecer. */
+  let revMetrics = [];
+  const revBusy = await waitFor(async () => {
+    revMetrics = await app.evaluate(() => global.__wd.metrics());
+    const metric = revMetrics.find((entry) => entry.pid === revLoopPid);
+    return metric && metric.cpu >= 5 ? metric : null;
+  }, 10000);
+  check('cena 2: processo do laço real queima CPU', !!revBusy, JSON.stringify(revBusy || revMetrics.find((metric) => metric.pid === revLoopPid) || revMetrics));
   const revHealthyDuring = await app.evaluate((_e, url) => global.__wd.probe(url), revHealthyUrl);
   check('cena 2: a outra revisão responde durante o laço real', revHealthyDuring === 'ok', String(revHealthyDuring));
   const revBeat = await app.evaluate(() => global.__wd.beat());

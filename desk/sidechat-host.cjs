@@ -1,7 +1,7 @@
 // @ts-check
 const fs=require('node:fs');const crypto=require('node:crypto');
 const {createSideChatManager,conversationList}=require('./sidechat.cjs');
-const {createPiSideEngine,createClaudeSideEngine,createOpenCodeSideEngine}=require('./sidechat-engine.cjs');
+const {createClaudeSideEngine,createOpenCodeSideEngine}=require('./sidechat-engine.cjs');
 const {buildStudyContext}=require('./studycontext.cjs');
 const {cleanStudy}=require('./study.cjs');
 const conversations=require('./src/agents/conversations.cjs');
@@ -14,8 +14,8 @@ const conversations=require('./src/agents/conversations.cjs');
 
    O main entrega o que o lateral lê do principal como acessores (`session`,
    `courseId`, `courses`, `config`, `state`, `bridge` são reatribuídos lá) e as
-   preparações que dependem do motor (`piLaunch`, `prepareClaudeSide`). */
-function createMesaSidechat({runtime,freeId,session,courseId,courses,config,state,bridge,engine,validPdf,allowedXopp,descriptorCache,piLaunch,prepareClaudeSide,connectOpenCodeSide,testClaudeSdkLoader,claudeBinary,claudeDetector,win,appendLog,languageHost,readPdf,searchMaterial,listMaterials,activityBridge}){
+   preparações que dependem do motor (`prepareClaudeSide`). */
+function createMesaSidechat({runtime,freeId,session,courseId,courses,config,state,bridge,engine,validPdf,allowedXopp,descriptorCache,prepareClaudeSide,connectOpenCodeSide,testClaudeSdkLoader,claudeBinary,claudeDetector,win,appendLog,languageHost,readPdf,searchMaterial,listMaterials,activityBridge}){
  /* O digest vai ao modelo: os rótulos seguem o idioma do tutor (#41). */
  const roleLabel=(isUser)=>languageHost.tutorT(isUser?'sidechatctx.roleUser':'sidechatctx.roleAssistant');
  function mainHistoryLines(limit=12){
@@ -27,6 +27,9 @@ function createMesaSidechat({runtime,freeId,session,courseId,courses,config,stat
   try{
    /* Claude e OpenCode (#57): o histórico vem do descritor nativo, nunca do arquivo cru. */
    if(conversations.NATIVE_ENGINES.includes(engine())){
+    /* O contexto do lateral lê o descritor da principal: grava o turno em voo
+       antes, senão a resposta parcial já recebida fica de fora (#116). */
+    bridge()?.flush?.();
     const record=(bridge()?descriptorCache.get(session(),{messages:true}):conversations.readClaudeConversation(session(),{runtime}))||null;
     for(const message of (record?.messages||[]).slice(-limit)){
      const text=(Array.isArray(message?.content)?message.content:[]).filter(p=>p&&p.type==='text').map(p=>p.text||'').join(' ');
@@ -73,13 +76,6 @@ function createMesaSidechat({runtime,freeId,session,courseId,courses,config,stat
   const record=descriptorCache.get(session())||null;
   return {model:record?.model||null,effort:record?.effort||null};
  }
- /* Modelo e nível da conversa principal no Pi, para o lateral responder com o mesmo (v1.0.2). */
- async function mainPiModel(){
-  const main=bridge();
-  if(!main||engine()!=='pi')return null;
-  const current=await main.request('get_state',{},5000);
-  return current?.model?{provider:current.model.provider,id:current.model.id,level:current.thinkingLevel||null}:null;
- }
  const manager=createSideChatManager({
   runtime,
   current:()=>({session:session(),courseId:courseId(),engine:engine(),...mainNativeSelection(),courseName:courseId()===freeId?'':(courses().find(c=>c.id===courseId())?.name||'')}),
@@ -93,10 +89,7 @@ function createMesaSidechat({runtime,freeId,session,courseId,courses,config,stat
    if(engine==='claude'){
     return createClaudeSideEngine({id,descriptor:descriptor.claude,runtime,prepare:record=>prepareClaudeSide(record),sdkLoader:testClaudeSdkLoader(),claudePath:claudeBinary(),detectClaude:claudeDetector(),onEvent,log:(src,line)=>appendLog(src,line),readPdf,searchMaterial,listMaterials,showCard:(kind,args)=>manager.showCard(id,{kind,args})});
    }
-   const launch=await piLaunch({cardScope:{conversationId:id}});
-   const channel=createPiSideEngine({id,sessionPath:descriptor.session,cwd:launch.cwd,pi:launch.pi,env:launch.env,extraArgs:launch.extraArgs,promptFile:launch.promptFile,onEvent,log:(src,line)=>appendLog(src,line),mainModel:()=>mainPiModel()});
-   if(launch.cardGrant)channel.cardGrant=launch.cardGrant;
-   return channel;
+   throw Error(`chat lateral sem motor para ${JSON.stringify(engine)}; esperado "claude" ou "opencode"`);
   },
   emit:payload=>{const target=win();if(target&&!target.isDestroyed())target.webContents.send('sidechat-event',payload);},
   log:(src,line)=>appendLog(src,line),

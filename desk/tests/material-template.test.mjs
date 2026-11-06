@@ -336,7 +336,9 @@ test('documento longo: H1 único, ordem, fontes, tabela multipágina e PDF váli
   assert.ok(inspected.rawTitle, 'o H1 cru foi encontrado no DOM');
   assert.equal(inspected.rawTitle.tag, 'H2', 'H1 cru do conteúdo vira H2 (título único)');
   assert.match(inspected.rawTitle.html, /^<h2[^>]*id="raw-title"/i);
-  assert.match(inspected.rawTitle.html, /class="extra"/);
+  /* Quarta contraprova: a `class` do H1 cru sai antes da casa (`scrubModelTokens`);
+     o `id` fica, pelo contrato do impresso. */
+  assert.equal(/class="extra"/.test(inspected.rawTitle.html), false, 'class do H1 cru sobreviveu');
   assert.match(inspected.rawTitle.html, /<em>H1<\/em>/);
   assert.equal(/onclick/i.test(inspected.rawTitle.html), false, 'atributo perigoso do H1 cru continua removido');
   assert.ok(inspected.headings.some((entry) => entry.startsWith('H2:') && /Outro H1/.test(entry)), 'o H1 cru rebaixado aparece como H2');
@@ -402,4 +404,39 @@ test('equação inválida: bloqueia antes de imprimir, sem arquivo', {skip, time
   assert.equal(data.windows, 0, 'nenhuma janela de impressão é aberta para matemática inválida');
   assert.deepEqual(data.files, [], 'nada é gravado');
   assert.ok(data.diagnostics.filter((entry) => entry.severity === 'error').length >= 1);
+});
+
+/* Quarta contraprova no PDF real: `class="pdf-resposta" style="--ans:200mm"`
+   forjados 40 vezes não abrem 34 páginas — o `scrubModelTokens` tira a língua
+   do CSS do template antes da casa, então sobra só a resposta honesta (2
+   páginas) e o texto transparente continua no papel. */
+test('classe forjada: 40 pdf-resposta não viram 34 páginas no PDF real', {skip, timeout: SCENARIO_TIMEOUT}, async (t) => {
+  const result = scenario('template-forged');
+  t.after(() => fs.rmSync(result.runtime, {recursive: true, force: true}));
+  const data = expectData(result, 'template-forged');
+  assert.equal(data.ok, true, JSON.stringify(data));
+  const inspected = data.inspected;
+  assert.ok(inspected && !inspected.inspectError, 'a página foi inspecionada antes do print');
+  assert.equal(inspected.respCount, 1, `só a resposta honesta da casa: ${inspected.respCount}`);
+  assert.equal(inspected.forgedResposta, 0, 'resposta forjada virou .pdf-resposta');
+  assert.ok(inspected.forgedStyles.every((style) => !/--ans:200mm/.test(style)), `style forjado sobreviveu: ${JSON.stringify(inspected.forgedStyles)}`);
+  for (const style of inspected.forgedStyles) {
+    for (const match of String(style).matchAll(/--ans:([\d.]+)mm/g)) {
+      assert.ok(Number(match[1]) <= 200, `--ans acima do teto: ${style}`);
+    }
+  }
+  assert.notEqual(inspected.hiddenColor, 'rgba(0, 0, 0, 0)', 'texto transparente sumiu no papel');
+  /* A marca da casa não sobra no HTML do PDF e não come as classes do modelo:
+     `.pdf-q`/`--ans` e o CSS do simulado continuam valendo na página impressa. */
+  assert.equal(inspected.houseMarkLeak, false, 'a marca sorteada não sobra no HTML do PDF');
+  assert.equal(inspected.questionClass.split(/\s+/).includes('pdf-q'), true, `classe da casa preservada: ${inspected.questionClass}`);
+  assert.match(inspected.questionAns, /^\d+(\.\d+)?mm$/, `--ans da casa preservado: ${inspected.questionAns}`);
+  assert.equal(inspected.headDisplay, 'flex', 'o CSS do simulado vale na página impressa');
+  const pdf = await readPdf(data.path);
+  /* As 40 linhas forjadas viram texto comum (2 páginas honestas de volume),
+     não 34 páginas de quadro esticado: o ataque lia `height:var(--ans,36mm)`. */
+  assert.ok(pdf.numPages <= 4, `esperava até 4 páginas, veio ${pdf.numPages}`);
+  assert.match(pdf.text, /SUMIDO-RGBA/, 'o texto transparente continua no papel');
+  assert.match(pdf.text, /CORRIDA-FORJADA/, 'o texto da classe forjada continua no papel');
+  assert.match(pdf.text, /Resposta 1/, 'o gabarito honesto continua no papel');
 });

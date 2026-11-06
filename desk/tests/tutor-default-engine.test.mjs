@@ -1,7 +1,6 @@
-/* Motor padrão sem Pi (#93): a ordem de preferência e a detecção de presença.
-   Em testMode nenhum processo é executado; fora dele, só o `--version` do
-   OpenCode encontrado é lido (1.x não conta), e o Pi real do PATH de quem roda
-   os testes nunca decide uma janela de teste. */
+/* Motor padrão (#93): a ordem de preferência e a detecção de presença. Em
+   testMode nenhum processo é executado; fora dele, só o `--version` do OpenCode
+   encontrado é lido (1.x não conta). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -20,16 +19,16 @@ function fakeBin(dir,name){
  return file;
 }
 
-test('defaultEngineFrom: Pi primeiro; sem Pi, Claude; sem os dois, OpenCode; nada cai no Pi', () => {
- assert.deepEqual(ENGINE_ORDER,['pi','claude','opencode']);
- assert.equal(defaultEngineFrom({pi:'/p',claude:'/c',opencode:'/o'}),'pi');
- assert.equal(defaultEngineFrom({claude:'/c',opencode:'/o'}),'claude');
+test('defaultEngineFrom: OpenCode primeiro; sem ele, Claude; sem os dois, OpenCode', () => {
+ assert.deepEqual(ENGINE_ORDER,['opencode','claude']);
+ assert.equal(defaultEngineFrom({claude:'/c',opencode:'/o'}),'opencode');
+ assert.equal(defaultEngineFrom({claude:'/c'}),'claude');
  assert.equal(defaultEngineFrom({opencode:'/o'}),'opencode');
- assert.equal(defaultEngineFrom({}),'opencode','sem motor o padrão é OpenCode; o erro fala dele, nunca do Pi');
+ assert.equal(defaultEngineFrom({}),'opencode','sem motor o padrão é OpenCode');
 });
 
 test('engineNames devolve os nomes legíveis na ordem de preferência', () => {
- assert.deepEqual(engineNames({opencode:'/o',pi:'/p'}),['Pi','OpenCode']);
+ assert.deepEqual(engineNames({opencode:'/o',claude:'/c'}),['OpenCode','Claude Code']);
  assert.deepEqual(engineNames({}),[]);
 });
 
@@ -49,19 +48,27 @@ test('OpenCode 1.x não conta como motor pronto; versão ilegível não bloqueia
  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
 });
 
+test('opencodePath escolhido à mão conta como motor instalado (#102)', {skip: process.platform === 'win32' && 'o binário falso é script sh'}, () => {
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-default-engine-manual-'));
+ try{
+  const chosen=fakeBin(dir,'opencode-escolhido');
+  fs.writeFileSync(chosen,'#!/bin/sh\necho 2.2.4\n');
+  const found=detectTutorEngines({config:{opencodePath:chosen},env:{},deskDir:dir,home:dir,platform:'linux'});
+  assert.equal(found.opencode,chosen);
+  assert.equal(found.opencodeOld,undefined);
+ } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+});
+
 test('em testMode só os fakes do ambiente contam', () => {
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-default-engine-'));
  try{
-  const pi=fakeBin(dir,'pi'),claude=fakeBin(dir,'claude'),opencode=fakeBin(dir,'opencode');
+  const claude=fakeBin(dir,'claude'),opencode=fakeBin(dir,'opencode');
   const opencodeOnly=detectTutorEngines({env:{LEARNING_DESK_OPENCODE:opencode},testMode:true,deskDir:dir,config:{},home:dir});
-  assert.deepEqual(opencodeOnly,{pi:'',claude:'',opencode});
+  assert.deepEqual(opencodeOnly,{claude:'',opencode});
   assert.equal(defaultTutorEngine({env:{LEARNING_DESK_OPENCODE:opencode},testMode:true,deskDir:dir,config:{},home:dir}),'opencode');
-  const piOnly=detectTutorEngines({env:{LEARNING_DESK_PI:pi},testMode:true,deskDir:dir,config:{},home:dir});
-  assert.equal(piOnly.pi,pi);
-  assert.equal(defaultEngineFrom(piOnly),'pi');
   const claudeOnly=detectTutorEngines({env:{LEARNING_DESK_CLAUDE:claude,LEARNING_DESK_CLAUDE_HOME:dir},testMode:true,deskDir:dir,config:{claudePath:claude},home:dir});
   assert.equal(claudeOnly.claude,claude);
   assert.equal(defaultEngineFrom(claudeOnly),'claude');
-  assert.deepEqual(detectTutorEngines({env:{},testMode:true,deskDir:dir,config:{},home:dir}),{pi:'',claude:'',opencode:''});
+  assert.deepEqual(detectTutorEngines({env:{},testMode:true,deskDir:dir,config:{},home:dir}),{claude:'',opencode:''});
  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
 });

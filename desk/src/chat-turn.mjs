@@ -113,6 +113,9 @@ function resetAssistantBlock(key){
 function appendAssistantDelta(delta,key){
  const block=openAssistantBlock(key);
  block.text+=String(delta||'');turnState.assistantText=block.text;
+ /* Só texto de verdade conta como resposta: um `"\n"` seguido de 403
+    escondia o motivo (o `settleAssistantBlock` usa `.trim()`). */
+ if(String(delta||'').trim())turnState.turnHadAnswer=true;
  updateMessage(block.el,turnState.assistantText,[],true);
  return block;
 }
@@ -153,6 +156,7 @@ function settleAssistantBlock(key,text,images=[],anchor=null){
   }
  }
  block.text=String(text||'');turnState.assistantText=block.text;
+ if(String(text||'').trim())turnState.turnHadAnswer=true;
  updateMessage(block.el,turnState.assistantText,images);
  return block;
 }
@@ -192,6 +196,7 @@ function assistantAnchorAfter(contentIndex){
 function openTurnLog(){
  if(turnState.turnLog)return;
  turnState.turnLog=worklog.createLog(Date.now());
+ turnState.turnHadAnswer=false;turnState.turnFreeLimit=false;
  turnState.turnTrack=timeline.beginTrack(timeline.createTrack());
  turnState.turnClosed=false;
  turnState.turnActivityCalls=new Set();
@@ -213,9 +218,9 @@ function openSegment(){
 function segmentLog(seg){
  return {startedAt:seg.startedAt,endedAt:seg.endedAt,reason:seg.reason,text:'',steps:timeline.segmentSteps(turnState.turnLog,seg)};
 }
-function renderSegment(seg,{live,note=''}={}){
+function renderSegment(seg,{live,note='',hasAnswer=turnState.turnHadAnswer,isFreeLimit=turnState.turnFreeLimit}={}){
  if(!seg?.view||!seg.view.el?.isConnected)return;
- seg.view.render(segmentLog(seg),{live:live!==undefined?live:!seg.closed,note});
+ seg.view.render(segmentLog(seg),{live:live!==undefined?live:!seg.closed,note,hasAnswer,isFreeLimit});
 }
 /* Declaração (`toolcall_end`/`content_block_start`) e execução separam-se: a
    declaração reserva a posição (passo idempotente por ID) e a execução atualiza

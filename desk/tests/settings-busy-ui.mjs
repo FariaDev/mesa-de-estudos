@@ -84,7 +84,7 @@ await withArtifacts('settings-busy',async ctx=>{
  fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdf('Limites'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{courseId:'calc'});
- ctx.app=await launchDesk({runtime,env:{FAKE_PI_QUEUE_LOG:path.join(runtime,'queue.log'),FAKE_PI_QUEUE_HOLD_MS:'60000'}});
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_QUEUE_LOG:path.join(runtime,'queue.log'),FAKE_OPENCODE_QUEUE_HOLD_MS:'60000'}});
  const page=await ctx.app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await size(ctx.app,page,1440,900);
@@ -211,8 +211,8 @@ await withArtifacts('settings-busy',async ctx=>{
    const tag=`aviso ${theme} ${width}×${height}`;
    /* nasce com o diálogo aberto */
    await openSettings();
-   await page.locator('#settings-tab-pastas').click();
-   await page.locator('#cfg-pi-detect').click();
+   await page.locator('#settings-tab-leitores').click();
+   await page.locator('#cfg-layout-printed-1').click();
    await page.waitForSelector('#toast .toast-item');
    let top=await toastOnTop(ctx.app,page);
    assert.equal(top.open,true,`${tag}: o aviso está na camada superior`);
@@ -223,7 +223,9 @@ await withArtifacts('settings-busy',async ctx=>{
    await page.locator('#settings-dialog button[value="cancel"]').last().click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
    /* já estava na tela quando o diálogo abriu */
-   await page.locator('#cfg-pi-detect').evaluate(el=>el.click());
+   await openSettings();
+   await page.locator('#settings-tab-leitores').click();
+   await page.locator('#cfg-layout-printed-1').evaluate(el=>el.click());
    await page.waitForSelector('#toast .toast-item');
    await openSettings();
    await nextFrames(page);

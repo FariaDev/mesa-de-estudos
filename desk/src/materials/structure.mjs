@@ -9,8 +9,18 @@
    passo sobre o HTML final, porque depende da ordem em que o KaTeX entra. */
 
 import {answerHeightMm} from './model.mjs';
+import {HOUSE_MARK} from './house-marks.mjs';
 
-const htmlToken = (text) => ({type: 'html', raw: text, text, block: true, pre: false});
+/* Envoltório da casa: TODA tag gerada aqui leva a marca que a prévia viva usa
+   para não tratar `class`/`style` dela como se fossem do modelo
+   (house-marks.mjs). A varredura é só neste texto, que a casa montou; valor do
+   modelo interpolado nele entra por `escape()` antes, então `<` do modelo já é
+   `&lt;` e não vira tag marcada. */
+const HOUSE_TAG = /<([a-z][\w-]*)(?=[\s>])/gi;
+const htmlToken = (text) => {
+  const marked = String(text).replace(HOUSE_TAG, `<$1 ${HOUSE_MARK}="1"`);
+  return {type: 'html', raw: marked, text: marked, block: true, pre: false};
+};
 
 const escape = (value) => String(value ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

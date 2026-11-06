@@ -123,7 +123,7 @@ await withArtifacts('modelos-gratis',async ctx=>{
  await toTutorStep(ctx,page,runtime);
  assert.equal(await page.locator('#setup-tutor-actions #free-models').count(),0,'sem convite aos modelos grátis na primeira abertura');
  assert.equal(await page.locator('#setup-tutor-actions #connect').getAttribute('class'),'primary','"Chamar o tutor" continua lá, como principal');
- assert.equal((await page.locator('#setup-tutor-actions #state-pi').textContent()).trim(),'Ajustes do tutor','os Ajustes ficam ao lado');
+ assert.equal((await page.locator('#setup-tutor-actions #setup-settings').textContent()).trim(),'Ajustes do tutor','os Ajustes ficam ao lado');
  await page.evaluate(async()=>{const mod=await import('./src/free-models.mjs');await mod.openFreeModelsFlow();});
  await page.waitForSelector('#free-models-dialog[open]');
 
@@ -220,11 +220,18 @@ await withArtifacts('modelos-gratis',async ctx=>{
  await reviewShot(page,SHOT_DIR,'seletor.png');
  await page.keyboard.press('Escape');
 
- step(8);
- /* 8. A chave chegou ao servidor da Mesa só pelo ambiente; nunca na linha de comando, no Pi nem em arquivo do runtime. */
- const serveStarts=readLaunches(serveLog).filter(entry=>entry.start);
- assert.equal(serveStarts.length,1,'um servidor OpenCode, já com a chave');
- assert.deepEqual([serveStarts[0].keyPresent,serveStarts[0].argv.join(' ').includes(KEY_B),serveStarts[0].serverPasswordInherited],[true,false,false]);
+  step(8);
+  /* 8. A chave chegou ao servidor da Mesa só pelo ambiente; nunca na linha de comando, no Pi nem em arquivo do runtime. */
+  const serveStarts=readLaunches(serveLog).filter(entry=>entry.start);
+  /* A entrada por provedor (#login no app) sobe o serve para listar as contas
+     antes da chave salva; a sessão OpenCode sobe depois, já com ela. */
+  assert.ok(serveStarts.length>=1,`o serve subiu ao menos uma vez (viu ${serveStarts.length})`);
+  const sessionStart=serveStarts.at(-1);
+  assert.deepEqual([sessionStart.keyPresent,sessionStart.argv.join(' ').includes(KEY_B),sessionStart.serverPasswordInherited],[true,false,false],'a sessão OpenCode sobe já com a chave, sem herdá-la na senha');
+  for(const started of serveStarts){
+   assert.equal(started.argv.join(' ').includes(KEY_A)||started.argv.join(' ').includes(KEY_B),false,'nenhuma subida vaza a chave na linha de comando');
+   assert.equal(started.serverPasswordInherited,false,'nenhuma subida herda a senha do servidor');
+  }
  assert.ok(readLaunches(launchLog).every(launch=>!launch.keyInArgs),'o Pi nunca recebe a chave na linha de comando');
  assert.deepEqual(filesContaining(runtime,KEY_B),[],'a chave não está em nenhum arquivo do runtime');
  assert.deepEqual(filesContaining(runtime,KEY_A),[]);

@@ -9,6 +9,7 @@ import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
 const {createCourseStateHost} = require('../course-state-host.cjs');
+const {createPdfGrants} = require('../pdf-grants.cjs');
 
 const dirs = [];
 after(() => { for (const dir of dirs) fs.rmSync(dir, {recursive: true, force: true}); });
@@ -27,8 +28,9 @@ function courseStateHost({courseStates = {}, live: liveOverrides = {}, resumeSes
     freeMutation: false, deferredPersist: false, lastPersist: '', languageHost: {payload: () => ({lang: 'pt-BR'})}, ...liveOverrides};
   const ggbCache = memoryGgbCache();
   const calls = [];
+  const allowed = new Set();
   const host = createCourseStateHost({live, runtime, FREE_ID: '__free__', stateFile: path.join(runtime, 'desk.json'), courseStates,
-    allowed: new Set(), allowedXopp: new Set(), ggb: {resetRestored: () => calls.push('ggb-reset')}, ggbCache, appendLog: () => {},
+    allowed, pdfGrants: createPdfGrants({allowed}), allowedXopp: new Set(), ggb: {resetRestored: () => calls.push('ggb-reset')}, ggbCache, appendLog: () => {},
     previewFile: () => '', sessionInfo: () => ({}), conversationData: () => ({}), piBinary: () => '', newSessionPath: (courseId) => path.join(runtime, `pi-${courseId}.jsonl`), resumeSession, freeSessionList: () => [],
     persistFreeSession: () => calls.push('free-persist'), applyFreeCourse: () => calls.push('free-apply'), freeWorkspacePayload: () => null,
     captureAvailable: () => false, deskVersionLabel: () => 'v-teste'});

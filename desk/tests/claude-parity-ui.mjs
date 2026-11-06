@@ -24,7 +24,7 @@ await withArtifacts('claude-parity',async ctx=>{
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Paridade',name:'Paridade',path:folder}]});
  writeDeskJson(runtime,{courseId:'Paridade',session:file,courseStates:{Paridade:{session:file,sessions:[{path:file}]}}});
  const rows=()=>fs.existsSync(log)?fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_PI:trap,FAKE_CLAUDE_LOG:log,LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs')}});
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_PI:trap,FAKE_CLAUDE_LOG:log,LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs')}});
  const page=await app.firstWindow();
  await statusOnline(page,{timeout:60000});
  const send=async text=>{await page.locator('#prompt').fill(text);await page.locator('#send').click();};

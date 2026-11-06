@@ -166,9 +166,6 @@ def Laws.upd_sem_linhas_sem_nos():
 def Laws.upd_sem_acao_sem_nos():
   {==}
 
-def Laws.upd_acao_local_e_o_botao_de_sempre():
-  {==}
-
 def Laws.upd_acao_com_confirmacao_leva_o_comando():
   {==}
 

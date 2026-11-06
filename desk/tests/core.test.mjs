@@ -499,23 +499,60 @@ test('preload: invoke perde o boilerplate do Electron e a conexão que falha ger
  assert.deepEqual(errors(),['Falha solta do Pi.',M],'rejeição de pi-prompt não esconde o desk_error');
 });
 
-test('partida na aba Livre já reconhece a sessão Claude da conversa ativa (regressão da #43 fase 2)',async()=>{
+test('partida na aba Livre já reconhece o motor da conversa ativa (regressão da #43 fase 2)',async()=>{
  /* O main passou a criar o motor do tutor por host; a hidratação da sessão
     Livre na partida precisa vir depois dele, senão o `engine` em TDZ caía no
-    catch e a conversa Claude era gravada como Pi. */
+    catch e a conversa era gravada como Pi. */
  const free=require2('../free-workspaces.cjs');
  const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'desk-free-boot-'));
  try{
   fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({vaultPath:runtime,courses:[]}));
   const id='0b6f2c1e-1111-4222-8333-944455556666';
   free.ensureWorkspace(runtime,{sessionId:id,title:free.defaultTitle()});
-  free.setNativePath(runtime,id,path.join(runtime,'claude-12345678-1234-1234-1234-123456789abc.json'));
+  free.setNativePath(runtime,id,path.join(runtime,'opencode-12345678-1234-1234-1234-123456789abc.json'));
   fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({courseId:free.freeCourseId(),free:{activeId:id,sessions:{}}}));
   const {handlers,quit}=loadMainWithMockElectron(runtime);
   try{
    const init=await handlers.get('init')({});
    assert.equal(init.courseId,free.freeCourseId());
-   assert.equal(init.state.free.sessions[id].engine,'claude','a sessão Claude da partida não vira Pi');
+   assert.equal(init.state.free.sessions[id].engine,'opencode','a sessão OpenCode da partida não vira Pi');
   }finally{quit();}
  }finally{fs.rmSync(runtime,{recursive:true,force:true});}
+});
+
+test('new-session com carryFrom leva o digest da sessão antiga e mantém a antiga na lista (#87)',async()=>{
+ const runtime=fs.mkdtempSync(path.join(os.tmpdir(),'desk-handoff-'));
+ const course=path.join(runtime,'learning','Courses','A');fs.mkdirSync(course,{recursive:true});
+ const old=path.join(runtime,'pi-1700000000000.jsonl');
+ const oldBytes=[{type:'message',message:{role:'user',content:[{type:'text',text:'Como resolvo a lista?'}]}},{type:'message',message:{role:'assistant',content:[{type:'text',text:'Comece isolando o termo.'}]}}].map(line=>JSON.stringify(line)).join('\n')+'\n';
+ fs.writeFileSync(old,oldBytes);
+ fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify({vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:course}]}));
+ fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({courseId:'A',session:old,pdfs:[],study:{title:'Lista 3 · 2',xopp:''},courseStates:{A:{session:old,sessions:[{path:old,started:1700000000000}],study:{title:'Lista 3 · 2',xopp:''}}}}));
+ const beforeTest=process.env.DESK_TEST,beforeOpen=process.env.LEARNING_DESK_OPENCODE;
+ process.env.DESK_TEST='1';
+ process.env.LEARNING_DESK_OPENCODE=path.resolve(import.meta.dirname,'fake-opencode.mjs');
+ try{
+  const {handlers,quit}=loadMainWithMockElectron(runtime);
+  try{
+   await handlers.get('init')({});
+   const data=await handlers.get('new-session')({}, {engine:'opencode',carryFrom:old});
+   assert.match(fs.readFileSync(old,'utf8'),/"role":"user"/,'a origem Pi continua no disco');
+   assert.equal(fs.readFileSync(old,'utf8'),oldBytes,'o JSONL não é reescrito');
+   assert.match(path.basename(data.session),/^opencode-[0-9a-f-]{36}\.json$/,'o destino é OpenCode');
+   const record=JSON.parse(fs.readFileSync(data.session,'utf8'));
+   assert.match(record.importedTranscript,/Matéria: Matéria A/);
+   assert.match(record.importedTranscript,/Questão: Lista 3 · 2/);
+   assert.match(record.importedTranscript,/aluno: Como resolvo a lista\?/);
+   assert.deepEqual(record.origin,{session:old,engine:'pi'});
+   assert.equal(record.handoff.kind,'digest');
+   assert.ok(data.sessions.some(item=>item.path===old),'a conversa antiga continua na lista');
+   const target=data.sessions.find(item=>item.path===data.session);
+   assert.deepEqual(target.origin,{session:old,engine:'pi'},'a lista mostra de onde a sessão nova veio');
+   assert.doesNotMatch(target.label,/OpenCode ·/,'o rótulo não leva prefixo de motor');
+  }finally{quit();}
+ }finally{
+  if(beforeTest===undefined)delete process.env.DESK_TEST;else process.env.DESK_TEST=beforeTest;
+  if(beforeOpen===undefined)delete process.env.LEARNING_DESK_OPENCODE;else process.env.LEARNING_DESK_OPENCODE=beforeOpen;
+  fs.rmSync(runtime,{recursive:true,force:true});
+ }
 });

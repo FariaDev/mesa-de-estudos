@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {makeZip} from './zipkit.mjs';
 import {ptText} from './pt-text.mjs';
+import {tempDir} from './temp-dir.mjs';
 
 /* Checagem do updater com fetch falso (NUNCA rede de verdade): semver, cache
    de 24 h, fallback em tags, "desconhecido" sem erro e a lista de caminhos
@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const updater = require('../updater.cjs');
 const files = require('../updater-files.cjs');
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-updater-test-'));
+const tmp = () => tempDir('mesa-updater-test');
 
 test('semver: comparação e isNewer', () => {
   assert.equal(updater.semverCompare('0.4.1', '0.4.0'), 1);
@@ -151,22 +151,6 @@ test('cache: duas respostas em ordem inversa não se sobrescrevem', async () => 
   assert.ok(final.release && /^\d+\.\d+\.\d+$/.test(final.release.version), 'a release fica no cache (lenta ou rápida, sem buraco)');
   assert.ok(['0.4.1', '0.4.9'].includes(final.release.version), `versão coerente com uma das respostas: ${final.release && final.release.version}`);
   assert.ok(lenta.status === 'update' && rapida.status === 'update');
-});
-
-test('piLatest: SÓ o registry @earendil-works; sem resposta = desconhecido', async () => {
-  const visto = [];
-  const ok = await updater.piLatest({
-    manual: true,
-    fetchJson: async (url) => { visto.push(url); return {version: '0.90.0'}; },
-  });
-  assert.deepEqual(visto, [updater.PI_REGISTRY_URL]);
-  assert.match(updater.PI_REGISTRY_URL, /@earendil-works\/pi-coding-agent/);
-  assert.ok(!updater.PI_REGISTRY_URL.includes('mariozechner'), 'sem fallback deprecado');
-  assert.equal(ok.known, true);
-  assert.equal(ok.version, '0.90.0');
-
-  const sem = await updater.piLatest({manual: true, fetchJson: async () => { throw Error('HTTP 500'); }});
-  assert.deepEqual(sem, {version: '', known: false}, 'sem resposta = desconhecido, sem erro');
 });
 
 test('xournalLatest: só informativo (tag v1.2.7 → 1.2.7)', async () => {

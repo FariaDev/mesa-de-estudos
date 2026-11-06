@@ -762,8 +762,6 @@ function $updatenotice_noticeLinesFor(_s_0, _ls_0) {
 function $updatenotice_hasAction(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return false;
-  } else if (_a_0.$ === "ToolLocal") {
-    return true;
   } else if (_a_0.$ === "ToolAsk") {
     return true;
   } else if (_a_0.$ === "ToolWait") {
@@ -771,9 +769,6 @@ function $updatenotice_hasAction(_a_0) {
   } else {
     return true;
   }
-}
-function $updatenotice_localButton() {
-  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-pi"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update"), tail: { $: "Con", head: $$view_attrOn("click", "UpdatePi"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$msg_msg("update.pi")), tail: { $: "Nil" } });
 }
 function $updatenotice_askButton(_command_0) {
   return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $$view_attrData("command", _command_0), tail: { $: "Con", head: $$view_attrOn("click", "AskUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$updatenotice_updateLabel()), tail: { $: "Nil" } });
@@ -787,8 +782,6 @@ function $updatenotice_copyButton(_command_0) {
 function $updatenotice_actionNodes(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return { $: "Nil" };
-  } else if (_a_0.$ === "ToolLocal") {
-    return { $: "Con", head: $$updatenotice_localButton(), tail: { $: "Nil" } };
   } else if (_a_0.$ === "ToolAsk") {
     const _command_0 = _a_0["command"];
     return { $: "Con", head: $$updatenotice_askButton(_command_0), tail: { $: "Nil" } };
@@ -1042,6 +1035,66 @@ function $aboutLead(_version_0) {
 function $aboutLeadNode(_version_0) {
   return $view_viewText($$aboutLead(_version_0));
 }
+function $originShown(_o_0) {
+  if (_o_0.$ === "OriginNormal") {
+    return true;
+  } else if (_o_0.$ === "OriginDev") {
+    return true;
+  } else if (_o_0.$ === "OriginUnavailable") {
+    return true;
+  } else {
+    return false;
+  }
+}
+function $originLabel(_o_0) {
+  if (_o_0.$ === "OriginNormal") {
+    return $msg_msg("about.origin.normal");
+  } else if (_o_0.$ === "OriginDev") {
+    const _t_0 = _o_0["worktree"];
+    if (_t_0) {
+      return $msg_msg("about.origin.worktree");
+    } else {
+      return $msg_msg("about.origin.dev");
+    }
+  } else if (_o_0.$ === "OriginUnavailable") {
+    return $msg_msg("about.origin.unavailable");
+  } else {
+    return "";
+  }
+}
+function $originPath(_o_0) {
+  if (_o_0.$ === "OriginNormal") {
+    return "";
+  } else if (_o_0.$ === "OriginDev") {
+    const _path_0 = _o_0["path"];
+    return _path_0;
+  } else if (_o_0.$ === "OriginUnavailable") {
+    const _path_1 = _o_0["path"];
+    return _path_1;
+  } else {
+    return "";
+  }
+}
+function $originPathNode(_path_0) {
+  return $view_viewEl("code", { $: "Con", head: $$view_attrClass("about-origin-path"), tail: { $: "Con", head: $$view_attrTitle(_path_0), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText(_path_0), tail: { $: "Nil" } });
+}
+function $originChildrenShown(_o_0) {
+  return $view_viewConcat({ $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("about-origin-label"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$originLabel(_o_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } }, $$view_viewWhenAll($$Bool_not($$String_is_empty($$originPath(_o_0))), { $: "Con", head: $$view_viewText(" · "), tail: { $: "Con", head: $$originPathNode($$originPath(_o_0)), tail: { $: "Nil" } } }));
+}
+function $originChildren(_o_0) {
+  if (_o_0.$ === "OriginNormal") {
+    return $originChildrenShown({ $: "OriginNormal" });
+  } else if (_o_0.$ === "OriginDev") {
+    const __0 = _o_0["worktree"];
+    const __1 = _o_0["path"];
+    return $originChildrenShown({ $: "OriginDev", worktree: __0, path: __1 });
+  } else if (_o_0.$ === "OriginUnavailable") {
+    const __2 = _o_0["path"];
+    return $originChildrenShown({ $: "OriginUnavailable", path: __2 });
+  } else {
+    return { $: "Nil" };
+  }
+}
 function $emptyCourse() {
   return { $: "SettingsCourse", id: "", name: "", path: "" };
 }
@@ -1100,6 +1153,9 @@ function $updateFailedText() {
 function $updateFailedRest() {
   return $msg_msg("update.failedRest");
 }
+function $updateUnverifiableText() {
+  return $msg_msg("update.unverifiable");
+}
 function $updateReadyText(_version_0) {
   return $msg_msg1("update.ready", "version", _version_0);
 }
@@ -1108,9 +1164,6 @@ function $updateNotesLabel() {
 }
 function $updateApplyLabel() {
   return $msg_msg("update.apply");
-}
-function $updatePiLabel() {
-  return $msg_msg("update.pi");
 }
 function $updateApplyingText() {
   return $msg_msg("update.applying");
@@ -1187,6 +1240,8 @@ function $aboutUpdateChildren(_s_0) {
     return $view_viewConcat($$updateReadyChildren(_version_0, _url_0), $$view_viewWhen($$Bool_not($$String_is_empty(_notes_0)), $$updateNotesNode(_notes_0)));
   } else if (_s_0.$ === "UpdateFailed") {
     return { $: "Con", head: $$updateIcon("warn", "!"), tail: { $: "Con", head: $$updateLine2($$updateFailedText(), $$updateFailedRest()), tail: { $: "Con", head: $$checkUpdateButton(), tail: { $: "Nil" } } } };
+  } else if (_s_0.$ === "UpdateUnverifiable") {
+    return { $: "Con", head: $$updateIcon("warn", "!"), tail: { $: "Con", head: $$updateLineNode($$updateUnverifiableText()), tail: { $: "Con", head: $$checkUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateApplying") {
     return { $: "Con", head: $$updateIcon("busy", "…"), tail: { $: "Con", head: $$updateLineNode($$updateApplyingText()), tail: { $: "Con", head: $$applyingUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateDone") {
@@ -1203,7 +1258,7 @@ function $aboutUpdateChildren(_s_0) {
   }
 }
 function $componentIds() {
-  return { $: "Con", head: "pi", tail: { $: "Con", head: "claude", tail: { $: "Con", head: "node", tail: { $: "Con", head: "xournal", tail: { $: "Nil" } } } } };
+  return { $: "Con", head: "claude", tail: { $: "Con", head: "node", tail: { $: "Con", head: "xournal", tail: { $: "Nil" } } } };
 }
 function $componentStateText(_s_0) {
   if (_s_0.$ === "CompOk") {
@@ -1245,9 +1300,6 @@ function $nodeState_if(_old_0) {
 }
 function $nodeState(_major_0, _minor_0) {
   return $nodeState_if($$nodeTooOld(_major_0, _minor_0));
-}
-function $updatePiButton() {
-  return $updatenotice_localButton();
 }
 function $componentLinkButton(_url_0, _label_0) {
   return $view_viewEl("button", { $: "Con", head: $$view_attrClass("component-link"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrOn("click", "OpenLink"), tail: { $: "Con", head: $$view_attrData("url", _url_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$componentLinkLabel(_label_0)), tail: { $: "Nil" } });
@@ -1303,15 +1355,11 @@ function $componentDescription_claude(_isClaude_0, _isNode_0, _isXournal_0) {
     return $componentDescription_node(_isNode_0, _isXournal_0);
   }
 }
-function $componentDescription_pick(_isPi_0, _isClaude_0, _isNode_0, _isXournal_0) {
-  if (_isPi_0) {
-    return $msg_msg("component.desc.pi");
-  } else {
-    return $componentDescription_claude(_isClaude_0, _isNode_0, _isXournal_0);
-  }
+function $componentDescription_pick(_isClaude_0, _isNode_0, _isXournal_0) {
+  return $componentDescription_claude(_isClaude_0, _isNode_0, _isXournal_0);
 }
 function $componentDescription(_id_0) {
-  return $componentDescription_pick($$String_eq(_id_0, "pi"), $$String_eq(_id_0, "claude"), $$String_eq(_id_0, "node"), $$String_eq(_id_0, "xournal"));
+  return $componentDescription_pick($$String_eq(_id_0, "claude"), $$String_eq(_id_0, "node"), $$String_eq(_id_0, "xournal"));
 }
 function $componentHintNode(_parts_0) {
   return $view_viewEl("small", { $: "Con", head: $$view_attrClass("component-hint"), tail: { $: "Nil" } }, _parts_0);
@@ -1842,17 +1890,16 @@ var $$updatenotice_seeAboutLabel = $updatenotice_seeAboutLabel;
 var $$updatenotice_seeAboutButton = $updatenotice_seeAboutButton;
 var $$updatenotice_noticeLineFor = $updatenotice_noticeLineFor;
 var $$updatenotice_noticeLinesFor = $updatenotice_noticeLinesFor;
-var $$view_attrId = $view_attrId;
-var $$msg_msg = $msg_msg;
 var $$updatenotice_updateLabel = $updatenotice_updateLabel;
 var $$updatenotice_waitHint = $updatenotice_waitHint;
+var $$view_attrId = $view_attrId;
 var $$updatenotice_waitShort = $updatenotice_waitShort;
 var $$msg_msg1 = $msg_msg1;
 var $$updatenotice_copyLabel = $updatenotice_copyLabel;
-var $$updatenotice_localButton = $updatenotice_localButton;
 var $$updatenotice_askButton = $updatenotice_askButton;
 var $$updatenotice_copyButton = $updatenotice_copyButton;
 var $$updatenotice_commandNode = $updatenotice_commandNode;
+var $$msg_msg = $msg_msg;
 var $$updatenotice_willRunText = $updatenotice_willRunText;
 var $$updatenotice_runLine = $updatenotice_runLine;
 var $$updatenotice_cancelLabel = $updatenotice_cancelLabel;
@@ -1898,6 +1945,10 @@ var $$imageCopyLabel = $imageCopyLabel;
 var $$imageOpenLabel = $imageOpenLabel;
 var $$helpVersion = $helpVersion;
 var $$aboutLead = $aboutLead;
+var $$originLabel = $originLabel;
+var $$originPath = $originPath;
+var $$originPathNode = $originPathNode;
+var $$view_viewWhenAll = $view_viewWhenAll;
 var $$courseRow = $courseRow;
 var $$courseRows_go = $courseRows_go;
 var $$emptyCourse = $emptyCourse;
@@ -1920,6 +1971,7 @@ var $$updateReadyChildren = $updateReadyChildren;
 var $$updateNotesNode = $updateNotesNode;
 var $$updateFailedText = $updateFailedText;
 var $$updateFailedRest = $updateFailedRest;
+var $$updateUnverifiableText = $updateUnverifiableText;
 var $$updateApplyingText = $updateApplyingText;
 var $$applyingUpdateButton = $applyingUpdateButton;
 var $$updateDoneText = $updateDoneText;
@@ -2126,7 +2178,6 @@ var dialogsview_default = {
   "updatenotice:noticeLineFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLineFor(a0, a1)), 2),
   "updatenotice:noticeLinesFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLinesFor(a0, a1)), 2),
   "updatenotice:hasAction": run_lib((a0) => run_loop($updatenotice_hasAction(a0)), 1),
-  "updatenotice:localButton": run_lib(() => run_loop($updatenotice_localButton()), 0),
   "updatenotice:askButton": run_lib((a0) => run_loop($updatenotice_askButton(str_in(a0))), 1),
   "updatenotice:waitNodes": run_lib(() => run_loop($updatenotice_waitNodes()), 0),
   "updatenotice:copyButton": run_lib((a0) => run_loop($updatenotice_copyButton(str_in(a0))), 1),
@@ -2186,6 +2237,12 @@ var dialogsview_default = {
   "aboutLead.if": run_lib((a0, a1) => str_out(run_loop($aboutLead_if(str_in(a0), a1))), 2),
   aboutLead: run_lib((a0) => str_out(run_loop($aboutLead(str_in(a0)))), 1),
   aboutLeadNode: run_lib((a0) => run_loop($aboutLeadNode(str_in(a0))), 1),
+  originShown: run_lib((a0) => run_loop($originShown(a0)), 1),
+  originLabel: run_lib((a0) => str_out(run_loop($originLabel(a0))), 1),
+  originPath: run_lib((a0) => str_out(run_loop($originPath(a0))), 1),
+  originPathNode: run_lib((a0) => run_loop($originPathNode(str_in(a0))), 1),
+  originChildrenShown: run_lib((a0) => run_loop($originChildrenShown(a0)), 1),
+  originChildren: run_lib((a0) => run_loop($originChildren(a0)), 1),
   emptyCourse: run_lib(() => run_loop($emptyCourse()), 0),
   courseRow: run_lib((a0) => run_loop($courseRow(a0)), 1),
   courseHead: run_lib(() => run_loop($courseHead()), 0),
@@ -2199,10 +2256,10 @@ var dialogsview_default = {
   updateNoneRest: run_lib((a0, a1) => str_out(run_loop($updateNoneRest(str_in(a0), str_in(a1)))), 2),
   updateFailedText: run_lib(() => str_out(run_loop($updateFailedText())), 0),
   updateFailedRest: run_lib(() => str_out(run_loop($updateFailedRest())), 0),
+  updateUnverifiableText: run_lib(() => str_out(run_loop($updateUnverifiableText())), 0),
   updateReadyText: run_lib((a0) => str_out(run_loop($updateReadyText(str_in(a0)))), 1),
   updateNotesLabel: run_lib(() => str_out(run_loop($updateNotesLabel())), 0),
   updateApplyLabel: run_lib(() => str_out(run_loop($updateApplyLabel())), 0),
-  updatePiLabel: run_lib(() => str_out(run_loop($updatePiLabel())), 0),
   updateApplyingText: run_lib(() => str_out(run_loop($updateApplyingText())), 0),
   updateDoneText: run_lib((a0) => str_out(run_loop($updateDoneText(str_in(a0)))), 1),
   "updateRecoveredText.if": run_lib((a0, a1, a2) => str_out(run_loop($updateRecoveredText_if(str_in(a0), str_in(a1), a2))), 3),
@@ -2229,14 +2286,13 @@ var dialogsview_default = {
   nodeWarnText: run_lib(() => str_out(run_loop($nodeWarnText())), 0),
   "nodeState.if": run_lib((a0) => run_loop($nodeState_if(a0)), 1),
   nodeState: run_lib((a0, a1) => run_loop($nodeState(a0, a1)), 2),
-  updatePiButton: run_lib(() => run_loop($updatePiButton()), 0),
   componentLinkButton: run_lib((a0, a1) => run_loop($componentLinkButton(str_in(a0), str_in(a1))), 2),
   componentDot: run_lib((a0) => str_out(run_loop($componentDot(a0))), 1),
   componentShowsHint: run_lib((a0) => run_loop($componentShowsHint(a0)), 1),
   "componentDescription.xournal": run_lib((a0) => str_out(run_loop($componentDescription_xournal(a0))), 1),
   "componentDescription.node": run_lib((a0, a1) => str_out(run_loop($componentDescription_node(a0, a1))), 2),
   "componentDescription.claude": run_lib((a0, a1, a2) => str_out(run_loop($componentDescription_claude(a0, a1, a2))), 3),
-  "componentDescription.pick": run_lib((a0, a1, a2, a3) => str_out(run_loop($componentDescription_pick(a0, a1, a2, a3))), 4),
+  "componentDescription.pick": run_lib((a0, a1, a2) => str_out(run_loop($componentDescription_pick(a0, a1, a2))), 3),
   componentDescription: run_lib((a0) => str_out(run_loop($componentDescription(str_in(a0)))), 1),
   componentHintNode: run_lib((a0) => run_loop($componentHintNode(a0)), 1),
   componentNote: run_lib((a0, a1, a2) => run_loop($componentNote(str_in(a0), str_in(a1), a2)), 3),

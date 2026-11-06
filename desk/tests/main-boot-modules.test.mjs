@@ -24,7 +24,7 @@ function tempDir(tag) {
   return dir;
 }
 
-test('applyEnvOverrides fixa cofre, Pi e Claude do ambiente e deixa o resto', () => {
+test('applyEnvOverrides fixa cofre e Claude do ambiente e deixa o resto', () => {
   const config = applyEnvOverrides({vaultPath: '/a', piPath: '/pi', claudePath: '', xournalPath: '/x'},
     {LEARNING_VAULT: '/cofre', LEARNING_DESK_CLAUDE: '/claude'});
   assert.deepEqual(config, {vaultPath: '/cofre', piPath: '/pi', claudePath: '/claude', xournalPath: '/x'});
@@ -33,9 +33,9 @@ test('applyEnvOverrides fixa cofre, Pi e Claude do ambiente e deixa o resto', ()
 test('loadBootConfig sem arquivo e com cofre no ambiente não grava nada', () => {
   const dir = tempDir('cfg');
   const configFile = path.join(dir, 'config.json');
-  const config = loadBootConfig({configFile, env: {LEARNING_VAULT: dir, LEARNING_DESK_PI: '/pi'}, persist: true});
+  const config = loadBootConfig({configFile, env: {LEARNING_VAULT: dir}, persist: true});
   assert.equal(config.vaultPath, dir);
-  assert.equal(config.piPath, '/pi');
+  assert.equal(config.piPath, '');
   assert.equal(fs.existsSync(configFile), false);
 });
 

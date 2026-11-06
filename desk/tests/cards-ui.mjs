@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {launchDesk,newRuntime,openSessionById,pageWindow,seedCourse,seedSession,statusOnline,withArtifacts,writeConfigJson,writeDeskJson} from './helpers.mjs';
+import {launchDesk,newRuntime,openSessionById,pageWindow,seedCourse,seedNativeSession,statusOnline,withArtifacts,writeConfigJson,writeDeskJson} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
 
 const require=createRequire(import.meta.url);
@@ -16,7 +16,7 @@ await withArtifacts('cartoes',async ctx=>{
  const runtime=ctx.runtime=newRuntime('cartoes');
  seedCourse(runtime,'Calculus I');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calculus I',name:'Cálculo I',path:path.join(runtime,'learning','Courses','Calculus I')}]});
- const session=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Vamos revisar limites.'}]}}]);
+ const session=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:'Vamos revisar limites.'}]}],{courseId:'Calculus I'});
  writeDeskJson(runtime,{session,courseId:'Calculus I'});
  const pending=cardStore.createCard(runtime,session,normalizeQuiz({
   question:'Qual é o limite de $\\frac{x^2-1}{x-1}$ quando $x\\to 1$?',
@@ -106,17 +106,20 @@ await withArtifacts('cartoes-sem-tutor',async ctx=>{
  const runtime=ctx.runtime=newRuntime('cartoes-sem-tutor');
  seedCourse(runtime,'Calculus I');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calculus I',name:'Cálculo I',path:path.join(runtime,'learning','Courses','Calculus I')}]});
- const session=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Sem tutor.'}]}}]);
+ const session=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:'Sem tutor.'}]}],{courseId:'Calculus I'});
  writeDeskJson(runtime,{session,courseId:'Calculus I'});
  const card=cardStore.createCard(runtime,session,normalizeQuiz({question:'Quanto é 2+2?',options:[{label:'3'},{label:'4'}],correctAnswer:'4'}));
  cardStore.answerCard(runtime,session,card.id,{selected:[2]});
- const brokenPi=path.join(runtime,'pi-sem-execucao');fs.writeFileSync(brokenPi,'#!/bin/sh\n');fs.chmodSync(brokenPi,0o644);
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_PI:brokenPi}});
+ const brokenEngine=path.join(runtime,'engine-sem-execucao');fs.writeFileSync(brokenEngine,'#!/bin/sh\n');fs.chmodSync(brokenEngine,0o644);
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_OPENCODE:brokenEngine}});
  const page=await app.firstWindow();
  await page.waitForSelector('.quiz-card',{timeout:30000});
  await page.locator('.quiz-conclude').click();
  await page.waitForFunction(()=>document.querySelector('[data-tool] .quiz-conclude')?.textContent.includes('Reenviar'),undefined,{timeout:30000});
  assert.equal(await page.locator('.quiz-pending').count(),0,'não fica preso em Enviando');
+ const refusal=await page.locator('.quiz-error').textContent();
+ assert.doesNotMatch(refusal,/err\.opencode|\uE000|\uE001/,'o motivo do motor chega traduzido, sem chave crua');
+ assert.match(refusal,/OpenCode/,'o motivo diz qual motor não abriu');
  assert.equal(await page.locator('.quiz-skip').isVisible(),true,'há uma saída visível (Dispensar)');
  await page.reload();
  await page.waitForSelector('.quiz-card',{timeout:30000});
@@ -129,7 +132,7 @@ await withArtifacts('cartoes-malformados',async ctx=>{
  const runtime=ctx.runtime=newRuntime('cartoes-malformados');
  seedCourse(runtime,'Calculus I');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calculus I',name:'Cálculo I',path:path.join(runtime,'learning','Courses','Calculus I')}]});
- const session=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Conversa abre mesmo com cartão torto.'}]}}]);
+ const session=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:'Conversa abre mesmo com cartão torto.'}]}],{courseId:'Calculus I'});
  writeDeskJson(runtime,{session,courseId:'Calculus I'});
  const file=cardStore.fileOf(runtime,session);
  fs.mkdirSync(path.dirname(file),{recursive:true});
@@ -147,10 +150,10 @@ await withArtifacts('cartoes-conversa-trocada',async ctx=>{
  const runtime=ctx.runtime=newRuntime('cartoes-troca');
  seedCourse(runtime,'Calculus I');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calculus I',name:'Cálculo I',path:path.join(runtime,'learning','Courses','Calculus I')}]});
- const a=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Conversa A.'}]}}]);
+ const a=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:'Conversa A.'}]}],{courseId:'Calculus I'});
  // espera fixa: o nome do JSONL usa Date.now(); 5 ms separam A de B.
  await new Promise((resolve)=>setTimeout(resolve,5));
- const b=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Conversa B.'}]}}]);
+ const b=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:'Conversa B.'}]}],{courseId:'Calculus I'});
  writeDeskJson(runtime,{session:a,courseId:'Calculus I',courseStates:{'Calculus I':{session:a,sessions:[{path:a,started:1},{path:b,started:2}]}}});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();
@@ -173,19 +176,19 @@ await withArtifacts('cartoes-fila',async ctx=>{
  const runtime=ctx.runtime=newRuntime('cartoes-fila');
  seedCourse(runtime,'Calculus I');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calculus I',name:'Cálculo I',path:path.join(runtime,'learning','Courses','Calculus I')}]});
- const session=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Fila e cartão.'}]}}]);
+ const session=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:'Fila e cartão.'}]}],{courseId:'Calculus I'});
  writeDeskJson(runtime,{session,courseId:'Calculus I'});
  const card=cardStore.createCard(runtime,session,normalizeQuiz({question:'Quanto é 2+2?',options:[{label:'3'},{label:'4'}],correctAnswer:'4'}));
  cardStore.answerCard(runtime,session,card.id,{selected:[2]});
  const log=path.join(runtime,'fila.log');
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_QUEUE_LOG:log,FAKE_PI_QUEUE_HOLD_MS:'2500'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_QUEUE_LOG:log,FAKE_OPENCODE_QUEUE_HOLD_MS:'2500'}});
  const page=await app.firstWindow();
  await statusOnline(page);
  await page.waitForSelector('.quiz-card',{timeout:30000});
  await page.locator('#prompt').fill('primeira');
  await page.locator('#prompt').press('Enter');
  await page.waitForFunction(()=>document.querySelector('#send')?.disabled===true,undefined,{timeout:30000});
- assert.match(fs.readFileSync(log,'utf8'),/primeira/,'o primeiro turno chegou ao motor');
+ await pollUntil(()=>fs.existsSync(log)?fs.readFileSync(log,'utf8'):'',value=>/primeira/.test(value),{timeout:30000,what:'o primeiro turno chegar ao motor'});
  await page.locator('#prompt').fill('segunda');
  await page.locator('#prompt').press('Enter');
  await page.waitForFunction(()=>document.querySelectorAll('.queue-item').length===1,undefined,{timeout:10000});

@@ -29,6 +29,6 @@ test('#review-bar[hidden] realmente esconde a barra', () => {
 });
 
 test('a saída da #ggb-bar continua animada (display allow-discrete)', () => {
-  const transition = rule(sheets['motion.css'], ':is(.chat-pop,#context-pop,.attach-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn)');
+  const transition = rule(sheets['motion.css'], ':is(.chat-pop,.attach-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn)');
   assert.match(transition, /transition:[^;]*display var\(--t-base\) allow-discrete/);
 });

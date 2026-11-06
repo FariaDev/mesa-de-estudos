@@ -138,3 +138,10 @@ test('Claude executable path survives config normalization without changing Pi d
  assert.equal(normalize({}).claudePath,'');
  assert.deepEqual(config.desk,defaultDesk());
 });
+
+test('OpenCode executable path survives config normalization (#102)',()=>{
+ const config=normalize({opencodePath:'/home/ana/.bun/bin/opencode'});
+ assert.equal(config.opencodePath,'/home/ana/.bun/bin/opencode');
+ assert.equal(normalize({}).opencodePath,'');
+ assert.equal(normalize({opencodePath:' /bun/opencode '}).opencodePath,' /bun/opencode ','o caminho não é aparado, como os outros do topo');
+});

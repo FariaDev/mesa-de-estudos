@@ -1,4 +1,5 @@
 /* Instala/atualiza o bundle Mesa de Estudos.app (espelhava o script da Conversa, aposentada na #50).
+   - Cria o bundle se faltar e mantém o Electron dele na versão de node_modules (#103).
    - Sincroniza o código em Contents/Resources/app: .cjs/.mjs, src/ (catálogos em src/locales/, #72), assets/, templates/ e
      scripts/, além das dependências de runtime do renderer (marked/katex/dompurify/pdfjs-dist,
      importadas direto de node_modules pelo index.html e pelo renderer).
@@ -11,6 +12,9 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import runtimeBundle from '../bundle-runtime.cjs';
+import bundleElectron from '../bundle-electron.cjs';
+import {ensureElectronBinary} from './electron-binary.mjs';
+import {ensureVisualHelper} from './visual-helper.mjs';
 
 const desk=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.resolve(desk,'..');
@@ -23,7 +27,18 @@ if(process.platform!=='darwin'){
  process.exit(0);
 }
 
-if(!fs.existsSync(app))throw new Error('Mesa de Estudos.app não encontrada — rode npm run setup antes.');
+/* O README promete que este comando monta o .app, mas em clone novo ele recusava;
+   e o update trocava só o payload, sem acompanhar o Electron pedido (#103). */
+const electronDir=path.join(desk,'node_modules','electron');
+ensureElectronBinary({electronDir});
+const electronApp=path.join(electronDir,'dist','Electron.app');
+if(bundleElectron.ensureBundleExists({source:electronApp,app}))console.log('Bundle criado a partir do Electron.');
+const electronSync=bundleElectron.syncBundleElectron({source:electronApp,app});
+if(electronSync.changed)console.log(`Electron do bundle: ${electronSync.from} → ${electronSync.to}`);
+
+/* O helper do Conferir entra no bundle a partir do clone: sem compilar aqui, instalar
+   sem `npm run setup` deixava o Conferir indisponível. */
+if(ensureVisualHelper({root})==='failed')console.log('Aviso: o Conferir fica indisponível até compilar o helper. Instale as Command Line Tools do Xcode (xcode-select --install) e rode npm run install-app de novo.');
 
 /* 1–3. Código, manifesto e auxiliares: a mesma rotina que o teste do app
    empacotado (#51) usa numa pasta temporária, sem o atalho nem a assinatura. */

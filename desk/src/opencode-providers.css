@@ -1,0 +1,64 @@
+/* Entrada por provedor do OpenCode (primeira abertura e Configurações).
+   Mesma casca nos dois lugares: uma linha discreta por conta, o progresso
+   dentro da linha e um "Outro provedor" fechado. Sem cartão novo e sem cor
+   própria: os tokens de `style.css` mandam. */
+
+.op-title{margin:0;font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong)}
+.cfg-opencode-providers{margin-top:var(--space-6);padding-top:var(--space-6);border-top:1px solid var(--border)}
+.setup-providers{margin-top:var(--space-4);padding-top:var(--space-3);border-top:1px solid var(--border)}
+.op-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3)}
+.op-providers .fine,.op-providers .op-login-text{margin:0 0 var(--space-2);font-size:var(--fs-sm);color:var(--muted)}
+.op-list{display:flex;flex-direction:column}
+.op-provider{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 0;border-top:1px solid var(--border)}
+.op-list .op-provider:first-child{border-top:0}
+.op-mark{width:20px;height:20px;flex:none;display:inline-flex;align-items:center;justify-content:center;color:var(--fg)}
+.op-mark .icon{width:18px;height:18px}
+.op-mark .provider-mono{width:20px;height:20px;font-size:var(--fs-2xs)}
+.op-body{flex:1;min-width:140px;display:flex;flex-direction:column;gap:1px}
+.op-name-row{display:flex;align-items:baseline;gap:6px;min-width:0}
+.op-name{font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-sub{font-size:var(--fs-xs);color:var(--faint)}
+.op-state-line{display:flex;align-items:center;gap:5px}
+.op-status{font-size:var(--fs-xs);color:var(--muted)}
+.op-status-dot{display:none;width:6px;height:6px;flex:none;border-radius:50%;background:var(--faint)}
+.op-provider.connected .op-status-dot{display:inline-block;background:var(--success)}
+.op-provider.expired .op-status-dot{display:inline-block;background:var(--warning,var(--faint))}
+/* Botão de ação da linha (auditoria rodada 4, F5): secundário como os vizinhos —
+   o único primário do diálogo é o Salvar do rodapé. */
+.op-provider>[data-action]{height:28px;padding:0 10px;font-size:var(--fs-sm)}
+.op-provider>.set-link{height:26px;padding:0 6px;font-size:var(--fs-sm)}
+.op-login,.op-key{flex-basis:100%;order:9;margin:2px 0 4px;padding:var(--space-3);border-radius:var(--r-sm);background:var(--code)}
+.op-login[data-phase="complete"]{background:transparent;border-left:2px solid var(--success);padding-left:calc(var(--space-3) - 2px)}
+.op-login[data-phase="failed"],.op-login[data-phase="cancelled"]{background:transparent;border-left:2px solid var(--border-strong);padding-left:calc(var(--space-3) - 2px)}
+.op-login-text{margin:0 0 var(--space-2)!important;color:var(--muted)}
+.op-login-body{display:flex;flex-direction:column;gap:var(--space-2)}
+.op-instructions{margin:0;font-size:var(--fs-sm);color:var(--fg)}
+.op-url{display:flex;align-items:flex-start;gap:var(--space-2);flex-wrap:wrap}
+.op-url code{flex:1;min-width:180px;max-height:4.5em;overflow:auto;font-size:var(--fs-xs);word-break:break-all;color:var(--muted)}
+.op-code{display:flex;gap:var(--space-2);flex-wrap:wrap}
+.op-code input,.op-key input{height:30px;box-sizing:border-box;padding:0 8px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface);color:var(--fg);font:inherit;font-size:var(--fs-sm)}
+.op-code input{flex:1;min-width:160px}
+.op-key{display:flex;flex-direction:column;gap:var(--space-2)}
+.op-key label{display:flex;flex-direction:column;gap:4px;margin:0;font-size:var(--fs-sm);color:var(--fg-strong)}
+.op-key input{width:100%}
+.op-key .fine{margin:0}
+.op-key-actions{display:flex;gap:var(--space-2);flex-wrap:wrap}
+.op-key-actions button,.op-code button,.op-login-body>button{height:28px;padding:0 10px;font-size:var(--fs-sm)}
+.op-command{display:flex;align-items:center;gap:var(--space-2);flex-basis:100%;order:8;max-width:100%;margin:2px 0 4px}
+.op-provider>.op-command{order:8}
+.op-command code{flex:1;min-width:0;overflow-x:auto;padding:5px 8px;border-radius:var(--r-xs);background:var(--code);font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
+.op-state-box{display:flex;flex-direction:column;gap:var(--space-2);margin:var(--space-2) 0 var(--space-3)}
+.op-state-text{margin:0;font-size:var(--fs-sm);color:var(--muted)}
+.op-others{margin-top:var(--space-4);border-top:1px solid var(--border);padding-top:var(--space-3)}
+.op-others summary{cursor:pointer;font-size:var(--fs-sm);color:var(--muted);list-style-position:inside;padding:5px 0}
+.op-others summary:hover{color:var(--fg)}
+.op-others .fine{margin:var(--space-2) 0}
+.op-select{width:100%;height:30px;box-sizing:border-box;margin:0 0 var(--space-2);padding:0 6px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface);color:var(--fg);font:inherit;font-size:var(--fs-sm)}
+.op-provider-generic .op-command{order:9}
+@media (max-width:620px){
+ .op-provider .op-status{display:none}
+ .op-name{white-space:normal}
+}
+@media (prefers-reduced-motion:reduce){
+ .op-provider,.op-login{transition:none}
+}

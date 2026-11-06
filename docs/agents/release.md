@@ -66,7 +66,10 @@ npm run update:keygen -- --private-key ~/mesa-update-signing.pem
    também instala as dependências e abre a Mesa atualizada. O ensaio só cobre a
    instalação por zip; **no macOS, ensaie à parte o caminho do `.app`**: monte em
    pasta temporária um bundle da versão anterior, com `HOME` temporário, e use o
-   `update-check` e o `update-apply`;
+   `update-check` e o `update-apply`, conferindo que o Electron acompanhou. **No
+   Windows, dispare o workflow `Ensaio no Windows`** depois de publicar: ele atualiza
+   uma 1.0.2 de verdade num runner e abre a Mesa. Nenhum teste percorre a interface
+   lá ainda (#108);
 
    ```sh
    cd desk
@@ -114,7 +117,8 @@ o bundle no macOS e reabre. Comportamento real, por modo:
   `zipBytes`/SHA-256 contra o manifesto e valida a versão dentro do zip ANTES
   de copiar; substitui só o que o manifesto da instalação gerencia
   (`desk/.update-manifest.json`) — órfão gerenciado sai, arquivo local fica.
-  `--versao X.Y.Z` seleciona versão aqui.
+  `--versao X.Y.Z` seleciona versão aqui — por ser pedido explícito, ignora a
+  trava anti-rollback (que recusa anunciada <= instalada) com aviso no log.
 - **Instalação antiga com `chat/` no disco** (#50): o updater nunca apaga nem
   toca a pasta, em nenhum modo. No zip, `chat/` nunca esteve na lista gerenciada
   e uma entrada de manifesto que aponte para lá é recusada com aviso no log
@@ -130,6 +134,12 @@ o bundle no macOS e reabre. Comportamento real, por modo:
   anunciada é aviso no log, nunca "vX no lugar").
 - Clone com **trabalho local** (arquivo rastreado modificado) é recusado antes
   de qualquer mutação — commit/stash e rode de novo. Nada é destruído.
+- **Origem no Sobre (#109)**: o app instalado mostra de onde se atualiza, lida
+  do mesmo `install-source.json` (ou da raiz com `.git`) que o updater usa. Zip
+  sem clone é "Release oficial"; bundle ligado a clone/worktree é "Pasta de
+  desenvolvimento" com o caminho em `~`; pasta que sumiu ou não é clone é
+  "Origem indisponível" e a faixa diz que não dá para verificar — nunca
+  "Atualizada". Rodando do código (`npm start`), o Sobre fica como antes.
 
 Falhou = rollback automático: instantâneo dos arquivos gerenciados (nunca da
 raiz toda), `git reset --hard` para a cabeça anterior (só com o clone limpo)
@@ -137,7 +147,7 @@ e `npm ci` de recuperação quando as dependências foram mexidas; a versão
 antiga reabre com o motivo em `.runtime/desk.log`. Se a própria recuperação
 falhar, o **backup é preservado** (caminho no log) e o Sobre mostra
 "recuperação incompleta". A atualização tem lock compartilhado entre
-Sobre/Atualizar Pi/CLI e handshake do worker (o app só fecha depois de o
+Sobre/CLI e handshake do worker (o app só fecha depois de o
 worker confirmar que subiu; sem Node do sistema, aborta com o app de pé).
 
 ## Novidades da versão

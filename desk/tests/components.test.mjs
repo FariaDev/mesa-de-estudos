@@ -1,105 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {ptText} from './pt-text.mjs';
+import {tempDir} from './temp-dir.mjs';
 
 /* Painel "Componentes" com tudo injetado (fetch e comandos falsos, sem rede):
-   resolução da versão do Pi, aviso de Node antigo (decisão do núcleo), Xournal++
-   só informativo e a ordem das linhas vinda de `dialogsCore.componentIds()`. */
+   aviso de Node antigo (decisão do núcleo), Xournal++ só informativo e a ordem
+   das linhas vinda de `dialogsCore.componentIds()`. */
 const require = createRequire(import.meta.url);
 const components = require('../components.cjs');
 const updater = require('../updater.cjs');
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-components-test-'));
+const tmp = () => tempDir('mesa-components-test');
 
 /* Nenhum teste enxerga o claude nem o binário do SDK DESTA máquina. */
 const NO_CLAUDE = {claudeLauncher: ''};
 
-function seedLocalPi(deskDir, {version = '0.90.0', symlink = true} = {}) {
-  const pkgDir = path.join(deskDir, 'node_modules', '@earendil-works', 'pi-coding-agent');
-  fs.mkdirSync(path.join(pkgDir, 'dist'), {recursive: true});
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({name: '@earendil-works/pi-coding-agent', version}));
-  fs.writeFileSync(path.join(pkgDir, 'dist', 'cli.js'), '#!/usr/bin/env node\n');
-  const bin = path.join(deskDir, 'node_modules', '.bin');
-  fs.mkdirSync(bin, {recursive: true});
-  const alvo = path.join(pkgDir, 'dist', 'cli.js');
-  if (symlink) fs.symlinkSync(path.relative(bin, alvo), path.join(bin, 'pi'));
-  else fs.writeFileSync(path.join(bin, 'pi'), '#!/usr/bin/env node\n');
-  fs.chmodSync(path.join(bin, 'pi'), 0o755);
-  return path.join(bin, 'pi');
-}
-
-test('piVersion: package.json do binário resolvido (symlink do .bin)', async () => {
-  const deskDir = tmp();
-  const pi = seedLocalPi(deskDir, {version: '0.90.0'});
-  let chamadas = 0;
-  const run = async () => { chamadas++; return {stdout: ''}; };
-  assert.equal(await components.piVersion({piPath: pi, run}), '0.90.0');
-  assert.equal(chamadas, 0, 'sem package.json o fallback seria o --version; aqui não precisou');
-});
-
-test('piVersion: sem package.json por perto, cai no pi --version com timeout', async () => {
-  const deskDir = tmp();
-  const pi = seedLocalPi(deskDir, {symlink: false});
-  fs.rmSync(path.join(deskDir, 'node_modules', '@earendil-works'), {recursive: true, force: true});
-  const chamadas = [];
-  const run = async (cmd, args, opts) => {
-    chamadas.push({cmd, args, timeout: opts?.timeout});
-    return {stdout: 'pi 0.86.1\n'};
-  };
-  assert.equal(await components.piVersion({piPath: pi, run}), '0.86.1');
-  assert.deepEqual(chamadas, [{cmd: pi, args: ['--version'], timeout: 5000}]);
-  assert.equal(await components.piVersion({piPath: pi, run: async () => { throw Error('travou'); }}), '', 'timeout/falha = sem versão, sem erro');
-});
-
-test('piIsLocal: só o local da Mesa é atualizável pela Mesa (.pi-local e node_modules antigo)', () => {
-  const deskDir = tmp();
-  const pi = seedLocalPi(deskDir);
-  assert.equal(components.piIsLocal(pi, deskDir), true);
-  assert.equal(components.piLocalRoot(pi, deskDir), 'node_modules');
-  assert.equal(components.piIsLocal('/opt/homebrew/bin/pi', deskDir), false);
-  assert.equal(components.piIsLocal('', deskDir), false);
-  /* Contrato novo: o Pi da Mesa mora em desk/.pi-local (fora da árvore npm). */
-  const local = path.join(deskDir, '.pi-local', 'node_modules', '.bin', 'pi');
-  fs.mkdirSync(path.dirname(local), {recursive: true});
-  fs.writeFileSync(local, '#!/usr/bin/env node\n');
-  fs.chmodSync(local, 0o755);
-  assert.equal(components.piIsLocal(local, deskDir), true);
-  assert.equal(components.piLocalRoot(local, deskDir), '.pi-local');
-  const real = fs.realpathSync.native ? fs.realpathSync(local) : fs.realpathSync(local);
-  assert.equal(components.piIsLocal(real, deskDir), true, 'caminho resolvido também vale');
-});
-
 test('collect: linhas na ordem do núcleo, Mesa pelo cache do updater', async () => {
   const deskDir = tmp();
-  seedLocalPi(deskDir, {version: '0.86.1'});
   const cacheFile = path.join(deskDir, 'update.json');
   updater.writeCache(cacheFile, {release: {at: Date.now(), version: '0.4.1', notes: '', url: ''}});
   const fetchJson = async (url) => {
-    if (url === updater.PI_REGISTRY_URL) return {version: '0.90.0'};
     if (url === updater.XOURNAL_RELEASES_URL) return {tag_name: 'v1.2.7'};
     throw Error('URL inesperada: ' + url);
   };
   const run = async () => ({stdout: ''});
-  const {rows, piLocal} = await components.collect({
+  const {rows} = await components.collect({
     deskDir, config: {}, cacheFile, version: '0.4.0', manual: true, fetchJson, run,
     platform: 'linux', nodeVersion: '22.19.0', envPath: '', ...NO_CLAUDE,
   });
-  assert.deepEqual(rows.map((r) => r.id), ['pi', 'claude', 'node', 'xournal'], 'ordem: Pi, Claude Code, Node, Xournal++ (a Mesa não é linha)');
-  assert.equal(piLocal, true);
+  assert.deepEqual(rows.map((r) => r.id), ['claude', 'node', 'xournal'], 'ordem: Claude Code, Node, Xournal++ (a Mesa não é linha)');
 
-  const [pi, claude, node, xournal] = rows;
+  const [claude, node, xournal] = rows;
   assert.equal(claude.version, '', 'sem launcher não há versão');
   assert.equal(claude.state, 'unknown');
   assert.match(ptText(claude.hint), /Não encontrado/);
-
-  assert.equal(pi.state, 'outdated');
-  assert.equal(pi.latest, '0.90.0');
-  assert.equal(pi.canUpdate, true, 'Pi local com versão nova = botão Atualizar Pi');
-  assert.match(ptText(pi.hint), /node_modules|\.pi-local/);
 
   assert.equal(node.state, 'ok');
   assert.equal(node.version, '22.19.0');
@@ -110,49 +47,6 @@ test('collect: linhas na ordem do núcleo, Mesa pelo cache do updater', async ()
   assert.equal(xournal.link, updater.XOURNAL_SITE_URL);
   assert.equal(ptText(xournal.linkLabel), 'Abrir o site');
   assert.equal(xournal.canUpdate, false, 'o app não atualiza o Xournal++');
-});
-
-test('collect: Pi de PATH mostra o comando e não vira botão', async () => {
-  const deskDir = tmp();
-  const global = path.join(tmp(), 'bin');
-  fs.mkdirSync(global, {recursive: true});
-  const pi = path.join(global, 'pi');
-  fs.writeFileSync(pi, '#!/usr/bin/env node\n');
-  fs.chmodSync(pi, 0o755);
-  const {rows} = await components.collect({
-    deskDir,
-    config: {},
-    cacheFile: '',
-    version: '0.4.0',
-    testMode: true,
-    piPath: pi,
-    run: async () => ({stdout: '0.86.1\n'}),
-    platform: 'linux',
-    nodeVersion: '22.19.0',
-    envPath: '',
-    ...NO_CLAUDE,
-  });
-  const piRow = rows[0];
-  assert.equal(piRow.version, '0.86.1');
-  assert.equal(piRow.canUpdate, false);
-  assert.equal(piRow.install, 'unknown', 'a Mesa não reconhece quem instalou');
-  assert.equal(piRow.copyOnly, true, 'sem instalador conhecido: só o comando, com Copiar');
-  assert.equal(piRow.command, 'npm i -g @earendil-works/pi-coding-agent');
-  assert.match(ptText(piRow.hint), /Fora da pasta da Mesa/);
-});
-
-test('collect: sem Pi a linha dele some; o resto continua sem erro', async () => {
-  const {rows} = await components.collect({
-    deskDir: tmp(), config: {}, cacheFile: '', version: '0.4.0', testMode: true, piPath: '',
-    run: async () => { throw Error('não roda'); }, platform: 'win32', nodeVersion: '20.11.0', envPath: '', ...NO_CLAUDE,
-  });
-  const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
-  assert.equal(byId.pi, undefined, 'quem não tem Pi não vê a linha');
-  assert.equal(byId.claude.state, 'unknown');
-  assert.equal(byId.xournal.state, 'unknown');
-  assert.match(ptText(byId.xournal.hint), /Configurações/);
-  assert.equal(byId.node.note, '', 'sem Pi, o aviso do Node sobre o Pi não aparece');
-  assert.doesNotMatch(JSON.stringify(rows), /exige Node 22\.19|Pi/);
 });
 
 test('collect: Node do SISTEMA é medido de verdade; sem node cai no embutido, rotulado', async () => {
@@ -172,7 +66,7 @@ test('collect: Node do SISTEMA é medido de verdade; sem node cai no embutido, r
   const base = {deskDir: tmp(), config: {}, cacheFile: '', version: '0.4.0', testMode: true, run: async () => ({stdout: ''}), platform: 'linux', envPath: '', ...NO_CLAUDE};
   const comSistema = await components.collect({...base, nodeVersion: '24.4.0', nodeSource: 'system'});
   const comNode = comSistema.rows.find((row) => row.id === 'node');
-  assert.equal(comSistema.rows.some((row) => row.id === 'pi'), false, 'testMode sem LEARNING_DESK_PI não vê o Pi real do Homebrew');
+  assert.equal(comSistema.rows.some((row) => row.id === 'pi'), false, 'a linha do Pi não existe mais');
   assert.equal(ptText(comNode.label), 'Node (sistema)');
   const semSistema = await components.collect({...base, nodeVersion: '22.19.0', nodeSource: 'embedded'});
   const semNode = semSistema.rows.find((row) => row.id === 'node');
@@ -180,22 +74,16 @@ test('collect: Node do SISTEMA é medido de verdade; sem node cai no embutido, r
   assert.match(ptText(semNode.hint), /node do sistema/);
 });
 
-test('collect: Node abaixo de 22.19 avisa com Pi; sem Pi o aviso some (o corte é do núcleo)', async () => {
-  const deskDir = tmp();
-  const pi = path.join(tmp(), 'pi');
-  fs.writeFileSync(pi, '#!/usr/bin/env node\n');
-  const base = {deskDir, config: {}, cacheFile: '', version: '0.4.0', testMode: true, piPath: pi, run: async () => ({stdout: ''}), platform: 'linux', envPath: '', ...NO_CLAUDE};
+test('collect: Node abaixo de 22.19 avisa (o corte é do núcleo)', async () => {
+  const base = {deskDir: tmp(), config: {}, cacheFile: '', version: '0.4.0', testMode: true, run: async () => ({stdout: ''}), platform: 'linux', envPath: '', ...NO_CLAUDE};
   const antigo = await components.collect({...base, nodeVersion: '22.18.0'});
-  assert.equal(antigo.rows[2].state, 'warn');
-  assert.equal(ptText(antigo.rows[2].note), 'abaixo de 22.19 — o Pi exige Node 22.19+');
+  const antigoNode = antigo.rows.find((row) => row.id === 'node');
+  assert.equal(antigoNode.state, 'warn');
+  assert.match(ptText(antigoNode.note), /22\.19/);
   const limite = await components.collect({...base, nodeVersion: '22.19.0'});
-  assert.equal(limite.rows[2].state, 'ok');
+  assert.equal(limite.rows.find((row) => row.id === 'node').state, 'ok');
   const velho = await components.collect({...base, nodeVersion: '20.11.0'});
-  assert.equal(velho.rows[2].state, 'warn');
-  const semPi = await components.collect({...base, piPath: '', nodeVersion: '20.11.0'});
-  const semPiNode = semPi.rows.find((row) => row.id === 'node');
-  assert.equal(semPiNode.state, 'warn');
-  assert.equal(semPiNode.note, '', 'sem Pi o aviso não fala do Pi');
+  assert.equal(velho.rows.find((row) => row.id === 'node').state, 'warn');
 });
 
 test('collect: Xournal++ no macOS lê o CFBundleShortVersionString e compara (só informativo)', async () => {
@@ -214,7 +102,6 @@ test('collect: Xournal++ no macOS lê o CFBundleShortVersionString e compara (s�
     deskDir, config: {xournalPath: app}, cacheFile, version: '0.4.0', manual: true,
     fetchJson: async (url) => {
       if (url === updater.XOURNAL_RELEASES_URL) return {tag_name: 'v1.2.7'};
-      if (url === updater.PI_REGISTRY_URL) return {version: '0.90.0'};
       throw Error('URL inesperada');
     },
     run, platform: 'darwin', nodeVersion: '22.19.0', envPath: '', ...NO_CLAUDE,

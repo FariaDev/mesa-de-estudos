@@ -3,7 +3,7 @@ import ../agentcaps.bend as A
 
 # ---------------------------------------------------------------------------
 # Contrato das capacidades do motor (prefixo `caps_`). Cenários concretos: o
-# host escolhe `piCaps`/`claudeCaps`/`opencodeCaps` pelo motor da conversa (e
+# host escolhe `claudeCaps`/`opencodeCaps` pelo motor da conversa (e
 # `unknownCaps` para o resto) e consulta
 # `canSteer`/`canSend`/`controlVisible`.
 #
@@ -14,13 +14,6 @@ import ../agentcaps.bend as A
 # ---------------------------------------------------------------------------
 
 # ---------- fatos ----------
-
-# Tudo ligado. O bilhete saiu com a Conversa (#50) e do contrato na #49.
-law caps_pi_fatos:
-  {A.piCaps() == A.Caps{
-    True{}, True{}, True{}, True{}, True{}, True{}, True{},
-    True{}, True{}, True{}, True{}, True{}
-  } : A.Caps}
 
 law caps_claude_estrutural:
   {A.claudeCaps() == A.Caps{
@@ -107,23 +100,7 @@ law caps_claude_permissoes_catalogo:
 law caps_claude_auto_compactacao_catalogo:
   {A.controlVisible(A.claudeControlCaps(True{}, True{}), A.ControlAutoCompaction{}) == False{} : Bool}
 
-# Amostras do Pi: o comportamento de hoje.
-law caps_pi_quiz:
-  {A.controlVisible(A.piCaps(), A.ControlQuiz{}) == True{} : Bool}
-
-law caps_pi_geogebra:
-  {A.controlVisible(A.piCaps(), A.ControlGeogebra{}) == True{} : Bool}
-
-law caps_pi_contexto:
-  {A.controlVisible(A.piCaps(), A.ControlContextUsage{}) == True{} : Bool}
-
 # ---------- steer ----------
-
-law caps_steer_pi_ocupado:
-  {A.canSteer(A.piCaps(), True{}) == True{} : Bool}
-
-law caps_steer_pi_livre:
-  {A.canSteer(A.piCaps(), False{}) == False{} : Bool}
 
 law caps_steer_claude_ocupado:
   {A.canSteer(A.claudeCaps(), True{}) == True{} : Bool}
@@ -132,18 +109,6 @@ law caps_steer_claude_livre:
   {A.canSteer(A.claudeCaps(), False{}) == False{} : Bool}
 
 # ---------- enviar ----------
-
-law caps_send_pi_livre:
-  {A.canSend(A.piCaps(), False{}, False{}) == True{} : Bool}
-
-law caps_send_pi_ocupado:
-  {A.canSend(A.piCaps(), True{}, False{}) == True{} : Bool}
-
-law caps_send_pi_imagem:
-  {A.canSend(A.piCaps(), False{}, True{}) == True{} : Bool}
-
-law caps_send_pi_imagem_ocupado:
-  {A.canSend(A.piCaps(), True{}, True{}) == True{} : Bool}
 
 law caps_send_claude_livre:
   {A.canSend(A.claudeCaps(), False{}, False{}) == True{} : Bool}
@@ -214,7 +179,7 @@ law caps_send_opencode_ocupado_imagem:
 
 # ---------- motor desconhecido ----------
 
-# Fora dos três motores, nada do Pi vaza: nem envio com imagem, nem steer.
+# Fora dos motores conhecidos, nada vaza: nem envio com imagem, nem steer.
 law caps_desconhecido_fechado:
   {A.unknownCaps() == A.Caps{
     False{}, False{}, False{}, False{}, False{}, False{}, False{},

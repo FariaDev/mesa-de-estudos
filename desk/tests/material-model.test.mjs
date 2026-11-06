@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import * as model from '../src/materials/model.mjs';
 import {structureMaterialTokens, numberEquations, parseQuestionHeading} from '../src/materials/structure.mjs';
+import {HOUSE_MARK} from '../src/materials/house-marks.mjs';
 import {marked} from 'marked';
 
 const require = createRequire(import.meta.url);
@@ -96,10 +97,13 @@ test('adaptador CJS e o módulo ESM são o mesmo', () => {
 
 /* ---------- estrutura por tokens ---------- */
 
-const html = (markdown, id, options = {}) => {
+const render = (markdown, id, options = {}) => {
   const defaults = {...marked.defaults, breaks: true};
   return marked.parser(structureMaterialTokens(marked.lexer(markdown, defaults), id, options), defaults);
 };
+/* A marca da casa é interna e tem nome sorteado: os testes de estrutura a
+   removem, e o teste da marca usa `render` cru. */
+const html = (markdown, id, options = {}) => render(markdown, id, options).replaceAll(` ${HOUSE_MARK}="1"`, '');
 
 test('simulado: questão com valor, caixa de resposta e múltipla escolha sem caixa', () => {
   const out = html([
@@ -117,6 +121,19 @@ test('simulado: questão com valor, caixa de resposta e múltipla escolha sem ca
   assert.match(out, /data-long="1"[^>]*style="--ans:80mm"/);
   assert.match(out, /<section class="pdf-gabarito" data-break="1">/);
   assert.equal(html('## Questão 1 (2)\n\nx', 'simulado', {valor: false}).includes('pdf-q-v'), false);
+});
+
+test('a marca da casa cobre TODA tag gerada, inclusive as aninhadas, sem marcar o texto do modelo', () => {
+  const out = render('## Questão 1 (2 <b>pontos</b>)', 'simulado', {valor: true});
+  const mark = /data-pdf-house-[0-9a-f]{32}="1"/;
+  for (const cls of ['pdf-ficha', 'pdf-q', 'pdf-q-head', 'pdf-q-n', 'pdf-q-v', 'pdf-resposta']) {
+    assert.match(out, new RegExp(`<(?:div|strong|span) data-pdf-house-[0-9a-f]{32}="1" class="${cls}"`), cls);
+  }
+  assert.equal((out.match(new RegExp(mark.source, 'g')) || []).length, 9, 'ficha (4), questão (4) e resposta (1)');
+  /* Valor do modelo interpolado no HTML da casa sai escapado ANTES da marca:
+     `<b>` digitado no título não vira elemento marcado. */
+  assert.match(out, /class="pdf-q-v">2 &lt;b&gt;pontos&lt;\/b&gt;</);
+  assert.equal(/<b[^>]*data-pdf-house/.test(out), false, 'o modelo não ganha a marca da casa');
 });
 
 test('parseQuestionHeading lê número, valor e a marca {longa}', () => {

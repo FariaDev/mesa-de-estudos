@@ -5,31 +5,31 @@
    `fake-secret-cipher.cjs`): nenhuma rede, Keychain ou área de transferência real. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ptMatches} from './pt-text.mjs';
+import {ptMatches, ptText} from './pt-text.mjs';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {createFakeOpencode} from './fake-opencode.mjs';
 import {ZEN_MODELS} from './fake-pi-opencode.mjs';
+import {tempDir} from './temp-dir.mjs';
 const require = createRequire(import.meta.url);
 const {createOpencodeHost, preferredDefaults} = require('../opencode-host.cjs');
-const {createKeyStore} = require('../opencode-key-store.cjs');
+const {createKeyStore, BLOB_MAGIC} = require('../opencode-key-store.cjs');
 const fakeCipher = require('./fake-secret-cipher.cjs');
 const policyTable = require('../free-models.json');
 
 const KEY = 'sk-teste-chave-do-zen-1234567890';
-const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-opencode-host-'));
+const temp = () => tempDir('mesa-opencode-host');
 
-async function harness({clipboard = '', asyncClipboard = false, fake, homeDir = temp()} = {}) {
+async function harness({clipboard = '', asyncClipboard = false, fake, homeDir = temp(), runtime = temp(), cipher = fakeCipher} = {}) {
   const console_ = fake || await createFakeOpencode({validKeys: [KEY], billingKeys: ['sk-sem-cobranca-1234567890']});
-  const runtime = temp();
   const handlers = new Map();
   const seen = {logs: [], patches: [], clipboardReads: 0, relinks: 0, opened: []};
   let state = {};
+  const keyStore = createKeyStore({dir: runtime, cipher});
   const host = createOpencodeHost({
     ipcMain: {handle: (name, fn) => handlers.set(name, fn)},
-    keyStore: createKeyStore({dir: runtime, cipher: fakeCipher}),
+    keyStore,
     state: () => state,
     patchState: (patch) => { seen.patches.push(patch); state = {...state, ...patch}; },
     baseUrl: console_.url,
@@ -40,7 +40,23 @@ async function harness({clipboard = '', asyncClipboard = false, fake, homeDir = 
     appendLog: (area, line) => seen.logs.push(`${area}: ${line}`),
   });
   const call = (name, request) => handlers.get(name)({}, request);
-  return {host, call, seen, console_, runtime, homeDir, close: () => console_.close()};
+  return {host, call, seen, console_, runtime, homeDir, keyStore, close: () => console_.close()};
+}
+
+/* Conta as chamadas à cifra nomeada do cofre (`fake-secret-cipher.cjs`), sem
+   trocar o comportamento dela: é o medidor do "abrir Configurações não
+   decifra, usar a chave decifra" (#104). */
+function countingCipher(base = fakeCipher) {
+  const counts = {available: 0, encrypt: 0, decrypt: 0, decryptSync: 0};
+  return {
+    counts,
+    cipher: {
+      available: () => { counts.available += 1; return base.available(); },
+      encrypt: (plain) => { counts.encrypt += 1; return base.encrypt(plain); },
+      decrypt: (blob) => { counts.decrypt += 1; return base.decrypt(blob); },
+      decryptSync: (blob) => { counts.decryptSync += 1; return base.decryptSync(blob); },
+    },
+  };
 }
 
 test('a tabela de política: data, fonte, valores conhecidos e padrão só com retenção zero', () => {
@@ -76,7 +92,8 @@ test('blob da API síncrona antiga é decifrado e regravado no formato assíncro
   fs.writeFileSync(store.file, fakeCipher.encryptLegacy(KEY), {mode: 0o600});
   assert.equal(await store.load(), KEY);
   const rewritten = fs.readFileSync(store.file);
-  const plain = await fakeCipher.decrypt(rewritten);
+  assert.ok(rewritten.subarray(0, BLOB_MAGIC.length).equals(BLOB_MAGIC), 'o arquivo migrado leva a marca do formato assíncrono');
+  const plain = await fakeCipher.decrypt(rewritten.subarray(BLOB_MAGIC.length));
   assert.equal(plain.result, KEY, 'o arquivo migrado é lido pela API assíncrona');
   assert.equal(await createKeyStore({dir, cipher: fakeCipher}).load(), KEY, 'depois da migração não depende mais da API antiga');
 });
@@ -101,10 +118,83 @@ test('shouldReEncrypt regrava a chave com a API assíncrona', async () => {
   fs.writeFileSync(store.file, xor(Buffer.from(KEY, 'utf8')), {mode: 0o600});
   assert.equal(await store.load(), KEY);
   assert.equal(encrypts, 1, 'veio shouldReEncrypt: a chave foi regravada uma vez');
-  assert.ok(fs.readFileSync(store.file).subarray(0, opened.length).equals(opened), 'o arquivo novo sai da API assíncrona');
+  const rewritten = fs.readFileSync(store.file);
+  assert.ok(rewritten.subarray(0, BLOB_MAGIC.length).equals(BLOB_MAGIC), 'o arquivo novo leva a marca do formato assíncrono');
+  assert.ok(rewritten.subarray(BLOB_MAGIC.length, BLOB_MAGIC.length + opened.length).equals(opened), 'o arquivo novo sai da API assíncrona');
   const reopened = createKeyStore({dir, cipher});
   assert.equal(await reopened.load(), KEY);
   assert.equal(encrypts, 1, 'sem shouldReEncrypt na segunda vez, não regrava de novo');
+});
+
+/* Regressão #104: abrir Configurações só olha o arquivo cifrado; a decifragem
+   acontece no uso explícito da chave (testar, salvar ou subir o tutor). */
+test('abrir Configurações não decifra a chave; testar a guardada decifra uma vez (#104)', async () => {
+  const {cipher, counts} = countingCipher();
+  const first = await harness({cipher});
+  const saved = await first.call('opencode-key-save', {key: KEY});
+  assert.equal(saved.ok, true);
+  const runtime = first.runtime;
+  await first.close();
+  for (const name of Object.keys(counts)) counts[name] = 0;
+  /* Outra instância do host = app reaberto: a memória do processo anterior não existe. */
+  const second = await harness({cipher, runtime});
+  const status = await second.call('opencode-status');
+  assert.equal(status.saved, true, 'o arquivo cifrado basta para dizer "guardada"');
+  assert.equal(status.masked, '••••', 'sem decifrar, a máscara é genérica');
+  assert.deepEqual([counts.available, counts.encrypt, counts.decrypt, counts.decryptSync], [0, 0, 0, 0], 'abrir Configurações não toca o cofre');
+  const tested = await second.call('opencode-key-test');
+  assert.deepEqual([tested.ok, tested.outcome], [true, 'ok']);
+  assert.equal(counts.decrypt, 1, 'usar a chave guardada decifra uma vez');
+  assert.equal(counts.decryptSync, 0, 'blob com a marca não usa a API síncrona');
+  const after = await second.call('opencode-status');
+  assert.equal(after.masked, 'sk-••••7890', 'depois de usar, a máscara vem da memória sem decifrar de novo');
+  assert.equal(counts.decrypt, 1);
+  await second.close();
+});
+
+test('abrir Configurações e subir o tutor sem chave da Mesa não tocam no cofre (#104)', async () => {
+  const {cipher, counts} = countingCipher();
+  const h = await harness({cipher});
+  const status = await h.call('opencode-status');
+  assert.deepEqual([status.saved, status.masked], [false, '']);
+  assert.deepEqual(await h.host.keyEnv(), {});
+  assert.deepEqual(counts, {available: 0, encrypt: 0, decrypt: 0, decryptSync: 0}, 'sem arquivo, nem a disponibilidade do cofre é consultada');
+  await h.close();
+});
+
+test('chave guardada ilegível: status não decifra e o uso diz o que aconteceu (#104)', async () => {
+  const runtime = temp();
+  fs.mkdirSync(runtime, {recursive: true});
+  fs.writeFileSync(path.join(runtime, 'opencode-key.bin'), Buffer.from('lixo que não é blob do cofre'));
+  const {cipher, counts} = countingCipher();
+  const h = await harness({runtime, cipher});
+  const status = await h.call('opencode-status');
+  assert.equal(status.saved, true);
+  assert.equal(status.masked, '••••');
+  assert.equal(counts.decrypt, 0, 'abrir Configurações não tenta decifrar');
+  const tested = await h.call('opencode-key-test');
+  assert.deepEqual([tested.ok, tested.outcome], [false, 'unreadable']);
+  assert.match(ptText(tested.message), /não pôde ser lida/);
+  assert.equal(counts.decrypt, 1, 'testar a chave guardada tenta decifrar uma vez');
+  assert.equal(counts.decryptSync, 1, 'blob antigo sem a marca ainda usa a ponte síncrona');
+  await assert.rejects(() => h.host.keyEnv(), ptMatches(/não pôde ser lida/));
+  await h.close();
+});
+
+test('blob com a marca não cai na decifra síncrona quando o cofre recusa (#104)', async () => {
+  const dir = temp();
+  const xor = (buffer) => Buffer.from(buffer.map((byte) => byte ^ 0x5a));
+  let decryptSync = 0;
+  const cipher = {
+    available: async () => true,
+    encrypt: async (plain) => xor(Buffer.from(plain, 'utf8')),
+    decrypt: async () => { throw new Error('cofre recusou'); },
+    decryptSync: () => { decryptSync += 1; return KEY; },
+  };
+  await createKeyStore({dir, cipher}).save(KEY);
+  const store = createKeyStore({dir, cipher});
+  assert.equal(await store.load(), '');
+  assert.equal(decryptSync, 0, 'blob marcado nunca chama a API síncrona, que trava o fechamento');
 });
 
 test('a segunda leitura do cofre não decifra de novo; sem cofre não devolve a memória', async () => {
@@ -315,7 +405,7 @@ test('o seletor: Grátis pelo custo zero ou pelo nome, a política da tabela, je
   await h.close();
 });
 
-test('pelo Pi os grátis somem do seletor: o OpenCode só libera o plano grátis no próprio cliente (#57, 403 FreeTierError)', async () => {
+test('os grátis somem do seletor: o OpenCode só libera o plano grátis no próprio cliente (#57, 403 FreeTierError)', async () => {
   const h = await harness();
   const pi = h.host.annotate(ZEN_MODELS);
   assert.ok(!pi.some((m) => m.free?.is === true), 'nenhum grátis na lista do Pi');
@@ -324,15 +414,12 @@ test('pelo Pi os grátis somem do seletor: o OpenCode só libera o plano grátis
   await h.close();
 });
 
-test('o modelo escolhido é lembrado e o Pi nasce com ele; grátis lembrado não volta; trocar de provedor desfaz; remover apaga a chave', async () => {
+test('o modelo escolhido é lembrado; trocar de provedor desfaz; remover apaga a chave', async () => {
   const h = await harness();
   await h.call('opencode-key-save', {key: KEY});
   h.host.rememberModel({provider: 'opencode', id: 'glm-5.3-flash-free'});
-  assert.deepEqual(h.host.launchArgs(), [], 'um grátis lembrado de antes da #57 daria 403 pelo Pi');
   h.host.rememberModel({provider: 'opencode', id: 'gpt-5.5'});
-  assert.deepEqual(h.host.launchArgs(), ['--provider', 'opencode', '--model', 'gpt-5.5']);
   h.host.rememberModel({provider: 'test', id: 'offline'});
-  assert.deepEqual(h.host.launchArgs(), []);
   await h.call('opencode-paid-ack');
   assert.equal((await h.call('opencode-status')).paidConfirmed, true);
   await h.call('opencode-key-remove');

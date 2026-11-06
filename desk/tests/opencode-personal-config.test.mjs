@@ -8,13 +8,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {trackTempDir} from './temp-dir.mjs';
 
 const require = createRequire(import.meta.url);
 const {readPersonalConfig, serveEnv} = require('../src/agents/opencode-serve-config.cjs');
 const {sanitizePersonalConfig} = require('../src/agents/opencode-personal-config.cjs');
 
 function tempHome() {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-personal-'));
+  const home = trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-personal-')));
   const config = path.join(home, '.config', 'opencode');
   fs.mkdirSync(config, {recursive: true});
   return {home, config};
@@ -67,7 +68,7 @@ test('no macOS lê o ~/.config/opencode que o binário lê, com ou sem XDG', () 
       assert.equal(personal.model, 'acme/m1', `macOS ${env.XDG_CONFIG_HOME ? 'com' : 'sem'} XDG`);
       assert.equal(personal.provider.acme.models.m1.name, 'M1');
     }
-    const other = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-mac-only-'));
+    const other = trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-mac-only-')));
     try {
       fs.mkdirSync(path.join(other, 'Library', 'Application Support', 'opencode'), {recursive: true});
       fs.writeFileSync(path.join(other, 'Library', 'Application Support', 'opencode', 'opencode.json'), JSON.stringify({model: 'mac/m1'}));
@@ -124,10 +125,11 @@ test('serveEnv mantém as travas da Mesa e leva a pessoa inline', () => {
   const inline = JSON.parse(env.OPENCODE_CONFIG_CONTENT);
   assert.equal(inline.model, 'acme/m1');
   assert.equal(inline.provider.acme.models.m1.name, 'M1');
-  assert.equal(inline.tools.shell, false);
+  assert.equal(inline.tools, undefined, 'a chave tools não volta (o read precisa ser oferecido)');
   assert.equal(inline.permission.shell, 'deny');
   assert.equal(inline.permission['*'], 'deny');
   assert.equal(inline.permission['mesa_*'], 'allow');
+  assert.deepEqual(inline.permission.read, {'*': 'deny', '/mesa-nada-existe/*': 'allow'});
   assert.equal(inline.mcp, undefined);
   assert.equal(inline.plugin, undefined);
   assert.equal(inline.agent, undefined);

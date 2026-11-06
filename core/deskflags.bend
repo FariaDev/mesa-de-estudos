@@ -4,8 +4,9 @@ import view.bend as V
 # ---------------------------------------------------------------------------
 # Flags do bloco `desk` que o `applyDesk` escrevia em controles vivos do
 # `index.html`: o botão de referências do composer (`#include-refs`), o
-# contexto de estudo (`#study-context`) e o botão que o abre (`#context-edit`), o Conferir Xournal++ (`#check`) e o
-# divisor da calculadora (`#calc-divider`).
+# contexto de estudo (`#study-context`, no submenu Mais opções → Contexto desde
+# a #123), o Conferir Xournal++ (`#check`) e o divisor da calculadora
+# (`#calc-divider`).
 #
 # O host normaliza o `desk` (só o `false` explícito desliga) e entrega os
 # fatos como Bool. A única decisão que não é espelho de `hidden` é o
@@ -59,17 +60,6 @@ def studyContextRow(f: DeskFlags) -> V.ViewNode:
     case DeskFlags{_, _, studyContext, _, _}:
       V.viewEl("div", V.attrJoin([
         [V.attrId("study-context")],
-        hiddenAttrs(Bool.not(studyContext))
-      ]), Nil{})
-
-# O botão que abre a edição do contexto de estudo a partir da linha "Vai
-# junto" (ticket #15): vive e morre com a flag `studyContext`, como a linha de
-# campos que ele abre.
-def contextEditButton(f: DeskFlags) -> V.ViewNode:
-  match f:
-    case DeskFlags{_, _, studyContext, _, _}:
-      V.viewEl("button", V.attrJoin([
-        [V.attrId("context-edit")],
         hiddenAttrs(Bool.not(studyContext))
       ]), Nil{})
 

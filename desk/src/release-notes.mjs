@@ -12,6 +12,19 @@
 /** @type {readonly ReleaseNote[]} */
 export const RELEASE_NOTES = Object.freeze([
   {
+    version: '1.2.0',
+    title: 'releaseNotes.comfort.title',
+    lead: 'releaseNotes.comfort.lead',
+    groups: [
+      {title: 'releaseNotes.comfort.also', cards: [
+        {icon: 'plug', title: 'releaseNotes.comfort.login', body: 'releaseNotes.comfort.loginBody'},
+        {icon: 'maximize', title: 'releaseNotes.comfort.full', body: 'releaseNotes.comfort.fullBody'},
+        {icon: 'messageSquare', title: 'releaseNotes.comfort.continue', body: 'releaseNotes.comfort.continueBody'},
+        {icon: 'book', title: 'releaseNotes.comfort.reading', body: 'releaseNotes.comfort.readingBody'},
+      ]},
+    ],
+  },
+  {
     version: '1.1.0',
     title: 'releaseNotes.opencode.title',
     lead: 'releaseNotes.opencode.lead',

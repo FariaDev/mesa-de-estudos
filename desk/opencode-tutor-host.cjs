@@ -102,6 +102,8 @@ function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureAc
   /** O título da sessão é frase da interface, não o marcador cru do catálogo. */
   const sessionTitle = () => typeof live.languageHost?.t === 'function' ? live.languageHost.t('opencode.session.title') : message('opencode.session.title');
   const owner = createOwner({findBinary: openCodeBinary, keyEnv: () => live.opencodeHost.keyEnv(), cwd: path.join(runtime, 'opencode-workspaces'), ledgerDir: runtime, log, baseEnv});
+  /** Cada adaptador espera a subida em nome próprio: cancelar não derruba a espera da outra conversa (#57). */
+  const ownerSeat = () => { const seat = {}; return {acquire: () => owner.acquire(seat), cancelAcquire: () => owner.cancelStarting(seat)}; };
   /** @type {ReturnType<typeof createOpenCodeActivityCalls>|null} */
   let activityCalls = null;
   /** Tokens do chat lateral (`ler_pdf` só). A troca de sessão os revoga. */
@@ -115,7 +117,10 @@ function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureAc
 
   /** @returns {InstanceType<typeof NativeService>} */
   function connect() {
-    conversations.recoverClaudeConversation(live.session, {runtime});
+    /* O ses_ tardio não pode cair no descritor que abriu depois (#r5-C):
+       o callback confere o descritor do connect, não o `live` da hora. */
+    const descriptorAtConnect = live.session;
+    conversations.recoverClaudeConversation(descriptorAtConnect, {runtime});
     const {cwd, systemPrompt, record} = prepareOpenCode();
     const persistence = nativePersistence({descriptor: live.session, runtime, preview: record.preview});
     const activityGrant = grantActivity();
@@ -127,9 +132,9 @@ function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureAc
     const adapter = new OpenCodeAdapter({
       conversationId: live.session, sessionId: record.nativeSessionId, resume: record.nativeEstablished, directory: cwd,
       systemPrompt, selection: {model: record.model || null, effort: record.effort || null}, sessionTitle: sessionTitle(),
-      acquire: () => owner.acquire(), persistDelivery: persistence.persistDelivery, log, readVersion,
+      ...ownerSeat(), persistDelivery: persistence.persistDelivery, log, readVersion,
       /* O servidor cunha o `ses_` na primeira ligação; o descritor o guarda uma vez. */
-      onSessionId: (id) => conversations.updateClaudeConversation(live.session, {nativeSessionId: id}, {runtime}),
+      onSessionId: (id) => { if (live.session !== descriptorAtConnect) return; conversations.updateClaudeConversation(descriptorAtConnect, {nativeSessionId: id}, {runtime}); },
       mcpConfig: () => mesaMcpConfig({execPath, ggbBridge: ggbBridge(), activityGrant, materialGrant: live.tutorMaterialGrant, cardGrant: activityGrant, tutorLanguage: live.languageHost.tutorLanguage()}),
     });
     adapter.on('event', calls.observe);
@@ -141,10 +146,10 @@ function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureAc
    * Serviço do chat lateral OpenCode (#74): mesmo servidor da principal,
    * descritor e pasta próprios. O MCP traz só `ler_pdf`: o lateral não publica
    * atividade nem figura. O token é próprio e não substitui o da principal.
-   * @param {{descriptor: string, record: NonNullable<ReturnType<typeof conversations.readClaudeConversation>>}} side
+   * @param {{descriptor: string, record: NonNullable<ReturnType<typeof conversations.readClaudeConversation>>, id?: string}} side
    * @returns {InstanceType<typeof NativeService>}
    */
-  function connectSide({descriptor, record}) {
+  function connectSide({descriptor, record, id = ''}) {
     const {cwd, systemPrompt} = prepareOpenCodeSide(record);
     const persistence = nativePersistence({descriptor, runtime, preview: record.preview});
     /* O laudo lateral herda o escopo da sessão principal (matéria/Livre) para
@@ -152,12 +157,19 @@ function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureAc
        rota `/materials` recusaria a lista como sessão trocada. */
     const activityGrant = live.activityBridge.grant({...captureActivityScope(), conversationId: descriptor}, {engine: 'opencode'});
     sideTokens.add(activityGrant.token);
+    /* O cartão do lateral é roteado pelo id `sc-…`, não pelo descritor do
+       motor: sem a concessão própria, o `quiz` do OpenCode caía na conversa
+       principal (#74). O grant de PDF continua no descritor. */
+    const cardGrant = id
+      ? live.activityBridge.grant({...captureActivityScope(), conversationId: id}, {engine: 'opencode'})
+      : activityGrant;
+    if (cardGrant !== activityGrant) sideTokens.add(cardGrant.token);
     const adapter = new OpenCodeAdapter({
       conversationId: descriptor, sessionId: record.nativeSessionId || '', resume: record.nativeEstablished, directory: cwd,
       systemPrompt, selection: {model: record.model || null, effort: record.effort || null}, sessionTitle: sessionTitle(),
-      acquire: () => owner.acquire(), persistDelivery: persistence.persistDelivery, log, readVersion,
+      ...ownerSeat(), persistDelivery: persistence.persistDelivery, log, readVersion,
       onSessionId: (id) => conversations.updateClaudeConversation(descriptor, {nativeSessionId: id}, {runtime}),
-      mcpConfig: () => mesaMcpConfig({execPath, ggbBridge: '', activityGrant, cardGrant: activityGrant, tutorLanguage: live.languageHost.tutorLanguage(), pdfOnly: true}),
+      mcpConfig: () => mesaMcpConfig({execPath, ggbBridge: '', activityGrant, cardGrant, tutorLanguage: live.languageHost.tutorLanguage(), pdfOnly: true}),
     });
     return new NativeService({adapter, engine: 'opencode', uncertain: record.delivery?.status === 'uncertain', messages: record.messages || [],
       onMessages: persistence.onMessages, onSelection: persistence.onSelection});
@@ -193,7 +205,7 @@ function createOpenCodeTutorHost({live, runtime, ggbBridge, appendLog, captureAc
     sideTokens.clear();
   }
 
-  return {connect, connectSide, draft, identifyCaller, release, sweepAtBoot: () => owner.sweepAtBoot(), stop: () => owner.stop()};
+  return {connect, connectSide, draft, identifyCaller, release, sweepAtBoot: () => owner.sweepAtBoot(), stop: () => owner.stop(), acquireAuth: () => owner.acquireAuth()};
 }
 
 module.exports = {createOpenCodeTutorHost, mesaMcpConfig, serveBaseEnv, MCP_SERVER};

@@ -141,3 +141,15 @@ def Laws.pending_hold_after_answer_busy():
 
 def Laws.pending_hold_after_answer_permission():
   {==}
+
+def Laws.pending_rehold_after_send_refused():
+  {==}
+
+def Laws.pending_rehold_after_send_accepted():
+  {==}
+
+def Laws.pending_rehold_after_send_not_held_refused():
+  {==}
+
+def Laws.pending_rehold_after_send_not_held_accepted():
+  {==}

@@ -1,5 +1,6 @@
 // @ts-check
-/* Fatos do motor da conversa na janela (#57): Pi, Claude Code e OpenCode. Um
+/* Fatos do motor da conversa na janela (#57): Claude Code e OpenCode, com o Pi
+   antigo só para abrir histórico em somente leitura. Um
    lugar só para o que antes era `engine==='claude'` espalhado pelo renderer:
    qual motor é conhecido, quais são nativos (descritor, controles do motor),
    se o binário dele foi achado e o esforço padrão. Motor desconhecido não vira
@@ -41,7 +42,7 @@ export function isNativeEngine(engine) {
 
 /**
  * O binário do motor da conversa foi achado? Só então a Mesa chama o tutor sozinha.
- * @param {{engine?: unknown, detectedPi?: unknown, detectedClaude?: unknown, detectedOpenCode?: unknown}|null|undefined} data
+ * @param {{engine?: unknown, detectedClaude?: unknown, detectedOpenCode?: unknown}|null|undefined} data
  * @returns {boolean}
  * @example engineReady({engine: 'opencode', detectedOpenCode: '/bin/opencode'}) // true
  */
@@ -49,20 +50,47 @@ export function engineReady(data) {
   if (!data) return false;
   if (data.engine === 'claude') return !!data.detectedClaude;
   if (data.engine === 'opencode') return !!data.detectedOpenCode;
-  return !!data.detectedPi;
+  return false;
+}
+
+/**
+ * Os motores visíveis que estão prontos (binário achado), na ordem da vista.
+ * A lista visível entra por parâmetro para o teste passar os fakes sem mudar
+ * a produção (#87).
+ * @param {{detectedClaude?: unknown, detectedOpenCode?: unknown}} data
+ * @param {unknown} visible
+ * @returns {Array<'claude'|'opencode'>}
+ * @example readyVisibleEngines({detectedOpenCode: '/bin/opencode'}, ['opencode']) // ['opencode']
+ */
+export function readyVisibleEngines(data, visible) {
+  const list = Array.isArray(visible) ? visible : [];
+  return list.filter((engine) => (engine === 'claude' || engine === 'opencode') && engineReady({engine, detectedClaude: data?.detectedClaude, detectedOpenCode: data?.detectedOpenCode}));
+}
+
+/**
+ * O outro motor visível e pronto, além do motor da conversa. É a saída de D7=C
+ * quando o connect falha: a coluna oferece continuar no motor que já existe,
+ * com passagem (#87).
+ * @param {{engine?: unknown, detectedClaude?: unknown, detectedOpenCode?: unknown}} data
+ * @param {unknown} visible
+ * @returns {'claude'|'opencode'|''}
+ * @example otherReadyVisibleEngine({engine: 'opencode', detectedClaude: '/bin/claude'}, ['claude','opencode']) // 'claude'
+ */
+export function otherReadyVisibleEngine(data, visible) {
+  return readyVisibleEngines(data, visible).find((engine) => engine !== data?.engine) || '';
 }
 
 /**
  * Existe outro motor instalado além do motor da conversa? É o caso de trocar
  * de sessão ao chamar o tutor quando o motor dela sumiu: sem nenhum outro, a
  * chamada continua e mostra o erro do motor que falta (#93).
- * @param {{engine?: unknown, detectedPi?: unknown, detectedClaude?: unknown, detectedOpenCode?: unknown}|null|undefined} data
+ * @param {{engine?: unknown, detectedClaude?: unknown, detectedOpenCode?: unknown}|null|undefined} data
  * @returns {boolean}
- * @example otherEngineDetected({engine: 'pi', detectedOpenCode: '/bin/opencode'}) // true
+ * @example otherEngineDetected({engine: 'claude', detectedOpenCode: '/bin/opencode'}) // true
  */
 export function otherEngineDetected(data) {
   if (!data) return false;
-  const found = {pi: !!data.detectedPi, claude: !!data.detectedClaude, opencode: !!data.detectedOpenCode};
+  const found = {claude: !!data.detectedClaude, opencode: !!data.detectedOpenCode};
   return Object.entries(found).some(([engine, ready]) => ready && engine !== data.engine);
 }
 
@@ -77,9 +105,9 @@ export function defaultEffort(engine) {
 }
 
 /**
- * Capacidade quando o host não mandou a lista: o Pi (e a janela antes do
- * primeiro dado, que é Pi) nasce com tudo; motor nativo nasce fechado. Motor
- * desconhecido nem chega aqui: `applyEngineData` o recusa.
+ * Capacidade quando o host não mandou a lista: o histórico Pi antigo nasce com
+ * tudo; motor nativo nasce fechado. Motor desconhecido nem chega aqui:
+ * `applyEngineData` o recusa.
  * @param {unknown} engine
  * @returns {boolean}
  * @example defaultCapability('pi') // true; defaultCapability('opencode') // false

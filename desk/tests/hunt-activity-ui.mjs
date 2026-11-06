@@ -7,15 +7,15 @@
    Uso: node tests/hunt-activity-ui.mjs */
 import {_electron as electron} from '@playwright/test';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {tempDir} from './temp-dir.mjs';
 import {testEnv} from './electron-env.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DESK = path.resolve(here, '..');
 const MAIN = path.join(here, 'fixtures', 'activity', 'ui-main.cjs');
-const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-activity-ui-hunt-'));
+const runtime = tempDir('mesa-activity-ui-hunt');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let failures = 0;
 

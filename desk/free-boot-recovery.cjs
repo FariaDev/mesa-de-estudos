@@ -1,7 +1,5 @@
 'use strict';
 
-const crypto=require('node:crypto');
-const path=require('node:path');
 const conversations=require('./src/agents/conversations.cjs');
 const free=require('./free-workspaces.cjs');
 const freePromotion=require('./free-promotion.cjs');
@@ -24,7 +22,7 @@ function recoverFreePromotions({runtime,config,log}){
   for(const action of actions)if(action.action!=='completed')log(JSON.stringify(action));
   const pending=freePromotion.sessions(runtime);
   for(const record of free.listWorkspaces(runtime)){
-   if(!record.nativePath){try{free.setNativePath(runtime,record.id,path.join(free.workspaceDir(runtime,record.id),`pi-${crypto.randomUUID()}.jsonl`));}catch(error){log(`caminho nativo da sessão Livre não gravado: ${error.message}`);}}
+   if(!record.nativePath){try{free.setNativePath(runtime,record.id,conversations.createClaudeConversation({runtime,courseId:free.freeCourseId(),engine:'opencode'}));}catch(error){log(`caminho nativo da sessão Livre não gravado: ${error.message}`);}}
    const plan=record.promotion;
    if(!plan||plan.status==='promoted'||pending.has(record.id))continue;
    if(plan.status==='prepared'){

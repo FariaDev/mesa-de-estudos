@@ -3,8 +3,9 @@ import {build,preserveFocus} from './view-host.mjs';
 import tutorStateCore from './generated/tutorstate.core.js';
 import {reasonFacts} from './tutor-reason.mjs';
 import {visibleRecord,resumeStudy,forgetResume,leaveResume} from './resume.mjs';
-import {text,currentLanguage,LANGUAGE_EVENT} from './ui-text.mjs';
-import {engineReady,otherEngineDetected} from './engine-facts.mjs';
+import {t,text,currentLanguage,LANGUAGE_EVENT} from './ui-text.mjs';
+import {engineReady,otherEngineDetected,otherReadyVisibleEngine} from './engine-facts.mjs';
+import {visibleEngines} from './visible-engines-ui.mjs';
 
 /* Estados do tutor na coluna (ticket #17): desligado (com ou sem "onde parei"),
    ligando e sem resposta. A árvore sai do núcleo (`core/tutorstate.bend`); aqui
@@ -12,7 +13,7 @@ import {engineReady,otherEngineDetected} from './engine-facts.mjs';
    os fatos (`S.link`, o registro de retomada) e as ações. O host só conecta o
    que o núcleo decidiu — o estado e o motivo vêm de `S.link`, que o `connect()`
    e a saúde alimentam. */
-let host={newSession:()=>{},openPiSettings:()=>{},openLog:()=>{},openAbout:()=>{},updateClaude:()=>{},openReleaseNotes:()=>{}};
+let host={newSession:()=>{},continueSession:()=>{},openLog:()=>{},openAbout:()=>{},updateClaude:()=>{},openReleaseNotes:()=>{}};
 let painted='';
 /* Até o boot decidir se liga o tutor, a coluna não diz "desligado": o convite
    piscaria antes do "Chamando o tutor" em toda abertura. */
@@ -24,7 +25,7 @@ const handlers=()=>({
      sessão nova no motor que a Mesa encontrar agora (#93). Com o motor
      presente, continua sendo só a nova tentativa de conexão. */
   try{applyEngineData(await window.desk.getConfig());}catch{/* sem config novo, decide com o que já sabe */}
-  const facts={engine:S.engine,detectedPi:S.detected?.pi,detectedClaude:S.detected?.claude,detectedOpenCode:S.detected?.opencode};
+  const facts={engine:S.engine,detectedClaude:S.detected?.claude,detectedOpenCode:S.detected?.opencode};
   /* Sem motor nenhum, a chamada segue e mostra o erro; trocar de sessão só
      quando há outro motor para onde ir (#93). */
   if(!engineReady(facts)&&otherEngineDetected(facts)){host.newSession();return;}
@@ -33,12 +34,13 @@ const handlers=()=>({
  Cancel:()=>{cancelConnect().catch(()=>{});},
  Resume:()=>{resumeStudy().catch(()=>{});},
  NewSession:()=>{leaveResume();host.newSession();},
+ ContinueOther:()=>host.continueSession(S.continueOtherEngine),
  Forget:()=>{forgetResume().catch(()=>{});},
  OpenLog:()=>host.openLog(),
- OpenPiSettings:()=>host.openPiSettings(),
  /* OpenCode ausente: a instalação mora na janela de novidades (o mesmo caminho
     da primeira abertura), não num botão que repete a falha. */
  OpenReleaseNotes:()=>host.openReleaseNotes(),
+ OpenTutorSettings:()=>window.dispatchEvent(new CustomEvent('desk-open-settings',{detail:{section:'pastas'}})),
  /* Começar sem plano pago (#44): evento, não import, para o tutor-state não depender do diálogo. */
  UseFreeModels:()=>window.dispatchEvent(new Event('desk-open-free-models')),
  /* Claude Code fora da faixa (#51): a confirmação do #45 no Sobre, ou o Sobre. */
@@ -56,6 +58,7 @@ function paintComposerHint(){
 
 export function paintTutorState(){
  const mount=$('#tutor-state');if(!mount)return;
+ syncOnlineInvite();
  /* Conversa antiga: o aviso de leitura e o botão de sessão nova são o único
     caminho; o estado de tutor desligado competiria com ele (#release OpenCode). */
  if(!ready||S.legacySession){mount.hidden=true;return;}
@@ -66,7 +69,10 @@ export function paintTutorState(){
  /* O idioma entra na chave: a troca refaz a coluna com os mesmos fatos (#41).
     A apresentação do tutor da primeira abertura mora no passo "Tutor" da tela
     cheia desde a #64 (`setup-view.mjs`), não mais nesta coluna. */
- const key=JSON.stringify([currentLanguage(),link.state||'',reason,fix,record?[record.exercise,record.stopped,record.next]:null]);
+ const facts={engine:S.engine,detectedClaude:S.detected?.claude,detectedOpenCode:S.detected?.opencode};
+ const other=link.state==='error'?otherReadyVisibleEngine(facts,visibleEngines()):'';
+ S.continueOtherEngine=other;
+ const key=JSON.stringify([currentLanguage(),link.state||'',reason,fix,other,record?[record.exercise,record.stopped,record.next]:null]);
  if(key===painted)return;
  painted=key;
  const tree=tutorStateCore.stateViewFix(String(link.state||''),reason,fix,!!record,record?.exercise||'',record?.stopped||'',record?.next||'');
@@ -75,6 +81,16 @@ export function paintTutorState(){
  for(const name of mount.getAttributeNames())if(!built.hasAttribute(name))mount.removeAttribute(name);
  for(const attr of built.attributes)mount.setAttribute(attr.name,attr.value);
  preserveFocus(mount,()=>mount.replaceChildren(...built.childNodes));
+ /* D7=C (#87): o connect falhou e há outro motor visível e pronto. A coluna
+    oferece continuar nele com o contexto, em vez de só repetir a falha. */
+ if(other){
+  const actions=mount.querySelector('.ts-actions');
+  const button=document.createElement('button');
+  button.type='button';button.id='state-continue-other';button.className='ts-secondary';
+  button.textContent=t('tutor.continueOther',{engine:t(other==='claude'?'engine.claudeExperimental':'engine.opencode')});
+  button.addEventListener('click',()=>handlers().ContinueOther());
+  actions?.append(button);
+ }
  /* Quem estava num botão que saiu da árvore (Chamar → Cancelar) fica com o
     foco no primeiro botão do estado novo, não no corpo da página. */
  if(focused&&!mount.contains(document.activeElement))mount.querySelector('button')?.focus();
@@ -94,10 +110,40 @@ function revealState(){
  if(chat.scrollHeight>chat.clientHeight+1)chat.scrollTop=chat.scrollHeight;
 }
 
-/* O boot já decidiu (ligou, ou não achou o Pi): a coluna passa a dizer o estado. */
+/* O boot já decidiu (ligou, ou não achou o motor): a coluna passa a dizer o estado. */
 export function showTutorState(){
  ready=true;
  paintTutorState();
+}
+
+/* A classe do convite de uma linha com o tutor ligado e a coluna vazia. */
+const ONLINE_INVITE_CLASS='tutor-online-invite';
+
+/**
+ * Garante (ou tira) o convite de uma linha da coluna vazia com o tutor
+ * ligado. Só texto em cor faint, sem cartão, ícone ou botão — o tutor já
+ * está ligado (auditoria de UI/UX, rodada 1, A1). A troca de idioma repinta
+ * o texto; a chegada do primeiro conteúdo tira a linha pelo observador de
+ * `#messages` no `initTutorState`.
+ * @example syncOnlineInvite()
+ */
+export function syncOnlineInvite(){
+ const box=$('#messages');if(!box)return;
+ const invited=box.querySelector(`:scope > .${ONLINE_INVITE_CLASS}`);
+ /* `#messages` é `aria-live`: reescrever o mesmo texto a cada repintura (a
+    saúde roda a cada 15 s) faria o leitor de tela reanunciar o convite. */
+ const want=t('tutor.onlineEmpty');
+ if(invited&&invited.textContent!==want)invited.textContent=want;
+ const hasContent=[...box.children].some(el=>!el.classList.contains(ONLINE_INVITE_CLASS));
+ const show=ready&&!S.legacySession&&S.link?.state==='online'&&!visibleRecord()&&!hasContent;
+ if(show&&!invited){
+  const line=document.createElement('p');
+  line.className=ONLINE_INVITE_CLASS;
+  line.textContent=t('tutor.onlineEmpty');
+  box.append(line);
+ }else if(!show&&invited){
+  invited.remove();
+ }
 }
 
 export function initTutorState(hooks){
@@ -115,6 +161,12 @@ export function initTutorState(hooks){
    if(height===last)return;
    last=height;revealState();
   }).observe(chat);
+ }
+ /* A primeira mensagem (ou cartão) tira o convite ligado-vazio: só mudança
+    de filhos diretos, sem olhar o texto que o stream repinta. */
+ const messages=$('#messages');
+ if(messages&&typeof MutationObserver==='function'){
+  new MutationObserver(()=>syncOnlineInvite()).observe(messages,{childList:true});
  }
  paintTutorState();
 }

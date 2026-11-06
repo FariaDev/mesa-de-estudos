@@ -6,9 +6,6 @@ import ../agentcaps.bend as A
 # Todas as leis são cenários concretos (construtores literais; a igualdade de
 # `Caps` e os Bools fecham por computação), cada uma com `{==}`.
 
-def Laws.caps_pi_fatos():
-  {==}
-
 def Laws.caps_claude_estrutural():
   {==}
 
@@ -60,34 +57,7 @@ def Laws.caps_claude_quiz():
 def Laws.caps_claude_contexto():
   {==}
 
-def Laws.caps_pi_quiz():
-  {==}
-
-def Laws.caps_pi_geogebra():
-  {==}
-
-def Laws.caps_pi_contexto():
-  {==}
-
-def Laws.caps_steer_pi_ocupado():
-  {==}
-
-def Laws.caps_steer_pi_livre():
-  {==}
-
 def Laws.caps_steer_claude_ocupado():
-  {==}
-
-def Laws.caps_send_pi_livre():
-  {==}
-
-def Laws.caps_send_pi_ocupado():
-  {==}
-
-def Laws.caps_send_pi_imagem():
-  {==}
-
-def Laws.caps_send_pi_imagem_ocupado():
   {==}
 
 def Laws.caps_send_claude_livre():

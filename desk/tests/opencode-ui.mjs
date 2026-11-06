@@ -16,6 +16,7 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 import {withArtifacts,newRuntime,seedCourse,writeDeskJson,writeConfigJson,launchDesk,sendEnabled,statusOnline,currentEngine,newSession,openTutorMore} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
+import {trackTempDir} from './temp-dir.mjs';
 
 const require=createRequire(import.meta.url);
 const conversations=require('../src/agents/conversations.cjs');
@@ -26,12 +27,12 @@ const readLog=file=>fs.existsSync(file)?fs.readFileSync(file,'utf8').split('\n')
 
 await withArtifacts('opencode-motor',async ctx=>{
  const runtime=ctx.runtime=newRuntime('opencode-motor'),folder=seedCourse(runtime,'Calculo');
- const serveLog=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-oc-serve-')),'serve.jsonl');
+ const serveLog=path.join(trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-oc-serve-'))),'serve.jsonl');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calculo',name:'Cálculo',path:folder}]});
  const first=conversations.createClaudeConversation({runtime,courseId:'Calculo',engine:'opencode'});
  writeDeskJson(runtime,{courseId:'Calculo',session:first,courseStates:{Calculo:{session:first,sessions:[{path:first}]}}});
  fs.chmodSync(FAKE_OPENCODE_BIN,0o755);
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_OPENCODE:FAKE_OPENCODE_BIN,FAKE_OPENCODE_LOG:serveLog}});
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_OPENCODE:FAKE_OPENCODE_BIN,FAKE_OPENCODE_LOG:serveLog}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  const submit=async text=>{await page.locator('#prompt').fill(text);await page.locator('#send').click();};

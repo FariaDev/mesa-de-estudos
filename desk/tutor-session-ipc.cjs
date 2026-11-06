@@ -4,9 +4,8 @@
 const conversations=require('./src/agents/conversations.cjs');
 const {EFFORT_LEVELS:CLAUDE_EFFORT_LEVELS}=require('./src/agents/claude-controls.cjs');
 const {selectionFromChange}=require('./src/agents/opencode-controls.cjs');
-const {FALLBACK_LEVELS,loadLevelsModule}=require('./pi.cjs');
 const {isPlainObject}=require('./desk-state-sanitize.cjs');
-const {message}=require('./src/i18n.mjs');
+const {message,parseMessage}=require('./src/i18n.mjs');
 const {describeReceived,invalidRequest}=require('./src/error-detail.mjs');
 
 /* IPC da sessão do tutor (#43 fase 2: saiu do main.cjs): chamar/cancelar,
@@ -17,16 +16,17 @@ const {describeReceived,invalidRequest}=require('./src/error-detail.mjs');
  * Registra os handlers `pi-*` da sessão do tutor (menos `pi-prompt`).
  * Recebe o `ipcMain`, o `live` do main, os diálogos pendentes e as funções dos
  * hosts do tutor e do estado que as respostas montam.
- * @param {{ipcMain: import('./types/host-deps').IpcMain, live: import('./main.cjs').DeskLive, runtime: string, deskDir: string, pendingDialogs: Set<string>,
+ * @param {{ipcMain: import('./types/host-deps').IpcMain, live: import('./main.cjs').DeskLive, runtime: string, pendingDialogs: Set<string>,
  *   appendLog: import('./types/host-deps').AppendLog, engine: import('./types/main-hosts').TutorEngineHost['engine'], connect: import('./types/main-hosts').TutorBridgeHost['connect'], stopBridge: import('./types/main-hosts').TutorBridgeHost['stopBridge'],
  *   assertIdle: import('./types/main-hosts').TutorBridgeHost['assertIdle'], persist: import('./types/main-hosts').CourseStateHost['persist'], courseSessions: import('./types/main-hosts').CourseStateHost['courseSessions'],
  *   conversationData: import('./types/main-hosts').TutorEngineHost['conversationData'], captureAvailable: () => boolean,
- *   trimMessageImages: import('./types/main-hosts').PromptImages['trimMessageImages'], piBinary: import('./types/main-hosts').TutorEngineHost['piBinary'],
+ *   historyIdentity?: (history: {session?: string, messages?: unknown[], cards?: unknown[]}) => string,
+ *   trimMessageImages: import('./types/main-hosts').PromptImages['trimMessageImages'],
  *   isNative: import('./types/main-hosts').TutorEngineHost['isNative']}} options
  * @returns {void}
- * @example registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,appendLog,engine,connect,stopBridge,assertIdle,persist,courseSessions,conversationData,captureAvailable,trimMessageImages,piBinary,isNative});
+ * @example registerTutorSessionIpc({ipcMain,live,runtime,pendingDialogs,appendLog,engine,connect,stopBridge,assertIdle,persist,courseSessions,conversationData,captureAvailable,trimMessageImages,isNative});
  */
-function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,appendLog,engine,connect,stopBridge,assertIdle,persist,courseSessions,conversationData,captureAvailable,trimMessageImages,piBinary,isNative}){
+function registerTutorSessionIpc({ipcMain,live,runtime,pendingDialogs,appendLog,engine,connect,stopBridge,assertIdle,persist,courseSessions,conversationData,captureAvailable,historyIdentity,trimMessageImages,isNative}){
  /* Chamar o tutor pode ser cancelado (ticket #17): `pi-connect-cancel` marca a
     tentativa em voo e derruba a ponte (`stopBridge` rejeita os pedidos
     pendentes). A tentativa confere a marca entre um pedido e outro — uma ponte
@@ -38,19 +38,28 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
     log fica com a frase em português. Os outros erros seguem como vieram. */
  function tutorFacingError(error){
   const notice=error?.code==='CLAUDE_VERSION_UNSUPPORTED'?error.detail?.notice:'';
-  return typeof notice==='string'&&notice?Error(notice):error;
+  if(typeof notice==='string'&&notice)return Error(notice);
+  /* O código de saída do `opencode serve` fica no log (#27): a coluna diz o
+     que aconteceu sem number técnico no lugar da frase. */
+  if(parseMessage(error?.message)?.key==='err.opencode.startExit')return Error(message('tutor.reason.exit'));
+  return error;
  }
- ipcMain.handle('pi-connect',async()=>{
-  persist();
-  const attempt={cancelled:false};connectAttempt=attempt;
-  const step=async value=>{const out=await value;if(attempt.cancelled)throw Error(message('tutor.error.cancelled'));return out;};
-  try{
-   const b=await connect();
+  ipcMain.handle('pi-connect',async(_event,request)=>{
+   persist();
+   const attempt={cancelled:false};connectAttempt=attempt;
+   /* A navegação (troca de sessão/matéria, save-config → stopBridge) cancela a
+      tentativa em voo: sem isto o motor antigo respondia na sessão nova (#r5-D). */
+   const sessionAtStart=live.session;
+   let b=null;
+   const stale=()=>attempt.cancelled||live.session!==sessionAtStart||(b!==null&&typeof live.bridge!=='undefined'&&live.bridge!==b);
+   const step=async value=>{const out=await value;if(stale())throw Error(message('tutor.error.cancelled'));return out;};
+   try{
+    b=await connect();
+    if(stale())throw Error(message('tutor.error.cancelled'));
    const kind=engine();
    const native=isNative(kind);
    if(native&&!b.uncertain)await step(b.request('initialize_controls'));
-   /* Estado, histórico, catálogo, controles e medidor não dependem entre si.
-      O nível de pensamento do Pi continua esperando o modelo que o estado trouxer. */
+   /* Estado, histórico, catálogo, controles e medidor não dependem entre si. */
    const [s,messages,models,controls,contextUsage]=await Promise.all([
     step(b.request('get_state')),
     step(b.request('get_messages')),
@@ -59,13 +68,24 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
     step(statsUsage()),
     live.opencodeHost.liveReady(),
    ]);
-   const levels=controls?(controls.effort?['default',...(controls.levels||[])]:[]):await step(levelsFor(s.model));
-   return {state:s,models:live.opencodeHost.annotate(models?.models||[],{keepFree:kind==='opencode'}),levels,messages:trimMessageImages(messages?.messages||[]),session:live.session,sessions:courseSessions(),...conversationData({messages:false}),captureAvailable:captureAvailable(),contextUsage};
-  }catch(error){
-   /* A tela diz o que aconteceu em português; o código de saída e o texto do
-      motor ficam aqui, no log (#27). */
-   if(!attempt.cancelled){try{appendLog('desk',`Chamada ao tutor falhou: ${live.languageHost.logText(error&&error.message||error)}`);}catch{/* o log não pode falhar o tratador de erro */}}
-   throw tutorFacingError(error);
+   const levels=controls&&controls.effort?['default',...(controls.levels||[])]:[];
+   /* O renderer manda a identidade do histórico que está na tela. Se o motor
+      devolve o mesmo conteúdo, mensagens e cartões NÃO voltam pelo IPC (#115);
+      só o selo diz que nada mudou, e o `showHistory` do connect não roda. */
+   const originalMessages=Array.isArray(messages?.messages)?messages.messages:[];
+   const screenMessages=trimMessageImages(originalMessages);
+   const {cards,...meta}=conversationData({messages:false});
+   const cardsList=Array.isArray(cards)?cards:[];
+   const identity=typeof historyIdentity==='function'?historyIdentity({session:live.session,messages:originalMessages,cards:cardsList}):'';
+   const asked=request&&typeof request==='object'&&typeof request.historyIdentity==='string'?request.historyIdentity:'';
+   const unchanged=!!identity&&asked===identity;
+   return {state:s,models:live.opencodeHost.annotate(models?.models||[],{keepFree:kind==='opencode'}),levels,session:live.session,sessions:courseSessions(),...meta,
+    ...(identity?{historyIdentity:identity}:{}),...(unchanged?{historyUnchanged:true}:{messages:screenMessages,cards}),captureAvailable:captureAvailable(),contextUsage};
+   }catch(error){
+    /* A tela diz o que aconteceu em português; o código de saída e o texto do
+       motor ficam aqui, no log (#27). Troca de sessão não é falha: não loga. */
+    if(!attempt.cancelled&&live.session===sessionAtStart){try{appendLog('desk',`Chamada ao tutor falhou: ${live.languageHost.logText(error&&error.message||error)}`);}catch{/* o log não pode falhar o tratador de erro */}}
+    throw tutorFacingError(error);
   }finally{if(connectAttempt===attempt)connectAttempt=null;}
  });
  ipcMain.handle('pi-connect-cancel',()=>{
@@ -106,18 +126,7 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
   const result=await b.request('compact',{customInstructions:typeof instructions==='string'&&instructions.trim()?instructions.trim().slice(0,2000):undefined},240000);
   return {summary:typeof result?.summary==='string'?result.summary.slice(0,300):'',tokensBefore:Number(result?.tokensBefore)||0};
  });
- ipcMain.handle('pi-auto-compaction',async(_e,enabled)=>{if(engine()==='claude')throw Error(message('err.compaction.controlClaude'));
-  if(engine()==='opencode')throw Error(message('err.compaction.controlOpenCode'));
-  const b=await connect();
-  await b.request('set_auto_compaction',{enabled:!!enabled});
-  const s=await b.request('get_state');
-  return {autoCompactionEnabled:!!s.autoCompactionEnabled,contextUsage:await statsUsage()};});
-
- async function levelsFor(model){
-  if(!live.levelsMod)live.levelsMod=await loadLevelsModule(piBinary(),deskDir);
-  if(!live.levelsMod?.getSupportedThinkingLevels)return FALLBACK_LEVELS;
-  return model?live.levelsMod.getSupportedThinkingLevels(model):['off'];
- }
+ ipcMain.handle('pi-auto-compaction',async()=>{throw Error(message(engine()==='claude'?'err.compaction.controlClaude':'err.compaction.controlOpenCode'));});
  ipcMain.handle('pi-settings',async(_e,change={})=>{
   if(!isPlainObject(change))throw Error(invalidRequest('pi-settings','change',change,'object'));
   const b=await connect();let current=await b.request('get_state');
@@ -147,15 +156,7 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
    const next=await b.request('get_controls'),catalog=await b.request('get_available_models');
    return {state:current,models:catalog.models,levels:next.effort?['default',...(next.levels||[])]:[],...conversationData({messages:false}),contextUsage:await statsUsage()};
   }
-  if(change.model){const wanted=/** @type {{provider?: unknown, id?: unknown}} */(change.model);
-   const catalog=await b.request('get_available_models');
-   const found=catalog.models?.find(m=>m.provider===wanted.provider&&m.id===wanted.id);
-   if(!found)throw Error(message('err.model.notInTutor'));
-   await b.request('set_model',{provider:found.provider,modelId:found.id});live.opencodeHost.rememberModel(found);}
-  if(change.level){current=await b.request('get_state');
-   if(!(await levelsFor(current.model)).includes(change.level))throw Error(message('err.model.effort'));
-   await b.request('set_thinking_level',{level:change.level});}
-  current=await b.request('get_state');return {state:current,levels:await levelsFor(current.model),contextUsage:await statsUsage()};
+  throw Error(message('err.model.notInTutor'));
  });
 
  /* OpenCode (#57): a escolha vai ao adaptador, que a confere no catálogo do
@@ -168,7 +169,7 @@ function registerTutorSessionIpc({ipcMain,live,runtime,deskDir,pendingDialogs,ap
   return {state,models:live.opencodeHost.annotate(next.models||[],{keepFree:true}),levels:next.effort?['default',...(next.levels||[])]:[],...conversationData({messages:false}),contextUsage:await statsUsage()};
  }
 
- ipcMain.handle('pi-abort',async()=>{if(live.bridge){await live.bridge.request('clear_queue');await live.bridge.request('abort');}});
+ ipcMain.handle('pi-abort',async(_e,payload)=>{if(live.bridge){await live.bridge.request('clear_queue');await live.bridge.request('abort',typeof payload?.attemptId==='string'?{attemptId:payload.attemptId}:{});}});
  ipcMain.handle('pi-response',async(_e,data)=>{
   const id=typeof data?.id==='string'?data.id:'';
   if(!id||!pendingDialogs.has(id))throw Error(message('err.dialog.noPending',{received:describeReceived(data?.id)}));

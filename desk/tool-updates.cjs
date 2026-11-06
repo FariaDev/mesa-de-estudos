@@ -1,4 +1,4 @@
-/* Avisos de atualização do Pi e do Claude Code, e "Atualizar" de dentro da Mesa
+/* Avisos de atualização do Claude Code, e "Atualizar" de dentro da Mesa
    (#45).
 
    A DECISÃO é do núcleo (`core/updatenotice.bend`): aqui o host entrega fatos
@@ -8,7 +8,7 @@
    pelo clique de confirmação, com o comando que o próprio host montou.
 
    Memória no estado de interface (`desk.json`, não no `config.json`):
-   `toolNotices.<pi|claude> = {seen, ignored, remindDay}` (versões `X.Y.Z` ou '';
+   `toolNotices.claude = {seen, ignored, remindDay}` (versões `X.Y.Z` ou '';
    o dia é o número de dias desde 1970). */
 const os=require('node:os');
 const {message: uiMsg}=require('./src/i18n.mjs');
@@ -20,7 +20,7 @@ const toolRun=require('./tool-run.cjs');
 const claudeEnvironment=require('./src/agents/claude-environment.cjs');
 const noticeCore=require('./src/generated/updatenotice.core.js').default;
 
-const TOOL_IDS=['pi','claude'];
+const TOOL_IDS=['claude'];
 const DAY_MS=24*60*60*1000;
 const OUTPUT_EVENT_MS=150;
 
@@ -34,7 +34,7 @@ function strictVersion(value){
 /** Memória do `desk.json` → o que o estado guarda: só versões estritas, e o dia
  *  como inteiro seguro. Qualquer outra coisa vira vazio.
  *  @param {unknown} value @returns {Record<string,{seen:string,ignored:string,remindDay:number}>}
- *  @example sanitizeNotices({pi:{seen:'1.3.0',remindDay:'x'}}) // {pi:{seen:'1.3.0',ignored:'',remindDay:0},claude:{...vazio}} */
+ *  @example sanitizeNotices({claude:{seen:'2.1.301',remindDay:'x'}}) // {claude:{seen:'2.1.301',ignored:'',remindDay:0}} */
 function sanitizeNotices(value){
  const source=value&&typeof value==='object'&&!Array.isArray(value)?value:{};
  const out={};
@@ -83,8 +83,8 @@ function createToolUpdates(deps){
   runtime,deskDir,config,state,persist,isBusy,hasBridge,relink,send,appendLog,
   testMode=false,env=process.env,home=os.homedir(),now=Date.now,
   run=updater.defaultRun,fetchJson=updater.defaultFetchJson,
-  runTool=toolRun.runTool,latestOverride,piPath,claudeLauncher,searchDirs,allowRunInTest=false,
-  visibleEngines=()=>['pi','claude','opencode'],
+  runTool=toolRun.runTool,latestOverride,claudeLauncher,searchDirs,allowRunInTest=false,
+  visibleEngines=()=>['claude','opencode'],
  }=deps;
  const visibleToolIds=()=>TOOL_IDS.filter(id=>visibleEngines().includes(id));
  const cacheFile=path.join(runtime,'update.json');
@@ -92,7 +92,7 @@ function createToolUpdates(deps){
 
  const toolOpts=extra=>({
   deskDir,config:config(),cacheFile,testMode,fetchJson,run,now:now(),
-  latestOverride,piPath,claudeLauncher,home,readOnly:true,...extra,
+  latestOverride,claudeLauncher,home,readOnly:true,...extra,
  });
  const today=()=>Math.floor(now()/DAY_MS);
  const entryOf=id=>sanitizeNotices(state().toolNotices)[id];
@@ -196,7 +196,7 @@ function createToolUpdates(deps){
   const relinked=!!(improved&&hasBridge());
   if(relinked)relink();
   /* O tutor religa com a versão nova só se ela couber na faixa aceita (#51). */
-  const tutorUsesIt=id==='pi'||claudeEnvironment.claudeFit(after.installed||null).accepted;
+  const tutorUsesIt=claudeEnvironment.claudeFit(after.installed||null).accepted;
   const sentence=noticeCore.doneSentence(
    before.name,result.ok,components.verOf(before.installed),components.verOf(after.installed),
    before.installed,after.installed,relinked&&tutorUsesIt);

@@ -13,7 +13,7 @@ await withArtifacts('claude-controls',async ctx=>{
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Controls',name:'Controls',path:folder}]});
  writeDeskJson(runtime,{courseId:'Controls',session:file,courseStates:{Controls:{session:file,sessions:[{path:file}]}}});
  const nativeId=conversations.readClaudeConversation(file,{runtime}).nativeSessionId;
- const launch=()=>launchDesk({runtime,pi:false,env:{LEARNING_DESK_PI:trap,FAKE_CLAUDE_LOG:log,LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs')}});
+ const launch=()=>launchDesk({runtime,opencode:false,env:{LEARNING_DESK_PI:trap,FAKE_CLAUDE_LOG:log,LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs')}});
  const rows=()=>fs.existsSync(log)?fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
  let app=ctx.app=await launch(),page=await app.firstWindow();
  await statusOnline(page,{timeout:60000});

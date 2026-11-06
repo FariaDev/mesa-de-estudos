@@ -31,6 +31,11 @@ const {DANGEROUS_TAGS, LOCKDOWN_SCRIPT} = require('./activity-lockdown-script.cj
 const {HOST_CSS, RUNTIME_SCRIPT} = require('./activity-page-script.cjs');
 const {buildActivityDocument, cspFor} = require('./activity-document.cjs');
 
+/* Caminho de um `file:` como o sistema o vê, ou `null` se não dá para dizer.
+   Moram em `file-guard.cjs` (fonte só da decisão `file:`); aqui ficam
+   reexportadas para compatibilidade dos testes e dos hosts. */
+const {filePathForUrl, isFileUrl, isPathUnderRoot, staticAppEntries, fileSubresourceBlocked, fileGuardOptions} = require('./file-guard.cjs');
+
 function createActivityRuntime({onWatchdog} = {}) {
   const registry = new Map();
   const watchdogEvent = (event) => {
@@ -352,17 +357,44 @@ function createActivityRuntime({onWatchdog} = {}) {
 
   /* Barreira de sessão: nenhum http(s)/ws(s)/ftp sai de um frame de atividade.
      A CSP do documento é a primeira barreira; esta cobre inclusive o que
-     viesse a ser acrescentado fora do wrapper. */
-  const installSessionGuards = (session) => {
+     viesse a ser acrescentado fora do wrapper.
+     Defesa `file://` (rodada 2026-11): nega por padrão e aceita só os
+     arquivos estáticos do app (`staticAppEntries`); o runtime da instância
+     e os dados do aluno são negados mesmo sob a raiz do app. Documento
+     principal segue. `options.recordFileUrls` liga o modo registro (observa
+     sem cancelar, para mapear fluxos legítimos). Um registro posterior de
+     `onBeforeRequest` na MESMA sessão substituiria esta guarda (o Electron
+     guarda um só por evento): o main registra uma vez por sessão e nada mais
+     registra depois (verificado em `main.cjs`, `material-pdf.cjs`,
+     `figure-preview.cjs` e `geogebra-host.cjs`: cada um tranca a própria
+     partição). */
+  const installSessionGuards = (session, options = {}) => {
     if (!session || !session.webRequest || typeof session.webRequest.onBeforeRequest !== 'function') return false;
+    const appRoot = typeof options.appRoot === 'string' && options.appRoot ? options.appRoot : null;
+    const runtimeRoot = typeof options.runtimeRoot === 'string' && options.runtimeRoot ? options.runtimeRoot : null;
+    const {dataRoots = [], staticEntries = null} = options;
+    const guardEntries = staticEntries || (appRoot ? staticAppEntries(appRoot) : null);
+    const record = Array.isArray(options.recordFileUrls) ? options.recordFileUrls : null;
     session.webRequest.onBeforeRequest(
-      {urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*', 'ftp://*/*']},
+      {urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*', 'ftp://*/*', 'file://*/*']},
       (details, callback) => {
         let block = false;
         try {
           const frame = details && details.frame;
           if (frame && String(frame.url || '').startsWith(`${ACTIVITY_SCHEME}://`)) block = true;
         } catch { /* sem frame: deixa passar */ }
+        try {
+          const url = String((details && details.url) || '');
+          if (isFileUrl(url) && !block) {
+            const resourceType = String((details && details.resourceType) || '');
+            if (record) {
+              record.push({url, resourceType});
+            } else {
+              const decision = fileSubresourceBlocked({url, resourceType, appRoot, runtimeRoot, dataRoots, staticEntries: guardEntries});
+              if (decision.cancel) block = true;
+            }
+          }
+        } catch { /* dúvida: não cancela o documento principal por erro de parse */ }
         callback({cancel: block});
       },
     );
@@ -394,6 +426,11 @@ module.exports = {
   parseActivityUrl,
   buildActivityDocument,
   createActivityRuntime,
+  fileSubresourceBlocked,
+  staticAppEntries,
+  fileGuardOptions,
+  isPathUnderRoot,
+  filePathForUrl,
   cspFor,
   LOCKDOWN_SCRIPT,
   DANGEROUS_TAGS,

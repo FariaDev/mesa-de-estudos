@@ -5,16 +5,17 @@
    (`shell.openExternal`), então nada sai da máquina do teste. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import {launchDesk,withArtifacts,DESK,enterFree,freezeMotion} from './helpers.mjs';
+import {launchDesk,withArtifacts,enterFree,freezeMotion} from './helpers.mjs';
+import {tempDir} from './temp-dir.mjs';
+import {specFor} from './fixtures/activity-specs.mjs';
 import {pollUntil} from './waits.mjs';
 
 await withArtifacts('activity-link-ui',async ctx=>{
- ctx.runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-activity-link-'));
- const pi=path.join(DESK,'tests/fixtures/mesa-interactive-pi.mjs');fs.chmodSync(pi,0o755);
+ ctx.runtime=tempDir('mesa-activity-link');
  fs.writeFileSync(path.join(ctx.runtime,'config.json'),JSON.stringify({runtimePath:ctx.runtime,vaultPath:ctx.runtime,courses:[]}));
- ctx.app=await launchDesk({runtime:ctx.runtime,env:{LEARNING_DESK_PI:pi}});
+ const call={name:'criar_atividade',id:'integrated-call-1',input:specFor('com link')};
+ ctx.app=await launchDesk({runtime:ctx.runtime,env:{FAKE_OPENCODE_MCP_CALL:JSON.stringify(call)}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await ctx.app.evaluate(({shell})=>{globalThis.__openedLinks=[];shell.openExternal=async url=>{globalThis.__openedLinks.push(url);};});
  const opened=()=>ctx.app.evaluate(()=>globalThis.__openedLinks);

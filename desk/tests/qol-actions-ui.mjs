@@ -65,7 +65,7 @@ writeConfigJson(runtime, {
 });
 
 try {
-  app = await launchDesk({runtime, env: {FAKE_PI_QUEUE_LOG: path.join(runtime, 'queue.jsonl'), FAKE_PI_QUEUE_HOLD_MS: '30000'}});
+  app = await launchDesk({runtime, env: {FAKE_OPENCODE_QUEUE_LOG: path.join(runtime, 'queue.jsonl'), FAKE_OPENCODE_QUEUE_HOLD_MS: '30000'}});
   page = await app.firstWindow();
   page.on('pageerror', (error) => failOnPageErrors.push(String(error?.message || error)));
   await page.waitForSelector('.pdf-panel', {timeout: 30000});
@@ -83,10 +83,14 @@ try {
     await openHeldTurn('segure para referências');
     await openStudyContext(page);
     await page.keyboard.press('Escape');
-    await page.waitForFunction(()=>document.querySelector('#context-pop').hidden);
+    await page.waitForFunction(()=>document.querySelector('#more-context-menu').hidden);
     await page.waitForTimeout(250);// espera fixa: "nada acontece em 0,25 s" — Esc no popover de contexto não cancela o turno
     assert.equal(await page.locator('#stop').isHidden(),false);
     assert.equal(await page.locator('#send').isDisabled(),true);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(()=>document.querySelector('#chat-more-pop').hidden);
+    /* Duas camadas desde #123 (submenu e menu); sem popover aberto, este Esc
+       é o que cancela o turno. */
     await page.keyboard.press('Escape');
     await waitIdle();
   });

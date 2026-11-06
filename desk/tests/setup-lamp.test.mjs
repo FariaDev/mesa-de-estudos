@@ -7,8 +7,8 @@ import {LAMP_STATES, LAMP_SCENE, lampStateOf, nameLineScale} from '../src/setup-
 /* #101: a cena da luminária. Só a luz se move; cada passo tem um alvo, e o
    tutor sem motor, instalando ou com falha fica fraco e estável, sem alarme. */
 const at = (id, extra = {}) => ({...goToStep(initialSetup('setup'), id), ...extra});
-const found = {piFound: true, visibleEngines: ['pi', 'claude', 'opencode']};
-const none = {piFound: false, claudeFound: false, opencodeFound: false, visibleEngines: ['pi', 'claude', 'opencode']};
+const found = {claudeFound: true, visibleEngines: ['claude', 'opencode']};
+const none = {claudeFound: false, opencodeFound: false, visibleEngines: ['claude', 'opencode']};
 
 test('cada passo e quadro aponta a luz do mockup', () => {
   assert.equal(lampStateOf(initialSetup('setup')), 'welcome');

@@ -23,21 +23,20 @@
 /* Conversa antiga (#release OpenCode): o aviso e a sessão nova moram no pé da
    coluna, na fileira do composer que ele substitui. Uma frase curta à esquerda
    e a ação principal à direita; nada de dois caminhos competindo. */
-#legacy-session{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:52px;padding:var(--space-3) 0}
+#legacy-session{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-3);min-height:52px;padding:var(--space-3) 0}
 #legacy-session[hidden]{display:none}
-#legacy-session p{flex:1;min-width:0;margin:0;font-size:var(--fs-md);line-height:1.45;color:var(--muted)}
+#legacy-session p{flex:1 1 100%;min-width:0;margin:0;font-size:var(--fs-md);line-height:1.45;color:var(--muted)}
 #legacy-session button{flex:none;height:var(--ctl);padding:0 var(--space-5);font-size:var(--fs-md);font-weight:600}
-/* Linha de contexto: o que vai com a próxima mensagem ("Contexto", na coluna
-   do tutor, dentro da caixa) ou de onde veio o contexto (escopo, no chat
-   lateral) e a ação que a acompanha. É a mesma forma nos dois lugares. */
+#legacy-session .legacy-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:var(--space-2);flex:1 1 100%;min-width:0}
+/* Linha de contexto do chat lateral: de onde veio o contexto (escopo) e a
+   ação que a acompanha. No tutor, o resumo do que vai junto saiu do composer
+   na #123 e mora em Mais opções → Contexto; aqui fica só a forma compartilhada
+   que o lateral ainda usa. */
 .goes-along{display:flex;align-items:center;gap:var(--space-2);min-height:var(--ctl);margin:0 0 var(--space-1);padding:0 var(--space-1) 0 0;font-size:var(--fs-xs);color:var(--muted)}
-/* Linha de contexto em pílulas (#90): a matéria vem primeiro; cada item é uma
-   pílula com 4px de respiro. O conteúdo fica centrado, então o respiro é o
-   mesmo dos dois lados, mesmo quando um nome curto herda a largura mínima de 8
-   caracteres. Quando falta espaço, o nome do PDF cede antes do nome da matéria
-   (que guarda 8 caracteres legíveis) e a página (`p.N`) nunca encolhe. Se ainda
-   não couber, a linha quebra em até duas linhas. */
-.goes-along>#context-summary{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1);flex:0 1 auto;min-width:0;overflow:hidden;cursor:pointer}
+/* Resumo do contexto no submenu (#123): as pílulas da matéria, da questão, do
+   rascunho e de cada material aberto, com a página. A matéria vem primeiro;
+   quando falta espaço ela cede antes da lista/questão e da página. */
+#context-summary{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1);min-width:0;overflow:hidden}
 #context-summary>.goes-lead{flex:none;white-space:pre;color:var(--muted)}
 #context-summary:has(.goes-pill)>.goes-lead{display:none}
 #context-summary>.goes-pill{
@@ -49,13 +48,14 @@
 #context-summary>.goes-pill>.goes-pill-page{flex:none;white-space:pre}
 #context-summary>.goes-course{min-width:calc(8ch + 12px)}
 #context-summary>.goes-rest{min-width:calc(4ch + 33px)}
-/* Dentro da caixa (#90): a pílula "Contexto" abre a caixa e o "Editar" vira
-   lápis. A forma de linha de fora continua no chat lateral. */
-#composer-box>.goes-along{min-height:0;margin:0;padding:0;gap:var(--space-1)}
-#composer-box>.goes-along>#context-summary{max-width:calc(100% - 26px);max-height:48px;line-height:22px}
-#composer-box>.goes-along>button{width:24px;height:24px;padding:0;border-radius:var(--r-xs);font-size:0}
-#composer-box>.goes-along>button .icon{width:12px;height:12px}
-#composer-box>.goes-along>button span{display:none}
+/* O que vai junto abre o submenu Contexto; a edição do estudo fecha, depois
+   do medidor e das compactações. */
+.more-context-what{padding:var(--space-1) var(--space-2) var(--space-2)}
+.more-context-edit{display:flex;flex-direction:column;gap:var(--space-2);margin:var(--space-1) 0 0;padding:var(--space-2);border-top:1px solid var(--border)}
+/* Com a flag `studyContext` desligada não há o que editar: o bloco some inteiro. */
+.more-context-edit:has(#study-context[hidden]){display:none}
+.more-context-edit .fine{margin:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.more-context-edit .guide-link{align-self:flex-start}
 /* Fila, anexos e chips começam na coluna do texto do campo, sem o recuo que
    tinham quando a caixa não existia (o respiro agora é o da caixa). */
 #composer-box>.queue-strip .queue-label{padding-left:0}
@@ -75,8 +75,9 @@
 /* Uma linha só, em qualquer largura: quebrar tiraria o fio do alinhamento. */
 #sidechat-scope>#sidechat-scope-text{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
 #sidechat-scope>button{height:24px;display:inline-flex;align-items:center;gap:var(--space-1)}
-#sidechat-scope>#sidechat-scope-lock{flex:none;position:relative;display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;color:var(--muted)}
-#sidechat-scope-lock::after{content:"";position:absolute;inset:-6px;border-radius:var(--r-xs)}
+/* Alvo de 24px com tamanho real (auditoria rodada 5, D2): a área invisível
+   (::after com inset:-6px) podia invadir o vizinho, como a do `.setup-link`. */
+#sidechat-scope>#sidechat-scope-lock{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;color:var(--muted)}
 #sidechat-scope-lock .icon{width:12px;height:12px}
 #sidechat-scope-lock:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
 #sidechat-scope>button .icon{width:12px;height:12px}
@@ -87,16 +88,12 @@
  #sidechat-scope>button{width:24px;padding:0;justify-content:center}
  #sidechat-scope>button span{display:none}
 }
-/* Popover do contexto de estudo: flutuante, posto pelo host junto da linha
-   (src/main.mjs#placeContextPop) — acima dela se couber, senão abaixo. */
-#context-pop{
- position:fixed;overflow:auto;z-index:8;
- display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-3);
- background:var(--raised);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--shadow-pop);
-}
-#context-pop[hidden]{display:none}
-#context-pop .fine{margin:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
 .composer-box{container-type:inline-size}
+/* O escopo do lateral ocupa 24px acima da caixa; o resumo do tutor saiu na
+   #123, então a caixa reserva a mesma altura no topo para os dois campos
+   alinharem sem o lateral mudar. Na caixa (e não no composer) para valer em
+   qualquer altura de janela. */
+body:not(.chat-full) #composer-box{padding-top:24px}
 #attachments{display:flex;gap:var(--space-3);flex-wrap:wrap;margin:0;padding:var(--space-3) 0 0}
 .attachment{position:relative}
 .attachment img{width:54px;height:54px;object-fit:contain;display:block;background:white;border:1px solid var(--border);border-radius:var(--r-lg);cursor:zoom-in}
@@ -137,6 +134,15 @@ textarea::placeholder{color:var(--faint)}
  display:block;border:0;border-radius:0;background:transparent;resize:none;
  field-sizing:content;min-height:44px;max-height:180px;padding:var(--space-3) 0 var(--space-2);box-shadow:none;
  font-size:var(--reading-size);line-height:1.6;
+}
+/* Campo de altura fixa no composer do tutor (#123, decisão do autor): três
+   linhas medidas pelo `lh`, que acompanham o tamanho de texto da #106. O texto
+   longo rola por dentro; sem alça e sem crescimento, a conversa não muda de
+   lugar enquanto se escreve. O respiro vertical entra na conta da altura. O
+   chat lateral mantém o campo que cresce, como antes. */
+#composer-box .composer-field{
+ field-sizing:fixed;height:calc(3lh + 14px);min-height:calc(3lh + 14px);max-height:calc(3lh + 14px);
+ padding:var(--space-3) 0 var(--space-2);overflow:auto;
 }
 .composer-box .composer-field:focus{outline:none;border-color:transparent;box-shadow:none}
 .composer-actions{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-1) 0 0}
@@ -219,7 +225,7 @@ textarea::placeholder{color:var(--faint)}
 /* Conferir com outros programas (tickets #35 e #38): a caixa de mensagem só tem
    o botão Conferir. Quando o programa faltou, `#check-note` (árvore do
    `core/conferir.bend`) diz a frase e oferece "Escolher outro programa…"; flutua
-   como o `#context-pop` (posta por src/conferir.mjs). A escolha mora nas
+   sobre a coluna (posta por src/conferir.mjs). A escolha mora nas
    Configurações → Pastas e programas (`#cfg-conferir`). */
 #check-note{
  position:fixed;overflow:auto;z-index:8;
@@ -233,6 +239,15 @@ textarea::placeholder{color:var(--faint)}
    alvo (para o fundo do hover) e a borda de 1px voltam pela margem negativa. */
 #check-note .check-note-pick{height:var(--ctl);padding:0 var(--space-2);margin-left:calc((var(--space-2) + 1px) * -1);border-color:transparent;background:transparent;box-shadow:none;font-size:var(--fs-xs);color:var(--accent-text)}
 #check-note .check-note-pick:hover{background:var(--hover)}
+/* Limite do grátis (429 FreeUsageLimitError): a frase curta e a saída moram no
+   fluxo, entre a linha de atividade e a caixa — o turno falhou sem derrubar a
+   conexão, então a coluna do tutor não muda. O link segue o mesmo ritmo do
+   aviso do Conferir (frase em --muted, ação em --accent-text). */
+.free-limit-note{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 var(--space-2);padding:var(--space-1) var(--pad)}
+.free-limit-note[hidden]{display:none}
+.free-limit-note .free-limit-text{margin:0;font-size:var(--fs-xs);line-height:1.5;color:var(--muted)}
+.free-limit-note .free-limit-action{height:var(--ctl);padding:0 var(--space-2);margin-left:calc((var(--space-2) + 1px) * -1);border-color:transparent;background:transparent;box-shadow:none;font-size:var(--fs-xs);color:var(--accent-text)}
+.free-limit-note .free-limit-action:hover{background:var(--hover)}
 /* Campo "Programa de escrita" e a lista de janelas, no ritmo das Configurações. */
 #settings-form .cfg-conferir-wrap{margin:0 0 var(--space-6)}
 #settings-form .cfg-conferir{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2)}

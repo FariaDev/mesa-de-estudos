@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts, launchDesk, newRuntime, seedCourse, seedSession, writeConfigJson, writeDeskJson, sendEnabled, statusOnline} from './helpers.mjs';
+import {withArtifacts, launchDesk, newRuntime, seedCourse, seedNativeSession, writeConfigJson, writeDeskJson, sendEnabled, statusOnline} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
 
 const BLOCO_ANTIGO = '\n\n[Da Conversa]\n- objetivo: revisar limites\n- pergunta pendente: como isolar x?';
@@ -63,14 +63,14 @@ await withArtifacts('conversa-aposentada', async (ctx) => {
   escreverArvoreAntiga(runtime);
   const antes = digestDaPasta(path.join(runtime, 'handoff'));
 
-  const current = seedSession(runtime, [
-    {type: 'message', message: {role: 'user', content: [{type: 'text', text: 'quanto vale o limite?' + BLOCO_ANTIGO}]}, timestamp: 1700000002000},
-    {type: 'message', message: {role: 'assistant', content: [{type: 'text', text: 'Vale 2.'}]}, timestamp: 1700000003000},
-  ]);
+  const current = seedNativeSession(runtime, [
+    {role: 'user', content: [{type: 'text', text: 'quanto vale o limite?' + BLOCO_ANTIGO}], timestamp: 1700000002000},
+    {role: 'assistant', content: [{type: 'text', text: 'Vale 2.'}], timestamp: 1700000003000},
+  ], {courseId: 'Calc'});
   writeDeskJson(runtime, {session: current, courseId: 'Calc'});
-  const logFile = path.join(runtime, 'pi-prompts.log');
+  const logFile = path.join(runtime, 'prompts.log');
 
-  ctx.app = await launchDesk({runtime, env: {FAKE_PI_QUEUE_LOG: logFile}});
+  ctx.app = await launchDesk({runtime, env: {FAKE_OPENCODE_QUEUE_LOG: logFile}});
   const page = await ctx.app.firstWindow();
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));

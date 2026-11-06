@@ -31,7 +31,7 @@ await withArtifacts('chat-follow',async ctx=>{
  const figure=path.join(course,'longa.svg');fs.writeFileSync(figure,svg);
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
  writeDeskJson(runtime,{courseId:'calc'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_LONG_IMAGE:figure,FAKE_PI_LONG_HOLD_MS:'700'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_LONG_IMAGE:figure,FAKE_OPENCODE_LONG_HOLD_MS:'700'}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await resizeWindow(app,page,1440,900);
@@ -54,10 +54,17 @@ await withArtifacts('chat-follow',async ctx=>{
  await page.screenshot({path:path.join('/tmp/mesa-so-opencode','chat-follow-fim.png')});
  await reviewShot(page,out,'chat-follow-fim.png');
 
- /* 2. Pessoa rola para cima durante o turno: não é puxada de volta. */
- await page.locator('#prompt').fill('resposta longa');
- await page.locator('#send').click();
- await page.waitForFunction(()=>document.querySelector('.work[data-live="true"]'),undefined,{timeout:30000});
+  /* 2. Pessoa rola para cima durante o turno: não é puxada de volta. */
+  /* O turno anterior pode ainda estar destravando a coluna (o `execution.succeeded`
+     chega depois do diário recolhido): sem esperar o Parar sumir, o segundo envio
+     cai na fila e nunca nasce o diário vivo que este bloco mede. */
+  await page.waitForFunction(()=>document.querySelector('#stop')?.hidden,undefined,{timeout:60000});
+  await page.locator('#prompt').fill('resposta longa');
+  await page.locator('#send').click();
+  /* O diário vivo pisca rápido (pensamento + ferramenta antes do texto longo):
+     esperar por ele é corrida. O que prova que o segundo turno saiu é a coluna
+     ocupada (Parar à vista), que fica até o fim da resposta. */
+  await page.waitForFunction(()=>!document.querySelector('#stop')?.hidden,undefined,{timeout:30000});
  /* O diário vivo nasce antes do texto longo: medir aqui pegava a coluna ainda
     sem overflow (height=client) e o teste falhava por corrida. Espera a
     condição que o resto do bloco usa — o scroller de fato rolável. */
@@ -66,14 +73,16 @@ await withArtifacts('chat-follow',async ctx=>{
   const el=chat&&messages&&chat.scrollHeight>chat.clientHeight+1?chat:messages;
   return !!el&&el.scrollHeight>el.clientHeight;
  },undefined,{timeout:30000});
- const before=await scroller(page);
- assert.ok(before&&before.height>before.client,`o turno longo abre conteúdo rolável (${JSON.stringify(before)})`);
- await page.evaluate(()=>{
-  const chat=document.querySelector('#chat'),messages=document.querySelector('#messages');
-  const el=chat&&messages&&chat.scrollHeight>chat.clientHeight+1?chat:messages;
-  el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-500);
-  el.dispatchEvent(new Event('scroll',{bubbles:true}));
- });
+  const before=await scroller(page);
+  assert.ok(before&&before.height>before.client,`o turno longo abre conteúdo rolável (${JSON.stringify(before)})`);
+  await page.evaluate(()=>{
+   const chat=document.querySelector('#chat'),messages=document.querySelector('#messages');
+   const el=chat&&messages&&chat.scrollHeight>chat.clientHeight+1?chat:messages;
+   /* Gesto real do aluno (roda): sem ele, a rolagem é lida como layout e não desliga o seguir. */
+   el.dispatchEvent(new WheelEvent('wheel',{bubbles:true,deltaY:-500}));
+   el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-500);
+   el.dispatchEvent(new Event('scroll',{bubbles:true}));
+  });
  await page.waitForFunction(()=>[...document.querySelectorAll('.message.assistant .body')].filter(el=>el.textContent.includes('Parágrafo 60')).length>=2,undefined,{timeout:30000});
  await nextFrames(page,3);
  const held=await scroller(page);
@@ -113,11 +122,12 @@ await withArtifacts('chat-follow',async ctx=>{
  await page.locator('#sidechat-prompt').fill('resposta longa');
  await page.locator('#sidechat-prompt').press('Enter');
  await page.waitForFunction(()=>!document.querySelector('#sidechat-stop')?.hidden,undefined,{timeout:20000});
- await page.evaluate(()=>{
-  const el=document.querySelector('#sidechat-messages');
-  el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-500);
-  el.dispatchEvent(new Event('scroll',{bubbles:true}));
- });
+  await page.evaluate(()=>{
+   const el=document.querySelector('#sidechat-messages');
+   el.dispatchEvent(new WheelEvent('wheel',{bubbles:true,deltaY:-500}));
+   el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-500);
+   el.dispatchEvent(new Event('scroll',{bubbles:true}));
+  });
  await page.waitForFunction(()=>[...document.querySelectorAll('#sidechat-messages .sidechat-body')].filter(el=>el.textContent.includes('Parágrafo 60')).length>=2,undefined,{timeout:30000});
  await nextFrames(page,3);
  assert.ok(await sideDistance()>200,`o lateral não puxou a pessoa de volta (${await sideDistance()})`);
@@ -129,16 +139,17 @@ await withArtifacts('chat-follow',async ctx=>{
     A posição em que a vista já estava não pode ser marcada como rolagem do
     código; senão o `scroll` do aluno é engolido e o texto seguinte puxa a
     conversa para o fim. */
- const ownScrollRace=await page.evaluate(async()=>{
-  const {revealInChat,applyChatScroll}=await import('./src/state.mjs');
-  const messages=document.querySelector('#messages');
-  const filler=document.createElement('div');filler.style.height='800px';
-  const anchor=document.createElement('div');anchor.style.height='10px';
-  messages.prepend(anchor);messages.append(filler);
-  messages.scrollTop=0;
-  revealInChat(anchor);
-  messages.dispatchEvent(new Event('scroll',{bubbles:true}));
-  applyChatScroll('stream',null,messages.scrollHeight-messages.scrollTop-messages.clientHeight);
+  const ownScrollRace=await page.evaluate(async()=>{
+   const {revealInChat,applyChatScroll}=await import('./src/state.mjs');
+   const messages=document.querySelector('#messages');
+   const filler=document.createElement('div');filler.style.height='800px';
+   const anchor=document.createElement('div');anchor.style.height='10px';
+   messages.prepend(anchor);messages.append(filler);
+   messages.scrollTop=0;
+   revealInChat(anchor);
+   messages.dispatchEvent(new WheelEvent('wheel',{bubbles:true,deltaY:-500}));
+   messages.dispatchEvent(new Event('scroll',{bubbles:true}));
+   applyChatScroll('stream',null,messages.scrollHeight-messages.scrollTop-messages.clientHeight);
   const top=messages.scrollTop;
   filler.remove();anchor.remove();
   return top;

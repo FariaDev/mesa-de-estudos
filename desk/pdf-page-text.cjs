@@ -11,6 +11,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
+const {normalizePageView} = require('./pdf-page-view.cjs');
 
 /* Páginas de texto são baratas; o PNG da página é o que pesa. A faixa para
    antes da quarta página que pediria imagem e o resultado diz onde continuar
@@ -275,12 +276,13 @@ async function inspectPage({pdfjs, doc, number}) {
 /**
  * @param {{page: number, text: string, kind: string, image?: string, imageError?: string}} page
  * @param {string} file
- * @param {(request: {file: string, page: number}) => Promise<string>} renderPage
+ * @param {(request: {file: string, page: number, girar?: number, recorte?: import('./pdf-page-view.cjs').Recorte|null, ampliar?: number}) => Promise<string>} renderPage
+ * @param {import('./pdf-page-view.cjs').PageView} view
  */
-async function attachImage(page, file, renderPage) {
+async function attachImage(page, file, renderPage, view) {
   const copy = {...page};
   try {
-    const image = await renderPage({file, page: copy.page});
+    const image = await renderPage({file, page: copy.page, girar: view.girar, recorte: view.recorte, ampliar: view.ampliar});
     if (typeof image !== 'string' || !image) copy.imageError = 'a Mesa não devolveu a imagem';
     else if (image.length > MAX_IMAGE_CHARS) copy.imageError = `imagem com ${image.length} caracteres; o teto é ${MAX_IMAGE_CHARS}`;
     else copy.image = image;
@@ -297,12 +299,13 @@ function imageMode(imagem) {
 
 /**
  * `auto` manda imagem de scan, figura grande e fórmula; `sim` força o PNG de
- * cada página; `nao` lê só texto.
- * @param {{kind: string}} page @param {'auto'|'sim'|'nao'} mode @param {boolean} canRender
+ * cada página; `nao` lê só texto. Pedir giro, recorte ou ampliação também
+ * quer a imagem, mesmo numa página que só tem texto.
+ * @param {{kind: string}} page @param {'auto'|'sim'|'nao'} mode @param {boolean} canRender @param {boolean} [visual]
  */
-function wantsImage(page, mode, canRender) {
+function wantsImage(page, mode, canRender, visual = false) {
   if (!canRender || mode === 'nao') return false;
-  if (mode === 'sim') return true;
+  if (mode === 'sim' || visual) return true;
   return page.kind === 'scan' || page.kind === 'figure' || page.kind === 'formula';
 }
 
@@ -314,8 +317,8 @@ function wantsImage(page, mode, canRender) {
  * `CACHE_PAGES` páginas lidas por documento) e as páginas de uma chamada saem
  * juntas. `warm` adianta o texto sem segurar o envio; `count` dá o total ao
  * chip do chat pelo mesmo documento.
- * @param {{loadPdfjs?: () => Promise<any>, readFile?: (file: string) => Buffer, statFile?: (file: string) => {mtimeMs: number, size: number}, renderPage?: ((request: {file: string, page: number}) => Promise<string>) | null}} [deps]
- * @returns {{read: (request: {file: string, first: unknown, last?: unknown, imagem?: unknown}) => Promise<{file: string, total: number, requested: {first: number, last: number}, pages: Array<{page: number, text: string, kind: string, textLength: number, textTruncated: boolean, imageRatio: number, image?: string, imageError?: string}>, next: number|null, imageLimitHit: boolean}>, warm: (request: {file: string, first: unknown, last?: unknown}) => Promise<void>, count: (file: string) => Promise<number>}}
+ * @param {{loadPdfjs?: () => Promise<any>, readFile?: (file: string) => Buffer, statFile?: (file: string) => {mtimeMs: number, size: number}, renderPage?: ((request: {file: string, page: number, girar?: number, recorte?: import('./pdf-page-view.cjs').Recorte|null, ampliar?: number}) => Promise<string>) | null}} [deps]
+ * @returns {{read: (request: {file: string, first: unknown, last?: unknown, imagem?: unknown, girar?: unknown, recorte?: unknown, ampliar?: unknown}) => Promise<{file: string, total: number, requested: {first: number, last: number}, pages: Array<{page: number, text: string, kind: string, textLength: number, textTruncated: boolean, imageRatio: number, image?: string, imageError?: string}>, next: number|null, imageLimitHit: boolean}>, warm: (request: {file: string, first: unknown, last?: unknown}) => Promise<void>, count: (file: string) => Promise<number>}}
  * @example await createPdfPageReader().read({file: '/c/Apostila.pdf', first: 53})
  */
 function createPdfPageReader({loadPdfjs = loadDefaultPdfjs, readFile = (file) => fs.readFileSync(file), statFile = (file) => fs.statSync(file), renderPage = null} = {}) {
@@ -392,7 +395,11 @@ function createPdfPageReader({loadPdfjs = loadDefaultPdfjs, readFile = (file) =>
     return job;
   }
 
-  async function read({file, first, last, imagem}) {
+  /**
+   * @param {{file: string, first: unknown, last?: unknown, imagem?: unknown, girar?: unknown, recorte?: unknown, ampliar?: unknown}} request
+   */
+  async function read({file, first, last, imagem, girar, recorte, ampliar}) {
+    const view = normalizePageView({girar, recorte, ampliar, imagem});
     const entry = await open(file);
     try {
       const total = entry.doc.numPages;
@@ -402,11 +409,12 @@ function createPdfPageReader({loadPdfjs = loadDefaultPdfjs, readFile = (file) =>
       const inspected = await Promise.all(numbers.map((number) => pageOf(entry, number)));
       const mode = imageMode(imagem);
       const canRender = typeof renderPage === 'function';
+      const wants = (page) => wantsImage(page, mode, canRender, view.visual);
       const included = [];
       let imageCount = 0;
       let imageLimitHit = false;
       for (const page of inspected) {
-        if (wantsImage(page, mode, canRender)) {
+        if (wants(page)) {
           if (imageCount >= MAX_IMAGE_PAGES) {
             imageLimitHit = true;
             break;
@@ -415,7 +423,7 @@ function createPdfPageReader({loadPdfjs = loadDefaultPdfjs, readFile = (file) =>
         }
         included.push(page);
       }
-      const pages = await Promise.all(included.map((page) => (wantsImage(page, mode, canRender) ? attachImage(page, file, renderPage) : page)));
+      const pages = await Promise.all(included.map((page) => (wants(page) ? attachImage(page, file, renderPage, view) : page)));
       const lastPage = pages.length ? pages[pages.length - 1].page : range.first;
       return {file: path.basename(file), total, requested: {first: range.first, last: range.requestedLast}, pages, next: lastPage < total ? lastPage + 1 : null, imageLimitHit};
     } finally {
@@ -425,8 +433,9 @@ function createPdfPageReader({loadPdfjs = loadDefaultPdfjs, readFile = (file) =>
 
   /** Adianta o texto das páginas. Falha de arquivo ou de página fica aqui: o foco não quebra. */
   function warm(request) {
-    /* Sem PNG: o aquecimento serve ao texto, e a imagem sai na chamada que a pedir. */
-    return read({...request, imagem: 'nao'}).then(() => undefined, () => undefined);
+    /* Sem PNG: o aquecimento serve ao texto, e a imagem sai na chamada que a pedir.
+       As opções visuais ficam de fora: junto de `imagem: "nao"` elas seriam contradição. */
+    return read({file: request.file, first: request.first, last: request.last, imagem: 'nao'}).then(() => undefined, () => undefined);
   }
 
   async function count(file) {

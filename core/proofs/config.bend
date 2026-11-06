@@ -163,3 +163,17 @@ def Laws.config_claude_path_presente():
 
 def Laws.config_claude_sem_trim():
   {==}
+
+# ---------- opencodePath (#102, mesmo contrato dos outros paths do topo) ----------
+
+def Laws.config_opencode_ausente():
+  {==}
+
+def Laws.config_opencode_ausente_com_paths():
+  {==}
+
+def Laws.config_opencode_path_presente():
+  {==}
+
+def Laws.config_opencode_sem_trim():
+  {==}

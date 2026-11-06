@@ -577,3 +577,41 @@ test('zipkit: leitura própria concorda com um zip feito por fora', () => {
   corrupted.writeUInt32LE(0xdeadbeef, centralCrc);
   assert.throws(() => zipkit.readZip(corrupted), ptMatches(/CRC/));
 });
+
+/* #87: a linhagem é do runtime do autor; o pacote leva a conversa, mas não o
+   ponteiro `origin` (que apontaria para um arquivo ausente no destino). */
+test('pacote: importar conversa com origin descarta a linhagem, sem perder a transcrição', () => {
+  const fixture = seedRuntime();
+  const root = tempDir('mesa-import-origin');
+  try {
+    const source = path.join(fixture.runtime, 'conversations', 'claude-11111111-2222-3333-4444-555555555555.json');
+    const raw = JSON.parse(fs.readFileSync(source, 'utf8'));
+    raw.origin = {session: path.join(fixture.runtime, 'pi-1700000000000.jsonl'), engine: 'pi'};
+    raw.handoff = {kind: 'digest', bytes: 12, createdAt: 1700000000000};
+    /* Sessão "continua de…": nasce com `messages` vazio e o contexto mora no
+       `importedTranscript` (#87). */
+    raw.messages = [];
+    raw.importedTranscript = 'Matéria: Algebra Linear. Último ponto: isole o termo.';
+    fs.writeFileSync(source, JSON.stringify(raw));
+    const built = packages.buildPackage({
+      runtime: fixture.runtime,
+      course: {id: 'mat-1', name: 'Algebra Linear'},
+      materialsDir: fixture.materialsDir,
+      learningDir: path.join(fixture.runtime, 'learning', 'Courses', 'Algebra Linear'),
+      include: {review: true, bookmarks: true, resume: true, conversations: true},
+    });
+    const destination = packages.planDestination({root, name: 'Algebra Linear'});
+    const preview = packages.previewImport({buffer: built.buffer, destination});
+    const result = packages.importPackage({buffer: built.buffer, destination, courseId: preview.courseId});
+    const imported = fs.readdirSync(path.join(result.conversationsDir, 'claude'))
+      .map((name) => JSON.parse(fs.readFileSync(path.join(result.conversationsDir, 'claude', name), 'utf8')))
+      .find((descriptor) => descriptor.importedFrom === raw.nativeSessionId);
+    assert.ok(imported, 'a conversa foi importada');
+    assert.equal(imported.origin, undefined, 'o ponteiro da linhagem não atravessa o pacote');
+    assert.equal(imported.handoff, undefined, 'o metadado do digest também não');
+    assert.deepEqual(imported.messages ?? [], [], 'a sessão continua nascendo sem mensagens');
+    assert.equal(imported.importedTranscript, raw.importedTranscript, 'o contexto da passagem atravessa o pacote');
+  } finally {
+    cleanup(fixture.runtime, fixture.materialsDir, fixture.agentHome, root);
+  }
+});

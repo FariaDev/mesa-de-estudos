@@ -17,8 +17,8 @@ import {testEnv} from './electron-env.mjs';
 import {tinyPdf} from './helpers.mjs';
 
 const DESK = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const FAKE_PI = path.join(DESK, 'tests', 'fake-pi.mjs');
-fs.chmodSync(FAKE_PI, 0o755);
+const FAKE_OPENCODE = path.join(DESK, 'tests', 'fake-opencode.mjs');
+fs.chmodSync(FAKE_OPENCODE, 0o755);
 
 const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-menu-conferir-smoke-'));
 const courseDir = path.join(runtime, 'learning', 'Courses', 'Synthetic');
@@ -34,7 +34,7 @@ fs.writeFileSync(path.join(runtime, 'config.json'), JSON.stringify({
 const app = await electron.launch({
   args: [path.join(DESK, 'main.cjs')],
   cwd: DESK,
-  env: testEnv({LEARNING_DESK_RUNTIME: runtime, LEARNING_DESK_PI: FAKE_PI}),
+  env: testEnv({LEARNING_DESK_RUNTIME: runtime, LEARNING_DESK_OPENCODE: FAKE_OPENCODE}),
 });
 let failed = false;
 const check = (name, value, predicate) => {

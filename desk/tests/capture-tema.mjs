@@ -60,7 +60,7 @@ await withArtifacts('captura-tema-chat',async ctx=>{
  const runtime=ctx.runtime=newRuntime('captura-tema-chat');
  seedChat(runtime);
  const logFile=path.join(runtime,'queue.log');
- const env={FAKE_PI_QUEUE_LOG:logFile,FAKE_PI_QUEUE_HOLD_MS:'60000',FAKE_PI_MANY_MODELS:'1',FAKE_PI_SECOND_MODEL:'1'};
+ const env={FAKE_OPENCODE_QUEUE_LOG:logFile,FAKE_OPENCODE_QUEUE_HOLD_MS:'60000',FAKE_OPENCODE_MANY_MODELS:'1',FAKE_OPENCODE_SECOND_MODEL:'1'};
  const app=ctx.app=await launchDesk({runtime,env});
  const page=await app.firstWindow();
  await resizeWindow(app,page,1440,900);
@@ -136,7 +136,7 @@ await withArtifacts('captura-tema-chat',async ctx=>{
 /* ---- primeira execução ---- */
 await withArtifacts('captura-tema-primeira',async ctx=>{
  const runtime=ctx.runtime=newRuntime('captura-tema-primeira');
- const app=ctx.app=await launchDesk({runtime,pi:false});
+ const app=ctx.app=await launchDesk({runtime,opencode:false});
  const page=await app.firstWindow();
  await resizeWindow(app,page,1440,900);
  await freezeMotion(page);

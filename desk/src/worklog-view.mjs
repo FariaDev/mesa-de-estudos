@@ -15,6 +15,7 @@ import {build,patchTree,preserveFocus} from './view-host.mjs';
 import core from './generated/worklogview.core.js';
 import {t} from './ui-text.mjs';
 import {STEP,formatDuration,headLine,liveLabel,runningStep,stepDetail,stepLabel,stepPreview} from './worklog.mjs';
+import {shouldStartOpen} from './worklog-head.mjs';
 import {VIEW_KIND_CORE,VIEW_STATUS_CORE} from './worklog-tags.mjs';
 import {lampMarkMarkup} from './lamp-mark.mjs';
 
@@ -122,7 +123,7 @@ export function createWorkLogView(){
  const root=build(core.workLog(workRowFrom({steps:[]},{live:true,expanded:true})));
 
  const openIds=new Set();
- let log=null,live=false,timer=0,touched=false,expanded=true,note='';
+ let log=null,live=false,timer=0,touched=false,expanded=true,note='',stepSeeded=false;
 
  const handlers={
   toggleWork(){
@@ -168,7 +169,7 @@ export function createWorkLogView(){
   timer=setInterval(tick,1000);
  }
 
- function render(nextLog,{live:isLive=false,note:nextNote=''}={}){
+ function render(nextLog,{live:isLive=false,note:nextNote='',hasAnswer=false,isFreeLimit=false}={}){
   log=nextLog;
   const wasLive=live;
   live=!!isLive;
@@ -178,7 +179,20 @@ export function createWorkLogView(){
    ensureTimer();
   }else{
    stopTimer();
-   if(!touched)expanded=false;
+   /* E3: interrompido com motivo e sem resposta começa aberto; com resposta
+      parcial ou no 429 (aviso próprio) segue recolhido. Só a dobra inicial:
+      com `touched` o clique do aluno manda nas repinturas. */
+   if(!touched){
+    expanded=shouldStartOpen(log,{hasAnswer,isFreeLimit});
+    /* O motivo mora no detalhe do passo de erro: sem abrir o passo, abrir o
+       diário não mostra nada e o conserto vira um clique a mais. Nasce
+       aberto uma vez só por visão (`stepSeeded`); o clique do aluno no
+       passo manda daí em diante, sem a repintura desfazer. */
+    if(expanded&&!stepSeeded){
+     stepSeeded=true;
+     for(const step of log?.steps||[])if(step?.status==='error'&&String(step.id||''))openIds.add(String(step.id));
+    }
+   }
   }
   for(const id of [...openIds]){
    const step=(log.steps||[]).find(item=>item.id===id);

@@ -2,10 +2,9 @@ import Base
 
 # ---------------------------------------------------------------------------
 # Capacidades do motor de conversa da Mesa: o que host/UI podem oferecer para
-# Pi, Claude Code e OpenCode sem prometer paridade.
+# Claude Code e OpenCode sem prometer paridade.
 #
 # Os fatos vêm do host, escolhidos pelo motor da conversa:
-#   - `piCaps()`: tudo ligado — é o comportamento que o app já exercita;
 #   - `claudeCaps()` (#58): imagens, permissões, steer (segundo item na
 #     consulta viva do Agent SDK), compactação manual (`/compact`, fim no
 #     `compact_result`), rascunho de revisão (consulta temporária sem
@@ -14,7 +13,7 @@ import Base
 #     Compactação automática fica DESLIGADA: o CLI compacta sozinho, mas a
 #     Mesa não tem como ligar/desligar isso com prova. Modelo e esforço só
 #     entram com o catálogo nativo (`claudeControlCaps`) (capacidade false
-#     vale para host e UI, sem fallback escondido para Pi);
+#     vale para host e UI, sem fallback escondido);
 #   - `opencodeCaps()` (#57): imagens, permissões, steer, compactação manual,
 #     rascunho de revisão (#93: consulta temporária sem MCP), comandos,
 #     GeoGebra, atividade e medidor de contexto LIGADOS — cada um com caminho
@@ -23,9 +22,9 @@ import Base
 #     com prova. Modelo e esforço só entram com o catálogo do servidor
 #     (`opencodeControlCaps`);
 #   - `unknownCaps()`: motor que a Mesa não reconhece fica TODO fechado. Não
-#     herda `piCaps` — um descritor estranho nunca ganha ferramenta do Pi.
+#     herda `claudeCaps` — um descritor estranho nunca ganha ferramenta da Mesa.
 #
-# Bilhete (`handoff`): veio da Conversa, aposentada na #50. Ficou falso nos três
+# Bilhete (`handoff`): veio da Conversa, aposentada na #50. Ficou falso nos
 # motores na #58 e saiu do contrato na #49, junto com `ControlHandoff`.
 #
 # `canSend` é a decisão do composer: anexo só quando `images` está ligada e,
@@ -71,12 +70,6 @@ type CapsControl is Data:
   ControlQuiz{}
   ControlContextUsage{}
 
-def piCaps() -> Caps:
-  Caps{
-    True{}, True{}, True{}, True{}, True{}, True{}, True{},
-    True{}, True{}, True{}, True{}, True{}
-  }
-
 # Estrutural: o que o Claude integra sem depender do catálogo de modelos.
 def claudeCaps() -> Caps:
   Caps{
@@ -119,8 +112,8 @@ def opencodeControlCaps(catalogReady: Bool, effortSupported: Bool) -> Caps:
         True{}, True{}, True{}, True{}, True{}
       }
 
-# Motor fora de Pi, Claude e OpenCode: nada liga. O host usa isto em vez de
-# cair no Pi.
+# Motor fora de Claude e OpenCode: nada liga. O host usa isto em vez de
+# cair num motor conhecido.
 def unknownCaps() -> Caps:
   Caps{
     False{}, False{}, False{}, False{}, False{}, False{}, False{},

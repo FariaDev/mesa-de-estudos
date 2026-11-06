@@ -12,9 +12,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
- withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,DESK,
+ withArtifacts,newRuntime,seedCourse,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,
  reviewShot,screenshotDirectory,freezeMotion,resizeWindow,pageWindow
 } from './helpers.mjs';
+import {specFor} from './fixtures/activity-specs.mjs';
 import {layoutStable,nextFrames,pollUntil} from './waits.mjs';
 import {captureWindow,pixelsAt,rgbDistance} from './window-pixels.mjs';
 
@@ -55,8 +56,8 @@ await withArtifacts('activity-ggb-overlay',async ctx=>{
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',courseStates:{calc:{pdfs:[{path:pdf,page:1}],study:{title:'',xopp:''}}}});
- const pi=path.join(DESK,'tests/fixtures/mesa-interactive-pi.mjs');fs.chmodSync(pi,0o755);
- ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi}});
+ const call={name:'criar_atividade',id:'integrated-call-1',input:specFor('figura')};
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MCP_CALL:JSON.stringify(call)}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await resizeWindow(ctx.app,page,1440,900,{content:true});
  await statusOnline(page);

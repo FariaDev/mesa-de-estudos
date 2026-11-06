@@ -167,7 +167,7 @@ function begin(runtime, spec = {}) {
       nativePath: typeof spec.nativePath === 'string' ? spec.nativePath : '',
       activeCourseId: typeof spec.activeCourseId === 'string' ? spec.activeCourseId : '',
       activeSession: typeof spec.activeSession === 'string' ? spec.activeSession : '',
-      engine: spec.engine === 'claude' ? 'claude' : 'pi',
+      engine: spec.engine === 'claude' ? 'claude' : 'opencode',
       descriptorFile: typeof spec.descriptorFile === 'string' ? spec.descriptorFile : '',
       configFile: typeof spec.configFile === 'string' ? spec.configFile : '',
       deskFile: typeof spec.deskFile === 'string' ? spec.deskFile : '',

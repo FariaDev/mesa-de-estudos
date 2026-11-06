@@ -144,3 +144,20 @@ test('OpenCode aquece o PDF citado sem colocar o texto na mensagem', async () =>
     fs.rmSync(runtime, {recursive: true, force: true});
   }
 });
+
+/* Teto de salvar_nota (auditoria de segurança): cada mensagem aceita do aluno
+   abre um turno novo no teto; resultado de cartão não é turno e não abre. */
+test('pi-prompt aceito abre turno novo; resultado de cartão não abre', async () => {
+  const ipcMain = fakeIpcMain();
+  const live = {config: {desk: {}}, state: {study: {title: ''}}, courseId: 'calc', courses: [{id: 'calc', name: 'Cálculo'}], session: '/s.jsonl',
+    bridge: fakeTutorBridge({get_state: {isStreaming: true}}), lastContextKey: '',
+    languageHost: {tutorLanguage: () => 'pt-BR', tutor: () => 'pt-BR', ui: () => 'pt-BR'},
+    studyServices: {accepted() {}, newStudentTurnCalls: 0, newStudentTurn() { this.newStudentTurnCalls += 1; }}};
+  live.bridge.request = async () => ({});
+  const api = registerTutorPromptHost({ipcMain, live, runtime: '/rt', FREE_ID: '__free__', allowedXopp: new Set(), ggb: {newRequest() {}}, appendLog: () => {},
+    engine: () => 'pi', connect: () => live.bridge, promptImages: () => [], validPdf: (file) => file, assertNoFreeMutation() {}, assertNoNav() {}});
+  await ipcMain.invoke('pi-prompt', {text: 'oi'});
+  assert.equal(live.studyServices.newStudentTurnCalls, 1, 'mensagem do aluno abre turno novo');
+  await api.sendText('[Resultado do cartão: card-x]');
+  assert.equal(live.studyServices.newStudentTurnCalls, 1, 'resultado de cartão não abre turno novo');
+});

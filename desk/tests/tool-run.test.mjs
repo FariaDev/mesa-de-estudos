@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {writeFakeExecutable} from './fake-executable.mjs';
+import {tempDir} from './temp-dir.mjs';
 
 const require = createRequire(import.meta.url);
 const {runTool, plainOutput, OUTPUT_TAIL_BYTES} = require('../tool-run.cjs');
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-tool-run-'));
+const tmp = () => tempDir('mesa-tool-run');
 
 function script(dir, body) {
   return writeFakeExecutable(dir, 'cmd', `#!${process.execPath}\n${body}\n`);

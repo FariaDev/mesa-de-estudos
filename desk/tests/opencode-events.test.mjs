@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {parseMessage} from '../src/i18n.mjs';
-import {FREE_TIER_403} from './fake-opencode.mjs';
+import {FREE_LIMIT_429, FREE_TIER_403, PROVIDER_TRANSPORT_ECONNREFUSED, PROVIDER_TRANSPORT_SELF_SIGNED} from './fake-opencode.mjs';
 
 const require = createRequire(import.meta.url);
 const {OpenCodeEventReader} = require('../src/agents/opencode-events.cjs');
@@ -58,6 +58,48 @@ test('execution.succeeded fecha a mensagem e depois emite execution', () => {
   assert.equal(ended.uuid, 'msg_a');
   assert.deepEqual(ended.content, [{type: 'text', text: 'resposta'}]);
   assert.equal(events[3][1].status, 'succeeded');
+});
+
+test('texto → ferramenta → texto fecha cada passo antes do próximo (a primeira frase não volta, #112)', () => {
+  const {reader, events} = createReader();
+  /* Sequência do 2.2.4 real (sonda sintética): cada passo do modelo tem o seu
+     `assistantMessageID`; a ferramenta fica entre os dois. */
+  reader.handle('session.step.started', {sessionID: SESSION, assistantMessageID: 'msg_a'});
+  reader.handle('session.text.started', {sessionID: SESSION, assistantMessageID: 'msg_a'});
+  reader.handle('session.text.delta', {sessionID: SESSION, assistantMessageID: 'msg_a', delta: 'Primeira frase.'});
+  reader.handle('session.text.ended', {sessionID: SESSION, assistantMessageID: 'msg_a', text: 'Primeira frase.'});
+  reader.handle('session.tool.input.started', {sessionID: SESSION, id: 'call_1', name: 'mesa_calcular'});
+  reader.handle('session.tool.called', {sessionID: SESSION, id: 'call_1', input: {expressao: '2+2'}});
+  reader.handle('session.tool.success', {sessionID: SESSION, id: 'call_1', content: '4'});
+  reader.handle('session.step.ended', {sessionID: SESSION, assistantMessageID: 'msg_a'});
+  reader.handle('session.step.started', {sessionID: SESSION, assistantMessageID: 'msg_b'});
+  reader.handle('session.text.started', {sessionID: SESSION, assistantMessageID: 'msg_b'});
+  reader.handle('session.text.delta', {sessionID: SESSION, assistantMessageID: 'msg_b', delta: 'Segunda frase.'});
+  reader.handle('session.text.ended', {sessionID: SESSION, assistantMessageID: 'msg_b', text: 'Segunda frase.'});
+  reader.handle('session.step.ended', {sessionID: SESSION, assistantMessageID: 'msg_b'});
+  reader.handle('session.execution.succeeded', {sessionID: SESSION});
+
+  const ends = events.filter(([type]) => type === 'message_end').map(([, payload]) => payload.message);
+  assert.deepEqual(ends.map((message) => [message.id, message.content[0].text]), [['msg_a', 'Primeira frase.'], ['msg_b', 'Segunda frase.']]);
+  assert.deepEqual(events.filter(([type]) => type === 'message_start').map(([, payload]) => payload.message.id), ['msg_a', 'msg_b']);
+  const endA = events.findIndex(([type, payload]) => type === 'message_end' && payload.message.id === 'msg_a');
+  const startB = events.findIndex(([type, payload]) => type === 'message_start' && payload.message.id === 'msg_b');
+  assert.ok(endA >= 0 && endA < startB, 'o fim do passo anterior chega antes do início do próximo');
+  assert.deepEqual(events.filter(([type]) => type === 'message_delta').map(([, payload]) => payload.delta), ['Primeira frase.', 'Segunda frase.']);
+});
+
+test('sem step.ended no fio, o delta da resposta seguinte fecha a anterior antes de abrir', () => {
+  const {reader, events} = createReader();
+  reader.handle('session.text.delta', {sessionID: SESSION, assistantMessageID: 'msg_a', delta: 'Primeira frase.'});
+  reader.handle('session.text.ended', {sessionID: SESSION, assistantMessageID: 'msg_a', text: 'Primeira frase.'});
+  reader.handle('session.text.delta', {sessionID: SESSION, assistantMessageID: 'msg_b', delta: 'Segunda frase.'});
+  reader.handle('session.execution.succeeded', {sessionID: SESSION});
+
+  const ends = events.filter(([type]) => type === 'message_end').map(([, payload]) => payload.message);
+  assert.deepEqual(ends.map((message) => message.id), ['msg_a', 'msg_b']);
+  const endA = events.findIndex(([type, payload]) => type === 'message_end' && payload.message.id === 'msg_a');
+  const startB = events.findIndex(([type, payload]) => type === 'message_start' && payload.message.id === 'msg_b');
+  assert.ok(endA >= 0 && endA < startB, 'a versão sem step.ended também fecha antes de abrir');
 });
 
 test('evento de outra sessão é ignorado', () => {
@@ -227,4 +269,132 @@ test('execution.failed do 2.2.4 (modelo padrão sem rota) vira erro visível com
   assert.equal(parseMessage(error.message)?.key, 'opencode.event.providerFailed');
   assert.equal(parseMessage(error.message)?.args.reason, 'Model unavailable: opencode/gpt-6.1-terra');
   assert.deepEqual(types(events), ['error', 'execution']);
+});
+
+/* Formato real medido no 2.2.4 (2026-11-05, grátis sem credencial e travas da
+   Mesa): `provider.free-limit`, 429, `FreeUsageLimitError`. Vira a frase
+   própria, não o `providerFailed` genérico nem papo de cota. */
+test('step.failed + execution.failed do limite do grátis viram UM error não fatal com a frase própria', () => {
+  const {reader, events} = createReader();
+  reader.handle('session.step.failed', {sessionID: SESSION, assistantMessageID: 'msg_a', error: FREE_LIMIT_429});
+  reader.handle('session.execution.failed', {sessionID: SESSION, error: FREE_LIMIT_429});
+
+  assert.deepEqual(types(events), ['error', 'execution']);
+  assert.equal(events[0][1].fatal, false);
+  assert.equal(events[0][1].code, 'OPENCODE_TURN_FAILED');
+  assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.freeLimit');
+  assert.equal(parseMessage(events[0][1].message)?.args?.reason, undefined);
+  assert.equal(events[0][1].detail, undefined, 'sem detalhe cru na tela: só a frase curta');
+  assert.equal(events[1][1].status, 'failed');
+});
+
+test('session.error do limite do grátis usa a mesma frase e fecha o turno com erro', () => {
+  const {reader, events} = createReader();
+  reader.handle('session.error', {sessionID: SESSION, error: FREE_LIMIT_429});
+  assert.deepEqual(types(events), ['error', 'turn_end']);
+  assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.freeLimit');
+  assert.equal(events[1][1].isError, true);
+});
+
+test('o limite do grátis não vira aviso de credencial: 429 fica no freeLimit, 401 no providerAuth', () => {
+  const {reader, events} = createReader();
+  reader.handle('session.execution.failed', {sessionID: SESSION, error: {type: 'provider.free-limit', status: 429, message: 'Free usage limit reached.'}});
+  reader.handle('session.execution.failed', {sessionID: SESSION, error: {type: 'provider.auth', status: 401, message: 'Invalid API key'}});
+  const keys = events.filter(([type]) => type === 'error').map(([, payload]) => parseMessage(payload.message)?.key);
+  assert.deepEqual(keys, ['opencode.event.freeLimit', 'opencode.event.providerAuth']);
+});
+
+/* Enviar sem rede (auditoria rodada 4, sem-conexão): o fetch do provedor morre
+   com `fetch failed`/DNS e a tela diz falta de conexão com a saída, não o
+   inglês cru do motor. Vale para `session.error` também. */
+test('falha de rede do turno vira o aviso de sem-conexão, não o inglês cru', () => {
+  for (const error of [
+    {message: 'fetch failed', cause: {code: 'EAI_AGAIN', message: 'getaddrinfo EAI_AGAIN api.openai.com'}},
+    {code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND api.openai.com'},
+    {message: 'network error'},
+  ]) {
+    const {reader, events} = createReader();
+    reader.handle('session.step.failed', {sessionID: SESSION, assistantMessageID: 'msg_a', error});
+    reader.handle('session.execution.failed', {sessionID: SESSION, error});
+    assert.deepEqual(types(events), ['error', 'execution']);
+    assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.network', JSON.stringify(error));
+    assert.equal(events[0][1].fatal, false);
+  }
+  const {reader, events} = createReader();
+  reader.handle('session.error', {sessionID: SESSION, error: {message: 'fetch failed'}});
+  assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.network');
+});
+
+/* Revisão rodada 5: o `fetch` do Node embrulha `ECONNREFUSED` em `fetch
+   failed`, e o diagnóstico dizia "confira sua internet" com o provedor local
+   parado. Recusa local e TLS têm frase própria — nunca a de sem-conexão. */
+test('provedor local parado (ECONNREFUSED no cause do fetch) não é falta de internet', () => {
+  for (const error of [
+    {message: 'fetch failed', cause: {code: 'ECONNREFUSED', message: 'connect ECONNREFUSED 127.0.0.1:11434'}},
+    {code: 'ECONNREFUSED', message: 'connect ECONNREFUSED 127.0.0.1:11434'},
+    {message: 'connect ECONNREFUSED 127.0.0.1:11434'},
+  ]) {
+    const {reader, events} = createReader();
+    reader.handle('session.step.failed', {sessionID: SESSION, assistantMessageID: 'msg_a', error});
+    reader.handle('session.execution.failed', {sessionID: SESSION, error});
+    assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.providerUnreachable', JSON.stringify(error));
+    assert.equal(events[0][1].fatal, false);
+  }
+  const {reader, events} = createReader();
+  reader.handle('session.error', {sessionID: SESSION, error: {message: 'fetch failed', cause: {code: 'ECONNREFUSED'}}});
+  assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.providerUnreachable');
+});
+
+/* Formato REAL medido no 2.2.4 (2026-11-05, provedor OpenAI-compatible local,
+   sem chave de verdade): a falha de transporte chega PLANA em
+   `{type:'provider.transport', message:'<CÓDIGO>: <frase>'}` — não em
+   `data.message` nem em `cause`. Porta fechada e certificado autoassinado são
+   provedor inalcançável, não "confira sua internet". */
+test('provider.transport do 2.2.4 (porta fechada e TLS) vira provedor inalcançável', () => {
+  for (const error of [PROVIDER_TRANSPORT_ECONNREFUSED, PROVIDER_TRANSPORT_SELF_SIGNED]) {
+    const {reader, events} = createReader();
+    reader.handle('session.step.failed', {sessionID: SESSION, assistantMessageID: 'msg_a', error});
+    reader.handle('session.execution.failed', {sessionID: SESSION, error});
+    assert.deepEqual(types(events), ['error', 'execution']);
+    assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.providerUnreachable', JSON.stringify(error));
+    assert.equal(events[0][1].fatal, false);
+  }
+});
+
+test('certificado (vencido, autoassinado, TLS) não é falta de internet', () => {
+  for (const error of [
+    {message: 'fetch failed', cause: {code: 'CERT_HAS_EXPIRED', message: 'certificate has expired'}},
+    {message: 'self signed certificate in certificate chain'},
+    {message: 'unable to verify the first certificate'},
+    {code: 'ERR_TLS_CERT_ALTNAME_INVALID', message: 'Hostname/IP does not match certificate'},
+  ]) {
+    const {reader, events} = createReader();
+    reader.handle('session.step.failed', {sessionID: SESSION, assistantMessageID: 'msg_a', error});
+    reader.handle('session.execution.failed', {sessionID: SESSION, error});
+    assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.providerUnreachable', JSON.stringify(error));
+  }
+});
+
+test('modelo parado ("model is offline") não é falta de internet', () => {
+  const {reader, events} = createReader();
+  reader.handle('session.execution.failed', {sessionID: SESSION, error: {message: 'model is offline'}});
+  assert.notEqual(parseMessage(events[0][1].message)?.key, 'opencode.event.network');
+  assert.equal(parseMessage(events[0][1].message)?.key, 'opencode.event.providerUnreachable');
+});
+
+/* Negativos: credencial, cota e cancelamento nunca viram rede nem provedor
+   inalcançável — cada um segue para o seu diagnóstico. */
+test('401, cota e cancelamento não viram rede nem provedor inalcançável', () => {
+  const cases = [
+    [{status: 401, message: 'Invalid API key'}, 'opencode.event.providerAuth'],
+    [{status: 429, message: 'quota exceeded for quota metric'}, 'opencode.event.providerFailed'],
+    [{message: 'Usage quota exceeded, try again later'}, 'opencode.event.providerFailed'],
+    [{name: 'AbortError', message: 'This operation was aborted'}, 'opencode.event.providerFailed'],
+  ];
+  for (const [error, expected] of cases) {
+    const {reader, events} = createReader();
+    reader.handle('session.execution.failed', {sessionID: SESSION, error});
+    const key = parseMessage(events[0][1].message)?.key;
+    assert.equal(key, expected, `${JSON.stringify(error)} virou ${key}`);
+  }
 });

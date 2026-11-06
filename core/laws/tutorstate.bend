@@ -168,8 +168,8 @@ law tutorstate_cancelar:
 law tutorstate_cancelar_unico:
   {List.length(&2, V.ViewNode, V.kidsOf(kidAt(T.connectingView(), 1n))) == 1n : Nat}
 
-law tutorstate_erro_tres_acoes:
-  {List.length(&2, V.ViewNode, V.kidsOf(kidAt(T.failedView("x"), 1n))) == 3n : Nat}
+law tutorstate_erro_duas_acoes:
+  {List.length(&2, V.ViewNode, V.kidsOf(kidAt(T.failedView("x"), 1n))) == 2n : Nat}
 
 law tutorstate_erro_chamar_de_novo:
   {at(V.kidsOf(kidAt(T.failedView("x"), 1n)), 0n)
@@ -179,18 +179,14 @@ law tutorstate_erro_ver_log:
   {at(V.kidsOf(kidAt(T.failedView("x"), 1n)), 1n)
     == T.button("state-log", "ts-secondary", M.msg("tutor.log"), M.msg("tutor.logTitle"), "OpenLog") : V.ViewNode}
 
-law tutorstate_erro_ajustes_do_pi:
-  {at(V.kidsOf(kidAt(T.failedView("x"), 1n)), 2n)
-    == T.button("state-pi", "ts-ghost", M.msg("tutor.piSettings"), M.msg("tutor.piSettingsTitle"), "OpenPiSettings") : V.ViewNode}
-
 law tutorstate_retomada_tres_acoes:
   {List.length(&2, V.ViewNode, V.kidsOf(kidAt(T.resumeView("a", "b", "c"), 1n))) == 3n : Nat}
 
 # ---------- textos ----------
 
 law tutorstate_motivo_na_linha_de_apoio:
-  {V.kidsOf(kidAt(kidAt(T.failedView("Pi não encontrado."), 0n), 1n))
-    == [V.viewText("Pi não encontrado.")] : List<&2, V.ViewNode>}
+  {V.kidsOf(kidAt(kidAt(T.failedView("OpenCode não encontrado."), 0n), 1n))
+    == [V.viewText("OpenCode não encontrado.")] : List<&2, V.ViewNode>}
 
 law tutorstate_motivo_vazio_na_linha_de_apoio:
   {V.kidsOf(kidAt(kidAt(T.failedView("  "), 0n), 1n))
@@ -249,27 +245,8 @@ law tutorstate_erro_saida_texto:
   {V.kidsOf(kidAt(kidAt(T.failedView(M.msg1("tutor.error.stopped", "code", "7")), 0n), 1n))
     == [V.viewText(M.msg("tutor.reason.exit"))] : List<&2, V.ViewNode>}
 
-law tutorstate_pi_ausente_marca:
-  {T.piMissing(M.msg("tutor.error.piMissing")) == True{} : Bool}
-
-law tutorstate_pi_presente_nao_marca:
-  {T.piMissing(M.msg1("tutor.error.stopped", "code", "7")) == False{} : Bool}
-
-# Pi não encontrado: Ajustes do Pi é a ação principal, como na primeira abertura.
-law tutorstate_pi_ausente_ajustes_principal:
-  {at(V.kidsOf(kidAt(T.failedView(M.msg("tutor.error.piMissing")), 1n)), 0n)
-    == T.button("state-pi", "ts-primary", M.msg("tutor.piSettings"), M.msg("tutor.piSettingsTitle"), "OpenPiSettings") : V.ViewNode}
-
-law tutorstate_pi_ausente_chamar_secundario:
-  {at(V.kidsOf(kidAt(T.failedView(M.msg("tutor.error.piMissing")), 1n)), 1n)
-    == T.button("connect", "ts-secondary", M.msg("tutor.retry"), M.msg("tutor.retryTitle"), "Connect") : V.ViewNode}
-
-law tutorstate_pi_ausente_tres_acoes:
-  {List.length(&2, V.ViewNode, V.kidsOf(kidAt(T.failedView(M.msg("tutor.error.piMissing")), 1n))) == 3n : Nat}
-
 # OpenCode ausente: o caminho e a variável ficam no log; a tela só diz que não
-# está instalado e leva a instalar. Chamar de novo some; log e ajustes ficam
-# secundários.
+# está instalado e leva a instalar. Chamar de novo some; o log fica secundário.
 law tutorstate_opencode_ausente_marca:
   {T.opencodeMissing(M.msg("err.opencode.notFound")) == True{} : Bool}
 
@@ -280,12 +257,16 @@ law tutorstate_opencode_ausente_instalar_principal:
   {at(V.kidsOf(kidAt(T.opencodeMissingView(M.msg("err.opencode.notFound")), 1n)), 0n)
     == T.button("state-opencode-install", "ts-primary", M.msg("tutor.opencode.install"), M.msg("tutor.opencode.installTitle"), "OpenReleaseNotes") : V.ViewNode}
 
-law tutorstate_opencode_ausente_sem_chamar:
+law tutorstate_opencode_ausente_tres_acoes:
   {List.length(&2, V.ViewNode, V.kidsOf(kidAt(T.opencodeMissingView(M.msg("err.opencode.notFound")), 1n))) == 3n : Nat}
 
 law tutorstate_opencode_ausente_log_secundario:
   {at(V.kidsOf(kidAt(T.opencodeMissingView(M.msg("err.opencode.notFound")), 1n)), 1n)
     == T.button("state-log", "ts-secondary", M.msg("tutor.log"), M.msg("tutor.logTitle"), "OpenLog") : V.ViewNode}
+
+law tutorstate_opencode_ausente_ajustes_secundario:
+  {at(V.kidsOf(kidAt(T.opencodeMissingView(M.msg("err.opencode.notFound")), 1n)), 2n)
+    == T.button("state-tutor-settings", "ts-secondary", M.msg("tutor.engineSettings"), M.msg("tutor.engineSettingsTitle"), "OpenTutorSettings") : V.ViewNode}
 
 law tutorstate_opencode_ausente_escolhe_view:
   {V.tagOf(T.errorView(True{}, "", M.msg("err.opencode.notFound"))) == "div" : String}

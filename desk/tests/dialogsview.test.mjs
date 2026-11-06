@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ptText} from './pt-text.mjs';
+import {ptText,enText} from './pt-text.mjs';
 import {message} from '../src/i18n.mjs';
 
 /* DOM falso mínimo para os aplicadores dos diálogos: o mesmo espírito do
@@ -120,6 +120,7 @@ el('tr', {id: 'help-check-row'});
 el('li', {id: 'help-conferir-step'});
 el('li', {id: 'help-conferir-li'});
 const aboutLead = el('p', {id: 'about-lead'});
+const aboutOrigin = el('p', {id: 'about-origin'});
 const aboutUpdate = el('div', {id: 'about-update'});
 const componentRows = el('div', {id: 'component-rows'});
 el('h2', {id: 'dialog-title'});
@@ -137,7 +138,7 @@ globalThis.document = {
 globalThis.window = {desk: {pickFolder: async () => '/tmp/escolhida'}};
 
 const dialogsCore = (await import('../src/generated/dialogsview.core.js')).default;
-const {dialogsHandlers, renderEndDay, clearEndDay, renderCourseRows, appendCourseRow, renderHelpVersion, applyHelpFlags, renderAboutLead, renderAboutUpdate, renderComponentRows, renderComponentChecking, renderPiDialog, renderImageChrome} = await import('../src/dialogs.mjs');
+const {dialogsHandlers, renderEndDay, clearEndDay, renderCourseRows, appendCourseRow, renderHelpVersion, applyHelpFlags, renderAboutLead, renderAboutOrigin, renderAboutUpdate, renderComponentRows, renderComponentChecking, renderPiDialog, renderImageChrome} = await import('../src/dialogs.mjs');
 
 const list = (...xs) => xs.reduceRight((tail, head) => ({$: 'Con', head, tail}), {$: 'Nil'});
 const kids = (node) => {
@@ -261,6 +262,37 @@ test('about: lead com a versão (sem versão mantém o texto estático)', () => 
   assert.equal(aboutLead.textContent, 'Versão 0.4.0 · 9dca5d3 · licença MIT', 'número e commit se separam pelo ponto médio');
 });
 
+test('about: origem normal, desenvolvimento, worktree e indisponível (#109)', () => {
+  renderAboutOrigin({kind: 'source'});
+  assert.equal(aboutOrigin.hidden, true, 'rodando do código a linha não aparece');
+  assert.equal(aboutOrigin.children.length, 0);
+
+  renderAboutOrigin({kind: 'normal'});
+  assert.equal(aboutOrigin.hidden, false);
+  assert.equal(aboutOrigin.textContent, 'Release oficial');
+  assert.equal(aboutOrigin.querySelector('.about-origin-path'), null, 'origem normal não tem caminho');
+
+  renderAboutOrigin({kind: 'development', path: '~/Dev/mesa', worktree: false});
+  assert.equal(aboutOrigin.hidden, false);
+  assert.equal(aboutOrigin.textContent, 'Pasta de desenvolvimento · ~/Dev/mesa');
+  assert.equal(aboutOrigin.querySelector('.about-origin-path').attrs.get('title'), '~/Dev/mesa', 'o caminho completo fica no title');
+
+  renderAboutOrigin({kind: 'development', path: '~/Dev/mesa-wt', worktree: true});
+  assert.equal(aboutOrigin.textContent, 'Pasta de desenvolvimento (worktree) · ~/Dev/mesa-wt');
+
+  renderAboutOrigin({kind: 'unavailable', path: '~/Dev/sumiu'});
+  assert.equal(aboutOrigin.hidden, false);
+  assert.equal(aboutOrigin.textContent, 'Origem indisponível · ~/Dev/sumiu');
+  assert.equal(aboutOrigin.querySelector('.about-origin-path').attrs.get('title'), '~/Dev/sumiu');
+
+  /* Os dois idiomas: os rótulos vêm do catálogo, não de texto fixo. */
+  assert.equal(enText(dialogsCore.originLabel({$: 'OriginNormal'})), 'Official release');
+  assert.equal(enText(dialogsCore.originLabel({$: 'OriginDev', worktree: false, path: '~/Dev/mesa'})), 'Development folder');
+  assert.equal(enText(dialogsCore.originLabel({$: 'OriginDev', worktree: true, path: '~/Dev/mesa'})), 'Development folder (worktree)');
+  assert.equal(enText(dialogsCore.originLabel({$: 'OriginUnavailable', path: '~/Dev/mesa'})), 'Origin unavailable');
+  assert.equal(enText(dialogsCore.updateUnverifiableText()), "Can't check for updates: the origin is unavailable.");
+});
+
 test('about: a linha de atualização vem do núcleo e liga os handlers', () => {
   let cliques = [];
   const handlers = {
@@ -292,6 +324,11 @@ test('about: a linha de atualização vem do núcleo e liga os handlers', () => 
   renderAboutUpdate({$: 'UpdateNone', current: '0.4.0', checked: ''}, handlers);
   assert.match(box.children[1].textContent, /^Atualizada\. Você está na v0\.4\.0\.$/, 'sem hora a frase diz a versão');
 
+  renderAboutUpdate({$: 'UpdateUnverifiable'}, handlers);
+  assert.match(box.children[1].textContent, /^Não dá para verificar atualizações: a origem não está disponível\.$/);
+  assert.notEqual(box.children[0].attrs.get('data-state'), 'ok', 'origem inválida não ganha o ✓ de atualizada');
+  assert.equal(box.children[2].attrs.get('id'), 'update-check', 'ainda dá para tentar de novo');
+
   cliques = [];
   renderAboutUpdate({$: 'UpdateReady', version: '0.4.1', notes: 'Corpo da Release', url: 'https://github.com/x'}, handlers);
   assert.equal(box.children.length, 5, 'pronto: ícone, frase, link, ação e corpo da Release');
@@ -319,31 +356,30 @@ test('about: a linha de atualização vem do núcleo e liga os handlers', () => 
   assert.equal(box.children[3].attrs.get('id'), 'update-check');
 });
 
-test('about: "O que a Mesa usa" — ordem do núcleo, bolinha, nota e Atualizar o Pi', () => {
-  let pi = 0;
+test('about: "O que a Mesa usa" — ordem do núcleo, bolinha, nota e Atualizar', () => {
+  const asked = [];
   renderComponentRows([
-    {id: 'pi', label: 'Pi', version: '0.86.1', state: 'outdated', latest: '0.90.0', hint: 'Em desk/.pi-local (atualizável pela Mesa).', canUpdate: true},
-    {id: 'node', label: 'Node', version: '22.18.0', state: 'warn', note: 'abaixo de 22.19 — o Pi exige Node 22.19+'},
+    {id: 'claude', label: 'Claude Code', version: '2.1.296', state: 'outdated', latest: '2.1.302', hint: 'Instalado pelo npm.', command: 'claude update', canUpdate: true},
+    {id: 'node', label: 'Node', version: '22.18.0', state: 'warn', note: 'abaixo de 22.19 — atualize o Node'},
     {id: 'xournal', label: 'Xournal++', version: '', state: 'unknown', link: 'https://github.com/xournalpp/xournalpp/releases/latest', linkLabel: 'Abrir o site'},
-  ], {UpdatePi: () => pi++});
+  ], {AskUpdate: () => asked.push('ask')});
   const rows = componentRows.children;
-  assert.deepEqual(rows.map((r) => r.attrs.get('data-id')), ['pi', 'node', 'xournal'], 'ordem: Pi, Node, Xournal++ (a Mesa não é linha)');
+  assert.deepEqual(rows.map((r) => r.attrs.get('data-id')), ['claude', 'node', 'xournal'], 'ordem: Claude Code, Node, Xournal++ (a Mesa não é linha)');
   const head = (row) => row.children[0].children[0];
-  const piRow = rows[0];
-  assert.equal(head(piRow).children[0].textContent, 'Pi');
-  assert.equal(head(piRow).children[1].textContent, '0.86.1');
-  assert.equal(head(piRow).children[2].attrs.get('data-state'), 'new', 'bolinha de versão nova');
-  assert.equal(head(piRow).children[3].textContent, '→ v0.90.0 disponível');
-  assert.equal(piRow.children[0].children[1].attrs.get('class'), 'component-hint');
-  assert.equal(piRow.children[0].children[1].textContent, 'O programa que faz o tutor funcionar. Em desk/.pi-local (atualizável pela Mesa).');
-  const atualizar = piRow.children[1].children[0];
-  assert.equal(atualizar.attrs.get('id'), 'update-pi');
-  assert.equal(atualizar.attrs.get('class'), 'component-update');
-  assert.equal(atualizar.textContent, 'Atualizar o Pi');
+  const claudeRow = rows[0];
+  assert.equal(head(claudeRow).children[0].textContent, 'Claude Code');
+  assert.equal(head(claudeRow).children[1].textContent, '2.1.296');
+  assert.equal(head(claudeRow).children[2].attrs.get('data-state'), 'new', 'bolinha de versão nova');
+  assert.equal(head(claudeRow).children[3].textContent, '→ v2.1.302 disponível');
+  assert.equal(claudeRow.children[0].children[1].attrs.get('class'), 'component-hint');
+  assert.equal(claudeRow.children[0].children[1].textContent, 'O outro motor do tutor (opcional). Instalado pelo npm.');
+  const atualizar = claudeRow.children[1].children[0];
+  assert.equal(atualizar.attrs.get('class'), 'component-update tool-ask');
+  assert.equal(atualizar.textContent, 'Atualizar');
   atualizar.listeners.get('click')({});
-  assert.equal(pi, 1, 'Atualizar o Pi cai no handler do host');
+  assert.deepEqual(asked, ['ask'], 'o clique só PEDE a confirmação');
 
-  assert.equal(head(rows[1]).children[3].textContent, 'abaixo de 22.19 — o Pi exige Node 22.19+', 'aviso do Node vem do núcleo');
+  assert.equal(head(rows[1]).children[3].textContent, 'abaixo de 22.19 — atualize o Node', 'aviso do Node vem do núcleo');
   assert.equal(head(rows[1]).children[2].attrs.get('data-state'), 'warn');
 
   const xournal = rows[2];
@@ -357,7 +393,7 @@ test('about: "O que a Mesa usa" — ordem do núcleo, bolinha, nota e Atualizar 
   assert.equal(xournal.children[1].children.length, 1, 'Xournal++ nunca ganha botão de atualizar');
 });
 
-/* #45: Pi e Claude Code atualizam de dentro da Mesa, conforme quem instalou. */
+/* #45: o Claude Code atualiza de dentro da Mesa, conforme quem instalou. */
 test('about: "Atualizar" com o comando exato; tutor respondendo desliga e explica', () => {
   const rows = [{id: 'claude', label: 'Claude Code', version: '2.1.296', state: 'outdated', latest: '2.1.302', command: 'claude update'}];
   const asked = [];
@@ -378,23 +414,23 @@ test('about: "Atualizar" com o comando exato; tutor respondendo desliga e explic
 });
 
 test('about: instalação que a Mesa não reconhece só mostra o comando com Copiar', () => {
-  renderComponentRows([{id: 'pi', label: 'Pi', version: '1.2.0', state: 'outdated', latest: '1.3.0', command: 'npm i -g @earendil-works/pi-coding-agent', copyOnly: true}], {CopyCommand: () => {}});
+  renderComponentRows([{id: 'claude', label: 'Claude Code', version: '1.2.0', state: 'outdated', latest: '1.3.0', command: 'npm i -g @anthropic-ai/claude-code', copyOnly: true}], {CopyCommand: () => {}});
   const button = componentRows.children[0].children[1].children[0];
   assert.equal(button.textContent, 'Copiar');
-  assert.equal(button.attrs.get('data-command'), 'npm i -g @earendil-works/pi-coding-agent');
-  assert.equal(button.attrs.get('aria-label'), 'Copiar o comando: npm i -g @earendil-works/pi-coding-agent');
+  assert.equal(button.attrs.get('data-command'), 'npm i -g @anthropic-ai/claude-code');
+  assert.equal(button.attrs.get('aria-label'), 'Copiar o comando: npm i -g @anthropic-ai/claude-code');
 });
 
 test('about: confirmação mostra o comando exato e o aviso de "mais nova que a testada"', () => {
-  const rows = [{id: 'pi', label: 'Pi', version: '1.2.0', state: 'outdated', latest: '1.4.0', command: 'brew upgrade pi-coding-agent', ahead: true}];
-  const runs = new Map([['pi', {$: 'RunConfirm', command: 'brew upgrade pi-coding-agent', warning: 'A 1.4.0 é mais nova que a testada com esta Mesa (1.3.0): o tutor pode se comportar diferente.'}]]);
+  const rows = [{id: 'claude', label: 'Claude Code', version: '1.2.0', state: 'outdated', latest: '1.4.0', command: 'brew upgrade claude-code', ahead: true}];
+  const runs = new Map([['claude', {$: 'RunConfirm', command: 'brew upgrade claude-code', warning: 'A 1.4.0 é mais nova que a testada com esta Mesa (1.3.0): o tutor pode se comportar diferente.'}]]);
   renderComponentRows(rows, {}, {runs});
   const row = componentRows.children[0];
   const head = row.children[0].children[0];
   assert.equal(head.children[4].textContent, 'mais nova que a testada', 'a linha diz que passou da testada');
   const panel = row.children[row.children.length - 1];
   assert.equal(panel.attrs.get('data-phase'), 'confirm');
-  assert.equal(panel.children[0].textContent, 'Vai rodar: brew upgrade pi-coding-agent');
+  assert.equal(panel.children[0].textContent, 'Vai rodar: brew upgrade claude-code');
   assert.match(panel.children[1].textContent, /mais nova que a testada com esta Mesa \(1\.3\.0\)/);
   const [cancel, confirm] = panel.children[2].children;
   assert.deepEqual([cancel.textContent, confirm.textContent], ['Cancelar', 'Atualizar']);
@@ -415,7 +451,7 @@ test('about: execução mostra a saída e o resultado em uma frase', () => {
 });
 
 test('about: sem rede o estado é "não deu para conferir", sem ação e sem erro', () => {
-  renderComponentRows([{id: 'pi', label: 'Pi', version: '1.2.0', state: 'offline', command: 'npm i -g @earendil-works/pi-coding-agent'}]);
+  renderComponentRows([{id: 'claude', label: 'Claude Code', version: '1.2.0', state: 'offline', command: 'claude update'}]);
   const row = componentRows.children[0];
   assert.equal(row.children[0].children[0].children[3].textContent, 'não deu para conferir');
   assert.equal(row.children.length, 1, 'sem versão nova conhecida não há ação');
@@ -433,23 +469,22 @@ test('about: linha em dia traz só a descrição e nenhuma coluna de ações', (
   assert.equal(componentRows.children.length, 0);
 });
 
-/* C3: painel aberto nasce com as 4 linhas "Verificando…" (nada de vão vazio). */
+/* C3: painel aberto nasce com as linhas "Verificando…" (nada de vão vazio). */
 test('about: abertura do painel já pinta as 4 linhas em Verificando…', () => {
   renderComponentChecking();
   const rows = componentRows.children;
-  assert.deepEqual(rows.map((r) => r.attrs.get('data-id')), ['pi', 'claude', 'node', 'xournal'], 'as 4 linhas nascem logo');
+  assert.deepEqual(rows.map((r) => r.attrs.get('data-id')), ['claude', 'node', 'xournal'], 'as 3 linhas nascem logo');
   for (const row of rows) {
     assert.equal(row.children[0].children[0].children[3].textContent, 'Verificando…', `${row.attrs.get('data-id')} começa verificando`);
     assert.equal(row.children[0].children[0].children[2].attrs.get('data-state'), 'busy');
   }
   /* E a checagem real substitui no mesmo lugar: */
   renderComponentRows([
-    {id: 'pi', label: 'Pi', version: '0.86.1', state: 'ok', canUpdate: false},
     {id: 'claude', label: 'Claude Code', version: '2.1.296', state: 'ok'},
     {id: 'node', label: 'Node (sistema)', version: '22.19.0', state: 'ok'},
     {id: 'xournal', label: 'Xournal++', version: '1.2.5', state: 'outdated', latest: '1.2.7'},
   ]);
-  assert.equal(componentRows.children[3].children[0].children[0].children[3].textContent, '→ v1.2.7 disponível');
+  assert.equal(componentRows.children[2].children[0].children[0].children[3].textContent, '→ v1.2.7 disponível');
 });
 
 test('pi-dialog: título/mensagem passam pelo host e os campos vão para #dialog-fields', () => {

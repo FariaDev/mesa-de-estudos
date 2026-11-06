@@ -12,6 +12,7 @@ const store = require('../free-workspaces.cjs');
 const {normalize} = require('../config.cjs');
 const {createFreePromotionHost} = require('../free-promotion-host.cjs');
 const {writeConfigPreservingExtras} = require('../config-write.cjs');
+const conversations = require('../src/agents/conversations.cjs');
 
 const dirs = [];
 after(() => { for (const dir of dirs) fs.rmSync(dir, {recursive: true, force: true}); });
@@ -55,6 +56,21 @@ test('runFreePromotion cria a matéria, grava o desk.json nela e adota em memór
   assert.equal(live.lastContextKey, '');
   assert.deepEqual(calls, ['stop', `apply:${course.id}`, 'ggb', 'persist']);
   assert.equal(fs.existsSync(path.join(rt, 'config.json')), false, 'sem persistConfig nem config.json, a config não é escrita');
+});
+
+test('promoção de conversa OpenCode muda o courseId do descritor nativo', async () => {
+  const rt = tempDir('opencode');
+  const parent = path.join(rt, 'destino');
+  fs.mkdirSync(parent);
+  const descriptor = conversations.createClaudeConversation({runtime: rt, courseId: 'mesa-free', engine: 'opencode'});
+  const record = store.ensureWorkspace(rt, {sessionId: 's', title: 'Cálculo'});
+  const live = fakeLive();
+  live.session = descriptor;
+  const {host} = promotionHost(rt, live, {engine: () => 'opencode'});
+  const {course} = await host.runFreePromotion({record, parentDir: parent, name: 'Cálculo'});
+  const saved = JSON.parse(fs.readFileSync(descriptor, 'utf8'));
+  assert.equal(saved.courseId, course.id, 'a conversa promovida passa a pertencer à matéria nova');
+  assert.equal(saved.engine, 'opencode');
 });
 
 test('runFreePromotion desfaz o destino novo quando a gravação falha antes do commit', async () => {

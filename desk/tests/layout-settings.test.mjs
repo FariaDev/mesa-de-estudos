@@ -10,6 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as layout from '../src/layout-settings.mjs';
+import {setUiLanguage} from '../src/ui-text.mjs';
 
 class FakeNode {
  constructor(tag){
@@ -50,7 +51,12 @@ class FakeNode {
 globalThis.document={
  createElement:(tag)=>new FakeNode(tag),
  createTextNode:(value)=>Object.assign(new FakeNode('#text'),{textContent:String(value)}),
+ documentElement:{lang:'pt-BR'},
+ querySelectorAll:()=>[],
 };
+/* `setUiLanguage` precisa do evento de idioma; o módulo já importou sem janela,
+   então aqui só vale o catálogo trocado (montes novos saem no idioma novo). */
+globalThis.window=globalThis.window||Object.assign(new EventTarget(),{});
 
 function findById(root,id){
  const queue=[root];
@@ -339,4 +345,42 @@ test('a prévia acompanha digitação e a troca de leitores',()=>{
  chooseCount(container,1);
  assert.equal(findById(root,'cfg-layout-preview-pane-2').hidden,true);
  assert.equal(findById(root,'cfg-layout-preview-label-1').textContent,'Lista');
+});
+
+test('em inglês o fill traduz os defaults e o read preserva o original (auditoria rodada 7, D1)',()=>{
+ setUiLanguage('en');
+ try{
+  const container=freshMount();
+  const root=rootOf(container);
+  const saved=twoPanelDesk();
+  layout.fillLayoutSettings(saved);
+  assert.equal(findById(root,'cfg-layout-label-1').value,'Problems','o nome do 1º sai traduzido como na barra');
+  assert.equal(findById(root,'cfg-layout-label-2').value,'Formula sheet & support','o nome do 2º sai traduzido');
+  assert.equal(findById(root,'cfg-layout-toggle-2').value,'Formula sheet','o atalho sai traduzido');
+  const untouched=layout.readLayoutSettings(twoPanelDesk());
+  assert.equal(untouched.panels[0].label,'Enunciado','salvar sem editar não grava inglês no lugar do default em PT');
+  assert.equal(untouched.panels[1].label,'Formulário & apoio');
+  assert.equal(untouched.panels[1].toggle,'Formulário');
+  type(container,findById(root,'cfg-layout-label-1'),'My problems');
+  type(container,findById(root,'cfg-layout-toggle-2'),'My toggle');
+  const edited=layout.readLayoutSettings(twoPanelDesk());
+  assert.equal(edited.panels[0].label,'My problems','nome editado de verdade grava o digitado');
+  assert.equal(edited.panels[1].toggle,'My toggle');
+ }finally{
+  setUiLanguage('pt-BR');
+ }
+});
+
+test('nome próprio passa direto nos dois idiomas (D1)',()=>{
+ setUiLanguage('en');
+ try{
+  const container=freshMount();
+  const root=rootOf(container);
+  const desk={title:'Mesa',panels:[{label:'Lista da Ana',prefer:['lista'],toggle:''},{label:'Apoio',prefer:['tab'],toggle:'Apoio'}]};
+  layout.fillLayoutSettings(desk);
+  assert.equal(findById(root,'cfg-layout-label-1').value,'Lista da Ana','o digitado não é traduzido');
+  assert.equal(layout.readLayoutSettings(desk).panels[0].label,'Lista da Ana');
+ }finally{
+  setUiLanguage('pt-BR');
+ }
 });

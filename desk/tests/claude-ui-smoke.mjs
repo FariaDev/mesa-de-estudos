@@ -80,7 +80,7 @@ await withArtifacts('claude-ui',async ctx=>{
   FAKE_CLAUDE_STORE:store,
   FAKE_CLAUDE_TRACE:claudeTrace,
  };
- const launch=(extra={})=>launchDesk({runtime,pi:false,env:{...baseEnv,...extra}});
+ const launch=(extra={})=>launchDesk({runtime,opencode:false,env:{...baseEnv,...extra}});
  /* A janela da Mesa é a primeira página do app; a prévia escondida pode vir antes em getAllWindows(). */
  const emit=async(app,data)=>(await pageWindow(app,await app.firstWindow())).evaluate((win,payload)=>win.webContents.send('pi-event',payload),data);
  const watch=page=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))console.log('CONSOLE',m.text());});return errors;};

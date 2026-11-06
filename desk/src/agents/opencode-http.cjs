@@ -60,9 +60,11 @@ function queryString(query) {
 /** @param {unknown} cause @returns {Error & {uncertain: boolean, notSent: boolean}} */
 function unreachable(cause) {
   const detail = /** @type {{name?: string, code?: string}} */ (cause)?.name === 'TimeoutError' ? 'timeout' : String(/** @type {{code?: string}} */ (cause)?.code || /** @type {Error} */ (cause)?.message || cause);
-  const error = /** @type {Error & {uncertain: boolean, notSent: boolean}} */ (Error(message('err.opencode.unreachable', {cause: detail})));
+  const error = /** @type {Error & {uncertain: boolean, notSent: boolean, code?: string, timeout?: boolean}} */ (Error(message('err.opencode.unreachable', {cause: detail})));
   error.uncertain = true;
   error.notSent = false;
+  error.code = detail === 'timeout' ? 'timeout' : String(/** @type {{code?: string}} */ (cause)?.code || '');
+  error.timeout = detail === 'timeout';
   return error;
 }
 

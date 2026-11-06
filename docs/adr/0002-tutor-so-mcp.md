@@ -1,5 +1,7 @@
 # 2. Tutor só com ferramentas da Mesa por MCP
 
+**Nota (2026-11-04):** a regra continua valendo, mas o texto é da época dos três motores. O Pi foi aposentado, só o OpenCode é visível e vários arquivos citados aqui (`tool-jail`, `opencode-jail`, `rpc.cjs` e outros) saíram do código; o estado atual está em [`docs/agents/mapa.md`](../agents/mapa.md).
+
 **Status:** aceita e implementada em 2026-11-01. As decisões do Lucas sobre
 as perguntas da seção 9 estão registradas abaixo. A medição da #91 foi
 dispensada por ele.

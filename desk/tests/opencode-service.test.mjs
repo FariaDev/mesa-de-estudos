@@ -95,3 +95,31 @@ test('motor desconhecido continua sem steer, comandos e medidor; o Claude agora 
   assert.deepEqual(await claude.request('get_commands'), {commands: [{name: 'review', description: 'Revisa'}]});
   assert.deepEqual(await claude.request('get_session_stats'), {contextUsage: {tokens: 10, contextWindow: 1000, percent: 1}});
 });
+
+/* Bloco 9 do hunt antigo (`state-fail`): a leitura de estado logo depois de
+   um envio aceito falha, e nem por isso a entrega vira erro ou é reenviada.
+   No OpenCode a leitura é `connect()` mais snapshot local (service.cjs). */
+test('falha do connect depois do aceite não vira erro nem reenvia', async (t) => {
+  const serve = await createFakeOpencodeServe({password: PASSWORD});
+  t.after(() => serve.close());
+  const deliveries = [];
+  const adapter = new OpenCodeAdapter({conversationId: 'conv-1', sessionId: '', directory: '/tmp/mesa-ws/conv-1',
+    acquire: async () => ({baseUrl: serve.url, password: PASSWORD, binary: '/fake/opencode'}),
+    persistDelivery: (patch) => deliveries.push(patch), readVersion: fakeReadVersion});
+  let sends = 0;
+  const sent = adapter.send.bind(adapter);
+  adapter.send = async (input) => { sends += 1; return sent(input); };
+  const service = new NativeService({adapter, engine: 'opencode'});
+  const events = [];
+  service.on('event', (event) => events.push(event));
+  t.after(() => service.stop());
+  await service.request('prompt', {message: 'fila com estado falho'});
+  await waitFor(events, (item) => item.type === 'agent_settled', 'turno aceito e fechado');
+  assert.equal(sends, 1);
+  /* A leitura de estado que o main faz logo depois do aceite falha. */
+  adapter.connect = async () => { throw Error('estado da sessão não pôde ser lido'); };
+  await assert.rejects(service.request('get_state'), /estado da sessão não pôde ser lido/);
+  assert.equal(sends, 1, 'a mensagem aceita não é reenviada');
+  assert.deepEqual(deliveries, [{id: deliveries[0].id, status: 'accepted'}, {id: deliveries[0].id, status: 'settled'}],
+    'a entrega continua liquidada, sem incerteza nova');
+});

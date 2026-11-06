@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseMessage} from '../src/i18n.mjs';
+import {trackTempDir} from './temp-dir.mjs';
 
 const require = createRequire(import.meta.url);
 const {materializeImages} = require('../src/agents/opencode-images.cjs');
@@ -17,7 +18,7 @@ const {mintWireMessageId} = require('../src/agents/opencode-ids.cjs');
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 test('imagem PNG vira um file:// com os mesmos bytes; tipo fora da lista só avisa', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-img-'));
+  const dir = trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-oc-img-')));
   const warnings = [];
   const files = materializeImages([{type: 'image', mimeType: 'image/png', data: PNG_1PX}, {type: 'image', mimeType: 'image/bmp', data: PNG_1PX}],
     {tempDir: () => dir, warn: (code, text) => warnings.push({code, key: parseMessage(text)?.key, args: parseMessage(text)?.args})});

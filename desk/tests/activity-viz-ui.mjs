@@ -18,19 +18,20 @@
    Capturas só com MESA_REVIEW_SHOTS. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import {launchDesk,withArtifacts,DESK,screenshotDirectory,reviewShot,enterFree,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
+import {launchDesk,withArtifacts,screenshotDirectory,reviewShot,enterFree,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
+import {tempDir} from './temp-dir.mjs';
+import {specFor} from './fixtures/activity-specs.mjs';
 import {layoutStable,nextFrames,pollUntil} from './waits.mjs';
 
 const out=screenshotDirectory('activity-viz');
 const size=(app,page,width,height)=>resizeWindow(app,page,width,height,{content:true});
 
 await withArtifacts('activity-viz-ui',async ctx=>{
- ctx.runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-activity-viz-'));
- const pi=path.join(DESK,'tests/fixtures/mesa-interactive-pi.mjs');fs.chmodSync(pi,0o755);
+ ctx.runtime=tempDir('mesa-activity-viz');
  fs.writeFileSync(path.join(ctx.runtime,'config.json'),JSON.stringify({runtimePath:ctx.runtime,vaultPath:ctx.runtime,courses:[]}));
- ctx.app=await launchDesk({runtime:ctx.runtime,env:{LEARNING_DESK_PI:pi}});
+ const calls=['Mostre um grafico.','Crie uma atividade de movimento.','Mostre a secante.'].map((text,index)=>({name:'criar_atividade',id:`integrated-call-${index+1}`,input:specFor(text)}));
+ ctx.app=await launchDesk({runtime:ctx.runtime,env:{FAKE_OPENCODE_MCP_CALLS:JSON.stringify(calls)}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await size(ctx.app,page,1440,900);
  await enterFree(page);

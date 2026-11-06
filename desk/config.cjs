@@ -68,7 +68,7 @@ const fromDesk=desk=>({
 });
 
 const fromConfig=config=>({
- vaultPath:config.vaultPath,runtimePath:config.runtimePath,piPath:config.piPath,claudePath:config.claudePath,xournalPath:config.xournalPath,
+ vaultPath:config.vaultPath,runtimePath:config.runtimePath,piPath:config.piPath,claudePath:config.claudePath,xournalPath:config.xournalPath,opencodePath:config.opencodePath,
  courses:coreListToArray(config.courses).map(c=>({id:c.id,name:c.name,path:c.path})),
  desk:fromDesk(config.desk)
 });
@@ -86,6 +86,7 @@ function normalize(raw={}){
   piPath:stringFact(raw.piPath),
   claudePath:stringFact(raw.claudePath),
   xournalPath:stringFact(raw.xournalPath),
+  opencodePath:stringFact(raw.opencodePath),
   courses:toCoreList(Array.isArray(raw.courses)?raw.courses:[],entry=>{
    const c=entry&&typeof entry==='object'?entry:{};
    const p=typeof c.path==='string'?c.path:'';

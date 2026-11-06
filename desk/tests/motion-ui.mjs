@@ -32,6 +32,21 @@ async function settle(page,selector){
  await page.waitForFunction(s=>[...document.querySelectorAll(s)].every(el=>el.getAnimations().every(a=>a.playState!=='running')),selector,{timeout:5000,polling:50});
 }
 
+/* A janela escondida no X11 não avança o relógio da transição só porque o
+   compositor entrega quadros ao screencast: é preciso pedir quadros da própria
+   página. `waitForFunction` com polling de tempo lia `display: flex` com a
+   animação parada em currentTime 0 e estourava os 2 s — no Mac a janela visível
+   pintava sozinha. Pede rAF até o display virar none (com prazo de segurança). */
+async function waitDisplayNone(page,selector){
+ await primeHiddenFrames(page);
+ const result=await page.evaluate(async sel=>{
+  const el=document.querySelector(sel),until=performance.now()+5000;
+  while(el&&getComputedStyle(el).display!=='none'&&performance.now()<until)await new Promise(requestAnimationFrame);
+  return el?getComputedStyle(el).display:'none';
+ },selector);
+ assert.equal(result,'none',`${selector} não saiu da tela (display ${result})`);
+}
+
 /* Pausa as animações do elemento em cada fração e captura a região dele. */
 async function captureFrames(page,selector,name){
  if(!process.env.MESA_REVIEW_SHOTS)return;
@@ -60,8 +75,7 @@ async function popoverMoves(page,theme){
  assert.equal(closed.hidden,true,'o gatilho fecha o seletor');
  assert.notEqual(closed.display,'none','o seletor ainda está na tela durante a saída');
  assert.ok(closed.running.includes('opacity'),`a saída também anima (veio ${closed.running})`);
- await primeHiddenFrames(page);
- await page.waitForFunction(()=>getComputedStyle(document.querySelector('#model-pop')).display==='none',undefined,{timeout:2000,polling:50});
+ await waitDisplayNone(page,'#model-pop');
 }
 
 async function dialogMoves(page,theme){
@@ -73,8 +87,7 @@ async function dialogMoves(page,theme){
  assert.equal(running.open,false);
  assert.notEqual(running.display,'none','o diálogo fica na tela enquanto sai');
  assert.ok(running.running.includes('opacity'),`o diálogo sai animado (veio ${running.running})`);
- await primeHiddenFrames(page);
- await page.waitForFunction(()=>getComputedStyle(document.querySelector('#settings-dialog')).display==='none',undefined,{timeout:2000,polling:50});
+ await waitDisplayNone(page,'#settings-dialog');
 }
 
 /* Conferir acende o fundo do Anexar (o botão visível; o item do menu fecha

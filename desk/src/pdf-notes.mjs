@@ -77,7 +77,7 @@ const CSS = `
 .study-notes-dialog .study-notes-filters label{display:flex;flex-direction:column;gap:var(--space-2);margin:0;font-size:var(--fs-sm)}
 .study-notes-status{min-height:20px;color:var(--muted);margin:var(--space-4) 0 0}
 .study-notes-status+.study-notes-list:has(>.study-notes-empty:only-child){display:none}
-.study-notes-status.error{color:var(--danger,#b42318)}
+.study-notes-status.error{color:var(--danger-text,#b42318)}
 .study-notes-empty{color:var(--muted);padding:12px 2px}
 .study-notes-target{color:var(--muted);font-size:var(--fs-sm)}
 `;
@@ -167,7 +167,7 @@ function renderList() {
       item.quote ? element('p', {class: 'study-note-quote', text: item.quote}) : null,
       item.note ? element('p', {class: 'study-note-body', text: item.note}) : null,
       element('div', {class: 'study-note-actions'}, [
-        element('button', {type: 'button', class: 'study-note-edit', 'data-note-id': item.id, text: 'Editar', onclick: () => editItem(item)}),
+        element('button', {type: 'button', class: 'study-note-edit', 'data-note-id': item.id, text: t('common.edit'), onclick: () => editItem(item)}),
         element('button', {type: 'button', class: 'study-note-remove', 'data-note-id': item.id, text: text(notesCore.removeLabel()), title: text(notesCore.removeTitle()), onclick: () => removeItem(item)}),
       ]),
     ]);

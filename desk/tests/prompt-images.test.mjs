@@ -36,6 +36,9 @@ test('readableImage só lê dentro de learning/ e com extensão de imagem', () =
 test('trimMessageImages mantém as últimas N mensagens com imagem e tira as antigas', () => {
   const withImage = () => ({content: [{type: 'text', text: 'a'}, {type: 'image'}]});
   const list = [withImage(), withImage(), withImage()];
-  images.trimMessageImages(list, 2);
-  assert.deepEqual(list.map((m) => m.content.length), [1, 2, 2]);
+  const shown = images.trimMessageImages(list, 2);
+  assert.deepEqual(shown.map((m) => m.content.length), [1, 2, 2]);
+  assert.notEqual(shown, list, 'a tela recebe uma lista nova');
+  assert.notEqual(shown[0], list[0], 'a mensagem cortada é uma cópia');
+  assert.deepEqual(list.map((m) => m.content.length), [2, 2, 2], 'a entrada fica intacta');
 });

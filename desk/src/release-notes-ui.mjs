@@ -230,6 +230,20 @@ function openReleaseDialog(notes) {
   document.querySelector('#release-notes-dialog')?.remove();
   const dialog = /** @type {HTMLDialogElement} */ (document.createElement('dialog'));
   dialog.id = 'release-notes-dialog';
+  /* B4 (auditoria rodada 8): cabeçalho com o × dos outros diálogos
+     (`icon-btn dialog-close`, como em `conversation-library.mjs`); o
+     "Entendi" do rodapé continua e o Esc segue fechando. */
+  const head = make('div', 'help-head');
+  const heading = make('h2', '', t('menu.releaseNotes'));
+  heading.id = 'release-notes-title';
+  const dismiss = /** @type {HTMLButtonElement} */ (make('button', 'icon-btn dialog-close', '×'));
+  dismiss.type = 'button';
+  dismiss.id = 'release-dismiss';
+  dismiss.title = t('common.close');
+  dismiss.setAttribute('aria-label', t('common.close'));
+  dismiss.onclick = () => dialog.close();
+  dialog.setAttribute('aria-labelledby', 'release-notes-title');
+  head.append(heading, dismiss);
   const body = make('div', 'release-body');
   body.append(...notes.map(noteBlock));
   const actions = make('div', 'dialog-actions');
@@ -238,7 +252,7 @@ function openReleaseDialog(notes) {
   close.id = 'release-close';
   close.onclick = () => dialog.close();
   actions.append(close);
-  dialog.append(body, actions);
+  dialog.append(head, body, actions);
   dialog.addEventListener('close', () => { dialog.remove(); reconnectIfInstalled(); });
   document.body.append(dialog);
   dialog.showModal();

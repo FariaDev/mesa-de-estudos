@@ -51,6 +51,8 @@ function registerChatExportHost({ipcMain,live,runtime,envRuntime,dialog,shell,ap
   let body=`# Mesa de Estudos — ${courseName}\n\n${labels.exportedOn(new Date().toISOString())}\n\n`+(parts.length?parts.join('\n\n')+'\n':'');
   const kind=engine();
   if(conversations.NATIVE_ENGINES.includes(kind)){
+   /* Exportar no meio do turno leva o que já chegou (#116). */
+   live.bridge?.flush?.();
    const record=live.bridge?conversations.readClaudeConversation(live.session,{runtime}):conversations.recoverClaudeConversation(live.session,{runtime});
    if(!record)throw Error(message(kind==='claude'?'err.claude.recordMissingShort':'err.opencode.recordMissing'));
    let messages=record.messages||[];

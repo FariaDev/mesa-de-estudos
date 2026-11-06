@@ -1096,7 +1096,7 @@ function $currentId(_m_0) {
   }
 }
 function $reviewEmpty() {
-  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("review-empty-block"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("h3", { $: "Con", head: $$view_attrClass("review-empty-title"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$emptyTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("p", { $: "Con", head: $$view_attrClass("review-empty"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$emptyBody()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("div", { $: "Con", head: $$view_attrClass("review-empty-sample"), tail: { $: "Con", head: $$view_attrAria("hidden", "true"), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("review-empty-save"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$saveActionLabel()), tail: { $: "Nil" } }), tail: { $: "Nil" } }), tail: { $: "Nil" } } } });
+  return $view_viewEl("div", { $: "Con", head: $$view_attrClass("review-empty-block"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewEl("h3", { $: "Con", head: $$view_attrClass("review-empty-title"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$emptyTitle()), tail: { $: "Nil" } }), tail: { $: "Con", head: $$view_viewEl("p", { $: "Con", head: $$view_attrClass("review-empty"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$emptyBody()), tail: { $: "Nil" } }), tail: { $: "Nil" } } });
 }
 function $reviewBoard_full(_xs_0, _m_0, _done_0, _grades_0) {
   return { $: "Con", head: $$reviewMain_pick(_m_0, _xs_0, _done_0, _grades_0), tail: { $: "Con", head: $$reviewAside(_xs_0, $$currentId(_m_0)), tail: { $: "Nil" } } };
@@ -1635,7 +1635,6 @@ var $$groupNode = $groupNode;
 var $$laterGroupTitle = $laterGroupTitle;
 var $$emptyTitle = $emptyTitle;
 var $$emptyBody = $emptyBody;
-var $$saveActionLabel = $saveActionLabel;
 var $$reviewMain_pick = $reviewMain_pick;
 var $$currentId = $currentId;
 var $$reviewAside = $reviewAside;

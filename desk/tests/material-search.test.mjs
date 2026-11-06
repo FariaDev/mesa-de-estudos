@@ -202,7 +202,7 @@ test('índice ainda montando: avisa e manda usar ler_pdf em vez de concluir que 
   assert.match(searchText(result), /ler_pdf/);
 });
 
-test('paridade: os três motores mostram a mesma descrição e o mesmo esquema', async () => {
+test('os motores mostram a mesma descrição e o mesmo esquema', async () => {
   const opencode = searchTool({grant: {url: 'http://127.0.0.1:9/activity', token: 't'}, search: async () => ({hits: []})});
   assert.equal(opencode.name, 'buscar_material');
   assert.equal(opencode.description, SEARCH_DESCRIPTION);
@@ -214,13 +214,6 @@ test('paridade: os três motores mostram a mesma descrição e o mesmo esquema',
   const {z} = await import('zod');
   const claudeSchema = z.toJSONSchema(z.object(claude.inputSchema), {io: 'input', unrepresentable: 'any'});
   assert.deepEqual(canonical(claudeSchema), canonicalFields(SEARCH_FIELDS));
-
-  /* A extensão do Pi só lê do guia; a prova de ponta a ponta é
-     `tests/native-tool-parity.mjs`. */
-  const pi = fs.readFileSync(new URL('../src/extensions/mesa-search/index.ts', import.meta.url), 'utf8');
-  assert.match(pi, /name: 'mesa_buscar_material'/);
-  assert.match(pi, /description: SEARCH_DESCRIPTION/);
-  assert.match(pi, /parameters: typeboxObject\(Type, SEARCH_FIELDS\)/);
   assert.ok(estimateTokens(SEARCH_DESCRIPTION) < 200, `descrição com ${estimateTokens(SEARCH_DESCRIPTION)} tokens`);
 });
 

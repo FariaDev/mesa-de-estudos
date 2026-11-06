@@ -79,11 +79,9 @@ test('createActivityTool devolve ao modelo o erro marcado na língua do tutor', 
   assert.equal(result.content[0].text, 'The session changed; the activity was not published.');
 });
 
-/* ---------- #42: tipo, gráficos, prévia e paridade com o Pi ---------- */
+/* ---------- #42: tipo, gráficos e prévia ---------- */
 
 const {PREVIEW_TOOL_NAME, PREVIEW_TOOL_DESCRIPTION, createPreviewTool} = require('../src/agents/activity-tools.cjs');
-const fs = require('node:fs');
-const path = require('node:path');
 
 test('criar_atividade aceita o tipo e a biblioteca de gráficos', async () => {
   const definition = await createActivityTool(async () => ({published: true}));
@@ -121,15 +119,10 @@ test('M1: criar_atividade encolheu pelo menos 20% sem perder as regras', async (
   assert.ok(estimateTokens(ACTIVITY_TOOL_DESCRIPTION) <= Math.floor(1681 * 0.8), `descrição com ${estimateTokens(ACTIVITY_TOOL_DESCRIPTION)} tokens (teto 1344)`);
 });
 
-test('paridade: a extensão do Pi registra as duas ferramentas com o MESMO texto do Claude', async () => {
+test('a ferramenta do Claude usa o MESMO texto do guia', async () => {
   const guide = await import('../src/extensions/mesa-activity/guide.mjs');
   assert.equal(ACTIVITY_TOOL_DESCRIPTION, guide.CREATE_DESCRIPTION);
   assert.equal(PREVIEW_TOOL_DESCRIPTION, guide.PREVIEW_DESCRIPTION);
-  /* A extensão do Pi (TS) só lê do guia: nada de texto próprio que diverja. */
-  const source = fs.readFileSync(path.join(import.meta.dirname, '..', 'src', 'extensions', 'mesa-activity', 'index.ts'), 'utf8');
-  assert.match(source, /name: 'mesa_previsualizar_atividade'[\s\S]*?description: PREVIEW_DESCRIPTION/);
-  assert.match(source, /name: 'mesa_criar_atividade'[\s\S]*?description: CREATE_DESCRIPTION/);
-  assert.match(source, /from '\.\/guide\.mjs'/);
   assert.equal(PREVIEW_TOOL_NAME, 'mcp__mesa__previsualizar_atividade');
 });
 
@@ -170,7 +163,7 @@ test('o servidor mesa inclui a prévia só junto da ferramenta de mostrar', asyn
 
 /* ---------- #40: o esquema que o SDK anuncia é o do guia ---------- */
 
-test('paridade: o esquema anunciado pelo Claude é o descrito no guia (o mesmo que o Pi monta)', async () => {
+test('paridade: o esquema anunciado pelo Claude é o descrito no guia', async () => {
   const {Client} = await import('@modelcontextprotocol/sdk/client/index.js');
   const {InMemoryTransport} = await import('@modelcontextprotocol/sdk/inMemory.js');
   const guide = await import('../src/extensions/mesa-activity/guide.mjs');
@@ -194,12 +187,6 @@ test('paridade: o esquema anunciado pelo Claude é o descrito no guia (o mesmo q
     await client.close();
     await server.instance.close();
   }
-  /* A extensão do Pi monta o esquema dos mesmos campos (a prova de ponta a
-     ponta, com o SDK do Pi instalado, é `tests/native-tool-parity.mjs`). */
-  const source = fs.readFileSync(path.join(import.meta.dirname, '..', 'src', 'extensions', 'mesa-activity', 'index.ts'), 'utf8');
-  assert.match(source, /parameters: typeboxObject\(Type, PREVIEW_FIELDS\)/);
-  assert.match(source, /parameters: typeboxObject\(Type, CREATE_FIELDS\)/);
-  assert.match(source, /publishedText\(result, params\.kind\)/);
 });
 
 /* M1: o `tools/list` não mostra `callRef`, mas o transporte MCP do SDK não a

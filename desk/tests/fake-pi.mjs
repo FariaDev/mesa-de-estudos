@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import {zenModelsFor,launchModelFrom,recordLaunch} from './fake-pi-opencode.mjs';
 import {bigCatalog} from './fake-pi-catalog.mjs';
 
-// Fake do Pi para os smokes. Modos de caos via FAKE_PI_CHAOS (combináveis por vírgula;
+// Fake do Pi para os smokes. Modos de caos via FAKE_OPENCODE_CHAOS (combináveis por vírgula;
 // cada modo dispara UMA vez por sessão, mesmo depois de o fake renascer):
 // - stream-abort: no primeiro prompt, emite o começo do stream e encerra o processo (Pi morto);
 // - desk-error:   no primeiro prompt, emite desk_error no meio do stream;
@@ -14,7 +14,7 @@ import {bigCatalog} from './fake-pi-catalog.mjs';
 //                 o main faz após o aceite): a entrega está feita e a falha é só do estado;
 // - stall:        responde o prompt, reporta streaming por 65s e depois fica mudo (nenhum
 //                 agent_end); o watchdog destrava por volta de 105s — modo do test:watchdog.
-const CHAOS=String(process.env.FAKE_PI_CHAOS||'').split(',').map(v=>v.trim()).filter(Boolean);
+const CHAOS=String(process.env.FAKE_OPENCODE_CHAOS||'').split(',').map(v=>v.trim()).filter(Boolean);
 const TIMEOUT_DELAY=Math.max(21000,Number(process.env.FAKE_PI_TIMEOUT_MS)||30000);
 if(CHAOS.includes('rpc-timeout'))console.error(`[fake-pi] rpc-timeout delay: ${TIMEOUT_DELAY}ms`);
 const bootAt=Date.now();
@@ -22,7 +22,7 @@ const bootAt=Date.now();
 const args=process.argv.slice(2);const session=args[args.indexOf('--session')+1];
 /* O que o Pi recebeu em `--append-system-prompt`, lido do arquivo no momento da
    subida: prova o prompt ENVIADO, não só o que o main escreveu (#41). */
-const PROMPT_LOG=process.env.FAKE_PI_PROMPT_LOG||'';
+const PROMPT_LOG=process.env.FAKE_OPENCODE_PROMPT_LOG||'';
 if(PROMPT_LOG){
  const promptFile=args[args.indexOf('--append-system-prompt')+1];
  try{fs.writeFileSync(PROMPT_LOG,fs.readFileSync(promptFile,'utf8'));}catch(error){fs.writeFileSync(PROMPT_LOG,`ERRO ${error.message}`);}
@@ -43,16 +43,16 @@ let stallUntil=0,timeoutPending=false;
    (a que o main faz logo depois do aceite) é recusada uma vez. */
 let stateFailArmed=false;
 
-/* Modo fila/steer (FAKE_PI_QUEUE_LOG, usado pelo hunt-queue): grava cada prompt
+/* Modo fila/steer (FAKE_OPENCODE_QUEUE_LOG, usado pelo hunt-queue): grava cada prompt
    com o `streamingBehavior` recebido, segura o turno aberto por
-   FAKE_PI_QUEUE_HOLD_MS (default 1200) e responde `eco: <texto>`; um prompt com
+   FAKE_OPENCODE_QUEUE_HOLD_MS (default 1200) e responde `eco: <texto>`; um prompt com
    `steer` derruba o turno em curso (agent_end) e responde na hora, e `abort`
    encerra o turno segurado — como o Pi real. Um prompt com `«cai»` mata o
    processo com o pedido em voo (a Mesa precisa recusar o envio sem perder a
    fila). Fora desse modo nada muda. */
-const QUEUE_LOG=process.env.FAKE_PI_QUEUE_LOG||'';
+const QUEUE_LOG=process.env.FAKE_OPENCODE_QUEUE_LOG||'';
 const RPC_LOG=process.env.FAKE_PI_RPC_LOG||'';
-const QUEUE_HOLD=Number(process.env.FAKE_PI_QUEUE_HOLD_MS)||1200;
+const QUEUE_HOLD=Number(process.env.FAKE_OPENCODE_QUEUE_HOLD_MS)||1200;
 let streaming=false,holdTimer=0;
 function queueRecord(e){
  if(!QUEUE_LOG)return;
@@ -92,7 +92,7 @@ function queuePrompt(e){
  },steer?80:QUEUE_HOLD);
 }
 
-/* FAKE_PI_TEXT_ONLY=1: modelo sem imagem (o aviso de anexo); FAKE_PI_SECOND_MODEL=1:
+/* FAKE_PI_TEXT_ONLY=1: modelo sem imagem (o aviso de anexo); FAKE_OPENCODE_SECOND_MODEL=1:
    segundo modelo no catálogo, para trocar de modelo pelo indicador. O esforço
    escolhido (`set_thinking_level`) e o modelo (`set_model`) ficam guardados e
    voltam em `get_state`. */
@@ -100,11 +100,11 @@ function queuePrompt(e){
    (sem isso o Pi real só devolve 'off' e o seletor fica com uma opção). */
 const REASONING=process.env.FAKE_PI_REASONING==='1';
 const MODELS=[{provider:'test',id:'offline',name:'Pi de teste',input:process.env.FAKE_PI_TEXT_ONLY==='1'?['text']:['text','image'],...(REASONING?{reasoning:true}:{})}];
-if(process.env.FAKE_PI_SECOND_MODEL==='1')MODELS.push({provider:'test',id:'offline-vision',name:'Pi com visão',input:['text','image'],...(REASONING?{reasoning:true}:{})});
-/* FAKE_PI_MANY_MODELS=1 (#59): catálogo de vários provedores, para o seletor agrupar, filtrar e guardar recentes.
+if(process.env.FAKE_OPENCODE_SECOND_MODEL==='1')MODELS.push({provider:'test',id:'offline-vision',name:'Pi com visão',input:['text','image'],...(REASONING?{reasoning:true}:{})});
+/* FAKE_OPENCODE_MANY_MODELS=1 (#59): catálogo de vários provedores, para o seletor agrupar, filtrar e guardar recentes.
    Com um número maior que 1 (ajustes do seletor), o catálogo chega a esse total com modelos do OpenRouter
    no formato real ("Fabricante: Modelo", `:free`), como o Pi do usuário com ~450 modelos. */
-const MANY=Number(process.env.FAKE_PI_MANY_MODELS||0);
+const MANY=Number(process.env.FAKE_OPENCODE_MANY_MODELS||0);
 if(MANY>=1)MODELS.push(...[['xai','grok-4','Grok 4'],['xai','grok-4-fast','Grok 4 Fast'],['anthropic','sonnet-5','Sonnet 5'],['openai','gpt-5.5','GPT 5.5'],['meu-provedor','caseiro','Modelo caseiro']].map(([provider,id,name])=>({provider,id,name,input:['text','image'],...(REASONING?{reasoning:true}:{})})));
 if(MANY>1)MODELS.push(...bigCatalog(Math.max(0,MANY-MODELS.length),{reasoning:REASONING}));
 /* FAKE_PI_OPENCODE=1 (#44): provedor `opencode` com a chave no ambiente, como o Pi real. FAKE_PI_OPENCODE_LOG grava, sem a chave, que ela chegou. */
@@ -128,7 +128,7 @@ function messages(){
 /* Turno longo do item 15: pensamento recolhido + ferramenta + texto que passa
    da vista, com uma imagem opcional que termina de carregar depois do texto. */
 function emitLongTurn(){
- const image=process.env.FAKE_PI_LONG_IMAGE?`\n\n![Figura de teste](${process.env.FAKE_PI_LONG_IMAGE})`:'';
+ const image=process.env.FAKE_OPENCODE_LONG_IMAGE?`\n\n![Figura de teste](${process.env.FAKE_OPENCODE_LONG_IMAGE})`:'';
  const body=Array.from({length:60},(_,i)=>`Parágrafo ${i+1}: a resposta longa continua para provar que a conversa acompanha o fim do turno.`).join('\n\n')+image;
  const thought='Vou montar uma resposta longa com uma ferramenta no meio.';
  emit({type:'message_start',message:{role:'assistant'}});
@@ -138,7 +138,39 @@ function emitLongTurn(){
  emit({type:'message_end',message:{role:'assistant',content:[{type:'thinking',thinking:thought}]}});
  emit({type:'tool_execution_start',toolCallId:'long-tool',toolName:'web_search',args:{query:'resposta longa'}});
  emit({type:'tool_execution_end',toolCallId:'long-tool',toolName:'web_search',result:{content:[{type:'text',text:'resultado de teste'}]},isError:false});
- setTimeout(()=>emitText(body),Number(process.env.FAKE_PI_LONG_HOLD_MS)||0);
+ setTimeout(()=>emitText(body),Number(process.env.FAKE_OPENCODE_LONG_HOLD_MS)||0);
+}
+
+/* Stream token a token (Markdown e KaTeX), para medir o custo de repintar a
+   resposta a cada delta. `FAKE_PI_STREAM_DELTAS` e `FAKE_PI_STREAM_DELTA_MS`
+   controlam o tamanho e o ritmo; o texto cresce como numa resposta de verdade. */
+function emitStreamTurn(){
+ const paragraphs=Array.from({length:12},(_,i)=>[
+  `## Passo ${i+1}`,
+  `A ideia central é aplicar $f(x)=x^{${i+1}}+${i}$ e conferir o sinal.`,
+  `- derive termo a termo\n- simplifique antes de substituir\n- confira a unidade no fim`,
+  `$$\\int_0^1 x^{${i+1}}\\,dx=\\frac{1}{${i+2}}$$`,
+  `Um trecho de código para fixar:\n\n\`\`\`js\nconst derivada = (x) => ${i+1} * x ** ${i};\n\`\`\``,
+ ].join('\n\n'));
+ const full=paragraphs.join('\n\n')+'\n\nFim da resposta longa do tutor.';
+ const chunks=Math.max(1,Number(process.env.FAKE_PI_STREAM_DELTAS)||240);
+ const step=Math.max(1,Math.ceil(full.length/chunks));
+ const delay=Math.max(0,Number(process.env.FAKE_PI_STREAM_DELTA_MS)||25);
+ streaming=true;
+ emit({type:'agent_start'});
+ emit({type:'message_start',message:{role:'assistant'}});
+ let at=0;
+ const timer=setInterval(()=>{
+  if(at>=full.length){
+   clearInterval(timer);
+   streaming=false;
+   emit({type:'message_end',message:{role:'assistant',content:[{type:'text',text:full}]}});
+   emit({type:'agent_end'});
+   return;
+  }
+  emit({type:'message_update',assistantMessageEvent:{type:'text_delta',delta:full.slice(at,at+step)}});
+  at+=step;
+ },delay);
 }
 
 function emitWorklog(){
@@ -267,7 +299,7 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
  }
  else if(e.type==='prompt'){
   if(process.env.FAKE_PI_REVIEW_DRAFT&&args.includes('--no-tools')){reply(e,{});setTimeout(()=>emitText(process.env.FAKE_PI_REVIEW_DRAFT),Number(process.env.FAKE_PI_REVIEW_DELAY)||0);return;}
-  if(process.env.FAKE_PI_REFUSAL_LOG&&String(e.message).startsWith('falhar')){fs.appendFileSync(process.env.FAKE_PI_REFUSAL_LOG,JSON.stringify({at:Date.now(),message:e.message})+'\n');emit({type:'response',id:e.id,success:false,error:'Recusa de teste antes do aceite'});return;}
+  if(process.env.FAKE_OPENCODE_REFUSAL_LOG&&String(e.message).startsWith('falhar')){fs.appendFileSync(process.env.FAKE_OPENCODE_REFUSAL_LOG,JSON.stringify({at:Date.now(),message:e.message})+'\n');emit({type:'response',id:e.id,success:false,error:'Recusa de teste antes do aceite'});return;}
   if(QUEUE_LOG){queuePrompt(e);return;}
   const content=[{type:'text',text:e.message}];
   if(Array.isArray(e.images))content.push(...e.images);
@@ -279,6 +311,7 @@ process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf(
   else if(/falha do provedor/i.test(studentText(e.message)))providerErrorTurn();
   else if(/^\[Resultado do cartão:/.test(studentText(e.message)))emitText('Recebi o resultado do cartão.');
   else if(/quiz/i.test(studentText(e.message)))void emitQuiz(e.message);
+  else if(/stream longo/i.test(studentText(e.message)))emitStreamTurn();
   else if(/resposta longa/i.test(studentText(e.message)))emitLongTurn();
   else if(/pensar profundo/i.test(studentText(e.message)))emitWorklog();
   else if(/teorema/i.test(studentText(e.message)))emitText('A identidade de Pitágoras: $a^2 + b^2 = c^2$ vale em triângulos retângulos.\n\n$$E = mc^2$$');

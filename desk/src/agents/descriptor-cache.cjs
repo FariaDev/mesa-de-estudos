@@ -11,7 +11,7 @@ class DescriptorCache{
   }
   const record=this.read(file);
   let value=null;
-  if(record){value={};for(const key of ['schemaVersion','engine','id','nativeSessionId','nativeEstablished','courseId','started','preview','model','effort','pinnedExecutable','delivery'])if(record[key]!==undefined)value[key]=record[key];}
+  if(record){value={};for(const key of ['schemaVersion','engine','id','nativeSessionId','nativeEstablished','courseId','started','preview','model','effort','pinnedExecutable','delivery','origin','handoff'])if(record[key]!==undefined)value[key]=record[key];}
   this.meta.set(file,{stamp,value});
   if(this.meta.size>1000)this.meta.delete(this.meta.keys().next().value);
   if(messages){this.fullFile=file;this.fullStamp=stamp;this.fullRecord=record;}

@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {withArtifacts,newRuntime,seedCourse,writeDeskJson,writeConfigJson,launchDesk,statusOnline,currentEngine,sendEnabled,openTutorMore,DESK} from './helpers.mjs';
 import ptBR from '../src/locales/pt-BR.json' with {type: 'json'};
+import {closeApp} from './proc-tree.mjs';
 
 const FAKE_OPENCODE_BIN=path.resolve(import.meta.dirname,'fake-opencode.mjs');
 const CLAUDE_FIXTURE=path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs');
@@ -18,7 +19,7 @@ const OPENCODE_TEXT='Resposta do OpenCode falso';
 const NO_PI_PATH=[path.dirname(process.execPath),'/usr/bin','/bin'].join(path.delimiter);
 /* Textos que só fazem sentido com Pi instalado (#93, release OpenCode). Sem
    Pi, nenhum deles pode aparecer na janela, nem como rótulo acessível. */
-const PI_TEXTS=['firstrun.tutor.codexGrok','settings.pi.missing','settings.folders.pi','slash.list','component.desc.pi','update.pi','update.piConfirm','update.piRestarting','about.credit.pi','component.nodeTooOld'].map(key=>ptBR[key]);
+const PI_TEXTS=['firstrun.tutor.codexGrok','settings.pi.missing','settings.folders.pi','component.desc.pi','update.pi','update.piConfirm','update.piRestarting','about.credit.pi','component.nodeTooOld'].map(key=>ptBR[key]).filter(Boolean);
 
 const visibleAndLabels=page=>page.evaluate(()=>{
  const attributes=[...document.querySelectorAll('[aria-label],[title]')]
@@ -74,7 +75,7 @@ async function scenario(ctx,tag,engine,extraEnv,answerText){
  const engineEnv=engine==='claude'
   ? {LEARNING_DESK_CLAUDE:claudeTrap(runtime),LEARNING_DESK_CLAUDE_SDK_FACTORY:CLAUDE_FIXTURE}
   : {LEARNING_DESK_OPENCODE:FAKE_OPENCODE_BIN};
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{
   HOME:runtime,USERPROFILE:runtime,PATH:NO_PI_PATH,LEARNING_DESK_CLAUDE_HOME:'',
   ...engineEnv,...extraEnv,
  }});
@@ -83,30 +84,16 @@ async function scenario(ctx,tag,engine,extraEnv,answerText){
  await statusOnline(page,{timeout:60000});
  assert.equal(await currentEngine(page),engine,'o motor padrão é o instalado');
  await page.locator('#new-session').click({button:'right'});
- await page.waitForSelector('#new-session-pop:not([hidden])');
- assert.equal(await page.locator('#new-session-pop #new-session-default').count(),0,'sem Pi, o item Padrão/Pi some do menu');
- assert.equal(await page.locator('#new-session-pop #new-session-opencode').count(),1,'a sessão OpenCode continua explícita');
- const menu=await page.evaluate(()=>{
-  const pop=document.querySelector('#new-session-pop'),btn=document.querySelector('#new-session');
-  const title=pop.querySelector('.conv-head strong').getBoundingClientRect();
-  const first=pop.querySelector('button').getBoundingClientRect();
-  const walker=document.createTreeWalker(pop.querySelector('button'),NodeFilter.SHOW_TEXT);
-  let text;
-  while((text=walker.nextNode())&&!text.textContent.trim());
-  const range=document.createRange();range.selectNodeContents(text);
-  const label=range.getBoundingClientRect();
-  const box=pop.getBoundingClientRect();
-  return {gap:box.top-btn.getBoundingClientRect().bottom,inside:box.left>=0&&box.right<=innerWidth&&box.bottom<=innerHeight,titleLeft:title.left,textLeft:label.left,itemHeight:first.height,itemPad:parseFloat(getComputedStyle(pop.querySelector('button')).paddingLeft)};
- });
- assert.ok(menu.gap>=8,`o menu respira abaixo do + (${menu.gap} px)`);
- assert.equal(menu.inside,true,'o menu "Nova sessão com…" não sai da janela');
- assert.ok(Math.abs(menu.titleLeft-menu.textLeft)<=1,`o título alinha com o texto dos itens (${menu.titleLeft} × ${menu.textLeft})`);
- assert.ok(Math.abs(menu.itemHeight-28)<=1,'as linhas mantêm a altura dos outros menus');
- assert.ok(menu.itemPad>=6,'as linhas mantêm o padding dos outros menus');
+ /* Com um motor pronto o "+" cria direto e não há menu (#87, 5c03f9da);
+    o clique direito também não abre escolha de motor. */
+ assert.equal(await page.locator('#new-session-pop').isHidden(),true,'com um motor pronto o clique direito não abre menu (#87)');
+ assert.equal(await page.locator('#new-session-pop #new-session-default').count(),0,'o menu não tem Padrão/Pi: o + cria com o motor atual');
+ assert.equal(await page.locator('#new-session-pop #new-session-opencode').count(),0,'sem escolha de motor, o menu não lista o único motor');
+ assert.equal(await page.locator('#new-session').getAttribute('aria-haspopup'),null,'com um motor só o + não anuncia menu (#87)');
  await page.keyboard.press('Escape');
  const config=await page.evaluate(()=>window.desk.getConfig());
- assert.equal(config.detectedPi,'','o Pi está fora do alcance da janela');
- assert.deepEqual(await page.evaluate(()=>({settings:document.querySelector('#cfg-pi')?.closest('label')?.hidden,credit:document.querySelector('#about-credit-pi')?.hidden})),{settings:true,credit:true},'sem Pi, a linha das Configurações e o crédito somem');
+ assert.equal(config.detectedPi,undefined,'o Pi saiu do contrato de configuração');
+ assert.equal(await page.locator('#cfg-pi, #about-credit-pi').count(),0,'sem Pi, a linha das Configurações e o crédito não existem');
  await assertNoPiTexts(page);
  const session=await page.evaluate(()=>document.querySelector('#session-title').dataset.session);
  if(engine==='claude')assert.match(path.basename(session),/^claude-[0-9a-f-]{36}\.json$/,'conversa nova nasceu com descritor Claude');
@@ -123,7 +110,7 @@ async function scenario(ctx,tag,engine,extraEnv,answerText){
  await page.waitForFunction(text=>[...document.querySelectorAll('.message.assistant .body')].some(el=>el.textContent.includes(text)),answerText,{timeout:30000});
  await sendEnabled(page);
  assert.deepEqual(errors,[],'sem erro de página');
- await app.close();ctx.app=null;
+ await closeApp(app);ctx.app=null;
 }
 
 
@@ -136,15 +123,15 @@ async function lateEngine(ctx,tag,via){
  writeDeskJson(runtime,{courseId:'Calculo'});
  fs.chmodSync(FAKE_OPENCODE_BIN,0o755);
  const late=path.join(runtime,'opencode-instalado-depois.mjs');
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{HOME:runtime,USERPROFILE:runtime,PATH:NO_PI_PATH,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_OPENCODE:late}});
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{HOME:runtime,USERPROFILE:runtime,PATH:NO_PI_PATH,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_OPENCODE:late}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.waitForFunction(()=>document.querySelector('#tutor-state')?.dataset.state==='off',undefined,{timeout:60000});
  assert.equal(await currentEngine(page),'opencode','sem motor, a conversa nova já nasce no OpenCode');
  await page.locator('#new-session').click();
- assert.equal(await page.locator('#new-session-pop #new-session-default').count(),0,'sem Pi, o menu não oferece o Padrão/Pi');
- assert.equal(await page.locator('#new-session-pop #new-session-opencode').count(),1);
- await page.keyboard.press('Escape');
+ assert.equal(await page.locator('#new-session-pop').isHidden(),true,'com um motor pronto o + cria direto, sem menu (#87)');
+ assert.equal(await page.locator('#new-session-pop #new-session-default').count(),0,'o menu não oferece Padrão/Pi');
+ assert.equal(await page.locator('#new-session-pop button').count(),0,'o menu não lista o motor único');
  if(via==='connect'){
   /* Sem OpenCode, a sessão nova já falhou e a tela oferece instalar pelas
      novidades; "Chamar de novo" não repete a mesma falha (#96c61fa). */
@@ -158,7 +145,7 @@ async function lateEngine(ctx,tag,via){
   await page.locator('#release-close').click();
   await page.waitForFunction(()=>!document.querySelector('#release-notes-dialog')?.open);
  }
- fs.copyFileSync(FAKE_OPENCODE_BIN,late);fs.chmodSync(late,0o755);
+ fs.copyFileSync(FAKE_OPENCODE_BIN,late);fs.copyFileSync(path.join(DESK,'tests','fake-pi-catalog.mjs'),path.join(runtime,'fake-pi-catalog.mjs'));fs.chmodSync(late,0o755);
  /* Sem OpenCode, o estado não oferece "Chamar de novo": depois de instalar,
     a conversa segue numa sessão nova (o caminho do release). */
  await page.locator('#new-session').click();
@@ -171,7 +158,7 @@ async function lateEngine(ctx,tag,via){
  await page.waitForFunction(text=>[...document.querySelectorAll('.message.assistant .body')].some(el=>el.textContent.includes(text)),OPENCODE_TEXT,{timeout:30000});
  await sendEnabled(page);
  assert.deepEqual(errors,[],'sem erro de página');
- await app.close();ctx.app=null;
+ await closeApp(app);ctx.app=null;
 }
 
 await withArtifacts('pi-opcional',async ctx=>{

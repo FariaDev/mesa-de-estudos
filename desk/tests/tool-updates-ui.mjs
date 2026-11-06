@@ -1,14 +1,16 @@
-// node tests/tool-updates-ui.mjs — avisos de atualização do Pi e do Claude Code (#45), medidos na janela.
-// Cenários (cada um sobe uma Mesa com `brew`/`npm`/`claude` FALSOS, nomeados em
-// tests/fake-tool-binaries.mjs; nada de rede nem de instalador de verdade):
-//   avisos   — Pi (Homebrew) e Claude Code com versão nova: ponto no ⚙, duas linhas no topo
-//              do Sobre, o ponto some ao abrir, "Lembrar depois", confirmação com o comando
-//              exato, Cancelar não roda nada, Atualizar roda só depois do clique;
-//   ⚙ (#52)  — o ponto leva às Configurações, que mostram a mesma linha com "Ver no Sobre";
-//   falha    — `brew upgrade` sai com erro: uma frase + a saída numa área rolável;
-//   offline  — sem versão nova conhecida: nenhum ponto, nenhuma linha, "não deu para conferir";
-//   à frente — Pi mais novo que o testado: "mais nova que a testada" e a confirmação avisa;
-//   cópia    — instalação que a Mesa não reconhece: só o comando com "Copiar".
+// node tests/tool-updates-ui.mjs — avisos de atualização do Claude Code (#45),
+// medidos na janela. Cenários (cada um sobe uma Mesa com `claude` FALSO,
+// nomeado em tests/fake-tool-binaries.mjs; nada de rede nem de instalador de
+// verdade):
+//   avisos   — Claude Code com versão nova: ponto no ⚙, linha no topo do Sobre,
+//              o ponto some ao abrir, Cancelar não roda, Atualizar roda só
+//              depois do clique;
+//   ⚙ (#52)  — o ponto leva às Configurações, que mostram a mesma linha com
+//              "Ver no Sobre";
+//   falha    — `claude update` sai com erro: uma frase + a saída rolável;
+//   offline  — sem versão nova conhecida: nenhum ponto, "não deu para conferir";
+//   à frente — Claude mais novo que o testado: "mais nova que a testada";
+//   ocupado  — tutor respondendo: a ação fica desligada com a dica.
 // Sobre e ⚙ são medidos nos dois temas, em 1440×900 e 900×650.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -24,6 +26,7 @@ const out=screenshotDirectory('issue-45');
 const near=(a,b,tol=1)=>Math.abs(a-b)<=tol;
 const SIZES=[[1440,900],[900,650]];
 const THEMES=['light','dark'];
+const TESTED_CLAUDE='2.1.301';
 
 const measureAbout=page=>page.evaluate(()=>{
  const rect=el=>{const b=el.getBoundingClientRect();return {top:b.top,bottom:b.bottom,left:b.left,right:b.right,width:b.width,height:b.height};};
@@ -50,22 +53,17 @@ const resize=async(ctx,page,width,height)=>{
  await nextFrames(page,3);
 };
 
-/* Sobe a Mesa com os instaladores falsos. `latest` vira LEARNING_DESK_TOOL_LATEST
+/* Sobe a Mesa com o instalador falso. `latest` vira LEARNING_DESK_TOOL_LATEST
    (sem ele a conferência fica "offline" em modo de teste). */
-async function launch(ctx,tag,{fake={},latest=null,fixtures=true}={}){
+async function launch(ctx,tag,{fake={},latest=null}={}){
  const runtime=ctx.runtime=newRuntime(tag);
  const course=seedCourse(runtime,'calc');
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',courseStates:{calc:{pdfs:[{path:pdf,page:1}],study:{title:'',xopp:''}}}});
  const tools=installFakeTools(path.join(runtime,'tools'),fake);
- const env={};
- if(fixtures){
-  env.LEARNING_DESK_TOOL_FAKE_BIN=tools.bin;
-  env.LEARNING_DESK_CLAUDE_LAUNCHER=tools.claudeLauncher;
-  if(latest)env.LEARNING_DESK_TOOL_LATEST=JSON.stringify(latest);
- }
- if(fixtures)env.LEARNING_DESK_TOOL_PI_PATH=tools.piPath;
+ const env={LEARNING_DESK_TOOL_FAKE_BIN:tools.bin,LEARNING_DESK_CLAUDE_LAUNCHER:tools.claudeLauncher};
+ if(latest)env.LEARNING_DESK_TOOL_LATEST=JSON.stringify(latest);
  ctx.app=await launchDesk({runtime,env});
  const page=await ctx.app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -80,7 +78,7 @@ async function openAbout(page){
  await page.locator('#settings-menu .nav-trigger').click();
  await page.locator('#about').click();
  await page.waitForSelector('#about-dialog[open]');
- await page.waitForFunction(()=>![...document.querySelectorAll('#component-rows .component-state')].some(e=>e.textContent==='Verificando…')&&document.querySelectorAll('#component-rows .component-row').length>=4,undefined,{timeout:15000});
+ await page.waitForFunction(()=>![...document.querySelectorAll('#component-rows .component-state')].some(e=>e.textContent==='Verificando…')&&document.querySelectorAll('#component-rows .component-row').length>=3,undefined,{timeout:15000});
 }
 async function closeAbout(page){
  await page.locator('#about-dialog .dialog-close').click();
@@ -89,11 +87,11 @@ async function closeAbout(page){
 const tag=(theme,w)=>`${theme} ${w}`;
 
 /* O casco que vale para qualquer cenário aberto: cabe, sem rolagem lateral,
-   rodapé encostado, linhas na ordem Pi, Claude Code, Node, Xournal++. */
+   rodapé encostado, linhas na ordem Claude Code, Node, Xournal++. */
 function assertShell(m,label){
  assert.ok(m.dialog.bottom<=m.vh&&m.dialog.right<=m.vw&&m.dialog.left>=0&&m.dialog.top>=0,`${label}: cabe na janela`);
  assert.ok(m.overflow<=0,`${label}: sem rolagem lateral`);
- assert.deepEqual(m.rows.map(r=>r.id),['pi','claude','node','xournal'],`${label}: Pi, Claude Code, Node, Xournal++`);
+ assert.deepEqual(m.rows.map(r=>r.id),['claude','node','xournal'],`${label}: Claude Code, Node, Xournal++`);
  assert.ok(m.rows.every(r=>r.overflow<=0),`${label}: linhas sem rolagem lateral`);
  assert.ok(near(m.foot.height,52,1)&&m.dialog.bottom-m.foot.bottom<=1,`${label}: rodapé de 52px encostado na base`);
  for(const n of m.notices){
@@ -104,7 +102,7 @@ function assertShell(m,label){
 }
 
 await withArtifacts('tool-updates-avisos',async ctx=>{
- const {page,tools,errors}=await launch(ctx,'tool-avisos',{latest:{pi:'1.3.0',claude:'2.1.301'},fake:{piAfter:'1.3.0',claudeAfter:'2.1.301'}});
+ const {page,tools,errors}=await launch(ctx,'tool-avisos',{latest:{claude:TESTED_CLAUDE},fake:{claudeVersion:'2.1.296',claudeAfter:TESTED_CLAUDE}});
  /* O ponto no ⚙ aparece sem toast nem modal; o título diz que há atualização. */
  await page.waitForFunction(()=>document.querySelector('#settings-trigger').dataset.dot==='true',undefined,{timeout:15000});
  let m=await measureAbout(page);
@@ -127,17 +125,13 @@ await withArtifacts('tool-updates-avisos',async ctx=>{
 
  await openAbout(page);
  m=await measureAbout(page);
- assert.deepEqual(m.notices.map(n=>n.id),['pi','claude']);
- assert.equal(m.notices[0].text,'Pi 1.3.0 disponível');
- assert.equal(m.notices[1].text,'Claude Code 2.1.301 disponível');
+ assert.deepEqual(m.notices.map(n=>n.id),['claude']);
+ assert.equal(m.notices[0].text,'Claude Code 2.1.301 disponível');
  assert.deepEqual(m.notices[0].buttons.map(b=>b.text),['Lembrar depois','Ignorar esta versão']);
  assert.equal(m.trigger.dot,'false','abrir o Sobre apaga o ponto');
  assert.equal(m.trigger.title,'Ajustes');
- /* Pi pelo Homebrew: "Atualizar" (não o botão "Atualizar o Pi"); Claude Code idem. */
- const piRow=m.rows.find(r=>r.id==='pi'),claudeRow=m.rows.find(r=>r.id==='claude');
- assert.deepEqual(piRow.actions,['Atualizar']);
- assert.deepEqual(claudeRow.actions,['Atualizar']);
- assert.ok(claudeRow.state.length>0,'o Claude Code tem estado');
+ assert.deepEqual(m.rows.find(r=>r.id==='claude').actions,['Atualizar']);
+ assert.ok(m.rows.find(r=>r.id==='claude').state.length>0,'o Claude Code tem estado');
 
  for(const [width,height] of SIZES){
   await resize(ctx,page,width,height);
@@ -146,7 +140,7 @@ await withArtifacts('tool-updates-avisos',async ctx=>{
    const label=tag(theme,`${width}×${height}`);
    const now=await measureAbout(page);
    assertShell(now,label);
-   assert.ok(now.notices.length===2&&now.box&&now.box.top>=now.dialog.top,`${label}: linhas no topo do Sobre`);
+   assert.ok(now.notices.length===1&&now.box&&now.box.top>=now.dialog.top,`${label}: linha no topo do Sobre`);
    await reviewShot(page,out,`sobre-avisos-${theme}-${width}.png`);
   }
  }
@@ -154,24 +148,19 @@ await withArtifacts('tool-updates-avisos',async ctx=>{
  /* Sem clique, nada roda. Cancelar não roda nada; o comando é o exato. */
  assert.deepEqual(tools.calls(),[],'nenhum instalador rodou sozinho');
  await resize(ctx,page,1440,900);
- await page.locator('#component-rows [data-id="pi"] .tool-ask').click();
- await page.waitForSelector('#component-rows [data-id="pi"] .component-run[data-phase="confirm"]');
+ await page.locator('#component-rows [data-id="claude"] .tool-ask').click();
+ await page.waitForSelector('#component-rows [data-id="claude"] .component-run[data-phase="confirm"]');
  m=await measureAbout(page);
- assert.equal(m.run.command,'brew upgrade pi-coding-agent');
- assert.match(m.run.text,/^Vai rodar: brew upgrade pi-coding-agent/);
+ assert.equal(m.run.command,'claude update');
+ assert.match(m.run.text,/^Vai rodar: claude update/);
  assert.doesNotMatch(m.run.text,/mais nova que a testada/,'versão dentro do testado não avisa');
  for(const theme of THEMES){
   await setTheme(page,theme);
-  await reviewShot(page,out,`sobre-confirmacao-pi-${theme}-1440.png`);
+  await reviewShot(page,out,`sobre-confirmacao-claude-${theme}-1440.png`);
  }
- await page.locator('#component-rows [data-id="pi"] .run-cancel').click();
+ await page.locator('#component-rows [data-id="claude"] .run-cancel').click();
  assert.equal(await page.locator('#component-rows .component-run').count(),0,'Cancelar fecha a confirmação');
  assert.deepEqual(tools.calls(),[],'Cancelar não roda nada');
-
- /* "Lembrar depois" some a linha do Pi; o ponto fica fechado enquanto o Sobre está aberto. */
- await page.locator('#about-notices [data-id="pi"].notice-btn').first().click();
- await page.waitForFunction(()=>document.querySelectorAll('#about-notices .about-notice').length===1);
- assert.equal((await measureAbout(page)).notices[0].id,'claude');
 
  /* Atualizar o Claude Code: confirma, roda, uma frase de resultado + saída. */
  await page.locator('#component-rows [data-id="claude"] .tool-ask').click();
@@ -198,10 +187,9 @@ await withArtifacts('tool-updates-avisos',async ctx=>{
 });
 
 await withArtifacts('tool-updates-configuracoes',async ctx=>{
- const {page,tools,errors}=await launch(ctx,'tool-config',{latest:{pi:'1.3.0',claude:'2.1.301'},fake:{piAfter:'1.3.0',claudeAfter:'2.1.301'}});
+ const {page,tools,errors}=await launch(ctx,'tool-config',{latest:{claude:TESTED_CLAUDE},fake:{claudeVersion:'2.1.296',claudeAfter:TESTED_CLAUDE}});
  /* #52: o ponto do ⚙ leva a quem abre o ⚙. O menu abre as Configurações, e elas
     mostram a MESMA linha (com "Ver no Sobre"); ver a linha apaga o ponto. */
- /* Antes de abrir qualquer coisa: o ponto está aceso. */
  await page.waitForFunction(()=>document.querySelector('#settings-trigger').dataset.dot==='true',undefined,{timeout:15000});
  await page.locator('#settings-menu .nav-trigger').click();
  await page.locator('#settings-pop button').first().click();
@@ -223,7 +211,7 @@ await withArtifacts('tool-updates-configuracoes',async ctx=>{
    const label=tag(theme,`${width}×${height}`),s=await inSettings();
    assert.equal(s.hidden,false,`${label}: a linha aparece nas Configurações`);
    assert.ok(s.first&&s.top<=28,`${label}: primeiro bloco do corpo das Configurações, só com o respiro do topo (${s.top})`);
-   assert.deepEqual(s.lines.map(l=>l.text),['Pi 1.3.0 disponível','Claude Code 2.1.301 disponível'],`${label}: a mesma linha do Sobre`);
+   assert.deepEqual(s.lines.map(l=>l.text),['Claude Code 2.1.301 disponível'],`${label}: a mesma linha do Sobre`);
    assert.ok(s.lines.every(l=>l.buttons.includes('Ver no Sobre')&&l.buttons.includes('Lembrar depois')&&l.overflow<=0),`${label}: ações à mão, sem rolagem lateral (${JSON.stringify(s.lines)})`);
    assert.ok(s.right<=s.dialogRight+0.5&&s.bottom<=s.dialogBottom,`${label}: a linha cabe no diálogo`);
    await reviewShot(page,out,`configuracoes-aviso-${theme}-${width}.png`);
@@ -231,10 +219,10 @@ await withArtifacts('tool-updates-configuracoes',async ctx=>{
  }
  await resize(ctx,page,1440,900);
  /* "Ver no Sobre" abre o Sobre por cima, com o "Atualizar" da linha do componente. */
- await page.locator('#settings-notices .about-notice[data-id="pi"] button',{hasText:'Ver no Sobre'}).click();
+ await page.locator('#settings-notices .about-notice[data-id="claude"] button',{hasText:'Ver no Sobre'}).click();
  await page.waitForSelector('#about-dialog[open]');
- await page.waitForFunction(()=>![...document.querySelectorAll('#component-rows .component-state')].some(e=>e.textContent==='Verificando…')&&document.querySelectorAll('#component-rows .component-row').length>=4,undefined,{timeout:15000});
- assert.equal(await page.locator('#component-rows [data-id="pi"] .tool-ask').count(),1,'o Sobre mostra o "Atualizar"');
+ await page.waitForFunction(()=>![...document.querySelectorAll('#component-rows .component-state')].some(e=>e.textContent==='Verificando…')&&document.querySelectorAll('#component-rows .component-row').length>=3,undefined,{timeout:15000});
+ assert.equal(await page.locator('#component-rows [data-id="claude"] .tool-ask').count(),1,'o Sobre mostra o "Atualizar"');
  await closeAbout(page);
  await page.locator('#settings-dialog button[value="cancel"]').last().click();
  await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open);
@@ -242,15 +230,14 @@ await withArtifacts('tool-updates-configuracoes',async ctx=>{
  assert.equal((await measureAbout(page)).trigger.dot,'false','ver a linha nas Configurações apagou o ponto');
  assert.deepEqual(tools.calls(),[],'nada rodou sozinho');
  assert.deepEqual(errors,[]);
-
 });
 
 await withArtifacts('tool-updates-falha',async ctx=>{
- const {page,tools,errors}=await launch(ctx,'tool-falha',{latest:{pi:'1.4.0',claude:'2.1.296'},fake:{failBrew:true}});
+ const {page,tools,errors}=await launch(ctx,'tool-falha',{latest:{claude:TESTED_CLAUDE},fake:{claudeVersion:'2.1.296',failClaude:true}});
  await openAbout(page);
- await page.locator('#component-rows [data-id="pi"] .tool-ask').click();
- await page.locator('#component-rows [data-id="pi"] .run-confirm').click();
- await page.waitForSelector('#component-rows [data-id="pi"] .component-run[data-phase="failed"]',{timeout:20000});
+ await page.locator('#component-rows [data-id="claude"] .tool-ask').click();
+ await page.locator('#component-rows [data-id="claude"] .run-confirm').click();
+ await page.waitForSelector('#component-rows [data-id="claude"] .component-run[data-phase="failed"]',{timeout:20000});
  for(const [width,height] of SIZES){
   await resize(ctx,page,width,height);
   for(const theme of THEMES){
@@ -258,24 +245,24 @@ await withArtifacts('tool-updates-falha',async ctx=>{
    const label=tag(theme,`${width}×${height}`);
    const m=await measureAbout(page);
    assertShell(m,label);
-   assert.match(m.run.text,/^Não deu para atualizar o Pi\. Veja a saída abaixo\./,`${label}: uma frase de falha`);
-   assert.ok(m.output&&/falhou de propósito/.test(m.output.text),`${label}: a saída mostra o erro`);
+   assert.match(m.run.text,/^Não deu para atualizar o Claude Code\. Veja a saída abaixo\./,`${label}: uma frase de falha`);
+   assert.ok(m.output&&/update falhou/.test(m.output.text),`${label}: a saída mostra o erro`);
    assert.ok(m.output.h<=145,`${label}: a saída é uma área rolável de até 140px (${m.output.h})`);
    assert.ok(m.run.right<=m.dialog.right,`${label}: o painel cabe no diálogo`);
    await reviewShot(page,out,`sobre-falha-${theme}-${width}.png`);
   }
  }
- assert.deepEqual(tools.calls().map(c=>c.tool),['brew']);
+ assert.deepEqual(tools.calls().map(c=>c.tool),['claude']);
  assert.deepEqual(errors,[]);
 });
 
 await withArtifacts('tool-updates-offline',async ctx=>{
  /* Sem LEARNING_DESK_TOOL_LATEST: em modo de teste a rede não existe → offline. */
  const {page,errors}=await launch(ctx,'tool-offline',{});
- /* O main responde `tool-notices` só depois de ler as versões: sem versão mais nova conhecida, volta sem linha e sem ponto. */
  const summary=await page.evaluate(()=>window.desk.toolNotices());
  assert.deepEqual([summary.lines,summary.dot],[[],false],'offline: sem linha e sem ponto');
- assert.ok(summary.items.pi.unreachable&&summary.items.claude.unreachable,'offline: a conferência diz que não deu para conferir');
+ assert.ok(summary.items.claude.unreachable,'offline: a conferência diz que não deu para conferir');
+ assert.equal(Object.keys(summary.items).join(','),'claude','só o Claude Code tem aviso');
  let m=await measureAbout(page);
  assert.equal(m.trigger.dot,'false','offline não põe ponto');
  await openAbout(page);
@@ -288,8 +275,7 @@ await withArtifacts('tool-updates-offline',async ctx=>{
    assertShell(m,label);
    assert.equal(m.notices.length,0,`${label}: nenhuma linha de aviso`);
    assert.equal(m.box,null,`${label}: a área de avisos fica escondida`);
-   const claude=m.rows.find(r=>r.id==='claude');
-   assert.match(claude.state,/não deu para conferir/,`${label}: o Claude Code diz que não deu para conferir`);
+   assert.match(m.rows.find(r=>r.id==='claude').state,/não deu para conferir/,`${label}: o Claude Code diz que não deu para conferir`);
    await reviewShot(page,out,`sobre-offline-${theme}-${width}.png`);
   }
  }
@@ -297,15 +283,15 @@ await withArtifacts('tool-updates-offline',async ctx=>{
 });
 
 await withArtifacts('tool-updates-a-frente',async ctx=>{
- /* Pi 1.4.0 instalado e é a última, mas a Mesa foi testada com a 1.3.0. */
- const {page,tools,errors}=await launch(ctx,'tool-frente',{latest:{pi:'1.5.0',claude:'2.1.296'},fake:{piVersion:'1.4.0',piAfter:'1.5.0'}});
+ /* Claude 2.1.302 instalado, 2.1.303 disponível, mas a Mesa foi testada com a 2.1.301. */
+ const {page,tools,errors}=await launch(ctx,'tool-frente',{latest:{claude:'2.1.303'},fake:{claudeVersion:'2.1.302'}});
  await openAbout(page);
  const m=await measureAbout(page);
- assert.match(m.notices[0].text,/^Pi 1\.5\.0 disponível · mais nova que a testada/);
- await page.locator('#component-rows [data-id="pi"] .tool-ask').click();
+ assert.match(m.notices[0].text,/^Claude Code 2\.1\.303 disponível · mais nova que a testada/);
+ await page.locator('#component-rows [data-id="claude"] .tool-ask').click();
  const confirm=await measureAbout(page);
- assert.match(confirm.run.text,/mais nova que a testada com esta Mesa \(1\.3\.0\)/,'a confirmação avisa');
- assert.equal(await page.locator('#component-rows [data-id="pi"] .run-confirm').isEnabled(),true,'o aviso nunca bloqueia');
+ assert.match(confirm.run.text,/mais nova que a testada com esta Mesa \(2\.1\.301\)/,'a confirmação avisa');
+ assert.equal(await page.locator('#component-rows [data-id="claude"] .run-confirm').isEnabled(),true,'o aviso nunca bloqueia');
  for(const [width,height] of SIZES){
   await resize(ctx,page,width,height);
   for(const theme of THEMES){
@@ -319,24 +305,10 @@ await withArtifacts('tool-updates-a-frente',async ctx=>{
  assert.deepEqual(errors,[]);
 });
 
-await withArtifacts('tool-updates-copia',async ctx=>{
- const {page,tools,errors}=await launch(ctx,'tool-copia',{latest:{pi:'1.4.0',claude:'2.1.299'},fake:{install:'solto'}});
+await withArtifacts('tool-updates-ocupado',async ctx=>{
+ const {page,tools,errors}=await launch(ctx,'tool-ocupado',{latest:{claude:TESTED_CLAUDE},fake:{claudeVersion:'2.1.296'}});
  await openAbout(page);
- let m=await measureAbout(page);
- const pi=m.rows.find(r=>r.id==='pi');
- assert.deepEqual(pi.actions,['Copiar'],'instalação desconhecida: só o comando, com Copiar');
- assert.match(await page.locator('#component-rows [data-id="pi"] .tool-copy').getAttribute('aria-label'),/Copiar o comando: npm i -g @earendil-works\/pi-coding-agent/);
- for(const [width,height] of SIZES){
-  await resize(ctx,page,width,height);
-  for(const theme of THEMES){
-   await setTheme(page,theme);
-   assertShell(await measureAbout(page),tag(theme,`${width}×${height}`));
-   await reviewShot(page,out,`sobre-copiar-${theme}-${width}.png`);
-  }
- }
-
  /* Tutor respondendo: a ação do Claude Code fica desligada, com a dica. */
- await resize(ctx,page,1440,900);
  await page.evaluate(async()=>{(await import('./src/state.mjs')).setBusy(true);});
  await page.waitForSelector('#component-rows [data-id="claude"] button[disabled]');
  await measureAbout(page);
@@ -344,13 +316,7 @@ await withArtifacts('tool-updates-copia',async ctx=>{
  await reviewShot(page,out,'sobre-tutor-ocupado-dark-1440.png');
  await page.evaluate(async()=>{(await import('./src/state.mjs')).setBusy(false);});
  await page.waitForFunction(()=>!document.querySelector('#component-rows [data-id="claude"] button[disabled]'));
- assert.deepEqual(tools.calls(),[]);
-
- /* Vocabulário (ui-smoke): "Pi" só em Sobre e Configurações. Fechado o Sobre, a tela não o diz. */
- await closeAbout(page);
- const visible=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(el=>{const b=el.getBoundingClientRect();return b.width>0&&b.height>0&&getComputedStyle(el).visibility!=='hidden'&&!el.closest('dialog');}).map(el=>el.childNodes.length===1&&el.firstChild.nodeType===3?el.textContent:'').join(' '));
- /* "Pi de teste" é o nome do modelo do Pi falso: dado do provedor, não vocabulário (como no ui-smoke). */
- assert.doesNotMatch(visible.replace(/Pi de teste/g,''),/\bPi\b/,'fora do Sobre e das Configurações a interface não diz Pi');
+ assert.deepEqual(tools.calls(),[],'nada rodou sozinho');
  assert.deepEqual(errors,[]);
 });
-console.log('tool-updates-ui: PASS — ponto no ⚙, linhas e ações do Sobre, confirmação, saída, offline e "mais nova que a testada" medidos nos dois temas e tamanhos.');
+console.log('tool-updates-ui: PASS — ponto no ⚙, linha e ações do Sobre, confirmação, saída, offline, "mais nova que a testada" e tutor ocupado, nos dois temas e tamanhos.');

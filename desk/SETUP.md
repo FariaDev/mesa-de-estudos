@@ -8,23 +8,7 @@ A Mesa é um app Electron local: dois leitores de PDF, calculadora e tutor na me
 
 1. Node **20 ou mais novo** para instalar a partir do código (`npm ci`, `npm run setup`, `npm start`). O app em si e o servidor MCP do tutor rodam no Node embutido do Electron (`ELECTRON_RUN_AS_NODE`); a versão instalada no sistema não é usada em tempo de estudo.
 2. Uma pasta com os PDFs da matéria (enunciados, formulário, o que for).
-3. **OpenCode 2.2.4** (a Mesa baixa e instala na primeira abertura, com integridade conferida) ou [Claude Code](https://code.claude.com/) (`~/.local/bin/claude`). A Mesa detecta o Claude Code que já existir; sem nenhum, a primeira abertura oferece o OpenCode.
-4. **Pi 0.99.1 ou mais novo (opcional)**, só para quem já o usa. O `npm run setup` não instala o Pi; a Mesa continua usando o Pi que já estiver no `PATH`, em `desk/.pi-local/` ou indicado nas Configurações. Os perfis usam `builtin:mcp`, `builtin:codemode` e `builtin:tool-search` explicitamente.
-
-### Migrar um Pi com pi-mcp-adapter
-
-Os servidores continuam em `~/.pi/agent/mcp.json`. Em `desk/`, rode
-`node scripts/migrate-native-mcp.mjs` para conferir e acrescente `--apply`
-para aplicar: o script guarda as settings originais em `~/.pi/agent/backups/`,
-remove apenas o pacote do adapter, habilita Codemode e descoberta com adições
-em `defaultTools` (mantendo a seleção existente) e instala uma política que preserva
-`approveTools` (incluindo chamadas dentro de Codemode). Não muda os servidores,
-o modelo, o esforço nem as credenciais. Reabra o app ou crie uma nova conexão.
-
-Para desfazer, restaure o `settings.json` do backup e remova apenas os arquivos
-listados em `migration.json` como criados pela migração. Não remova a pasta de
-servidores nem sessões. Sessões já abertas não são interrompidas pelo script.
-
+3. **OpenCode 2.2.4** (a Mesa baixa e instala na primeira abertura, com integridade conferida). O código do [Claude Code](https://code.claude.com/) continua no repositório (faixa aceita em `src/tested-versions.json`), mas não aparece nesta versão. Sem o OpenCode, a primeira abertura oferece instalá-lo.
 Não peça Homebrew nem o vault Obsidian de outra pessoa.
 
 ## Passos
@@ -38,7 +22,7 @@ npm run doctor
 npm start
 ```
 
-`npm run setup` instala as dependências se faltarem, **detecta** Claude Code, OpenCode e Pi (sem instalar nem executar nenhum deles), compila a integração visual no macOS e copia um `TUTOR.md` / `LEARNER.md` mínimos para `desk/.runtime/starter`. No fim ele diz qual motor será o padrão. O OpenCode é instalado pela própria Mesa na primeira abertura: baixa o pacote fixado 2.2.4 do npm, confere a integridade SRI e copia o binário verificado para `~/.opencode/bin` (no Windows, `%USERPROFILE%\.opencode\bin\opencode.exe`), com troca atômica e sem mexer no PATH. Um `opencode` que já esteja rodando continua no arquivo antigo; se o destino for um link simbólico, a Mesa só substitui o alvo dentro da própria pasta. A tela mostra o comando de login com o caminho completo do binário. Quem já tem Pi continua com ele, e o Pi local antigo em `desk/.pi-local/` segue valendo.
+`npm run setup` instala as dependências se faltarem, **detecta** o motor visível (OpenCode) sem instalá-lo nem executá-lo (o Claude Code fica no código, oculto), compila a integração visual no macOS e copia um `TUTOR.md` / `LEARNER.md` mínimos para `desk/.runtime/starter`. No fim ele diz qual motor será o padrão. O OpenCode é instalado pela própria Mesa na primeira abertura: baixa o pacote fixado 2.2.4 do npm, confere a integridade SRI e copia o binário verificado para `~/.opencode/bin` (no Windows, `%USERPROFILE%\.opencode\bin\opencode.exe`), com troca atômica e sem mexer no PATH. Um `opencode` que já esteja rodando continua no arquivo antigo; se o destino for um link simbólico, a Mesa só substitui o alvo dentro da própria pasta. A tela mostra o comando de login com o caminho completo do binário. Conversas Pi antigas continuam abrindo, só para leitura.
 
 ### GeoGebra offline (opcional)
 
@@ -60,7 +44,7 @@ Na primeira abertura (sem configuração) a Mesa não mostra diálogo: ela já a
 1. Dê um nome à matéria no campo **Nome da matéria**, na barra de cima.
 2. Diga onde estão os PDFs: **Escolher a pasta…** na folha "Lista 0", ou solte PDFs (ou a pasta) em qualquer ponto do leitor. A Mesa só aponta para a pasta; não copia nem altera os arquivos.
 3. A pasta onde ficam as exportações e as instruções do tutor aparece na folha (por padrão `Documentos/Mesa de Estudos`); **Mudar** escolhe outra. Ela só é criada quando a matéria nasce e fica gravada no `config.json` deste computador.
-4. Na coluna do tutor, a Mesa mostra os motores que achou (OpenCode e/ou Claude Code; o Pi, se já existir). **Chamar o tutor** liga o motor da conversa; as credenciais são pedidas pelo próprio motor e ficam nele, não na Mesa.
+4. Na coluna do tutor, a Mesa mostra o motor visível (OpenCode). **Chamar o tutor** liga o motor da conversa; o login do provedor acontece no app e a conta fica no motor, não na Mesa.
 
 Com nome e pasta a matéria é criada e a Mesa vai para ela, já com a caixa de mensagem liberada. Quem preferir só estudar um assunto avulso pode abrir a aba **Livre**.
 
@@ -89,7 +73,7 @@ PDFs, calculadora e o chat com o tutor funcionam. **Conferir Xournal++** captura
 - [ ] Ícone da Mesa na janela e na barra de tarefas; fixar na barra, fechar e reabrir pelo botão fixado (inclusive em uma pasta com espaços no caminho).
 - [ ] Matérias/PDFs: abrir, busca com contagem, zoom/scroll, minimizar o leitor, girar 90° (a orientação volta ao reabrir).
 - [ ] Calculadora (expressões e histórico).
-- [ ] Conectar o tutor (OpenCode ou Claude Code).
+- [ ] Conectar o tutor (OpenCode).
 - [ ] Anexos: colar (Ctrl+V), arrastar para o chat e câmera do leitor; enviar com imagem.
 - [ ] GeoGebra: aba e "Print para o tutor".
 - [ ] Atalhos Ctrl (Ctrl+Enter envia, Ctrl+F busca, Ctrl+, Configurações) e ajuda com Ctrl em vez de ⌘.
@@ -99,13 +83,11 @@ PDFs, calculadora e o chat com o tutor funcionam. **Conferir Xournal++** captura
 
 ## macOS (opcional)
 
-Se `Mesa de Estudos.app` já existir ao lado de `desk/`:
-
 ```sh
 npm run install-app
 ```
 
-Isso só atualiza o `.app` existente; não cria um instalador novo.
+Monta `Mesa de Estudos.app` ao lado de `desk/`, ou atualiza o que já existe, inclusive o Electron dele. Não cria um instalador.
 
 ### Gravação de Tela
 
@@ -124,13 +106,13 @@ Sem certificado a Mesa funciona igual — basta reconceder a permissão em Ajust
 ## Se o tutor não conectar
 
 - Rode `npm run doctor` e `npm run setup` de novo; os dois dizem qual motor foi achado.
-- Claude Code e OpenCode usam o executável já instalado; confira o caminho do Claude em Configurações → Pastas e programas.
-- A primeira conexão pede login/API key do provedor configurado no próprio motor.
+- O OpenCode usa o executável já instalado; o código do Claude Code também (o campo do caminho em Configurações → Pastas e programas só aparece com o motor visível, fora de produção).
+- A primeira conexão e **Configurações → Pastas e programas** permitem entrar no provedor (ChatGPT, Grok ou outro por OAuth/chave de API); a conta fica no motor, não no `config.json`.
 - Sem nenhum motor, a primeira abertura oferece a instalação do OpenCode e a coluna do tutor diz o que fazer.
 
 ## Atualizar a Mesa (por clique ou terminal)
 
 - **Pelo app:** Ajustes → Sobre → **Verificar atualizações** / **Atualizar e reiniciar** (o app fecha, aplica e reabre sozinho; se algo falhar, a versão anterior volta e o motivo fica em `.runtime/desk.log` — acesse pelo "Ver o log" no Sobre).
-- **Pelo terminal:** `npm run update` (mesma transação). `npm run update -- --versao X.Y.Z` só vale em instalação por **zip** (sem clone git); em clone, o update segue a branch de desenvolvimento. `npm run update -- --pi` atualiza só o Pi local (`desk/.pi-local`).
+- **Pelo terminal:** `npm run update` (mesma transação). `npm run update -- --versao X.Y.Z` só vale em instalação por **zip** (sem clone git); em clone, o update segue a branch de desenvolvimento.
 
 **Veio de uma versão com o app Conversa?** A Conversa (`chat/`) foi aposentada na #50 e o chat avulso agora é a aba **Livre** da Mesa. A atualização não apaga nem altera uma pasta `chat/` que já esteja no seu disco; se não a usa mais, apague-a à mão. Num clone git, o `git pull` remove os arquivos rastreados dela e deixa o que o git ignora (`chat/node_modules`, `chat/.runtime`). Sessões antigas que vieram de um bilhete da Conversa continuam abrindo, só sem o bloco `[Da Conversa]`.

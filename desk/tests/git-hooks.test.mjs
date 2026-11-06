@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {enableRepoHooks, hooksMessage} from '../scripts/git-hooks.mjs';
+import {tempDir} from './temp-dir.mjs';
 import {gitEnv, lintTargets} from '../scripts/lint-changed.mjs';
 import {fakeGitConfig} from './fake-git-config.mjs';
 
 /* #86: o pre-push existia e nenhum clone o tinha ligado. O setup liga, sem
    passar por cima de escolha da pessoa nem travar push de quem não tem bend. */
 function cloneWithHook() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-hooks-test-'));
+  const root = tempDir('mesa-hooks-test');
   fs.mkdirSync(path.join(root, '.githooks'));
   fs.writeFileSync(path.join(root, '.githooks', 'pre-push'), '#!/bin/sh\n');
   return root;
@@ -43,7 +43,7 @@ test('#86 instalação por zip ou sem .githooks fica calada', () => {
   const semRepo = fakeGitConfig({insideRepo: false});
   assert.equal(enableRepoHooks({root: cloneWithHook(), bendInstalled: true, git: semRepo.git}).state, 'no-repo');
   const semHook = fakeGitConfig();
-  const vazio = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-hooks-test-'));
+  const vazio = tempDir('mesa-hooks-test');
   assert.equal(enableRepoHooks({root: vazio, bendInstalled: true, git: semHook.git}).state, 'no-repo');
   assert.deepEqual(semHook.calls, [], 'sem .githooks nem chama o git');
   assert.equal(hooksMessage({state: 'no-repo'}), '');

@@ -167,7 +167,7 @@ await withArtifacts('responsivo-900-dois',async ctx=>{
  await statusOnline(page).catch(()=>{});
  await page.waitForFunction(()=>document.querySelector('#check')?.hidden===true,undefined,{timeout:5000}).catch(()=>{});
 assert.equal(await page.locator('#check').isHidden(),true,'conferir off esconde o botão de captura');
- assert.doesNotMatch(await page.locator('#goes-along').textContent(),/Conferir|captura/i,'conferir off não deixa rastro na linha Vai junto');
+ assert.doesNotMatch(await page.locator('#context-summary').textContent(),/Conferir|captura/i,'conferir off não deixa rastro no resumo do contexto');
  await page.keyboard.press('ControlOrMeta+,');
  await page.waitForSelector('#settings-dialog[open]');
  await page.locator('#settings-tab-mesa').click();

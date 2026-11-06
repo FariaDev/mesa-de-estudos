@@ -3,16 +3,16 @@ import {reviewShot,screenshotDirectory} from './helpers.mjs';
    de runtime. Tutor e escolhas nativas simulados; nenhum dado pessoal. */
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import assert from 'node:assert/strict';import {_electron as electron} from '@playwright/test';
-import {DESK,FAKE_PI,tinyPdf} from './helpers.mjs';import {testEnv} from './electron-env.mjs';
+import {DESK,FAKE_OPENCODE,seedNativeSession,tinyPdf} from './helpers.mjs';import {testEnv} from './electron-env.mjs';
 const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-backup-e2e-')));
 const profile=path.join(root,'profile'),runtime=path.join(root,'data'),original=path.join(root,'original'),versions=path.join(root,'versions'),exportsDir=path.join(root,'exports'),imports=path.join(root,'imports');
 for(const dir of [profile,runtime,original,versions,exportsDir,imports])fs.mkdirSync(dir,{recursive:true});
 const pdf=path.join(original,'Lista.pdf'),before=tinyPdf('Exercicios de referencia');fs.writeFileSync(pdf,before);
-const session=path.join(runtime,'pi-1700000000000.jsonl');fs.writeFileSync(session,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text:'Meu estudo de teste'}]}})+'\n');
-const configFile=path.join(profile,'config.json');fs.writeFileSync(configFile,JSON.stringify({runtimePath:runtime,vaultPath:'',piPath:FAKE_PI,customField:'preservado',courses:[{id:'algebra',name:'Álgebra',path:original,extra:'metadado'}],desk:{title:'Mesa do backup',futureFlag:true,panels:[{label:'Lista',prefer:[],futurePanel:true}]}}));
+const session=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'Meu estudo de teste'}]}],{courseId:'algebra',started:1700000000000});
+const configFile=path.join(profile,'config.json');fs.writeFileSync(configFile,JSON.stringify({runtimePath:runtime,vaultPath:'',customField:'preservado',courses:[{id:'algebra',name:'Álgebra',path:original,extra:'metadado'}],desk:{title:'Mesa do backup',futureFlag:true,panels:[{label:'Lista',prefer:[],futurePanel:true}]}}));
 fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify({courseId:'algebra',session,courseStates:{algebra:{session,sessions:[{path:session,started:1700000000000}],pdfs:[{path:pdf,page:1}],draft:'Rascunho do backup'}}}));
 const entry=path.join(profile,'entry.cjs');fs.writeFileSync(entry,`require('electron').app.setPath('userData',__dirname);require(${JSON.stringify(path.join(DESK,'main.cjs'))});`);
-const env=testEnv({LEARNING_DESK_PI:FAKE_PI});delete env.LEARNING_DESK_RUNTIME;delete env.LEARNING_VAULT;
+const env=testEnv({LEARNING_DESK_OPENCODE:FAKE_OPENCODE});delete env.LEARNING_DESK_RUNTIME;delete env.LEARNING_VAULT;
 const out=screenshotDirectory('backup-e2e');
 let app;
 try{

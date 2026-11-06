@@ -71,7 +71,7 @@ await withArtifacts('model-indicator-fit',async ctx=>{
  const course=seedCourse(runtime,'calc');
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
  writeDeskJson(runtime,{courseId:'calc'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_MANY_MODELS:'450',FAKE_PI_REASONING:'1',FAKE_PI_QUEUE_LOG:path.join(runtime,'fila.jsonl'),FAKE_PI_QUEUE_HOLD_MS:'30000'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MANY_MODELS:'450',FAKE_PI_REASONING:'1',FAKE_OPENCODE_QUEUE_LOG:path.join(runtime,'fila.jsonl'),FAKE_OPENCODE_QUEUE_HOLD_MS:'30000'}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await resizeWindow(app,page,1440,900);

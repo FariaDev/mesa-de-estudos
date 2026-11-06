@@ -5,9 +5,10 @@
    Capturas só com MESA_REVIEW_SHOTS. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import {launchDesk,withArtifacts,DESK,screenshotDirectory,reviewShot,enterFree,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
+import {launchDesk,withArtifacts,screenshotDirectory,reviewShot,enterFree,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
+import {tempDir} from './temp-dir.mjs';
+import {specFor} from './fixtures/activity-specs.mjs';
 import {layoutStable,pollUntil} from './waits.mjs';
 
 const out=screenshotDirectory('activity-figure');
@@ -38,10 +39,10 @@ const measureFigure=frame=>frame.evaluate(()=>{
 });
 
 await withArtifacts('activity-figure-ui',async ctx=>{
- ctx.runtime=fs.mkdtempSync(path.join(os.tmpdir(),'mesa-activity-figure-'));
- const pi=path.join(DESK,'tests/fixtures/mesa-interactive-pi.mjs');fs.chmodSync(pi,0o755);
+ ctx.runtime=tempDir('mesa-activity-figure');
  fs.writeFileSync(path.join(ctx.runtime,'config.json'),JSON.stringify({runtimePath:ctx.runtime,vaultPath:ctx.runtime,courses:[]}));
- ctx.app=await launchDesk({runtime:ctx.runtime,env:{LEARNING_DESK_PI:pi}});
+ const calls=['Mostre uma figura.','Mostre uma figura imagem.'].map((text,index)=>({name:'criar_atividade',id:`integrated-call-${index+1}`,input:specFor(text)}));
+ ctx.app=await launchDesk({runtime:ctx.runtime,env:{FAKE_OPENCODE_MCP_CALLS:JSON.stringify(calls)}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  const size=(width,height)=>resizeWindow(ctx.app,page,width,height,{content:true});
  await size(1440,900);

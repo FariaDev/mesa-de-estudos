@@ -762,8 +762,6 @@ function $updatenotice_noticeLinesFor(_s_0, _ls_0) {
 function $updatenotice_hasAction(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return false;
-  } else if (_a_0.$ === "ToolLocal") {
-    return true;
   } else if (_a_0.$ === "ToolAsk") {
     return true;
   } else if (_a_0.$ === "ToolWait") {
@@ -771,9 +769,6 @@ function $updatenotice_hasAction(_a_0) {
   } else {
     return true;
   }
-}
-function $updatenotice_localButton() {
-  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-pi"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update"), tail: { $: "Con", head: $$view_attrOn("click", "UpdatePi"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$msg_msg("update.pi")), tail: { $: "Nil" } });
 }
 function $updatenotice_askButton(_command_0) {
   return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $$view_attrData("command", _command_0), tail: { $: "Con", head: $$view_attrOn("click", "AskUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$updatenotice_updateLabel()), tail: { $: "Nil" } });
@@ -787,8 +782,6 @@ function $updatenotice_copyButton(_command_0) {
 function $updatenotice_actionNodes(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return { $: "Nil" };
-  } else if (_a_0.$ === "ToolLocal") {
-    return { $: "Con", head: $$updatenotice_localButton(), tail: { $: "Nil" } };
   } else if (_a_0.$ === "ToolAsk") {
     const _command_0 = _a_0["command"];
     return { $: "Con", head: $$updatenotice_askButton(_command_0), tail: { $: "Nil" } };
@@ -1042,6 +1035,66 @@ function $dialogsview_aboutLead(_version_0) {
 function $dialogsview_aboutLeadNode(_version_0) {
   return $view_viewText($$dialogsview_aboutLead(_version_0));
 }
+function $dialogsview_originShown(_o_0) {
+  if (_o_0.$ === "OriginNormal") {
+    return true;
+  } else if (_o_0.$ === "OriginDev") {
+    return true;
+  } else if (_o_0.$ === "OriginUnavailable") {
+    return true;
+  } else {
+    return false;
+  }
+}
+function $dialogsview_originLabel(_o_0) {
+  if (_o_0.$ === "OriginNormal") {
+    return $msg_msg("about.origin.normal");
+  } else if (_o_0.$ === "OriginDev") {
+    const _t_0 = _o_0["worktree"];
+    if (_t_0) {
+      return $msg_msg("about.origin.worktree");
+    } else {
+      return $msg_msg("about.origin.dev");
+    }
+  } else if (_o_0.$ === "OriginUnavailable") {
+    return $msg_msg("about.origin.unavailable");
+  } else {
+    return "";
+  }
+}
+function $dialogsview_originPath(_o_0) {
+  if (_o_0.$ === "OriginNormal") {
+    return "";
+  } else if (_o_0.$ === "OriginDev") {
+    const _path_0 = _o_0["path"];
+    return _path_0;
+  } else if (_o_0.$ === "OriginUnavailable") {
+    const _path_1 = _o_0["path"];
+    return _path_1;
+  } else {
+    return "";
+  }
+}
+function $dialogsview_originPathNode(_path_0) {
+  return $view_viewEl("code", { $: "Con", head: $$view_attrClass("about-origin-path"), tail: { $: "Con", head: $$view_attrTitle(_path_0), tail: { $: "Nil" } } }, { $: "Con", head: $$view_viewText(_path_0), tail: { $: "Nil" } });
+}
+function $dialogsview_originChildrenShown(_o_0) {
+  return $view_viewConcat({ $: "Con", head: $$view_viewEl("span", { $: "Con", head: $$view_attrClass("about-origin-label"), tail: { $: "Nil" } }, { $: "Con", head: $$view_viewText($$dialogsview_originLabel(_o_0)), tail: { $: "Nil" } }), tail: { $: "Nil" } }, $$view_viewWhenAll($$Bool_not($$String_is_empty($$dialogsview_originPath(_o_0))), { $: "Con", head: $$view_viewText(" · "), tail: { $: "Con", head: $$dialogsview_originPathNode($$dialogsview_originPath(_o_0)), tail: { $: "Nil" } } }));
+}
+function $dialogsview_originChildren(_o_0) {
+  if (_o_0.$ === "OriginNormal") {
+    return $dialogsview_originChildrenShown({ $: "OriginNormal" });
+  } else if (_o_0.$ === "OriginDev") {
+    const __0 = _o_0["worktree"];
+    const __1 = _o_0["path"];
+    return $dialogsview_originChildrenShown({ $: "OriginDev", worktree: __0, path: __1 });
+  } else if (_o_0.$ === "OriginUnavailable") {
+    const __2 = _o_0["path"];
+    return $dialogsview_originChildrenShown({ $: "OriginUnavailable", path: __2 });
+  } else {
+    return { $: "Nil" };
+  }
+}
 function $dialogsview_emptyCourse() {
   return { $: "SettingsCourse", id: "", name: "", path: "" };
 }
@@ -1100,6 +1153,9 @@ function $dialogsview_updateFailedText() {
 function $dialogsview_updateFailedRest() {
   return $msg_msg("update.failedRest");
 }
+function $dialogsview_updateUnverifiableText() {
+  return $msg_msg("update.unverifiable");
+}
 function $dialogsview_updateReadyText(_version_0) {
   return $msg_msg1("update.ready", "version", _version_0);
 }
@@ -1108,9 +1164,6 @@ function $dialogsview_updateNotesLabel() {
 }
 function $dialogsview_updateApplyLabel() {
   return $msg_msg("update.apply");
-}
-function $dialogsview_updatePiLabel() {
-  return $msg_msg("update.pi");
 }
 function $dialogsview_updateApplyingText() {
   return $msg_msg("update.applying");
@@ -1187,6 +1240,8 @@ function $dialogsview_aboutUpdateChildren(_s_0) {
     return $view_viewConcat($$dialogsview_updateReadyChildren(_version_0, _url_0), $$view_viewWhen($$Bool_not($$String_is_empty(_notes_0)), $$dialogsview_updateNotesNode(_notes_0)));
   } else if (_s_0.$ === "UpdateFailed") {
     return { $: "Con", head: $$dialogsview_updateIcon("warn", "!"), tail: { $: "Con", head: $$dialogsview_updateLine2($$dialogsview_updateFailedText(), $$dialogsview_updateFailedRest()), tail: { $: "Con", head: $$dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
+  } else if (_s_0.$ === "UpdateUnverifiable") {
+    return { $: "Con", head: $$dialogsview_updateIcon("warn", "!"), tail: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateUnverifiableText()), tail: { $: "Con", head: $$dialogsview_checkUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateApplying") {
     return { $: "Con", head: $$dialogsview_updateIcon("busy", "…"), tail: { $: "Con", head: $$dialogsview_updateLineNode($$dialogsview_updateApplyingText()), tail: { $: "Con", head: $$dialogsview_applyingUpdateButton(), tail: { $: "Nil" } } } };
   } else if (_s_0.$ === "UpdateDone") {
@@ -1203,7 +1258,7 @@ function $dialogsview_aboutUpdateChildren(_s_0) {
   }
 }
 function $dialogsview_componentIds() {
-  return { $: "Con", head: "pi", tail: { $: "Con", head: "claude", tail: { $: "Con", head: "node", tail: { $: "Con", head: "xournal", tail: { $: "Nil" } } } } };
+  return { $: "Con", head: "claude", tail: { $: "Con", head: "node", tail: { $: "Con", head: "xournal", tail: { $: "Nil" } } } };
 }
 function $dialogsview_componentStateText(_s_0) {
   if (_s_0.$ === "CompOk") {
@@ -1245,9 +1300,6 @@ function $dialogsview_nodeState_if(_old_0) {
 }
 function $dialogsview_nodeState(_major_0, _minor_0) {
   return $dialogsview_nodeState_if($$dialogsview_nodeTooOld(_major_0, _minor_0));
-}
-function $dialogsview_updatePiButton() {
-  return $updatenotice_localButton();
 }
 function $dialogsview_componentLinkButton(_url_0, _label_0) {
   return $view_viewEl("button", { $: "Con", head: $$view_attrClass("component-link"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrOn("click", "OpenLink"), tail: { $: "Con", head: $$view_attrData("url", _url_0), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$dialogsview_componentLinkLabel(_label_0)), tail: { $: "Nil" } });
@@ -1303,15 +1355,11 @@ function $dialogsview_componentDescription_claude(_isClaude_0, _isNode_0, _isXou
     return $dialogsview_componentDescription_node(_isNode_0, _isXournal_0);
   }
 }
-function $dialogsview_componentDescription_pick(_isPi_0, _isClaude_0, _isNode_0, _isXournal_0) {
-  if (_isPi_0) {
-    return $msg_msg("component.desc.pi");
-  } else {
-    return $dialogsview_componentDescription_claude(_isClaude_0, _isNode_0, _isXournal_0);
-  }
+function $dialogsview_componentDescription_pick(_isClaude_0, _isNode_0, _isXournal_0) {
+  return $dialogsview_componentDescription_claude(_isClaude_0, _isNode_0, _isXournal_0);
 }
 function $dialogsview_componentDescription(_id_0) {
-  return $dialogsview_componentDescription_pick($$String_eq(_id_0, "pi"), $$String_eq(_id_0, "claude"), $$String_eq(_id_0, "node"), $$String_eq(_id_0, "xournal"));
+  return $dialogsview_componentDescription_pick($$String_eq(_id_0, "claude"), $$String_eq(_id_0, "node"), $$String_eq(_id_0, "xournal"));
 }
 function $dialogsview_componentHintNode(_parts_0) {
   return $view_viewEl("small", { $: "Con", head: $$view_attrClass("component-hint"), tail: { $: "Nil" } }, _parts_0);
@@ -2007,17 +2055,16 @@ var $$updatenotice_seeAboutLabel = $updatenotice_seeAboutLabel;
 var $$updatenotice_seeAboutButton = $updatenotice_seeAboutButton;
 var $$updatenotice_noticeLineFor = $updatenotice_noticeLineFor;
 var $$updatenotice_noticeLinesFor = $updatenotice_noticeLinesFor;
-var $$view_attrId = $view_attrId;
-var $$msg_msg = $msg_msg;
 var $$updatenotice_updateLabel = $updatenotice_updateLabel;
 var $$updatenotice_waitHint = $updatenotice_waitHint;
+var $$view_attrId = $view_attrId;
 var $$updatenotice_waitShort = $updatenotice_waitShort;
 var $$msg_msg1 = $msg_msg1;
 var $$updatenotice_copyLabel = $updatenotice_copyLabel;
-var $$updatenotice_localButton = $updatenotice_localButton;
 var $$updatenotice_askButton = $updatenotice_askButton;
 var $$updatenotice_copyButton = $updatenotice_copyButton;
 var $$updatenotice_commandNode = $updatenotice_commandNode;
+var $$msg_msg = $msg_msg;
 var $$updatenotice_willRunText = $updatenotice_willRunText;
 var $$updatenotice_runLine = $updatenotice_runLine;
 var $$updatenotice_cancelLabel = $updatenotice_cancelLabel;
@@ -2063,6 +2110,10 @@ var $$dialogsview_imageCopyLabel = $dialogsview_imageCopyLabel;
 var $$dialogsview_imageOpenLabel = $dialogsview_imageOpenLabel;
 var $$dialogsview_helpVersion = $dialogsview_helpVersion;
 var $$dialogsview_aboutLead = $dialogsview_aboutLead;
+var $$dialogsview_originLabel = $dialogsview_originLabel;
+var $$dialogsview_originPath = $dialogsview_originPath;
+var $$dialogsview_originPathNode = $dialogsview_originPathNode;
+var $$view_viewWhenAll = $view_viewWhenAll;
 var $$dialogsview_courseRow = $dialogsview_courseRow;
 var $$dialogsview_courseRows_go = $dialogsview_courseRows_go;
 var $$dialogsview_emptyCourse = $dialogsview_emptyCourse;
@@ -2085,6 +2136,7 @@ var $$dialogsview_updateReadyChildren = $dialogsview_updateReadyChildren;
 var $$dialogsview_updateNotesNode = $dialogsview_updateNotesNode;
 var $$dialogsview_updateFailedText = $dialogsview_updateFailedText;
 var $$dialogsview_updateFailedRest = $dialogsview_updateFailedRest;
+var $$dialogsview_updateUnverifiableText = $dialogsview_updateUnverifiableText;
 var $$dialogsview_updateApplyingText = $dialogsview_updateApplyingText;
 var $$dialogsview_applyingUpdateButton = $dialogsview_applyingUpdateButton;
 var $$dialogsview_updateDoneText = $dialogsview_updateDoneText;
@@ -2316,7 +2368,6 @@ var settingsview_default = {
   "updatenotice:noticeLineFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLineFor(a0, a1)), 2),
   "updatenotice:noticeLinesFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLinesFor(a0, a1)), 2),
   "updatenotice:hasAction": run_lib((a0) => run_loop($updatenotice_hasAction(a0)), 1),
-  "updatenotice:localButton": run_lib(() => run_loop($updatenotice_localButton()), 0),
   "updatenotice:askButton": run_lib((a0) => run_loop($updatenotice_askButton(str_in(a0))), 1),
   "updatenotice:waitNodes": run_lib(() => run_loop($updatenotice_waitNodes()), 0),
   "updatenotice:copyButton": run_lib((a0) => run_loop($updatenotice_copyButton(str_in(a0))), 1),
@@ -2376,6 +2427,12 @@ var settingsview_default = {
   "dialogsview:aboutLead.if": run_lib((a0, a1) => str_out(run_loop($dialogsview_aboutLead_if(str_in(a0), a1))), 2),
   "dialogsview:aboutLead": run_lib((a0) => str_out(run_loop($dialogsview_aboutLead(str_in(a0)))), 1),
   "dialogsview:aboutLeadNode": run_lib((a0) => run_loop($dialogsview_aboutLeadNode(str_in(a0))), 1),
+  "dialogsview:originShown": run_lib((a0) => run_loop($dialogsview_originShown(a0)), 1),
+  "dialogsview:originLabel": run_lib((a0) => str_out(run_loop($dialogsview_originLabel(a0))), 1),
+  "dialogsview:originPath": run_lib((a0) => str_out(run_loop($dialogsview_originPath(a0))), 1),
+  "dialogsview:originPathNode": run_lib((a0) => run_loop($dialogsview_originPathNode(str_in(a0))), 1),
+  "dialogsview:originChildrenShown": run_lib((a0) => run_loop($dialogsview_originChildrenShown(a0)), 1),
+  "dialogsview:originChildren": run_lib((a0) => run_loop($dialogsview_originChildren(a0)), 1),
   "dialogsview:emptyCourse": run_lib(() => run_loop($dialogsview_emptyCourse()), 0),
   "dialogsview:courseRow": run_lib((a0) => run_loop($dialogsview_courseRow(a0)), 1),
   "dialogsview:courseHead": run_lib(() => run_loop($dialogsview_courseHead()), 0),
@@ -2389,10 +2446,10 @@ var settingsview_default = {
   "dialogsview:updateNoneRest": run_lib((a0, a1) => str_out(run_loop($dialogsview_updateNoneRest(str_in(a0), str_in(a1)))), 2),
   "dialogsview:updateFailedText": run_lib(() => str_out(run_loop($dialogsview_updateFailedText())), 0),
   "dialogsview:updateFailedRest": run_lib(() => str_out(run_loop($dialogsview_updateFailedRest())), 0),
+  "dialogsview:updateUnverifiableText": run_lib(() => str_out(run_loop($dialogsview_updateUnverifiableText())), 0),
   "dialogsview:updateReadyText": run_lib((a0) => str_out(run_loop($dialogsview_updateReadyText(str_in(a0)))), 1),
   "dialogsview:updateNotesLabel": run_lib(() => str_out(run_loop($dialogsview_updateNotesLabel())), 0),
   "dialogsview:updateApplyLabel": run_lib(() => str_out(run_loop($dialogsview_updateApplyLabel())), 0),
-  "dialogsview:updatePiLabel": run_lib(() => str_out(run_loop($dialogsview_updatePiLabel())), 0),
   "dialogsview:updateApplyingText": run_lib(() => str_out(run_loop($dialogsview_updateApplyingText())), 0),
   "dialogsview:updateDoneText": run_lib((a0) => str_out(run_loop($dialogsview_updateDoneText(str_in(a0)))), 1),
   "dialogsview:updateRecoveredText.if": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_updateRecoveredText_if(str_in(a0), str_in(a1), a2))), 3),
@@ -2419,14 +2476,13 @@ var settingsview_default = {
   "dialogsview:nodeWarnText": run_lib(() => str_out(run_loop($dialogsview_nodeWarnText())), 0),
   "dialogsview:nodeState.if": run_lib((a0) => run_loop($dialogsview_nodeState_if(a0)), 1),
   "dialogsview:nodeState": run_lib((a0, a1) => run_loop($dialogsview_nodeState(a0, a1)), 2),
-  "dialogsview:updatePiButton": run_lib(() => run_loop($dialogsview_updatePiButton()), 0),
   "dialogsview:componentLinkButton": run_lib((a0, a1) => run_loop($dialogsview_componentLinkButton(str_in(a0), str_in(a1))), 2),
   "dialogsview:componentDot": run_lib((a0) => str_out(run_loop($dialogsview_componentDot(a0))), 1),
   "dialogsview:componentShowsHint": run_lib((a0) => run_loop($dialogsview_componentShowsHint(a0)), 1),
   "dialogsview:componentDescription.xournal": run_lib((a0) => str_out(run_loop($dialogsview_componentDescription_xournal(a0))), 1),
   "dialogsview:componentDescription.node": run_lib((a0, a1) => str_out(run_loop($dialogsview_componentDescription_node(a0, a1))), 2),
   "dialogsview:componentDescription.claude": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_componentDescription_claude(a0, a1, a2))), 3),
-  "dialogsview:componentDescription.pick": run_lib((a0, a1, a2, a3) => str_out(run_loop($dialogsview_componentDescription_pick(a0, a1, a2, a3))), 4),
+  "dialogsview:componentDescription.pick": run_lib((a0, a1, a2) => str_out(run_loop($dialogsview_componentDescription_pick(a0, a1, a2))), 3),
   "dialogsview:componentDescription": run_lib((a0) => str_out(run_loop($dialogsview_componentDescription(str_in(a0)))), 1),
   "dialogsview:componentHintNode": run_lib((a0) => run_loop($dialogsview_componentHintNode(a0)), 1),
   "dialogsview:componentNote": run_lib((a0, a1, a2) => run_loop($dialogsview_componentNote(str_in(a0), str_in(a1), a2)), 3),

@@ -9,6 +9,8 @@ const icons={
  chevronLeft:svg('<path d="m15 18-6-6 6-6"/>'),
  chevronRight:svg('<path d="m9 18 6-6-6-6"/>'),
  unfold:svg('<path d="M16 12h6"/><path d="M8 12H2"/><path d="m19 15 3-3-3-3"/><path d="m5 9-3 3 3 3"/>'),
+ maximize:svg('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>'),
+ minimize:svg('<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>'),
  columns:svg('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>'),
  external:svg('<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>'),
  arrowUp:svg('<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>'),

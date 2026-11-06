@@ -32,6 +32,7 @@ const MEDIUM_FILES = new Set([
   'src/main.mjs',
   'sidechat.cjs',
   'main.cjs',
+  'preload.cjs',
   'activity-store.cjs',
   'src/agents/claude-adapter.cjs',
   'src/agents/claude-turn-policy.cjs',

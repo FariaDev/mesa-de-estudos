@@ -24,7 +24,10 @@ await withArtifacts('release-notes',async ctx=>{
  await freezeMotion(page);
  await page.waitForSelector(`${DIALOG}[open]`,{timeout:30000});
 
- assert.match(await page.locator(`${DIALOG} h2`).first().textContent(),/OpenCode/);
+ /* B4: o primeiro h2 agora é o título do cabeçalho ("Novidades"); a nota
+    da versão segue abaixo, com o OpenCode. */
+ assert.equal(await page.locator(`${DIALOG} #release-notes-title`).textContent(),'Novidades');
+ assert.match(await page.locator(`${DIALOG} .release-note h2`).first().textContent(),/OpenCode/);
  const logins=await page.locator(`${DIALOG} [data-login]`).evaluateAll(rows=>rows.map(row=>row.dataset.login));
  assert.deepEqual(logins,['go','chatgpt','claude','grok','others'],'os provedores que a janela ensina');
  const commands=await page.locator(`${DIALOG} .release-command code`).allTextContents();
@@ -59,11 +62,26 @@ await withArtifacts('release-notes',async ctx=>{
  await page.waitForSelector('#settings-pop',{state:'attached',timeout:30000});
  await page.waitForFunction(()=>document.querySelector('#session-title')?.textContent?.trim());
  assert.equal(await page.locator(DIALOG).count(),0,'não repete');
- await page.locator('#settings-menu .nav-trigger, #settings-menu button').first().click();
- await page.locator('#settings-pop #release-notes').click();
- await page.waitForSelector(`${DIALOG}[open]`);
- await page.locator('#release-close').click();
- assert.deepEqual(errors,[]);
+  await page.locator('#settings-menu .nav-trigger, #settings-menu button').first().click();
+  await page.locator('#settings-pop #release-notes').click();
+  await page.waitForSelector(`${DIALOG}[open]`);
+  /* B4 (auditoria rodada 8): o cabeçalho tem o × dos outros diálogos, com o
+     nome acessível traduzido; o "Entendi" continua e o Esc segue fechando. */
+  const dismiss=page.locator('#release-dismiss');
+  assert.equal(await dismiss.count(),1,'o × do cabeçalho existe');
+  assert.equal(await dismiss.getAttribute('aria-label'),'Fechar','nome acessível em pt-BR');
+  await dismiss.click();
+  await page.waitForFunction(selector=>!document.querySelector(selector),DIALOG);
+  await page.locator('#settings-menu .nav-trigger, #settings-menu button').first().click();
+  await page.locator('#settings-pop #release-notes').click();
+  await page.waitForSelector(`${DIALOG}[open]`);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(selector=>!document.querySelector(selector),DIALOG);
+  await page.locator('#settings-menu .nav-trigger, #settings-menu button').first().click();
+  await page.locator('#settings-pop #release-notes').click();
+  await page.waitForSelector(`${DIALOG}[open]`);
+  await page.locator('#release-close').click();
+  assert.deepEqual(errors,[]);
  await app.close();
 
  /* Quem já tem matéria e veio do Pi instala por aqui: o fake nomeado não baixa
@@ -74,7 +92,7 @@ await withArtifacts('release-notes',async ctx=>{
   const otherCourse=seedCourse(other,'calc');
   writeConfigJson(other,{vaultPath:other,courses:[{id:'calc',name:'Cálculo',path:otherCourse}]});
   writeDeskJson(other,{courseId:'calc',releaseNotesSeen:'1.0.2'});
-  app=ctx.app=await launchDesk({runtime:other,pi:false,env:{HOME:home,USERPROFILE:home,PATH:NO_PI_PATH,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_OPENCODE_INSTALL_FIXTURE:FIXTURE,LEARNING_DESK_OPENCODE_INSTALL_MODE:mode,LEARNING_DESK_RELEASE_VERSION:'1.1.0'}});
+  app=ctx.app=await launchDesk({runtime:other,opencode:false,env:{HOME:home,USERPROFILE:home,PATH:NO_PI_PATH,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_OPENCODE_INSTALL_FIXTURE:FIXTURE,LEARNING_DESK_OPENCODE_INSTALL_MODE:mode,LEARNING_DESK_RELEASE_VERSION:'1.1.0'}});
   page=await app.firstWindow();
   page.on('pageerror',error=>errors.push(error.message));
   await page.waitForSelector(`${DIALOG}[open]`,{timeout:30000});

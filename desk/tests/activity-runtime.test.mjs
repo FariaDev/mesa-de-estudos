@@ -146,12 +146,14 @@ test('prelude cobre os vetores de subframe e Trusted Types', () => {
     "createPolicy('mesa-activity-policy'",
     "createPolicy('default'",
     'createElementNS',
-    "appendChild', guard",
-    "insertBefore', guard",
-    "replaceChildren', guard",
+    "appendChild', guardOne",
+    "insertBefore', guardOne",
+    "replaceChildren', guardMany",
     "insertAdjacentHTML', setAdjacentHTML",
     "outerHTML', setOuterHTML",
-    "insertNode', guard",
+    "insertNode', guardOne",
+    'argIsLink',
+    'guardMany',
     "document.write'",
     'MutationObserver',
     'RTCPeerConnection',
@@ -162,6 +164,13 @@ test('prelude cobre os vetores de subframe e Trusted Types', () => {
     "lock(Document, 'parseHTML', parseSanitizedDocument)",
     "lock(Document, 'parseHTMLUnsafe', parseSanitizedDocument)",
     'shadowDeclaration',
+    /* 'link' do modelo sai em todo sink, sem tocar nos 'link' do host. */
+    'isLinkName',
+    'stripLinks',
+    'carregar recursos externos',
+    "lock(proto.Element, 'setAttribute'",
+    'setAttributeNS',
+    'HTMLLinkElement',
     'CREATE_HTML_DOCUMENT',
     'descend(',
     "descriptor(proto.Element, 'shadowRoot')",
@@ -173,11 +182,32 @@ test('prelude cobre os vetores de subframe e Trusted Types', () => {
   assert.ok(bootAt > html.indexOf(LOCKDOWN_SCRIPT), 'bootstrap de conteúdo depois do prelude');
 });
 
+test('KaTeX embutido em <style>; nenhum link no documento vivo (#76753cd6)', () => {
+  const evil = '<link rel="dns-prefetch" href="https://evil.example"><link rel="stylesheet" href="https://evil.example/evil.css">';
+  const withKatex = buildActivityDocument({...SPEC, katex: true, html: `<p>x</p>${evil}`}, {id: 'a', version: 1, hash: 'h'});
+  /* Regressão do 76753cd6: o <link> do host vinha depois do prelude e o
+     MutationObserver o removia junto com os do modelo — o .katex nascia sem
+     a fonte KaTeX (prova em janela: fontFamily do sistema, 0 links). */
+  const contentAt = withKatex.indexOf('window.__MESA_ACTIVITY_HTML__');
+  assert.doesNotMatch(withKatex.slice(0, contentAt), /<link/, 'nenhum link no documento vivo: todo link é do modelo');
+  assert.match(withKatex.slice(0, contentAt), /\.katex/, 'o CSS do KaTeX vai embutido em <style>');
+  assert.match(withKatex.slice(0, contentAt), /mesa-activity:\/\/katex\/fonts\//, 'as fontes do KaTeX apontam para o esquema (font-src já aceita)');
+  assert.doesNotMatch(withKatex.slice(0, contentAt), /url\(fonts\//, 'nenhum url(fonts/) relativo sobra no CSS embutido');
+  assert.ok(withKatex.indexOf('evil.example') > contentAt, 'o link do modelo entra só como dado JSON depois do prelude');
+  assert.ok(!withKatex.slice(0, contentAt).includes('evil.example'), 'nada do modelo antes do conteúdo');
+  /* Sem KaTeX não há CSS KaTeX nem link nenhum: o estilo do wrapper é <style>. */
+  const plain = buildActivityDocument({...SPEC, html: '<p>x</p>'}, {id: 'a', version: 1, hash: 'h'});
+  assert.doesNotMatch(plain, /<link/, 'documento sem KaTeX não tem link');
+  assert.doesNotMatch(plain, /\.katex/, 'documento sem KaTeX não embute o CSS');
+});
+
 test('katex opt-in inclui CSS/JS fixos e amplia a CSP só para o esquema', () => {
   const plain = buildActivityDocument({...SPEC, katex: false}, {id: 'a', version: 1, hash: 'h'});
   assert.doesNotMatch(plain, /katex\.min\.js/);
   const withKatex = buildActivityDocument({...SPEC, katex: true}, {id: 'a', version: 1, hash: 'h'});
-  assert.match(withKatex, /mesa-activity:\/\/katex\/katex\.min\.css/);
+  const headAt = withKatex.indexOf('window.__MESA_ACTIVITY_HTML__');
+  assert.match(withKatex.slice(0, headAt), /\.katex/, 'CSS do KaTeX embutido em <style>, sem link');
+  assert.doesNotMatch(withKatex.slice(0, headAt), /<link/, 'nenhum link no documento vivo');
   assert.match(withKatex, /mesa-activity:\/\/katex\/katex\.min\.js/);
   assert.match(withKatex, /script-src 'unsafe-inline' mesa-activity:/);
   assert.match(withKatex, /connect-src 'none'/);

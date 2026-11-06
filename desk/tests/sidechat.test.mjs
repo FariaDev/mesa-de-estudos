@@ -1,7 +1,6 @@
 /* Testes do chat lateral (backend puro): isolamento, escopo/id antigo,
    cancelamento independente, persistência/contexto e entregas ambíguas.
-   Nenhum Electron, nenhum motor real: os canais são fakes injetados; o Pi real
-   de teste (fake-pi.mjs) fica em sidechat-pi.test.mjs. */
+   Nenhum Electron, nenhum motor real: os canais são fakes injetados. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -22,10 +21,12 @@ function newRuntime(tag) {
 }
 
 class FakeEngine {
-  constructor({id, onEvent, behavior = 'ok'}) {
+  constructor({id, onEvent, behavior = 'ok', descriptor = null, runtime = ''}) {
     this.id = id;
     this.onEvent = onEvent;
     this.behavior = behavior;
+    this.descriptor = descriptor;
+    this.runtime = runtime;
     this.prompts = [];
     this.aborts = 0;
     this.responses = [];
@@ -37,10 +38,23 @@ class FakeEngine {
     this.history = [];
   }
   emit(event) {
+    if (event?.type === 'message_end' && event.message) this.record(event.message);
     this.onEvent(event);
+  }
+  record(message) {
+    const text = (message.content || []).filter((part) => part?.type === 'text').map((part) => part.text || '').join('\n');
+    const last = this.history.at(-1);
+    const lastText = (last?.content || []).filter((part) => part?.type === 'text').map((part) => part.text || '').join('\n');
+    if (last?.role === message.role && lastText === text) return;
+    if (last?.role === 'user' && message.role === 'user') return;
+    this.history.push(message);
+    if (this.descriptor?.claude) {
+      conversations.updateClaudeConversation(this.descriptor.claude, {messages: this.history}, {runtime: this.runtime});
+    }
   }
   async prompt({text, readPaths = [], running}) {
     this.prompts.push({text, readPaths, running});
+    this.record({role: 'user', content: [{type: 'text', text}]});
     if (this.behavior === 'refuse') {
       const error = Error('recusa de teste antes do aceite');
       error.notSent = true;
@@ -110,9 +124,9 @@ class FakeEngine {
   }
 }
 
-function harness({tag = 'geral', engine = 'pi'} = {}) {
+function harness({tag = 'geral', engine = 'opencode'} = {}) {
   const runtime = newRuntime(tag);
-  const state = {session: '/principal/pi-1.jsonl', courseId: 'Calculo I', engine};
+  const state = {session: '/principal/opencode-1.json', courseId: 'Calculo I', engine};
   const allowed = new Set([PDF, PDF2]);
   const emitted = [];
   const engines = new Map();
@@ -135,7 +149,7 @@ function harness({tag = 'geral', engine = 'pi'} = {}) {
       return value;
     },
     createEngine: ({id, engine: engineName, descriptor, onEvent}) => {
-      const channel = new FakeEngine({id, onEvent, behavior: behaviors.get(id) || defaultBehavior});
+      const channel = new FakeEngine({id, onEvent, behavior: behaviors.get(id) || defaultBehavior, descriptor, runtime});
       channel.engineName = engineName;
       channel.descriptor = descriptor;
       engines.set(id, channel);
@@ -178,7 +192,7 @@ test('open cria o chat lateral com contexto, sem iniciar motor, e persiste índi
   const h = harness({tag: 'open'});
   const payload = h.manager.open({refs: [{path: PDF, page: 7}]});
   assert.match(payload.id, /^sc-/);
-  assert.equal(payload.engine, 'pi');
+  assert.equal(payload.engine, 'opencode');
   assert.deepEqual(payload.messages, []);
   assert.equal(payload.draft, '');
   assert.equal(payload.busy, false);
@@ -201,7 +215,7 @@ test('prompt persiste transmitting antes de escrever, manda o contexto uma vez e
   const opened = h.manager.open({refs: [{path: PDF, page: 3}]});
   const engine = h.manager;
   const result = await engine.prompt({id: opened.id, text: 'Explica o passo 2'});
-  assert.deepEqual(result, {sent: true, id: opened.id, engine: 'pi', streaming: true});
+  assert.deepEqual(result, {sent: true, id: opened.id, engine: 'opencode', streaming: true});
   const channel = h.engines.get(opened.id);
   assert.equal(channel.prompts.length, 1);
   assert.ok(channel.prompts[0].text.includes('[Contexto do chat lateral]'), 'o primeiro envio leva o contexto');
@@ -276,7 +290,7 @@ test('entrega ambígua vira incerta, sobrevive ao reinício e nunca é reenviada
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
-test('Claude com entrega incerta bloqueia novo envio sem cair para Pi', async () => {
+test('Claude com entrega incerta bloqueia novo envio sem cair para outro motor', async () => {
   const h = harness({tag: 'claude-uncertain', engine: 'claude'});
   const opened = h.manager.open({});
   assert.equal(opened.engine, 'claude');
@@ -289,7 +303,7 @@ test('Claude com entrega incerta bloqueia novo envio sem cair para Pi', async ()
   assert.equal(blocked.sent, false);
   assert.equal(blocked.retryable, false);
   assert.equal(blocked.uncertain, true);
-  assert.equal(h.engines.size, 0, 'bloqueado não cria motor nenhum (nem Pi)');
+  assert.equal(h.engines.size, 0, 'bloqueado não cria motor nenhum');
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
@@ -298,7 +312,7 @@ test('id de outra conversa/matéria é recusado e evento antigo não infecta a c
   const first = h.manager.open({});
   await h.manager.prompt({id: first.id, text: 'na conversa 1'});
   const firstChannel = h.engines.get(first.id);
-  h.state.session = '/principal/pi-2.jsonl';
+  h.state.session = '/principal/opencode-2.json';
   assert.throws(() => h.manager.read({id: first.id}), ptMatches(/não pertence à sessão atual/));
   const staleBefore = h.emitted.filter((payload) => payload.id === first.id).length;
   firstChannel.emit({type: 'message_update', assistantMessageEvent: {type: 'text_delta', delta: 'stale'}});
@@ -324,7 +338,7 @@ test('eventos só saem pelo canal ativo da conversa atual', async () => {
   channel.emit({type: 'agent_settled'});
   assert.deepEqual(h.emitted.map((payload) => payload.event.type), ['message_update', 'message_end', 'agent_settled']);
   assert.equal(h.emitted[1].id, opened.id);
-  assert.equal(h.emitted[1].engine, 'pi');
+  assert.equal(h.emitted[1].engine, 'opencode');
   const descriptor = h.manager.peek(opened.id);
   assert.equal(descriptor.delivery.status, 'settled');
   assert.deepEqual(descriptor.messages.at(-1), {role: 'assistant', content: [{type: 'text', text: 'olá'}]});
@@ -340,7 +354,7 @@ test('abort cancela só o canal lateral e preserva histórico/draft do principal
   const result = await h.manager.abort({id: opened.id});
   assert.deepEqual(result, {aborted: true, result: {aborted: true}});
   assert.equal(channel.aborts, 1);
-  assert.equal(h.state.session, '/principal/pi-1.jsonl', 'a sessão principal não muda');
+  assert.equal(h.state.session, '/principal/opencode-1.json', 'a sessão principal não muda');
   assert.equal(h.manager.read({id: opened.id}).draft, 'rascunho do lateral');
   const beforeClose = h.manager.peek(opened.id);
   assert.equal(beforeClose.messages.length, 1, 'o histórico do lateral é preservado no abort');
@@ -514,7 +528,7 @@ test('reabrir retoma o snapshot original; só context() atualiza explicitamente'
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
-test('open recupera transmitting de execução anterior e libera novo envio (não só read)', async () => {
+test('open recupera transmitting de execução anterior e mantém o envio bloqueado', async () => {
   const h = harness({tag: 'open-recover'});
   const first = h.manager.open({});
   h.behaviors.set(first.id, 'hang');
@@ -536,9 +550,9 @@ test('open recupera transmitting de execução anterior e libera novo envio (nã
   assert.equal(h.snapshotCalls(), 1, 'recuperar no open não recopia o principal');
   h.behaviors.set(first.id, 'ok');
   const sent = await restarted.prompt({id: first.id, text: 'depois da queda'});
-  assert.equal(sent.sent, true, 'depois de recuperar, o envio explícito é permitido no Pi');
-  assert.equal(sent.streaming, true);
-  assert.equal(restarted.peek(first.id).delivery.status, 'accepted');
+  assert.equal(sent.sent, false, 'entrega incerta não é reenviada sozinha');
+  assert.equal(sent.uncertain, true);
+  assert.equal(restarted.peek(first.id).delivery.status, 'uncertain');
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
@@ -593,7 +607,7 @@ test('aceite Claude em voo de execução anterior hidrata uncertain no open/read
     uncertain: true,
     error: 'A entrega anterior está incerta; abra um novo chat lateral para continuar sem repetir a mensagem.',
   });
-  assert.equal(h.engines.size, 0, 'a recusa não cria canal nenhum (nem Pi)');
+  assert.equal(h.engines.size, 0, 'a recusa não cria canal nenhum');
   const fresh = restarted.open({fresh: true});
   assert.notEqual(fresh.id, opened.id, 'fresh continua disponível para continuar sem repetir');
   assert.equal(fresh.uncertain, false);
@@ -704,7 +718,7 @@ test('close que não liquida a promessa: suspend mantém incerto e o ACK tardio 
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
-test('recusa tardia depois do suspend não altera o prompt novo nem o contexto', async () => {
+test('recusa tardia depois do suspend não altera o estado incerto nem o contexto', async () => {
   const h = harness({tag: 'late-reject'});
   const first = h.manager.open({});
   h.behaviors.set(first.id, 'hang');
@@ -716,19 +730,16 @@ test('recusa tardia depois do suspend não altera o prompt novo nem o contexto',
   };
   h.manager.suspend('troca');
   h.behaviors.set(first.id, 'ok');
-  const sent = await h.manager.prompt({id: first.id, text: 'B'});
-  assert.equal(sent.sent, true);
-  const newChannel = h.engines.get(first.id);
-  assert.notEqual(newChannel, oldChannel, 'o envio novo nasceu num canal novo');
-  assert.equal(h.manager.peek(first.id).delivery.status, 'accepted');
+  const blocked = await h.manager.prompt({id: first.id, text: 'B'});
+  assert.equal(blocked.sent, false, 'entrega incerta não é reenviada sozinha');
+  assert.equal(blocked.uncertain, true);
   oldChannel.reject(Error('canal encerrado'));
   const late = await pending;
   assert.equal(late.sent, false);
-  assert.equal(late.uncertain, true);
   const after = h.manager.peek(first.id);
-  assert.equal(after.delivery.status, 'accepted', 'o desfecho tardio de A não toca a entrega de B');
-  assert.deepEqual(after.messages.map((message) => message.content[0].text), ['A', 'B']);
-  assert.ok(after.contextDeliveredKey, 'o contexto entregue pelo B é preservado');
+  assert.equal(after.delivery.status, 'uncertain', 'o desfecho tardio não altera a entrega incerta');
+  assert.deepEqual(after.messages.map((message) => message.content[0].text), ['A']);
+  assert.equal(after.contextDeliveredKey, '', 'o contexto não foi consumido');
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
@@ -771,11 +782,11 @@ test('turno inteiro síncrono antes do aceite: streaming=false e entrega settled
   const opened = h.manager.open({});
   h.behaviors.set(opened.id, 'instant');
   const result = await h.manager.prompt({id: opened.id, text: 'tudo de uma vez'});
-  assert.deepEqual(result, {sent: true, id: opened.id, engine: 'pi', streaming: false});
+  assert.deepEqual(result, {sent: true, id: opened.id, engine: 'opencode', streaming: false});
   assert.equal(h.emitted.some((payload) => payload.event?.type === 'agent_settled'), true, 'o evento terminal continua chegando à UI mesmo antes do aceite');
   const descriptor = h.manager.peek(opened.id);
   assert.equal(descriptor.delivery.status, 'settled', 'settled antes do aceite não vira accepted contraditório');
-  assert.deepEqual(descriptor.messages.map((message) => message.role), ['user', 'assistant']);
+  assert.deepEqual(h.manager.read({id: opened.id}).messages.map((message) => message.role), ['user', 'assistant']);
   assert.equal(h.manager.read({id: opened.id}).busy, false);
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
@@ -789,7 +800,6 @@ test('cache Claude projeta a fala sem o envelope de contexto, sem reescrever o d
   assert.ok(channel.prompts[0].text.startsWith(digest), 'o motor recebe o texto com o contexto');
   assert.ok(channel.prompts[0].text.includes('[Fim do contexto do chat lateral]'), 'o envelope fecha o bloco interno');
   /* O cache do motor guarda o texto que foi enviado (com envelope). */
-  channel.history.push({role: 'user', content: [{type: 'text', text: `${digest}\n[Fim do contexto do chat lateral]\n\nminha pergunta`}]});
   channel.history.push({role: 'assistant', content: [{type: 'text', text: 'resposta'}]});
   const payload = h.manager.read({id: opened.id});
   assert.equal(payload.messages[0].content[0].text, 'minha pergunta', 'a UI recebe só a fala');
@@ -799,14 +809,19 @@ test('cache Claude projeta a fala sem o envelope de contexto, sem reescrever o d
   fs.rmSync(h.runtime, {recursive: true, force: true});
 });
 
+test('conversationList não apresenta conversa antiga do Pi como OpenCode', () => {
+  const [entry] = conversationList([{path: '/s/antiga.jsonl', label: 'Antiga', engine: 'pi', started: 1}]);
+  assert.equal(entry.engine, 'pi');
+});
+
 test('conversationList mapeia as conversas da matéria sem iniciar agente', () => {
   const sessions = [
-    {path: '/s/pi-1.jsonl', label: '01/10, 10:00 · Limites', preview: 'uma prévia', started: 5, engine: 'pi'},
+    {path: '/s/opencode-1.json', label: '01/10, 10:00 · Limites', preview: 'uma prévia', started: 5, engine: 'opencode'},
     {path: '/s/claude-x.json', label: 'Claude Code · 02/10', preview: 'outra', started: 6, engine: 'claude'},
     {path: '', label: 'vazia'},
   ];
   assert.deepEqual(conversationList(sessions), [
-    {id: '/s/pi-1.jsonl', title: '01/10, 10:00 · Limites', preview: 'uma prévia', at: 5, engine: 'pi'},
+    {id: '/s/opencode-1.json', title: '01/10, 10:00 · Limites', preview: 'uma prévia', at: 5, engine: 'opencode'},
     {id: '/s/claude-x.json', title: 'Claude Code · 02/10', preview: 'outra', at: 6, engine: 'claude'},
   ]);
   const long = conversationList([{path: '/s/p.jsonl', label: 'x', preview: 'y'.repeat(500), started: 1}])[0];

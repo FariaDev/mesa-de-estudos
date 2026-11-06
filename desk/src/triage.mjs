@@ -1,12 +1,10 @@
 // @ts-check
 import {$,S,toast} from './state.mjs';
-import {visibleEngines} from './visible-engines-ui.mjs';
 import {t,applyStaticText} from './ui-text.mjs';
-import {piCommand} from '../triage-outputs.mjs';
 
 /* "Relatar um problema" (#62), na janela: pede o relatório limpo ao main
    (`triage-report`, montado no `triage-worker.mjs`), mostra para a pessoa ler
-   e oferece as saídas (Claude/Codex, Pi, OpenCode e a issue). Copiar só usa a área de transferência; a issue só
+   e oferece as saídas (Claude/Codex, OpenCode e a issue). Copiar só usa a área de transferência; a issue só
    abre no navegador depois do clique, e quem envia é a pessoa, no GitHub. */
 
 const DIALOG='#triage-dialog';
@@ -21,14 +19,6 @@ const DIALOG_HTML=`
       <div class="triage-output">
         <div><strong data-i18n="triage.out.agent"></strong><p class="study-muted" data-i18n="triage.out.agentHint"></p></div>
         <button type="button" id="triage-copy-agent" data-i18n="triage.copyPrompt" disabled></button>
-      </div>
-      <div class="triage-output" id="triage-pi-row" hidden>
-        <div>
-          <strong data-i18n="triage.out.pi"></strong>
-          <select id="triage-pi-model" data-i18n-attr="aria-label=triage.pi.models" hidden></select>
-          <p id="triage-pi-note" class="study-muted"></p>
-        </div>
-        <button type="button" id="triage-copy-pi" data-i18n="triage.copyCommand" hidden></button>
       </div>
       <div class="triage-output" id="triage-opencode-row" hidden>
         <div><strong data-i18n="triage.out.opencode"></strong><p id="triage-opencode-note" class="study-muted"></p></div>
@@ -71,33 +61,6 @@ function paintOpencode(opencode){
  note.textContent=t('triage.freeWarning',{model:opencode.model,policy:t(opencode.policyKey).toLowerCase()});
 }
 
-/* Pi (#62, pedido no próprio ticket): o modelo que a pessoa já usa, trocável
-   entre os recentes e favoritos do seletor; o comando é refeito pela mesma
-   função do terminal (`piCommand`). */
-/** @param {string} model */
-function pickPiModel(model){
- const pi=current?.pi;
- if(!pi||'reason' in pi)return;
- const next=piCommand(pi.facts,current.agentPrompt,pi.platform,model);
- if('reason' in next)return;
- current.pi={...pi,...next};
- $('#triage-pi-note').textContent=next.model?t('triage.pi.cost',{model:next.model}):t('triage.pi.costDefault');
-}
-
-/** @param {import('../triage-host.cjs').TriageResult['pi']} pi */
-function paintPi(pi){
- const select=/** @type {HTMLSelectElement} */($('#triage-pi-model'));
- const missing='reason' in pi;
- /* Sem Pi não há linha: quem não o instalou não precisa saber que ele existe
-    (#release OpenCode). O aviso de motivo fica só para uma falha com Pi achado. */
- $('#triage-pi-row').hidden=missing||!visibleEngines().includes('pi');
- if(missing){$('#triage-copy-pi').hidden=true;select.hidden=true;return;}
- $('#triage-copy-pi').hidden=false;
- select.hidden=pi.facts.piModels.length===0;
- select.replaceChildren(...pi.facts.piModels.map(model=>new Option(model,model,false,model===pi.model)));
- pickPiModel(pi.model);
-}
-
 /** @param {import('../triage-host.cjs').TriageResult | null} result */
 function paint(result){
  current=result;
@@ -105,10 +68,9 @@ function paint(result){
  enable($('#triage-copy-agent'),!!result);
  enable($('#triage-open-issue'),!!result);
  if(!result){
-  for(const id of ['#triage-pi-row','#triage-opencode-row'])$(id).hidden=true;
+  $('#triage-opencode-row').hidden=true;
   return;
  }
- paintPi(result.pi);
  paintOpencode(result.opencode);
  say(result.issue.truncated?t('triage.issueTruncated'):'');
 }
@@ -146,8 +108,6 @@ export function initTriage(){
  applyStaticText(dialog);
  $('#triage-copy-agent').addEventListener('click',()=>{if(current)copy(current.agentPrompt);});
  $('#triage-copy-opencode').addEventListener('click',()=>{if(current?.opencode.command)copy(current.opencode.command);});
- $('#triage-copy-pi').addEventListener('click',()=>{if(current?.pi.command)copy(current.pi.command);});
- $('#triage-pi-model').addEventListener('change',event=>pickPiModel(/** @type {HTMLSelectElement} */(event.target).value));
  /* O relatório saiu do Mais opções do tutor (#90) para o rodapé do Guia. */
  $('#help-triage')?.addEventListener('click',()=>{
   const help=$('#help-dialog');

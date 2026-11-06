@@ -32,6 +32,8 @@ const BUILD = [
   /* Cartões quiz/perguntar (#92): resposta certa escondida e envio no máximo
      uma vez. */
   {entry: "quizcard.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
+  /* Passagem de contexto entre sessões (#87): o que a troca não pode perder. */
+  {entry: "sessionhandoff.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "studystats.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "reviewschedule.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "studycontext.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
@@ -40,8 +42,6 @@ const BUILD = [
   {entry: "agentdelivery.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "sidechat.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "freeworkspaces.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
-  {entry: "framing.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
-  {entry: "rpcstate.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "view.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "state.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   /* Cor de acento. */
@@ -61,7 +61,7 @@ const BUILD = [
   {entry: "tutorheader.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "toastview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   {entry: "talkview.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
-  /* Avisos de atualização do Pi e do Claude Code (ticket #45): só a Mesa. */
+  /* Avisos de atualização do Claude Code (ticket #45): só a Mesa. */
   {entry: "updatenotice.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   /* View nativa do GeoGebra diante das sobreposições (ticket #52): só a Mesa. */
   {entry: "overlay.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
@@ -101,7 +101,7 @@ const BUILD = [
   {entry: "language.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   /* Faixa de versões do Claude Code (#51): só a Mesa. */
   {entry: "claudeversion.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
-  /* Modelos grátis do OpenCode Zen pelo Pi (#44): só a Mesa. */
+  /* Modelos grátis do OpenCode Zen (#44): só a Mesa. */
   {entry: "freemodels.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},
   /* Foto do celular: fluxo e porta do site local (#36): só a Mesa. */
   {entry: "phonedrop.bend", out: join(import.meta.dir, "..", "desk", "src", "generated")},

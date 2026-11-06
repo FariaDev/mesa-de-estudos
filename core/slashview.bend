@@ -17,7 +17,7 @@ import view.bend as V
 # - `#slash-menu.slash-pop` com `hidden` do fato `open` e o `style` fixo
 #   (`position:fixed;z-index:105`) que o CSS não carrega;
 # - cabeça `Comandos`, rodapé `↑↓ navegar · ⏎ inserir · Esc fechar`;
-# - `#slash-list[role=listbox][aria-label="Comandos do Pi"]`;
+# - `#slash-list[role=listbox][aria-label="Comandos do tutor"]`;
 # - cada linha `.slash-item[role=option][aria-selected]` com `id`
 #   `slash-opt-N` (ordem da lista), `key` (identidade para o host) e a classe
 #   `active` do item em uso; o `check` nasce em toda linha (só o CSS o acende

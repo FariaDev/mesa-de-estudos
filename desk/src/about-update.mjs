@@ -2,7 +2,7 @@ import {$,S,toast} from './state.mjs';
 import {openGuide} from './guide.mjs';
 import {message as uiMessage} from './i18n.mjs';
 import {t,formatDate} from './ui-text.mjs';
-import {renderAboutLead,renderAboutUpdate,renderComponentChecking,renderHelpVersion} from './dialogs.mjs';
+import {renderAboutLead,renderAboutOrigin,renderAboutUpdate,renderComponentChecking,renderHelpVersion} from './dialogs.mjs';
 import {noticesOpened,showRows,askUpdate} from './tool-notices.mjs';
 
 /* Guia, Sobre e aviso de atualização: estado da verificação, componentes,
@@ -19,9 +19,9 @@ document.addEventListener('click',event=>{
 });
 /* Sobre: a linha de atualização e o painel "Componentes" são do núcleo
    (`core/dialogsview.bend`); aqui só se liga o updater (IPC do main) e os
-   cliques (verificar / Release notes / Atualizar e reiniciar / Atualizar Pi).
-   Node e Xournal++ são checados só sob demanda (Verificar agora); a checagem
-   automática 1×/dia cobre Mesa + Pi e mantém o aviso no cabeçalho. */
+   cliques (verificar / Release notes / Atualizar e reiniciar). Node e
+   Xournal++ são checados só sob demanda (Verificar agora); a checagem
+   automática 1×/dia cobre a Mesa e mantém o aviso no cabeçalho. */
 /* A frase "Conferido hoje às 9:40." / "ontem" / "em 12/10" da última checagem,
    já como mensagem (o núcleo a entrega como veio). Sem hora, "" (o núcleo cai
    na versão). A hora segue o idioma da interface. */
@@ -41,6 +41,8 @@ function updateStateOf(result){
  if(result?.status==='update')return {$:'UpdateReady',version:String(result.version||''),notes:String(result.notes||'').replace(/\s+/g,' ').trim().slice(0,400),url:String(result.url||'')};
  if(result?.status==='current')return {$:'UpdateNone',current:String(result.current||''),checked:checkedLabel(result.checkedAt)};
  if(result?.status==='error')return {$:'UpdateFailed'};
+ /* #109: origem que não recebe atualização não pode dizer "Atualizada". */
+ if(result?.status==='unverifiable')return {$:'UpdateUnverifiable'};
  return {$:'UpdateIdle'};
 }
 /* C1: o resultado REAL da última atualização (gravado pelo worker no
@@ -52,11 +54,20 @@ function resultStateOf(result){
  if(result.status==='incomplete')return {$:'UpdateIncomplete',version:String(result.version||''),reason:String(result.reason||'')};
  return {$:'UpdateIdle'};
 }
+/* #109: a origem é lida do mesmo host do updater. Falha do IPC mantém o Sobre
+   de hoje (linha escondida), nunca inventa uma origem indisponível. */
+let currentOrigin={kind:'source'};
+async function readOrigin(){
+ try{currentOrigin=await window.desk.updateOrigin()||{kind:'source'};}
+ catch{currentOrigin={kind:'source'};}
+ renderAboutOrigin(currentOrigin);
+ return currentOrigin;
+}
 const aboutHandlers={
  OpenLink:e=>{const url=e.currentTarget?.dataset?.url;if(url)window.desk.openExternal(url).catch(err=>toast(err.message));},
  /* C1: abre o desk.log do runtime (o motivo de um rollback fica lá). */
  OpenLog:async()=>{try{await window.desk.openLog();}catch(err){toast(err.message);}},
- CheckUpdate:async()=>{renderAboutUpdate({$:'UpdateChecking'},aboutHandlers);try{renderAboutUpdate(updateStateOf(await window.desk.updateCheck({manual:true})),aboutHandlers);}catch(e){renderAboutUpdate({$:'UpdateFailed'},aboutHandlers);toast(e.message);}},
+ CheckUpdate:async()=>{renderAboutUpdate({$:'UpdateChecking'},aboutHandlers);try{await readOrigin();renderAboutUpdate(updateStateOf(await window.desk.updateCheck({manual:true})),aboutHandlers);}catch(e){renderAboutUpdate({$:'UpdateFailed'},aboutHandlers);toast(e.message);}},
  RefreshComponents:()=>refreshAbout(true),
  /* C1: aplicar desliga a ação; na falha o Sobre volta ao resultado real. */
  ApplyUpdate:async()=>{
@@ -70,7 +81,6 @@ const aboutHandlers={
    catch{renderAboutUpdate({$:'UpdateIdle'},aboutHandlers);}
   }
  },
- UpdatePi:async()=>{if(!confirm(t('update.piConfirm')))return;try{await window.desk.updatePi();toast(t('update.piRestarting'));}catch(e){toast(e.message);}},
 };
 /* B4: os componentes não esperam a checagem da Mesa — versões/estados locais
    primeiro (com a checagem de rede deles, que tem prazo), linha do update
@@ -80,8 +90,10 @@ async function refreshComponents(manual){
  catch(e){if(manual)toast(e.message);}
 }
 async function refreshMesaUpdate(manual){
- try{renderAboutUpdate(updateStateOf(await window.desk.updateCheck({manual:!!manual})),aboutHandlers);}
- catch(e){if(manual)toast(e.message);}
+ try{
+  await readOrigin();
+  renderAboutUpdate(updateStateOf(await window.desk.updateCheck({manual:!!manual})),aboutHandlers);
+ }catch(e){if(manual)toast(e.message);}
 }
 /* O painel de componentes pinta por conta própria, sem esperar a checagem da
    Mesa; a promessa devolvida é a das linhas (quem precisa delas espera só ela). */
@@ -101,6 +113,7 @@ async function openAbout(options){
  renderComponentChecking();
  $('#about-dialog').showModal();
  noticesOpened();
+ await readOrigin();
  try{renderAboutUpdate(resultStateOf(await window.desk.updateResult()),aboutHandlers);}
  catch{renderAboutUpdate({$:'UpdateIdle'},aboutHandlers);}
  const rows=refreshAbout(false);

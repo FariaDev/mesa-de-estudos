@@ -15,7 +15,6 @@
 
 import {marked} from '../../node_modules/marked/lib/marked.esm.js';
 import katex from '../../node_modules/katex/dist/katex.mjs';
-import DOMPurify from '../../node_modules/dompurify/dist/purify.es.mjs';
 import {highlightCode} from '../../highlight.mjs';
 import {modelId as normalizeModelId, normalizeOptions, modelSignature} from './model.mjs';
 import {structureMaterialTokens, numberEquations} from './structure.mjs';
@@ -25,11 +24,14 @@ import {modelPageCss,runningTexts} from './template-page.mjs';
 import {segmentMaterial} from './template-tokens.mjs';
 import {plotFigure} from '../figures/plot-figure.mjs';
 import {svgFence} from '../figures/svg-fence.mjs';
-import {svgSafeConfig} from '../figures/svg-guard.mjs';
+import {sanitizePrintHtml} from './template-sanitize.mjs';
+import {scrubModelTokens} from './template-scrub.mjs';
+import {stripModelAttrs} from '../model-attrs.mjs';
+import {HOUSE_MARK} from './house-marks.mjs';
 export {tokenizeMaterial} from './template-tokens.mjs';
 export {MIN_MATH_FONT_PT, runningTexts, modelPageCss, measureMaterialMath, measureMaterialModel} from './template-page.mjs';
 
-export const MATERIAL_TEMPLATE_VERSION = 'material-2026-10-20.1';
+export const MATERIAL_TEMPLATE_VERSION = 'material-2026-11-05.1';
 
 /* Marca o renderizador de material. A prévia real usa a revisão (título +
    conteúdo + template) para descartar bytes antigos; mudanças de CSS/HTML que
@@ -340,6 +342,8 @@ function materialMathNodes(html, placeholders) {
   return container.innerHTML;
 }
 
+/* Contador da prévia para o prefixo de `id`/`class` do modelo (`pv1-…`). */
+let materialPreviewSeq = 0;
 /* O título do campo é o único H1 do documento. Os headings Markdown já descem
    um nível em `prepareMaterialMarkdown`; o HTML cru não passa por lá, então
    rebaixa os `<h1>` que sobraram para `<h2>` depois do DOMPurify e antes do
@@ -364,8 +368,16 @@ function demoteContentHeadings(html) {
    cru passa pela regex do chat (`markup`) nem toca o `markdown.mjs` global.
 
    `allowAssets=false` (o padrão do material): figura vira código e tags de
-   mídia são removidas — nada é buscado na rede nem embutido no PDF. */
-export function renderMaterialHtml({title = '', markdown = '', allowAssets = false, model = '', options = null, context = ''} = {}) {
+   mídia são removidas — nada é buscado na rede nem embutido no PDF.
+
+   `preview=true` (prévia viva do Livre, que entra no DOM da janela principal):
+   liga a faixa Allowlist do chat (`stripModelAttrs`) com `id`/`class` sob
+   prefixo `pvN-` em vez de removidos. O impresso (`preview=false`, inclusive a
+   página de impressão) mantém o contrato: H1 cru desce para H2 com atributos e
+   o `style` do modelo perde `position`/`inset`/`color`/`background-color`
+   (e a `class`/`--ans` dele nem chega aqui: `scrubModelTokens` tira antes da
+   estrutura da casa). */
+export function renderMaterialHtml({title = '', markdown = '', allowAssets = false, model = '', options = null, context = '', preview = false} = {}) {
   const plainTitle = String(title ?? '').trim();
   const modelName = normalizeModelId(model);
   const modelOptions = normalizeOptions(modelName, options);
@@ -395,14 +407,27 @@ export function renderMaterialHtml({title = '', markdown = '', allowAssets = fal
   });
   let html;
   if (modelName === 'livre') {
-    html = marked.parse(body, {breaks: true});
+    /* `parse` é `lexer` + `parser`: aberto aqui para o `scrubModelTokens`
+       tirar `class`/`--ans` do HTML cru do modelo antes de renderizar. */
+    const livreOptions = {...marked.defaults, breaks: true};
+    html = marked.parser(scrubModelTokens(marked.lexer(body, livreOptions)), livreOptions);
   } else {
     /* `lexer`/`parser` não mesclam os padrões como `parse` faz: sem eles o gfm
        some e a tabela vira parágrafo. */
     const markedOptions = {...marked.defaults, breaks: true};
-    const tokens = marked.lexer(body, markedOptions);
+    const tokens = scrubModelTokens(marked.lexer(body, markedOptions));
     html = marked.parser(structureMaterialTokens(tokens, modelName, modelOptions), markedOptions);
   }
+  /* Faixa da prévia viva: o mesmo Allowlist do chat, antes das nossas figuras
+     e da matemática entrarem (como no `markup`); `id`/`class` ganham prefixo
+     próprio em vez de sair, para não colidir com a janela (`#prompt` vira
+     `#pv1-prompt`, inerte e sem clobber). */
+  if (preview) {
+    materialPreviewSeq = (materialPreviewSeq + 1) % 100000;
+    html = stripModelAttrs(html, {idPrefix: `pv${materialPreviewSeq}-`, keepMark: HOUSE_MARK});
+  }
+  /* A marca serve só à faixa acima; fora da prévia ela não pode chegar à página. */
+  html = html.replaceAll(` ${HOUSE_MARK}="1"`, '');
   const codes = [];
   html = html.replace(/<pre><code(?: class="language-([\w-]+)")?>([\s\S]*?)<\/code><\/pre>/g, (_all, lang, code) => {
     /* Cerca `plot` (#60): a figura entra no HTML e passa pelo DOMPurify (a guarda de SVG do chat); cerca mal formada vira aviso no PDF e diagnóstico, nunca some. */
@@ -416,10 +441,7 @@ export function renderMaterialHtml({title = '', markdown = '', allowAssets = fal
     codes.push(`<pre class="hl"><code data-lang="${attr(lang || '')}">${highlightCode(unescapeHtml(code), lang)}</code></pre>`);
     return `CODEPLACEHOLDER${codes.length - 1}END`;
   });
-  html = DOMPurify.sanitize(html, svgSafeConfig(DOMPurify, {
-    FORBID_TAGS: ['style', 'iframe', 'form', 'input', 'button', 'img', 'picture', 'figure', 'video', 'audio', 'source', 'object', 'embed'],
-    FORBID_ATTR: ['srcset', 'ping'],
-  }));
+  html = sanitizePrintHtml(html);
   html = demoteContentHeadings(html);
   html = html.replace(/CODEPLACEHOLDER(\d+)END/g, (_match, number) => codes[Number(number)] || '');
   html = materialMathNodes(html, placeholders);

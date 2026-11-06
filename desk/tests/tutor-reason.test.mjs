@@ -39,7 +39,7 @@ test('a frase da coluna traz a versão encontrada e a faixa, nos dois idiomas, s
   const pt = createI18n({catalogs: {'pt-BR': ptBR, en}, language: 'pt-BR'}).text(notice);
   const english = createI18n({catalogs: {'pt-BR': ptBR, en}, language: 'en'}).text(notice);
   assert.equal(pt, `Atualize o Claude Code: a versão 2.1.250 é anterior à faixa que a Mesa aceita (${minimum} a 2.1.x).`);
-  assert.equal(english, `Update Claude Code: version 2.1.250 is older than the range the Mesa accepts (${minimum} to 2.1.x).`);
+  assert.equal(english, `Update Claude Code: version 2.1.250 is older than the range the Desk accepts (${minimum} to 2.1.x).`);
   for (const text of [pt, english]) assert.doesNotMatch(text, /pareamento|ponte|bridge|SDK|\bPi\b|conversa|chat/i);
 });
 

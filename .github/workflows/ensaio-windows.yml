@@ -1,0 +1,72 @@
+name: Ensaio no Windows
+
+# O autor não tem um Windows: este é o teste mais perto do real que temos. Um
+# runner instala a versão indicada, atualiza pela release publicada com o updater
+# dela e abre a Mesa. Não substitui uma pessoa usando. Os testes de janela ficam de
+# fora porque ainda não rodam no Windows: os motores falsos são scripts `.mjs` (#108).
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: Versão de partida
+        default: v1.1.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  ensaio:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      FROM_TAG: ${{ inputs.from }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+
+      - name: Instalar a versão de partida, como quem baixou o zip
+        run: |
+          curl -fsSL -o antiga.zip "https://codeload.github.com/FariaDev/mesa-de-estudos/zip/refs/tags/${FROM_TAG}"
+          unzip -q antiga.zip -d instalacao
+          DESK="$(cd instalacao/* && pwd -W)/desk"
+          echo "DESK=$DESK" >> "$GITHUB_ENV"
+          cd "$DESK"
+          npm ci --no-audit --no-fund
+          echo '{"ensaio":true}' > config.json
+          # Quem já abriu a Mesa tem a pasta de dados; o updater grava o lock nela.
+          node -e 'require("fs").mkdirSync(require("path").join(process.env.APPDATA,"Mesa de Estudos","runtime"),{recursive:true})'
+          grep '"version"' package.json
+
+      - name: Atualizar pelo updater da versão de partida
+        run: |
+          cd "$DESK"
+          npm run update -- --sem-reabrir
+          LATEST="$(curl -fsSL https://api.github.com/repos/FariaDev/mesa-de-estudos/releases/latest | node -p 'JSON.parse(require("fs").readFileSync(0)).tag_name.slice(1)')"
+          INSTALLED="$(node -p 'require("./package.json").version')"
+          test "$INSTALLED" = "$LATEST" || { echo "instalada $INSTALLED, publicada $LATEST"; exit 1; }
+          grep -q '"ensaio":true' config.json
+          node node_modules/electron/install.js
+
+      - name: A atualização seguinte continua aceitando a release assinada
+        run: |
+          cd "$DESK"
+          npm run update -- --sem-reabrir 2>&1 | tee proxima.log
+          grep -q 'última versão' proxima.log
+
+      - name: Abrir a Mesa atualizada por 30 s
+        shell: pwsh
+        run: |
+          Set-Location $env:DESK
+          $env:LEARNING_DESK_RUNTIME = Join-Path $env:RUNNER_TEMP 'mesa-ensaio'
+          $mesa = Start-Process -FilePath 'node_modules\electron\dist\electron.exe' -ArgumentList '.' -PassThru
+          Start-Sleep -Seconds 30
+          if ($mesa.HasExited) { throw "a Mesa fechou sozinha: código $($mesa.ExitCode)" }
+          Stop-Process -Id $mesa.Id -Force
+          $log = Join-Path $env:LEARNING_DESK_RUNTIME 'desk.log'
+          if (Test-Path $log) { Get-Content $log -Tail 40 }
+          if ((Test-Path $log) -and (Select-String -Path $log -Pattern '"level":"error"' -Quiet)) { throw 'erro no desk.log' }

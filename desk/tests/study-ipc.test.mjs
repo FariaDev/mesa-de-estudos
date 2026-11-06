@@ -26,6 +26,15 @@ fs.chmodSync(FAKE_PI, 0o755);
 const runtimes = [];
 const free=createRequire(import.meta.url)('../free-workspaces.cjs');
 
+/* O preload expõe `studySearch` antes de o renderer rodar `init`; a biblioteca
+   só vira autorizada quando o `initialData` do boot passa pelo main. Esperar a
+   aba da matéria prova que o boot chegou lá — sem isso, uma máquina carregada
+   faz o teste salvar nota antes da autorização (annot.error.unauthorized). */
+async function waitBoot(page){
+ await page.waitForFunction(()=>window.desk&&typeof window.desk.studySearch==='function',undefined,{timeout:30000});
+ await page.waitForFunction(()=>!!document.querySelector('#course-tabs button[role="tab"]'),undefined,{timeout:30000});
+}
+
 after(() => {
   for (const dir of runtimes) {
     try {
@@ -42,7 +51,7 @@ test('IPC: busca abre PDF da sessão Livre correta e resultado removido não tro
  const file=imported.material.path;
  const app=await electron.launch({args:[path.join(DESK,'main.cjs')],cwd:DESK,env:testEnv({LEARNING_DESK_RUNTIME:runtime,LEARNING_DESK_PI:FAKE_PI})});
  try{
-  const page=await app.firstWindow();await page.waitForFunction(()=>!!window.desk?.studySearch);
+  const page=await app.firstWindow();await waitBoot(page);
   const result=await page.evaluate(()=>window.desk.studySearch({query:'Marcadorlivre',scope:{sources:['pdf']}}));
   const hit=result.hits.find(one=>one.source==='pdf');assert.ok(hit);
   const opened=await page.evaluate(id=>window.desk.studySearchOpen({id}),hit.id);
@@ -103,7 +112,7 @@ test('IPC: busca acha o PDF autorizado, resolve a página e as notas persistem',
   const app = await electron.launch({args: [path.join(DESK, 'main.cjs')], cwd: DESK, env: testEnv({LEARNING_DESK_RUNTIME: runtime, LEARNING_DESK_PI: FAKE_PI})});
   try {
     const page = await app.firstWindow();
-    await page.waitForFunction(() => !!window.desk?.studySearch);
+    await waitBoot(page);
 
     const catalog = await page.evaluate(() => window.desk.studySearchCatalog());
     assert.deepEqual(catalog.courses.map((course) => course.id), ['mesa-free', 'Synthetic']);

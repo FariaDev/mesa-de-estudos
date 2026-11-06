@@ -7,12 +7,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {artifactDir,pickTheme,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,toastWait,sendEnabled,statusOnline,moreClick,fillStudyTitle,insideHidden} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
 const readDesk=runtime=>{try{return JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));}catch{return null;}};
 
-const DESK=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const STAMP=new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'');
 const ART=artifactDir(`hunt-shell-${STAMP}`);
 fs.mkdirSync(ART,{recursive:true});
@@ -538,7 +536,10 @@ if(only('dialogs')){
    await page.locator('#end-day-save').click();
    await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('terminei X'),undefined,{timeout:10000});
    await sendEnabled(page);
-   const saved=fs.readdirSync(s.runtime).filter(n=>n.endsWith('.jsonl')).map(n=>fs.readFileSync(path.join(s.runtime,n),'utf8')).join('\n');
+   const files=fs.readdirSync(s.runtime).filter(n=>n.endsWith('.jsonl')).map(n=>path.join(s.runtime,n));
+   const conversations=path.join(s.runtime,'conversations');
+   if(fs.existsSync(conversations))files.push(...fs.readdirSync(conversations).filter(n=>n.endsWith('.json')).map(n=>path.join(conversations,n)));
+   const saved=files.map(file=>fs.readFileSync(file,'utf8')).join('\n');
    assert.match(saved,/Onde parei: terminei X/);
    assert.match(saved,/Próximo passo: começar Y/);
    await openEndDay(page);
@@ -556,10 +557,10 @@ if(only('dialogs')){
 }
 
 /* ------------------------------------------------------------------ */
-/* H4b: Encerrar por hoje à prova de falha (sem Pi)                    */
+/* H4b: Encerrar por hoje à prova de falha (sem tutor)                 */
 /* ------------------------------------------------------------------ */
 if(only('encerrar')){
- const s=new Scenario('encerrar sem pi cartao de retomada');
+ const s=new Scenario('encerrar sem tutor cartao de retomada');
  try{
   seedCourse(s.runtime,'A');
   const course=path.join(s.runtime,'learning','Courses','A');
@@ -567,13 +568,12 @@ if(only('encerrar')){
   const xopp=path.join(s.runtime,'rascunho.xopp');fs.writeFileSync(xopp,'');
   writeConfigJson(s.runtime,{vaultPath:s.runtime,courses:[{id:'A',name:'Matéria A',path:course}]});
   writeDeskJson(s.runtime,{courseId:'A',pdfs:[{path:pdf,page:2}],study:{title:'Lista 2 · 7b',xopp}});
-  /* Sem Pi: um binário que existe e morre na hora — o `resolvePi` só aceita
-     `LEARNING_DESK_PI` se o arquivo existe, e sem isso o teste cairia no Pi real
-     da máquina. O registro local é o que precisa segurar o dia sozinho. */
-  const badPi=path.join(s.runtime,'pi-quebrado.sh');
-  fs.writeFileSync(badPi,'#!/bin/sh\nexit 1\n');
-  fs.chmodSync(badPi,0o755);
-  const env={LEARNING_DESK_PI:badPi};
+  /* Sem tutor: um binário que existe e morre na hora. O registro local é o que
+     precisa segurar o dia sozinho. */
+  const badTutor=path.join(s.runtime,'opencode-quebrado.sh');
+  fs.writeFileSync(badTutor,'#!/bin/sh\nexit 1\n');
+  fs.chmodSync(badTutor,0o755);
+  const env={LEARNING_DESK_OPENCODE:badTutor};
   await s.launch({env});
   const page=s.page;
   await page.waitForSelector('.pdf-panel',{timeout:30000});
@@ -581,7 +581,7 @@ if(only('encerrar')){
   const resumeFile=path.join(s.runtime,'resume.json');
   const stored=()=>{try{return JSON.parse(fs.readFileSync(resumeFile,'utf8'));}catch{return {};}};
 
-  await s.step('salvar sem Pi grava o registro local primeiro e avisa',async()=>{
+  await s.step('salvar sem tutor grava o registro local primeiro e avisa',async()=>{
    await openEndDay(page);
    await page.waitForSelector('#end-day-dialog[open]');
    await page.locator('#end-where').fill('travei na 3');
@@ -594,7 +594,7 @@ if(only('encerrar')){
    assert.deepEqual(reg.A,{
     stopped:'travei na 3',next:'seguir para a 4',exercise:'Lista 2 · 7b',xopp,pages:[{path:pdf,page:2}]
    },'onde parei, próximo passo, questão, .xopp e a página aberta');
-   /* O Pi quebrado é "sem resposta": o estado da coluna diz o motivo e o
+   /* O tutor quebrado é "sem resposta": o estado da coluna diz o motivo e o
       registro fica no disco para a próxima abertura com o tutor de pé. */
    await page.waitForFunction(()=>document.querySelector('#tutor-state')?.dataset.state==='error',undefined,{timeout:20000});
    assert.equal(await page.locator('#tutor-state .ts-lead').textContent(),'O tutor não atendeu.');
@@ -777,7 +777,7 @@ if(only('tabs')){
   sessionFile=seedSession(s.runtime,[{type:'message',message:{role:'user',content:[{type:'text',text:'sessão da A'}]}}]);
   writeDeskJson(s.runtime,{session:sessionFile,courseId:'A'});
   writeConfigJson(s.runtime,{vaultPath:s.runtime,courses:[{id:'A',name:'Matéria A',path:path.join(s.runtime,'learning','Courses','A')},{id:'B',name:'Matéria B',path:path.join(s.runtime,'learning','Courses','B')}]});
-  await s.launch({env:{LEARNING_VAULT:s.runtime}});
+  await s.launch({env:{LEARNING_VAULT:s.runtime,FAKE_OPENCODE_MCP_CALL:JSON.stringify({name:'quiz',input:{question:'Quiz da troca',options:[{label:'A'},{label:'B'}],correctAnswer:'A'}})}});
   const page=s.page;
   await page.waitForSelector('.pdf-panel',{timeout:30000});
   await page.waitForFunction(()=>{const t=[...document.querySelectorAll('#course-tabs button[role="tab"]:not(#review-tab):not([data-id="geogebra"])')];return t.length===3&&t.every(b=>!b.disabled);},{timeout:30000});
@@ -893,7 +893,7 @@ if(only('tabs')){
   await s.step('reinício: aba, tema, painel e rascunho voltam iguais',async()=>{
    await s.close();
    s.errors=[];
-   await s.launch({env:{LEARNING_VAULT:s.runtime}});
+   await s.launch({env:{LEARNING_VAULT:s.runtime,FAKE_OPENCODE_MCP_CALL:JSON.stringify({name:'quiz',input:{question:'Quiz da troca',options:[{label:'A'},{label:'B'}],correctAnswer:'A'}})}});
    const p2=s.page;
    await p2.waitForSelector('.pdf-panel',{timeout:30000});
    await p2.waitForFunction(()=>document.querySelector('#course-tabs button[data-id="A"]')?.classList.contains('active'),undefined,{timeout:30000});
@@ -943,7 +943,7 @@ if(only('flags')){
   fs.writeFileSync(path.join(s.runtime,'learning','Courses','Flags','Formul.pdf'),tinyPdf('Formulário',2));
   writeDeskJson(s.runtime,{courseId:'Flags'});
   writeConfigJson(s.runtime,{vaultPath:s.runtime,courses:[{id:'Flags',name:'Matéria de teste',path:path.join(s.runtime,'learning','Courses','Flags')}],desk:{refsToggle:false,endDay:false,studyContext:false,calculator:false,conferir:false,xournal:false,title:'Mesa da Flags'}});
-  await s.launch({env:{LEARNING_VAULT:s.runtime}});
+  await s.launch({env:{LEARNING_VAULT:s.runtime,FAKE_OPENCODE_MCP_CALL:JSON.stringify({name:'quiz',input:{question:'Quiz da troca',options:[{label:'A'},{label:'B'}],correctAnswer:'A'}})}});
   const page=s.page;
   await page.waitForSelector('.pdf-panel',{timeout:30000});
 
@@ -953,7 +953,8 @@ if(only('flags')){
   });
 
   await s.step('todos os controles das flags ficam escondidos',async()=>{
-   for(const sel of ['#include-refs','#context-edit','#calculator','#calc-divider','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia sumir`);
+   for(const sel of ['#include-refs','#calculator','#calc-divider','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia sumir`);
+   assert.equal(await page.locator('#study-context').evaluate(el=>el.hidden),true,'#study-context devia sumir');
    await page.locator('#study-menu .nav-trigger').click();
    assert.equal(await page.locator('#xournal').isHidden(),true);
    assert.equal(await page.locator('#end-day').getAttribute('hidden'),'','a flag endDay esconde o item do menu');
@@ -975,7 +976,8 @@ if(only('flags')){
    await page.locator('#settings-save').click();
    await page.waitForFunction(()=>!document.querySelector('#settings-dialog').open,undefined,{timeout:15000});
    await page.waitForTimeout(800);// espera fixa: "nada reaparece em 0,8 s" — depois de Salvar os controles escondidos continuam escondidos
-   for(const sel of ['#include-refs','#context-edit','#calculator','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia continuar escondido depois de Salvar`);
+   for(const sel of ['#include-refs','#calculator','#check'])assert.equal(await page.locator(sel).isHidden(),true,`${sel} devia continuar escondido depois de Salvar`);
+   assert.equal(await page.locator('#study-context').evaluate(el=>el.hidden),true,'#study-context devia continuar escondido depois de Salvar');
    await page.locator('#study-menu .nav-trigger').click();
    assert.equal(await page.locator('#xournal').isHidden(),true);
    assert.equal(await page.locator('#end-day').getAttribute('hidden'),'','a flag endDay segue escondendo o item do menu');
@@ -1102,7 +1104,7 @@ if(only('busy')){
   seedCourse(s.runtime,'A');seedCourse(s.runtime,'B');
   writeDeskJson(s.runtime,{courseId:'A'});
   writeConfigJson(s.runtime,{vaultPath:s.runtime,courses:[{id:'A',name:'Matéria A',path:path.join(s.runtime,'learning','Courses','A')},{id:'B',name:'Matéria B',path:path.join(s.runtime,'learning','Courses','B')}]});
-  await s.launch({env:{LEARNING_VAULT:s.runtime,FAKE_PI_CHAOS:'stall'}});
+  await s.launch({env:{LEARNING_VAULT:s.runtime,FAKE_OPENCODE_CHAOS:'stall'}});
   const page=s.page;
   await page.waitForSelector('.pdf-panel',{timeout:30000});
   await statusOnline(page);
@@ -1171,81 +1173,6 @@ if(only('busy')){
 }
 
 /* ------------------------------------------------------------------ */
-/* H10: pergunta do Pi (#pi-dialog) com campos                           */
-/* ------------------------------------------------------------------ */
-if(only('pidialog')){
- const s=new Scenario('pi-dialog pergunta campos');
- try{
-  seedCourse(s.runtime,'A');
-  writeDeskJson(s.runtime,{courseId:'A'});
-  writeConfigJson(s.runtime,{vaultPath:s.runtime,courses:[{id:'A',name:'Matéria A',path:path.join(s.runtime,'learning','Courses','A')}]});
-  const fakeDialog=path.join(DESK,'tests','fake-pi-dialog.mjs');
-  await s.launch({env:{LEARNING_VAULT:s.runtime,LEARNING_DESK_PI:fakeDialog}});
-  const page=s.page;
-  await page.waitForSelector('.pdf-panel',{timeout:30000});
-  await statusOnline(page);
-
-  await s.step('input: abre com título, mensagem, prefill e placeholder',async()=>{
-   await page.locator('#prompt').fill('uma pergunta para você');
-   await page.locator('#send').click();
-   await page.waitForSelector('#pi-dialog[open]',{timeout:15000});
-   assert.equal(await page.locator('#dialog-title').textContent(),'Assunto');
-   assert.equal(await page.locator('#dialog-message').textContent(),'Digite o assunto');
-   assert.equal(await page.locator('#dialog-value').evaluate(el=>el.tagName),'INPUT');
-   assert.equal(await page.locator('#dialog-value').inputValue(),'pré-preenchido');
-   assert.equal(await page.locator('#dialog-value').getAttribute('placeholder'),'ex.: limites');
-   await page.locator('#dialog-value').fill('limites');
-   await page.locator('#pi-dialog .dialog-actions .primary').click();
-   await page.waitForFunction(()=>!document.querySelector('#pi-dialog').open);
-   await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Assunto: limites'),undefined,{timeout:15000});
-   await sendEnabled(page);
-  });
-
-  await s.step('select: opções com selected no prefill; enviar a escolhida',async()=>{
-   await page.locator('#prompt').fill('agora uma escolha');
-   await page.locator('#send').click();
-   await page.waitForSelector('#pi-dialog[open]',{timeout:15000});
-   const sel=await page.locator('#dialog-value').evaluate(el=>({tag:el.tagName,options:[...el.options].map(o=>o.value),selected:el.value}));
-   assert.deepEqual(sel,{tag:'SELECT',options:['Alfa','Beta','Gama'],selected:'Beta'});
-   await page.locator('#dialog-value').selectOption('Gama');
-   await page.locator('#pi-dialog .dialog-actions .primary').click();
-   await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Escolha: Gama'),undefined,{timeout:15000});
-   await sendEnabled(page);
-  });
-
-  await s.step('confirm: sem campo e o ok responde confirmado',async()=>{
-   await page.locator('#prompt').fill('pode confirmar');
-   await page.locator('#send').click();
-   await page.waitForSelector('#pi-dialog[open]',{timeout:15000});
-   assert.equal(await page.locator('#dialog-fields').evaluate(el=>el.children.length),0);
-   await page.locator('#pi-dialog .dialog-actions .primary').click();
-   await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Confirmação: (confirmado)'),undefined,{timeout:15000});
-   await sendEnabled(page);
-  });
-
-  await s.step('cancelar responde cancelled e limpa os campos do próximo',async()=>{
-   await page.locator('#prompt').fill('outra pergunta');
-   await page.locator('#send').click();
-   await page.waitForSelector('#pi-dialog[open]',{timeout:15000});
-   await page.locator('#pi-dialog .dialog-actions button[value="cancel"]').click();
-   await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Assunto: (cancelado)'),undefined,{timeout:15000});
-   await sendEnabled(page);
-   await page.locator('#prompt').fill('confirmar de novo');
-   await page.locator('#send').click();
-   await page.waitForSelector('#pi-dialog[open]',{timeout:15000});
-   assert.equal(await page.locator('#dialog-fields').evaluate(el=>el.children.length),0,'campos do diálogo anterior não vazam');
-   await page.locator('#pi-dialog .dialog-actions .primary').click();
-   await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Confirmação: (confirmado)'),undefined,{timeout:15000});
-   await sendEnabled(page);
-  });
-
-  await s.step('sem erros de página',async()=>{
-   assert.deepEqual(s.errors,[]);
-  });
- }finally{await s.close();}
- s.finish();
-}
-
 /* ------------------------------------------------------------------ */
 const failed=all.filter(e=>!e.ok);
 console.log(`\n==== hunt-shell: ${all.length} cenários, ${all.filter(e=>e.ok).length} ok, ${failed.length} com falha ====`);

@@ -1,6 +1,6 @@
-import {$, S, connect, toast} from './state.mjs';
+import {$, S, connect, connectionState, invalidateConnect, reconnectAfterBridgeStop, toast} from './state.mjs';
 import {t, text, LANGUAGE_EVENT} from './ui-text.mjs';
-import {newSession} from './course-conversations.mjs';
+import {newSession, sessionSwitchBlocked} from './course-conversations.mjs';
 
 /* Modelos grátis do OpenCode Zen (#44; motor OpenCode na #57), do lado da janela. A decisão
    (o que vale como chave, a frase de cada resultado, o padrão recomendado) é do
@@ -54,14 +54,27 @@ function setWorking(on) {
  * @param {{relink?: {relinked?: boolean, busy?: boolean}}} result resposta do host a uma chave aprovada
  */
 export async function startWithKey(result) {
-  if (result.relink?.relinked) S.connected = false;
-  if (result.relink?.relinked && S.engine === 'opencode') connect().catch(() => {});
-  return t('freeModels.done.openCode');
+ if (result.relink?.relinked) reconnectAfterBridgeStop().catch(() => {});
+ return t('freeModels.done.openCode');
 }
 
-/* O botão do passo final: fecha o diálogo, abre uma sessão OpenCode nova e chama o tutor. */
+/* O botão do passo final: fecha o diálogo, descarta o voo em andamento e abre
+   uma sessão OpenCode nova, chamando o tutor. O reconnect em segundo plano do
+   `startWithKey` (a sessão que o aluno está deixando) não pode engolir o
+   clique com o guard de `S.connecting` do `newSession`: o voo de fundo é
+   descartado aqui e a sessão nova sai uma vez — o `new-session` do main
+   derruba a ponte que o voo de fundo chegou a montar, sem conexão dupla
+   (revisão connect, Q2e). */
 async function startOpenCodeSession() {
   dialog().close();
+  /* Recusa antes de descartar: com turno ou troca em curso o `newSession` só
+     avisa, e o voo e o "online" da sessão viva ficam (revisão de da37e2f0). */
+  if (sessionSwitchBlocked()) { await newSession('opencode'); return; }
+  invalidateConnect();
+  /* O voo descartado não repinta mais a coluna: se o `new-session` falhar,
+     "conectando" ficaria para sempre sem voo vivo (revisão do botão Começar,
+     achado 1). O connect da sessão nova pinta de novo. */
+  connectionState('');
   await newSession('opencode');
   if (S.engine === 'opencode') await connect();
 }
@@ -187,7 +200,9 @@ export async function paintFreeSettings() {
   const info = await window.desk.opencodeStatus();
   const field = $('#cfg-opencode-key');
   if (!field) return;
-  /* Guardada: a máscara (sk-••••abcd) à vista num campo só de leitura; sem chave, campo de senha para colar. */
+  /* Guardada: a máscara à vista num campo só de leitura (completa se a chave
+     já foi lida nesta execução; senão o `••••` genérico); sem chave, campo de
+     senha para colar. */
   field.type = info.saved ? 'text' : 'password';
   field.readOnly = info.saved;
   field.value = info.saved ? info.masked : '';
@@ -198,7 +213,8 @@ export async function paintFreeSettings() {
   $('#cfg-opencode-usefile').hidden = info.saved || !info.authFile.exists;
   $('#cfg-opencode-usefile-note').hidden = info.saved || !info.authFile.exists;
   $('#cfg-opencode-usefile-note').textContent = t('freeModels.card.authFileNote', {file: info.authFile.display});
-  if (!info.secure) say(t('freeModels.settings.noVault'), '#cfg-opencode-status');
+  /* Sem consulta ao cofre ao abrir (#104): o aviso de cofre indisponível só
+     aparece quando a pessoa tenta salvar, na resposta do próprio salvamento. */
 }
 
 async function settingsAttempt(run) {
@@ -222,7 +238,7 @@ function wireSettings() {
   $('#cfg-opencode-remove').onclick = async () => {
     try {
       const result = await window.desk.opencodeKeyRemove();
-      if (result.relink?.relinked) { S.connected = false; connect().catch(() => {}); }
+      if (result.relink?.relinked) reconnectAfterBridgeStop().catch(() => {});
       status(t('freeModels.settings.removed'));
       await paintFreeSettings();
     } catch (error) { fail(error); }

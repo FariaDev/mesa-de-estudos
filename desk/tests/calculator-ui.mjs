@@ -132,6 +132,8 @@ await withArtifacts('calculator',async ctx=>{
  /* ---------- 2. o controle expande: ângulo, histórico e guia; recolhe de volta ---------- */
  await evalIn(page,'2+3');
  await evalIn(page,'10/4');
+ /* Corte em MAX_HISTORY=8: quatro contas a mais e a mais antiga sai. */
+ for(const expr of ['1+1','2+2','3+3','4+4'])await evalIn(page,expr);
  const toggle=page.locator('#calc-toggle');
  assert.equal(await toggle.getAttribute('aria-label'),'Expandir calculadora');
  await toggle.click();
@@ -141,7 +143,7 @@ await withArtifacts('calculator',async ctx=>{
  assert.equal(await page.locator('#angle').isVisible(),true,'o ângulo aparece expandida');
  assert.equal(await page.locator('#calc-history').isVisible(),true,'o histórico aparece expandida');
  assert.equal(await page.locator('#calc-guide summary').isVisible(),true,'o guia "Como usar" aparece expandida');
- assert.deepEqual(await page.locator('#calc-history button').evaluateAll(es=>es.map(e=>e.getAttribute('aria-label'))),['10/4 = 2,5','2+3 = 5','sqrt(16)+sin(pi/2) = 5','sqrt(16)+sin(pi/2) = 5','sqrt(16)+sin(pi/2) = 5'],'o histórico lista os cálculos, o mais novo primeiro (o erro não entra)');
+ assert.deepEqual(await page.locator('#calc-history button').evaluateAll(es=>es.map(e=>e.getAttribute('aria-label'))),['4+4 = 8','3+3 = 6','2+2 = 4','1+1 = 2','10/4 = 2,5','2+3 = 5','sqrt(16)+sin(pi/2) = 5','sqrt(16)+sin(pi/2) = 5'],'o histórico corta em 8, o mais novo primeiro e a mais antiga sai (o erro não entra)');
  const openBar=await rect(page,'#calculator');
  assert.ok(openBar.height>BAR+60,`expandida, a calculadora cresce (${openBar.height}px)`);
  assert.ok(near(openBar.height,await cssVar(page,'--calc'),2),`a altura expandida segue --calc (${openBar.height} × ${await cssVar(page,'--calc')})`);
@@ -158,7 +160,7 @@ await withArtifacts('calculator',async ctx=>{
  await evalIn(page,'sin(30)');
  assert.equal(await result(page),'0,5','GRAUS: sin(30) = 0,5');
  // o histórico reutiliza a expressão (atalho do painel)
- await page.locator('#calc-history button').nth(1).click();
+ await page.locator('#calc-history button').nth(5).click();
  assert.equal(await page.locator('#expression').inputValue(),'10/4','clicar no histórico devolve a expressão ao campo');
  assert.equal(await page.evaluate(()=>document.activeElement?.id),'expression','e leva o foco ao campo');
  // o guia abre dentro do painel e o painel cresce para mostrá-lo

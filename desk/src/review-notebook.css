@@ -74,8 +74,6 @@
 .review-empty-title{margin:0;font-family:var(--serif);font-weight:500;font-size:24px;line-height:1.2;color:var(--fg-strong)}
 .review-empty{margin:0;font-size:var(--fs-lg);line-height:1.55;color:var(--muted)}
 .review-empty strong{color:var(--fg);font-weight:600}
-.review-empty-sample{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-5);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);font-size:var(--fs-sm);color:var(--muted)}
-.review-empty-save{color:var(--accent-text);font-weight:600}
 @container review-main (max-width: 520px){
  .review-card{padding:20px}
  .review-question{font-size:22px}

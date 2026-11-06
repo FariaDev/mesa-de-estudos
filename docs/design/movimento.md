@@ -91,7 +91,7 @@ mesa-qol, icon-motion, activity) saem. A janela de atividade
 | Menus da barra superior e do leitor (`.nav-pop`) | entra `mesa-in` 150ms; sai `.closing` | entra drop/base; sai `.closing` fast (sem mudança de forma) |
 | Seletor de modelo (`#model-pop`) | seco | entra rise/base; sai fast |
 | Popovers do tutor (`#new-session-pop`, `#chat-more-pop`, `#conversations-pop`, `#free-more-pop`, `#sidechat-more-pop`) | seco | entra drop/base; sai fast |
-| "Vai junto" (`#context-pop`) e foto do celular (`.phone-pop`) | seco | entra rise/base; sai fast |
+| Contexto de estudo (submenu de Mais opções) e foto do celular (`.phone-pop`) | seco | entra rise/base; sai fast |
 | Menu de barra (`.slash-pop`) | entra `mesa-in` 120ms; sai seco (removido) | entra rise/base; saída **nenhuma**: some ao digitar, e esperar atrapalharia o teclado |
 | Paleta ⌘K (`.palette-backdrop` + `.palette`) | seco (o `transition:none` do reduce não tinha transição para zerar) | véu em fade/base, caixa drop/base; sai fast |
 | Diálogos (`dialog`) | entra zoom 150ms; sai seco | entra zoom/base; sai fast |

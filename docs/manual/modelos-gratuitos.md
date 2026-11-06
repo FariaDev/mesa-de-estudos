@@ -2,9 +2,12 @@
 
 A Mesa escolhe sozinha, ao guardar a chave, o primeiro modelo de
 `desk/free-models.json` que tem `"recommended": true` **e** retenção zero
-(`"policy": "zero"`) e que o Pi oferece no momento. A ordem que está lá hoje é
-**provisória** (`"recommendedVerified": false`): ninguém rodou este roteiro. Ele
-existe para trocar o palpite por medida.
+(`"policy": "zero"`) e que o OpenCode oferece no momento. Em 2026-11-05 os
+dois recomendados responderam sem chave pelo `opencode serve` 2.2.4 com o
+config da Mesa (`desk/tests/gratis-trava-manual.mjs`), então
+`"recommendedVerified"` está `true`; este roteiro de 4 tarefas ainda não foi
+rodado e é ele que decide a qualidade e a ordem final. Ele existe para trocar o
+palpite por medida.
 
 **Este roteiro gasta a chave de quem o roda** (cota dos modelos grátis, e a
 conta fica ligada ao OpenCode). Por isso a #44 não o executou: a regra daquele
@@ -42,8 +45,8 @@ inválido) reprova a tarefa.
    `"recommended": true` em `desk/free-models.json`, na ordem em que você o
    preferiria como padrão (melhor primeiro), e tire de quem falhou. Só entra
    quem tem `"policy": "zero"` (a Mesa recusa outro caso: há teste).
-3. Troque `"recommendedVerified"` para `true`, ponha a data em `"checkedAt"` e
-   ajuste o `note` do arquivo.
+3. Confira `"recommendedVerified"` (já está `true` desde 2026-11-05), ponha a
+   data em `"checkedAt"` e ajuste o `note` do arquivo.
 4. Rode `node --test tests/opencode-host.test.mjs` em `desk/`.
 
 ## Resultados

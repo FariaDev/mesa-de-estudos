@@ -4,6 +4,7 @@ import {build,renderChildren} from './view-host.mjs';
 import {assetLocalPath} from './markdown.mjs';
 import {renderImageChrome} from './dialogs.mjs';
 import {message} from './i18n.mjs';
+import {t} from './ui-text.mjs';
 import {copiedMark,flashMark} from './icon-motion.mjs';
 
 /* Imagens geradas, cópia e pré-visualização (extraído de chat.mjs, #29). */
@@ -22,7 +23,7 @@ export function hydrateAssets(root){
   window.desk.readImage(source).then(hit=>{
    if(!figure.isConnected)return;
    if(!hit){figure.replaceWith(assetFallback(source));return;}
-   renderChildren(figure,talkCore.assetKids(assetRow(source,hit.dataUrl,caption||hit.name||'Imagem gerada',caption||hit.name||'')));
+   renderChildren(figure,talkCore.assetKids(assetRow(source,hit.dataUrl,caption||hit.name||t('dialogs.image.generated'),caption||hit.name||'')));
    const img=figure.querySelector('img.plot');
    if(img)wrapCopy(img);
   }).catch(()=>{if(figure.isConnected)figure.replaceWith(assetFallback(source));});
@@ -33,7 +34,7 @@ export function hydrateAssets(root){
   if(!source)continue;
   window.desk.readImage(source).then(hit=>{
    if(!hit||!code.isConnected)return;
-   const figure=build(talkCore.assetFigure(assetRow(source,hit.dataUrl,hit.name||'Imagem gerada',hit.name||'')));
+   const figure=build(talkCore.assetFigure(assetRow(source,hit.dataUrl,hit.name||t('dialogs.image.generated'),hit.name||'')));
    const img=figure.querySelector('img.plot');
    if(img)wrapCopy(img);
    code.replaceWith(figure);
@@ -72,7 +73,9 @@ export function wrapCopy(img){
  if(img.closest('.img-wrap'))return img;
  const wrap=document.createElement('span');wrap.className='img-wrap';
  img.replaceWith(wrap);wrap.append(img);
- const copy=document.createElement('button');copy.type='button';copy.className='img-copy';copy.textContent='Copiar';
+  /* O rótulo do hover vem do catálogo (`common.copy`, E9 da auditoria EN,
+     rodada 8): fixar 'Copiar' vazava PT em toda imagem do tutor em EN. */
+  const copy=document.createElement('button');copy.type='button';copy.className='img-copy';copy.dataset.i18n='common.copy';copy.textContent=t('common.copy');
  copy.addEventListener('click',async e=>{e.stopPropagation();try{await copyImageElement(img);toast(message('toast.imageCopied'));}catch(err){toast(err.message);}});
  wrap.append(copy);
  return wrap;
@@ -80,7 +83,7 @@ export function wrapCopy(img){
 export function openImageDialog(file,source,alt){
  if(!source||$('#image-dialog').open)return;
  $('#image-preview').src=source;
- $('#image-preview').alt=alt||'Imagem';
+ $('#image-preview').alt=alt||t('dialogs.image.fallback');
  renderImageChrome({file:file||'',hasFile:!!file},imageDialogHandlers);
  $('#image-dialog').showModal();
 }

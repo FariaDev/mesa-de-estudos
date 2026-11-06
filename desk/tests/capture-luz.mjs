@@ -245,7 +245,7 @@ async function tutorThinking(ctx){
  const session=seedSession(runtime,[]);
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',courseStates:{calc:{session,sessions:[{path:session,started:1700000002000}],pdfs:[],study:{title:'',xopp:''}}}});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_LONG_HOLD_MS:'60000'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_LONG_HOLD_MS:'60000'}});
  const page=await app.firstWindow();
  await resizeWindow(app,page,...WIDE);
  await freezeMotion(page);
@@ -272,7 +272,7 @@ async function tutorThinking(ctx){
 
 async function iconSheet(ctx){
  const runtime=ctx.runtime=newRuntime('captura-luz-icones');
- const app=ctx.app=await launchDesk({runtime,pi:false});
+ const app=ctx.app=await launchDesk({runtime,opencode:false});
  const page=await app.firstWindow();
  await resizeWindow(app,page,1200,1000);
  await freezeMotion(page);

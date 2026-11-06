@@ -10,7 +10,7 @@ const courseMaterials=require('./src/study-data/course-materials.cjs');
 const materialModel=require('./material-model.cjs');
 const free=require('./free-workspaces.cjs');
 const chatState=require('./src/study-data/chat-state.cjs');
-const {sessionStartedFromPath,formatSessionLabel,engineLabelPrefix}=require('./lib.cjs');
+const {sessionStartedFromPath,formatSessionLabel}=require('./lib.cjs');
 const {courseLibrary}=require('./courses.cjs');
 const {needsSetup,normalize,pickPdfs}=require('./config.cjs');
 const {releaseNotesVersion}=require('./desk-version.cjs');
@@ -30,13 +30,13 @@ const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
  * applyCourse, initialData e os demais payloads da matéria.
  * @param {{live: import('./main.cjs').DeskLive, runtime: string, FREE_ID: string, stateFile: string,
  *   courseStates: Record<string, import('./types/desk-state').CourseState>,
- *   allowed: Set<string>, allowedXopp: Set<string>,
+ *   allowed: Set<string>, pdfGrants: import('./pdf-grants.cjs').PdfGrants, allowedXopp: Set<string>,
  *   ggb: import('./types/main-hosts').GeogebraHost, ggbCache: import('./types/main-hosts').GgbCache,
  *   appendLog: import('./types/host-deps').AppendLog,
  *   previewFile: import('./types/main-hosts').TutorEngineHost['previewFile'],
  *   sessionInfo: import('./types/main-hosts').TutorEngineHost['sessionInfo'],
  *   conversationData: import('./types/main-hosts').TutorEngineHost['conversationData'],
- *   piBinary: import('./types/main-hosts').TutorEngineHost['piBinary'],
+ *   historyIdentity?: (history: {session?: string, messages?: unknown[], cards?: unknown[]}) => string,
  *   resumeSession: (file: string, courseId: string) => string,
  *   freeSessionList: import('./types/main-hosts').FreeSessionHost['freeSessionList'],
  *   persistFreeSession: import('./types/main-hosts').FreeSessionHost['persistFreeSession'],
@@ -45,7 +45,7 @@ const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
  *   captureAvailable: () => boolean, deskVersionLabel: () => string}} options
  * @example const {persist,applyCourse,initialData}=createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,...});
  */
-function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allowed,allowedXopp,ggb,ggbCache,appendLog,previewFile,sessionInfo,conversationData,piBinary,resumeSession,freeSessionList,persistFreeSession,applyFreeCourse,freeWorkspacePayload,captureAvailable,deskVersionLabel}){
+function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allowed,pdfGrants,allowedXopp,ggb,ggbCache,appendLog,previewFile,sessionInfo,conversationData,historyIdentity,resumeSession,freeSessionList,persistFreeSession,applyFreeCourse,freeWorkspacePayload,captureAvailable,deskVersionLabel}){
  function sessionStudy(file=live.session){return cleanStudy(courseStates[live.courseId]?.sessionStudies?.[file]||{});}
  function courseSessions(){
   if(live.courseId===FREE_ID)return freeSessionList();
@@ -58,7 +58,7 @@ function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allo
    const exists=fs.existsSync(live.session);
    map.set(live.session,{path:live.session,started:prev?.started||sessionStartedFromPath(live.session)||Date.now(),preview:prev?.preview||(exists?previewFile(live.session):'')});
   }
-  return [...map.values()].map(s=>({...s,...sessionInfo(s.path)})).sort((a,b)=>(b.started||0)-(a.started||0)).map(s=>({...s,label:engineLabelPrefix(s.engine)+formatSessionLabel(s)}));
+  return [...map.values()].map(s=>({...s,...sessionInfo(s.path)})).sort((a,b)=>(b.started||0)-(a.started||0)).map(s=>({...s,label:formatSessionLabel(s)}));
  }
  function rememberSession(){
   if(!live.session)return;
@@ -153,11 +153,15 @@ function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allo
   /* Em Livre a biblioteca é SÓ o manifesto da sessão: nada de varrer pasta de
     matéria nem herdar fontes de outro curso. */
   const library=freeActive?((record?.materials||[]).map(material=>({name:material.name,path:material.path}))):(live.course?courseLibrary(live.course):[]);
-  allowed.clear();
-  for(const p of library)allowed.add(p.path);
-  for(const p of live.state.pdfs||[])if(p?.path&&fs.existsSync(p.path))allowed.add(p.path);
+  /* Reabertura: biblioteca volta como biblioteca; leitor fora dela volta só por
+     inteiro (avulso que volta ao reabrir não vira pasta). */
+  pdfGrants.reset(library.map(p=>p.path),(live.state.pdfs||[]).filter(p=>p?.path&&fs.existsSync(p.path)).map(p=>p.path));
   allowedXopp.clear();live.state.study=authorizeRestoredStudy(live.state.study,allowedXopp);
   const cfg=normalize(live.config);
+  const conversation=conversationData();
+  const identity=typeof historyIdentity==='function'
+   ?historyIdentity({session:live.session,messages:Array.isArray(conversation.messages)?conversation.messages:[],cards:Array.isArray(conversation.cards)?conversation.cards:[]})
+   :'';
   return {
    library,state:live.state,
    course:freeActive?free.freeCourseName():(live.courses.find(c=>c.id===live.courseId)?.name||''),
@@ -165,7 +169,8 @@ function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allo
    workspace:freeActive?freeWorkspacePayload(record):{kind:'course',id:live.courseId},
    pdfDraft:freeActive?null:coursePdfDraft(),
    pdfModel:lastPdfModel(),
-   session:live.session,sessions:courseSessions(),...conversationData(),
+   session:live.session,sessions:courseSessions(),...conversation,
+   ...(identity?{historyIdentity:identity}:{}),
    /* Fila e bandeja guardadas desta conversa: o renderer hidrata a faixa e os
       anexos com isto (a troca de conversa devolve o que era da outra). */
    pending:pending.readPending(runtime,live.session),
@@ -178,7 +183,6 @@ function createCourseStateHost({live,runtime,FREE_ID,stateFile,courseStates,allo
    preferred:freeActive?[]:(pickPdfs(library,cfg.desk.panels)||[]).map(p=>p?.path||null),
    needsSetup:needsSetup(live.config,live.courses),
    captureAvailable:captureAvailable(),
-   detectedPi:piBinary(),
    platform:process.platform,
    language:live.languageHost.payload(),
    deskVersion:deskVersionLabel(),

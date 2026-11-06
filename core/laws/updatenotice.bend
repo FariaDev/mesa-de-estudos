@@ -4,7 +4,7 @@ import ../updatenotice.bend as U
 import ../view.bend as V
 
 # ---------------------------------------------------------------------------
-# Contrato dos avisos de atualização do Pi e do Claude Code (ticket #45).
+# Contrato dos avisos de atualização do Claude Code (ticket #45).
 # Prefixo `upd_`.
 #
 # O que se garante, nesta ordem:
@@ -297,17 +297,6 @@ law upd_sem_linhas_sem_nos:
 
 law upd_sem_acao_sem_nos:
   {U.hasAction(U.ToolNone{}) == False{} : Bool}
-
-law upd_acao_local_e_o_botao_de_sempre:
-  {U.actionNodes(U.ToolLocal{}) == Con{
-    V.viewEl("button", [
-      V.attrId("update-pi"),
-      V.attrType("button"),
-      V.attrClass("component-update"),
-      V.ViewAttr{"on:click", "UpdatePi"}
-    ], Con{V.viewText(M.msg("update.pi")), Nil{}}),
-    Nil{}
-  } : List<&2, V.ViewNode>}
 
 law upd_acao_com_confirmacao_leva_o_comando:
   {U.actionNodes(U.ToolAsk{"claude update"}) == Con{

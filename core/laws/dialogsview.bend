@@ -287,6 +287,52 @@ law dlg_about_com_versao:
 law dlg_about_node:
   {D.aboutLeadNode("0.4.0") == V.viewText(M.msg1("about.lead", "version", "0.4.0")) : V.ViewNode}
 
+# #109: a linha de origem não aparece rodando do código; o normal não tem
+# caminho, o clone/worktree tem o dele e a origem inválida é outro rótulo.
+law dlg_about_origem_do_codigo:
+  {D.originShown(D.OriginSource{}) == False{} : Bool}
+
+law dlg_about_origem_visivel:
+  {D.originShown(D.OriginNormal{}) == True{} : Bool}
+
+law dlg_about_origem_do_codigo_node:
+  {D.originChildren(D.OriginSource{}) == Nil{} : List<&2, V.ViewNode>}
+
+law dlg_about_origem_normal:
+  {D.originLabel(D.OriginNormal{}) == M.msg("about.origin.normal") : String}
+
+law dlg_about_origem_dev:
+  {D.originLabel(D.OriginDev{False{}, "~/mesa"}) == M.msg("about.origin.dev") : String}
+
+law dlg_about_origem_worktree:
+  {D.originLabel(D.OriginDev{True{}, "~/mesa"}) == M.msg("about.origin.worktree") : String}
+
+law dlg_about_origem_indisponivel:
+  {D.originLabel(D.OriginUnavailable{"~/mesa"}) == M.msg("about.origin.unavailable") : String}
+
+law dlg_about_origem_caminho:
+  {D.originPath(D.OriginDev{True{}, "~/mesa"}) ++ "|" ++ D.originPath(D.OriginUnavailable{"~/sumiu"}) ++ "|" ++ D.originPath(D.OriginNormal{})
+    == "~/mesa" ++ "|" ++ "~/sumiu" ++ "|" ++ ""
+    : String}
+
+law dlg_about_origem_normal_node:
+  {D.originChildren(D.OriginNormal{}) == Con{
+    V.viewEl("span", [V.attrClass("about-origin-label")], Con{V.viewText(M.msg("about.origin.normal")), Nil{}}),
+    Nil{}
+  } : List<&2, V.ViewNode>}
+
+law dlg_about_origem_dev_node:
+  {D.originChildren(D.OriginDev{True{}, "~/mesa"}) == Con{
+    V.viewEl("span", [V.attrClass("about-origin-label")], Con{V.viewText(M.msg("about.origin.worktree")), Nil{}}),
+    Con{
+      V.viewText(" · "),
+      Con{
+        V.viewEl("code", [V.attrClass("about-origin-path"), V.attrTitle("~/mesa")], Con{V.viewText("~/mesa"), Nil{}}),
+        Nil{}
+      }
+    }
+  } : List<&2, V.ViewNode>}
+
 # ---------- settings-dialog ----------
 
 law dlg_cfg_linha:
@@ -396,8 +442,8 @@ law dlg_upd_textos:
   {D.checkUpdateLabel() ++ "|" ++ D.updateIdleText() ++ "|" ++ D.updateCheckingText() ++ "|"
     ++ D.updateApplyingText() ++ "|" ++ D.updateNoneText() ++ "|" ++ D.updateFailedText() ++ "|"
     ++ D.updateFailedRest() ++ "|" ++ D.updateReadyText("0.4.1") ++ "|"
-    ++ D.updateNotesLabel() ++ "|" ++ D.updateApplyLabel() ++ "|" ++ D.updatePiLabel()
-    == M.msg("update.check") ++ "|" ++ M.msg("update.idle") ++ "|" ++ M.msg("update.checking") ++ "|" ++ M.msg("update.applying") ++ "|" ++ M.msg("update.none") ++ "|" ++ M.msg("update.failed") ++ "|" ++ M.msg("update.failedRest") ++ "|" ++ M.msg1("update.ready", "version", "0.4.1") ++ "|" ++ M.msg("update.notes") ++ "|" ++ M.msg("update.apply") ++ "|" ++ M.msg("update.pi")
+    ++ D.updateNotesLabel() ++ "|" ++ D.updateApplyLabel()
+    == M.msg("update.check") ++ "|" ++ M.msg("update.idle") ++ "|" ++ M.msg("update.checking") ++ "|" ++ M.msg("update.applying") ++ "|" ++ M.msg("update.none") ++ "|" ++ M.msg("update.failed") ++ "|" ++ M.msg("update.failedRest") ++ "|" ++ M.msg1("update.ready", "version", "0.4.1") ++ "|" ++ M.msg("update.notes") ++ "|" ++ M.msg("update.apply")
     : String}
 
 law dlg_upd_conferido:
@@ -459,6 +505,16 @@ law dlg_upd_falha:
     D.updateIcon("warn", "!"),
     Con{
       D.updateLine2(M.msg("update.failed"), M.msg("update.failedRest")),
+      Con{D.checkUpdateButton(), Nil{}}
+    }
+  } : List<&2, V.ViewNode>}
+
+# #109: origem que não recebe atualização nunca vira "Atualizada".
+law dlg_upd_sem_origem:
+  {D.aboutUpdateChildren(D.UpdateUnverifiable{}) == Con{
+    D.updateIcon("warn", "!"),
+    Con{
+      D.updateLineNode(M.msg("update.unverifiable")),
       Con{D.checkUpdateButton(), Nil{}}
     }
   } : List<&2, V.ViewNode>}
@@ -593,7 +649,7 @@ law dlg_upd_resultado_incompleta:
 # ---------- about: painel "O que a Mesa usa" ----------
 
 law dlg_comp_ids:
-  {D.componentIds() == Con{"pi", Con{"claude", Con{"node", Con{"xournal", Nil{}}}}} : List<&2, String>}
+  {D.componentIds() == Con{"claude", Con{"node", Con{"xournal", Nil{}}}} : List<&2, String>}
 
 law dlg_comp_estados:
   {D.componentStateText(D.CompOk{}) ++ "|" ++ D.componentStateText(D.CompUnknown{}) ++ "|"
@@ -618,21 +674,20 @@ law dlg_comp_bolinha:
     : String}
 
 law dlg_comp_descricao:
-  {D.componentDescription("pi") ++ "|" ++ D.componentDescription("node") ++ "|"
-    ++ D.componentDescription("xournal") ++ "|" ++ D.componentDescription("outro") ++ "|"
-    ++ D.componentDescription("claude")
-    == M.msg("component.desc.pi") ++ "|" ++ M.msg("component.desc.node") ++ "|" ++ M.msg("component.desc.xournal") ++ "|" ++ "" ++ "|" ++ M.msg("component.desc.claude")
+  {D.componentDescription("node") ++ "|" ++ D.componentDescription("xournal") ++ "|"
+    ++ D.componentDescription("outro") ++ "|" ++ D.componentDescription("claude")
+    == M.msg("component.desc.node") ++ "|" ++ M.msg("component.desc.xournal") ++ "|" ++ "" ++ "|" ++ M.msg("component.desc.claude")
     : String}
 
 # A dica do host só entra quando o estado pede ação.
 law dlg_comp_nota_em_dia:
-  {D.componentNote(M.msg("component.desc.pi"), "Em desk/.pi-local", D.componentShowsHint(D.CompOk{}))
-    == Con{V.viewText(M.msg("component.desc.pi")), Nil{}}
+  {D.componentNote(M.msg("component.desc.claude"), "Instalado pelo usuário.", D.componentShowsHint(D.CompOk{}))
+    == Con{V.viewText(M.msg("component.desc.claude")), Nil{}}
     : List<&2, V.ViewNode>}
 
 law dlg_comp_nota_com_acao:
-  {D.componentNote(M.msg("component.desc.pi"), "Em desk/.pi-local", D.componentShowsHint(D.CompOutdated{"1"}))
-    == Con{V.viewText(M.msg("component.desc.pi")), Con{V.viewText(" "), Con{V.viewText("Em desk/.pi-local"), Nil{}}}}
+  {D.componentNote(M.msg("component.desc.claude"), "Instalado pelo usuário.", D.componentShowsHint(D.CompOutdated{"1"}))
+    == Con{V.viewText(M.msg("component.desc.claude")), Con{V.viewText(" "), Con{V.viewText("Instalado pelo usuário."), Nil{}}}}
     : List<&2, V.ViewNode>}
 
 law dlg_comp_nota_so_dica:
@@ -651,17 +706,17 @@ law dlg_comp_node_novo:
   {D.nodeState(24, 5) == D.CompOk{} : D.ComponentState}
 
 law dlg_comp_linha_cheia:
-  {D.componentRowNode(D.ComponentRow{"pi", "Pi", "0.86.1", D.CompOutdated{"0.90.0"}, "Em desk/.pi-local", "https://y", "", U.ToolLocal{}, False{}, U.RunNone{}})
-    == V.viewEl("div", [V.attrClass("component-row"), V.attrData("id", "pi")], Con{
+  {D.componentRowNode(D.ComponentRow{"claude", "Claude Code", "2.1.296", D.CompOutdated{"2.1.301"}, "Instalado pelo usuário.", "https://y", "", U.ToolAsk{"claude update"}, False{}, U.RunNone{}})
+    == V.viewEl("div", [V.attrClass("component-row"), V.attrData("id", "claude")], Con{
       V.viewEl("div", [V.attrClass("component-main")], Con{
-        D.componentHead("Pi", "0.86.1", D.CompOutdated{"0.90.0"}, False{}),
+        D.componentHead("Claude Code", "2.1.296", D.CompOutdated{"2.1.301"}, False{}),
         Con{
-          D.componentHintNode(Con{V.viewText(M.msg("component.desc.pi")), Con{V.viewText(" "), Con{V.viewText("Em desk/.pi-local"), Nil{}}}}),
+          D.componentHintNode(Con{V.viewText(M.msg("component.desc.claude")), Con{V.viewText(" "), Con{V.viewText("Instalado pelo usuário."), Nil{}}}}),
           Nil{}
         }
       }),
       Con{
-        D.componentActions("https://y", "", U.ToolLocal{}),
+        D.componentActions("https://y", "", U.ToolAsk{"claude update"}),
         Nil{}
       }
     }) : V.ViewNode}
@@ -686,7 +741,7 @@ law dlg_comp_cabeca:
   }) : V.ViewNode}
 
 law dlg_comp_acoes:
-  {D.componentActions("https://y", M.msg("component.openSite"), U.ToolLocal{}) == V.viewEl("div", [V.attrClass("component-actions")], Con{
+  {D.componentActions("https://y", M.msg("component.openSite"), U.ToolAsk{"claude update"}) == V.viewEl("div", [V.attrClass("component-actions")], Con{
     V.viewEl("button", [
       V.attrClass("component-link"),
       V.attrType("button"),
@@ -695,11 +750,11 @@ law dlg_comp_acoes:
     ], Con{V.viewText(M.msg("component.openSite")), Nil{}}),
     Con{
       V.viewEl("button", [
-        V.attrId("update-pi"),
         V.attrType("button"),
-        V.attrClass("component-update"),
-        V.ViewAttr{"on:click", "UpdatePi"}
-      ], Con{V.viewText(M.msg("update.pi")), Nil{}}),
+        V.attrClass("component-update tool-ask"),
+        V.ViewAttr{"data-command", "claude update"},
+        V.ViewAttr{"on:click", "AskUpdate"}
+      ], Con{V.viewText(M.msg("update.update")), Nil{}}),
       Nil{}
     }
   }) : V.ViewNode}
@@ -718,11 +773,11 @@ law dlg_comp_linha_minima:
 law dlg_comp_linhas:
   {D.componentRows(Con{
     D.ComponentRow{"node", "Node", "24.5.0", D.CompOk{}, "", "", "", U.ToolNone{}, False{}, U.RunNone{}},
-    Con{D.ComponentRow{"pi", "Pi", "", D.CompUnknown{}, "", "", "", U.ToolNone{}, False{}, U.RunNone{}}, Nil{}}
+    Con{D.ComponentRow{"claude", "Claude Code", "", D.CompUnknown{}, "", "", "", U.ToolNone{}, False{}, U.RunNone{}}, Nil{}}
   }) == Con{
     D.componentRowNode(D.ComponentRow{"node", "Node", "24.5.0", D.CompOk{}, "", "", "", U.ToolNone{}, False{}, U.RunNone{}}),
     Con{
-      D.componentRowNode(D.ComponentRow{"pi", "Pi", "", D.CompUnknown{}, "", "", "", U.ToolNone{}, False{}, U.RunNone{}}),
+      D.componentRowNode(D.ComponentRow{"claude", "Claude Code", "", D.CompUnknown{}, "", "", "", U.ToolNone{}, False{}, U.RunNone{}}),
       Nil{}
     }
   } : List<&2, V.ViewNode>}
@@ -737,10 +792,10 @@ law dlg_comp_sem_rede_dica:
   {D.componentShowsHint(D.CompOffline{}) == True{} : Bool}
 
 law dlg_comp_cabeca_mais_nova_que_a_testada:
-  {D.componentHead("Pi", "1.3.0", D.CompOk{}, True{}) == V.viewEl("div", [V.attrClass("component-head")], Con{
-    V.viewEl("span", [V.attrClass("component-name")], Con{V.viewText("Pi"), Nil{}}),
+  {D.componentHead("Claude Code", "2.1.302", D.CompOk{}, True{}) == V.viewEl("div", [V.attrClass("component-head")], Con{
+    V.viewEl("span", [V.attrClass("component-name")], Con{V.viewText("Claude Code"), Nil{}}),
     Con{
-      V.viewEl("span", [V.attrClass("component-version")], Con{V.viewText("1.3.0"), Nil{}}),
+      V.viewEl("span", [V.attrClass("component-version")], Con{V.viewText("2.1.302"), Nil{}}),
       Con{
         V.viewEl("span", [
           V.attrClass("component-dot"),
@@ -761,15 +816,15 @@ law dlg_comp_cabeca_mais_nova_que_a_testada:
 # Com a ação "Atualizar" e uma confirmação aberta, o painel da execução é o
 # último filho da linha, depois das ações.
 law dlg_comp_linha_com_confirmacao:
-  {D.componentRowNode(D.ComponentRow{"pi", "Pi", "1.2.0", D.CompOutdated{"1.3.0"}, "", "", "",
-      U.ToolAsk{"brew upgrade pi-coding-agent"}, False{}, U.RunConfirm{"brew upgrade pi-coding-agent", ""}})
-    == V.viewEl("div", [V.attrClass("component-row"), V.attrData("id", "pi")], Con{
+  {D.componentRowNode(D.ComponentRow{"claude", "Claude Code", "2.1.296", D.CompOutdated{"2.1.301"}, "", "", "",
+      U.ToolAsk{"claude update"}, False{}, U.RunConfirm{"claude update", ""}})
+    == V.viewEl("div", [V.attrClass("component-row"), V.attrData("id", "claude")], Con{
       V.viewEl("div", [V.attrClass("component-main")], Con{
-        D.componentHead("Pi", "1.2.0", D.CompOutdated{"1.3.0"}, False{}),
-        Con{D.componentHintNode(Con{V.viewText(M.msg("component.desc.pi")), Nil{}}), Nil{}}
+        D.componentHead("Claude Code", "2.1.296", D.CompOutdated{"2.1.301"}, False{}),
+        Con{D.componentHintNode(Con{V.viewText(M.msg("component.desc.claude")), Nil{}}), Nil{}}
       }),
       Con{
-        D.componentActions("", "", U.ToolAsk{"brew upgrade pi-coding-agent"}),
-        Con{U.confirmNodes("brew upgrade pi-coding-agent", ""), Nil{}}
+        D.componentActions("", "", U.ToolAsk{"claude update"}),
+        Con{U.confirmNodes("claude update", ""), Nil{}}
       }
     }) : V.ViewNode}

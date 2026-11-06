@@ -1,7 +1,7 @@
 import noticeCore from './generated/updatenotice.core.js';
 import {renderChildren} from './view-host.mjs';
 import {renderComponentRows} from './dialogs.mjs';
-import {$, S, toast, connect} from './state.mjs';
+import {$, S, toast, reconnectAfterBridgeStop} from './state.mjs';
 import {visibleEngines} from './visible-engines-ui.mjs';
 import {text, t, LANGUAGE_EVENT} from './ui-text.mjs';
 
@@ -98,7 +98,9 @@ async function confirmRun(id) {
     const result = await window.desk.toolUpdateRun(id);
     setRun(id, {$: 'RunDone', ok: !!result.ok, sentence: String(result.sentence || ''), output: String(result.output || '')});
     if (result.notices) showNotices(result.notices);
-    if (result.relink) await connect().catch(() => {});
+    /* O relink do main para a ponte (`toolHost.relink`): só `connect()` não
+       religa — `S.connected` continua true e o connect devolve nada. */
+    if (result.relink) await reconnectAfterBridgeStop().catch(() => {});
     window.dispatchEvent(new CustomEvent('desk-tool-updated', {detail: {id, ok: !!result.ok}}));
   } catch (error) {
     runs.delete(id);

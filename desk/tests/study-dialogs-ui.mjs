@@ -19,6 +19,7 @@ import {testEnv} from './electron-env.mjs';
 const DESK = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const SEARCH_URL = pathToFileURL(path.join(DESK, 'src', 'study-search.mjs')).href;
 const NOTES_URL = pathToFileURL(path.join(DESK, 'src', 'pdf-notes.mjs')).href;
+const UI_TEXT_URL = pathToFileURL(path.join(DESK, 'src', 'ui-text.mjs')).href;
 const temporaries = [];
 
 after(() => {
@@ -265,15 +266,31 @@ test('anotações: filtro de página, editar mantém id e remover pede confirma�
     assert.equal(edit.id, 'n-1');
     assert.equal(edit.item.note, 'revisada');
 
-    await page.click('.study-note-remove');
-    await page.waitForFunction(() => window.__calls.save.length === 2);
-    const remove = await page.evaluate(() => window.__calls.save.at(-1));
-    assert.deepEqual(remove, {mode: 'remove', id: 'n-1'});
-    await page.waitForFunction(() => document.querySelectorAll('.study-note-card').length === 0);
+  await page.click('.study-note-remove');
+  await page.waitForFunction(() => window.__calls.save.length === 2);
+  const remove = await page.evaluate(() => window.__calls.save.at(-1));
+  assert.deepEqual(remove, {mode: 'remove', id: 'n-1'});
+  await page.waitForFunction(() => document.querySelectorAll('.study-note-card').length === 0);
+  } finally {
+   await app.close();
+  }
+ });
+
+ test('anotações em inglês: Editar vira Edit (E10 da auditoria EN, rodada 8)', async () => {
+  const {app, page} = await launch();
+  try {
+    await page.click('#study-notes-open');
+    await page.waitForSelector('#study-notes-dialog[open]');
+    await page.waitForFunction(() => document.querySelectorAll('.study-note-edit').length === 1);
+    assert.equal((await page.textContent('.study-note-edit')).trim(), 'Editar');
+    /* O módulo real repinta na troca de idioma: o botão passa a vir do catálogo. */
+    await page.evaluate(async (url) => { (await import(url)).setUiLanguage('en'); }, UI_TEXT_URL);
+    await page.waitForFunction(() => document.querySelector('.study-note-edit')?.textContent.trim() === 'Edit', undefined, {timeout: 10000});
+    assert.equal((await page.textContent('.study-note-edit')).trim(), 'Edit', 'E10: o botão Editar sai em inglês');
   } finally {
     await app.close();
   }
-});
+ });
 
 test('resultado de PDF no diálogo de busca abre as anotações no caminho resolvido', async () => {
   const {app, page} = await launch();

@@ -68,7 +68,7 @@ test('casca: id, classe, style fixo, hidden do aberto/fechado e ordem dos filhos
   assert.equal(attrsOf(listNode).get('id'), 'slash-list');
   assert.equal(classOf(listNode), 'slash-list');
   assert.equal(attrsOf(listNode).get('role'), 'listbox');
-  assert.equal(attrsOf(listNode).get('aria-label'), 'Comandos do Pi');
+  assert.equal(attrsOf(listNode).get('aria-label'), 'Comandos do tutor');
   assert.equal(classOf(foot), 'slash-foot');
   assert.equal(attrsOf(foot).get('role'), 'presentation');
   assert.equal(textOf(kidsOf(foot)[0]), '↑↓ navegar · ⏎ inserir · Esc fechar');
@@ -101,6 +101,6 @@ test('id do item: prefixo estável para o aria-activedescendant do campo', () =>
 
 test('textos: cabeça, rótulo do listbox e rodapé', () => {
   assert.equal(ptText(sv.slashHeadText()), 'Comandos');
-  assert.equal(ptText(sv.slashListLabel()), 'Comandos do Pi');
+  assert.equal(ptText(sv.slashListLabel()), 'Comandos do tutor');
   assert.equal(ptText(sv.slashFootText()), '↑↓ navegar · ⏎ inserir · Esc fechar');
 });

@@ -70,19 +70,6 @@ test('OpenCode (#57): o nome gerenciado diz o motor e o preparo usa a pasta e o 
   assert.throws(() => host.prepareOpenCode(), (error) => parseMessage(error.message)?.key === 'err.opencode.wrongCourse');
 });
 
-test('nos testes de janela o Pi só vem do LEARNING_DESK_PI (nunca o do usuário)', () => {
-  const before = process.env.LEARNING_DESK_PI;
-  try {
-    delete process.env.LEARNING_DESK_PI;
-    const host = createTutorEngineHost({live: fakeLive(), runtime, deskDir, TEST_MODE: true, FREE_ID: 'mesa-free'});
-    assert.equal(host.piBinary(), '', 'sem fake explícito, nem PATH nem Homebrew contam');
-    process.env.LEARNING_DESK_PI = path.join(deskDir, 'tests', 'fake-pi.mjs');
-    assert.equal(host.piBinary(), process.env.LEARNING_DESK_PI);
-  } finally {
-    if (before === undefined) delete process.env.LEARNING_DESK_PI; else process.env.LEARNING_DESK_PI = before;
-  }
-});
-
 test('nos testes de janela o OpenCode só vem do LEARNING_DESK_OPENCODE (nunca o do usuário)', () => {
   const host = createTutorEngineHost({live: fakeLive(), runtime, deskDir, TEST_MODE: true, FREE_ID: 'mesa-free'});
   const before = process.env.LEARNING_DESK_OPENCODE;
@@ -155,4 +142,126 @@ test('sessão Pi antiga sem Pi mostra o histórico em somente leitura (#93)', ()
   assert.deepEqual(data.messages.map((message) => [message.role, message.content[0].text]), [['user', 'pergunta antiga'], ['assistant', 'resposta antiga']]);
   assert.equal(fs.readFileSync(file, 'utf8'), raw, 'o JSONL nunca é tocado');
   assert.equal(host.conversationData({messages: false}).messages, undefined, 'a leitura pesada só quando pedida');
+});
+
+test('legacyHistory conta as linhas ilegíveis que ficaram de fora (#87)', () => {
+  const file = path.join(runtime, 'pi-parcial.jsonl');
+  fs.writeFileSync(file, `{\n${JSON.stringify({type: 'message', message: {role: 'user', content: 'oi'}})}\n`);
+  const host = createTutorEngineHost({live: fakeLive(), runtime, deskDir, TEST_MODE: true, FREE_ID: 'mesa-free'});
+  const stats = {};
+  assert.deepEqual(host.legacyHistory(file, stats).map((message) => message.content[0].text), ['oi']);
+  assert.equal(stats.skippedLines, 1);
+  assert.equal(host.legacyHistory(file).length, 1, 'sem stats continua devolvendo só as mensagens');
+});
+
+test('legacyHistory ignora cabeçalho, ferramenta e raciocínio; só conta ilegível e mídia perdida (#87)', () => {
+  const now = Date.now();
+  const file = path.join(runtime, 'pi-realista.jsonl');
+  fs.writeFileSync(file, [
+    JSON.stringify({type: 'session', sessionId: 'abc', model: 'x'}),
+    JSON.stringify({type: 'message', message: {role: 'user', content: 'oi'}}),
+    JSON.stringify({type: 'message', message: {role: 'assistant', content: [{type: 'thinking', thinking: 'hmm'}, {type: 'toolCall', id: 'c1', name: 'buscar', arguments: {}}], timestamp: now}}),
+    JSON.stringify({type: 'message', message: {role: 'toolResult', toolCallId: 'c1', toolName: 'buscar', isError: false, content: [{type: 'text', text: 'achado'}], timestamp: now}}),
+    JSON.stringify({type: 'message', message: {role: 'assistant', content: [{type: 'text', text: 'resposta'}]}}),
+  ].join('\n') + '\n');
+  const host = createTutorEngineHost({live: fakeLive(), runtime, deskDir, TEST_MODE: true, FREE_ID: 'mesa-free'});
+  const stats = {};
+  assert.deepEqual(host.legacyHistory(file, stats).map((message) => message.content[0].text), ['oi', 'resposta']);
+  assert.equal(stats.skippedLines || 0, 0, 'cabeçalho, ferramenta e raciocínio existem em toda conversa e não disparam o aviso');
+
+  const lossy = path.join(runtime, 'pi-com-perda.jsonl');
+  fs.writeFileSync(lossy, [
+    '{linha quebrada',
+    JSON.stringify({type: 'message', message: {role: 'user', content: 'oi'}}),
+    JSON.stringify({type: 'message', message: {role: 'user', content: [{type: 'image', data: 'aGVsbG8='}]}}),
+  ].join('\n') + '\n');
+  const lossyStats = {};
+  assert.deepEqual(host.legacyHistory(lossy, lossyStats).map((message) => message.content[0].text), ['oi']);
+  assert.equal(lossyStats.skippedLines, 2, 'JSON ilegível e fala com imagem entram no aviso');
+});
+
+/* #87: a passagem entra na criação pela mesma função de sessão nova e o
+   `sessionInfo` devolve a linhagem para a lista. */
+test('newSessionPath grava a passagem no destino e sessionInfo devolve origin', () => {
+  const conversations = require('../src/agents/conversations.cjs');
+  const live = fakeLive();
+  const host = createTutorEngineHost({live, runtime, deskDir, TEST_MODE: true, FREE_ID: 'mesa-free'});
+  const source = conversations.createClaudeConversation({runtime, courseId: 'calc', engine: 'opencode'});
+  const before = fs.readFileSync(source, 'utf8');
+  const target = host.newSessionPath('calc', 'opencode', {
+    importedTranscript: 'Matéria: Cálculo\nQuestão: Lista 3',
+    origin: {session: source, engine: 'opencode'},
+    handoff: {kind: 'digest', bytes: 94, createdAt: 1700000000000},
+  });
+  const record = conversations.readClaudeConversation(target, {runtime});
+  assert.equal(record.importedTranscript, 'Matéria: Cálculo\nQuestão: Lista 3');
+  assert.deepEqual(record.origin, {session: source, engine: 'opencode'});
+  assert.deepEqual(host.sessionInfo(target).origin, {session: source, engine: 'opencode'});
+  assert.equal(fs.readFileSync(source, 'utf8'), before, 'a origem segue intacta');
+});
+
+/* Corte do tail exatamente no início de uma linha: nenhuma linha se perde e
+   nenhum corte falso é contado (antes, a primeira linha inteira caía e o aviso
+   somava um corte que não houve). O ajuste vai no conteúdo da ÚLTIMA linha: o
+   prefixo fica parado e o ponto de corte passeia até alinhar. */
+test('legacyHistory com tail alinhado no início da linha mantém tudo sem corte', () => {
+  const host = createTutorEngineHost({live: fakeLive(), runtime, deskDir, TEST_MODE: true, FREE_ID: 'mesa-free'});
+  const CAP = 200000;
+  const line = (role, text) => `${JSON.stringify({type: 'message', message: {role, content: text}})}\n`;
+  const first = line('user', 'PRIMEIRA-LINHA-INTEIRA');
+  const fixed = line('user', 'linha do meio');
+  const repeats = Math.ceil(CAP / Buffer.byteLength(fixed)) + 1;
+  const head = first + fixed.repeat(repeats);
+  let picked = '';
+  for (let pad = 0; pad < Buffer.byteLength(fixed) * 2 + 10; pad++) {
+    const candidate = head + line('user', `FIM-${'Z'.repeat(pad)}`);
+    const cut = Buffer.byteLength(candidate) - CAP;
+    if (cut > 0 && Buffer.from(candidate).subarray(cut - 1, cut).toString() === '\n') {
+      picked = candidate;
+      break;
+    }
+  }
+  assert.ok(picked, 'sem alinhamento exato na varredura');
+  const file = path.join(runtime, 'pi-alinhado.jsonl');
+  fs.writeFileSync(file, picked);
+  const stats = {};
+  const got = host.legacyHistory(file, stats, {tail: true});
+  const raw = Buffer.from(picked);
+  const cut = raw.length - CAP;
+  let offset = 0;
+  const lines = [];
+  for (const chunk of picked.split('\n')) {
+    if (chunk) lines.push({at: offset, text: JSON.parse(chunk).message.content});
+    offset += Buffer.byteLength(chunk) + 1;
+  }
+  const kept = lines.filter((entry) => entry.at >= cut);
+  assert.ok(kept.length > 0 && kept[0].at === cut, 'a primeira linha mantida começa exatamente no corte');
+  assert.deepEqual(got.map((message) => message.content[0].text), kept.map((entry) => entry.text), 'nenhuma linha inteira podia cair');
+  assert.equal(stats.skippedLines || 0, 0, 'sem linha perdida, sem corte a contar');
+});
+
+/* Corte no meio de uma linha: só o pedaço cortado cai e o corte é contado. */
+test('legacyHistory com tail no meio da linha descarta só o pedaço e conta um', () => {
+  const host = createTutorEngineHost({live: fakeLive(), runtime, deskDir, TEST_MODE: true, FREE_ID: 'mesa-free'});
+  const CAP = 200000;
+  const line = (role, text) => `${JSON.stringify({type: 'message', message: {role, content: text}})}\n`;
+  const fixed = line('user', `enchimento-${'x'.repeat(90)}`);
+  const repeats = Math.ceil(CAP / Buffer.byteLength(fixed)) + 1;
+  const head = line('user', 'COMECO') + fixed.repeat(repeats);
+  let picked = '';
+  for (let pad = 0; pad < Buffer.byteLength(fixed) * 2 + 10; pad++) {
+    const candidate = head + line('user', `FIM-${'Z'.repeat(pad)}`);
+    const cut = Buffer.byteLength(candidate) - CAP;
+    if (cut > 0 && Buffer.from(candidate).subarray(cut - 1, cut).toString() !== '\n') {
+      picked = candidate;
+      break;
+    }
+  }
+  assert.ok(picked, 'sem corte no meio na varredura');
+  const file = path.join(runtime, 'pi-cortado.jsonl');
+  fs.writeFileSync(file, picked);
+  const stats = {};
+  const got = host.legacyHistory(file, stats, {tail: true});
+  assert.ok(got.length >= 1);
+  assert.equal(stats.skippedLines, 1, 'o pedaço cortado conta um');
 });

@@ -10,8 +10,7 @@ import ../view.bend as V
 # O cabeçalho é uma linha de 40px: título da sessão, botão do chat lateral,
 # sessão nova e mais opções. O título e os três botões são do `index.html`; o
 # que o núcleo decide são os dois menus que abrem dali:
-#   - sessão nova: o motor padrão, o Claude (experimental) e o OpenCode;
-#     a sessão que já está aberta nunca troca de motor (o host só cria);
+#   - sessão nova: interface em JS desde a #87 (rótulo, ordem e "(atual)");
 #   - mais opções: Contexto (submenu com a medição e as compactações),
 #     Encerrar por hoje, Exportar sessão e Recolher o tutor, nessa ordem. O
 #     Encerrar por hoje some só pela flag `desk.endDay`.
@@ -35,71 +34,13 @@ def kidAt(n: V.ViewNode, i: Nat) -> V.ViewNode:
 
 # ---------- o cabeçalho (#42) ----------
 
-# Título, chat lateral, sessão nova e Mais opções — o indicador de modelo e
-# esforço não mora mais aqui (foi para a caixa de mensagem).
+# Título, chat lateral, chat na tela inteira, sessão nova e Mais opções — o
+# indicador de modelo e esforço não mora mais aqui (foi para a caixa de mensagem).
 law tutor_cabecalho_controles:
-  {H.headIds() == ["session-title", "sidechat-toggle", "new-session", "chat-more"] : List<&2, String>}
+  {H.headIds() == ["session-title", "sidechat-toggle", "chat-full", "new-session", "chat-more"] : List<&2, String>}
 
-law tutor_cabecalho_quatro_controles:
-  {List.length(&2, String, H.headIds()) == 4n : Nat}
-
-# ---------- sessão nova ----------
-
-# O motor padrão primeiro, o Claude (experimental) depois e o OpenCode (#57) por último.
-law tutor_nova_sessao_tres_itens:
-  {List.length(&2, V.ViewNode, H.newSessionItems()) == 3n : Nat}
-
-law tutor_nova_sessao_ordem:
-  {H.newSessionItems() == [H.newSessionDefault(), H.newSessionClaude(), H.newSessionOpenCode()] : List<&2, V.ViewNode>}
-
-law tutor_nova_sessao_cabecalho:
-  {V.kidsOf(H.newSessionHead()) == [
-    V.viewEl("strong", Nil{}, [V.viewText(M.msg("header.newSessionWith"))])
-  ] : List<&2, V.ViewNode>}
-
-law tutor_nova_sessao_cabecalho_classe:
-  {V.attrGet(V.attrsOf(H.newSessionHead()), "class") == Some{"conv-head"} : Maybe<&2, String>}
-
-law tutor_nova_sessao_cabecalho_decorativo:
-  {V.attrGet(V.attrsOf(H.newSessionHead()), "aria-hidden") == Some{"true"} : Maybe<&2, String>}
-
-law tutor_nova_sessao_menu:
-  {H.newSessionMenu() == [
-    H.newSessionHead(), H.newSessionDefault(), H.newSessionClaude(), H.newSessionOpenCode()
-  ] : List<&2, V.ViewNode>}
-
-law tutor_nova_sessao_padrao_rotulo:
-  {V.kidsOf(H.newSessionDefault()) == [V.viewText(M.msg("header.newSessionPi"))] : List<&2, V.ViewNode>}
-
-law tutor_nova_sessao_padrao_clique:
-  {V.attrGet(V.attrsOf(H.newSessionDefault()), "on:click") == Some{"NewSession"} : Maybe<&2, String>}
-
-# O rótulo diz o motor e que é experimental (vocabulário do `CONTEXT.md`).
-law tutor_nova_sessao_claude_rotulo:
-  {V.kidsOf(H.newSessionClaude())
-    == [V.viewText(M.msg("header.newSessionClaude"))] : List<&2, V.ViewNode>}
-
-law tutor_nova_sessao_claude_clique:
-  {V.attrGet(V.attrsOf(H.newSessionClaude()), "on:click") == Some{"NewSessionClaude"} : Maybe<&2, String>}
-
-# Os dois cliques acima fixam handlers diferentes: escolher o motor é o único
-# papel do item.
-
-law tutor_nova_sessao_ids_estaveis:
-  {V.attrGet(V.attrsOf(H.newSessionDefault()), "id") == Some{"new-session-default"} : Maybe<&2, String>}
-
-law tutor_nova_sessao_claude_id:
-  {V.attrGet(V.attrsOf(H.newSessionClaude()), "id") == Some{"new-session-claude"} : Maybe<&2, String>}
-
-law tutor_nova_sessao_opencode_rotulo:
-  {V.kidsOf(H.newSessionOpenCode())
-    == [V.viewText(M.msg("header.newSessionOpenCode"))] : List<&2, V.ViewNode>}
-
-law tutor_nova_sessao_opencode_clique:
-  {V.attrGet(V.attrsOf(H.newSessionOpenCode()), "on:click") == Some{"NewSessionOpenCode"} : Maybe<&2, String>}
-
-law tutor_nova_sessao_opencode_id:
-  {V.attrGet(V.attrsOf(H.newSessionOpenCode()), "id") == Some{"new-session-opencode"} : Maybe<&2, String>}
+law tutor_cabecalho_cinco_controles:
+  {List.length(&2, String, H.headIds()) == 5n : Nat}
 
 # ---------- mais opções ----------
 

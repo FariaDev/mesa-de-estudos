@@ -22,6 +22,20 @@ const ACCENT_NAMES = {
   AccentOrange: 'orange', AccentPink: 'pink', AccentGraphite: 'graphite',
 };
 const accentName = (accent) => ACCENT_NAMES[accent?.$] || 'blue';
+/* Preferências de leitura (#106/#107): nomes fechados, como o acento. O módulo
+   do renderer (`src/display-preferences.mjs`) tem as mesmas listas; o teste
+   `display-preferences` compara as cópias e prova os padrões de hoje. */
+const READING_SIZES = ['small', 'normal', 'large', 'larger'];
+const READING_WIDTHS = ['narrow', 'normal', 'wide'];
+const PDF_DARK_STYLES = ['invert', 'soft'];
+const displayChoices = (value, current) => ({
+  readingSize: displayChoice(READING_SIZES, value?.readingSize, displayChoice(READING_SIZES, current?.readingSize, 'normal')),
+  readingWidth: displayChoice(READING_WIDTHS, value?.readingWidth, displayChoice(READING_WIDTHS, current?.readingWidth, 'normal')),
+  pdfDark: displayChoice(PDF_DARK_STYLES, value?.pdfDark, displayChoice(PDF_DARK_STYLES, current?.pdfDark, 'invert')),
+});
+function displayChoice(valid, value, fallback) {
+  return typeof value === 'string' && valid.includes(value) ? value : fallback;
+}
 /* Ausente ou de tipo errado entra como `None`: o núcleo decide o fallback. */
 const accentFact = (value) => (typeof value === 'string' ? some(value) : NONE);
 const boolFact = (value) => (typeof value === 'boolean' ? some(value) : NONE);
@@ -78,6 +92,7 @@ const layoutOf = (state) => ({
 const deskLayout = (source) => ({
   ...layoutOf(deskState(source)),
   accent: accentName(accentCore.normalizeAccent(accentFact(source?.accent))),
+  ...displayChoices(source, source),
 });
 
 /* Save: fallbacks do JS antigo por campo — refs sempre coagidas (!!), rascunho
@@ -92,7 +107,8 @@ function saveState(current, value) {
   return {
     ...layoutOf(core.mergeDesk({...deskState(current), draft: '', chatWidth: 390}, input)),
     accent,
+    ...displayChoices(value, current),
   };
 }
 
-module.exports = {deskLayout, saveState, MAX_DRAFT};
+module.exports = {deskLayout, saveState, MAX_DRAFT, READING_SIZES, READING_WIDTHS, PDF_DARK_STYLES};

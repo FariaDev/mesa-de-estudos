@@ -1,41 +1,28 @@
-/* Painel "Componentes" do Sobre: versão instalada e estado de Mesa, Pi, Node e
-   Xournal++. As decisões de texto/estrutura são do núcleo
+/* Painel "Componentes" do Sobre: versão instalada e estado de Claude Code,
+   Node e Xournal++. As decisões de texto/estrutura são do núcleo
    (`core/dialogsview.bend` → `dialogsview.core.js`); aqui são os fatos de host.
 
    - Mesa: `app.getVersion()` (ou o que o chamador passar) comparado com a
      última release (cache da checagem do updater).
-   - Pi: versão do `package.json` do binário resolvido (`desk/pi.cjs` →
-     `resolvePi`) ou `pi --version` com timeout. Comparado SÓ com o registry
-     `@earendil-works/pi-coding-agent/latest` (o `@mariozechner/...` está
-     deprecado e parado em 0.73.1 — sem fallback: sem resposta = "desconhecido",
-     sem erro). Pi local (`desk/.pi-local` — e o `desk/node_modules` antigo)
-     ganha o botão "Atualizar Pi"; Pi de PATH/global/Homebrew mostra a versão e
-     o comando, e o app não mexe.
-   - Node: o que o worker/setup usam é o node do SISTEMA — medido com
-     `node --version` (o `process.versions.node` do main do Electron é o
-     runtime EMBUTIDO e não serve); sem resposta cai no embutido, rotulado
-     como tal. Abaixo de 22.19 o painel avisa (o Pi exige `engines >=22.19.0`).
-     O corte é decisão do núcleo (`nodeState`).
-   - Xournal++: macOS lê `CFBundleShortVersionString`, Windows roda o `.exe
-     --version`; a comparação com `xournalpp/xournalpp/releases/latest` é só
-     informativa (com link) — o app não atualiza o Xournal++.
-
    - Claude Code (#45): `claude --version` do launcher do usuário (nunca
      `auth status`); a última vem do registry `@anthropic-ai/claude-code`. Sem
      reserva do SDK desde o #51: fora da faixa aceita, a linha diz a faixa.
      Sem resposta do registry = "não deu para conferir" (offline), nunca erro.
-   - Pi e Claude Code carregam também QUEM instalou e o comando exato
-     (`tool-facts.cjs`): o Sobre mostra "Atualizar" com confirmação, ou só o
-     comando com "Copiar" se a instalação não for reconhecida.
+   - Node: o que o worker/setup usam é o node do SISTEMA — medido com
+     `node --version` (o `process.versions.node` do main do Electron é o
+     runtime EMBUTIDO e não serve); sem resposta cai no embutido, rotulado
+     como tal. Abaixo de 22.19 o painel avisa. O corte é decisão do núcleo
+     (`nodeState`).
+   - Xournal++: macOS lê `CFBundleShortVersionString`, Windows roda o `.exe
+     --version`; a comparação com `xournalpp/xournalpp/releases/latest` é só
+     informativa (com link) — o app não atualiza o Xournal++.
 
    Cache de 24 h em runtime/update.json (compartilhado com o updater); checagem
-   automática 1×/dia cobre Mesa + Pi + Claude Code; Node e Xournal++ só sob
-   demanda no painel.
-   Somente GETs públicos; zero telemetria. */
+   automática 1×/dia cobre Mesa + Claude Code; Node e Xournal++ só sob demanda
+   no painel. Somente GETs públicos; zero telemetria. */
 const fs=require('node:fs');
 const path=require('node:path');
 const updater=require('./updater.cjs');
-const {resolvePi}=require('./pi.cjs');
 const os=require('node:os');
 const toolFacts=require('./tool-facts.cjs');
 const claudeEnvironment=require('./src/agents/claude-environment.cjs');
@@ -50,10 +37,6 @@ function coreListToArray(node){
  return out;
 }
 
-function existingFile(file){
- try{return file&&fs.statSync(file).isFile()?file:'';}catch{return '';}
-}
-
 function defaultRun(cmd,args=[],opts={}){
  return updater.defaultRun(cmd,args,opts);
 }
@@ -61,56 +44,6 @@ function defaultRun(cmd,args=[],opts={}){
 function parseVersion(text){
  const m=/(\d+\.\d+(?:\.\d+)?)/.exec(String(text||''));
  return m?m[1]:'';
-}
-
-/* Pi local = instalado pela própria Mesa: `desk/.pi-local` (o contrato novo)
-   ou `desk/node_modules` (instalações anteriores ao .pi-local). A comparação
-   resolve o realpath DOS DOIS lados: o caminho do binário e o do desk podem
-   atravessar links do sistema (ex.: /var/folders → /private/var/...). */
-function piLocalRoot(piPath,deskDir){
- if(!piPath||!deskDir)return '';
- let real=piPath;
- try{real=fs.realpathSync(piPath);}catch{}
- let base=deskDir;
- try{base=fs.realpathSync(deskDir);}catch{}
- for(const rel of ['.pi-local','node_modules']){
-  const root=path.join(base,rel)+path.sep;
-  if(real.startsWith(root))return rel;
-  if(piPath.startsWith(path.join(deskDir,rel)+path.sep))return rel;
- }
- return '';
-}
-
-function piIsLocal(piPath,deskDir){
- return !!piLocalRoot(piPath,deskDir);
-}
-
-function piPackageVersion(piPath){
- let dir;
- try{dir=path.dirname(fs.realpathSync(piPath));}catch{dir=path.dirname(piPath);}
- for(let i=0;i<6;i++){
-  const pkg=path.join(dir,'package.json');
-  try{
-   const data=JSON.parse(fs.readFileSync(pkg,'utf8'));
-   if(data&&data.version&&/pi/i.test(String(data.name||'')))return String(data.version);
-  }catch{}
-  const up=path.dirname(dir);
-  if(up===dir)break;
-  dir=up;
- }
- return '';
-}
-
-/* Versão do Pi: package.json do binário resolvido; sem achá-lo, `pi --version`
-   com timeout (não travar o painel num Pi travado). */
-async function piVersion({piPath,run=defaultRun}){
- if(!piPath)return '';
- const found=piPackageVersion(piPath);
- if(found)return found;
- try{
-  const r=await run(piPath,['--version'],{timeout:5000});
-  return parseVersion(r.stdout);
- }catch{return '';}
 }
 
 /* B3: o Node que interessa é o do SISTEMA (o que o worker/setup e o npm usam).
@@ -170,47 +103,34 @@ function latestFor(id,{override,cacheFile,fetchJson,now,manual,cacheOnly}){
  if(override&&typeof override[id]==='string'){
   return {version:override[id],known:!!override[id]};
  }
- const fetcher=id==='claude'?updater.claudeLatest:updater.piLatest;
+ const fetcher=id==='claude'?updater.claudeLatest:null;
+ if(!fetcher)return {version:'',known:false};
  return fetcher({cacheFile,fetchJson,now,manual,cacheOnly});
 }
 
-/* Fatos do Pi e do Claude Code (instalada, mais nova, quem instalou, comando,
-   testada). É o que o painel e os avisos leem. `latestOverride` e os
-   caminhos injetáveis existem para os testes; sem eles vale o mundo real. */
+/* Fatos do Claude Code (instalada, mais nova, quem instalou, comando, testada).
+   É o que o painel e os avisos leem. `latestOverride` e os caminhos injetáveis
+   existem para os testes; sem eles vale o mundo real. */
 async function collectTools(opts={}){
  const {
-  deskDir='',config={},cacheFile='',manual=false,cacheOnly=false,testMode=false,
+  config={},cacheFile='',manual=false,cacheOnly=false,testMode=false,
   fetchJson=updater.defaultFetchJson,run=defaultRun,now=Date.now(),
-  envPath=process.env.LEARNING_DESK_PI||'',piPath:piPathOpt,
-  claudeLauncher:launcherOpt,latestOverride,home=os.homedir(),readOnly=false,
+  claudeLauncher:launcherOpt,latestOverride,home=os.homedir(),
  }=opts;
  const fetchNet=testMode?async()=>{throw Error('modo de teste');}:fetchJson;
- /* Em teste só vale o fake explícito de LEARNING_DESK_PI (a mesma regra do
-    tutor): o Pi real do PATH/Homebrew não pode aparecer no Sobre de uma janela
-    que pediu "sem Pi". Fora do teste, `resolvePi` continua achando o do usuário. */
- const piPath=piPathOpt!==undefined?piPathOpt:(testMode?existingFile(envPath):resolvePi({configPath:String(config.piPath||''),deskDir,envPath}));
- const localRoot=piLocalRoot(piPath,deskDir);
  const launcher=launcherOpt!==undefined?launcherOpt:claudeEnvironment.findClaudeLauncher({configuredPath:config.claudePath,home});
  const latestOpts={override:latestOverride,cacheFile,fetchJson:fetchNet,now,manual,cacheOnly};
- const [piInstalled,piLatest,claudeInstalled,claudeLatest]=await Promise.all([
-  /* `readOnly`: os avisos (ao abrir a Mesa e depois de cada comando) leem o
-     package.json do Pi e NÃO o executam (`pi --version` carrega extensões). */
-  piPath?(readOnly?piPackageVersion(piPath):piVersion({piPath,run})):'',
-  latestFor('pi',latestOpts),
+ const [claudeInstalled,claudeLatest]=await Promise.all([
   toolFacts.claudeInstalledVersion({launcher,run}),
   latestFor('claude',latestOpts),
  ]);
- const install=toolFacts.piInstall({piPath,localRoot});
- const piPlan=toolFacts.updatePlan({id:'pi',install,claudeLauncher:''});
  const claudePlan=toolFacts.updatePlan({id:'claude',install:{kind:'',formula:''},claudeLauncher:launcher});
  const fact=(id,name,installed,latest,plan,extra)=>({
   id,name,installed:String(installed||''),latest:String(latest.version||''),latestKnown:!!latest.known,
   plan,tested:String(TESTED_VERSIONS[id]||''),...extra,
  });
  return {
-  pi:fact('pi','Pi',piInstalled,piLatest,piPlan,{path:piPath,installKind:install.kind,localRoot}),
   claude:fact('claude','Claude Code',claudeInstalled,claudeLatest,claudePlan,{path:launcher,installKind:launcher?'claude':'',localRoot:''}),
-  piPath,piLocal:!!localRoot,
  };
 }
 
@@ -233,7 +153,7 @@ function toolRowExtras(fact,outdated){
  };
 }
 
-/* Linhas na ordem do núcleo (`componentIds`): pi, claude, node, xournal (a Mesa fica fora da lista). */
+/* Linhas na ordem do núcleo (`componentIds`): claude, node, xournal (a Mesa fica fora da lista). */
 async function collect(opts={}){
  const {
   config={},cacheFile='',version='',manual=false,testMode=false,
@@ -243,10 +163,7 @@ async function collect(opts={}){
  const fetchNet=testMode?async()=>{throw Error('modo de teste');}:fetchJson;
  const cache=cacheFile?updater.readCache(cacheFile):{};
  const byId={};
- /* `piPath` e companhia são injeção de teste: sem eles, o mundo real. */
  const tools=await collectTools(opts);
- const {piPath,piLocal}=tools;
- const localRoot=tools.pi.localRoot;
 
  /* Mesa: a checagem do updater (cache 24 h) é a única fonte da última release. */
  {
@@ -257,33 +174,6 @@ async function collect(opts={}){
   byId.mesa={id:'mesa',label:'Mesa',version:String(version||''),
    state:state.$==='CompOutdated'?'outdated':state.$==='CompOk'?'ok':'unknown',
    latest:String(release&&release.version||''),note:'',hint:'',link:'',linkLabel:'',canUpdate:false};
- }
-
- /* Pi: só o registry @earendil-works; o local vira o botão de sempre, os demais
-    instaladores viram "Atualizar" com o comando exato (ou só o comando). */
- {
-  const fact=tools.pi;
-  const state=rowState({version:fact.installed},{latest:fact.latest,offline:true});
-  const outdated=state.$==='CompOutdated';
-  const localHint=localRoot==='node_modules'
-   ?message('component.hint.piNodeModules')
-   :message('component.hint.piLocal');
-  const hints={
-   '':message('component.hint.piMissing'),
-   local:localHint,
-   brew:message('component.hint.piBrew'),
-   npm:message('component.hint.piNpm'),
-   unknown:outdated?message('component.hint.piUnknownOutdated'):message('component.hint.piUnknown'),
-  };
-  byId.pi={
-   id:'pi',label:'Pi',version:fact.installed,
-   state:stateCode(state),latest:fact.latest,note:'',
-   hint:hints[fact.installKind]??'',link:'',linkLabel:'',
-   canUpdate:piLocal&&outdated,
-   ...toolRowExtras(fact,outdated),
-  };
-  /* Quem não tem Pi não vê a linha dele em Componentes (#release OpenCode). */
-  if(!fact.path)delete byId.pi;
  }
 
  /* Claude Code: o launcher do usuário (`claude --version`), o único que a Mesa
@@ -303,7 +193,7 @@ async function collect(opts={}){
  }
 
  /* Node: B3 — mede o node do SISTEMA (o que o worker/setup usam); o corte
-    22.19 é do núcleo (o Pi exige engines >=22.19.0). */
+    22.19 é do núcleo. */
  {
   const info=nodeVersion===undefined?await systemNodeVersion({run}):{version:String(nodeVersion||''),source:nodeSource||'system'};
   const [major,minor]=String(info.version||'').split('.').map(n=>Number(n)||0);
@@ -311,8 +201,7 @@ async function collect(opts={}){
   byId.node={
    id:'node',label:info.source==='system'?message('component.node.system'):message('component.node.embedded'),version:String(info.version||''),
    state:state.$==='CompWarn'?'warn':state.$==='CompOk'?'ok':'unknown',
-   /* O aviso do Node é sobre o Pi: sem Pi instalado ele não aparece. */
-   latest:'',note:state.$==='CompWarn'&&piPath?String(state.note||''):'',
+   latest:'',note:state.$==='CompWarn'?String(state.note||''):'',
    hint:info.source==='system'?'':message('component.hint.nodeEmbedded'),
    link:'',linkLabel:'',canUpdate:false,
   };
@@ -334,7 +223,7 @@ async function collect(opts={}){
  }
 
  const rows=coreListToArray(dialogsCore.componentIds()).map(id=>byId[id]).filter(Boolean);
- return {rows,piPath,piLocal};
+ return {rows};
 }
 
-module.exports={piIsLocal,piLocalRoot,piPackageVersion,piVersion,systemNodeVersion,xournalVersion,collectTools,aheadOf,verOf,collect};
+module.exports={systemNodeVersion,xournalVersion,collectTools,aheadOf,verOf,collect};

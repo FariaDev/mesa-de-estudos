@@ -1,13 +1,15 @@
 import {S,toast,labelBtn} from './state.mjs';
 import {icon} from '../icons.mjs';
 import sidechatCore from './generated/sidechat.core.js';
-import {t as uiT,text as uiText,formatDate,LANGUAGE_EVENT} from './ui-text.mjs';
+import {t as uiT,text as uiText,LANGUAGE_EVENT} from './ui-text.mjs';
 import {message as uiMessage} from './i18n.mjs';
 import {deskErrorIsFatal} from './claude-questions.mjs';
 import {h,sidechatMessageCard,paintSidechatBody,copySidechatMessage,sendSidechatMessageToMain} from './sidechat-message-view.mjs';
 import {createSidechatRequests} from './sidechat-requests.mjs';
+import {createSidechatContext} from './sidechat-context.mjs';
 import {sideCardApi, renderSideCards, handleSideCardEvent} from './sidechat-cards.mjs';
 import {createSidechatScroll} from './sidechat-scroll.mjs';
+import {installMessageLinks} from './message-links.mjs';
 /* ---------------------------------------------------------------------------
    Chat lateral: uma conversa INDEPENDENTE da principal, no espaço da área de
    apoio (segundo leitor). Estado e DOM isolados: nada aqui usa `#messages`,
@@ -63,6 +65,9 @@ let saveChain=Promise.resolve();
 /* Perguntas/permissões do lateral no seu próprio canal (#43 fase 2: saíram
    para sidechat-requests.mjs); o cartão vive em `state.requests`. */
 const {showRequest,answerRequest,submitFreeAnswer}=createSidechatRequests({state,api:()=>api(),messagesEl:()=>msgsEl,scrollBottom:()=>sideScroll?.scrollBottom()});
+/* Popover de contexto: saiu para sidechat-context.mjs; as funções continuam
+   com os mesmos nomes para quem chama (mount, repaint, refresh). */
+const {paintContextPop,toggleContextPop,hideContextPop,refreshContext}=createSidechatContext({state,api:()=>api(),currentRefs,normalizeMessage,paintScope,root:()=>root,pop:()=>ctxPop});
 
 /* ---------- DOM ---------- */
 
@@ -97,6 +102,8 @@ export function mountSidechat(container){
      h('button',{type:'button',id:'sidechat-stop',hidden:''}),
      h('button',{type:'button',id:'sidechat-send',class:'primary'})))));
  container.append(root);
+ window.addEventListener('desk-tutor-link',syncLegacyLateral);
+ syncLegacyLateral();
  labelBtn(root.querySelector('#sidechat-new'),'plus');
  labelBtn(root.querySelector('#sidechat-more'),'more');
  labelBtn(root.querySelector('#sidechat-close'),'close');
@@ -138,6 +145,8 @@ export function mountSidechat(container){
  menuItem.addEventListener('click',()=>{hideMorePop();toggleContextPop();});
  root.querySelector('#sidechat-refresh').addEventListener('click',()=>refreshContext());
  msgsEl.addEventListener('click',onMessagesClick);
+ /* Links no corpo da resposta abrem pelo diálogo da Mesa (F), como na coluna. */
+ installMessageLinks(msgsEl);
  msgsEl.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.target?.classList?.contains('sidechat-request-input')){event.preventDefault();submitFreeAnswer(event.target.closest('.sidechat-request'));}});
  sideScroll=createSidechatScroll(msgsEl);
  document.addEventListener('click',event=>{
@@ -350,6 +359,13 @@ async function newSidechat(){
  adopt(pendingPlaceholder(),{scope:scopeOf(),useLocal:false});
  await openSidechat({fresh:true});
 }
+/* Conversa antiga de motor fora da vista: nenhum motor responderia ao lateral,
+   então ele fica só com o histórico, como a coluna principal (2ª revisão do
+   release). O evento repinta na ida e volta entre conversa antiga e atual. */
+function syncLegacyLateral(){
+ root.querySelector('#sidechat-composer').hidden=!!S.legacySession;
+ root.querySelector('#sidechat-new').hidden=!!S.legacySession;
+}
 function pendingPlaceholder(){
  return {id:'',engine:state.engine||S.engine||'pi',messages:[],draft:'',busy:false,uncertain:false,context:null};
 }
@@ -413,7 +429,10 @@ function restoreRefusedDraft(raw){
  saveDraftNow();
 }
 async function sendMessage(){
- if(!state.id||state.busy||state.sending||state.unavailable)return;
+ /* No incerto nada sai: a entrega anterior pode ter chegado e o canal recusa
+    de novo (§5) — cada clique pintava outra bolha. Só "Novo" reabre (canPrompt
+    do núcleo barra voo/turno; o incerto é fato do renderer). */
+ if(!state.id||state.unavailable||state.uncertain||!sidechatCore.canPrompt(state.busy,state.sending))return;
  const raw=String(promptEl?.value||'');
  const text=raw.trim();
  if(!text)return;
@@ -480,69 +499,6 @@ async function stopMessage(){
  try{await api()?.sidechatAbort?.({id:state.id});}
  catch(error){toast(error.message);}
  finally{state.stopping=false;paintHeader();}
-}
-
-/* ---------- contexto ---------- */
-
-function refsLabel(refs){
- const list=Array.isArray(refs)?refs:[];
- if(!list.length)return uiT('sidechat.refs.none');
- return list.map(ref=>`${String(ref?.path||'').split(/[/\\]/).pop()||'PDF'} p.${Number(ref?.page)||1}`).join(', ');
-}
-
-function contextRows(){
- const context=state.context||{};
- const rows=[];
- rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.main')}),document.createTextNode(` ${uiT('sidechat.ctx.mainBody')}`)));
- rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.pdfs')}),document.createTextNode(` ${refsLabel(context.refs)}.`)));
- const study=context.study||{};
- if(study.title||study.xopp)rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.study')}),document.createTextNode(` ${[study.title,study.xopp&&String(study.xopp).split(/[/\\]/).pop()].filter(Boolean).join(' · ')}.`)));
- if(context.at)rows.push(h('p',{class:'fine'},h('strong',{text:uiT('sidechat.ctx.copiedAt')}),document.createTextNode(` ${formatWhen(context.at)}.`)));
- rows.push(h('button',{type:'button',class:'guide-link','data-open-guide':'lateral',text:uiT('guide.howItWorks')}));
- return rows;
-}
-
-function formatWhen(value){
- const date=new Date(value);if(Number.isNaN(date.getTime()))return String(value);
- return formatDate(date,{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-}
-
-function paintContextPop(){
- if(!ctxPop)return;
- const close=h('button',{type:'button',class:'primary',text:uiT('common.close')});
- close.addEventListener('click',hideContextPop);
- ctxPop.replaceChildren(...contextRows());
- ctxPop.append(h('div',{class:'dialog-actions'},close));
-}
-function toggleContextPop(){
- if(!ctxPop)return;
- if(!ctxPop.hidden){hideContextPop();return;}
- paintContextPop();
- ctxPop.hidden=false;
- root.querySelector('#sidechat-context')?.setAttribute('aria-expanded','true');
-}
-function hideContextPop(){
- if(!ctxPop)return;
- ctxPop.hidden=true;
- root.querySelector('#sidechat-context')?.setAttribute('aria-expanded','false');
-}
-
-export async function refreshContext(){
- if(!state.id){toast(uiMessage('toast.openSidechatFirst'));return;}
- const id=state.id;
- try{
-  const payload=await api().sidechatContext({id,refs:currentRefs()});
-  if(state.id!==id)return;
-  if(payload&&typeof payload==='object')state.context=payload.context&&typeof payload.context==='object'?payload.context:payload;
-  if(Array.isArray(payload?.messages)&&payload.messages.length&&!state.messages.length)state.messages=payload.messages.map(normalizeMessage).filter(message=>message&&String(message.text||'').trim());
-  if(Array.isArray(payload?.cards))state.cards=payload.cards.filter(card=>card&&typeof card.id==='string');
-  paintContextPop();
-  paintScope();
-  const context=state.context||{};
-  toast(uiMessage('toast.contextUpdated',{refs:refsLabel(context.refs)}));
- }catch(error){
-  toast(error.message);
- }
 }
 
 /* ---------- eventos do motor ---------- */
@@ -730,7 +686,8 @@ const SIDECHAT_LABELS=[
 function relabelSidechat(){
  if(!root)return;
  for(const [selector,attribute,key] of SIDECHAT_LABELS){
-  const el=root.querySelector(selector);
+  /* `querySelector` só vê descendentes: a própria seção (`#sidechat`) ficava sem nome. */
+  const el=root.matches(selector)?root:root.querySelector(selector);
   if(!el)continue;
   if(attribute==='text')el.textContent=uiT(key);else el.setAttribute(attribute,uiT(key));
  }
@@ -765,7 +722,7 @@ function paintHeader(){
  const busy=state.busy||state.stopping;
  if(stopEl)stopEl.hidden=!busy;
  paintSend();
- if(sendEl)sendEl.disabled=state.unavailable||state.busy;
+ if(sendEl)sendEl.disabled=state.unavailable||state.busy||state.uncertain;
  if(activityEl)activityEl.textContent=state.busy?uiT(state.stopping?'sidechat.stopping':'sidechat.answering'):(state.uncertain?uiT('sidechat.uncertainShort'):'');
 }
 function paintBusy(){

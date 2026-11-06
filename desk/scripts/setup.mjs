@@ -6,6 +6,7 @@ import {spawnSync} from 'node:child_process';
 import {offerGeogebraOffline} from './geogebra-offline.mjs';
 import {enableRepoHooks,hooksMessage} from './git-hooks.mjs';
 import {ensureElectronBinary} from './electron-binary.mjs';
+import {ensureVisualHelper} from './visual-helper.mjs';
 import os from 'node:os';
 
 const require=createRequire(import.meta.url);
@@ -34,18 +35,10 @@ if(!fs.existsSync(path.join(desk,'node_modules','electron'))){
 try{ensureElectronBinary({electronDir:path.join(desk,'node_modules','electron')});}
 catch(error){fail(error.message);process.exit(1);}
 
-if(process.platform==='darwin'){
- const visual=path.resolve(desk,'..','visual-check');
- const helper=path.join(visual,'windows');
- if(!fs.existsSync(helper)){
-  log('Compilando integração visual do Xournal++…');
-  const r=spawnSync('swiftc',[path.join(visual,'windows.swift'),'-o',helper],{stdio:'inherit'});
-  if(r.status)fail('Não foi possível compilar a integração visual. Instale as Command Line Tools do Xcode e rode npm run setup novamente.');
- }
-}
+if(ensureVisualHelper({root:path.resolve(desk,'..')})==='failed')fail('Não foi possível compilar a integração visual. Instale as Command Line Tools do Xcode e rode npm run setup novamente.');
 
-/* Pi opcional (#93): o setup não instala mais motor nenhum. Sem o OpenCode,
-   a primeira abertura da Mesa o instala. */
+/* O setup não instala motor nenhum. Sem o OpenCode, a primeira abertura da
+   Mesa o instala. */
 /* Mesma vista do app: o motor oculto neste release não vira "padrão" no setup. */
 const engines=filterDetected(detectTutorEngines({config:{},deskDir:desk,env:process.env,testMode:false}),{testMode:false,env:process.env});
 const engineLabels=engineNames(engines);
@@ -79,4 +72,4 @@ log('  1. npm start');
 log('  2. Na primeira abertura, escolha a pasta de dados e pelo menos uma matéria (nome + pasta de PDFs).');
 log('  3. O motor escolhido pede as credenciais na primeira conexão (ficam nele, não na Mesa).');
 log('  4. Windows: Conferir Xournal++ não está disponível; PDFs, calculadora e tutor funcionam.');
-if(process.platform==='darwin')log('  5. Mac (opcional): npm run install-app se Mesa de Estudos.app já existir ao lado de desk/.');
+if(process.platform==='darwin')log('  5. Mac (opcional): npm run install-app monta o Mesa de Estudos.app ao lado de desk/.');

@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,PLOT_PNG,saveArtifacts} from './helpers.mjs';
-import {nextFrames,pollUntil} from './waits.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedNativeSession,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,PLOT_PNG,saveArtifacts} from './helpers.mjs';
 import {icon} from '../icons.mjs';
+import {trackTempDir} from './temp-dir.mjs';
 import attachCore from '../src/generated/attachments.core.js';
 
 /* Teto de bytes crus de um anexo (16 MB hoje): a lei mora em
@@ -48,80 +48,6 @@ function png(){return Buffer.from(PLOT_PNG,'base64');}
 /* Corpo interno do SVG de icons.mjs, normalizado como o browser serializa
    (<path/> vira <path></path>), para comparar com o DOM. */
 const iconBody=name=>icon(name).replace(/^<svg[^>]*>/,'').replace(/<\/svg>$/,'').replace(/<(\w+)([^>]*)\/>/g,'<$1$2></$1>');
-/* Fake Pi roteirizado para os caminhos que o fake-pi padrão não alcança:
-   agente que começa (agent_start), pensa devagar, abre ferramenta e então
-   falha (`desk_error`) ou é interrompido (abort → agent_end). Grava no runtime
-   temporário e entra por LEARNING_DESK_PI. */
-function writeHuntPi(runtime){
- const file=path.join(runtime,'hunt-pi.mjs');
- fs.writeFileSync(file,`#!/usr/bin/env node
-import fs from 'node:fs';
-const MODE=process.env.HUNT_PI_MODE||'error';
-const THINK_MS=Number(process.env.HUNT_PI_THINK_MS)||400;
-const THINK_TEXT=process.env.HUNT_PI_THINK_TEXT||'Vou considerar ';
-const THINK_CHUNKS=Number(process.env.HUNT_PI_THINK_CHUNKS)||1;
-const THINK_GAP=Number(process.env.HUNT_PI_THINK_GAP)||200;
-const model={provider:'test',id:'offline',name:'Pi de teste',input:['text','image']};
-let streaming=false;
-function reply(e,data){process.stdout.write(JSON.stringify({type:'response',id:e.id,success:true,data})+'\\n');}
-function emit(ev){process.stdout.write(JSON.stringify(ev)+'\\n');if(ev.type==='agent_end'&&!ev.willRetry)process.stdout.write(JSON.stringify({type:'agent_settled'})+'\\n');}
-function uiLog(entry){try{if(process.env.HUNT_PI_LOG)fs.appendFileSync(process.env.HUNT_PI_LOG,JSON.stringify(entry)+'\\n');}catch{}}
-process.stdin.setEncoding('utf8');let buffer='';
-process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const raw=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!raw.trim())continue;let e;try{e=JSON.parse(raw);}catch{continue;}
- if(e.type==='extension_ui_response'){uiLog(e);continue;}
- if(e.type==='get_state')reply(e,{model,thinkingLevel:'off',isStreaming:streaming,pendingMessageCount:0,autoCompactionEnabled:true});
- else if(e.type==='get_messages')reply(e,{messages:[]});
- else if(e.type==='get_available_models')reply(e,{models:[model]});
- else if(e.type==='get_commands')reply(e,{commands:[]});
- else if(e.type==='get_session_stats')reply(e,{contextUsage:{tokens:12000,contextWindow:200000,percent:6}});
- else if(e.type==='set_auto_compaction'||e.type==='set_model'||e.type==='set_thinking_level')reply(e,{});
- else if(e.type==='compact')reply(e,{summary:'resumo',tokensBefore:1000});
- else if(e.type==='clear_queue')reply(e,{});
- else if(e.type==='abort'){reply(e,{});setTimeout(()=>{if(streaming){emit({type:'agent_end'});streaming=false;}},120);}
- else if(e.type==='prompt'){
-  reply(e,{});streaming=true;
-  if(MODE==='ui'){
-   emit({type:'extension_ui_request',id:'ui-notify',method:'notify',message:'Aviso do hunt',notifyType:'info'});
-   emit({type:'extension_ui_request',id:'ui-confirm',method:'confirm',title:'Confirmar?',message:'Deseja seguir?'});
-   emit({type:'extension_ui_request',id:'ui-input',method:'input',title:'Digite',message:'Um valor',prefill:'pré',placeholder:'dica'});
-   emit({type:'extension_ui_request',id:'ui-editor',method:'editor',title:'Edite',message:'Texto',prefill:'linha1',placeholder:'escreva'});
-   emit({type:'extension_ui_request',id:'ui-select',method:'select',title:'Escolha',message:'Uma opção',options:['um','dois'],prefill:'dois'});
-   emit({type:'extension_ui_request',id:'ui-text',method:'set_editor_text',text:'texto no composer'});
-   return;
-  }
-  emit({type:'agent_start'});
-  emit({type:'message_start',message:{role:'assistant'}});
-  emit({type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:THINK_TEXT}});
-  let dripped=1;
-  const after=()=>{
-   emit({type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:'com calma.'}});
-   emit({type:'tool_execution_start',toolCallId:'hunt-t1',toolName:'web_search',args:{query:'teste do hunt'}});
-   setTimeout(()=>{
-    if(MODE==='error'){emit({type:'desk_error',message:'Falha combinada do hunt.'});streaming=false;return;}
-    emit({type:'tool_execution_end',toolCallId:'hunt-t1',toolName:'web_search',isError:false,result:{content:[{type:'text',text:'ok'}],details:{results:[{title:'Hunt',url:'https://example.com/hunt'}]}}});
-    emit({type:'message_start',message:{role:'assistant'}});
-    emit({type:'message_update',assistantMessageEvent:{type:'text_delta',delta:'Terminei.'}});
-    emit({type:'message_end',message:{role:'assistant',content:[{type:'text',text:'Terminei.'}]}});
-    emit({type:'agent_end'});streaming=false;
-   },3000);
-  };
-  /* Pensamento em pedaços (HUNT_PI_THINK_CHUNKS): o detalhe aberto precisa ver
-     o texto chegar aos poucos, não numa tacada só. */
-  const drip=()=>{
-   if(dripped>=THINK_CHUNKS){after();return;}
-   dripped+=1;
-   emit({type:'message_update',assistantMessageEvent:{type:'thinking_delta',delta:'pedaco '+dripped+' '}});
-   setTimeout(drip,THINK_GAP);
-  };
-  if(THINK_CHUNKS>1)setTimeout(drip,THINK_GAP);else setTimeout(after,THINK_MS);
- }
- else if(e.id)reply(e,{});
-}});
-`);
- fs.chmodSync(file,0o755);
- return file;
-}
-
 /* ------------------------------------------------------------------ */
 /* 1. Markdown/LaTeX/HTML: sintaxe torta, XSS, assets e fallback        */
 /* ------------------------------------------------------------------ */
@@ -131,9 +57,8 @@ if(want('markdown'))await withArtifacts('hunt-markdown',async ctx=>{
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Hunt',name:'Hunt',path:course}]});
  const plot=seedPlot(runtime,'Hunt');
  const missing=path.join(runtime,'learning','Courses','Hunt','nao-existe.png');
- const outside=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-fora-')),'fora-da-area.png');
+ const outside=path.join(trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-fora-'))),'fora-da-area.png');
  fs.writeFileSync(outside,png());
- process.once('exit',()=>fs.rmSync(path.dirname(outside),{recursive:true,force:true}));
  const texts=[
   'inline $x^2$ e \\(y\\) e \\[z\\] e escape \\$5 e malformado $a',
   'display:\n\n$$\\int_0^1 x\\,dx$$',
@@ -148,10 +73,10 @@ if(want('markdown'))await withArtifacts('hunt-markdown',async ctx=>{
   '[link](https://example.com) e [js](javascript:window.__xss=9)',
   '`'+`file://${plot}`+'`',
  ];
- const sessionFile=seedSession(runtime,[
+ const sessionFile=seedNativeSession(runtime,[
   {type:'message',message:{role:'user',content:[{type:'text',text:'teste de markdown'}]}},
   {type:'message',message:{role:'assistant',content:texts.map(text=>({type:'text',text}))}},
- ]);
+ ],{courseId:'Hunt'});
  writeDeskJson(runtime,{session:sessionFile,courseId:'Hunt'});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();const w=watch(page);
@@ -211,7 +136,7 @@ if(want('worklog-history'))await withArtifacts('hunt-worklog-history',async ctx=
  const runtime=ctx.runtime=newRuntime('hunt-wlhist');
  const course=seedConfigured(runtime,'Calc');
  const ts=1700000000000;
- const sessionFile=seedSession(runtime,[
+ const sessionFile=seedNativeSession(runtime,[
   {type:'message',message:{role:'user',content:[{type:'text',text:'pesquise e resuma'}],timestamp:ts}},
   {type:'message',message:{role:'assistant',content:[
    {type:'thinking',thinking:'Vou buscar referências.'},
@@ -226,7 +151,7 @@ if(want('worklog-history'))await withArtifacts('hunt-worklog-history',async ctx=
   {type:'message',message:{role:'toolResult',toolCallId:'t3',toolName:'web_fetch',isError:false,content:[{type:'text',text:'conteúdo'}],details:{title:'Artigo',source:'https://example.com/artigo'},timestamp:ts+3000}},
   {type:'message',message:{role:'toolResult',toolCallId:'t4',toolName:'bash',isError:true,content:[{type:'text',text:'bloqueado'}],details:{},timestamp:ts+3500}},
   {type:'message',message:{role:'assistant',content:[{type:'text',text:'Resumo final.'}],timestamp:ts+4000}},
- ]);
+ ],{courseId:'Calc'});
  writeDeskJson(runtime,{session:sessionFile,courseId:'Calc'});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calc',name:'Calc',path:course}]});
  const app=ctx.app=await launchDesk({runtime});
@@ -358,14 +283,13 @@ if(want('worklog-live'))await withArtifacts('hunt-worklog-live',async ctx=>{
  log('HUNT worklog-live PASSED');
 });
 
-/* Turno só de texto: o fake não emite agent_start/thinking/ferramenta, então
-   não nasce diário — a faixa fica no rótulo estático. Mesmo desenho do
-   pré-rewrite; o teste fixa o comportamento. */
+/* Turno só de texto: o fake não emite ferramenta, então não nasce diário — a
+   faixa mostra o rótulo com o relógio do stream. O teste fixa o desenho. */
 if(want('worklog-live-text'))await withArtifacts('hunt-worklog-text',async ctx=>{
  const runtime=ctx.runtime=newRuntime('hunt-wltext');
  seedConfigured(runtime,'Calc');
  writeDeskJson(runtime,{courseId:'Calc'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'stall'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_CHAOS:'stall'}});
  const page=await app.firstWindow();const w=watch(page);
  await statusOnline(page);
  await page.locator('#prompt').fill('responda e trave no meio');
@@ -382,8 +306,8 @@ if(want('worklog-live-text'))await withArtifacts('hunt-worklog-text',async ctx=>
   pulse:!!document.querySelector('#activity .pulse'),
  }));
  log('[worklog-live-text] snapshot:',JSON.stringify(live,null,1));
- assert.equal(live.work,0,'turno só de texto não abre diário (sem agent_start no fake)');
- assert.equal(live.activity,'Tutor está pensando…','faixa estática sem relógio');
+ assert.equal(live.work,0,'turno só de texto não abre diário');
+ assert.match(live.activity,/^Tutor está pensando… · \d+s$/,'faixa mostra o relógio do stream');
  assert.equal(live.activityTitle,live.activity);
  assert.equal(live.activityRole,'status');
  assert.equal(live.stopHidden,false,'Parar visível durante o stream');
@@ -394,343 +318,11 @@ if(want('worklog-live-text'))await withArtifacts('hunt-worklog-text',async ctx=>
  log('HUNT worklog-live-text PASSED (observações no log)');
 });
 
-/* stream-abort puro: o fake morre antes de qualquer agent_start/thinking/
-   ferramenta, então não há diário para recolher — só o texto parcial, o toast
-   e o busy destravado (o smoke cobre o resto). */
-if(want('abort'))await withArtifacts('hunt-abort',async ctx=>{
- const runtime=ctx.runtime=newRuntime('hunt-abort');
- seedConfigured(runtime,'Chaos');
- writeDeskJson(runtime,{courseId:'Chaos'});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_CHAOS:'stream-abort'}});
- const page=await app.firstWindow();const w=watch(page);
- await statusOnline(page);
- await page.locator('#prompt').fill('comece a responder e caia no meio');
- await page.locator('#send').click();
- await page.waitForSelector('#tutor-state[data-state="error"]',{timeout:20000});
- await sendEnabled(page,{timeout:15000});
- const snap=await page.evaluate(()=>({
-  works:document.querySelectorAll('.work').length,
-  partial:[...document.querySelectorAll('.message.assistant .body')].map(el=>el.textContent).filter(t=>t.includes('cair no meio')).length,
-  stopHidden:document.querySelector('#stop').hidden,
- }));
- log('[abort] snapshot:',JSON.stringify(snap));
- assert.equal(snap.works,0,'sem agent_start não nasce diário (igual ao pré-rewrite)');
- assert.equal(snap.partial,1,'texto parcial sobrevive ao erro');
- assert.equal(snap.stopHidden,true,'Parar some com o busy destravado');
- assert.deepEqual(w.errors,[]);
- log('HUNT abort PASSED');
-});
 
-/* desk_error com diário aberto: o fake roteirizado emite agent_start +
-   pensamento + ferramenta antes de falhar. O host precisa fechar o diário
-   como interrompido e marcar o erro. */
-if(want('diary-error'))await withArtifacts('hunt-diary-error',async ctx=>{
- const runtime=ctx.runtime=newRuntime('hunt-diary-error');
- seedConfigured(runtime,'Calc');
- writeDeskJson(runtime,{courseId:'Calc'});
- const pi=writeHuntPi(runtime);
- const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,HUNT_PI_MODE:'error'}});
- const page=await app.firstWindow();const w=watch(page);
- await statusOnline(page);
- await page.locator('#prompt').fill('comece e falhe no meio');
- await page.locator('#send').click();
- /* Queda de verdade: a coluna do tutor escreve o motivo; o aviso não o repete (#27). */
- await page.waitForFunction(()=>/Falha combinada do hunt\./.test(document.querySelector('#tutor-state')?.textContent||''),undefined,{timeout:20000});
- assert.equal(await page.locator('#toast > *').count(),0,'a queda não repete o aviso: a coluna do tutor escreve o motivo');
- await sendEnabled(page,{timeout:15000});
- await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
- const snap=await page.evaluate(()=>{
-  const work=[...document.querySelectorAll('.work')].at(-1);
-  return {title:work.querySelector('.work-title').textContent,expanded:work.dataset.expanded,
-   mark:work.querySelector('.work-mark svg')?.innerHTML??'',
-   dotsHidden:work.querySelector('.work-dots').hidden,
-   steps:[...work.querySelectorAll('.work-step')].map(s=>({kind:s.dataset.kind,status:s.dataset.status,label:s.querySelector('.step-label').textContent,statusIcon:s.querySelector('.step-status svg')?.innerHTML??'',text:s.querySelector('.step-text').textContent})),
-  };
- });
- log('[diary-error] snapshot:',JSON.stringify(snap,null,1));
- assert.match(snap.title,/^Turno interrompido após /);
- assert.equal(snap.expanded,'false','diário recolhe no erro');
- assert.equal(snap.dotsHidden,true);
- assert.equal(snap.mark,iconBody('alert'),'marca vira alerta');
- assert.deepEqual(snap.steps.map(s=>s.kind),['thinking','search','error'],'passo de erro entra no diário');
- assert.deepEqual(snap.steps.map(s=>s.status),['done','stopped','error'],'ferramenta pendente fecha como parada');
- assert.match(snap.steps[2].text,/Erro do tutor: Falha combinada do hunt\./);
- assert.ok(snap.steps.every(s=>s.statusIcon),'todo passo tem ícone de status');
- assert.deepEqual(w.errors,[]);
- if(EVIDENCE)await saveArtifacts(ctx);
- log('HUNT diary-error PASSED');
-});
 
-/* Parada do usuário (Esc) com diário aberto: a ferramenta running vira
-   stopped, o título vira "Você parou após…" e o passo de pensamento fica
-   expandido com o preview. */
-if(want('diary-stop'))await withArtifacts('hunt-diary-stop',async ctx=>{
- const runtime=ctx.runtime=newRuntime('hunt-diary-stop');
- seedConfigured(runtime,'Calc');
- writeDeskJson(runtime,{courseId:'Calc'});
- const pi=writeHuntPi(runtime);
- const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,HUNT_PI_MODE:'stop'}});
- const page=await app.firstWindow();const w=watch(page);
- await statusOnline(page);
- await page.locator('#prompt').fill('comece e espere');
- await page.locator('#send').click();
- // primeiro estado vivo: pensamento running (o fake segura 400ms até a ferramenta)
- await page.waitForSelector('.work-step[data-kind="thinking"][data-status="running"]',{timeout:10000});
- const liveThinking=await page.evaluate(()=>{
-  const work=document.querySelector('#messages .work');
-  const thinking=work.querySelector('.work-step[data-kind="thinking"]');
-  return {live:work.dataset.live,title:work.querySelector('.work-title').textContent,meta:work.querySelector('.work-meta').textContent,
-   dots:!work.querySelector('.work-dots').hidden,mark:work.querySelector('.work-mark svg')?.innerHTML??'',lamp:work.querySelector('.work-mark').dataset.lamp||'',
-   status:thinking.dataset.status,label:thinking.querySelector('.step-label').textContent,
-   preview:thinking.querySelector('.step-preview').textContent,previewHidden:thinking.querySelector('.step-preview').hidden,
-   spin:!!thinking.querySelector('.step-spin'),
-   activity:document.querySelector('#activity').textContent};
- });
- log('[diary-stop] pensamento vivo:',JSON.stringify(liveThinking,null,1));
- assert.equal(liveThinking.live,'true');
- assert.equal(liveThinking.title,'Pensando…','título vivo do pensamento');
- assert.equal(liveThinking.dots,true);
- assert.equal(liveThinking.lamp,'dome','marca viva do pensamento é a cúpula da luminária (#101)');
- assert.equal(liveThinking.status,'running');
- assert.equal(liveThinking.label,'Pensando…');
- assert.match(liveThinking.preview,/^Vou considerar/,`preview vivo do pensamento (${liveThinking.preview})`);
- assert.equal(liveThinking.previewHidden,false);
- assert.equal(liveThinking.spin,true,'spinner no pensamento vivo');
- // segundo estado vivo: a ferramenta running com o pensamento já fechado
- await page.waitForSelector('.work-step[data-status="running"][data-kind="search"]',{timeout:10000});
- await page.waitForSelector('.work-step[data-kind="thinking"][data-status="done"]',{timeout:10000});
- const live=await page.evaluate(()=>{
-  const work=document.querySelector('#messages .work');
-  const thinking=work.querySelector('.work-step[data-kind="thinking"]');
-  const running=work.querySelector('.work-step[data-status="running"]');
-  return {live:work.dataset.live,title:work.querySelector('.work-title').textContent,meta:work.querySelector('.work-meta').textContent,
-   dots:!work.querySelector('.work-dots').hidden,mark:work.querySelector('.work-mark svg')?.innerHTML??'',
-   thinking:{status:thinking.dataset.status,label:thinking.querySelector('.step-label').textContent,preview:thinking.querySelector('.step-preview').textContent,previewHidden:thinking.querySelector('.step-preview').hidden},
-   running:{kind:running.dataset.kind,label:running.querySelector('.step-label').textContent,spin:!!running.querySelector('.step-spin')},
-   activity:document.querySelector('#activity').textContent};
- });
- log('[diary-stop] ferramenta viva:',JSON.stringify(live,null,1));
- assert.equal(live.live,'true');
- assert.equal(live.title,'Procurando na web: «teste do hunt»','título vivo segue o passo corrente');
- assert.match(live.meta,/^\d+s$/);
- assert.equal(live.dots,true);
- assert.equal(live.thinking.status,'done');
- assert.equal(live.thinking.label,'Pensou','o passo não repete a duração do cabeçalho');
- assert.equal(live.thinking.preview,'','preview some quando o pensamento fecha');
- assert.equal(live.thinking.previewHidden,true);
- assert.equal(live.running.kind,'search');
- assert.equal(live.running.spin,true,'spinner na ferramenta viva');
- /* O passo vivo e o relógio moram no diário; a faixa de baixo não os repete (2026-10-21). */
- assert.equal(live.activity.trim(),'','faixa calada com o diário vivo à vista');
- await page.keyboard.press('Escape');
- await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
- const snap=await page.evaluate(()=>{
-  const work=[...document.querySelectorAll('.work')].at(-1);
-  return {title:work.querySelector('.work-title').textContent,expanded:work.dataset.expanded,
-   mark:work.querySelector('.work-mark svg')?.innerHTML??'',
-   steps:[...work.querySelectorAll('.work-step')].map(s=>({kind:s.dataset.kind,status:s.dataset.status,statusIcon:s.querySelector('.step-status svg')?.innerHTML??''}))};
- });
- log('[diary-stop] fim:',JSON.stringify(snap,null,1));
- assert.match(snap.title,/^Você parou após \d+s · 1 busca$/);
- assert.equal(snap.expanded,'false');
- assert.deepEqual(snap.steps.map(s=>s.status),['done','stopped']);
- assert.equal(snap.steps[1].statusIcon,iconBody('stop'),'ícone de parada na ferramenta interrompida');
- assert.equal(snap.mark,iconBody('alert'),'marca de alerta também na parada do usuário (paridade com o pré-rewrite: qualquer reason vira alerta)');
- assert.deepEqual(w.errors,[]);
- if(EVIDENCE)await saveArtifacts(ctx);
- log('HUNT diary-stop PASSED');
-});
 
-/* ------------------------------------------------------------------ */
-/* 3b. Diálogos do Pi (confirm/input/editor/select), fila e respostas   */
-/* ------------------------------------------------------------------ */
-if(want('dialog-ui'))await withArtifacts('hunt-dialog-ui',async ctx=>{
- const runtime=ctx.runtime=newRuntime('hunt-dialog-ui');
- seedConfigured(runtime,'Calc');
- writeDeskJson(runtime,{courseId:'Calc'});
- const pi=writeHuntPi(runtime);
- const logFile=path.join(runtime,'ui-responses.jsonl');
- const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,HUNT_PI_MODE:'ui',HUNT_PI_LOG:logFile}});
- const page=await app.firstWindow();const w=watch(page);
- await statusOnline(page);
- await page.locator('#prompt').fill('ui');
- await page.locator('#send').click();
- await toastWait(page,'Aviso do hunt',{timeout:15000});
- // confirm
- await page.waitForSelector('#pi-dialog[open]');
- assert.equal(await page.locator('#dialog-title').textContent(),'Confirmar?','título do confirm');
- assert.equal(await page.locator('#dialog-message').textContent(),'Deseja seguir?');
- assert.equal(await page.locator('#dialog-fields #dialog-value').count(),0,'confirm não tem campo');
- await page.locator('#dialog-ok').click();
- // input
- await page.waitForFunction(()=>document.querySelector('#pi-dialog[open]')&&document.querySelector('#dialog-title').textContent==='Digite');
- const input=page.locator('#dialog-value');
- assert.equal(await input.evaluate(el=>el.tagName),'INPUT');
- assert.equal(await input.inputValue(),'pré','prefill do input');
- assert.equal(await input.getAttribute('placeholder'),'dica');
- await input.fill('novo');
- await page.locator('#dialog-ok').click();
- // editor
- await page.waitForFunction(()=>document.querySelector('#pi-dialog[open]')&&document.querySelector('#dialog-title').textContent==='Edite');
- const editor=page.locator('#dialog-value');
- assert.equal(await editor.evaluate(el=>el.tagName),'TEXTAREA');
- assert.equal(await editor.inputValue(),'linha1');
- assert.equal(await editor.getAttribute('placeholder'),'escreva');
- await editor.fill('linha2');
- await page.locator('#pi-dialog button[value="cancel"]').click();
- // select
- await page.waitForFunction(()=>document.querySelector('#pi-dialog[open]')&&document.querySelector('#dialog-title').textContent==='Escolha');
- const pick=page.locator('#dialog-value');
- assert.equal(await pick.evaluate(el=>el.tagName),'SELECT');
- assert.deepEqual(await pick.locator('option').evaluateAll(es=>es.map(o=>o.value)),['um','dois'],'opções do select vêm do núcleo');
- assert.equal(await pick.inputValue(),'dois','prefill marca a opção');
- await pick.selectOption('um');
- await page.locator('#dialog-ok').click();
- await page.waitForFunction(()=>!document.querySelector('#pi-dialog').open);
- // set_editor_text chega ao composer
- await page.waitForFunction(()=>document.querySelector('#prompt').value==='texto no composer');
- /* A resposta do select e o `set_editor_text` viajam em canais diferentes: a
-    caixa pode receber o texto antes de o fake gravar a última resposta. */
- const readResponses=()=>{try{return fs.readFileSync(logFile,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}catch{return [];}};
- const responses=await pollUntil(readResponses,list=>['ui-confirm','ui-input','ui-editor','ui-select'].every(id=>list.some(entry=>entry.id===id)),{timeout:5000,what:'as quatro respostas dos diálogos do Pi'});
- log('[dialog-ui] respostas:',JSON.stringify(responses));
- assert.deepEqual(responses.find(r=>r.id==='ui-confirm'),{id:'ui-confirm',type:'extension_ui_response',confirmed:true},'confirm responde confirmed');
- assert.deepEqual(responses.find(r=>r.id==='ui-input'),{id:'ui-input',type:'extension_ui_response',value:'novo'},'input responde o valor digitado');
- assert.deepEqual(responses.find(r=>r.id==='ui-editor'),{id:'ui-editor',type:'extension_ui_response',cancelled:true},'editor cancelado responde cancelled');
- assert.deepEqual(responses.find(r=>r.id==='ui-select'),{id:'ui-select',type:'extension_ui_response',value:'um'},'select responde a opção escolhida');
- assert.deepEqual(w.errors,[]);
- if(EVIDENCE)await saveArtifacts(ctx);
- log('HUNT dialog-ui PASSED');
-});
 
-/* O relógio do diário vivo não pode repintar a árvore inteira: a seleção no
-   detalhe aberto precisa sobreviver ao tick de 1s (o pré-rewrite só atualizava
-   o tempo). E, no turno vivo com o passo aberto, o texto não tem caixa própria
-   (quem rola é a conversa) — com a conversa no topo, o tick não pode puxá-la. */
-if(want('diary-selection'))await withArtifacts('hunt-diary-selection',async ctx=>{
- const runtime=ctx.runtime=newRuntime('hunt-diary-sel');
- seedConfigured(runtime,'Calc');
- writeDeskJson(runtime,{courseId:'Calc'});
- const pi=writeHuntPi(runtime);
- const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,HUNT_PI_MODE:'stop',HUNT_PI_THINK_MS:'9000',HUNT_PI_THINK_TEXT:'palavra '.repeat(100)+'x'.repeat(120)+' '+'palavra '.repeat(100)}});
- const page=await app.firstWindow();const w=watch(page);
- await statusOnline(page);
- await page.locator('#prompt').fill('pense bastante');
- await page.locator('#send').click();
- await page.waitForSelector('.work-step[data-kind="thinking"][data-status="running"]',{timeout:15000});
- await page.locator('.work-step[data-kind="thinking"] .step-toggle').dispatchEvent('click');
- await page.waitForFunction(()=>{const s=document.querySelector('.work-step[data-kind="thinking"] .step-detail');return s&&!s.hidden;});
- await page.evaluate(()=>{
-  const pre=document.querySelector('.work-step[data-kind="thinking"] .step-text');
-  const m=document.querySelector('#messages');
-  m.scrollTop=0;m.dispatchEvent(new Event('scroll'));
-  const range=document.createRange();range.selectNodeContents(pre);
-  const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
- });
- const before=await page.evaluate(()=>{const pre=document.querySelector('.work-step[data-kind="thinking"] .step-text');return {collapsed:getSelection().isCollapsed,maxHeight:getComputedStyle(pre).maxHeight,innerScroll:pre.scrollHeight-pre.clientHeight,scrollTop:document.querySelector('#messages').scrollTop,lines:pre.textContent.length};});
- await page.waitForTimeout(2400);// espera fixa: o tick de 1 s do relógio é o que se testa — passam dois ticks com a seleção montada
- const after=await page.evaluate(()=>{const pre=document.querySelector('.work-step[data-kind="thinking"] .step-text');return {collapsed:getSelection().isCollapsed,maxHeight:getComputedStyle(pre).maxHeight,scrollTop:document.querySelector('#messages').scrollTop,meta:document.querySelector('.work .work-meta')?.textContent??'',open:!document.querySelector('.work-step[data-kind="thinking"] .step-detail').hidden};});
- log('[diary-selection] antes:',JSON.stringify(before),'depois:',JSON.stringify(after));
- assert.equal(before.collapsed,false,'seleção montada');
- assert.equal(before.maxHeight,'none','aberto no turno vivo: o texto não tem teto de 240px');
- assert.ok(before.innerScroll<=1,`o texto não tem rolagem própria (${before.innerScroll})`);
- assert.equal(after.open,true,'o detalhe continua aberto no tick');
- assert.equal(after.collapsed,false,'o tick de 1s não pode apagar a seleção do detalhe');
- assert.equal(after.maxHeight,'none','o tick mantém o texto sem caixa');
- assert.equal(after.scrollTop,before.scrollTop,'com a conversa no topo, o tick não puxa para o fim');
- assert.match(after.meta,/^\d+s$/,'o relógio continua andando no tick');
- await page.keyboard.press('Escape');
- await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
- assert.deepEqual(w.errors,[]);
- if(EVIDENCE)await saveArtifacts(ctx);
- log('HUNT diary-selection PASSED');
-});
 
-/* Passo aberto durante o turno vivo (conferir enquanto ele pensa): o preview
-   "correndo" some, o texto completo cresce sem caixa própria e a conversa
-   segue o fim — até você rolar para cima. Encerrado o turno, o teto volta. */
-if(want('thinking-open'))await withArtifacts('hunt-thinking-open',async ctx=>{
- const runtime=ctx.runtime=newRuntime('hunt-think-open');
- seedConfigured(runtime,'Calc');
- writeDeskJson(runtime,{courseId:'Calc'});
- const pi=writeHuntPi(runtime);
- const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,HUNT_PI_MODE:'stop',HUNT_PI_THINK_MS:'9000',HUNT_PI_THINK_TEXT:'palavra '.repeat(100)+'x'.repeat(120)+' '+'palavra '.repeat(100),HUNT_PI_THINK_CHUNKS:'60',HUNT_PI_THINK_GAP:'150'}});
- const page=await app.firstWindow();const w=watch(page);
- await statusOnline(page);
- await page.locator('#prompt').fill('pense bastante');
- await page.locator('#send').click();
- await page.waitForSelector('.work-step[data-kind="thinking"][data-status="running"]',{timeout:15000});
- await page.locator('.work-step[data-kind="thinking"] .step-toggle').dispatchEvent('click');
- await page.waitForFunction(()=>{const s=document.querySelector('.work-step[data-kind="thinking"] .step-detail');return s&&!s.hidden;});
- const snap=()=>page.evaluate(()=>{
-  const step=document.querySelector('.work-step[data-kind="thinking"]');
-  const pre=step.querySelector('.step-text');
-  const m=document.querySelector('#messages'),chat=document.querySelector('#chat');
-  /* Em janela baixa quem rola é o #chat (o #messages cresce com o conteúdo):
-     "seguir o fim" vale para o scroller que estiver de fato rolando. */
-  const scroller=m.scrollHeight>m.clientHeight+1?m:chat;
-  return {live:document.querySelector('#messages .work').dataset.live,
-   previewHidden:step.querySelector('.step-preview').hidden,previewLen:step.querySelector('.step-preview').textContent.length,
-   maxHeight:getComputedStyle(pre).maxHeight,overflow:getComputedStyle(pre).overflow,
-   innerScroll:pre.scrollHeight-pre.clientHeight,textOverflow:pre.scrollWidth-pre.clientWidth,
-   textRight:Math.round(pre.getBoundingClientRect().right-m.getBoundingClientRect().right),len:pre.textContent.length,
-   scrollTop:scroller.scrollTop,bottomGap:scroller.scrollHeight-scroller.scrollTop-scroller.clientHeight};
- });
- const opened=await snap();
- log('[thinking-open] aberto:',JSON.stringify(opened));
- assert.equal(opened.live,'true');
- assert.equal(opened.previewHidden,true,'com o passo aberto o preview "correndo" some');
- assert.ok(opened.previewLen>0,'o preview segue no DOM (só escondido)');
- assert.equal(opened.maxHeight,'none','aberto no turno vivo: sem teto de 240px');
- assert.equal(opened.overflow,'visible','aberto no turno vivo: o texto não rola por dentro');
- assert.ok(opened.innerScroll<=1,`o texto não tem rolagem própria (${opened.innerScroll})`);
- assert.ok(opened.textOverflow<=1,`um pensamento sem espaços não estoura na horizontal (${opened.textOverflow}px)`);
- assert.ok(opened.textRight<=1,`o texto fica dentro da coluna (${opened.textRight}px além da borda)`);
- /* #70: o "pensando" piscava a cada token, porque o diário trocava todos os nós.
-    A ∫, o passo e o texto do raciocínio são os mesmos nós do começo ao fim. */
- await page.evaluate(()=>{
-  const step=document.querySelector('.work-step[data-kind="thinking"]');
-  window.__thinkingNodes={lamp:document.querySelector('#messages .work .work-mark .lamp-mark'),step,text:step.querySelector('.step-text')};
- });
- const follow=await pollUntil(snap,now=>now.len>opened.len&&now.scrollTop>opened.scrollTop,{timeout:10000,what:'o pensamento crescer e a conversa seguir o fim'});
- log('[thinking-open] seguindo:',JSON.stringify(follow));
- const stable=await page.evaluate(()=>{
-  const kept=window.__thinkingNodes,step=document.querySelector('.work-step[data-kind="thinking"]');
-  return {lamp:!!kept.lamp&&kept.lamp===document.querySelector('#messages .work .work-mark .lamp-mark'),step:kept.step===step,text:kept.text===step.querySelector('.step-text')};
- });
- assert.deepEqual(stable,{lamp:true,step:true,text:true},'os tokens novos não recriam a cúpula, o passo nem o texto do raciocínio');
- assert.ok(follow.len>opened.len,`o pensamento continua chegando (${opened.len} -> ${follow.len})`);
- assert.ok(follow.scrollTop>opened.scrollTop,`a conversa segue o fim enquanto você está no fim (${opened.scrollTop} -> ${follow.scrollTop})`);
- assert.ok(follow.bottomGap<=80,`e continua colada no fim (${follow.bottomGap}px)`);
- /* As posições "pedidas pelo app" expiram em dois quadros: com a janela
-    escondida sem quadros, um 0 antigo faria a subida do aluno passar por
-    rolagem automática. Acorda o compositor antes de subir. */
- await nextFrames(page,4);
- await page.evaluate(()=>{const m=document.querySelector('#messages'),c=document.querySelector('#chat');m.scrollTop=0;c.scrollTop=0;m.dispatchEvent(new Event('scroll'));c.dispatchEvent(new Event('scroll'));});
- const up=await snap();
- // três pedaços do pensamento (150 ms cada) chegam com a conversa rolada para cima
- const held=await pollUntil(snap,now=>now.len>=up.len+3*20,{timeout:10000,what:'três pedaços novos do pensamento'});
- log('[thinking-open] rolado para cima:',JSON.stringify(up),'->',JSON.stringify(held));
- assert.ok(held.len>up.len,`o pensamento segue chegando (${up.len} -> ${held.len})`);
- assert.equal(held.scrollTop,0,'rolado para cima, a conversa não é puxada de volta');
- await page.keyboard.press('Escape');
- await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
- if(await page.locator('#messages .work').getAttribute('data-expanded')==='false')await page.locator('#messages .work .work-head').dispatchEvent('click');
- await page.waitForFunction(()=>document.querySelector('#messages .work').dataset.expanded==='true');
- if(await page.locator('.work-step[data-kind="thinking"] .step-detail').evaluate(el=>el.hidden))await page.locator('.work-step[data-kind="thinking"] .step-toggle').dispatchEvent('click');
- await page.waitForFunction(()=>{const s=document.querySelector('.work-step[data-kind="thinking"] .step-detail');return s&&!s.hidden;});
- const done=await snap();
- log('[thinking-open] encerrado:',JSON.stringify(done));
- assert.equal(done.live,'false');
- assert.equal(done.maxHeight,'none','encerrado o turno, o texto segue sem teto de 240px (#90)');
- assert.equal(done.overflow,'visible','encerrado o turno, o texto não rola por dentro');
- assert.ok(done.innerScroll<=1,`o texto segue sem rolagem própria (${done.innerScroll})`);
- assert.ok(done.textOverflow<=1,`encerrado, o pensamento longo segue sem estouro horizontal (${done.textOverflow}px)`);
- assert.ok(done.textRight<=1,`encerrado, o texto segue dentro da coluna (${done.textRight}px além da borda)`);
- assert.deepEqual(w.errors,[]);
- if(EVIDENCE)await saveArtifacts(ctx);
- log('HUNT thinking-open PASSED');
-});
 
 /* ------------------------------------------------------------------ */
 /* 3c. Quiz: pular (cancelado), errar e nota da explicação              */
@@ -739,7 +331,8 @@ if(want('quiz-edge'))await withArtifacts('hunt-quiz-edge',async ctx=>{
  const runtime=ctx.runtime=newRuntime('hunt-quiz-edge');
  seedConfigured(runtime,'Calc');
  writeDeskJson(runtime,{courseId:'Calc'});
- const app=ctx.app=await launchDesk({runtime});
+ const quiz={name:'quiz',input:{question:'Quanto é 1+1?',details:'Pergunta de teste',options:[{label:'1'},{label:'2'}],correctAnswer:'2',explanation:'A resposta é $2$.'}};
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MCP_CALLS:JSON.stringify([quiz,quiz])}});
  const page=await app.firstWindow();const w=watch(page);
  await statusOnline(page);
  // pular: veredito cancelado, sem marcas e sem ações
@@ -786,7 +379,7 @@ if(want('history-images'))await withArtifacts('hunt-history-images',async ctx=>{
  }
  records.push({type:'message',message:{role:'user',content:[{type:'text',text:'pergunta real\n\n[Contexto da sessão na Mesa: matéria · p. 2]\n\n[Referências abertas: Limites.pdf p. 3]'}],timestamp:17000000010000}});
  records.push({type:'message',message:{role:'assistant',content:[{type:'text',text:'resposta final'}],timestamp:17000000010500}});
- const sessionFile=seedSession(runtime,records);
+ const sessionFile=seedNativeSession(runtime,records,{courseId:'Hunt'});
  writeDeskJson(runtime,{session:sessionFile,courseId:'Hunt'});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();const w=watch(page);
@@ -811,39 +404,6 @@ if(want('history-images'))await withArtifacts('hunt-history-images',async ctx=>{
  log('HUNT history-images PASSED');
 });
 
-/* ------------------------------------------------------------------ */
-/* 3e. Diário: o fold tocado pelo usuário sobrevive ao fim do turno      */
-/* ------------------------------------------------------------------ */
-if(want('diary-touched'))await withArtifacts('hunt-diary-touched',async ctx=>{
- const runtime=ctx.runtime=newRuntime('hunt-diary-touched');
- seedConfigured(runtime,'Calc');
- writeDeskJson(runtime,{courseId:'Calc'});
- const pi=writeHuntPi(runtime);
- const app=ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,HUNT_PI_MODE:'normal',HUNT_PI_THINK_MS:'1500'}});
- const page=await app.firstWindow();const w=watch(page);
- await statusOnline(page);
- // 1º turno: usuário recolhe o diário vivo; no fim ele continua recolhido
- await page.locator('#prompt').fill('primeiro');
- await page.locator('#send').click();
- await page.waitForSelector('.work[data-live=true]',{timeout:15000});
- await page.locator('.work[data-live=true] .work-head').dispatchEvent('click');
- await page.waitForFunction(()=>document.querySelector('.work[data-live=true]')?.dataset.expanded==='false');
- await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
- assert.equal(await page.locator('.work').last().getAttribute('data-expanded'),'false','recolhido pelo usuário continua recolhido');
- await sendEnabled(page,{timeout:15000});
- // 2º turno: usuário recolhe e reabre o diário vivo; no fim continua aberto
- await page.locator('#prompt').fill('segundo');
- await page.locator('#send').click();
- await page.waitForSelector('.work[data-live=true]',{timeout:15000});
- await page.locator('.work[data-live=true] .work-head').dispatchEvent('click');
- await page.waitForFunction(()=>document.querySelector('.work[data-live=true]')?.dataset.expanded==='false');
- await page.locator('.work[data-live=true] .work-head').dispatchEvent('click');
- await page.waitForFunction(()=>document.querySelector('.work[data-live=true]')?.dataset.expanded==='true');
- await page.waitForFunction(()=>{const all=document.querySelectorAll('.work');const el=all[all.length-1];return el&&el.dataset.live==='false';},undefined,{timeout:15000});
- assert.equal(await page.locator('.work').last().getAttribute('data-expanded'),'true','aberto pelo usuário continua aberto');
- assert.deepEqual(w.errors,[]);
- log('HUNT diary-touched PASSED');
-});
 
 /* Dois cards de quiz na mesma conversa: o foco restaurado no clique de uma
    opção não pode pular para o card anterior (as keys `quiz-option-N` repetem
@@ -852,7 +412,8 @@ if(want('quiz-focus'))await withArtifacts('hunt-quiz-focus',async ctx=>{
  const runtime=ctx.runtime=newRuntime('hunt-quiz-focus');
  seedConfigured(runtime,'Calc');
  writeDeskJson(runtime,{courseId:'Calc'});
- const app=ctx.app=await launchDesk({runtime});
+ const quiz={name:'quiz',input:{question:'Pergunta de teste',options:[{label:'1'},{label:'2'}],correctAnswer:['2'],multiSelect:true}};
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MCP_CALLS:JSON.stringify([quiz,quiz])}});
  const page=await app.firstWindow();const w=watch(page);
  await statusOnline(page);
  await page.locator('#prompt').fill('quiz multi');
@@ -950,10 +511,10 @@ if(want('quote'))await withArtifacts('hunt-quote',async ctx=>{
  const runtime=ctx.runtime=newRuntime('hunt-quote');
  seedConfigured(runtime,'Hunt');
  const long='palavra '.repeat(1400).trim(); // ~11k chars
- const sessionFile=seedSession(runtime,[
+ const sessionFile=seedNativeSession(runtime,[
   {type:'message',message:{role:'user',content:[{type:'text',text:long}]}},
   {type:'message',message:{role:'assistant',content:[{type:'text',text:'ok'}]}},
- ]);
+ ],{courseId:'Hunt'});
  writeDeskJson(runtime,{session:sessionFile,courseId:'Hunt'});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();const w=watch(page);
@@ -965,14 +526,14 @@ if(want('quote'))await withArtifacts('hunt-quote',async ctx=>{
   const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
  });
  await page.waitForSelector('#quote-btn:not([hidden])',{timeout:8000});
- await page.locator('#quote-btn').click();
+ await page.locator('#quote-btn').dispatchEvent('click');
  const quoted=await page.locator('#prompt').inputValue();
  const flat=quoted.split('\n').map(line=>line.replace(/^> ?/,'')).join('\n').trim();
  log('[quote] quoted length:',quoted.length,'flat length:',flat.length);
  assert.ok(quoted.startsWith('> '),'citação vira blockquote');
  assert.ok(flat.length<=8005,`citação truncada em 8000 (${flat.length})`);
  assert.ok(flat.endsWith('…'),'truncagem marca com reticências');
- await page.locator('#quote-btn').waitFor({state:'hidden',timeout:2000}); // botão some depois de citar (com fade, #63)
+ await page.waitForFunction(()=>document.querySelector('#quote-btn')?.hidden===true,undefined,{timeout:2000}); // botão some depois de citar (com fade, #63)
  // ⏎ envia; ⇧⏎ quebra linha
  await page.locator('#prompt').fill('');
  await page.locator('#prompt').fill('teorema');
@@ -1024,12 +585,12 @@ if(want('scroll'))await withArtifacts('hunt-scroll',async ctx=>{
  seedConfigured(runtime,'Hunt');
  const long=Array.from({length:150},(_,i)=>`Parágrafo ${i+1}: ${'texto '.repeat(12)}`).join('\n\n');
  const ts=1700000000000;
- const sessionFile=seedSession(runtime,[
+ const sessionFile=seedNativeSession(runtime,[
   {type:'message',message:{role:'user',content:[{type:'text',text:'mensagem longa'}],timestamp:ts}},
   {type:'message',message:{role:'assistant',content:[{type:'thinking',thinking:'Pensando com calma.'},{type:'toolCall',id:'t1',name:'web_search',arguments:{query:'longo'}}],timestamp:ts+1000}},
   {type:'message',message:{role:'toolResult',toolCallId:'t1',toolName:'web_search',isError:false,content:[{type:'text',text:'resultado'}],details:{results:[{title:'R',url:'https://example.com/r'}]},timestamp:ts+2000}},
   {type:'message',message:{role:'assistant',content:[{type:'text',text:long}],timestamp:ts+3000}},
- ]);
+ ],{courseId:'Hunt'});
  writeDeskJson(runtime,{session:sessionFile,courseId:'Hunt'});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();const w=watch(page);
@@ -1038,7 +599,7 @@ if(want('scroll'))await withArtifacts('hunt-scroll',async ctx=>{
  /* Em janela baixa (conteúdo < 700px) o scroller é o #chat; nos tamanhos
     normais é o #messages. O contrato é "não puxar a rolagem", no que rola. */
  await page.waitForFunction(()=>{const c=document.querySelector('#chat'),m=document.querySelector('#messages');const s=c.scrollHeight>c.clientHeight+1?c:m;return s.scrollHeight>s.clientHeight+300;});
- const before=await page.evaluate(()=>{const c=document.querySelector('#chat'),m=document.querySelector('#messages');const s=c.scrollHeight>c.clientHeight+1?c:m;s.scrollTop=0;s.dispatchEvent(new Event('scroll'));return s.scrollTop;});
+  const before=await page.evaluate(()=>{const c=document.querySelector('#chat'),m=document.querySelector('#messages');const s=c.scrollHeight>c.clientHeight+1?c:m;s.dispatchEvent(new WheelEvent('wheel',{bubbles:true,deltaY:-800}));s.scrollTop=0;s.dispatchEvent(new Event('scroll',{bubbles:true}));return s.scrollTop;});
  await page.locator('#messages .work-head').dispatchEvent('click');
  await page.waitForFunction(()=>document.querySelector('#messages .work').dataset.expanded==='true');
  await page.waitForTimeout(300);// espera fixa: "nada acontece em 0,3 s" — abrir o diário no topo não puxa a rolagem

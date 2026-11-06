@@ -55,16 +55,22 @@ const CSS = `
 .mesa-bkp p{margin:0;font-size:var(--fs-sm,12px);line-height:1.5;color:var(--muted,#525252)}
 .mesa-bkp .mesa-bkp-field{display:flex;flex-direction:column;gap:var(--space-2,6px);font-size:var(--fs-sm,12px);color:var(--muted,#525252)}
 .mesa-bkp .mesa-bkp-row{display:flex;gap:var(--space-3,8px);align-items:center;flex-wrap:wrap}
+/* Automático em três linhas (auditoria rodada 4, F4): "a cada … horas",
+   "parada há … min" e "guardar … versões" se liam como um bloco só. */
+.mesa-bkp .mesa-bkp-auto{flex-direction:column;align-items:flex-start;gap:var(--space-2,6px)}
 .mesa-bkp .mesa-bkp-row input[type="text"],.mesa-bkp .mesa-bkp-row input[type="url"]{flex:1;min-width:180px;height:30px;padding:0 9px;border:1px solid var(--border-strong,#c7c7c7);border-radius:var(--r-sm,7px);background:var(--surface,#ffffff);color:var(--fg,#272727)}
 .mesa-bkp input[type="number"]{width:88px;height:30px;padding:0 8px;border:1px solid var(--border-strong,#c7c7c7);border-radius:var(--r-sm,7px);background:var(--surface,#ffffff);color:var(--fg,#272727)}
-.mesa-bkp .mesa-bkp-check{display:flex;align-items:center;gap:var(--space-3,8px);font-size:var(--fs-sm,12px);color:var(--fg,#272727);padding:2px 0}
+/* B1 (auditoria rodada 8): o desabilitado dos ajustes do automático usa a
+   mesma opacidade do button:disabled global (style.css). */
+.mesa-bkp input[type="number"]:disabled{opacity:.45;cursor:default}
+.mesa-bkp .mesa-bkp-check{display:flex;align-items:center;gap:var(--space-3,8px);min-height:24px;font-size:var(--fs-sm,12px);color:var(--fg,#272727);padding:2px 0}
 .mesa-bkp .mesa-bkp-check input{width:auto;margin:0;accent-color:var(--primary,#6d28d9)}
 .mesa-bkp .mesa-bkp-status{display:flex;flex-direction:column;gap:var(--space-1,4px);border:1px solid var(--border,#dadada);border-radius:var(--r-lg,10px);padding:var(--space-5,12px);background:var(--side,#f4f4f4)}
 .mesa-bkp .mesa-bkp-status strong{font-size:var(--fs-sm,12px);color:var(--fg-strong,#181818)}
 .mesa-bkp .mesa-bkp-status span{font-size:var(--fs-xs,11px);color:var(--muted,#525252)}
-.mesa-bkp .mesa-bkp-error{color:var(--danger,#dc2626)}
-.mesa-bkp .mesa-bkp-ok{color:var(--success,#16a34a)}
-.mesa-bkp .mesa-bkp-warn{color:var(--warn,#d97706)}
+.mesa-bkp .mesa-bkp-error,.mesa-bkp .mesa-bkp-status .mesa-bkp-error,.mesa-bkp .mesa-bkp-actions .mesa-bkp-live.mesa-bkp-error{color:var(--danger-text,#dc2626)}
+.mesa-bkp .mesa-bkp-ok,.mesa-bkp .mesa-bkp-status .mesa-bkp-ok,.mesa-bkp .mesa-bkp-actions .mesa-bkp-live.mesa-bkp-ok{color:var(--success-text,#16a34a)}
+.mesa-bkp .mesa-bkp-warn,.mesa-bkp .mesa-bkp-status .mesa-bkp-warn,.mesa-bkp .mesa-bkp-actions .mesa-bkp-live.mesa-bkp-warn{color:var(--warn-text,#d97706)}
 .mesa-bkp ul.mesa-bkp-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-3,8px)}
 .mesa-bkp ul.mesa-bkp-list li{display:flex;align-items:center;gap:var(--space-4,10px);border:1px solid var(--border,#dadada);border-radius:var(--r-lg,10px);padding:var(--space-4,10px) var(--space-5,12px)}
 .mesa-bkp ul.mesa-bkp-list li .mesa-bkp-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -77,7 +83,7 @@ const CSS = `
 .mesa-bkp button:not(.icon-btn){min-height:30px;padding:0 12px}
 .mesa-bkp button.primary{background:var(--primary,#6d28d9);border-color:var(--primary,#6d28d9);color:var(--primary-fg,#fff)}
 .mesa-bkp button.primary:hover{background:var(--primary-hover,#5b21b6);border-color:var(--primary-hover,#5b21b6)}
-.mesa-bkp button.mesa-bkp-danger{border-color:color-mix(in oklab,var(--danger,#dc2626) 45%,var(--border,#dadada));color:var(--danger,#dc2626)}
+.mesa-bkp button.mesa-bkp-danger{border-color:color-mix(in oklab,var(--danger,#dc2626) 45%,var(--border,#dadada));color:var(--danger-text,#dc2626)}
 .mesa-bkp .mesa-bkp-hidden{display:none !important}
 @media (max-width:640px){.mesa-bkp .mesa-bkp-body{flex-direction:column}.mesa-bkp .mesa-bkp-nav{flex-direction:row;overflow:auto}}
 `;
@@ -187,10 +193,10 @@ export function renderBackupPanelView(view) {
       </div>
     </div>
     <label class="mesa-bkp-check"><input type="checkbox" id="mesa-bkp-auto" ${v.settings.auto ? 'checked' : ''}> ${t('backup.auto')}</label>
-    <div class="mesa-bkp-row">
-      <label class="mesa-bkp-check">${t('backup.every', {input: `<input type="number" id="mesa-bkp-intervalo" min="1" max="720" value="${v.settings.intervalHours}" aria-label="${t('backup.everyAria')}">`})}</label>
-      <label class="mesa-bkp-check">${t('backup.idle', {input: `<input type="number" id="mesa-bkp-parado" min="5" max="1440" value="${v.settings.idleMinutes}" aria-label="${t('backup.idleAria')}">`})}</label>
-      <label class="mesa-bkp-check">${t('backup.keep', {input: `<input type="number" id="mesa-bkp-guardar" min="1" max="200" value="${v.settings.keep}" aria-label="${t('backup.keepAria')}">`})}</label>
+    <div class="mesa-bkp-row mesa-bkp-auto">
+      <label class="mesa-bkp-check">${t('backup.every', {input: `<input type="number" id="mesa-bkp-intervalo" min="1" max="720" value="${v.settings.intervalHours}" aria-label="${t('backup.everyAria')}" ${v.settings.auto ? '' : 'disabled'}>`})}</label>
+      <label class="mesa-bkp-check">${t('backup.idle', {input: `<input type="number" id="mesa-bkp-parado" min="5" max="1440" value="${v.settings.idleMinutes}" aria-label="${t('backup.idleAria')}" ${v.settings.auto ? '' : 'disabled'}>`})}</label>
+      <label class="mesa-bkp-check">${t('backup.keep', {input: `<input type="number" id="mesa-bkp-guardar" min="1" max="200" value="${v.settings.keep}" aria-label="${t('backup.keepAria')}" ${v.settings.auto ? '' : 'disabled'}>`})}</label>
     </div>
     <label class="mesa-bkp-check" title="${t('backup.git.title')}"><input type="checkbox" id="mesa-bkp-git" ${v.settings.git ? 'checked' : ''}> ${t('backup.git')}</label>
     <div class="mesa-bkp-field" data-bkp-git-fields style="${v.settings.git ? '' : 'display:none'}"><span>${t('backup.gitFolder')}</span>
@@ -207,7 +213,7 @@ export function renderBackupPanelView(view) {
       ${git.error ? `<span class="mesa-bkp-warn">${t('backup.gitLastFailed', {error: escapeHtml(git.error)})}</span>` : git.at ? `<span>${t('backup.gitLastAt', {at: escapeHtml(git.at)})}</span>` : ''}
     </div>
     <div class="mesa-bkp-row">
-      <button type="button" class="primary" data-bkp-act="rodar" title="${t('backup.runNote', {keep: v.settings.keep})}" ${v.hasDestination ? '' : 'disabled'}>${t('backup.runNow')}</button>
+      <button type="button" data-bkp-act="rodar" title="${t('backup.runNote', {keep: v.settings.keep})}" ${v.hasDestination ? '' : 'disabled'}>${t('backup.runNow')}</button>
     </div>
     <div class="mesa-bkp-status">
       <strong>${t('backup.lastBackup', {at: escapeHtml(v.status.lastAt)})}</strong>
@@ -346,6 +352,12 @@ export function initBackupPanel(documento, ipc = {}, options = {}) {
     if (content) content.innerHTML = rendered.sections;
     const gitFields = find('[data-bkp-git-fields]');
     if (gitFields) gitFields.style.display = state.view.settings.git ? '' : 'none';
+    /* E4 (auditoria rodada 3): a aba Compartilhar só tem ações (Exportar e
+       Importar; o "Incluir sessões" vale por exportação e o `backup-config`
+       do main só aceita chaves da aba Backup) — nenhum campo dela passa pelo
+       Salvar, então o botão some nessa aba. Nas outras segue como está. */
+    const save = find('[data-bkp-save]');
+    if (save) save.hidden = state.section === 'compartilhar';
   };
   const readSettings = () => ({
     auto: !!find('#mesa-bkp-auto')?.checked,
@@ -580,6 +592,19 @@ export function initBackupPanel(documento, ipc = {}, options = {}) {
     if (event.target?.id === 'mesa-bkp-git') {
       state.view = {...state.view, settings: {...state.view.settings, git: !!event.target.checked}};
       paint();
+    }
+    /* B1 (auditoria rodada 8): desligar o automático desabilita na hora os
+       três ajustes que dependem dele ("a cada", "parada há", "guardar"); o
+       valor salvo não muda, só a edição. */
+    if (event.target?.id === 'mesa-bkp-auto') {
+      const on = !!event.target.checked;
+      state.view = {...state.view, settings: {...state.view.settings, auto: on}};
+      for (const id of ['#mesa-bkp-intervalo', '#mesa-bkp-parado', '#mesa-bkp-guardar']) {
+        const input = find(id);
+        if (!input) continue;
+        if (on) input.removeAttribute('disabled');
+        else input.setAttribute('disabled', '');
+      }
     }
   };
 

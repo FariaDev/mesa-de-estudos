@@ -3,7 +3,7 @@
 // quebra. Capturas em /tmp/mesa-so-opencode.
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {withArtifacts,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,launchDesk,statusOnline,setTheme,freezeMotion,resizeWindow,reviewShot,screenshotDirectory} from './helpers.mjs';
+import {withArtifacts,newRuntime,seedCourse,seedNativeSession,writeDeskJson,writeConfigJson,launchDesk,statusOnline,setTheme,freezeMotion,resizeWindow,reviewShot,screenshotDirectory} from './helpers.mjs';
 import {nextFrames} from './waits.mjs';
 
 const out=screenshotDirectory('svg-fence');
@@ -13,7 +13,7 @@ await withArtifacts('svg-fence',async ctx=>{
  const runtime=ctx.runtime=newRuntime('svg-fence');
  const course=seedCourse(runtime,'calc');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
- const session=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:`O desenho:\n\n${fence}`}]}}]);
+ const session=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:`O desenho:\n\n${fence}`}]}],{courseId:'calc'});
  writeDeskJson(runtime,{courseId:'calc',session});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();

@@ -13,7 +13,7 @@ import path from 'node:path';
    - todo arquivo com `// @ts-check` está na lista (senão o comentário promete
      uma verificação que ninguém roda). */
 const DESK = path.resolve(import.meta.dirname, '..');
-const TYPECHECK_FLOOR = 59;
+const TYPECHECK_FLOOR = 63;
 const SKIPPED_DIRS = new Set(['node_modules', 'tests', 'generated']);
 const TS_CHECK = '// @ts-check';
 

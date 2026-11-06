@@ -12,7 +12,7 @@ await withArtifacts('claude-lifecycle',async ctx=>{
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Lifecycle',name:'Lifecycle',path:folder}]});
  writeDeskJson(runtime,{courseId:'Lifecycle',session:file,courseStates:{Lifecycle:{session:file,sessions:[{path:file}]}}});
  const id=conversations.readClaudeConversation(file,{runtime}).nativeSessionId;
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{FAKE_CLAUDE_LOG:log,FAKE_CLAUDE_TRACE:trace,FAKE_CLAUDE_RATE_DELAY_MS:'1500',LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs')}});
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{FAKE_CLAUDE_LOG:log,FAKE_CLAUDE_TRACE:trace,FAKE_CLAUDE_RATE_DELAY_MS:'1500',LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests','fixtures','claude-sdk-fake.mjs')}});
  const page=await app.firstWindow();await statusOnline(page,{timeout:60000});
  const record=()=>conversations.readClaudeConversation(file,{runtime});
  const submit=async text=>{await page.locator('#prompt').fill(text);await page.locator('#send').click();};

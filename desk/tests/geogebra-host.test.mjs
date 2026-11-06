@@ -238,7 +238,7 @@ function seedInstalledPack(runtime) {
   return dir;
 }
 
-test('sem pacote offline, a view carrega o ggb.html da web e a sessão fica como está (#55)', async (t) => {
+test('sem pacote offline, a view carrega o ggb.html da web com filtro só para geogebra.org', async (t) => {
   const {host, ipcMain, ViewClass, cleanup} = setup({ggbPackDir: '/nao-existe'});
   t.after(cleanup);
   await ipcMain.invoke('ggb-view', {visible: true, rect: RECT});
@@ -246,7 +246,13 @@ test('sem pacote offline, a view carrega o ggb.html da web e a sessão fica como
   assert.deepEqual(view.webContents.loads, ['/ggb-falso.html']);
   assert.deepEqual(view.webContents.urls, []);
   assert.deepEqual(view.webContents.session.handledSchemes, []);
-  assert.equal(view.webContents.session.networkFilter, null, 'a rede não é fechada sem o pacote');
+  assert.equal(typeof view.webContents.session.networkFilter, 'function', 'a sessão online também tem filtro');
+  const decide = (url) => new Promise((resolve) => view.webContents.session.networkFilter({url}, resolve));
+  assert.deepEqual(await decide('https://www.geogebra.org/apps/deployggb.js'), {cancel: false}, 'o applet carrega');
+  assert.deepEqual(await decide('https://cdn.geogebra.org/x.js'), {cancel: false}, 'subdomínio do applet passa');
+  assert.deepEqual(await decide('https://sink.exemplo/p.png?d=DADOS'), {cancel: true}, 'sink externo não sai');
+  assert.deepEqual(await decide('http://127.0.0.1:9/p.png'), {cancel: true}, 'nem o sink local do teste');
+  assert.deepEqual(await decide('file:///etc/passwd'), {cancel: true}, 'file: fora do app não sai');
   assert.equal(host.isOffline(), false);
 });
 
@@ -294,4 +300,29 @@ test('ggb-freeze sem a aba aberta não cria view nem falha', async (t) => {
   t.after(cleanup);
   assert.deepEqual(await ipcMain.invoke('ggb-freeze'), {dataUrl: ''});
   assert.equal(ViewClass.instances.length, 0);
+});
+
+/* A barra espelha o carregamento (auditoria de UI/UX, rodada 1, A4): o
+   renderer mostra "Carregando…" até o `ggb-ready` chegar. */
+async function waitGgbReady(sent, timeout, what) {
+  const start = Date.now();
+  for (;;) {
+    const found = sent.filter((s) => s.channel === 'ggb-ready');
+    if (found.length) return found;
+    if (Date.now() - start > timeout) throw new Error(`sem ggb-ready: ${what}`);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
+test('a barra espelha o carregamento: pronto avisa ok, travado avisa falha', async (t) => {
+  const live = setup({ready: true});
+  t.after(live.cleanup);
+  await live.ipcMain.invoke('ggb-view', {visible: true, rect: RECT});
+  const ok = await waitGgbReady(live.window.sent, 2000, 'o applet pronto');
+  assert.ok(ok.length >= 1 && ok.every((s) => s.payload.ok === true), 'o pronto chega como {ok:true}');
+  const stuck = setup({ready: false});
+  t.after(stuck.cleanup);
+  await stuck.ipcMain.invoke('ggb-view', {visible: true, rect: RECT});
+  const failed = await waitGgbReady(stuck.window.sent, 5000, 'o applet travado');
+  assert.deepEqual(failed.map((s) => s.payload), [{ok: false}], 'o travado chega como {ok:false}');
 });

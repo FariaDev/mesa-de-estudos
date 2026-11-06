@@ -3,12 +3,12 @@ import msg.bend as M
 import view.bend as V
 
 # ---------------------------------------------------------------------------
-# Avisos de atualização do Pi e do Claude Code (ticket #45).
+# Avisos de atualização do Claude Code (ticket #45).
 #
-# O host entrega FATOS — as versões já lidas (`claude --version`, o pacote do
-# Pi, o registry), a tabela "testada com esta Mesa", a memória do `desk.json` e
+# O host entrega FATOS — as versões já lidas (`claude --version`, o registry),
+# a tabela "testada com esta Mesa", a memória do `desk.json` e
 # o dia de hoje — e o núcleo decide o que aparece:
-#   - a linha no topo do Sobre ("Pi 1.3.0 disponível");
+#   - a linha no topo do Sobre ("Claude Code 2.1.301 disponível");
 #   - o ponto no ⚙ da barra superior;
 #   - o "mais nova que a testada";
 #   - o que "Lembrar depois" e "Ignorar esta versão" passam a lembrar.
@@ -329,13 +329,11 @@ def noticeLinesFor(+s: Surface, ls: List<&2, NoticeLine>) -> List<&2, V.ViewNode
 
 # ---------- nós: a ação da linha de componente ----------
 
-# ToolLocal: o Pi que a Mesa instalou (um botão, como sempre — o host reinicia
-# a Mesa). ToolAsk: abre a confirmação com o comando exato. ToolWait: o tutor
-# está respondendo, a ação fica desligada. ToolCopy: instalação que a Mesa não
+# ToolAsk: abre a confirmação com o comando exato. ToolWait: o tutor está
+# respondendo, a ação fica desligada. ToolCopy: instalação que a Mesa não
 # reconhece, só o comando.
 type ToolAction is Data:
   ToolNone{}
-  ToolLocal{}
   ToolAsk{command: String}
   ToolWait{command: String}
   ToolCopy{command: String}
@@ -344,22 +342,12 @@ def hasAction(a: ToolAction) -> Bool:
   match a:
     case ToolNone{}:
       False{}
-    case ToolLocal{}:
-      True{}
     case ToolAsk{_}:
       True{}
     case ToolWait{_}:
       True{}
     case ToolCopy{_}:
       True{}
-
-def localButton() -> V.ViewNode:
-  V.viewEl("button", [
-    V.attrId("update-pi"),
-    V.attrType("button"),
-    V.attrClass("component-update"),
-    V.attrOn("click", "UpdatePi")
-  ], [V.viewText(M.msg("update.pi"))])
 
 def askButton(command: String) -> V.ViewNode:
   V.viewEl("button", [
@@ -393,8 +381,6 @@ def actionNodes(a: ToolAction) -> List<&2, V.ViewNode>:
   match a:
     case ToolNone{}:
       Nil{}
-    case ToolLocal{}:
-      [localButton()]
     case ToolAsk{command}:
       [askButton(command)]
     case ToolWait{_}:

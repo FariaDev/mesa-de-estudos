@@ -46,9 +46,25 @@
 }
 #tutor-material-status{margin:0;padding:var(--space-3) var(--pad);background:var(--surface);border-bottom:1px solid var(--border);font-size:var(--fs-sm);flex-shrink:0}
 #free-empty h2{margin:0;font-size:var(--fs-xl)}
+/* Os três caminhos dividem a linha em partes iguais, sem encolher abaixo do
+   conteúdo (G2 da rodada 6): min-width:max-content troca o corte por quebra, e
+   o primário continua único só pela cor. Recuo lateral de 8 px: em 900 a linha
+   tem 389 px e o PT precisa de 376. */
 .free-start-actions{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:var(--space-3);width:100%;max-width:720px}
-/* Os três caminhos têm o mesmo peso de largura; só a cor destaca o principal (#90). */
-.free-start-actions>button{flex:0 1 168px;justify-content:center}
+.free-start-actions>button{flex:1 1 0;min-width:max-content;justify-content:center;padding:6px 8px}
+/* Linha só quando cabe (ícone + rótulo + recuos + folgas, content-box): PT
+   ~376 px, EN ~424 px; abaixo disso a quebra é equilibrada, um por linha, sem
+   truncar. A largura vem do contêiner do vazio (janela e coluna do chat), e o
+   idioma do `<html lang>`: PT segue numa linha até 376 px de conteúdo. */
+#free-empty{container-type:inline-size;container-name:free-empty}
+@container free-empty (max-width:423px){
+ html[lang="en"] .free-start-actions{flex-direction:column;align-items:stretch}
+ html[lang="en"] .free-start-actions>button{flex:none}
+}
+@container free-empty (max-width:375px){
+ .free-start-actions{flex-direction:column;align-items:stretch}
+ .free-start-actions>button{flex:none}
+}
 /* Sem PDF aberto: o leitor e a área de apoio somem e o texto da sessão ocupa o
    espaço; a conversa ganha a coluna reservada (o vazio usa o lugar da mesa). */
 #free-empty{

@@ -514,8 +514,6 @@ function $updatenotice_noticeLinesFor(_s_0, _ls_0) {
 function $updatenotice_hasAction(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return false;
-  } else if (_a_0.$ === "ToolLocal") {
-    return true;
   } else if (_a_0.$ === "ToolAsk") {
     return true;
   } else if (_a_0.$ === "ToolWait") {
@@ -523,9 +521,6 @@ function $updatenotice_hasAction(_a_0) {
   } else {
     return true;
   }
-}
-function $updatenotice_localButton() {
-  return $view_viewEl("button", { $: "Con", head: $$view_attrId("update-pi"), tail: { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update"), tail: { $: "Con", head: $$view_attrOn("click", "UpdatePi"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$msg_msg("update.pi")), tail: { $: "Nil" } });
 }
 function $updatenotice_askButton(_command_0) {
   return $view_viewEl("button", { $: "Con", head: $$view_attrType("button"), tail: { $: "Con", head: $$view_attrClass("component-update tool-ask"), tail: { $: "Con", head: $$view_attrData("command", _command_0), tail: { $: "Con", head: $$view_attrOn("click", "AskUpdate"), tail: { $: "Nil" } } } } }, { $: "Con", head: $$view_viewText($$updatenotice_updateLabel()), tail: { $: "Nil" } });
@@ -539,8 +534,6 @@ function $updatenotice_copyButton(_command_0) {
 function $updatenotice_actionNodes(_a_0) {
   if (_a_0.$ === "ToolNone") {
     return { $: "Nil" };
-  } else if (_a_0.$ === "ToolLocal") {
-    return { $: "Con", head: $$updatenotice_localButton(), tail: { $: "Nil" } };
   } else if (_a_0.$ === "ToolAsk") {
     const _command_0 = _a_0["command"];
     return { $: "Con", head: $$updatenotice_askButton(_command_0), tail: { $: "Nil" } };
@@ -1011,18 +1004,17 @@ var $$updatenotice_seeAboutLabel = $updatenotice_seeAboutLabel;
 var $$updatenotice_seeAboutButton = $updatenotice_seeAboutButton;
 var $$updatenotice_noticeLineFor = $updatenotice_noticeLineFor;
 var $$updatenotice_noticeLinesFor = $updatenotice_noticeLinesFor;
-var $$view_attrId = $view_attrId;
-var $$msg_msg = $msg_msg;
 var $$updatenotice_updateLabel = $updatenotice_updateLabel;
 var $$view_attr = $view_attr;
 var $$updatenotice_waitHint = $updatenotice_waitHint;
+var $$view_attrId = $view_attrId;
 var $$updatenotice_waitShort = $updatenotice_waitShort;
 var $$msg_msg1 = $msg_msg1;
 var $$updatenotice_copyLabel = $updatenotice_copyLabel;
-var $$updatenotice_localButton = $updatenotice_localButton;
 var $$updatenotice_askButton = $updatenotice_askButton;
 var $$updatenotice_copyButton = $updatenotice_copyButton;
 var $$updatenotice_commandNode = $updatenotice_commandNode;
+var $$msg_msg = $msg_msg;
 var $$updatenotice_willRunText = $updatenotice_willRunText;
 var $$updatenotice_runLine = $updatenotice_runLine;
 var $$updatenotice_cancelLabel = $updatenotice_cancelLabel;
@@ -1148,7 +1140,6 @@ var claudeversion_default = {
   "updatenotice:noticeLineFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLineFor(a0, a1)), 2),
   "updatenotice:noticeLinesFor": run_lib((a0, a1) => run_loop($updatenotice_noticeLinesFor(a0, a1)), 2),
   "updatenotice:hasAction": run_lib((a0) => run_loop($updatenotice_hasAction(a0)), 1),
-  "updatenotice:localButton": run_lib(() => run_loop($updatenotice_localButton()), 0),
   "updatenotice:askButton": run_lib((a0) => run_loop($updatenotice_askButton(str_in(a0))), 1),
   "updatenotice:waitNodes": run_lib(() => run_loop($updatenotice_waitNodes()), 0),
   "updatenotice:copyButton": run_lib((a0) => run_loop($updatenotice_copyButton(str_in(a0))), 1),

@@ -1,29 +1,103 @@
 import {_electron as electron} from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import {deflateSync} from 'node:zlib';
+import {createRequire} from 'node:module';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {testEnv} from './electron-env.mjs';
 import {primeHiddenFrames} from './frame-prime.mjs';
 import {closeApp} from './proc-tree.mjs';
 import {appendTimingRow} from './suite-tempos.mjs';
+import {trackTempDir} from './temp-dir.mjs';
 
 // Boot compartilhado dos smokes de UI (ui-smoke/subjects-ui) + artefatos de falha.
 const here=path.dirname(fileURLToPath(import.meta.url));
 export const DESK=path.resolve(here,'..');
+/** Motor dos testes de janela: o OpenCode falso faz o papel do `serve` (#57).
+ *  O fake do Pi saiu com o motor; `pi-*.jsonl` antigos continuam legíveis. */
+export const FAKE_OPENCODE=path.join(DESK,'tests','fake-opencode.mjs');
+/* Compatibilidade com fixtures antigas que ainda citam o fake do Pi: somente
+   os testes de sessão Pi legada continuam apontando para ele. */
 export const FAKE_PI=path.join(DESK,'tests','fake-pi.mjs');
-/** Texto do fake do Pi para um teste que grava uma variante dele noutra pasta.
- *  Os imports relativos (`./fake-pi-opencode.mjs`, #44) viram URL absoluta: a cópia
- *  não leva os vizinhos e morria com código 1 ao subir.
- *  @returns {string} ex.: `fs.writeFileSync(demo,fakePiSource().replace(marker,branch))` */
-export function fakePiSource(){
- return fs.readFileSync(FAKE_PI,'utf8').replace(/from '\.\/([\w.-]+\.mjs)'/g,(_,file)=>`from ${JSON.stringify(pathToFileURL(path.join(DESK,'tests',file)).href)}`);
+/** Texto de um fake para um teste que grava uma variante dele noutra pasta.
+ *  Os imports relativos viram URL absoluta: a cópia não leva os vizinhos e
+ *  morria com código 1 ao subir.
+ *  @param {string} [file] caminho do fake; o padrão é o fake do OpenCode
+ *  @returns {string} ex.: `fs.writeFileSync(demo,fakeSource().replace(marker,branch))` */
+export function fakeSource(file=FAKE_OPENCODE){
+ return fs.readFileSync(file,'utf8').replace(/from '\.\/([\w.-]+\.mjs)'/g,(_,dep)=>`from ${JSON.stringify(pathToFileURL(path.join(path.dirname(file),dep)).href)}`);
 }
 export const PLOT_PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+const CRC_TABLE=(()=>{const table=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;table[n]=c;}return table;})();
+/** CRC-32 (IEEE) dos bytes, como o PNG pede no fim de cada pedaço. @param {Buffer} bytes */
+function crc32(bytes){
+  let crc=0xffffffff;
+  for(const byte of bytes)crc=CRC_TABLE[(crc^byte)&0xff]^(crc>>>8);
+  return (crc^0xffffffff)>>>0;
+}
+
+/** Um pedaço do PNG: tamanho + tipo + dados + CRC. @param {string} type @param {Buffer} data */
+function pngChunk(type, data){
+  const head=Buffer.alloc(8);
+  head.writeUInt32BE(data.length,0);
+  head.write(type,4,'latin1');
+  const crc=Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([Buffer.from(type,'latin1'),data])),0);
+  return Buffer.concat([head,data,crc]);
+}
+
+/**
+ * Figura sintética visível (auditoria de UI/UX, rodada 2, D10): o fixture
+ * antigo era um PNG 1×1 transparente e a resposta com figura saía vazia na
+ * captura. Gera 640×360 com papel, grade, eixos e uma seno, sem material
+ * de curso — só para a captura de auditoria ver a imagem.
+ * @param {number} [width]
+ * @param {number} [height]
+ * @returns {string} o PNG em base64
+ * @example const url='data:image/png;base64,'+syntheticFigurePng();
+ */
+export function syntheticFigurePng(width=640, height=360){
+  const stride=width*3+1;
+  const raw=Buffer.alloc(stride*height);
+  const ink=(x,y,r,g,b)=>{
+    if(x<0||y<0||x>=width||y>=height)return;
+    const at=y*stride+1+x*3;
+    raw[at]=r;raw[at+1]=g;raw[at+2]=b;
+  };
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++)ink(x,y,255,255,255);
+  for(let gx=0;gx<width;gx+=40)for(let y=0;y<height;y++)ink(gx,y,229,229,229);
+  for(let gy=0;gy<height;gy+=40)for(let x=0;x<width;x++)ink(x,gy,229,229,229);
+  const axisY=Math.round(height/2),axisX=40;
+  for(let x=0;x<width;x++){ink(x,axisY,51,51,51);ink(x,axisY+1,51,51,51);}
+  for(let y=0;y<height;y++){ink(axisX,y,51,51,51);ink(axisX+1,y,51,51,51);}
+  for(let x=0;x<width;x++){
+    const y=Math.round(axisY-Math.sin((x-axisX)/width*Math.PI*4)*(height/2-30));
+    for(let d=-1;d<=1;d++)for(let e=-1;e<=1;e++)ink(x+d,y+e,36,86,200);
+  }
+  ink(width-60,axisY-70,200,30,30);ink(width-59,axisY-70,200,30,30);
+  ink(width-60,axisY-69,200,30,30);ink(width-59,axisY-69,200,30,30);
+  const ihdr=Buffer.alloc(13);
+  ihdr.writeUInt32BE(width,0);
+  ihdr.writeUInt32BE(height,4);
+  ihdr[8]=8;ihdr[9]=2;
+  const png=Buffer.concat([
+    Buffer.from([137,80,78,71,13,10,26,10]),
+    pngChunk('IHDR',ihdr),
+    pngChunk('IDAT',deflateSync(raw)),
+    pngChunk('IEND',Buffer.alloc(0)),
+  ]);
+  return png.toString('base64');
+}
 const ARTIFACTS=path.join(DESK,'tests','artifacts');
 
-/* Todo runtime (e pasta de capturas em `tests/artifacts`) que o teste cria some
-   quando o processo termina com 0; numa falha fica para investigação (e
-   `MESA_KEEP_RUNTIME=1` o mantém mesmo no sucesso). */
+/* Pastas de evidência (`artifactDir`, `screenshotDirectory` em `tests/artifacts`)
+   somem quando o processo termina com 0 e ficam numa falha, para investigação
+   (e `MESA_KEEP_RUNTIME=1` as mantém mesmo no sucesso). O runtime de dados do
+   teste (`newRuntime`) NÃO entra aqui: vai para o sweep garantido do
+   `temp-dir.mjs` (exit + SIGINT/SIGTERM), que era o que enchia os worktrees de
+   `.test-runtime-*` — o caminho feliz limpava, mas falha e morte por sinal não
+   (2026-11-05). */
 const createdRuntimes=new Set();
 process.once('exit',code=>{
  if(code!==0||process.env.MESA_KEEP_RUNTIME==='1')return;
@@ -86,10 +160,9 @@ export function tinyPdfPages(count,label='pagina'){
 }
 
 export function newRuntime(tag='run'){
- const runtime=path.resolve(DESK,'.test-runtime-'+Date.now()+'-'+tag);
- fs.mkdirSync(path.join(runtime,'learning','Courses'),{recursive:true});
- createdRuntimes.add(runtime);
- return runtime;
+  const runtime=trackTempDir(path.resolve(DESK,'.test-runtime-'+Date.now()+'-'+tag));
+  fs.mkdirSync(path.join(runtime,'learning','Courses'),{recursive:true});
+  return runtime;
 }
 export function seedCourse(runtime,id){
  const dir=path.join(runtime,'learning','Courses',id);
@@ -107,15 +180,39 @@ export function seedSession(runtime,records){
  fs.writeFileSync(file,records.map(record=>JSON.stringify(record)+'\n').join(''));
  return file;
 }
+/**
+ * Cria uma conversa de motor nativo (OpenCode por padrão) com mensagens já
+ * gravadas, no lugar do JSONL Pi que só abre para leitura. Devolve o caminho do
+ * descritor para pôr em `desk.json`.
+ * @param {string} runtime pasta de dados do teste
+ * @param {Array<{role: string, content: Array<object>, timestamp?: number}>} [messages]
+ * @param {{engine?: 'opencode'|'claude', courseId?: string, model?: string, effort?: string,
+ *   started?: number, preview?: string}} [options]
+ * @returns {string} ex.: `/r/conversations/opencode-….json`
+ * @example const session=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'oi'}]}],{courseId:'Calc'});
+ */
+export function seedNativeSession(runtime,messages=[],{engine='opencode',courseId='',model,effort,started,preview}={}){
+ const conversations=createRequire(import.meta.url)('../src/agents/conversations.cjs');
+ const file=conversations.createClaudeConversation({runtime,courseId,engine,...(model?{model}:{}),...(effort?{effort}:{})});
+ /* Aceita também o formato do JSONL Pi (`{type:'message',message}`), para a
+    migração de um teste trocar só o nome do helper. */
+ const list=messages.map(item=>item&&item.message?item.message:item).filter(Boolean);
+ const patch={...(list.length?{messages:list}:{}),...(Number.isFinite(started)?{started}:{}),...(typeof preview==='string'?{preview}:{})};
+ if(Object.keys(patch).length)conversations.updateClaudeConversation(file,patch,{runtime});
+ return file;
+}
 export function writeDeskJson(runtime,data){fs.writeFileSync(path.join(runtime,'desk.json'),JSON.stringify(data));}
 export function writeConfigJson(runtime,data){fs.writeFileSync(path.join(runtime,'config.json'),JSON.stringify(data));}
 
 /* `HOME`/`USERPROFILE` apontam para o runtime: sem config, o app não enxerga
    o vault de verdade da pessoa (e qualquer leitura de `~` cai na pasta de
-   teste). O `main.cjs` já põe o `userData` em `<runtime>/electron`. */
-export function deskEnv(runtime,extra={},pi=true){
+   teste). O `main.cjs` já põe o `userData` em `<runtime>/electron`.
+   `opencode` é o motor padrão dos testes: o fake entra por
+   `LEARNING_DESK_OPENCODE`; um teste que precisa de outro motor passa o
+   próprio `LEARNING_DESK_OPENCODE` (ou `opencode:false`). */
+export function deskEnv(runtime,extra={},opencode=true){
  const base={LEARNING_DESK_RUNTIME:runtime,HOME:runtime,USERPROFILE:runtime};
- if(pi)base.LEARNING_DESK_PI=FAKE_PI;
+ if(opencode&&!Object.hasOwn(extra,'LEARNING_DESK_OPENCODE'))base.LEARNING_DESK_OPENCODE=FAKE_OPENCODE;
  return testEnv({...base,...extra});
 }
 /* O botão Conferir só habilita quando a captura de janela existe: o helper
@@ -144,14 +241,16 @@ function recordLaunchTime(app,startedAt,launchedAt){
 /* Interruptores do Chromium para o Electron de teste: o app de verdade fica
    com o comportamento padrão (#49). */
 const UNTHROTTLED_SWITCHES=['--disable-renderer-backgrounding','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows'];
-export async function launchDesk({runtime,env={},pi=true,execPath=''}={}){
- fs.chmodSync(FAKE_PI,0o755);
- const fullEnv=deskEnv(runtime,env,pi);
+export async function launchDesk({runtime,env={},opencode=true,execPath=''}={}){
+ if(opencode)fs.chmodSync(FAKE_OPENCODE,0o755);
+ const fullEnv=deskEnv(runtime,env,opencode);
  const bin=execPath||process.env.DESK_ELECTRON_BIN||'';
  const startedAt=Date.now();
  const app=bin
   ?await electron.launch({executablePath:bin,args:[...UNTHROTTLED_SWITCHES],cwd:DESK,env:fullEnv})
   :await electron.launch({args:[...UNTHROTTLED_SWITCHES,path.join(DESK,'main.cjs')],cwd:DESK,env:fullEnv});
+ /* closeApp acha o ledger do serve sem cada teste repetir o runtime (#105). */
+ Object.defineProperty(app,'mesaRuntime',{value:runtime,enumerable:false,configurable:true});
  const firstPage=await app.firstWindow();
  /* Sem esperar o `load`: o teste precisa ver o boot (conectando) como a
     pessoa vê; o aquecimento dos quadros entra quando a página termina. */
@@ -173,21 +272,28 @@ export async function resizeWindow(app,page,width,height,options={}){
  /* No Linux, o Electron 45 devolve a janela escondida ao tamanho de abertura
     logo depois do setSize: o renderer chega a ver o tamanho novo e volta. Pede
     de novo até o tamanho ficar parado por 400ms (antes, o tutor-states media o
-    estado de erro a 1326×674 com o rótulo 1440×900). */
+    estado de erro a 1326×674 com o rótulo 1440×900). Sob a rodada cheia com
+    duas janelas, o tutor-header ainda voltou a 1326×701 nas cinco primeiras
+    tentativas (#95); dez dão folga para a reaplicação atrasada do tamanho de
+    abertura sem esconder um pedido que a janela não aceita. */
  for(let attempt=1;;attempt++){
   const result=await resizeWindowOnce(app,page,width,height,options);
   const win=await pageWindow(app,page);
   await page.waitForTimeout(400);
   const [ow,oh]=await win.evaluate((bw,content)=>content?bw.getContentSize():bw.getSize(),!!options.content);
   if(ow===width&&oh===height)return result;
-  if(attempt>=5)throw Error(`a janela não ficou em ${width}×${height}${options.content?' (conteúdo)':''}: voltou para ${ow}×${oh}`);
+  if(attempt>=10)throw Error(`a janela não ficou em ${width}×${height}${options.content?' (conteúdo)':''}: voltou para ${ow}×${oh}`);
  }
 }
 
 async function resizeWindowOnce(app,page,width,height,{content=false,timeout=10000}={}){
  /* Redimensionar durante o boot é atropelado pelo tamanho que o app aplica ao
-    terminar de carregar; espera a página terminar antes de pedir o tamanho. */
- await page.waitForLoadState('load').catch(()=>{});
+    terminar de carregar; espera a página terminar antes de pedir o tamanho.
+    Com prazo: o `waitForLoadState` sem timeout espera o evento `load` para
+    sempre (default 0 do Playwright) e um renderer preso virava silêncio. */
+ await page.waitForLoadState('load',{timeout:30000}).catch(error=>{
+  if(error.name==='TimeoutError')throw Error(`a página da Mesa não terminou de carregar em 30 s (evento \`load\`): ${error.message}`);
+ });
  const win=await pageWindow(app,page);
  const got=await win.evaluate((bw,[w,h,content])=>{
   if(content)bw.setContentSize(w,h);else bw.setSize(w,h);
@@ -314,7 +420,7 @@ export async function withArtifacts(block,run){
   try{await saveArtifacts(ctx);}catch{}
   throw e;
  }finally{
-  try{await closeApp(ctx.app);}catch(error){closeError=error;}
+  try{await closeApp(ctx.app,{ledgerDir:ctx.runtime});}catch(error){closeError=error;}
   if(closeError){try{await saveArtifacts(ctx);}catch{}}
   else if(ok&&ctx.runtime){try{fs.rmSync(ctx.runtime,{recursive:true,force:true});}catch{}}
  }
@@ -407,15 +513,19 @@ export async function openSessionById(page,id){
  },id);
 }
 /* A biblioteca de sessões (todas as matérias) mora no rodapé da lista. */
-/* O contexto de estudo (questão ativa e rascunho .xopp) mora no popover da linha
-   "Vai junto" (`#context-edit` → `#context-pop`), não mais solto na coluna. */
+/* O contexto de estudo (questão ativa e rascunho .xopp) mora em Mais opções →
+   Contexto (#123), junto do resumo do que vai com a mensagem. */
 export async function openStudyContext(page){
- if(await insideHidden(page.locator('#context-pop')))await page.locator('#context-edit').click();
- await page.locator('#context-pop').waitFor({state:'visible'});
+ const more=page.locator('#chat-more-pop');
+ if(await insideHidden(more))await page.locator('#chat-more').click();
+ await more.waitFor({state:'visible'});
+ const submenu=page.locator('#more-context-menu');
+ if(await insideHidden(submenu))await page.locator('#more-context').click();
+ await submenu.waitFor({state:'visible'});
 }
 export async function closeStudyContext(page){
- if(!(await insideHidden(page.locator('#context-pop'))))await page.keyboard.press('Escape');
- await page.locator('#context-pop').waitFor({state:'hidden'});
+ for(let i=0;i<2&&!(await insideHidden(page.locator('#chat-more-pop')));i++)await page.keyboard.press('Escape');
+ await page.locator('#chat-more-pop').waitFor({state:'hidden'});
 }
 export async function fillStudyTitle(page,text){
  await openStudyContext(page);
@@ -435,8 +545,11 @@ export async function openNewSessionMenu(page){
  return pop;
 }
 export async function newSession(page,{claude=false,opencode=false}={}){
+ /* Sem motor explícito o "+" cria na hora com o motor atual; o menu (clique
+    direito) só serve para escolher outro motor. */
+ if(!claude&&!opencode){await page.locator('#new-session').click();return;}
  await openNewSessionMenu(page);
- await page.locator(opencode?'#new-session-opencode':claude?'#new-session-claude':'#new-session-default').click();
+ await page.locator(opencode?'#new-session-opencode':'#new-session-claude').click();
 }
 export async function openTutorMore(page){
  const pop=page.locator('#chat-more-pop');

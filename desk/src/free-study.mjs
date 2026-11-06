@@ -1,9 +1,9 @@
-import {$,S,toast,connect,connectionState,labelBtn} from './state.mjs';
+import {$,S,toast,reconnectAfterBridgeStop,labelBtn} from './state.mjs';
 import {send} from './chat.mjs';
 import {createModelPanel} from './material-models-ui.mjs';
 import {t,text as translated,tutorText,LANGUAGE_EVENT} from './ui-text.mjs';
 import {displayFreeTitle} from './free-names.mjs';
-import {FREE_COURSE_ID,api,extractData,freeState,isFree,isFreeData,workspaceOf} from './free-study-base.mjs';
+import {FREE_COURSE_ID,api,beginFreeInflight,endFreeInflight,extractData,freeState,isFree,isFreeData,workspaceOf} from './free-study-base.mjs';
 import {addMaterial,ensureMaterialStyles,fitPreviewZoom,invalidatePreview,onModelChange,openAddMaterial,openPdfDialog,paintPageIndicator,savePdf,showMaterialDiagnostics,updatePdfPreview,verifyPdf} from './free-study-pdf.mjs';
 import {applyData,connectPdfDialog,flushState,notice,paint,receive,schedulePaint,setBarBusy,setDialogBusy} from './free-study-chrome.mjs';
 
@@ -80,7 +80,8 @@ function openMaterial(value){
 /* ---------- criar matéria ---------- */
 
 function openPromoteDialog(){
- if(freeState.inflight==='free-open'||freeState.inflight==='promote')return;
+ const ongoing=freeState.inflight?.name;
+ if(ongoing==='free-open'||ongoing==='promote')return;
  const workspace=workspaceOf(freeState.lastData)||{};
  const materials=Array.isArray(workspace.materials)?workspace.materials:[];
  $('#free-promote-session').textContent=displayFreeTitle(String(workspace.title||'').trim())||t('free.title.placeholder');
@@ -91,7 +92,6 @@ function openPromoteDialog(){
  $('#free-promote-name').focus();
 }
 async function promote(){
- if(freeState.inflight)return;
  const fn=api('freePromote');
  const name=$('#free-promote-name').value.trim();
  if(!fn){
@@ -106,8 +106,12 @@ async function promote(){
   notice('#free-promote-error',t('free.promote.waitTutor'));
   return;
  }
+ /* O claim substitui o guard e a marcação: na mesma geração outra operação em
+    voo recusa (silencioso, como antes); de geração morta o lock é tomado e o
+    fim da antiga não o limpa (§16). */
+ const token=beginFreeInflight('promote');
+ if(!token)return;
  const gen=freeState.generation;
- freeState.inflight='promote';
  setDialogBusy('#free-promote-dialog',true);
  try{
   if(!await flushState(gen))return;
@@ -124,35 +128,31 @@ async function promote(){
   const data=extractData(result);
   $('#free-promote-dialog').close('ok');
   if(data&&!await applyData(data,gen))return;
-  /* A matéria nova muda o cwd da conversa: o host fecha o processo antigo. O
-     renderer não pode continuar dizendo "conectado" para ele — mesmo
-     tratamento do `switchCourse`, sem tocar no histórico transferido. */
+  /* A matéria nova muda o cwd da conversa: o host fecha o processo antigo
+     (`free-promotion-host.cjs` para a ponte). O renderer não pode continuar
+     dizendo "conectado" para ele nem deixar o voo velho escrever depois —
+     mesmo tratamento do `switchCourse`, sem tocar no histórico transferido. */
   const leftFree=!!data&&(!isFreeData(data)||(S.currentCourseId&&S.currentCourseId!==FREE_COURSE_ID));
-  if(leftFree){
-   S.connected=false;
-   connectionState('');
-   connect().catch(()=>{});
-  }
+  if(leftFree)reconnectAfterBridgeStop().catch(()=>{});
   toast(t('free.promote.done',{name:(result.course&&result.course.name)||name}));
  }catch(error){
   if(gen===freeState.generation)notice('#free-promote-error',error&&error.message?translated(error.message):t('free.promote.fail'));
  }finally{
-  freeState.inflight='';
-  setDialogBusy('#free-promote-dialog',false);
+  if(endFreeInflight(token))setDialogBusy('#free-promote-dialog',false);
  }
 }
 
 /* ---------- abrir PDF e renomear ---------- */
 
 async function openPdf(){
- if(freeState.inflight)return;
  const fn=api('freeOpenPdf');
  if(!fn){
   toast(t('free.openPdf.needHost'));
   return;
  }
+ const token=beginFreeInflight('free-open');
+ if(!token)return;
  const gen=freeState.generation;
- freeState.inflight='free-open';
  setBarBusy(true);
  try{
   if(!await flushState(gen))return;
@@ -168,8 +168,7 @@ async function openPdf(){
  }catch(error){
   if(gen===freeState.generation)toast(error&&error.message?translated(error.message):t('free.openPdf.fail'));
  }finally{
-  freeState.inflight='';
-  setBarBusy(false);
+  if(endFreeInflight(token))setBarBusy(false);
   if(freeState.lastData)paint(freeState.lastData);
  }
 }

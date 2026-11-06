@@ -189,7 +189,9 @@
 }
 
 .activity-error {
-  color: var(--danger, #e2483d);
+  /* Texto de erro: o --danger (4,1:1 no escuro) reprova AA; o -text passa nos
+     três fundos (auditoria de UI/UX, rodada 1, D1). */
+  color: var(--danger-text, #f87171);
 }
 
 .activity-error[hidden] {

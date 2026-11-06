@@ -51,7 +51,7 @@ await withArtifacts('about',async ctx=>{
   ipcMain.handle('update-check',async()=>({status:'current',version:'0.5.0',notes:'',url:'',current:'0.5.0',checkedAt:Date.now()}));
   ipcMain.removeHandler('components');
   ipcMain.handle('components',async()=>({rows:[
-   {id:'pi',label:'Pi',version:'0.90.0',state:'outdated',latest:'0.91.0',hint:'Em desk/.pi-local.',canUpdate:true},
+   {id:'claude',label:'Claude Code',version:'2.1.300',state:'outdated',latest:'2.1.302',hint:'Em ~/.local/bin.',canUpdate:true},
    {id:'node',label:'Node (sistema)',version:'24.5.0',state:'ok'},
    {id:'xournal',label:'Xournal++',version:'',state:'unknown',link:'https://github.com/xournalpp/xournalpp/releases/latest',linkLabel:'Abrir o site'}
   ]}));
@@ -77,7 +77,7 @@ await withArtifacts('about',async ctx=>{
   assert.ok(near(m.check.width,30,0.6)&&near(m.check.height,30,0.6),`${tag}: verificar é ícone de 30px`);
   assert.ok(near(m.refresh.width,30,0.6)&&near(m.refresh.height,30,0.6),`${tag}: conferir de novo é ícone de 30px`);
   assert.equal(m.heading,'O que a Mesa usa');
-  assert.deepEqual(m.rows.map(r=>r.id),['pi','node','xournal'],`${tag}: Pi, Node, Xournal++`);
+  assert.deepEqual(m.rows.map(r=>r.id),['claude','node','xournal'],`${tag}: Claude Code, Node, Xournal++`);
   assert.ok(m.dots.length===3&&m.dots.every(d=>near(d.w,7,0.6)&&near(d.h,7,0.6)),`${tag}: bolinha de 7px`);
   assert.ok(m.rows.every(r=>r.overflow<=0),`${tag}: linhas sem rolagem lateral`);
   assert.ok(m.actions.every(h=>near(h,30,0.6)),`${tag}: ações de 30px (${m.actions})`);
@@ -97,7 +97,6 @@ await withArtifacts('about',async ctx=>{
    assert.match((await page.locator('#about-lead').textContent()).trim(),/^Versão \d.*licença MIT$/,`${tag}: linha de versão`);
    assert.equal(await page.locator('#component-rows [data-id="xournal"] .component-state').textContent(),'não dá para conferir daqui');
    assert.equal((await page.locator('#component-rows [data-id="xournal"] .component-hint').textContent()).trim(),'Atualiza pelo site oficial.');
-   assert.equal(await page.locator('#update-pi').textContent(),'Atualizar o Pi');
    await reviewShot(page,out,`sobre-atualizada-${theme}-${width}.png`);
   }
  }

@@ -4,7 +4,7 @@ const http=require('node:http');const crypto=require('node:crypto');
 
 const {createGgbBoard,createKeptStore}=require('./ggb-board.cjs');
 const {readInstalledPack,contentRoot}=require('./geogebra-pack.cjs');
-const {PAGE_URL,installOfflineSession}=require('./ggb-pack-protocol.cjs');
+const {PAGE_URL,installOfflineSession,installOnlineSession}=require('./ggb-pack-protocol.cjs');
 const {guardPage,guardPermissions}=require('./web-guards.cjs');
 const {message: uiMsg}=require('./src/i18n.mjs');
 
@@ -44,16 +44,38 @@ function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',pers
  /* `ggbRestored` vale por documento do applet: o ggb.html recarrega no resize e
     cada `did-finish-load` reabre a janela para reaplicar o snapshot da matéria. */
  let ggbDocumentLoaded=false,ggbCaptureBusy=false;
+ /* Época da restauração: sobe a cada documento novo do applet (`did-finish-load`)
+    e a cada troca de matéria/sessão Livre (`resetRestored`). Reabrir enquanto
+    uma restauração da mesma época espera o applet (até 30 s) não dispara outra
+    `setBase64` por cima; o resultado de uma época antiga não marca a nova como
+    restaurada; e a tentativa nova corre DEPOIS da antiga assentar, então a
+    construção da matéria nova é a última a entrar (§9 da auditoria). */
+ let restoreEpoch=0,restoreInFlightEpoch=-1;
+ const RESTORE_SCRIPT=b64=>`(async()=>{const wait=t=>new Promise(r=>setTimeout(r,t));for(let i=0;i<60&&!window.__ggbReady;i++)await wait(500);if(!window.__ggbReady)return false;try{window.ggbApplet.setBase64(${JSON.stringify(b64)});return true}catch(e){return false}})()`;
+ function viewGone(){return !ggbView||ggbView.webContents.isDestroyed();}
  function restoreGgbConstruction(){
-  if(!ggbView||ggbView.webContents.isDestroyed()||!ggbDocumentLoaded)return;
-  if(ggbRestored)return;
+  if(viewGone()||!ggbDocumentLoaded)return;
+  if(ggbRestored||restoreInFlightEpoch===restoreEpoch)return;
   /* Documento sem snapshot guardado também conta como restaurado: senão o primeiro
      snapshot gravado depois (do uso do tutor) voltaria por cima do que o aluno
-     desenhou no meio (#53). */
-  ggbRestored=true;
-  const b64=deskState().ggbBase64;
-  if(!b64)return;
-  restoring=ggbView.webContents.executeJavaScript(`(async()=>{const wait=t=>new Promise(r=>setTimeout(r,t));for(let i=0;i<60&&!window.__ggbReady;i++)await wait(500);if(!window.__ggbReady)return false;try{window.ggbApplet.setBase64(${JSON.stringify(b64)});return true}catch(e){return false}})()`,true).catch(()=>false/* applet ainda carregando ou view destruída: a próxima abertura restaura de novo */);
+     desenhou no meio (#53). A marca só acontece no SUCESSO: se o applet não
+     respondeu ou devolveu `false`, a próxima abertura tenta de novo em vez de
+     pular por `early return` (§9 da auditoria de máquinas de estado). */
+  if(!deskState().ggbBase64){ggbRestored=true;return;}
+  const epoch=restoreEpoch;
+  restoreInFlightEpoch=epoch;
+  restoring=restoring.catch(()=>false).then(()=>{
+   if(epoch!==restoreEpoch||viewGone())return false;
+   /* O snapshot é lido na hora de aplicar: a matéria pode ter mudado na fila. */
+   const b64=deskState().ggbBase64;
+   if(!b64)return true;
+   return ggbView.webContents.executeJavaScript(RESTORE_SCRIPT(b64),true).then(ok=>ok===true,()=>false/* applet ainda carregando ou view destruída: a próxima abertura restaura de novo */);
+  }).then(ok=>{
+   if(epoch!==restoreEpoch)return false;
+   restoreInFlightEpoch=-1;
+   if(ok)ggbRestored=true;
+   return ok;
+  });
  }
  function ensureGgbView(){
   if(!ggbView){
@@ -66,14 +88,26 @@ function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',pers
    win().contentView.addChildView(ggbView);
    /* O applet recarrega sozinho quando a view muda de tamanho: no documento novo
       o snapshot da matéria é reaplicado assim que o applet fica pronto. */
-   ggbView.webContents.on('did-finish-load',()=>{
+    ggbView.webContents.on('did-finish-load',()=>{
     ggbDocumentLoaded=true;
     ggbRestored=false;
+    restoreEpoch+=1;
     if(ggbVisible)restoreGgbConstruction();
-   });
+    /* A barra espelha o carregamento (auditoria de UI/UX, rodada 1, A4): um
+       aviso por documento, pronto ou falho, até o prazo da abertura. */
+     watchGgbReady();
+    });
+    /* Destruída: a sonda para na hora, sem esperar o próximo ciclo. */
+    ggbView.webContents.on('destroyed',stopGgbWatch);
    const failed=error=>appendLog('ggb',`applet não carregou: ${error.message}`);
    offline=!!readInstalledPack(ggbPackDir);
-   if(!offline)ggbView.webContents.loadFile(ggbPage).catch(failed);
+   if(!offline){
+    /* Online com filtro: o applet precisa do `geogebra.org` para carregar;
+       o resto (sink externo, `file:` fora do app) nem sai da sessão. */
+    let blocked=0;
+    installOnlineSession(ggbView.webContents.session,{appDir:path.dirname(ggbPage),onBlocked:url=>{if(blocked++<5)appendLog('ggb',`rede recusada no GeoGebra online: ${String(url).slice(0,200)}`);}});
+    ggbView.webContents.loadFile(ggbPage).catch(failed);
+   }
    else{
     let blocked=0;
     installOfflineSession(ggbView.webContents.session,{contentDir:contentRoot(ggbPackDir),pageFile:path.join(__dirname,'ggb.html'),onBlocked:url=>{if(blocked++<5)appendLog('ggb',`rede recusada no GeoGebra offline: ${String(url).slice(0,200)}`);}});
@@ -87,7 +121,7 @@ function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',pers
   if(!ggbView||!ggbRect||!owner||owner.isDestroyed())return;
   ggbView.setBounds({x:ggbRect.x,y:ggbRect.y,width:Math.max(1,ggbRect.width),height:Math.max(1,ggbRect.height)});
  }
- function hideGgbView(){ggbRect=null;ggbVisible=false;if(ggbView&&!ggbView.webContents.isDestroyed())ggbView.setVisible(false);}
+  function hideGgbView(){ggbRect=null;ggbVisible=false;stopGgbWatch();if(ggbView&&!ggbView.webContents.isDestroyed())ggbView.setVisible(false);}
  /* Arrasto do divisor do chat (ajustes do GeoGebra): a view nativa fica acima
     do DOM, não acompanha `--chat` e recarrega o applet a cada tamanho novo. No
     começo do arrasto ela vira uma captura (o renderer mostra a imagem no lugar)
@@ -161,6 +195,41 @@ function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',pers
   }
   return true;
  }
+  /* Avisa a barra quando o applet responde (ou não): só fala com a janela
+     viva; o renderer mostra "Carregando…" até o `ok` chegar e o texto de
+     falha no `ok:false`. */
+  function announceGgbReady(ok){
+   const owner=win();
+   if(!owner||owner.isDestroyed())return;
+   try{owner.webContents.send('ggb-ready',{ok:ok===true});}catch{/* janela fechando: sem aviso */}
+  }
+  /* Depois do prazo a sonda continua em baixa frequência até a view sumir: um
+     applet lento ainda manda o `ok:true` tardio, que limpa o estado de falha
+     no renderer. Nenhum intervalo fica vivo depois de a view sumir ou ser
+     destruída. */
+  let ggbWatchTimer=null;
+  function stopGgbWatch(){
+   if(ggbWatchTimer){clearTimeout(ggbWatchTimer);ggbWatchTimer=null;}
+  }
+  function watchGgbReady(){
+   stopGgbWatch();
+   const deadline=Date.now()+openDeadlineMs;
+   let failed=false;
+   const poll=()=>{
+    ggbWatchTimer=null;
+    if(!ggbVisible||!viewAlive())return;
+    appletReady().then(ready=>{
+     if(!ggbVisible||!viewAlive())return;
+     if(ready){announceGgbReady(true);return;}
+     if(!failed&&Date.now()>=deadline){failed=true;announceGgbReady(false);}
+     ggbWatchTimer=setTimeout(poll,failed?1000:50);
+    }).catch(()=>{
+     if(!ggbVisible||!viewAlive())return;
+     ggbWatchTimer=setTimeout(poll,failed?1000:50);
+    });
+   };
+   poll();
+  }
  /* Abre a aba (se fechada) e espera: view visível, documento carregado, matéria
     restaurada e applet pronto. Sem isso o primeiro comando limparia o snapshot
     que ainda ia chegar. Erro em uma frase, sem jargão. */
@@ -246,12 +315,20 @@ function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',pers
   ipcMain.handle('ggb-view',(_e,payload)=>{
    if(payload?.visible){
     const rect=payload.rect||{};
-    ggbRect={x:Math.max(0,Number(rect.x)||0),y:Math.max(0,Number(rect.y)||0),width:Math.max(1,Number(rect.width)||0),height:Math.max(1,Number(rect.height)||0)};
+    const width=Number(rect.width)||0,height=Number(rect.height)||0;
+    /* Coberta sem área (a tela inteira do tutor esconde as referências): mantém
+       o último retângulo — um 1×1 redimensionaria e recarregaria o applet (#98). */
+    if((width>0&&height>0)||!ggbRect)ggbRect={x:Math.max(0,Number(rect.x)||0),y:Math.max(0,Number(rect.y)||0),width:Math.max(1,width),height:Math.max(1,height)};
     /* `covered` (#52): uma sobreposição de página inteira está aberta. A view
        se esconde mas a aba segue ativa, com o mesmo retângulo e a mesma
        construção, e a ponte do tutor continua valendo; ao fechar volta igual. */
     ensureGgbView();placeGgbView();ggbView.setVisible(payload.covered!==true);ggbVisible=true;
     restoreGgbConstruction();
+    /* Reabertura com o applet quente: sem recarga não há `did-finish-load`;
+       o pronto chega na hora e a barra não fica no "Carregando…". Sem applet
+       pronto, a sonda recomeça (senão a reabertura no meio deixaria o
+       "Carregando…" para sempre). */
+    appletReady().then(ready=>{if(ready)announceGgbReady(true);else watchGgbReady();});
    }else hideGgbView();
   });
   ipcMain.handle('ggb-freeze',()=>freezeGgbView());
@@ -267,12 +344,13 @@ function createGeogebraHost({WebContentsView,win,deskState,courseKey=()=>'',pers
    return {dataUrl:'data:image/png;base64,'+image.toPNG().toString('base64')};
   });
  }
- function close(){
-  try{if(ggbServer){ggbServer.close();ggbServer=null;}}catch{/* encerrando: o servidor já parou */}
+  function close(){
+   stopGgbWatch();
+   try{if(ggbServer){ggbServer.close();ggbServer=null;}}catch{/* encerrando: o servidor já parou */}
   try{fs.rmSync(ggbBridgeFile,{force:true});}catch{/* encerrando: o arquivo já não existe */}
  }
- return {bridgeFile:ggbBridgeFile,register,start:startGgbBridge,close,placeView:placeGgbView,hideView:hideGgbView,captureConstruction:captureGgbConstruction,service,boardStatus:()=>board.status(),isOffline:()=>offline,newRequest:()=>board.newRequest(),
+  return {bridgeFile:ggbBridgeFile,register,start:startGgbBridge,close,placeView:placeGgbView,hideView:hideGgbView,captureConstruction:captureGgbConstruction,service,boardStatus:()=>board.status(),isOffline:()=>offline,newRequest:()=>board.newRequest(),watchAlive:()=>ggbWatchTimer!==null,
   /* O documento do applet mudou (matéria ou sessão livre): o quadro de uso começa de novo. */
-  resetRestored(){ggbRestored=false;board.reset();}};
+  resetRestored(){ggbRestored=false;restoreEpoch+=1;board.reset();}};
 }
 module.exports={createGeogebraHost};

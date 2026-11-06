@@ -13,7 +13,9 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
-Issues vivem em `FariaDev/mesa-e-conversa` (remote `origin`). O remote `share` (`FariaDev/mesa-de-estudos`, público, push desativado) não recebe issues; se `gh` escolher o repo errado, passe `--repo FariaDev/mesa-e-conversa`.
+O desenvolvimento continua no repositório privado `FariaDev/mesa-e-conversa` (remote `origin`), e é lá que vivem as issues de desenvolvimento: se `gh` escolher o repo errado, passe `--repo FariaDev/mesa-e-conversa`.
+
+O remote `share` (`FariaDev/mesa-de-estudos`, público, push desativado) também tem issues ativadas: é para lá que vão os relatos de usuários do **Relatar um problema** no app. Esses relatos precisam ser olhados na triagem (`gh issue list --repo FariaDev/mesa-de-estudos`), mesmo que o conserto e a issue de desenvolvimento fiquem no privado.
 
 ## Pull requests as a triage surface
 

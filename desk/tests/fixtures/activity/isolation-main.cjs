@@ -16,6 +16,9 @@ const {createActivityStore} = require('../../../activity-store.cjs');
 const {createActivityRuntime, ACTIVITY_SCHEME, activityArtifactUrl} = require('../../../activity-runtime.cjs');
 
 const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-activity-isolation-'));
+/* A pasta nasce dentro do Electron, que morre sem cerimônia (2026-11-05):
+   varre na saída do próprio processo. */
+process.once('exit', () => { try { fs.rmSync(runtimeDir, {recursive: true, force: true}); } catch {} });
 protocol.registerSchemesAsPrivileged([{
   scheme: ACTIVITY_SCHEME,
   privileges: {standard: true, secure: true, stream: true, supportFetchAPI: false, corsEnabled: false},

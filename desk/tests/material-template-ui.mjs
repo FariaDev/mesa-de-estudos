@@ -169,6 +169,76 @@ async function scenarioMath({app, materialPdf, runtime, file, title}) {
   }
 }
 
+/* Quarta contraprova em PDF real: `class`/`--ans` forjados e cor escondida.
+   O `scrubModelTokens` tira a língua do CSS do template antes da estrutura da
+   casa, e a `color` saiu da allowlist — então 40× `pdf-resposta` + `--ans`
+   forjados não abrem 34 páginas (ficam 2, só com a resposta honesta da casa),
+   e o texto transparente continua no papel. Medido na página pronta um
+   instante antes do printToPDF, e nas páginas do PDF gravado. */
+async function scenarioForged({app, materialPdf, runtime}) {
+  const forged = Array.from({length: 40}, (_, index) => `<div class="pdf-resposta" style="--ans:200mm">f${index}</div>`).join('\n\n');
+  const markdown = [
+    '# Simulado',
+    '',
+    '## Questão 1 (2,0)',
+    '',
+    'Enunciado curto.',
+    '',
+    forged,
+    '',
+    '<div class="pdf-run">CORRIDA-FORJADA</div>',
+    '',
+    '<p><span style="color:rgba(0,0,0,0)">SUMIDO-RGBA</span> visível.</p>',
+    '',
+    '## Gabarito',
+    '',
+    'Resposta 1.',
+    '',
+  ].join('\n');
+  const capture = {result: null};
+  const listener = (_event, win) => {
+    const print = win.webContents.printToPDF.bind(win.webContents);
+    win.webContents.printToPDF = async (options) => {
+      try {
+        capture.result = await win.webContents.executeJavaScript(`(() => {
+          const doc = document.getElementById('doc');
+          const find = (text) => [...doc.querySelectorAll('*')].find((el) => el.textContent.trim() === text);
+          const hidden = find('SUMIDO-RGBA');
+          const hiddenStyle = hidden ? getComputedStyle(hidden) : null;
+          const resp = [...doc.querySelectorAll('.pdf-resposta')];
+          const question = doc.querySelector('.pdf-q');
+          const head = doc.querySelector('.pdf-q-head');
+          return {
+            respCount: resp.length,
+            forgedResposta: resp.filter((el) => /^f\d+$/.test(el.textContent.trim())).length,
+            respHeights: resp.slice(0, 3).map((el) => getComputedStyle(el).height),
+            forgedStyles: [...doc.querySelectorAll('[style]')].map((el) => el.getAttribute('style')).filter((style) => /--ans|pdf-resposta/.test(style)),
+            hiddenColor: hiddenStyle ? hiddenStyle.color : null,
+            runCount: [...doc.querySelectorAll('.pdf-run')].length,
+            houseMarkLeak: /data-pdf-house/i.test(doc.innerHTML),
+            questionClass: question ? question.className : '',
+            questionAns: question ? getComputedStyle(question).getPropertyValue('--ans').trim() : '',
+            headDisplay: head ? getComputedStyle(head).display : '',
+          };
+        })()`);
+      } catch { capture.result = {inspectError: true}; }
+      return print(options);
+    };
+  };
+  app.once('browser-window-created', listener);
+  const dir = path.join(runtime, 'material-forged');
+  fs.mkdirSync(dir, {recursive: true});
+  try {
+    const saved = await materialPdf.savePdf({dir, stem: 'Forjado', title: 'Simulado forjado', markdown, model: 'simulado', timeoutMs: 120000});
+    return {
+      ok: true, path: saved.path, bytes: saved.bytes, sha256: saved.sha256,
+      templateHash: saved.templateHash, diagnostics: saved.diagnostics || [],
+      inspected: capture.result,
+    };
+  } finally {
+    app.removeListener('browser-window-created', listener);
+  }
+}
 let windowCount = 0;
 export function countMaterialWindows(app) {
   app.on('browser-window-created', () => { windowCount += 1; });
@@ -190,6 +260,9 @@ export async function runMaterialScenario(name, context) {
       break;
     case 'template-invalid':
       result = await scenarioMath({...context, file: 'material-invalid.md', title: 'Equação com erro'});
+      break;
+    case 'template-forged':
+      result = await scenarioForged(context);
       break;
     default:
       return {ok: false, code: 'BAD_SCENARIO', message: `cenário de material desconhecido: ${name}`};

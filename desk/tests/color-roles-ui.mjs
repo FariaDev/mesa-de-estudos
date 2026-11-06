@@ -22,7 +22,7 @@ const SIZES=[[1440,900],[900,650]];
 /* O que pode ter sombra: menus (e os popovers e a paleta, que fazem papel de
    menu), diálogos e avisos — o próprio elemento que flutua, não o que está
    dentro dele. */
-const FLOATING='dialog,.nav-pop,.toast-item,#undo-notice,.pdf-nav-pop,#conversations-pop,#context-pop,.slash-pop,.palette';
+const FLOATING='dialog,.nav-pop,.toast-item,#undo-notice,.pdf-nav-pop,#conversations-pop,.slash-pop,.palette';
 
 function rgba(text){
  const m=/^rgba?\(([^)]+)\)$/.exec(String(text).trim());

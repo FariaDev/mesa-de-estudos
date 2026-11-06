@@ -139,7 +139,7 @@ const setupFacts=page=>page.evaluate(()=>{
   chosen:text('#setup-chosen-folder'),files:text('#setup-chosen-files'),elsewhere:text('#setup-elsewhere'),
   pi:document.querySelector('#setup-pi')?.dataset.pi??null,
   tutorStatus:text('#setup-pi'),codexGrok:text('#setup-codex-grok'),login:text('#setup-login-hint'),
-  connect:text('#setup-tutor-actions #connect'),install:text('#setup-tutor-actions #install-opencode'),piSettings:text('#setup-tutor-actions #state-pi'),
+  connect:text('#setup-tutor-actions #connect'),install:text('#setup-tutor-actions #install-opencode'),piSettings:text('#setup-tutor-actions #setup-settings'),
   summary:[...document.querySelectorAll('#setup-summary dd')].map(dd=>dd.textContent.trim()),
   path:text('#setup-data .setup-path'),dataLine:text('#setup-data'),
   changeShown:shown(document.querySelector('#first-run-data-change')),
@@ -329,11 +329,11 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  assert.equal(f.lamp,'tutor-ligando','com motor, a luz pulsa enquanto liga');
  assert.equal(f.pi,'found');
  assert.equal(f.connect,'Chamar o tutor');
- assert.equal(f.piSettings,'Ajustes do tutor','com Pi, o caminho do executável continua à mão');
+ assert.equal(f.piSettings,'Ajustes do tutor','os Ajustes do tutor continuam à mão');
  assert.equal(f.next.text,'Pular por agora','o tutor é opcional');
  /* #90: os cartões só com título saíram; a promessa de privacidade vira uma frase. */
  assert.equal(await page.locator('#setup .setup-cards').count(),0,'passo do tutor sem cartões vazios');
- assert.equal((await page.locator('#setup-codex-grok').textContent()).trim(),'Com o Pi, dá para usar Codex e Grok.','o aviso do Pi é próprio (#93)');
+ assert.equal(await page.locator('#setup-codex-grok').isHidden(),true,'sem Pi, o aviso de Codex e Grok não aparece');
  const tutorGutter=await page.evaluate(()=>{
   const link=document.querySelector('.setup-step[data-step="tutor"] .setup-link').getBoundingClientRect();
   const title=document.querySelector('#setup-tutor-title').getBoundingClientRect();
@@ -348,6 +348,14 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
    const m=await setupFacts(page);
    assert.equal(m.cardInside,true,`${tag} ${size}: o cartão cabe na janela`);
    assert.equal(m.hScroll,false,`${tag} ${size}: sem rolagem horizontal`);
+   /* Auditoria de UI/UX, rodada 2 (D8): "Pular por agora" e "Voltar" sempre
+      à vista — o corpo rola dentro do cartão, o rodapé não sai da janela. */
+   const foot=await page.evaluate(()=>{
+    const box=(el)=>el.getBoundingClientRect();
+    return {win:innerHeight,next:box(document.querySelector('#setup-next')),back:box(document.querySelector('#setup-back'))};
+   });
+   assert.ok(foot.next.bottom<=foot.win+1,`${tag} ${size}: "Pular por agora" dentro da janela (${foot.next.bottom} ≤ ${foot.win})`);
+   assert.ok(foot.back.bottom<=foot.win+1,`${tag} ${size}: "Voltar" dentro da janela (${foot.back.bottom} ≤ ${foot.win})`);
    await shot(page,`tutor-${tag}-${size.join('x')}.png`);
   }
  }
@@ -374,8 +382,25 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  assert.equal(f.install,'Instalar o OpenCode');
  assert.equal(f.piSettings,'Ajustes do tutor');
  assert.equal(f.connect,null,'sem motor, nada de botão que só falharia');
+ assert.equal(await page.locator('#setup-tutor-actions #pick-opencode').textContent(),'Escolher manualmente…','sem motor, dá para apontar o OpenCode instalado fora dos caminhos fixos (#102)');
  await shot(page,'sem-motor-claro-1440x900.png');
- await page.locator('#setup-tutor-actions #state-pi').click();
+
+ /* "Escolher manualmente…" (#102): o diálogo do main entrega o executável, o
+    caminho fica no `config.json` e a detecção refeita já reconhece o motor. */
+ const chosen=path.join(s.runtime,'bin','opencode-do-bun');
+ fs.mkdirSync(path.dirname(chosen),{recursive:true});
+ fs.writeFileSync(chosen,'#!/bin/sh\necho 2.2.4\n',{mode:0o755});
+ await stubPicker(ctx.app,[chosen]);
+ await page.locator('#setup-tutor-actions #pick-opencode').click();
+ await page.waitForSelector('#setup-pi[data-pi="found"]');
+ f=await setupFacts(page);
+ assert.equal(f.tutorStatus,'Encontrado: OpenCode');
+ assert.equal(f.connect,'Chamar o tutor');
+ assert.equal(await page.locator('#setup-tutor-actions #pick-opencode').count(),0,'achado o motor, a escolha manual sai');
+ assert.equal(s.readConfig().opencodePath,chosen,'o OpenCode escolhido fica no config.json');
+ await stubPicker(ctx.app,[pdfs]);
+
+ await page.locator('#setup-tutor-actions #setup-settings').click();
  await page.waitForSelector('#settings-dialog[open]');
  assert.equal(await page.evaluate(()=>document.querySelector('#settings-tabs [aria-current="page"]')?.dataset.sec),'pastas');
  await page.keyboard.press('Escape');
@@ -402,7 +427,7 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  assert.equal(f.install,'Atualizar para a 2.2.4');
  assert.equal(await page.locator('#setup-tutor-actions #free-models').count(),0);
 
- /* Sem Pi, com OpenCode: "Chamar o tutor" e os Ajustes; nada de convite aos
+ /* Com OpenCode: "Chamar o tutor" e os Ajustes; nada de convite aos
     modelos grátis (#93). O par [connect, settings] é o certo para quem tem
     motor, e o teste registra a decisão do dono. */
  await page.evaluate(async()=>{
@@ -419,16 +444,16 @@ await withArtifacts('primeira-abertura-estado',async ctx=>{
  f=await setupFacts(page);
  assert.equal(f.tutorStatus,'Encontrado: OpenCode');
  assert.equal(f.connect,'Chamar o tutor');
- assert.equal(f.codexGrok,null,'sem Pi, o aviso de Codex e Grok não aparece');
+ assert.equal(f.codexGrok,null,'sem Pi no DOM, o aviso de Codex e Grok não aparece');
  assert.match(f.login,/\/fake\/opencode auth login/,'a entrada no provedor mostra o caminho completo do binário');
  assert.equal(await page.locator('#setup-tutor-actions #free-models').count(),0,'sem botão de modelos grátis (#93)');
  assert.equal(f.piSettings,'Ajustes do tutor','com motor achado, os Ajustes ficam ao lado de Chamar o tutor');
  await shot(page,'open-code-claro-1440x900.png');
 
- /* Pi achado e "Chamar o tutor": o passo diz que está ligado e o botão vira Continuar. */
+ /* Motor achado e "Chamar o tutor": o passo diz que está ligado e o botão vira Continuar. */
  await page.evaluate(async()=>{
   const mod=await import('./src/first-run.mjs');
-  await mod.enterFirstRun({needsSetup:true,detectedPi:'/fake/pi',config:{}},{});
+  await mod.enterFirstRun({needsSetup:true,detectedOpenCode:'/fake/opencode',config:{}},{});
  });
  await walkTo(page,'name');
  await page.locator('#first-run-name').fill('Cálculo I');
@@ -662,6 +687,7 @@ await withArtifacts('primeira-abertura-sem-materia',async ctx=>{
  await clickNext(page);
  await page.waitForFunction(()=>!document.body.dataset.firstRun,undefined,{timeout:30000});
  await page.waitForSelector('.pdf-panel canvas',{timeout:30000});
+ await statusOnline(page);
  const cfg=s.readConfig();
  assert.deepEqual(cfg.courses.map(c=>({id:c.id,name:c.name,path:c.path})),[{id:'Álgebra',name:'Álgebra',path:pdfs}]);
  assert.equal(cfg.vaultPath,vault,'a pasta de dados segue a que já valia');

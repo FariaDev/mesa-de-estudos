@@ -33,6 +33,10 @@ header{
 }
 #course-tabs button:hover{background:var(--hover);color:var(--fg)}
 #course-tabs button.active,#course-tabs button.active:hover{background:var(--selected);color:var(--fg-strong);font-weight:600}
+/* Só UMA aba lê como ativa (G3 da rodada 6): o hover de quem não está ativa
+   não pinta o preenchimento do pill — no claro o hover (#f1f1f1) é quase o
+   mesmo cinza do pill (#e6e6e6); no escuro, .05 vs .09. Hover segue no texto. */
+#course-tabs button[role="tab"]:not(.active):hover{background:transparent;color:var(--fg-strong)}
 #new-tab{border-color:transparent;background:transparent;flex:0 0 auto}
 .tab-sep{width:1px;height:16px;background:var(--border);margin:0 var(--space-1);flex-shrink:0}
 .ggb-tab{gap:5px}
@@ -70,7 +74,10 @@ header.tabs-compact #course-tabs button[role=tab]:not(#review-tab):not(.ggb-tab)
 #ggb-bar[hidden]{display:none}
 #ggb-bar strong{font-size:var(--fs-sm);font-weight:600;color:var(--fg-strong)}
 #ggb-bar button{font-size:var(--fs-xs);padding:var(--space-1) var(--space-3)}
-#ggb-bar small{font-size:var(--fs-2xs);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+/* Frase explicativa (auditoria rodada 4, F7): em 900 lia "pela ferram…". Frase
+   quebra em duas linhas e a barra cresce — nome de arquivo pode cortar, frase
+   não. Os botões seguem com tamanho fixo. */
+#ggb-bar small{font-size:var(--fs-2xs);color:var(--faint);flex:1;min-width:0}
 /* Quadro limpo por uso (#53): o aviso discreto do que foi guardado e o botão de voltar. */
 #ggb-bar .ggb-board-note{flex:0 1 auto;color:var(--muted)}
 #ggb-bar .ggb-back{flex:none;color:var(--muted);background:transparent;border-color:transparent}
@@ -163,8 +170,8 @@ header.tabs-compact #course-tabs button[role=tab]:not(#review-tab):not(.ggb-tab)
 }
 .chat-pop .model-pop-note button:hover{background:var(--accent-fill);filter:brightness(1.08)}
 .chat-pop .model-pop-note button:active{background:var(--accent-fill);filter:brightness(.94)}
-/* Contexto de estudo: os dois campos moram dentro do popover da linha "Vai
-   junto" (`#context-pop`), não mais soltos acima das mensagens. */
+/* Contexto de estudo: os dois campos moram no submenu Mais opções → Contexto
+   (#123), não mais soltos acima das mensagens. */
 #study-context{display:flex;gap:var(--space-2)}
 #study-context[hidden]{display:none}
 #study-context input{

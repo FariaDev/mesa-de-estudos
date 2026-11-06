@@ -111,3 +111,49 @@ test('o trio ∫ Σ ∇ segue os seis acentos e passa nos dois temas (#100)', ()
     }
   }
 });
+
+/* Auditoria de UI/UX, rodada 1: --danger no escuro dá 4,1:1 como texto (D1);
+   texto de status sai dos -text, que passam AA nos três fundos. E nenhum texto
+   a 10px: o piso é 11px (D2). Rodada 2 (D2): os estilos injetados pelos .mjs
+   valem o mesmo que CSS — a varredura cobre os dois. */
+test('texto de status sai dos -text, nunca do --danger/--success/--warn (D1)', () => {
+  const src = path.join(desk, 'src');
+  const offenders = [];
+  for (const file of fs.readdirSync(src).filter((name) => name.endsWith('.css') || name.endsWith('.mjs'))) {
+    const lines = fs.readFileSync(path.join(src, file), 'utf8').split('\n');
+    lines.forEach((line, index) => {
+      if (/(^|[{\s])color\s*:\s*var\(--(danger|success|warn)[,)]/.test(line)) {
+        offenders.push(`${file}:${index + 1}: ${line.trim()}`);
+      }
+    });
+  }
+  assert.deepEqual(offenders, [], `cor de texto com token não-texto: ${JSON.stringify(offenders)}`);
+  const activity = fs.readFileSync(path.join(src, 'activity.css'), 'utf8');
+  assert.match(activity, /\.activity-error\s*\{[^}]*color:\s*var\(--danger-text/, '.activity-error usa --danger-text');
+});
+
+test('piso de legibilidade: nenhum font-size a 10px no CSS (D2)', () => {
+  const px = parseFloat(themeTokenRaw('fs-2xs'));
+  assert.ok(px >= 11, `--fs-2xs é ${px}px, esperado ao menos 11px`);
+  const roots = [desk, path.join(desk, 'src')];
+  const offenders = [];
+  for (const root of roots) {
+    for (const file of fs.readdirSync(root).filter((name) => name.endsWith('.css'))) {
+      const lines = fs.readFileSync(path.join(root, file), 'utf8').split('\n');
+      lines.forEach((line, index) => {
+        if (/font-size\s*:[^;{}]*\b10px\b/.test(line)) offenders.push(`${file}:${index + 1}: ${line.trim()}`);
+      });
+    }
+  }
+  assert.deepEqual(offenders, [], `texto a 10px: ${JSON.stringify(offenders)}`);
+});
+
+/**
+ * Valor cru do token de tamanho (sem light-dark).
+ * @param {string} name
+ */
+function themeTokenRaw(name) {
+  const match = css.match(new RegExp(`--${name}:([0-9.]+)px`));
+  assert.ok(match, `--${name}: esperado Npx no style.css`);
+  return match[1];
+}

@@ -92,14 +92,17 @@ function createPromptImages({runtime,deskDir,learningRoot,nativeImage}){
   if(out.$!=='SendResult.Ok')throw attachError(out.reason);
   return coreArray(out.mimes).map((mime,i)=>({type:'image',data:shrunkList[i].bytes.toString('base64'),mimeType:mime}));
  }
+ /* Devolve uma cópia só para a tela, sem tocar nas mensagens do serviço
+    (#117): elas são a fonte da próxima gravação do descritor, e mutar aqui
+    apagaria as imagens antigas da conversa salva. */
  function trimMessageImages(messages,keep=6){
-  const list=Array.isArray(messages)?messages:[];
+  const list=(Array.isArray(messages)?messages:[]).slice();
   let left=keep;
   for(let i=list.length-1;i>=0;i--){
    const content=list[i]?.content;
    if(!Array.isArray(content)||!content.some(part=>part&&part.type==='image'))continue;
    if(left>0){left--;continue;}
-   list[i].content=content.filter(part=>!part||part.type!=='image');
+   list[i]={...list[i],content:content.filter(part=>!part||part.type!=='image')};
   }
   return list;
  }

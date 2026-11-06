@@ -347,10 +347,16 @@ export function openReviewProposal(payload){
 function attemptFrom(node){
  const root=$('#messages');
  if(!root)return '';
- const users=[...root.querySelectorAll('.message.user .body')];
+ /* O `innerText` é vazio fora da vista (`content-visibility`): a fonte é o
+    `_raw` da mensagem (a mesma de `openReviewFromMessage`), com o mesmo
+    tratamento; cai para `innerText` só sem `_raw` (#118). */
+ const users=[...root.querySelectorAll('.message.user')];
  if(!users.length)return '';
- const before=node?users.filter(body=>body.compareDocumentPosition(node)&Node.DOCUMENT_POSITION_FOLLOWING):users;
- return String((before.length?before:users).at(-1)?.innerText||'');
+ const before=node?users.filter(message=>message.compareDocumentPosition(node)&Node.DOCUMENT_POSITION_FOLLOWING):users;
+ const target=(before.length?before:users).at(-1);
+ const raw=target?._raw;
+ if(typeof raw==='string'&&raw.trim())return raw;
+ return String(target?.querySelector('.body')?.innerText||'');
 }
 
 /* Guardar a partir de uma mensagem do Pi: o que já existe na tela vira o

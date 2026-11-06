@@ -28,7 +28,7 @@ const measureBoard=page=>page.evaluate(()=>{
   view:box('#review-view'),main:box('.review-main'),aside:box('#review-list'),asideHead:box('.review-all-head'),
   card:box('.review-card'),question:box('.review-question'),progress:box('.review-progress'),track:box('.review-bar-track'),
   grades:all('.review-grade'),gradesBlock:box('.review-grades'),rows:all('.review-row'),
-  actions:all('.review-actions button'),empty:box('.review-empty-block'),emptyTitle:box('.review-empty-title'),emptySample:box('.review-empty-sample'),
+  actions:all('.review-actions button'),empty:box('.review-empty-block'),emptyTitle:box('.review-empty-title'),
   overflowX:document.documentElement.scrollWidth-document.documentElement.clientWidth
  };
 });
@@ -78,8 +78,8 @@ await withArtifacts('review-notebook',async ctx=>{
    assert.equal(m.emptyTitle.font,'24px',`${tag}: título do vazio em 24px`);
    assert.match(m.emptyTitle.family,/^"?STIX Two Text/,`${tag}: título na STIX`);
    assert.equal((await page.locator('.review-empty-title').textContent()).trim(),'Nada guardado ainda');
-   assert.equal((await page.locator('.review-empty').textContent()).trim(),'Guarde uma resposta do tutor para rever depois.');
-   assert.equal(await page.locator('.review-empty-sample').count(),1,`${tag}: miniatura da fileira de ações`);
+    assert.equal((await page.locator('.review-empty').textContent()).trim(),'Quando o tutor der uma boa resposta, toque em Guardar.');
+    assert.equal(await page.locator('.review-empty-sample,.review-empty-save').count(),0,`${tag}: sem amostra de botão no vazio (A5)`);
    /* Centrado, sem vão: o bloco ocupa o meio da área, não o topo. */
    const centerX=(m.empty.left+m.empty.right)/2,viewX=(m.view.left+m.view.right)/2;
    const centerY=(m.empty.top+m.empty.bottom)/2,viewY=(m.view.top+m.view.bottom)/2;
@@ -177,7 +177,7 @@ await withArtifacts('review-notebook-course',async ctx=>{
  fs.writeFileSync(path.join(fis,'Ondas.pdf'),tinyPdf('Ondas'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:calc},{id:'fis',name:'Física',path:fis}]});
  writeDeskJson(runtime,{courseId:'calc',courseStates:{calc:{pdfs:[{path:pdf,page:1}],study:{title:'',xopp:''}}}});
- ctx.app=await launchDesk({runtime,env:{FAKE_PI_QUEUE_LOG:path.join(runtime,'queue.log'),FAKE_PI_QUEUE_HOLD_MS:'60000'}});
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_QUEUE_LOG:path.join(runtime,'queue.log'),FAKE_OPENCODE_QUEUE_HOLD_MS:'60000'}});
  const page=await ctx.app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await resize(ctx,page,1440,900);

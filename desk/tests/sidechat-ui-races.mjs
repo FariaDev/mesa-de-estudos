@@ -152,13 +152,23 @@ await withArtifacts('lateral-corridas',async ctx=>{
  await page.waitForFunction(()=>window.__sc.state().then(s=>!s.sending));
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'E','a recusa não sobrescreve o texto novo do usuário');
 
- /* ---- 4. Entrega incerta: bolha fica e o estado marca uncertain ---- */
+ /* ---- 4. Entrega incerta: bolha fica, o estado marca uncertain e só o Novo sai ---- */
  await page.locator('#sidechat-prompt').fill('F');
  await page.locator('#sidechat-send').click();
  await page.evaluate(()=>window.__sc.resolve({sent:false,retryable:false,uncertain:true,error:'entrega incerta no teste'}));
  await page.waitForFunction(()=>window.__sc.state().then(s=>s.uncertain===true));
  assert.equal(await page.locator('#sidechat-messages .sidechat-msg.user').filter({hasText:'F'}).count(),1,'a bolha incerta permanece (pode ter chegado)');
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'','entrega incerta não devolve o texto (evita reenvio)');
+ /* No incerto o Enviar desliga e o Enter não pinta outra bolha (§5 da
+    auditoria de máquinas de estado); a saída é o "Novo", com confirmação. */
+ assert.equal(await page.locator('#sidechat-send').isDisabled(),true,'no incerto o Enviar fica desligado');
+ await page.locator('#sidechat-prompt').fill('F2');
+ await page.locator('#sidechat-prompt').press('Enter');
+ assert.equal(await page.evaluate(()=>window.__sc.pending),null,'Enter no incerto não envia');
+ assert.equal(await page.locator('#sidechat-messages .sidechat-msg.user').filter({hasText:'F2'}).count(),0,'Enter no incerto não pinta bolha');
+ page.once('dialog',dialog=>dialog.accept());
+ await page.locator('#sidechat-new').click();
+ await page.waitForFunction(()=>window.__sc.state().then(s=>s.uncertain===false&&!!s.id));
 
  /* ---- 5. streaming:true espera o evento terminal ---- */
  await page.locator('#sidechat-prompt').fill('G');

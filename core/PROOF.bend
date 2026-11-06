@@ -23,8 +23,6 @@ import ./proofs/search.bend as Search
 import ./proofs/courses.bend as Courses
 import ./proofs/study.bend as Study
 import ./proofs/studycontext.bend as StudyContext
-import ./proofs/framing.bend as Framing
-import ./proofs/rpcstate.bend as RpcState
 import ./proofs/config.bend as Config
 import ./proofs/view.bend as View
 import ./proofs/state.bend as State

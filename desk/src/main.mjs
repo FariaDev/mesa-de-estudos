@@ -1,7 +1,7 @@
 import {bindPointerDrag} from './pointer-drag.mjs';
 import {icon} from '../icons.mjs';
-import {$,S,toast,toastFailure,conferirAppName,updateCheckButton,cancelConnect,connectionState,save,calcHeightPx,studySnapshot,pageRefs,refs,layoutSnapshot,updateContextSummary,sessionTitleOf,applyStudy,applyTheme,applyAccent,ACCENTS,labelBtn,settings,connect,loadCourse,switchCourse,supportsCapability,relabelTutorColumn,relabelFreeCourseName,paintComposerSend} from './state.mjs';
-import {visibleEngines} from './visible-engines-ui.mjs';
+import {$,S,toast,toastFailure,conferirAppName,updateCheckButton,cancelConnect,connectionState,save,calcHeightPx,studySnapshot,pageRefs,refs,layoutSnapshot,updateContextSummary,sessionTitleOf,applyStudy,applyTheme,applyAccent,ACCENTS,labelBtn,settings,connect,invalidateConnect,loadCourse,switchCourse,supportsCapability,relabelTutorColumn,relabelFreeCourseName,paintComposerSend} from './state.mjs';
+import {visibleEngines,setLegacySession,legacyContinueEngine,relabelLegacySession} from './visible-engines-ui.mjs';
 import {conferir,conferirGeogebra,send,hideQuoteButton,doCompact} from './chat.mjs';
 import {toggleReferencePanel,selectTab as selectSupportTab,supportState,setOpen as setSupportOpen} from './support.mjs';
 import {initSidechat,openSavedSidechat} from './sidechat.mjs';
@@ -17,16 +17,18 @@ import {setResumeRecord} from './resume.mjs';
 import {confirmOpenLink} from './link-confirm.mjs';
 import {initTutorState,showTutorState} from './tutor-state.mjs';import {engineReady} from './engine-facts.mjs';
 import {initConferir,closeConferirNote,paintConferirField,openConferirSettings} from './conferir.mjs';
-import {initFreeModels,paintFreeSettings,confirmPaidModel} from './free-models.mjs';
+import {initFreeLimitNote} from './free-limit-notice.mjs';
+import {initFreeModels,paintFreeSettings,confirmPaidModel} from './free-models.mjs';import {initOpenCodeProviders} from './opencode-providers.mjs';
 import {initTriage,openTriage} from './triage.mjs';
 import {initModelPicker,noteModelPicked} from './model-picker-ui.mjs';import {initEffortStrip} from './effort-strip.mjs';
 import conferirCore from './generated/conferir.core.js';
-import {createFirstRunBoot} from './first-run-boot.mjs';import {openReleaseNotes,showPendingReleaseNotes} from './release-notes-ui.mjs';import {mountSetupMarkup} from './setup-markup.mjs';import {mountAccentOptions} from './accent-picker.mjs';import {initAppearanceSettings} from './settings-appearance.mjs';
+import {createFirstRunBoot} from './first-run-boot.mjs';import {openReleaseNotes,showPendingReleaseNotes} from './release-notes-ui.mjs';import {mountSetupMarkup} from './setup-markup.mjs';import {mountAccentOptions} from './accent-picker.mjs';import {initAppearanceSettings} from './settings-appearance.mjs';import {mountReadingSettings} from './settings-reading.mjs';
 import resumeCore from './generated/resume.core.js';
 
 import {sendGgbRect,freezeGgbView,thawGgbView} from './ggb.mjs';
 import {initCalculator,getCalculatorCollapsed,setCalculatorCollapsed,fitCalculator,relabelCalculator} from './calc.mjs';
 import {pdfSplitValue,setPdfSplitPct} from './pdf.mjs';
+import {handlePdfZoomKey} from './pdf-zoom.mjs';
 import {decideEscape,collectEscapeFacts} from './escape-policy.mjs';
 import {relabelGuide} from './guide.mjs';
 import {initCommandPalette,openCommandPalette,closeCommandPalette} from './command-palette.mjs';
@@ -37,6 +39,7 @@ import {t,text,setUiLanguage,currentLanguage,LANGUAGE_EVENT} from './ui-text.mjs
 import {localizeFreeCourse} from './free-names.mjs';
 import {initTutorHeader,closeTutorPops,syncTutorMenus} from './tutor-header.mjs';
 import {initPhonePhoto,closePhonePop} from './phone-photo.mjs';
+import {initChatFull,setChatFull} from './chat-full.mjs';
 import {appendCourseRow,relabelCourseRows,clearEndDay,renderAboutLead,renderCourseRows,renderEndDay,renderHelpVersion} from './dialogs.mjs';
 import {initToolNotices,noticesOpened} from './tool-notices.mjs';
 import * as slash from './slash.mjs';
@@ -47,9 +50,8 @@ import {openEditor as openShortcuts} from './keys.mjs';
 import {closeMenus,initNavMenus} from './nav-menus.mjs';
 import {menuHandlers,renderTabsView,renderMenus,selectTab,moveTabFocus,numberedTabs,cycleToTab,getTabsCourses,setTabsCourses,refreshTabsOnReviewCount,initHeaderTabs} from './header-tabs.mjs';
 import {aboutHandlers,openAbout,openHelp,paintUpdateNotice,refreshAbout,syncUpdateNotice} from './about-update.mjs';
-import {closeContextPop,openContextPop,placeContextPop} from './context-pop.mjs';
 import {installComposerAlign} from './composer-align.mjs';
-import {newSession,openConversation,renderConversations} from './course-conversations.mjs';
+import {newSession,continueSession,openConversation,renderConversations} from './course-conversations.mjs';
 /* Configurações (#desempenho): o núcleo `settingsview.core.js` (133 KiB) e o
    aplicador só são necessários quando o diálogo abre. O init (ouvintes da
    lateral e do idioma) roda uma vez, ali; a partida não espera por eles. */
@@ -63,7 +65,7 @@ const syncFirstRun=(data,hooks)=>firstRunBoot.sync(data,hooks);
 const isFirstRun=()=>firstRunBoot.isActive();
 /* Idioma (#41): o main entrega o idioma já resolvido (preload); o texto estático e o <html lang> seguem antes do primeiro desenho. */
 /* O markup do #setup entra antes do primeiro `setUiLanguage` para ser traduzido junto. */
-mountSetupMarkup();mountAccentOptions();
+mountSetupMarkup();mountAccentOptions();mountReadingSettings();
 setUiLanguage(currentLanguage());
 initNavMenus();
 initHeaderTabs({openSettings:(...args)=>openSettings(...args),syncPaletteField:()=>syncPaletteField(),menu:{ToggleReference:toggleReference,OpenXournal:openXournal,OpenHelp:openHelp,OpenSettings:()=>openSettings(),OpenShortcuts:()=>openShortcuts(),OpenAbout:openAbout,OpenReleaseNotes:()=>openReleaseNotes().catch(err=>toast(err.message)),OpenEndDay:openEndDay}});
@@ -106,7 +108,7 @@ $('#prompt').onkeydown=e=>{
  }
  if(!S.busy)queue.submit(value);
 };
-$('#check').onclick=()=>conferir();$('#stop').onclick=()=>{window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));};
+$('#check').onclick=()=>conferir();$('#stop').onclick=()=>{window.dispatchEvent(new Event('desk-stop'));window.desk.abort(S.sendAttemptId||'').catch(e=>toast(e.message));};
 $('#exercise-title').addEventListener('input',()=>{updateContextSummary();save();});
 $('#pick-xopp').onclick=async()=>{try{const file=await window.desk.pickXopp();if(file)applyStudy({...studySnapshot(),xopp:file});save(true);}catch(e){toast(e.message);}};
 /* O Encerrar por hoje mora no Mais opções do tutor (`OpenEndDay`), decidido pelo
@@ -138,21 +140,9 @@ $('#end-day-form').addEventListener('submit',async e=>{
 });
 window.desk.onMenuCheck(()=>conferir());
 window.desk.onMenuGeogebra(()=>conferirGeogebra());
-window.desk.onMenuStop(()=>{if(S.busy&&!$('#pi-dialog').open){window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(e=>toast(e.message));}});
+window.desk.onMenuStop(()=>{if(S.busy&&!$('#pi-dialog').open){window.dispatchEvent(new Event('desk-stop'));window.desk.abort(S.sendAttemptId||'').catch(e=>toast(e.message));}});
 window.desk.onMenuChatToggle(()=>toggleChat());
 $('#include-refs').onclick=()=>{S.includeRefs=!S.includeRefs;$('#include-refs').setAttribute('aria-pressed',String(S.includeRefs));updateContextSummary();};
-
-window.addEventListener('resize',()=>placeContextPop());
-$('#context-edit').onclick=()=>{const pop=$('#context-pop');if(pop&&!pop.hidden){closeContextPop({restoreFocus:true});return;}openContextPop();};
-$('#context-summary').onclick=$('#context-edit').onclick; /* #90: a pílula inteira também abre a edição */
-document.addEventListener('click',event=>{
- const pop=$('#context-pop');if(!pop||pop.hidden)return;
- if(event.target?.closest?.('#context-pop, #context-edit, #context-summary'))return;
- closeContextPop();
-});
-/* Trocar de sessão ou recolher o tutor deixaria o popover órfão. */
-window.addEventListener('desk-conversation-changed',()=>closeContextPop());
-window.addEventListener('desk-conferir-note-open',()=>closeContextPop());
 /* A calculadora é view do Bend (`core/calcview.bend` → `desk/src/calc.mjs`):
    colapso, ângulo, avaliação, histórico e guia saem de lá; a alça abaixo
    continua aqui (arrasto/medição são fatos de host). Ela só existe com o painel
@@ -165,16 +155,18 @@ bindPointerDrag($('#calc-divider'),e=>{const side=$('#sidebar').getBoundingClien
 $('#calc-divider').onkeydown=e=>{if(['ArrowUp','ArrowDown'].includes(e.key)){const h=calcHeightPx();document.documentElement.style.setProperty('--calc',Math.max(72,Math.min(700,h+(e.key==='ArrowUp'?20:-20)))+'px');save();}};
 let chatCollapsed=false,lastChatToggle=0;
 function setChatCollapsed(value){
- chatCollapsed=!!value;
+ chatCollapsed=!!value;if(chatCollapsed)setChatFull(false);/* #98: a tela inteira exige a coluna à vista */
  document.body.classList.toggle('chat-collapsed',chatCollapsed);
  $('#chat-restore').hidden=!chatCollapsed;
  /* Recolher esconde o #chat: menu ou lista abertos ficariam órfãos (e o Esc os
     consumiria sem se ver). */
- if(chatCollapsed){closeTutorPops();closeContextPop();closeConferirNote();closePhonePop();}
+ if(chatCollapsed){closeTutorPops();closeConferirNote();closePhonePop();}
  syncTutorMenus();
  if(S.ggbActive)sendGgbRect();
 }
 function toggleChat(){const now=Date.now();if(now-lastChatToggle<150)return;lastChatToggle=now;setChatCollapsed(!chatCollapsed);}
+/* #98: estado global da execução, sem persistir; a tecla mora no módulo. */
+initChatFull({expandTutor:()=>setChatCollapsed(false)});
 function focusPdfFind(){(S.panels.find(p=>p.el.contains(document.activeElement))||S.panels[0])?.setFind(true);}
 /* Fecha a busca do PDF da camada ativa: o formulário focado primeiro; senão o
    primeiro leitor com termo — o mesmo comportamento de antes, agora decidido
@@ -205,6 +197,7 @@ window.addEventListener('keydown',e=>{
     diálogo se fecha pelo cancelamento nativo/handler próprio. */
  const modal=document.querySelector('dialog[open]');
  if(modal&&e.key!=='Escape')return;
+ if(handlePdfZoomKey(e,S.panels))return;
  if(e.key==='Escape'){
   /* A ordem das camadas é do núcleo (`core/mesaqolescape.bend`): a primeira
      aberta decide — modal (nativo) → paleta → menu → popover → citação →
@@ -217,12 +210,12 @@ window.addEventListener('keydown',e=>{
   if(action==='menu'){closeMenus({blur:true});return;}
   if(action==='popover'){
    e.preventDefault();
-   closeContextPop({restoreFocus:true});closeConferirNote({restoreFocus:true});closeTutorPops({restoreFocus:true});closePhonePop({restoreFocus:true});
+   closeConferirNote({restoreFocus:true});closeTutorPops({restoreFocus:true});closePhonePop({restoreFocus:true});
    return;
   }
   if(action==='citation'){e.preventDefault();hideQuoteButton();window.getSelection()?.removeAllRanges();return;}
   if(action==='search'){closePdfSearchLayer();return;}
-  if(action==='tutor'){e.preventDefault();window.dispatchEvent(new Event('desk-stop'));window.desk.abort().catch(err=>toast(err.message));return;}
+  if(action==='tutor'){e.preventDefault();window.dispatchEvent(new Event('desk-stop'));window.desk.abort(S.sendAttemptId||'').catch(err=>toast(err.message));return;}
   /* Nada aberto e nenhuma resposta em curso: Esc cancela a chamada ao tutor
      que ainda está subindo (o mesmo efeito do Cancelar da coluna). */
   if(S.connecting){e.preventDefault();cancelConnect().catch(()=>{});return;}
@@ -252,14 +245,24 @@ initModelPicker({pick:async({provider,id,zenPaid})=>{
  if(noteModelPicked(provider,id))save(true);/* recentes (#59): só entra o que o host confirmou */
 },favoritesChanged:()=>save(true)/* favoritos (estrela): estado de interface, como os recentes */,defaultChanged:()=>save(true)/* modelo padrão da sessão nova: estado de interface, nunca no config.json */
 });initEffortStrip({pick:level=>settings({level})});
-/* Conversa de motor antigo (#release OpenCode): o painel no lugar do composer leva a uma sessão nova. */ $('#legacy-new-session')?.addEventListener('click',()=>newSession(null));
+/* Conversa de motor antigo (#release OpenCode): o painel no lugar do composer
+   leva a uma sessão nova vazia ou continua no motor visível com o digest (#87). */
+$('#legacy-new-session')?.addEventListener('click',()=>newSession(null));
+$('#legacy-continue')?.addEventListener('click',()=>{const engine=legacyContinueEngine();if(engine)continueSession(engine);});
+/* Biblioteca e busca abrem qualquer conversa: motor fora da vista fica só para
+   leitura, sem connect; voltar a uma atual devolve o composer (3ª revisão do release). */
+async function connectOpenedConversation(){
+ const legacy=!visibleEngines().includes(S.engine);
+ setLegacySession(legacy);
+ if(legacy)connectionState('');else await connect();
+}
 const conversationLibrary=initConversationLibrary({resume:async row=>{
  if(S.busy||S.connecting||S.switching){toast(t('session.waitResume'));return false;}
  try{
   clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
   const data=await window.desk.libraryChatOpen(row.id);
-  S.connected=false;$('#messages').replaceChildren();await loadCourse(data);
-  await connect();return true;
+   S.connected=false;invalidateConnect();$('#messages').replaceChildren();await loadCourse(data);
+  await connectOpenedConversation();return true;
  }catch(error){toastFailure(error);return false;}
 }});
 /* Exportar a sessão em Markdown (item de Mais opções do tutor). */
@@ -267,11 +270,11 @@ async function exportSession(){try{const r=await window.desk.exportChat();if(r?.
 /* Ajustes do Pi: abre as Configurações no campo do caminho do Pi (o motivo da
    falha costuma estar ali). A coluna do tutor e o passo "Tutor" da primeira
    abertura (#64) usam o mesmo. */
-const openPiSettings=async()=>{try{await openSettings({section:'pastas',focus:S.detected?.pi?'#cfg-pi':'#cfg-vault'});}catch(err){toast(err.message);}};
 initTutorState({
  newSession:()=>newSession().catch(()=>{}),
+ continueSession:engine=>continueSession(engine).catch(()=>{}),
  openLog:async()=>{try{await window.desk.openLog();}catch(err){toast(err.message);}},
- openPiSettings,openReleaseNotes:()=>openReleaseNotes().catch(err=>toast(err.message)),
+ openReleaseNotes:()=>openReleaseNotes().catch(err=>toast(err.message)),
  /* Claude Code fora da faixa (#51): o Sobre, já na confirmação do comando que o atualiza. */
  updateClaude:()=>openAbout({ask:'claude'}).catch(err=>toast(err.message)),
  openAbout:()=>openAbout().catch(err=>toast(err.message))
@@ -294,7 +297,7 @@ async function openStudyResult(_destination,hit,{annotate=false}={}){
  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
  const result=await window.desk.studySearchOpen({id:hit.id}),destination=result.destination;
  const changed=result.data.courseId!==S.currentCourseId||result.data.session!==S.currentSession;
- if(changed){S.connected=false;$('#messages').replaceChildren();await loadCourse(result.data);await connect();}
+ if(changed){S.connected=false;invalidateConnect();$('#messages').replaceChildren();await loadCourse(result.data);await connectOpenedConversation();}
  closeStudySearch();
  if(destination.kind==='review'){selectTab('review');return true;}
  if(destination.kind==='sidechat'){selectSupportTab('chat');openSavedSidechat(result.sidechat);return true;}
@@ -320,7 +323,7 @@ const studyBackup=initBackupPanel(document,{
  verificar:id=>window.desk.backupVerify(id),previaRestauracao:id=>window.desk.backupRestorePreview(id),
  aplicarRestauracao:async(id,options)=>{
   const result=await window.desk.backupRestoreApply(id,options);
-  S.connected=false;connectionState('');$('#messages').replaceChildren();
+   S.connected=false;invalidateConnect();connectionState('');$('#messages').replaceChildren();
   await loadCourse(result.data);
   await syncFirstRun(result.data);
   const ready=engineReady(result.data);
@@ -340,13 +343,14 @@ Object.assign(menuHandlers,studyToolHandlers({search:()=>openStudySearch(),revie
    sai do nome acessível, então o leitor de tela ouve só a que está à vista. */
 updateCheckButton();
 initConferir();
-initFreeModels();
+initFreeLimitNote({currentModel:()=>S.choice.model});
+initFreeModels();initOpenCodeProviders();
 /* Rótulos que a Mesa escreve com ícone: refeitos na troca de idioma (#41). */
 function paintComposerLabels(){
  labelBtn($('#stop'),'square',t('composer.stop'));
  labelBtn($('#send'),'arrowUp');
- labelBtn($('#include-refs'),'columns',t('composer.refs'));
- labelBtn($('#attach'),'paperclip',t('composer.attach'));labelBtn($('#context-edit'),'pencil',t('composer.editLabel'));
+ labelBtn($('#include-refs'),'book',t('composer.refs'));
+ labelBtn($('#attach'),'paperclip',t('composer.attach'));
  labelBtn($('#quote-btn'),'textQuote',t('quote.button'));
 }
 paintComposerLabels();
@@ -388,7 +392,6 @@ async function fillSettingsForm(cfg){
  $('#cfg-title').value=cfg.desk?.title||'';
  for(const key of DESK_SETTINGS)$('#cfg-desk-'+key).checked=cfg.desk?.[key]!==false;
  $('#cfg-vault').value=cfg.vaultPath||'';
- $('#cfg-pi').value=cfg.piPath||'';
  $('#cfg-claude').value=cfg.claudePath||'';
  $('#cfg-xournal').value=cfg.xournalPath||'';
  $('#theme-mode').value=S.currentTheme;
@@ -417,10 +420,12 @@ function readSettingsForm(){
     o módulo nunca sobrescreve o que ele não edita. */
  if(layoutSettings?.readLayoutSettings)desk=layoutSettings.readLayoutSettings(desk)||desk;
  for(const key of DESK_SETTINGS)desk[key]=$('#cfg-desk-'+key).checked;
- return {vaultPath:$('#cfg-vault').value.trim(),runtimePath:S.appConfig.runtimePath||'',piPath:$('#cfg-pi').value.trim(),claudePath:$('#cfg-claude').value.trim(),xournalPath:$('#cfg-xournal').value.trim(),courses,desk};
+ /* `opencodePath` não tem campo nas Configurações: a escolha manual é do passo
+    do tutor (#102) e precisa sobreviver ao Salvar das outras seções. */
+ return {vaultPath:$('#cfg-vault').value.trim(),runtimePath:S.appConfig.runtimePath||'',piPath:String(S.appConfig.piPath||''),claudePath:$('#cfg-claude').value.trim(),xournalPath:$('#cfg-xournal').value.trim(),opencodePath:S.appConfig.opencodePath||'',courses,desk};
 }
-/* `section`/`focus` levam o diálogo a um campo (o "Ajustes do Pi" do tutor abre
-   em Pastas e programas com o campo do Pi focado); sem eles abre em Matérias. */
+/* `section`/`focus` levam o diálogo a um campo (o "Ajustes do tutor" abre em
+   Pastas e programas com o campo do motor focado); sem eles abre em Matérias. */
 async function openSettings({section='',focus=''}={}){
  const [settings,info]=await Promise.all([settingsModule.load(),window.desk.getConfig()]);
  S.appConfig={...S.appConfig,...info.config,platform:info.platform};
@@ -436,14 +441,12 @@ async function openSettings({section='',focus=''}={}){
  if(focus){const field=$(focus);field?.scrollIntoView?.({block:'center'});field?.focus();}
 }
 $('#cfg-vault-browse').onclick=async()=>{const folder=await window.desk.pickFolder();if(folder)$('#cfg-vault').value=folder;};
-/* #83: o caminho do Pi, do Claude Code e do Xournal++ sai do diálogo do main (`pickExecutable`);
+/* #83: o caminho do Claude Code, do Xournal++ e do OpenCode (#102) sai do diálogo do main (`pickExecutable`);
    o campo só mostra o que o main devolveu, e Limpar volta ao automático. O `save-config` recusa o resto. */
 const pickExecutableInto=(kind,id)=>async()=>{const file=await window.desk.pickExecutable(kind);if(file){$(id).value=file;syncSettingsFooter();}};
-$('#cfg-pi-browse').onclick=pickExecutableInto('pi','#cfg-pi');
-$('#cfg-pi-detect').onclick=async()=>{const found=await window.desk.detectPi();if(found){$('#cfg-pi').value=found;toast(t('settings.pi.found')); }else toast(t('settings.pi.missing'));};
 $('#cfg-xournal-browse').onclick=pickExecutableInto('xournal','#cfg-xournal');
 $('#cfg-claude-browse').onclick=pickExecutableInto('claude','#cfg-claude');
-for(const id of ['#cfg-pi','#cfg-claude','#cfg-xournal'])$(`${id}-clear`).onclick=()=>{$(id).value='';syncSettingsFooter();};
+for(const id of ['#cfg-claude','#cfg-xournal'])$(`${id}-clear`).onclick=()=>{$(id).value='';syncSettingsFooter();};
 $('#cfg-add-course').onclick=()=>appendCourseRow();
 /* Cor de acento e tema (#9): valem na hora e ficam lembrados,
    sem esperar o Salvar (nem somem ao cancelar) — estado de interface. */
@@ -465,7 +468,7 @@ async function relinkTutorForLanguage(){
  tutorLanguageWaiting=!!outcome.busy;
  if(outcome.busy)return paintTutorLanguageNote('settings.tutorLanguage.note');
  if(!outcome.relinked)return;
- S.connected=false;
+ S.connected=false;invalidateConnect();
  paintTutorLanguageNote('settings.tutorLanguage.relinked');
  await connect().catch(()=>{});
 }
@@ -486,9 +489,9 @@ for(const [id,field] of [['#ui-language','ui'],['#tutor-language','tutor']]){
 window.addEventListener(LANGUAGE_EVENT,()=>{
  retranslateTree(document);
  setTabsCourses(localizeFreeCourse(getTabsCourses()));relabelFreeCourseName();
- renderTabsView();renderMenus();updateReviewBadge();paintUpdateNotice();relabelCourseRows();
- relabelTutorColumn();relabelCalculator(); relabelGuide(); renderHelpVersion(S.deskVersion); renderAboutLead(S.deskVersion);
- for(const panel of S.panels)panel.paintPrinted();
+  renderTabsView();renderMenus();updateReviewBadge();paintUpdateNotice();relabelCourseRows();
+  relabelTutorColumn();relabelCalculator(); relabelGuide(); renderHelpVersion(S.deskVersion); renderAboutLead(S.deskVersion);relabelLegacySession();
+  for(const panel of S.panels){panel.paintPrinted();panel.paintInvertState?.();}
 });
 $('#components-refresh').onclick=()=>refreshAbout(true);
 $('#about-credits-toggle').onclick=()=>{
@@ -508,7 +511,7 @@ window.addEventListener('desk-open-settings',e=>{openSettings(e.detail||{}).catc
    host manda o caminho ou `''` — sem binário, nada de tentativa nem de toast no
    save/boot). */
 async function adoptSavedConfig(data){
- S.connected=false;
+ S.connected=false;invalidateConnect();
  setTabsCourses(localizeFreeCourse(data.courses));
  await loadCourse(data);
  connectionState('');
@@ -563,7 +566,7 @@ async function saveSettings(){
  }catch(err){
   /* Recusa do main (ex.: a resposta começou entre o clique e o pedido): o
      aviso fica dentro do diálogo, ao lado do Salvar; o diálogo segue aberto. */
-  if($('#settings-dialog').open)showSaveError(err?.message||String(err));else toast(err?.message||String(err));
+  if($('#settings-dialog').open)showSaveError(text(err?.message||String(err)));else toast(err?.message||String(err));
  }
  finally{settingsSaving=false;}
 }
@@ -787,7 +790,7 @@ try{
  /* A primeira abertura entra ANTES dos leitores: a aba Livre pinta no
     `loadCourse` e, sem isto, a tela chegava depois dela (corrida que os testes
     de janela viam como clique interceptado). */
- await firstRunReady;await syncFirstRun(data,{createCourse:createFirstCourse,openPiSettings});
+ await firstRunReady;await syncFirstRun(data,{createCourse:createFirstCourse});
  await layoutPresetsUi.refresh();
  setTabsCourses(localizeFreeCourse(data.courses));
  await loadCourse(data);

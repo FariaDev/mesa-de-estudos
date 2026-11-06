@@ -9,8 +9,9 @@
 
    O hunt prova o que a #91 precisa no 1.19.5, com `serve` real e provedor falso:
 
-   1. o `debug config` resolve `tools` false para todas as nativas e
-      `permission` em `deny` (com `*: deny` e `mesa_*: allow`);
+   1. o config da Mesa (o mesmo do 2.2.4) não tem `tools`, resolve `*` em
+      `deny` e `mesa_*` em `allow`, e `read` só abre o sentinela — o 1.19.5
+      não chega a rodar um turno, então o adaptador o recusa antes da sessão;
    2. o MCP `mesa` no config expõe SÓ `mesa_*` ao provedor pela v1 — nenhuma
       nativa, nem `skill`;
    3. um pedido de `bash` do modelo é recusado ("unavailable tool") e não cria
@@ -32,9 +33,10 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import {parseMessage} from '../src/i18n.mjs';
+import {trackTempDir} from './temp-dir.mjs';
 
 const require = (await import('node:module')).createRequire(import.meta.url);
-const {NATIVE_TOOLS, serveEnv, writeServeConfig} = require('../src/agents/opencode-serve-config.cjs');
+const {serveEnv, writeServeConfig} = require('../src/agents/opencode-serve-config.cjs');
 const {mesaMcpConfig} = require('../opencode-tutor-host.cjs');
 const {startOpenCodeServer} = require('../src/agents/opencode-process.cjs');
 const {createOpenCodeClient} = require('../src/agents/opencode-http.cjs');
@@ -132,7 +134,7 @@ if (!binary) skip('defina LEARNING_DESK_OPENCODE_1195 ou instale o 1.19.x em ~/.
 const version = versionOf(binary);
 if (!/^1\.19\./.test(version)) skip(`${binary} é "${version}" (o hunt exige o 1.19.x estável)`);
 
-const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-hunt-oc1195-'));
+const runtime = trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-hunt-oc1195-')));
 const workspace = path.join(runtime, 'ws');
 const home = path.join(runtime, 'home');
 const tmp = path.join(runtime, 'tmp');
@@ -151,10 +153,12 @@ try {
   writeMcpConfig(configDir);
   const env = serveEnv({...process.env, HOME: home, XDG_DATA_HOME: path.join(home, '.local', 'share'), XDG_CONFIG_HOME: path.join(home, '.config'), TMPDIR: tmp}, configDir);
   const config = resolvedConfig(binary, env);
-  for (const name of NATIVE_TOOLS) assert.equal(config.tools?.[name], false, `${name} em tools:false`);
-  for (const action of ['bash', 'shell', 'edit', 'write', 'read']) assert.equal(config.permission?.[action], 'deny', `${action} em deny`);
-  assert.equal(config.permission?.['*'], 'deny', 'a regra * fecha o que tools não cobre');
+  for (const action of ['bash', 'shell', 'edit', 'write']) assert.equal(config.permission?.[action], 'deny', `${action} em deny`);
+  assert.equal(config.permission?.['*'], 'deny', 'a regra * fecha o que sobra');
   assert.equal(config.permission?.['mesa_*'], 'allow', 'o MCP mesa fica liberado');
+  const raw = JSON.parse(fs.readFileSync(path.join(configDir, 'opencode.json'), 'utf8'));
+  assert.equal(raw.tools, undefined, 'sem tools');
+  assert.deepEqual(raw.permission.read, {'*': 'deny', '/mesa-nada-existe/*': 'allow'});
   assert.equal(config.mcp?.mesa?.type, 'local', 'o MCP mesa vai no config do 1.19.5');
   assert.notEqual(config.mcp?.mesa?.enabled, false, 'o MCP mesa está ligado no config resolvido');
   /* O `debug config` do 1.19.5 normaliza o MCP para `enabled` e não mostra
@@ -205,8 +209,11 @@ try {
   assert.match(JSON.stringify(sent.payload?.parts || []), /Pronto\./);
   assert.equal(provider.state.requests, 2, 'o provedor viu o pedido de ferramenta e o resultado');
   assert.ok(provider.state.tools.length, 'o provedor vê as ferramentas do MCP');
-  assert.ok(provider.state.tools.every((name) => name.startsWith('mesa_')), `só Mesa chega ao modelo: ${provider.state.tools.join(', ')}`);
-  for (const native of ['bash', 'shell', 'read', 'edit', 'write', 'glob', 'grep', 'list', 'webfetch', 'websearch', 'task', 'skill', 'execute', 'opencode_tool']) {
+  /* `read` é oferecido de propósito desde 6bcedb53 (o Zen devolve 429 sem ela) e
+     negado em todo caminho pela permissão sentinela acima; o resto continua só
+     `mesa_*`. Em produção o adaptador nem conecta no 1.x (passo 6). */
+  assert.ok(provider.state.tools.every((name) => name.startsWith('mesa_') || name === 'read'), `só Mesa (e read negado) chega ao modelo: ${provider.state.tools.join(', ')}`);
+  for (const native of ['bash', 'shell', 'edit', 'write', 'glob', 'grep', 'list', 'webfetch', 'websearch', 'task', 'skill', 'execute', 'opencode_tool']) {
     assert.equal(provider.state.tools.includes(native), false, `${native} não chega ao modelo`);
   }
   const toolResult = JSON.stringify(provider.state.toolMessages);
@@ -214,7 +221,7 @@ try {
   assert.match(toolResult, /mesa_ler_pdf/, 'a recusa lista as ferramentas da Mesa');
   assert.equal(fs.existsSync(outside), false, 'o arquivo fora da pasta não foi criado');
 
-  console.log('ok hunt opencode 1.19.5: config resolve nativas em false, adaptador recusa a versão 1.x antes de sessão, v1 /session vê só mesa_*, bash recusado e o turno completa; v2 /prompt recusa o corpo do 2.x com 400 Missing key ["prompt"]');
+  console.log('ok hunt opencode 1.19.5: config sem tools e permission em deny/sentinela, adaptador recusa a versão 1.x antes de sessão, v1 /session vê só mesa_* e read negado, bash recusado e o turno completa; v2 /prompt recusa o corpo do 2.x com 400 Missing key ["prompt"]');
 } finally {
   try { server?.stop(); } catch { /* já parado */ }
   await provider.close();

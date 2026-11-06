@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
- withArtifacts,newRuntime,seedCourse,seedPlot,seedSession,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,FAKE_PI,
+ withArtifacts,newRuntime,seedCourse,seedPlot,seedNativeSession,writeConfigJson,writeDeskJson,launchDesk,statusOnline,tinyPdf,FAKE_OPENCODE,
  reviewShot,screenshotDirectory,setTheme,freezeMotion,resizeWindow
 } from './helpers.mjs';
 import {layoutStable} from './waits.mjs';
@@ -25,38 +25,39 @@ const out=screenshotDirectory('send-offline');
 const size=(app,page,width,height)=>resizeWindow(app,page,width,height);
 const shot=(page,name)=>reviewShot(page,out,name);
 
-/* Pi de bancada controlado por arquivos: sem `pi-gate.open` ele não sobe (a
-   janela "ligando" fica aberta o tempo que o teste quiser); com `pi-gate.fail`
-   morre na hora com um código (o motivo da falha); aberto, vira o fake de
-   verdade e herda FAKE_PI_QUEUE_LOG (cada prompt entra no log, na ordem). */
-function writeGatePi(runtime){
- const wrapper=path.join(runtime,'pi-gate.mjs');
+/* Motor de bancada controlado por arquivos: sem `engine-gate.open` ele não sobe
+   (a janela "ligando" fica aberta o tempo que o teste quiser); com
+   `engine-gate.fail` morre na hora com um código (o motivo da falha); aberto,
+   vira o fake de verdade e herda FAKE_OPENCODE_QUEUE_LOG (cada prompt entra no
+   log, na ordem). */
+function writeGateEngine(runtime){
+ const wrapper=path.join(runtime,'engine-gate.mjs');
  fs.writeFileSync(wrapper,`#!/usr/bin/env node
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 const here=path.dirname(new URL(import.meta.url).pathname);
-if(fs.existsSync(path.join(here,'pi-gate.fail'))){process.stderr.write('falha combinada do teste\\n');process.exit(7);}
-const gate=path.join(here,'pi-gate.open');
+if(fs.existsSync(path.join(here,'engine-gate.fail'))){process.stderr.write('falha combinada do teste\\n');process.exit(7);}
+const gate=path.join(here,'engine-gate.open');
 const timer=setInterval(()=>{
  if(!fs.existsSync(gate))return;
  clearInterval(timer);
- const child=spawn(process.execPath,[${JSON.stringify(FAKE_PI)},...process.argv.slice(2)],{stdio:'inherit'});
+ const child=spawn(process.execPath,[${JSON.stringify(FAKE_OPENCODE)},...process.argv.slice(2)],{stdio:'inherit'});
  child.on('exit',code=>process.exit(code??0));
 },50);
 `);
  fs.chmodSync(wrapper,0o755);
- return {wrapper,gate:path.join(runtime,'pi-gate.open'),fail:path.join(runtime,'pi-gate.fail')};
+ return {wrapper,gate:path.join(runtime,'engine-gate.open'),fail:path.join(runtime,'engine-gate.fail')};
 }
 
 function seed(tag){
  const runtime=newRuntime(tag);
  const course=seedCourse(runtime,'calc');
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites e derivadas'));
- const session=seedSession(runtime,[{type:'message',message:{role:'user',content:[{type:'text',text:'corrente'}],timestamp:1700000002000}}]);
+ const session=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'corrente'}],timestamp:1700000002000}],{courseId:'calc'});
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
  writeDeskJson(runtime,{session,courseId:'calc',courseStates:{calc:{session,pdfs:[{path:pdf,page:1}],study:{title:'Lista 2 · 7b',xopp:''}}},pdfs:[{path:pdf,page:1}],study:{title:'Lista 2 · 7b',xopp:''}});
- return {runtime,gate:writeGatePi(runtime),log:path.join(runtime,'queue.log'),session};
+ return {runtime,gate:writeGateEngine(runtime),log:path.join(runtime,'queue.log'),session};
 }
 
 const entries=log=>{
@@ -111,7 +112,7 @@ async function shots(page,app,name){
 await withArtifacts('send-offline',async ctx=>{
  const {runtime,gate,log,session}=seed('send-offline');
  ctx.runtime=runtime;
- const env={LEARNING_DESK_PI:gate.wrapper,FAKE_PI_QUEUE_LOG:log,FAKE_PI_QUEUE_HOLD_MS:'500'};
+ const env={LEARNING_DESK_OPENCODE:gate.wrapper,FAKE_OPENCODE_QUEUE_LOG:log,FAKE_OPENCODE_QUEUE_HOLD_MS:'500'};
  const app=ctx.app=await launchDesk({runtime,env});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -119,7 +120,7 @@ await withArtifacts('send-offline',async ctx=>{
  await page.waitForSelector('.pdf-panel',{timeout:30000});
  await freezeMotion(page);
 
- /* ---- tutor desligado: o Pi não sobe (portão fechado) e a pessoa cancela ---- */
+ /* ---- tutor desligado: o motor não sobe (portão fechado) e a pessoa cancela ---- */
  await page.waitForSelector('#tutor-state[data-state="connecting"]',{timeout:20000});
  await page.locator('#connect-cancel').click();
  await page.waitForFunction(()=>document.querySelector('#tutor-state')?.dataset.state==='off',undefined,{timeout:10000});
@@ -133,7 +134,7 @@ await withArtifacts('send-offline',async ctx=>{
  assert.equal(view.label,'Guardada. Vai quando ele atender.');
  assert.deepEqual(view.rows,['primeira pergunta']);
  assert.equal(view.sendNow,false,'ligando: nada a "enviar agora", ela vai sozinha');
- assert.deepEqual(sent(log),[],'nada foi ao tutor antes de ele atender');
+ assert.deepEqual(sent(log),[],'nada foi ao motor antes de ele atender');
  await waitFor(()=>stored(runtime,session),texts=>texts.length===1&&texts[0]==='primeira pergunta','a mensagem guardada vai para o disco na hora');
  assert.equal(await page.locator('.message.user .body',{hasText:'primeira pergunta'}).count(),0,'ainda não é uma fala da sessão');
 
@@ -187,7 +188,7 @@ await withArtifacts('send-offline',async ctx=>{
 await withArtifacts('send-offline-reopen',async ctx=>{
  const {runtime,gate,log,session}=seed('send-offline-reopen');
  ctx.runtime=runtime;
- const env={LEARNING_DESK_PI:gate.wrapper,FAKE_PI_QUEUE_LOG:log,FAKE_PI_QUEUE_HOLD_MS:'500'};
+ const env={LEARNING_DESK_OPENCODE:gate.wrapper,FAKE_OPENCODE_QUEUE_LOG:log,FAKE_OPENCODE_QUEUE_HOLD_MS:'500'};
  let app=ctx.app=await launchDesk({runtime,env});
  let page=await app.firstWindow();
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -234,7 +235,7 @@ await withArtifacts('send-offline-reopen',async ctx=>{
 await withArtifacts('send-offline-vetoed',async ctx=>{
  const {runtime,gate,log,session}=seed('send-offline-vetoed');
  ctx.runtime=runtime;
- const env={LEARNING_DESK_PI:gate.wrapper,FAKE_PI_QUEUE_LOG:log,FAKE_PI_QUEUE_HOLD_MS:'500'};
+ const env={LEARNING_DESK_OPENCODE:gate.wrapper,FAKE_OPENCODE_QUEUE_LOG:log,FAKE_OPENCODE_QUEUE_HOLD_MS:'500'};
  const app=ctx.app=await launchDesk({runtime,env});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',e=>errors.push(e.message));

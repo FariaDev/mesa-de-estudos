@@ -97,7 +97,7 @@ await withArtifacts('phone-photo',async ctx=>{
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',courseStates:{calc:{pdfs:[],study:{title:'',xopp:''}}}});
  const prompts=path.join(runtime,'prompts-recebidos.jsonl');
- ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PHONE_HOST:'127.0.0.1',FAKE_PI_QUEUE_LOG:prompts}});
+ ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PHONE_HOST:'127.0.0.1',FAKE_OPENCODE_QUEUE_LOG:prompts}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await resizeWindow(ctx.app,page,1440,900,{content:true});
  await statusOnline(page);

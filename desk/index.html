@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="src/materials/pdf-model-formulario.css" data-material-model="pdf-model-formulario">
   <link rel="stylesheet" href="src/activity.css">
   <link rel="stylesheet" href="src/release-notes.css">
+  <link rel="stylesheet" href="src/opencode-providers.css">
 </head>
 <body>
 <!-- Primeira abertura em tela cheia (#64, docs/design/setup-guia-r1/Setup-passos.dc.html):
@@ -112,14 +113,15 @@
            #auto-compact é o botão vivo que o menu espelha. -->
       <div class="chat-top">
         <div class="chat-head">
-          <button id="session-title" type="button" class="session-title" aria-haspopup="dialog" aria-expanded="false" aria-controls="conversations-pop" aria-label="Sessão: abrir a lista de sessões da matéria" title="Sessões da matéria" data-i18n-attr="aria-label=header.sessionOpenAria;title=header.sessionsTitle" data-session="" data-engine="pi"><span class="session-title-text">Sessão</span></button>
+          <button id="session-title" type="button" class="session-title" aria-haspopup="dialog" aria-expanded="false" aria-controls="conversations-pop" aria-label="Sessão: abrir a lista de sessões da matéria" title="Sessões da matéria" data-i18n-attr="aria-label=header.sessionOpenAria;title=header.sessionsTitle" data-session="" data-engine="opencode"><span class="session-title-text">Sessão</span></button>
           <div class="chat-head-actions">
             <button id="sidechat-toggle" type="button" class="icon-btn" aria-pressed="false" title="Abrir o chat lateral" aria-label="Chat lateral" data-i18n-attr="title=sidechat.toggle.open;aria-label=sidechat.toggle.aria"></button>
+            <button id="chat-full" type="button" class="icon-btn" aria-pressed="false" title="Chat na tela inteira" aria-label="Chat na tela inteira" data-i18n-attr="title=header.chatFull;aria-label=header.chatFull"></button>
             <button id="new-session" type="button" class="icon-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="new-session-pop" title="Sessão nova" aria-label="Sessão nova" data-i18n-attr="title=header.newSession;aria-label=header.newSessionAria"></button>
             <button id="chat-more" type="button" class="icon-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="chat-more-pop" title="Mais opções" aria-label="Mais opções do tutor" data-i18n-attr="title=header.moreTitle;aria-label=header.moreAria"></button>
           </div>
         </div>
-        <div id="new-session-pop" class="chat-pop" role="menu" aria-label="Nova sessão com…" data-i18n-attr="aria-label=header.newSessionWith" hidden></div>
+        <div id="new-session-pop" class="chat-pop" role="menu" aria-label="Nova sessão" data-i18n-attr="aria-label=header.newSession" hidden></div>
         <div id="chat-more-pop" class="chat-pop" role="menu" aria-label="Mais opções do tutor" data-i18n-attr="aria-label=header.moreAria" hidden></div>
         <div id="conversations-pop" role="dialog" aria-label="Sessões da matéria" data-i18n-attr="aria-label=header.sessionsAria" hidden>
           <div class="conv-head"><strong data-i18n="header.sessionsTitle">Sessões da matéria</strong><button type="button" id="conv-close" class="icon-btn" aria-label="Fechar" data-i18n-attr="aria-label=common.close">×</button></div>
@@ -136,33 +138,35 @@
            desses estados (tutor ligado e sem registro) o bloco some. -->
       <div id="tutor-state" class="tutor-state" data-state="none" hidden></div>
       <div id="activity" role="status"></div>
-      <!-- Caixa de mensagem única (ticket #15). Acima dela, a linha "Vai junto"
-           diz o que segue com a próxima mensagem e abre a edição do contexto de
-           estudo (lista/questão e rascunho .xopp) no `#context-pop`. A caixa
-           guarda, de cima para baixo: fila, a pílula "Contexto", anexos (a
-           captura do Conferir entra aqui, removível), o campo e a fileira de
-           ações. Enviar vira Parar durante a resposta (mesmo lugar, nunca os
-           dois). O texto da pílula e o encaixe Enviar/Parar são do
-           `core/composerbox.bend`; o menu Anexar é `#attach-pop`. -->
-      <div id="composer">
-        <div id="context-pop" role="dialog" aria-label="Contexto de estudo" data-i18n-attr="aria-label=composer.studyAria" hidden>
-          <div id="study-context">
-            <input id="exercise-title" type="text" maxlength="240" placeholder="Lista / questão ativa" aria-label="Lista ou questão ativa" data-i18n-attr="placeholder=composer.exercisePlaceholder;aria-label=composer.exerciseAria">
-            <button id="pick-xopp" type="button" title="Associar arquivo do Xournal++" data-i18n-attr="title=composer.pickXoppTitle" data-i18n="composer.pickXoppDefault">Rascunho .xopp</button>
-          </div>
-          <p class="fine" id="context-pop-refs"></p>
-          <button type="button" class="guide-link" data-open-guide="tutor" data-i18n="guide.howItWorks">Como funciona</button>
+      <!-- O que vai junto com a mensagem (matéria, PDFs e páginas, lista/questão
+           ativa e rascunho .xopp) e a edição do contexto de estudo moram em
+           Mais opções → Contexto (#123); o composer fica só com a escrita. O
+           `#context-live` é o ninho dos nós vivos: o tutor-header os leva para
+           dentro do submenu a cada render. A caixa guarda, de cima para baixo:
+           fila, chips das ferramentas, anexos (a captura do Conferir entra
+           aqui, removível), o campo e a fileira de ações. Enviar vira Parar
+           durante a resposta (mesmo lugar, nunca os dois). O encaixe
+           Enviar/Parar é do `core/composerbox.bend`; o menu Anexar é
+           `#attach-pop`. -->
+      <div id="context-live" hidden>
+        <span id="context-summary" role="group" aria-live="polite"></span>
+        <div id="study-context">
+          <input id="exercise-title" type="text" maxlength="240" placeholder="Lista / questão ativa" aria-label="Lista ou questão ativa" data-i18n-attr="placeholder=composer.exercisePlaceholder;aria-label=composer.exerciseAria">
+          <button id="pick-xopp" type="button" title="Associar arquivo do Xournal++" data-i18n-attr="title=composer.pickXoppTitle" data-i18n="composer.pickXoppDefault">Rascunho .xopp</button>
         </div>
+        <p class="fine" id="context-pop-refs"></p>
+        <button type="button" class="guide-link" data-open-guide="tutor" data-i18n="guide.howItWorks">Como funciona</button>
+      </div>
+      <div id="composer">
         <div id="check-note" role="group" aria-label="O Conferir não achou o programa" hidden data-i18n-attr="aria-label=check.noteAria"></div>
         <div id="legacy-session" role="status" hidden>
           <p data-i18n="session.legacy.body">Conversa antiga, só para leitura.</p>
-          <button id="legacy-new-session" type="button" class="primary" data-i18n="session.legacy.action">Nova sessão</button>
+          <span class="legacy-actions">
+            <button id="legacy-continue" type="button" class="primary">Continuar no OpenCode com o contexto</button>
+            <button id="legacy-new-session" type="button" class="secondary" data-i18n="session.legacy.action">Nova sessão</button>
+          </span>
         </div>
         <div id="composer-box" class="composer-box">
-          <div id="goes-along" class="goes-along">
-            <span id="context-summary" role="group" aria-live="polite"></span>
-            <button id="context-edit" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="context-pop" aria-label="Editar o contexto de estudo" title="Editar contexto" data-i18n="composer.editLabel" data-i18n-attr="aria-label=composer.editAria;title=composer.editTitle">Editar</button>
-          </div>
           <div id="mention-chips" class="mention-chips" role="group" aria-label="Ferramentas pedidas" data-i18n-attr="aria-label=mention.chips" hidden></div>
           <div id="attachments" hidden></div>
           <textarea id="prompt" class="composer-field" rows="3" placeholder="Pergunte ao tutor…" aria-label="Mensagem para o tutor" data-i18n-attr="placeholder=composer.hint.online;aria-label=composer.messageAria"></textarea>
@@ -270,7 +274,7 @@
 <dialog id="link-dialog" aria-labelledby="link-title">
   <form method="dialog">
     <h2 id="link-title" data-i18n="link.confirm.title">Abrir este link?</h2>
-    <p class="help-lead" data-i18n="link.confirm.lead">Esta atividade veio do modelo. Confira o destino antes de abrir.</p>
+    <p class="help-lead" data-i18n="link.confirm.lead">Este link veio do tutor ou de uma atividade. Confira o destino antes de abrir.</p>
     <p class="link-confirm-host"><strong id="link-host"></strong></p><p class="link-confirm-path"><code id="link-path"></code></p>
     <div class="dialog-actions"><button value="cancel" autofocus data-i18n="common.cancel">Cancelar</button><button value="ok" class="primary" data-i18n="link.confirm.open">Abrir</button></div>
   </form>
@@ -366,7 +370,7 @@
             <div class="guide-topics">
               <section class="guide-topic" data-search>
                 <h4 data-i18n="guide.tutor.t1.title">O que vai junto</h4>
-                <p><span data-i18n-html="guide.tutor.t1.body.a">As pílulas dentro da caixa de mensagem dizem o que segue com a próxima mensagem: a matéria, a questão ativa, o rascunho <code>.xopp</code> e os PDFs abertos com a página.</span><span id="help-study-li" data-i18n-html="guide.tutor.t1.body.b"> O lápis ao lado troca a lista ou questão ativa e o rascunho.</span><span data-i18n-html="guide.tutor.t1.body.c"> O botão <strong>Referências</strong> (o ícone de colunas) liga e desliga os materiais</span><span id="help-refs-li" data-i18n-html="guide.tutor.t1.body.d"> — mandam caminho e página, não o PDF inteiro</span>.</p>
+                <p><span data-i18n-html="guide.tutor.t1.body.a">As pílulas dentro da caixa de mensagem dizem o que segue com a próxima mensagem: a matéria, a questão ativa, o rascunho <code>.xopp</code> e os PDFs abertos com a página.</span><span id="help-study-li" data-i18n-html="guide.tutor.t1.body.b"> O lápis ao lado troca a lista ou questão ativa e o rascunho.</span><span data-i18n-html="guide.tutor.t1.body.c"> O botão <strong>Referências</strong> (o ícone de livro) liga e desliga os materiais</span><span id="help-refs-li" data-i18n-html="guide.tutor.t1.body.d"> — mandam caminho e página, não o PDF inteiro</span>.</p>
               </section>
               <section class="guide-topic" id="help-conferir-li" data-search>
                 <h4 data-i18n="guide.tutor.t2.title">Conferir Xournal++</h4>
@@ -510,6 +514,7 @@
                 <h4 data-i18n="guide.atalhos.g3">Mesa</h4>
                 <div class="guide-key" data-key="command-palette" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>K</kbd></span><span data-i18n="guide.atalhos.row.command-palette">Busca de comandos</span></div>
                 <div class="guide-key" data-key="chat-toggle" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>\</kbd></span><span data-i18n="guide.atalhos.row.chat-toggle">Recolher ou mostrar o tutor</span></div>
+                <div class="guide-key" data-key="chat-full" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>E</kbd></span><span data-i18n="guide.atalhos.row.chat-full">Chat na tela inteira ou ao lado</span></div>
                 <div class="guide-key" data-key="tab-number" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>1</kbd>…<kbd>9</kbd></span><span data-i18n="guide.atalhos.row.tab-number">Ir para a matéria</span></div>
                 <div class="guide-key" data-key="tab-cycle" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>Tab</kbd></span><span data-i18n="guide.atalhos.row.tab-cycle">Próxima ou anterior matéria</span></div>
                 <div class="guide-key" data-key="new-course" data-search><span class="guide-combo"><kbd>⌘</kbd><kbd>T</kbd></span><span data-i18n="guide.atalhos.row.new-course">Nova matéria (Configurações)</span></div>
@@ -610,14 +615,6 @@
             <button type="button" id="cfg-vault-browse" data-i18n="settings.choose">Escolher</button>
           </span>
         </label>
-        <label><span data-i18n="settings.folders.pi">Executável do Pi</span>
-          <span class="path-row">
-            <input id="cfg-pi" type="text" readonly spellcheck="false" placeholder="detectar automaticamente" data-i18n-attr="placeholder=settings.detectAuto">
-            <button type="button" id="cfg-pi-detect" data-i18n="settings.detect">Detectar</button>
-            <button type="button" id="cfg-pi-browse" data-i18n="settings.choose">Escolher</button>
-            <button type="button" id="cfg-pi-clear" data-i18n="settings.clear">Limpar</button>
-          </span>
-        </label>
         <label><span data-i18n="settings.folders.claude">Executável do Claude Code</span>
           <span class="path-row">
             <input id="cfg-claude" type="text" readonly spellcheck="false" placeholder="detectar automaticamente" data-i18n-attr="placeholder=settings.detectAuto">
@@ -638,6 +635,9 @@
           <div id="cfg-conferir"></div>
           <div id="cfg-conferir-list" class="cfg-conferir-list" hidden></div>
         </div>
+        <!-- Entrada por provedor do OpenCode (#login no app): a lista vem da
+             API v2 do `serve`; nenhuma credencial passa pela janela. -->
+        <div id="cfg-opencode-providers" class="cfg-opencode-providers"></div>
         <!-- Modelos gratuitos do OpenCode Zen (#44): ações que valem na hora, como o
              programa do Conferir; a chave fica no cofre do sistema, nunca no
              config.json. A janela só vê a máscara. -->
@@ -675,6 +675,7 @@
       <div class="about-id">
         <div id="about-title" class="about-name" role="heading" aria-level="1">Mesa de Estudos</div>
         <p id="about-lead" class="about-lead" data-i18n="about.leadStatic">Licença MIT</p>
+        <p id="about-origin" class="about-origin" hidden></p>
       </div>
       <button value="cancel" class="icon-btn dialog-close" aria-label="Fechar o Sobre" data-i18n-attr="aria-label=about.close">×</button>
     </div>
@@ -689,7 +690,6 @@
       <div id="about-credits" class="about-credits" hidden>
         <h3 data-i18n="about.credits">Créditos e licenças</h3>
         <ul>
-          <li id="about-credit-pi"><strong>Pi</strong> — <span data-i18n="about.credit.pi">programa local que faz o tutor funcionar</span></li>
           <li data-package="electron"><strong>Electron</strong> 45.2.0 — <span data-i18n="about.credit.electron">janela do aplicativo (MIT, © Electron contributors, © 2013-2020 GitHub Inc.)</span></li>
           <li data-package="pdfjs-dist"><strong>PDF.js</strong> 6.4.299 — <span data-i18n="about.credit.pdfjs">leitores de PDF (Apache-2.0, © Mozilla Foundation)</span></li>
           <li data-package="katex"><strong>KaTeX</strong> 0.19.1 — <span data-i18n="about.credit.katex">fórmulas na sessão (MIT, © 2013-2020 Khan Academy and other contributors)</span></li>

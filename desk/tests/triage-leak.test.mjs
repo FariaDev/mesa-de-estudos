@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {createRequire} from 'node:module';
 import {createFakeTriageProfile} from './fake-triage-profile.mjs';
+
+const {findOpenCodeLauncher}=createRequire(import.meta.url)('../src/agents/opencode-process.cjs');
 
 /* Teste de vazamento do "Relatar um problema" (#62): roda o `npm run triage`
    de verdade num perfil falso recheado de caminhos, chaves, `auth.json`,
@@ -44,25 +47,29 @@ test('o relatório não vaza caminho, chave, auth.json, JSONL, matéria nem PDF'
   assert.match(stdout,/<matéria 1>/,'a matéria aparece só como rótulo');
   assert.match(stdout,/\[oculto\]/,'as chaves do log viram [oculto]');
   assert.match(stdout,/linha omitida: parecia conteúdo de sessão/);
-  assert.match(stdout,/https:\/\/github\.com\/FariaDev\/mesa-e-conversa\/issues\/new\?/);
+  assert.match(stdout,/https:\/\/github\.com\/FariaDev\/mesa-de-estudos\/issues\/new\?/);
+  assert.doesNotMatch(stdout,/FariaDev\/mesa-e-conversa/);
  }finally{profile.cleanup();}
 });
 
-test('OpenCode e Pi só são consultados (versão e lista), nunca chamados para inferência',{skip},()=>{
+test('OpenCode só é consultado (versão e lista), nunca chamado para inferência',{skip},()=>{
  const profile=createFakeTriageProfile();
  try{
   const stdout=runTriage(profile.env);
-  assert.match(stdout,/opencode run --model opencode\/deepseek-v4\.1-flash-free '/,'DeepSeek Flash vem antes de MiniMax e do big-pickle');
-  assert.match(stdout,/\npi --model xai\/grok-4 'Você está no repositório/,'o Pi usa o recente do seletor, no modo interativo');
-  assert.match(stdout,/Modelo do Pi: xai\/grok-4, anthropic\/claude-sonnet-5-5\n/,'favorito grátis do Zen não entra');
-  assert.match(stdout,/Grátis pode guardar o que recebe: não guarda nem treina\./);
+  assert.match(stdout,/opencode run --standalone --model opencode\/deepseek-v4\.1-flash-free '/,'DeepSeek Flash vem antes de MiniMax e do big-pickle');
+  assert.match(stdout,/Política de dados deste modelo: não guarda nem treina\./);
   assert.equal(fs.existsSync(profile.forbiddenLog),false,`chamada proibida: ${fs.existsSync(profile.forbiddenLog)?fs.readFileSync(profile.forbiddenLog,'utf8'):''}`);
  }finally{profile.cleanup();}
 });
 
-test('sem OpenCode instalado, a saída do OpenCode some com explicação',{skip},()=>{
+test('sem OpenCode instalado, a saída do OpenCode some com explicação',{skip},t=>{
  const profile=createFakeTriageProfile({opencode:false});
  try{
+  /* O triage também procura em /opt/homebrew/bin, /usr/local/bin e no shell
+     de login, fora do HOME falso: num Mac com OpenCode ali o perfil não
+     consegue escondê-lo (rodada 5 do Mac, 2026-11-06). Aí não há o que provar. */
+  const real=findOpenCodeLauncher({home:profile.env.HOME,env:profile.env});
+  if(real){t.skip('este computador tem OpenCode fora do HOME, que o perfil falso não esconde');return;}
   const stdout=runTriage(profile.env);
   assert.doesNotMatch(stdout,/opencode run/);
   assert.match(stdout,/OpenCode ausente neste computador/);

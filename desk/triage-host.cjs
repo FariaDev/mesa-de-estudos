@@ -3,7 +3,7 @@
 
 const path=require('node:path');
 const {Worker}=require('node:worker_threads');
-const {isIssueUrl}=require('./triage-outputs.mjs');
+const {ISSUE_REPO,isIssueUrl}=require('./triage-outputs.mjs');
 
 /* "Relatar um problema" (#62), no host. Canais:
    - `triage-report` {engine, model} → {ok, result} com o relatório limpo e as
@@ -15,7 +15,6 @@ const {isIssueUrl}=require('./triage-outputs.mjs');
 /**
  * @typedef {{report: string, agentPrompt: string,
  *   opencode: {command: string, model: string, policyKey: string} | {command: null, reason: string},
- *   pi: ({command: string, model: string} | {command: null, reason: string}) & {facts: {pi: boolean, piModels: string[]}, platform: string},
  *   issue: {url: string, truncated: boolean}}} TriageResult
  */
 
@@ -49,7 +48,7 @@ function registerTriageHost({ipcMain,openExternal,electronVersion,platform=proce
  });
  ipcMain.handle('triage-open-issue',async(_event,payload)=>{
   const url=payload?.url;
-  if(!isIssueUrl(url))return {ok:false,error:`endereço de issue inválido: esperado https://github.com/FariaDev/mesa-e-conversa/issues/new?…, veio ${JSON.stringify(String(url).slice(0,80))}`};
+  if(!isIssueUrl(url))return {ok:false,error:`endereço de issue inválido: esperado https://github.com/${ISSUE_REPO}/issues/new?…, veio ${JSON.stringify(String(url).slice(0,80))}`};
   await openExternal(url);
   return {ok:true};
  });

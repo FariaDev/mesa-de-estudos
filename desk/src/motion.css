@@ -10,7 +10,7 @@
 /* ---------- de onde cada um vem ---------- */
 :is(.nav-pop,.pdf-find,.chat-pop,.palette){--motion-from:var(--from-drop)}
 :is(#toast .toast-item,.queue-strip,#ggb-bar,#undo-notice,#update-notice,
- .chat-pop.model-pop,#context-pop,.phone-pop,.slash-pop,.message,.sidechat-msg){--motion-from:var(--from-rise)}
+ .chat-pop.model-pop,.phone-pop,.slash-pop,.message,.sidechat-msg){--motion-from:var(--from-rise)}
 dialog{--motion-from:var(--from-zoom)}
 
 /* ---------- entra e sai por [hidden] ----------
@@ -18,14 +18,14 @@ dialog{--motion-from:var(--from-zoom)}
    !important na cascata: com display allow-discrete o elemento só some
    depois de voltar ao ponto de partida, e o @starting-style dá o começo da
    entrada. A saída usa a duração do estado de destino (--t-fast). */
-:is(.chat-pop,#context-pop,.attach-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn){
+:is(.chat-pop,.attach-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn){
  transition:opacity var(--t-base) var(--ease-out),transform var(--t-base) var(--ease-out),display var(--t-base) allow-discrete;
 }
-:is(.chat-pop,#context-pop,.attach-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn)[hidden]{
+:is(.chat-pop,.attach-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn)[hidden]{
  opacity:0;transform:var(--motion-from,none);pointer-events:none;transition-duration:var(--t-fast);
 }
 @starting-style{
- :is(.chat-pop,#context-pop,.attach-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn):not([hidden]){opacity:0;transform:var(--motion-from,none)}
+ :is(.chat-pop,.attach-pop,.phone-pop,.palette-backdrop,#ggb-bar,#undo-notice,#update-notice,#ctx-tip,.tip,#quote-btn):not([hidden]){opacity:0;transform:var(--motion-from,none)}
 }
 /* Balões e o botão de citar seguem o ponteiro: só fade, e curto. */
 :is(#ctx-tip,.tip,#quote-btn){transition-duration:var(--t-fast)}

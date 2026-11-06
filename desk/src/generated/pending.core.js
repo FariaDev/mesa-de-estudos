@@ -199,6 +199,17 @@ function $holdAfterAnswer(_busy_0, _permissionPending_0, _uncertain_0, _cancelle
     return $holdAfterAnswer_free(_permissionPending_0, _uncertain_0, _cancelled_0);
   }
 }
+function $reholdAfterSend(_wasHeld_0, _accepted_0) {
+  if (!_wasHeld_0) {
+    return false;
+  } else {
+    if (_accepted_0) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+}
 function $String_join(_xs_0, _sep_0) {
   if (_xs_0.$ === "Nil") {
     return "";
@@ -431,7 +442,8 @@ var pending_default = {
   tutorAnswered: run_lib((a0, a1) => run_loop($tutorAnswered(a0, a1)), 2),
   "holdAfterAnswer.stuck": run_lib((a0, a1) => run_loop($holdAfterAnswer_stuck(a0, a1)), 2),
   "holdAfterAnswer.free": run_lib((a0, a1, a2) => run_loop($holdAfterAnswer_free(a0, a1, a2)), 3),
-  holdAfterAnswer: run_lib((a0, a1, a2, a3) => run_loop($holdAfterAnswer(a0, a1, a2, a3)), 4)
+  holdAfterAnswer: run_lib((a0, a1, a2, a3) => run_loop($holdAfterAnswer(a0, a1, a2, a3)), 4),
+  reholdAfterSend: run_lib((a0, a1) => run_loop($reholdAfterSend(a0, a1)), 2)
 };
 export {
   pending_default as default

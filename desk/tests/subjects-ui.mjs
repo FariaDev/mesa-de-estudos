@@ -19,7 +19,7 @@ async function goOnline(p,{timeout=60000}={}){
 await withArtifacts('subjects',async ctx=>{
  // subjects-ui usa o Pi REAL (sem fake-pi) e descobre matérias pelo vault (seedConfig).
  const runtime=ctx.runtime=newRuntime('subjects');
- const app=ctx.app=await launchDesk({runtime,pi:false});
+ const app=ctx.app=await launchDesk({runtime,opencode:false});
  const p=await app.firstWindow();const errors=[];p.on('pageerror',e=>errors.push(e.message));
  try{
  await p.waitForFunction(()=>document.querySelectorAll('.page-total').length===2&&[...document.querySelectorAll('.page-total')].every(e=>!e.textContent.includes('—')));assert.ok(await p.locator('#course-tabs button[role="tab"]:not(#review-tab)').count()>=4);

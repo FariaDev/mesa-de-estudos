@@ -158,6 +158,12 @@ await withArtifacts('hunt-pdf',async ctx=>{
   const rendered=await page.evaluate(()=>document.querySelectorAll('.pdf-panel')[0].querySelectorAll('.pdf-page[data-rendered]').length);
   check('virtualização: páginas renderizadas bem abaixo de 220',rendered>0&&rendered<25,`${rendered} renderizadas`);
   check('sem shimmer preso: páginas visíveis têm data-rendered',await page.evaluate(()=>{const panel=document.querySelectorAll('.pdf-panel')[0];const box=panel.querySelector('.pdf-viewport');return [...panel.querySelectorAll('.pdf-page')].filter(el=>el.offsetTop+el.offsetHeight>=box.scrollTop&&el.offsetTop<=box.scrollTop+box.clientHeight).every(el=>el.dataset.rendered);}));
+  /* O brilho é só de quem está sendo desenhado: páginas fora da vista animando sem parar gastavam CPU e GPU com a Mesa parada (3,1% e 1,6% medidos no Mac; 0 sem elas). */
+  const waitingPages=await page.evaluate(()=>document.querySelectorAll('.pdf-panel')[0].querySelectorAll('.pdf-page:not([data-rendered]):not([data-rendering])').length);
+  check('repouso: há páginas à espera fora da vista',waitingPages>100,`${waitingPages} à espera`);
+  const idleShimmers=await page.evaluate(()=>document.getAnimations().filter(a=>a.animationName==='pdf-shimmer'&&a.playState==='running').length);
+  check('repouso: nenhuma página à espera anima o brilho',idleShimmers===0,`${idleShimmers} animando`);
+  check('o brilho ainda aparece na página sendo desenhada',await page.evaluate(()=>{const el=document.querySelectorAll('.pdf-panel')[0].querySelector('.pdf-page:not([data-rendered]):not([data-rendering])');el.dataset.rendering='sonda';const name=getComputedStyle(el,'::after').animationName;delete el.dataset.rendering;return name==='pdf-shimmer';}));
   check('total do rodapé bate com o documento',(await field(0,'.page-total').textContent()).trim()==='/ 220',(await field(0,'.page-total').textContent()).trim());
 
   // leitor 2 nasce minimizado (fechou assim): ícone no boot e restauração

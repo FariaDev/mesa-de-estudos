@@ -4,11 +4,14 @@ import {icon} from '../icons.mjs';
 import {choiceIcon} from './provider-icons.mjs';
 import {build,renderChildren} from './view-host.mjs';
 import {sidechatOpen,toggleSidechat} from './support.mjs';
+import {isChatFull,setChatFull,toggleChatFull} from './chat-full.mjs';
 import {resetModelSearch} from './model-picker-ui.mjs';
 import core from './generated/tutorheader.core.js';
 import boxCore from './generated/composerbox.core.js';
 import {t,text as translate,LANGUAGE_EVENT} from './ui-text.mjs';
 import {engineReady} from './engine-facts.mjs';
+import {mountContextSection} from './context-menu.mjs';
+import {createNewSessionMenu} from './new-session-menu.mjs';
 
 /* ---------------------------------------------------------------------------
    Cabeçalho do tutor (tickets #13, #14 e #42). Uma linha de --bar: título da
@@ -176,49 +179,21 @@ function menuItems(menu){
 function focusSubmenu(){menuItems($('#more-context-menu')||document.body)[0]?.focus();}
 function focusFirst(selector){menuItems($(selector)||document.body)[0]?.focus();}
 
-/* ---------- sessão nova e mais opções (árvores do núcleo) ---------- */
+/* ---------- sessão nova e mais opções ---------- */
 
-/* O item "Padrão" cria a sessão no motor padrão, que é o Pi quando ele existe.
-   Sem Pi, ele some do seletor: quem não instalou o Pi não vê o motor nem no
-   menu (#release OpenCode). A escolha explícita de Claude/OpenCode continua. */
-function viewNodeId(node){
- for(let attr=node?.attrs;attr&&attr.$==='Con';attr=attr.tail)if(attr.head.name==='id')return String(attr.head.value||'');
- return '';
-}
-
-function listToArray(list){
- const items=[];
- for(let node=list;node&&node.$==='Con';node=node.tail)items.push(node.head);
- return items;
-}
-
-function arrayToList(items){
- return items.reduceRight((tail,head)=>({$:'Con',head,tail}),{$:'Nil'});
-}
-
-const SESSION_ENGINE_OF={ 'new-session-default':'pi','new-session-claude':'claude','new-session-opencode':'opencode' };
-function sessionMenuItems(){
- const menu=core.newSessionMenu();
- const visible=visibleEngines();
- const known=Object.prototype.hasOwnProperty.call(S.detected||{},'pi');
- return arrayToList(listToArray(menu).filter(node=>{
-  const engine=SESSION_ENGINE_OF[viewNodeId(node)];
-  /* O cabeçalho "Nova sessão com…" não é item de motor: fica sempre. */
-  if(!engine)return true;
-  if(!visible.includes(engine))return false;
-  /* O item "Padrão" é o Pi instalado; sem Pi ele não aparece (#release OpenCode). */
-  return engine!=='pi'||!known||!!S.detected.pi;
- }));
+/* O menu de sessão nova é interface pura (rótulo, ordem e "atual"): mora em
+   new-session-menu.mjs, conforme o ADR 0003. Criado sob demanda: este módulo
+   pode ser importado no meio do ciclo com state.mjs, quando `S` ainda está em
+   TDZ, então nada aqui lê `S` na carga. */
+let sessionMenu=null;
+function newSessionMenu(){
+ if(!sessionMenu)sessionMenu=createNewSessionMenu({state:S,visibleEngines,engineReady,getHost:()=>host,closePops:(options)=>closeTutorPops(options)});
+ return sessionMenu;
 }
 
 function renderMenus(){
  const meter=$('#ctx-meter');
  const handlers={
-  /* "Padrão" (#93): o host escolhe o motor instalado; sessão nova nunca troca
-     o motor da conversa aberta, só a da próxima. */
-  NewSession:()=>{closeTutorPops({restoreFocus:true});host.newSession();},
-  NewSessionClaude:()=>{closeTutorPops({restoreFocus:true});host.newSession('claude');},
-  NewSessionOpenCode:()=>{closeTutorPops({restoreFocus:true});host.newSession('opencode');},
   ExportSession:()=>{closeTutorPops({restoreFocus:true});host.exportSession();},
   OpenEndDay:()=>{closeTutorPops({restoreFocus:true});host.openEndDay();},
   ToggleAutoCompact:()=>{$('#auto-compact')?.click();},
@@ -226,11 +201,12 @@ function renderMenus(){
   ToggleContextMenu:()=>{if(contextMenuOpen()){closeContextMenu();$('#more-context')?.focus();}else openContextMenu();},
   ToggleTutor:()=>{closeTutorPops();host.toggleTutor();}
  };
- const sessionPop=$('#new-session-pop'),morePop=$('#chat-more-pop');
- if(sessionPop){renderChildren(sessionPop,sessionMenuItems(),handlers);iconize(sessionPop);}
+  const morePop=$('#chat-more-pop');
+  newSessionMenu().render($('#new-session-pop'), $('#new-session'));
  if(morePop){
   renderChildren(morePop,core.moreItems(host.endDayEnabled()),handlers);
   iconize(morePop);
+  mountContextSection();
   /* O medidor é nó vivo (a barra anima por transição de largura): sai do
      render com o resto do menu e volta para o encaixe do uso de contexto. */
   const slot=$('#more-context-slot');
@@ -252,7 +228,11 @@ function syncMore(){
      sozinhos; #93), o item sai do menu — nada de controle morto. */
   const canAuto=supportsCapability('autoCompaction');
   toggle.hidden=!canAuto;
-  toggle.setAttribute('aria-checked',String(!!auto&&auto.getAttribute('aria-pressed')==='true'));
+  const checked=String(!!auto&&auto.getAttribute('aria-pressed')==='true');
+  toggle.setAttribute('aria-checked',checked);
+  /* O estado sai no `::after` via `data-state`, traduzido (varredura i18n,
+     rodada 8: o CSS fixava "Desativada"/"Ativada"). */
+  toggle.dataset.state=t(checked==='true'?'more.autoCompact.on':'more.autoCompact.off');
   toggle.disabled=!canAuto||!S.connected;
   toggle.title=t(!S.connected?'more.autoCompact.needsTutor':'more.autoCompact.hint');
  }
@@ -318,6 +298,16 @@ function syncIndicator(){
  if(isOpen('#model-pop'))fitPop(pop);
 }
 
+/* ---------- chat na tela inteira (#98) ---------- */
+/* O botão é a ação, não o estado: ao lado ele oferece a tela inteira, e na tela
+   inteira ele oferece o lado; o glifo acompanha. */
+function syncChatFullButton(){
+ const button=$('#chat-full');if(!button)return;
+ const full=isChatFull(),label=t(full?'header.chatSide':'header.chatFull');
+ button.setAttribute('aria-pressed',String(full));button.title=label;button.setAttribute('aria-label',label);
+ button.innerHTML=icon(full?'minimize':'maximize');
+}
+
 /* ---------- chat lateral ---------- */
 
 function syncSidechatButton(){
@@ -362,13 +352,13 @@ function wire(){
   /* O "+" usa o motor da sessão aberta enquanto ele existe e está na vista; se
      o motor sumiu (ou a sessão é de um motor antigo), manda sem motor para o
      host escolher o visível agora. Com um motor só, abre direto (#release OpenCode). */
-  const ready=visibleEngines().includes(S.engine)&&engineReady({engine:S.engine,detectedPi:S.detected?.pi,detectedClaude:S.detected?.claude,detectedOpenCode:S.detected?.opencode});
+  const ready=visibleEngines().includes(S.engine)&&engineReady({engine:S.engine,detectedClaude:S.detected?.claude,detectedOpenCode:S.detected?.opencode});
   host.newSession(ready?(S.engine||'opencode'):null);
  });
  $('#new-session').addEventListener('contextmenu',event=>{
   event.preventDefault();
-  /* Um motor só não tem o que escolher: nada de menu nem no clique direito. */
-  if(visibleEngines().length<=1)return;
+  /* Um motor pronto só não tem o que escolher: nada de menu nem no clique direito. */
+  if(newSessionMenu().choices().length<=1)return;
   if(!isOpen('#new-session-pop'))openPop('#new-session-pop');
   focusFirst('#new-session-pop');
  });
@@ -379,10 +369,18 @@ function wire(){
  /* Menu aberto por teclado: o foco entra no primeiro item. */
  for(const [trigger,pop] of [['#new-session','#new-session-pop'],['#chat-more','#chat-more-pop']]){
   $(trigger).addEventListener('keydown',event=>{
-   if(event.key==='ArrowDown'){event.preventDefault();if(!isOpen(pop))openPop(pop);focusFirst(pop);}
+   if(event.key!=='ArrowDown')return;
+    if(pop==='#new-session-pop'&&newSessionMenu().choices().length<=1)return;
+   event.preventDefault();if(!isOpen(pop))openPop(pop);focusFirst(pop);
   });
  }
- $('#sidechat-toggle').addEventListener('click',toggleSidechat);
+ $('#chat-full').addEventListener('click',()=>toggleChatFull());
+ /* O lateral mora na área de referências, que sai de vista na tela inteira: o
+    botão sai do modo e devolve o lateral (se já estava aberto, só volta a ele). */
+ $('#sidechat-toggle').addEventListener('click',()=>{
+  if(isChatFull()){setChatFull(false);if(!sidechatOpen())toggleSidechat();return;}
+  toggleSidechat();
+ });
  $('#conv-close').addEventListener('click',()=>closeTutorPops({restoreFocus:true}));
  $('#conv-library').addEventListener('click',()=>{closeTutorPops();host.openLibrary();});
  for(const selector of MENUS){
@@ -394,25 +392,30 @@ function wire(){
    if(item)closeTutorPops({restoreFocus:true});
   });
   pop.addEventListener('keydown',event=>{
+   const active=document.activeElement;
    const items=menuItems(pop);
-   const at=items.indexOf(document.activeElement);
-   if(event.key==='ArrowRight'&&document.activeElement?.id==='more-context'){
+   const at=items.indexOf(active);
+   /* Só o item de menu anda com as setas; no campo, setas e Tab são do texto (#123). */
+   const item=active?.closest?.('button[role^="menuitem"]');
+   if(event.key==='ArrowRight'&&active?.id==='more-context'){
     event.preventDefault();openContextMenu();focusSubmenu();return;
-   }
-   if(event.key==='ArrowLeft'&&document.activeElement?.closest?.('#more-context-menu')){
-    event.preventDefault();closeContextMenu();$('#more-context')?.focus();return;
    }
    if(event.key==='Escape'&&contextMenuOpen()){
     event.preventDefault();event.stopPropagation();closeContextMenu();$('#more-context')?.focus();return;
+   }
+   if(!item)return;
+   const insideContext=!!active.closest?.('#more-context-menu')||(active.id==='more-context'&&contextMenuOpen());
+   if(event.key==='ArrowLeft'&&active.closest?.('#more-context-menu')){
+    event.preventDefault();closeContextMenu();$('#more-context')?.focus();return;
    }
    if(event.key==='ArrowDown'){event.preventDefault();items[(at+1)%items.length]?.focus();}
    else if(event.key==='ArrowUp'){event.preventDefault();items[(at-1+items.length)%items.length]?.focus();}
    else if(event.key==='Home'){event.preventDefault();items[0]?.focus();}
    else if(event.key==='End'){event.preventDefault();items.at(-1)?.focus();}
-   else if(event.key==='Tab')closeTutorPops();
+   else if(event.key==='Tab'&&!insideContext)closeTutorPops();
   });
  }
- /* Clique fora fecha. O clique no gatilho é do próprio gatilho (alterna). */
+  /* Clique fora fecha. O clique no gatilho é do próprio gatilho (alterna). */
  document.addEventListener('click',event=>{
   if(!tutorPopOpen())return;
   const path=typeof event.composedPath==='function'?event.composedPath():[];
@@ -427,6 +430,7 @@ function wire(){
 export function initTutorHeader(hostApi){
  host=hostApi;
  labelBtn($('#sidechat-toggle'),'messageSquare');
+ labelBtn($('#chat-full'),'maximize');
  labelBtn($('#new-session'),'plus');
  labelBtn($('#chat-more'),'more');
  /* A seta do título é do host (asset do ícone), fora do texto. */
@@ -441,12 +445,14 @@ export function initTutorHeader(hostApi){
  wire();
  syncIndicator();
  syncSidechatButton();
+ syncChatFullButton();
  window.addEventListener('desk-tutor-link',()=>{syncIndicator();syncMore();});
  window.addEventListener('desk-support-changed',syncSidechatButton);
+ window.addEventListener('desk-chat-full-changed',syncChatFullButton);
  /* O nome da sessão sem assunto traz a data no idioma da interface ("Sessão de…"/"Session of…"). */
- window.addEventListener(LANGUAGE_EVENT,()=>{renderMenus();syncIndicator();syncSidechatButton();paintSessionTitle();});
+ window.addEventListener(LANGUAGE_EVENT,()=>{renderMenus();syncIndicator();syncSidechatButton();syncChatFullButton();paintSessionTitle();});
  window.addEventListener('desk-auto-compact-state',syncMore);
- window.addEventListener('desk-engine-facts',()=>{syncIndicator();syncMore();});
+  window.addEventListener('desk-engine-facts',()=>{syncIndicator();syncMore();renderMenus();});
  /* A caixa muda de largura (coluna arrastada, janela, chat lateral): o degrau
     do indicador é medido de novo. */
  const box=$('#composer-box');

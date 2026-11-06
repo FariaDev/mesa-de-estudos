@@ -2,8 +2,9 @@
 // O pacote é o falso `fixtures/fake-ggb-pack` (copiado para uma pasta temporária com o
 // `pack.json` que o app confere), servido por `mesa-ggb://` como o oficial. Um servidor
 // HTTP de prova conta qualquer pedido que escape: o pacote tenta fetch, XHR, <img> e
-// <script> para ele e a sessão do applet precisa recusar todos. O Pi de mentira chama a
-// ponte REAL da ferramenta do tutor, então a ferramenta funciona sem rede.
+// <script> para ele e a sessão do applet precisa recusar todos. O OpenCode de
+// mentira chama a ponte REAL da ferramenta MCP do tutor, então a ferramenta
+// funciona sem rede.
 // Com MESA_GGB_REAL_PACK=<pasta do pacote oficial já instalado>, a mesma prova roda no
 // applet verdadeiro (opcional: o pacote é um download de 32 MB que o teste não faz sozinho).
 import assert from 'node:assert/strict';
@@ -45,9 +46,9 @@ await withArtifacts('ggb-offline',async ctx=>{
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',courseStates:{calc:{pdfs:[{path:pdf,page:1}],study:{title:'',xopp:''}}}});
- const piLog=path.join(runtime,'pi-messages.log'),piOut=path.join(runtime,'pi-ggb.log');
- const pi=path.join(DESK,'tests/fixtures/mesa-geogebra-pi.mjs');fs.chmodSync(pi,0o755);
- ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,LEARNING_DESK_GGB_PACK:packDir,FAKE_PI_GGB_LOG:piLog,FAKE_PI_GGB_OUT:piOut}});
+ const mcpLog=path.join(runtime,'mcp-ggb.log');
+ const calls=[{name:'geogebra',input:{action:'run',command:'A=(1,2)'}},{name:'geogebra',input:{action:'state'}}];
+ ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_GGB_PACK:packDir,FAKE_OPENCODE_MCP_CALLS:JSON.stringify(calls),FAKE_OPENCODE_MCP_LOG:mcpLog}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await resizeWindow(ctx.app,page,1440,900);
  await statusOnline(page);
@@ -60,7 +61,7 @@ await withArtifacts('ggb-offline',async ctx=>{
   const view=bw.contentView.children.find(child=>child.webContents&&child.webContents!==bw.webContents);
   return view?view.webContents.executeJavaScript(source):null;
  },code);
- const answers=()=>{try{return fs.readFileSync(piOut,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}catch{return [];}};
+ const answers=()=>{try{return fs.readFileSync(mcpLog,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line).result);}catch{return [];}};
  const ask=async text=>{
   const before=answers().length;
   await page.locator('#prompt').fill(text);
@@ -68,7 +69,7 @@ await withArtifacts('ggb-offline',async ctx=>{
   await page.locator('#send').click();
   const list=await pollUntil(async()=>answers(),found=>found.length>before,{timeout:60000,what:`a resposta da ponte para «${text}»`});
   await page.waitForFunction(()=>document.querySelector('#stop').hidden,undefined,{timeout:30000});
-  return list[list.length-1].answer;
+  return list[list.length-1];
  };
 
  /* 1. A ferramenta do tutor abre o applet offline sozinha e roda o comando. */
@@ -76,8 +77,9 @@ await withArtifacts('ggb-offline',async ctx=>{
  await page.waitForFunction(()=>document.querySelector('#mention-menu').hidden===false,undefined,{timeout:5000});
  await page.keyboard.press('Enter');
  const answer=await ask('ggb: A=(1,2)');
- assert.equal(answer.error,undefined,`a ferramenta funciona sem rede (${JSON.stringify(answer)})`);
- assert.equal(answer.ok,true,'o comando rodou no applet offline');
+ assert.doesNotMatch(answer,/indisponível|recusou/i,`a ferramenta funciona sem rede (${answer})`);
+ assert.match(answer,/Comando aceito pelo GeoGebra/,'o comando rodou no applet offline');
+ assert.match(answer,/A/,'o resultado traz o objeto criado');
  await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
 
  /* 2. A view veio do protocolo local e o applet leu o pacote por ele. */
@@ -108,8 +110,8 @@ await withArtifacts('ggb-offline',async ctx=>{
 
  /* 4. Ler e a captura (print) também funcionam sem rede. */
  const state=await ask('ggb-estado');
- assert.equal(state.error,undefined,'ler o estado funciona');
- assert.match(String(state.state?.objects||''),/A/,'o estado traz o objeto');
+ assert.match(state,/Objetos atuais/,'ler o estado funciona');
+ assert.match(state,/A/,'o estado traz o objeto');
  await reviewShot(page,out,'geogebra-offline.png');
  assert.deepEqual(errors,[],'sem erro de página');
 });

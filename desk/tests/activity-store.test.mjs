@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 import {ptMatches} from './pt-text.mjs';
+import {tempDir} from './temp-dir.mjs';
 const require = createRequire(import.meta.url);
 const {
   createActivityStore,
@@ -21,7 +21,7 @@ const {
 const SPEC = {title: 'MRUV', objective: 'Explorar a', alternativeMarkdown: 's = v t', html: '<p>x</p>', css: '', js: ''};
 
 function tempRuntime(tag) {
-  return fs.mkdtempSync(path.join(os.tmpdir(), `mesa-activity-store-${tag}-`));
+  return tempDir(`mesa-activity-store-${tag}`);
 }
 
 test('normalizeSpec aplica tetos e o hash é determinístico', () => {
@@ -258,7 +258,7 @@ test('atividades salvas antes do #42 mantêm o hash (o documento antigo continua
 });
 
 test('publicação guarda o tipo e os pares medidos com a versão', () => {
-  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-activity-store-42-'));
+  const runtime = tempRuntime('42');
   const store = createActivityStore({runtime});
   const conversationId = path.join(runtime, 'pi-42.jsonl');
   return store.publish({conversationId, toolCallId: 'call-42', spec: {title: 'G', objective: 'o', alternativeMarkdown: 'a', html: '<p/>', kind: 'visualizacao', charts: true}, heights: [[320, 400], [728, 380]]}).then((item) => {

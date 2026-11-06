@@ -1,5 +1,5 @@
 import {contentParts} from '../text.mjs';
-import {$,S,toast,toastFailure,conferirAppName,activity,activityLive,applyChatScroll,connectionState,distanceFromEnd,refs,save,layoutSnapshot,setBusy,refreshMeter,connect,supportsCapability,syncChatScrollMode,paintComposerSend} from './state.mjs';
+import {$,S,toast,toastFailure,conferirAppName,activity,activityLive,applyChatScroll,connectionState,distanceFromEnd,messageScroller,refs,save,layoutSnapshot,setBusy,refreshMeter,connect,cancelConnect,supportsCapability,syncChatScrollMode,paintComposerSend} from './state.mjs';
 import tutorStateCore from './generated/tutorstate.core.js';
 import {t as uiT,text as uiText,tutorText} from './ui-text.mjs';
 import {message as uiMessage} from './i18n.mjs';
@@ -23,6 +23,7 @@ import {activityDetailsOf,activitySlotElement,appendAssistantDelta,assistantAnch
 import {activitySlots,assistantAnchors,resetRetiredLedgers,turnState} from './chat-turn-state.mjs';
 import {applyActivityNotice,applyLimitNotice,clearNotices} from './chat-notices.mjs';
 import {clearLatestAnswer,markLatestAnswer,message,updateMessage} from './chat-message-view.mjs';
+import {freeLimitKey,freeLimitMessageKey,showFreeLimitNote} from './free-limit-notice.mjs';
 /* O renderer Markdown+LaTeX vive em `markdown.mjs` (compartilhado com o chat
    lateral); o realce de código e o pipeline do antigo `chat.mjs` são os mesmos.
    `markup` é reexportado pela compatibilidade dos imports antigos. */
@@ -30,7 +31,14 @@ export {markup,markupInline};
 /* Os importadores antigos (main, pdf, queue, state, ggb, testes) seguem pelo chat. */
 export {MAX_ATTACH,MAX_ATTACH_BYTES,persistTray,addAttachments,resetAttachments,restoreAttachments} from './chat-attachments.mjs';
 export {hideQuoteButton,insertMainDraft} from './chat-quote.mjs';
+import {createShownHistory} from './history-shown.mjs';
+import {beginLazyHistory,finishLazyHistory} from './history-format-lazy.mjs';
 
+/* Identidade do histórico que está no DOM (#115). Quem a calcula é o main (o
+   mesmo hash nos dois payloads); aqui só guardamos a última montagem para o
+   connect não remontar o mesmo conteúdo que o cache do descritor já pintou. */
+const shownHistory=createShownHistory(()=>$('#messages'));
+export function historyIdentityShown(){return shownHistory.current();}
 /* Cartões `quiz`/`perguntar` (#92): o host registra e emite; o cartão é da
    conversa, não do turno. "Concluir" arma o turno normal — o resultado chega
    pelo mesmo caminho de uma resposta do tutor e a fila/follow-up é a do motor. */
@@ -46,7 +54,9 @@ const cardBoard=createCardBoard({
  onSettled(_card,streaming){turnState.promptArmed=false;setBusy(streaming);if(!streaming)activity('');},
  onFailed(_card,error){turnState.promptArmed=false;setBusy(false);activity('');toast(error||uiMessage('quiz.sendFailed'));},
 });
-export function showHistory(messages,cards=[]){
+export function showHistory(messages,cards=[],identity=null){
+ const historyId=typeof identity==='string'&&identity?identity:null;
+ if(historyId&&historyId===shownHistory.current()&&((Array.isArray(messages)&&messages.length)||(Array.isArray(cards)&&cards.length)))return;
  clearNotices();
  if(turnState.turnLog)settleTurn({reason:'switched'});
  turnState.turnClosed=true;turnState.turnRunId=null;turnState.promptArmed=false;
@@ -90,9 +100,11 @@ export function showHistory(messages,cards=[]){
     pelas 102 mensagens e congelava o renderer por minutos. O modo de rolagem
     (classe `chat-scroll`) é acertado ANTES da medida para o `atBottom()` olhar o
     scroller de verdade já no primeiro render. */
- syncChatScrollMode();
- const distance=distanceFromEnd();
- $('#messages').replaceChildren();
+  syncChatScrollMode();
+  const distance=distanceFromEnd();
+  /* Lote preguiçoso (#118): em conversa longa as bolhas nascem em casca. */
+  beginLazyHistory(Array.isArray(messages)?messages.length:0,messageScroller);
+  $('#messages').replaceChildren();
  const frag=document.createDocumentFragment();
  const historySlots=[];
  cardBoard.reset();
@@ -106,6 +118,11 @@ export function showHistory(messages,cards=[]){
   for(const turn of turns){
    flushCards(turn.userTime||turn.startedAt||turn.time||0);
    if(turn.userText||turn.userImages.length||turn.userPdfs?.length)message('user',turn.userText,turn.userImages,frag,turn.userPdfs||[]);
+   /* E3: o diário reconstruído começa aberto quando traz motivo e o turno
+      não tem resposta. O histórico de hoje não carrega motivo (`reason`
+      vazio mantém o recolhido de sempre); a resposta do turno decide. */
+   const turnAnswer=String(turn.text||'').trim()!=='';
+   const turnReason=turn.reason||'';
    const parts=Array.isArray(turn.parts)?turn.parts:null;
    if(parts&&parts.length){
     for(const part of parts){
@@ -113,7 +130,7 @@ export function showHistory(messages,cards=[]){
       if(!part.steps?.length)continue;
       const view=createWorkLogView();
       frag.append(view.el);
-      view.render({steps:part.steps,startedAt:part.startedAt,endedAt:part.endedAt,reason:'',text:''},{live:false});
+      view.render({steps:part.steps,startedAt:part.startedAt,endedAt:part.endedAt,reason:turnReason,text:''},{live:false,hasAnswer:turnAnswer});
      }else if(part.type==='artifact'){
       const id=String(part.toolCallId||'');
       if(!id)continue;
@@ -133,15 +150,19 @@ export function showHistory(messages,cards=[]){
     if(turn.steps.length){
      const view=createWorkLogView();
      frag.append(view.el);
-     view.render({steps:turn.steps,startedAt:turn.startedAt,endedAt:turn.endedAt,reason:'',text:turn.text},{live:false});
+     view.render({steps:turn.steps,startedAt:turn.startedAt,endedAt:turn.endedAt,reason:turnReason,text:turn.text},{live:false,hasAnswer:turnAnswer});
     }
     if(turn.text)message('assistant',turn.text,[],frag);
    }
   }
  }finally{turnState.historyStick=null;}
- flushCards();
- $('#messages').append(frag);
- markLatestAnswer();
+  flushCards();
+  $('#messages').append(frag);
+  /* A cauda pinta na hora (é o fim, o que abre primeiro); o lote rearma para a
+     cauda não medir/rolar bolha a bolha, como no laço de antes. */
+  turnState.historyStick=distance<=80;
+  try{finishLazyHistory($('#messages'));}finally{turnState.historyStick=null;}
+  markLatestAnswer();
  applyChatScroll('history',null,distance);
  for(const slot of historySlots){
   activitySlots.set(slot.toolCallId,slot.element);
@@ -150,6 +171,7 @@ export function showHistory(messages,cards=[]){
  /* Depois da carga, o renderer de atividades hidrata os slots pendentes sem
     disparar nada no modelo. */
  window.dispatchEvent(new CustomEvent('desk-history-rendered',{detail:{slots:historySlots.map(slot=>slot.toolCallId)}}));
+ shownHistory.mark(historyId);
 }
 export async function doCompact(text){
  if(!supportsCapability('compact')){toast(uiMessage('compact.notAvailable'));return;}
@@ -175,6 +197,12 @@ export function isComposerCommand(text){const t=String(text??'').trim();return C
    o item foi embora. `refs` (fila): manda as referências do snapshot do enqueue
    em vez das páginas abertas agora. `images` explícito pula os atalhos de texto
    (`/compact`, `/conferir`) e não mexe na bandeja. */
+/* Envio em preparação (entre o Enviar e o prompt sair): o Parar marca ESTE
+   envio e o `send` desiste depois do connect, em vez de deixar o `pi-abort`
+   chegar ao serviço sem envio (`_sending===false`) e o prompt sair mesmo
+   assim. O id do envio vai no prompt: se o Parar chegar ao serviço antes dele,
+   o serviço cancela exatamente esse envio, não o próximo. */
+let sendAttempt=null;
 export async function send(text,images,options={}){
  /* Menções `@` (#53): a fila leva as do momento do enqueue; o composer, as dos chips agora. */
  const mentionList=Array.isArray(options.mentions)?options.mentions:(images===undefined?mentionIds():[]);
@@ -197,10 +225,20 @@ export async function send(text,images,options={}){
     extensão visual): redireciona para o anexo e devolve a observação como rascunho. */
  if(images===undefined&&CONFERIR_CMD.test(text.trim())){const note=text.trim().replace(/^\/conferir\b/i,'').trim();$('#prompt').value='';paintComposerSend();await conferir();if(note){$('#prompt').value=note;paintComposerSend();}return false;}
  let stage='save',userMessage=null,knownNotSent=false;
+ const attemptId=globalThis.crypto?.randomUUID?.()||`send-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+ const attempt={id:attemptId,stage:'save',cancelled:false,wake:null};
+ const cancelled=new Promise(resolve=>{attempt.wake=resolve;});
+ sendAttempt=attempt;S.sendAttemptId=attemptId;
  try{
   setBusy(true);
   turnState.promptArmed=true;
-  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());stage='connect';await connect();stage='prompt';
+  clearTimeout(S.saveTimer);await window.desk.save(layoutSnapshot());
+  if(attempt.cancelled){turnState.promptArmed=false;setBusy(false);return false;}
+  stage='connect';attempt.stage='connect';
+  /* O Parar não espera o connect inteiro (30 s): a corrida devolve o turno à
+     interface na hora; a conexão que sobrar termina sozinha. */
+  if(await Promise.race([connect().then(()=>true),cancelled.then(()=>false)])===false||attempt.cancelled){turnState.promptArmed=false;setBusy(false);return false;}
+  stage='prompt';attempt.stage='prompt';
   /* Armar DEPOIS do connect: com a ponte desligada (`S.connected=false`: queda
      fatal, troca de matéria) o connect recarrega o histórico (`showHistory`) e
      isso desarma o turno; sem rearmar, uma resposta que chega junto do
@@ -209,7 +247,7 @@ export async function send(text,images,options={}){
   if(pending.length&&!S.supportsImages){turnState.promptArmed=false;setBusy(false);toast(uiMessage('send.needsImages'));return false;}
   userMessage=message('user',text,pending.map(item=>item.dataUrl),null,pdfs);
   if(fromComposer&&$('#prompt').value===text)$('#prompt').value='';
-  const result=await window.desk.prompt({text,refs:options.refs||refs(),images:pending.map(item=>typeof item==='string'?item:{dataUrl:item.dataUrl,capturedAt:item.capturedAt,exercise:item.exercise,app:item.app}),pdfs:pdfs.map(item=>({name:item.name,path:item.path,pages:item.pages})),steer,mentions:mentionList});
+  const result=await window.desk.prompt({text,refs:options.refs||refs(),images:pending.map(item=>typeof item==='string'?item:{dataUrl:item.dataUrl,capturedAt:item.capturedAt,exercise:item.exercise,app:item.app}),pdfs:pdfs.map(item=>({name:item.name,path:item.path,pages:item.pages})),steer,mentions:mentionList,attemptId});
   if(result?.sent===false){knownNotSent=result.retryable===true;throw Error(result.error||uiMessage('send.refused'));}
   if(fromComposer){clearAttachments(pending,pdfs);clearMentions(mentionList);}
   /* `streaming` só libera o composer quando o Pi DISSE que não está no turno.
@@ -226,6 +264,9 @@ export async function send(text,images,options={}){
   if(fromComposer&&!$('#prompt').value){$('#prompt').value=text;save();}
   options.onFailure?.(safe);
   setBusy(false);toastFailure(e);return false;
+ }finally{
+  if(sendAttempt===attempt)sendAttempt=null;
+  if(S.sendAttemptId===attemptId)S.sendAttemptId='';
  }
 }
 /* dataURL → File sem `fetch` (o CSP do index.html não deixa `connect-src data:`):
@@ -303,7 +344,17 @@ installQuoteListeners();
 /* Fatos que a fila consulta (via `mayAdvanceQueue` em state.mjs): o
    cancelamento é do turno (some no turno novo / no comando do usuário) e a
    incerteza é da conversa (o host a mantém até outra conversa). */
-window.addEventListener('desk-stop',()=>{turnState.stoppedTurn=true;S.turnCancelled=true;if(turnState.turnLog)settleTurn({reason:'stopped'});});
+window.addEventListener('desk-stop',()=>{
+ turnState.stoppedTurn=true;S.turnCancelled=true;if(turnState.turnLog)settleTurn({reason:'stopped'});
+ /* Envio ainda no connect do renderer: aborta o connect e não deixa o prompt
+    sair depois. O serviço recebe o mesmo id e desiste se o prompt já foi. */
+ if(sendAttempt&&sendAttempt.stage!=='prompt'){
+  sendAttempt.cancelled=true;sendAttempt.wake?.();
+  const attempt=sendAttempt;
+  setBusy(false);turnState.promptArmed=false;
+  if(attempt.stage==='connect')cancelConnect().catch(()=>{});
+ }
+});
 /* Troca REAL de conversa fecha o turno vivo; a adoção do caminho de sessão que
    o host cria no primeiro envio (`S.currentSession` sai de vazio) não pode
    matar o turno em curso. `showHistory` também recolhe antes de recarregar. */
@@ -319,6 +370,33 @@ window.addEventListener('desk-conversation-changed',()=>{
 
 window.addEventListener('desk-conversation-changed',clearNotices);
 
+/* Limite do grátis no turno: diário, faixa e aviso com a frase da conta de
+   agora, e a saída logo abaixo da faixa. `saved` é o `opencodeStatus().saved`
+   (chave do Zen guardada); sem ele, a conta pode não existir e o diálogo de
+   login e chave é a saída. A sessão continua usável: nada aqui mexe em busy,
+   conexão ou fila — o `agent_settled` (isError) já encerra o turno. */
+export async function paintFreeLimitTurn(){
+ turnState.turnFreeLimit=true;
+ /* O `await` abre uma janela: se o aluno trocar de modelo ou um turno novo
+    começar nela, o aviso velho aparecia depois do `hide` (#118 item 7). Sem
+    segundo aviso — o velho só não volta. */
+ const runId=turnState.turnRunId,session=S.currentSession,model=S.choice?.model;
+ let saved=false;
+ try{saved=!!(await window.desk.opencodeStatus())?.saved;}catch{/* sem conta legível: vale como sem chave */}
+ if(S.currentSession!==session||turnState.turnRunId!==runId||S.choice?.model!==model)return;
+ const text=uiMessage(freeLimitMessageKey({saved}));
+ if(turnState.turnLog){
+  const error=worklog.addError(turnState.turnLog,uiT('tutor.error.diary',{reason:uiText(String(text))}));
+  if(error){
+   const seg=openSegment();
+   timeline.addStep(seg,error.id);
+   renderSegment(seg,{live:!seg.closed});
+  }
+ }
+ /* O aviso fica até o próximo turno e já diz tudo: toast e faixa repetiriam a
+    mesma frase, cortada na faixa (rodada 2 da auditoria, D1). */
+ showFreeLimitNote({saved});
+}
 window.desk.onEvent(e=>{
  if(!e||typeof e!=='object')return;
  /* Identidade da conversa: evento explícito de OUTRA conversa (troca de
@@ -434,6 +512,7 @@ window.desk.onEvent(e=>{
    if(lastBlock&&images.length)updateMessage(lastBlock.el,lastBlock.text,images);
   }
   if(!painted&&(text||images.length)){
+   if(String(text||'').trim())turnState.turnHadAnswer=true;
    if(turnState.assistant&&turnState.assistantKey===null&&turnState.assistant.isConnected&&turnState.assistantEnded)updateMessage(turnState.assistant,text,images);
    else message('assistant',text,images);
   }
@@ -528,11 +607,19 @@ window.desk.onEvent(e=>{
   clearNotices();
   const fatal=deskErrorIsFatal(e);
   if(fatal)turnState.promptArmed=false;
+  /* Limite do grátis (429 FreeUsageLimitError): a frase e a saída dependem de
+     ter conta — quem já entrou escolhe outro modelo, em vez de ouvir "entre".
+     O resto do caminho não muda: diário, faixa e aviso, sem tocar na conexão. */
+  if(!fatal&&freeLimitKey(e.message)){void paintFreeLimitTurn();return;}
+  let diaryShows=false;
   if(turnState.turnLog){
    /* O código de saída fica no log da Mesa; o diário conta em português. */
    const said=String(e.message||'').includes('tutor.error.stopped')?tutorStateCore.reasonLine(String(e.message)):e.message;
    const error=worklog.addError(turnState.turnLog,uiT('tutor.error.diary',{reason:uiText(String(said))}));
    if(error){
+    /* Só conta se o diário vai abrir sozinho (E3: sem resposta parcial);
+       recolhido, o motivo ficaria escondido sem o aviso. */
+    diaryShows=!turnState.turnHadAnswer&&!String(turnState.turnLog.text||'').trim();
     const seg=openSegment();
     timeline.addStep(seg,error.id);
     renderSegment(seg,{live:!seg.closed});
@@ -540,8 +627,9 @@ window.desk.onEvent(e=>{
   }
   /* Queda de verdade: a coluna do tutor escreve o motivo logo abaixo, com as
      saídas — o aviso só repetiria o texto (#27). Erro que não derruba segue
-     como aviso. */
-  if(!fatal)toast(e.message);
+     como aviso, a não ser que o cartão do diário já o mostre (G7 da
+     auditoria de UI: sem conexão saía no cartão e no aviso). */
+  if(!fatal&&!diaryShows)toast(e.message);
   if(fatal){
    if(turnState.turnLog)settleTurn({reason:'error'});
    S.connected=false;connectionState('error','',e.message);setBusy(false);$('#auto-compact').hidden=true;

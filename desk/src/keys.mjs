@@ -24,6 +24,7 @@ const isMac=navigator.userAgent.includes('Mac');
 const CATALOG=[
  {id:'check',label:'keys.action.check',group:'keys.group.study',combo:'Mod+Shift+C',menu:true,keydown:true},
  {id:'ggb-check',label:'keys.action.ggb-check',group:'keys.group.study',combo:'Mod+Shift+G',menu:true,keydown:true},
+ {id:'chat-full',label:'keys.action.chat-full',group:'keys.group.view',combo:'Mod+Shift+E',keydown:true},
  {id:'chat-toggle',label:'keys.action.chat-toggle',group:'keys.group.view',combo:'Mod+\\',menu:true,keydown:true},
  {id:'pdf-find',label:'keys.action.pdf-find',group:'keys.group.view',combo:'Mod+F',keydown:true},
  {id:'invert',label:'keys.action.invert',group:'keys.group.view',combo:'Mod+Shift+I',keydown:true},
@@ -511,7 +512,9 @@ function bindOpenButton(){
   button=document.createElement('button');
   button.type='button';
   button.id='keys-customize';
-  button.textContent='Personalizar…';
+  /* O texto vem do catálogo (varredura i18n, rodada 8): o fallback valia PT
+     mesmo em EN, e sem "atalhos" até em PT. */
+  button.textContent=t('guide.customizeKeys');
   const close=actions.querySelector('.primary')||actions.lastElementChild;
   actions.insertBefore(button,close||null);
  }

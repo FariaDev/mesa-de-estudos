@@ -26,7 +26,9 @@
 
 import statsCore from './generated/studystats.core.js';
 import {t, text, formatNumber, LANGUAGE_EVENT} from './ui-text.mjs';
+import {displayCourseName} from './free-names.mjs';
 import * as statsText from './study-stats-text.mjs';
+import {icon} from '../icons.mjs';
 
 const PERIODS = [
   {value: '7', labelKey: 'stats.period.week'},
@@ -94,6 +96,10 @@ function ensureStyles() {
 .study-stats-end{border-color:transparent; background:transparent; box-shadow:none; color:var(--muted)}
 .study-stats-end[hidden]{display:none}
 .study-stats-chart{display:flex; align-items:stretch; gap:6px; height:150px}
+/* Sem registro no período (auditoria rodada 6, G1): o vão de 150 px parecia
+   área não carregada; vira uma linha quieta. */
+.study-stats-chart[data-empty="true"]{display:block; height:auto; min-height:0}
+.study-stats-empty{margin:0; font-size:var(--fs-sm); color:var(--muted)}
 .study-stats-col{flex:1 1 0; min-width:0; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px}
 .study-stats-col .study-stats-bar{width:100%; max-width:44px; min-height:2px; border-radius:4px 4px 0 0; background:var(--accent-text)}
 .study-stats-col .study-stats-bar.empty{background:var(--border); height:2px}
@@ -104,15 +110,28 @@ function ensureStyles() {
 .study-stats-courses td{text-align:right; padding:8px 0; border-top:1px solid var(--border); font-variant-numeric:tabular-nums}
 .study-stats-courses th:first-child,.study-stats-courses td:first-child{text-align:left}
 .study-stats-courses .empty td{text-align:left; color:var(--muted)}
-.study-stats-usage summary{cursor:pointer; font-size:var(--fs-sm); font-weight:600}
+/* Alvo de 24px com altura real (auditoria rodada 5, D2): a área invisível
+   podia invadir o vizinho, como a do setup-link invadiu Criar matéria. */
+/* Uso do tutor recolhido com chevron (auditoria rodada 7, D2): o display flex
+   suprime o marcador nativo, então o summary leva o chevron Lucide como os
+   outros recolhíveis da Mesa (.work-chevron), que gira com [open]; sem ele
+   a seção parecia vazia. */
+.study-stats-usage summary{cursor:pointer; font-size:var(--fs-sm); font-weight:600; display:flex; align-items:center; gap:8px; min-height:24px; list-style:none; border-radius:var(--r-xs)}
+.study-stats-usage summary::-webkit-details-marker{display:none}
+.study-stats-usage summary::marker{content:''}
+.study-stats-usage-label{flex:1 1 auto}
+.study-stats-usage-chevron{flex:none; display:inline-flex; color:var(--muted)}
+.study-stats-usage-chevron .icon{width:14px; height:14px; transition:transform var(--t-base) var(--ease-move)}
+.study-stats-usage[open] .study-stats-usage-chevron .icon{transform:rotate(180deg)}
+.study-stats-usage summary:hover .study-stats-usage-chevron{color:var(--fg)}
 .study-stats-usage p{margin:8px 0 0; font-size:var(--fs-sm); color:var(--muted)}
 .study-stats-foot{display:flex; gap:16px; align-items:center; justify-content:space-between; flex:none; min-height:52px; padding:0 16px 0 24px; border-top:1px solid var(--border)}
 .study-stats-foot p{margin:0; font-size:var(--fs-xs); color:var(--muted); line-height:1.4}
 .study-stats-foot button{flex:none; height:30px}
-.study-stats-reset{border-color:transparent; background:transparent; box-shadow:none; color:var(--danger,var(--muted))}
+.study-stats-reset{border-color:transparent; background:transparent; box-shadow:none; color:var(--danger-text,var(--muted))}
 .study-stats-warn{margin:0; font-size:var(--fs-sm); color:var(--muted)}
 .study-stats-warn:empty{display:none}
-.study-stats-dialog button:focus-visible,.study-stats-toggle:focus-visible{outline:2px solid var(--accent-text); outline-offset:2px}
+.study-stats-dialog button:focus-visible,.study-stats-toggle:focus-visible,.study-stats-usage summary:focus-visible{outline:2px solid var(--accent-text); outline-offset:2px}
 `;
   document.head.append(style);
 }
@@ -165,8 +184,11 @@ function buildPanel() {
   const coursesTable = el('table', {class: 'study-stats-courses', id: 'study-stats-courses', 'aria-label': t('stats.coursesTable.aria')});
 
   const usageText = el('p', {id: 'study-stats-usage-text'});
+  const usageLabel = el('span', {class: 'study-stats-usage-label', text: t('stats.usage.title')});
+  const usageChevron = el('span', {class: 'study-stats-usage-chevron', 'aria-hidden': 'true'});
+  usageChevron.innerHTML = icon('chevronDown');
   const usage = el('details', {class: 'study-stats-usage', id: 'study-stats-usage'}, [
-    el('summary', {text: t('stats.usage.title')}),
+    el('summary', {}, [usageLabel, usageChevron]),
     usageText,
   ]);
 
@@ -206,7 +228,7 @@ function buildPanel() {
     text: t('study.stats'),
   });
 
-  return {toggle, dialog, closeButton, segment, title, privacy, usageTitle, period, course, warning, headline, support, timer, sessionText, timerAction, sessionStop, bars, coursesTable, usageText, usage, reset};
+  return {toggle, dialog, closeButton, segment, title, privacy, usageTitle, usageLabel, period, course, warning, headline, support, timer, sessionText, timerAction, sessionStop, bars, coursesTable, usageText, usage, reset};
 }
 
 export function initStudyStats(options = {}) {
@@ -284,9 +306,11 @@ function fillCourses(select, courses, current) {
 function courseOptions() {
   const state = panel?.state || {};
   const courses = Array.isArray(state.appConfig?.courses) ? state.appConfig.courses : [];
-  const list = courses.map((one) => ({id: one.id, name: one.name || one.id})).filter((one) => one.id);
+  const list = courses
+    .filter((one) => one.id)
+    .map((one) => ({id: one.id, name: displayCourseName({id: one.id, name: one.name || one.id})}));
   if (state.currentCourseId && !list.some((one) => one.id === state.currentCourseId)) {
-    list.push({id: state.currentCourseId, name: state.activeCourseName || state.currentCourseId});
+    list.push({id: state.currentCourseId, name: displayCourseName({id: state.currentCourseId, name: state.activeCourseName || state.currentCourseId})});
   }
   return list;
 }
@@ -347,7 +371,7 @@ function relabel() {
   PERIODS.forEach((one, index) => { panel.period.buttons[index].textContent = t(one.labelKey); });
   panel.course.setAttribute('aria-label', t('stats.course.aria'));
   panel.coursesTable.setAttribute('aria-label', t('stats.coursesTable.aria'));
-  panel.usageTitle.textContent = t('stats.usage.title');
+  panel.usageLabel.textContent = t('stats.usage.title');
   panel.sessionStop.textContent = t('stats.endSession');
   panel.reset.textContent = t('stats.erase');
   panel.privacy.textContent = t('stats.privacy');
@@ -361,10 +385,19 @@ function renderUsage(usage) {
 
 function renderChart(series) {
   const max = series.reduce((peak, day) => Math.max(peak, Number(day.minutes) || 0), 0);
+  const total = series.reduce((sum, day) => sum + (Number(day.minutes) || 0), 0);
   panel.bars.replaceChildren();
+  /* Sem barras o gráfico vira uma linha quieta (G1): o vão de 150 px parecia
+     área não carregada. */
+  if (!(total > 0)) {
+    panel.bars.setAttribute('data-empty', 'true');
+    panel.bars.append(el('p', {class: 'study-stats-empty', text: t('stats.chart.empty')}));
+  } else {
+    panel.bars.removeAttribute('data-empty');
+  }
   const labelStep = series.length > 14 ? Math.ceil(series.length / 7) : 1;
   const showAllValues = series.length <= 14;
-  for (let index = 0; index < series.length; index += 1) {
+  for (let index = 0; index < series.length && total > 0; index += 1) {
     const day = series[index];
     const minutes = Number(day.minutes) || 0;
     const peak = max > 0 && minutes === max;
@@ -378,14 +411,13 @@ function renderChart(series) {
     const label = el('span', {class: 'study-stats-day', text: index % labelStep === 0 ? text(String(day.weekday || '')) : ''});
     panel.bars.append(el('div', {class: 'study-stats-col'}, [value, bar, label]));
   }
-  const total = series.reduce((sum, day) => sum + (Number(day.minutes) || 0), 0);
   const chartArgs = {days: series.length, total, peak: max};
   panel.bars.setAttribute('aria-label', t(max > 0 ? 'stats.chart.ariaPeak' : 'stats.chart.aria', chartArgs));
 }
 
 function courseName(id) {
   const found = courseOptions().find((one) => one.id === id);
-  return found?.name || String(id || t('stats.noCourse'));
+  return found?.name || displayCourseName({id}) || String(id || t('stats.noCourse'));
 }
 
 function renderCourses(courses) {

@@ -24,6 +24,7 @@ function writeAutoState(root, patch) {
   atomicWrite(autoStateFile(root), `${JSON.stringify(next, null, 2)}\n`);
   return next;
 }
+const AUTO_RETRY_MS = 15 * 60 * 1000;
 /* `due` quando: auto ligado, destino configurado, passou o intervalo desde o
    último backup e o runtime ficou inativo por `idleMinutes`. Atividade nova
    reinicia a contagem — backup nunca corre com o Pi escrevendo. Atividade
@@ -48,30 +49,64 @@ function shouldAutoBackup({runtime, root, settings = {}, now = Date.now(), activ
   if (lastAuto && lastAuto >= lastBackup && lastAuto >= (activity || 0)) {
     return {due: false, why: 'já rodou depois da última atividade'};
   }
+  /* Falha recente espera AUTO_RETRY_MS: o "já rodou" só marca no sucesso, e
+     sem esta espera um destino que sempre falha (disco cheio, pasta sumida)
+     tentaria um snapshot inteiro a cada tique de 60 s (§14 da auditoria). */
+  const failedAt = Math.max(status.auto && status.auto.error ? Date.parse(status.auto.attemptedAt) || 0 : 0, autoFailedAt.get(autoFlightKey(root)) || 0);
+  if (failedAt && now - failedAt < AUTO_RETRY_MS) {
+    return {due: false, why: 'falhou há pouco', nextAt: new Date(failedAt + AUTO_RETRY_MS).toISOString()};
+  }
   return {
     due: true,
     why: lastBackup ? 'passou o período e a mesa está parada' : 'primeiro backup automático',
     activityAt: activity ? new Date(activity).toISOString() : '',
   };
 }
-/* Ciclo completo do automático: roda quando `shouldAutoBackup` manda e grava o
-   estado de tentativa (sucesso OU erro) para não repetir em laço. */
-async function runAutoBackup({runtime, root, deskDir = '', materials = [], external = [], settings = {}, now = Date.now(), activityAt = null, allowActive = false, log = () => {}}) {
+/* Tentativa em voo por destino: o tique do root é curto e o snapshot é lento;
+   sem isso duas chamadas corriam o mesmo destino juntas. Chave é o root
+   resolvido; sem timer aqui, só o conjunto. */
+const autoInFlight = new Set();
+/* Última falha do automático por destino, em memória: se o próprio destino não
+   aceita escrita (disco cheio, somente leitura), o `writeStatus` da falha também
+   falha e o ledger não guarda o freio de AUTO_RETRY_MS. */
+const autoFailedAt = new Map();
+function autoFlightKey(root) {
+  try {
+    return path.resolve(root || '');
+  } catch {
+    return String(root || '');
+  }
+}
+/* Ciclo completo do automático: roda quando `shouldAutoBackup` manda. O
+   "já rodou" (`lastAutoAt`) só é gravado DEPOIS do snapshot dar certo: se
+   falhar ou o app cair no meio, o próximo tique tenta de novo em vez de ler
+   "já rodou" sem snapshot novo. */
+async function runAutoBackup({runtime, root, deskDir = '', materials = [], external = [], settings = {}, now = Date.now(), activityAt = null, allowActive = false, log = () => {}, takeSnapshot = backupNow}) {
   /* Atividade calculada uma vez: o gate e o snapshot veem o mesmo instante. */
   const activity = activityAt === null ? latestActivity(runtime, {ignore: root}) : activityAt;
   const gate = shouldAutoBackup({runtime, root, settings, now, activityAt: activity});
   if (!gate.due) return {ran: false, ...gate};
   const reason = settings.reason || 'auto';
-  writeAutoState(root, {lastAutoAt: new Date(now).toISOString(), lastActivityAt: gate.activityAt || ''});
+  const flight = autoFlightKey(root);
+  if (autoInFlight.has(flight)) return {ran: false, why: 'automático em curso', due: false};
+  autoInFlight.add(flight);
   try {
-    const result = await backupNow({runtime, root, deskDir, materials, external, binaries: settings.binaries, reason, keep: settings.keep, allowActive, log});
-    writeAutoState(root, {lastAutoId: result.snapshotId, lastAutoAt: result.created});
+    const result = await takeSnapshot({runtime, root, deskDir, materials, external, binaries: settings.binaries, reason, keep: settings.keep, allowActive, log});
+    autoFailedAt.delete(flight);
+    writeAutoState(root, {lastAutoId: result.snapshotId, lastAutoAt: result.created, lastActivityAt: gate.activityAt || ''});
     writeStatus(root, {auto: {attemptedAt: new Date(now).toISOString(), snapshotId: result.snapshotId, error: ''}});
     return {ran: true, ok: true, result, why: gate.why};
   } catch (error) {
-    writeStatus(root, {auto: {attemptedAt: new Date(now).toISOString(), snapshotId: '', error: error.message}});
+    autoFailedAt.set(flight, now);
+    try {
+      writeStatus(root, {auto: {attemptedAt: new Date(now).toISOString(), snapshotId: '', error: error.message}});
+    } catch (statusError) {
+      log(`estado da falha do backup automático não gravado: ${statusError.message}`);
+    }
     log(`backup automático falhou: ${error.message}`);
     return {ran: true, ok: false, error: error.message, why: gate.why};
+  } finally {
+    autoInFlight.delete(flight);
   }
 }
 

@@ -9,6 +9,8 @@ import path from 'node:path';
 import {withArtifacts,newRuntime,writeConfigJson,tinyPdf,launchDesk,screenshotDirectory,setTheme,freezeMotion,resizeWindow} from './helpers.mjs';
 
 const FIXTURE=path.resolve(import.meta.dirname,'fake-opencode-install.cjs');
+const FAKE_SHELL=path.resolve(import.meta.dirname,'fake-login-shell.mjs');
+const BUN_OPENCODE=path.resolve(import.meta.dirname,'fake-bun-bin','opencode');
 const NO_PI_PATH=[path.dirname(process.execPath),'/usr/bin','/bin'].join(path.delimiter);
 const SHOT_DIR=screenshotDirectory('instalar-open-code');
 
@@ -40,7 +42,7 @@ function assertDarkDiffers(names){
  }
 }
 
-async function toTutor(page,app,pdfs){
+async function toTutor(page,app,pdfs,expected='missing'){
  await nextUntil(page,'name');
  await page.locator('#first-run-name').fill('Cálculo I');
  await page.locator('#setup-next').click();
@@ -48,7 +50,7 @@ async function toTutor(page,app,pdfs){
  await page.locator('#first-run-pick').click();
  await page.waitForFunction(()=>!document.querySelector('#setup-next').disabled);
  await page.locator('#setup-next').click();
- await page.waitForSelector('#setup-pi[data-pi="missing"]');
+ await page.waitForSelector(`#setup-pi[data-pi="${expected}"]`);
 }
 
 async function scenario(tag,mode){
@@ -58,7 +60,7 @@ async function scenario(tag,mode){
  fs.mkdirSync(home,{recursive:true});fs.mkdirSync(pdfs,{recursive:true});
  fs.writeFileSync(path.join(pdfs,'Limites.pdf'),tinyPdf('Limites',2));
  writeConfigJson(runtime,{runtimePath:runtime,courses:[]});
- const app=await launchDesk({runtime,pi:false,env:{HOME:home,USERPROFILE:home,PATH:NO_PI_PATH,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_OPENCODE_INSTALL_FIXTURE:FIXTURE,LEARNING_DESK_OPENCODE_INSTALL_MODE:mode}});
+ const app=await launchDesk({runtime,opencode:false,env:{HOME:home,USERPROFILE:home,PATH:NO_PI_PATH,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_OPENCODE_INSTALL_FIXTURE:FIXTURE,LEARNING_DESK_OPENCODE_INSTALL_MODE:mode}});
  const page=await app.firstWindow();
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.waitForSelector('body[data-first-run="true"]',{timeout:30000});
@@ -66,6 +68,25 @@ async function scenario(tag,mode){
  await freezeMotion(page);
  await toTutor(page,app,pdfs);
  return {app,page,errors,runtime,home,pdfs};
+}
+
+async function bunScenario(){
+ const runtime=newRuntime('opencode-install-bun');
+ const home=path.join(runtime,'home');
+ const pdfs=path.join(runtime,'pdfs','Calculo');
+ fs.mkdirSync(home,{recursive:true});fs.mkdirSync(pdfs,{recursive:true});
+ fs.writeFileSync(path.join(pdfs,'Limites.pdf'),tinyPdf('Limites',2));
+ writeConfigJson(runtime,{runtimePath:runtime,courses:[]});
+ /* Finder: PATH mínimo, sem LEARNING_DESK_OPENCODE. O shell de login falso é
+    quem põe o opencode "instalado por bun" no PATH (#102). */
+ const app=await launchDesk({runtime,opencode:false,env:{HOME:home,USERPROFILE:home,PATH:NO_PI_PATH,LEARNING_DESK_CLAUDE_HOME:'',LEARNING_DESK_OPENCODE:'',LEARNING_DESK_OPENCODE_SHELL:FAKE_SHELL}});
+ const page=await app.firstWindow();
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.waitForSelector('body[data-first-run="true"]',{timeout:30000});
+ await resizeWindow(app,page,1440,900);
+ await freezeMotion(page);
+ await toTutor(page,app,pdfs,'found');
+ return {app,page,errors,runtime};
 }
 
 await withArtifacts('opencode-install-ui',async ctx=>{
@@ -89,10 +110,15 @@ await withArtifacts('opencode-install-ui',async ctx=>{
  await page.waitForSelector('#setup-install',{timeout:10000});
  const busy=page.locator('#setup-tutor-actions #install-opencode');
  await busy.waitFor({state:'visible'});
+ /* O host já repintou prepare→download (40%): espera o nó novo ter caixa
+    antes de medir; o próximo repaint só vem 2 s depois (12%). Sem isso a
+    medida cai no meio da troca de nó e dá {0,0} (Mac rodada 4b). */
+ await page.waitForFunction(()=>{const el=document.querySelector('#setup-tutor-actions #install-opencode');const r=el?.getBoundingClientRect();return !!r&&r.width>0&&r.height>0;});
+ /* O nó troca de novo no repaint do 40%: medir só depois dele (Mac rodada 4d). */
+ await page.waitForFunction(()=>document.querySelector('.setup-install-percent')?.textContent==='40%');
  assert.equal(await busy.isDisabled(),true,'o botão continua no lugar, desabilitado, durante a instalação');
  assert.equal(await busy.textContent(),'Instalar o OpenCode','o botão não troca de rótulo');
  assert.deepEqual(await busy.evaluate(el=>{const r=el.getBoundingClientRect();return {width:r.width,height:r.height};}),sizeBefore,'o botão não muda de tamanho durante a instalação');
- await page.waitForFunction(()=>document.querySelector('.setup-install-percent')?.textContent==='40%');
  // espera fixa: o 12% chega ~300 ms depois; o valor não pode cair
  await page.waitForTimeout(300);
  assert.equal(await page.locator('.setup-install-percent').textContent(),'40%','a barra não volta atrás quando chega um percentual menor');
@@ -126,6 +152,18 @@ await withArtifacts('opencode-install-ui',async ctx=>{
  await shot(page,'pronto-sem-conta-escuro-1440x900.png');
  assert.deepEqual(ok.errors,[],'sem erro de página no caminho feliz');
  await ok.app.close();ctx.app=null;
+
+ /* Instalado por bun, fora dos caminhos fixos, com o PATH mínimo do Finder:
+    o shell de login acha o binário e o passo do tutor já o reconhece (#102). */
+ const bun=await bunScenario();
+ ctx.app=bun.app;ctx.runtime=bun.runtime;
+ assert.equal(await bun.page.locator('#setup-pi').innerText(),'Encontrado: OpenCode','o opencode instalado por bun é reconhecido no setup');
+ assert.equal(await bun.page.locator('#setup-tutor-actions #connect').count(),1,'com o motor achado, dá para chamar o tutor');
+ assert.equal(await bun.page.locator('#setup-tutor-actions #pick-opencode').count(),0,'não oferece escolher à mão quando o shell já achou');
+ const bunLogin=await bun.page.locator('#setup-login-hint code').textContent();
+ assert.ok(bunLogin.startsWith(BUN_OPENCODE),`a entrada no provedor usa o binário achado pelo shell (${bunLogin})`);
+ assert.deepEqual(bun.errors,[],'sem erro de página na descoberta pelo shell');
+ await bun.app.close();ctx.app=null;
 
  const bad=await scenario('erro','error');
  ctx.app=bad.app;ctx.runtime=bad.runtime;

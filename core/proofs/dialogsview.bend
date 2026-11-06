@@ -133,6 +133,36 @@ def Laws.dlg_about_com_versao():
 def Laws.dlg_about_node():
   {==}
 
+def Laws.dlg_about_origem_do_codigo():
+  {==}
+
+def Laws.dlg_about_origem_visivel():
+  {==}
+
+def Laws.dlg_about_origem_do_codigo_node():
+  {==}
+
+def Laws.dlg_about_origem_normal():
+  {==}
+
+def Laws.dlg_about_origem_dev():
+  {==}
+
+def Laws.dlg_about_origem_worktree():
+  {==}
+
+def Laws.dlg_about_origem_indisponivel():
+  {==}
+
+def Laws.dlg_about_origem_caminho():
+  {==}
+
+def Laws.dlg_about_origem_normal_node():
+  {==}
+
+def Laws.dlg_about_origem_dev_node():
+  {==}
+
 def Laws.dlg_cfg_linha():
   {==}
 
@@ -158,6 +188,9 @@ def Laws.dlg_upd_ultima():
   {==}
 
 def Laws.dlg_upd_falha():
+  {==}
+
+def Laws.dlg_upd_sem_origem():
   {==}
 
 def Laws.dlg_upd_botao_verificar():

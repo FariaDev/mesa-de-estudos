@@ -1,5 +1,5 @@
 /* Identidade de execução do host Pi (achado N1): testes puros da decisão de
-   encaminhar/descartar evento. O renderer/E2E fica em `timeline-late.mjs`. */
+   encaminhar/descartar evento. O renderer/E2E fica em `opencode-repeat-ui.mjs`. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';

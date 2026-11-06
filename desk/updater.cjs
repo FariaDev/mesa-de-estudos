@@ -38,7 +38,7 @@
      Somente GETs públicos; zero telemetria.
    - A aplicação é uma TRANSAÇÃO: instantâneo dos arquivos que a atualização
      gerencia ANTES de qualquer mutação (nada de percorrer a raiz toda), lock
-     compartilhado entre Sobre/Atualizar Pi/CLI, o app tem de ter SAÍDO no
+     compartilhado entre Sobre/Atualizar/CLI, o app tem de ter SAÍDO no
      prazo (senão aborta sem tocar nada) e a instalação anterior permanece até
      a confirmação.
    - Rollback é REQUISITO: falhou no meio → instantâneo volta ao lugar (+ git
@@ -50,14 +50,11 @@
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-/* O contrato do Pi local (`desk/.pi-local`) mora no pi.cjs: o setup e o
-   updater usam o MESMO ensure (uma fonte para o diretório+package.json). */
-const {ensurePiLocalHome}=require('./pi.cjs');
-const {causeText,describeReceived,invalidValue}=require('./src/error-detail.mjs');
-const {CHECK_TTL,CLAUDE_REGISTRY_URL,PI_REGISTRY_URL,RELEASES_URL,TAGS_URL,XOURNAL_RELEASES_URL,XOURNAL_SITE_URL,appendLog,cacheWrite,fresh,isNewer,markToasted,readCache,semverCompare,semverParse,writeCache}=require('./updater-core.cjs');
+const {causeText,describeReceived}=require('./src/error-detail.mjs');
+const {CHECK_TTL,CLAUDE_REGISTRY_URL,RELEASES_URL,TAGS_URL,XOURNAL_RELEASES_URL,XOURNAL_SITE_URL,appendLog,cacheWrite,fresh,isNewer,markToasted,readCache,semverCompare,semverParse,writeCache}=require('./updater-core.cjs');
 const {LOCK_STALE_MS,acquireLock,defaultRun,doReopen,lockFileOf,needsShell,pidAlive,releaseLock,resolveNode,spawnReopen,spawnWorker,stageWorkerFiles,WORKER_FILES,waitForHandshake,waitForPid,workerEnv,writeHandshake}=require('./updater-worker.cjs');
 const {applyZip,assertRealTarget,assertSafeEntries,isProtected,isReplaceable,manifestFile,normalizeRel,readManifest,readZip,removeOrphans,restoreTree,snapshotTree,stripCommonRoot,writeManifest}=require('./updater-files.cjs');
-const {checkForUpdates,claudeLatest,defaultFetchBuffer,defaultFetchJson,piLatest,releaseFromGithub,releaseFromTags,sharedFetchJson,timedFetch,xournalLatest}=require('./updater-check.cjs');
+const {checkForUpdates,claudeLatest,defaultFetchBuffer,defaultFetchJson,releaseFromGithub,releaseFromTags,sharedFetchJson,timedFetch,xournalLatest}=require('./updater-check.cjs');
 const {MANIFEST_MAX_BYTES,SIGNATURE_MAX_BYTES,ZIP_MAX_BYTES,assertAppliedCommitMatches,assertTagCommitMatches,loadSignedRelease,normalizeVersion,readUpdatePublicKey,tagMissingError}=require('./updater-signature.cjs');
 
 /* ---------- aplicação ---------- */
@@ -93,6 +90,19 @@ function persistResult(cacheFile,result){
    git/zip não derruba o update (a fonte está íntegra; o bundle fica
    desatualizado e o motivo vai para o log) — em modo bundle é o próprio apply
    e aí sim vira rollback. */
+/** Apaga o instantâneo quando ele não serve mais (update aplicado ou rollback
+ * COMPLETO). Falha ao apagar só vai ao log: a transação já terminou e não pode
+ * virar rollback nem "rollback incompleto" (2026-11-05).
+ * @param {string} backup pasta do instantâneo
+ * @param {(line:string)=>void} log
+ * @returns {boolean} true se apagou
+ * @example discardUpdateBackup('/tmp/mesa-update-backup-x', console.log)
+ */
+function discardUpdateBackup(backup,log){
+ try{fs.rmSync(backup,{recursive:true,force:true});return true}
+ catch(err){log(`update: instantâneo não foi apagado (${String(err&&err.message||err)})`);return false}
+}
+
 async function syncBundle({mode,sourceDir,run,log}){
  if(process.platform!=='darwin')return;
  const installScript=path.join(sourceDir,'desk','scripts','install-app.mjs');
@@ -151,6 +161,7 @@ async function applyUpdate(opts={}){
   cacheFile='',lockFile='',pidTimeout=120000,
   manifestMaxBytes=MANIFEST_MAX_BYTES,signatureMaxBytes=SIGNATURE_MAX_BYTES,zipMaxBytes=ZIP_MAX_BYTES,
   snapshot=snapshotTree,restore=restoreTree, /* injeção de teste (mesma ideia do run) */
+  allowOlder=false, /* só o CLI passa (`--versao` explícito): a chamada automática nunca */
  }=opts;
  const logFile=runtime?path.join(runtime,'desk.log'):'';
  const log=line=>appendLog(logFile,line);
@@ -167,6 +178,22 @@ async function applyUpdate(opts={}){
  const npmCiDir=mode==='bundle'?path.join(sourceDir,'desk'):deskDir;
  if(!rootDir||!deskDir||!sourceDir)throw Error(`applyUpdate: caminhos incompletos: recebido rootDir ${describeReceived(rootDir)}, deskDir ${describeReceived(deskDir)}, sourceDir ${describeReceived(sourceDir)}; esperados os três`);
  log(`update: começando (${mode} → v${announcedVersion||'?'} em ${rootDir})`);
+ /* Anti-rollback (auditoria de segurança): quem controla os metadados da
+    Release pública, sem a chave, pode marcar uma versão assinada antiga como
+    `latest`. A anunciada tem de ser mais nova que a instalada — antes de
+    qualquer mutação e antes de baixar. Instalada ilegível não prova rollback
+    (segue para as conferências assinadas); anunciada fora do semver estável
+    cai no `normalizeVersion` do manifesto. Igual também recusa: reinstalar a
+    mesma versão não é update (nenhum fluxo do produto depende disso). */
+ const installed=installedVersion(deskDir);
+ if(!allowOlder&&semverParse(announcedVersion)&&semverParse(installed)&&semverCompare(announcedVersion,installed)<=0){
+  const reason=`a v${announcedVersion} anunciada não é mais nova que a instalada (v${installed}) — atualização recusada`;
+  log(`update: FALHOU (${reason})`);
+  releaseLock(lockFile);
+  /* O app nunca saiu — reabrir abriria uma segunda instância à toa (a mesma
+     razão do aborto por PID no prazo). */
+  return {ok:false,mode,version:announcedVersion,reason};
+ }
  /* A4: o app tem de ter SAÍDO no prazo — sem "aplica mesmo assim" (duas
     instâncias escrevendo os mesmos arquivos). Aborta SEM tocar nada. */
  if(waitPid){
@@ -246,7 +273,10 @@ async function applyUpdate(opts={}){
    confirmedVersion=finalVersion;
   }
   await syncBundle({mode,sourceDir,run,log});
-  fs.rmSync(backup,{recursive:true,force:true});
+  /* O update já está aplicado e conferido: falha ao limpar o instantâneo não
+     pode cair no catch e desfazer a versão nova com um backup meio apagado
+     (revisão de segurança, 2026-11-05). */
+  discardUpdateBackup(backup,log);
   backup=null;
   if(diverged){
    log(`update: concluído — v${confirmedVersion||'?'} no lugar (divergente da v${announcedVersion} anunciada)`);
@@ -305,6 +335,13 @@ async function applyUpdate(opts={}){
        bundle à versão restaurada; falha não piora o rollback (só log). */
     await syncBundle({mode,sourceDir,run,log});
    }
+   /* Rollback COMPLETO dispensa o instantâneo: o A5 preserva o backup só no
+      rollback incompleto. Sem este rm, cada update desfeito deixava uma cópia
+      inteira da instalação em /tmp (`mesa-update-backup-*`, 2026-11-05).
+      Falha ao apagar fica fora do catch: o rollback já está completo e não
+      pode virar "incompleto" com um backup meio apagado. */
+   discardUpdateBackup(backup,log);
+   backup=null;
    persistResult(cacheFile,{status:'recovered',mode,version:confirmedVersion||announcedVersion,reason});
    return finish({ok:false,mode,version:confirmedVersion||announcedVersion,reason});
   }catch(err){
@@ -318,45 +355,6 @@ async function applyUpdate(opts={}){
  }
 }
 
-/* Atualizar Pi (só o LOCAL): o Pi mora em desk/.pi-local com package.json
-   próprio, FORA da árvore npm da Mesa — o npm daqui não toca o
-   package.json/lock versionados e o git pull nunca encontra trabalho local
-   inventado pelo setup. Roda no pós-fechamento porque o npm mexe no
-   node_modules em uso. Sem rollback — o npm é que cuida da transação; o
-   motivo de qualquer falha vai para o desk.log. */
-async function applyPiOnly(opts={}){
- const {deskDir='',runtime='',waitPid=0,reopen=null,run=defaultRun,pidTimeout=120000,lockFile=''}=opts;
- const logFile=runtime?path.join(runtime,'desk.log'):'';
- const log=line=>appendLog(logFile,line);
- const finish=(result)=>{
-  releaseLock(lockFile);
-  doReopen(reopen,log);
-  return result;
- };
- if(!deskDir)throw Error(invalidValue('applyPiOnly: deskDir',deskDir,'caminho absoluto'));
- log('update: atualizando o Pi local (@earendil-works/pi-coding-agent@latest em desk/.pi-local)');
- if(waitPid){
-  const gone=await waitForPid(waitPid,pidTimeout);
-  if(!gone){
-   const reason='o app não encerrou no prazo — atualização do Pi abortada';
-   log('update: FALHOU ('+reason+')');
-   return finish({ok:false,reason});
-  }
- }
- try{
-  /* A2: o Pi local mora em `desk/.pi-local` (package.json próprio, fora da
-     árvore npm da Mesa) — ver pi.cjs. Cria a pasta se a instalação é antiga. */
-  const piHome=ensurePiLocalHome(deskDir);
-  await run('npm',['install','@earendil-works/pi-coding-agent@latest'],{cwd:piHome,timeout:20*60*1000});
-  log('update: Pi atualizado (desk/.pi-local)');
-  return finish({ok:true});
- }catch(e){
-  const reason=String(e&&e.message||e)||'falha desconhecida';
-  log(`update: FALHOU ao atualizar o Pi (${reason}) — mantendo o que já está instalado`);
-  return finish({ok:false,reason});
- }
-}
-
 /* ---------- entrada do worker (cópia deste arquivo no tmpdir) ---------- */
 
 if(require.main===module&&process.argv[2]==='--apply'){
@@ -366,7 +364,7 @@ if(require.main===module&&process.argv[2]==='--apply'){
     chamou só fecha o app depois de ver este arquivo. */
  if(args._status)writeHandshake(args._status,{pid:process.pid,phase:'started',at:Date.now()});
  (async()=>{
-  const result=args.piOnly?await applyPiOnly(args):await applyUpdate(args);
+  const result=await applyUpdate(args);
   process.exit(result&&result.ok?0:1);
  })().catch(e=>{
   appendLog(args.runtime?path.join(args.runtime,'desk.log'):'',`update: worker caiu (${causeText(e)})`,{level:'error'});
@@ -376,15 +374,15 @@ if(require.main===module&&process.argv[2]==='--apply'){
 }
 
 module.exports={
- RELEASES_URL,TAGS_URL,PI_REGISTRY_URL,CLAUDE_REGISTRY_URL,XOURNAL_RELEASES_URL,XOURNAL_SITE_URL,CHECK_TTL,
+ RELEASES_URL,TAGS_URL,CLAUDE_REGISTRY_URL,XOURNAL_RELEASES_URL,XOURNAL_SITE_URL,CHECK_TTL,
  semverParse,semverCompare,isNewer,readCache,writeCache,cacheWrite,fresh,markToasted,
  defaultFetchJson,defaultFetchBuffer,timedFetch,sharedFetchJson,releaseFromGithub,releaseFromTags,
- checkForUpdates,piLatest,claudeLatest,xournalLatest,
+ checkForUpdates,claudeLatest,xournalLatest,
  normalizeRel,isProtected,isReplaceable,readZip,assertSafeEntries,stripCommonRoot,applyZip,
  assertRealTarget,manifestFile,readManifest,writeManifest,removeOrphans,
- snapshotTree,restoreTree,readFileSafe,lockChangedSince,installedVersion,defaultRun,needsShell,
+ snapshotTree,restoreTree,discardUpdateBackup,readFileSafe,lockChangedSince,installedVersion,defaultRun,needsShell,
  spawnReopen,doReopen,spawnWorker,stageWorkerFiles,WORKER_FILES,waitForPid,pidAlive,resolveNode,workerEnv,
  writeHandshake,waitForHandshake,acquireLock,releaseLock,lockFileOf,LOCK_STALE_MS,
- applyUpdate,applyPiOnly,appendLog,persistResult,readUpdatePublicKey,
+ applyUpdate,appendLog,persistResult,readUpdatePublicKey,
  MANIFEST_MAX_BYTES,SIGNATURE_MAX_BYTES,ZIP_MAX_BYTES,
 };

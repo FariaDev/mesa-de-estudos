@@ -1,20 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {makeSignedRelease} from './fake-update-release.mjs';
+import {tempDir} from './temp-dir.mjs';
 
 /* D1 — git DE VERDADE (remoto bare temporário, sem rede): portão de clone
    limpo, `--ff-only` que recusa e a conferência da versão anunciada (A3).
    Os comandos git/npm rodam de verdade; só o reabrir é falso. */
 const require = createRequire(import.meta.url);
 const updater = require('../updater.cjs');
-const {ensurePiLocalHome} = require('../pi.cjs');
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-gitreal-test-'));
+const tmp = () => tempDir('mesa-gitreal-test');
 const write = (file, text) => { fs.mkdirSync(path.dirname(file), {recursive: true}); fs.writeFileSync(file, text); };
 const read = (file) => fs.readFileSync(file, 'utf8');
 const git = (args, cwd) => execFileSync('git', args, {cwd, encoding: 'utf8'});
@@ -193,53 +192,3 @@ test('D1/A3: versão anunciada divergente no modo git vira aviso, não sucesso d
    que deixava o `npm install` do Pi sujar e o `git pull --ff-only` recusar).
    Sem npm de verdade aqui (rede): o contrato é o walk-up do npm — a pasta do
    Pi tem package.json PRÓPRIO, então o npm daí não acha o do desk. */
-test('D1/A2: instalar o Pi local não suja package.json/lock do desk', async () => {
-  const {work} = realRepo();
-  const desk = path.join(work, 'desk');
-  const antes = read(path.join(desk, 'package.json'));
-  const antesLock = read(path.join(desk, 'package-lock.json'));
-  const piHome = ensurePiLocalHome(desk);
-  assert.equal(piHome, path.join(desk, '.pi-local'));
-  /* A âncora do npm: package.json PRÓPRIO na pasta do Pi (o npm para a busca
-     ascendente aqui — nunca chega ao package.json versionado do desk). */
-  const ancora = JSON.parse(read(path.join(piHome, 'package.json')));
-  assert.equal(ancora.name, 'mesa-pi-local');
-  assert.equal(ancora.private, true);
-  /* Um binário do Pi instalado na pasta dele é o que resolvePi prefere. */
-  fs.mkdirSync(path.join(piHome, 'node_modules', '.bin'), {recursive: true});
-  fs.writeFileSync(path.join(piHome, 'node_modules', '.bin', 'pi'), '#!/usr/bin/env node\n');
-  fs.chmodSync(path.join(piHome, 'node_modules', '.bin', 'pi'), 0o755);
-  const {resolvePi} = require('../pi.cjs');
-  assert.equal(resolvePi({deskDir: desk}), path.join(piHome, 'node_modules', '.bin', 'pi'));
-  assert.equal(read(path.join(desk, 'package.json')), antes, 'package.json do desk intocado');
-  assert.equal(read(path.join(desk, 'package-lock.json')), antesLock, 'lock do desk intocado');
-  const sujo = git(['status', '--porcelain'], work);
-  assert.ok(!/desk\/package(-lock)?\.json/.test(sujo), `git status limpo dos manifestos: ${JSON.stringify(sujo)}`);
-});
-
-/* D2 de verdade: update real em cima da instalação com .pi-local. */
-test('D2: update real da Mesa (git) deixa o Pi local intacto e resolvível', async () => {
-  const {remote, work} = realRepo();
-  const {commit} = pushNext(remote);
-  const release = signedFor(commit);
-  const piHome = ensurePiLocalHome(path.join(work, 'desk'));
-  fs.mkdirSync(path.join(piHome, 'node_modules', '.bin'), {recursive: true});
-  fs.writeFileSync(path.join(piHome, 'node_modules', '.bin', 'pi'), '#!/usr/bin/env node\n');
-  fs.chmodSync(path.join(piHome, 'node_modules', '.bin', 'pi'), 0o755);
-  const runtime = tmp();
-  const {resolvePi} = require('../pi.cjs');
-  const antes = resolvePi({deskDir: path.join(work, 'desk')});
-  assert.equal(antes, path.join(piHome, 'node_modules', '.bin', 'pi'), 'resolve o Pi da instalação testada');
-  const result = await updater.applyUpdate({
-    mode: 'git', rootDir: work, deskDir: path.join(work, 'desk'), runtime,
-    announcedVersion: '0.4.1', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
-    reopen: () => {}, waitPid: 0,
-  });
-  assert.equal(result.ok, true);
-  assert.equal(fs.existsSync(antes), true, 'o binário do Pi continua lá depois do update');
-  assert.equal(resolvePi({deskDir: path.join(work, 'desk')}), antes, 'resolvePi continua achando o mesmo Pi');
-  /* E o clone segue limpo nos manifestos (o .pi-local é ignorado via
-     .gitignore — aqui o clone de teste não o tem; o resto fica limpo). */
-  const sujo = git(['status', '--porcelain'], work).split('\n').filter((l) => l.trim() && !l.startsWith('??'));
-  assert.deepEqual(sujo, [], 'nenhuma mudança rastreada depois do update');
-});

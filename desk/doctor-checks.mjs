@@ -4,10 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
-import {spawnSync} from 'node:child_process';
-import winCmdSpawn from './src/win-cmd-spawn.cjs';
-
-const {spawnPlan}=winCmdSpawn;
 
 /* Checagens do `npm run doctor`, numa fonte só para o próprio doctor
    (`scripts/doctor.mjs`, que só imprime) e para o "Relatar um problema" (#62),
@@ -20,7 +16,6 @@ const {readConfig,seedConfig}=require('./config.cjs');
 const {mergeCourses,courseLibrary}=require('./courses.cjs');
 const {detectTutorEngines,engineNames,defaultEngineFrom,ENGINE_NAMES}=require('./tutor-default-engine.cjs');
 const {visibleEngines}=require('./visible-engines.cjs');
-const profile=require('./profiles.cjs');
 const desk=path.dirname(fileURLToPath(import.meta.url));
 const repo=path.dirname(desk);
 
@@ -47,7 +42,7 @@ function checkSetup(rows,env,config,home){
  const check=(name,ok,detail)=>rows.push({name,ok:!!ok,detail:String(detail??'')});
  const [nodeMajor]=process.versions.node.split('.').map(Number);
  /* Node só é exigência do setup a partir do código; o app e o MCP rodam no
-    Node do Electron (#93). A linha antiga (22.19) era exigência do Pi. */
+    Node do Electron (#93). */
  check('Node 20+ (setup a partir do código)',nodeMajor>=20,process.version);
  const dependenciesReady=fs.existsSync(path.join(desk,'node_modules','electron'));
  check('Dependências da Mesa',dependenciesReady,dependenciesReady?'instaladas':'rode npm ci');
@@ -56,50 +51,13 @@ function checkSetup(rows,env,config,home){
  const engines=Object.fromEntries(Object.entries(all).filter(([id])=>shown.includes(id)));
  const labels=engineNames(engines);
  check('Tutor instalado',labels.length>0,labels.length?`${labels.join(', ')} (padrão: ${ENGINE_NAMES[defaultEngineFrom(engines)]})`:'instale o OpenCode na primeira abertura (ou use o Claude Code que já existe)');
- if(!engines.pi)return;
- const plan=spawnPlan(engines.pi,['--version']);
- const result=spawnSync(plan.file,plan.args,{encoding:'utf8',timeout:10000,...plan.options});
- const version=String(result.stdout||'').trim();
- const [major,minor,patch]=version.split('.').map(Number);
- check('Pi 0.99.1+ (MCP nativo)',result.status===0&&Number.isInteger(major)&&(major>0||minor>99||(minor===99&&patch>=1)),version||'não respondeu; atualize o Pi');
 }
 
-/** @param {string} overlay @param {NodeJS.ProcessEnv} env @param {string} home @returns {{ok: boolean, detail: string}} */
-function visualExtension(overlay,env,home){
- const extension=overlay&&path.join(overlay,'extensions','visual-check.ts');
- if(!extension||!fs.existsSync(extension))return {ok:false,detail:'reexportação não encontrada'};
- const text=fs.readFileSync(extension,'utf8');
- const envShim=text.match(/LEARNING_CANVAS_DIR[\s\S]*?\),\s*["']([^"']+)["']\)/);
- const match=envShim||text.match(/export\s+\{[^}]*\}\s+from\s+["']([^"']+)["']/)||text.match(/resolve\(dirname\([^)]*\),\s*["']([^"']+)["']\)/);
- if(envShim){
-  const base=env.LEARNING_CANVAS_DIR||path.join(home,'Developer','learning-canvas');
-  const target=path.join(base,envShim[1]);
-  return {ok:fs.existsSync(target),detail:target};
- }
- if(!match)return {ok:false,detail:'reexportação não encontrada'};
- const target=path.resolve(path.dirname(extension),match[1]);
- // O jiti do Pi resolve relativos a partir do caminho virtual (simbólico), então o
- // alvo só é seguro se estiver dentro do overlay, for absoluto ou vier de realpath em runtime.
- const root=path.resolve(overlay);
- const escapes=!target.startsWith(root+path.sep);
- const safe=path.isAbsolute(match[1])||/realpathSync/.test(text);
- const ok=fs.existsSync(target)&&(!escapes||safe);
- return {ok,detail:ok?target:`${target} (re-export relativo quebra quando o .pi é simbólico; resolva via realpath em runtime ou caminho absoluto)`};
-}
-
-/** @param {DoctorRow[]} rows @param {DoctorContext} context @param {NodeJS.ProcessEnv} env @param {string} home @param {boolean} piPresent */
-function checkVault(rows,{vault,courses,runtime},env,home,piPresent){
+/** @param {DoctorRow[]} rows @param {DoctorContext} context */
+function checkVault(rows,{vault,courses,runtime}){
  const check=(name,ok,detail)=>rows.push({name,ok:!!ok,detail:String(detail??'')});
  check('Vault / pasta de dados',vault&&fs.existsSync(vault),vault||'não configurado');
  for(const name of ['TUTOR.md','LEARNER.md'])check(`Política ${name}`,vault&&fs.existsSync(path.join(vault,name)),vault?path.join(vault,name):'vault não configurado');
- /* Overlay e extensões visuais são do perfil do Pi: sem Pi, não há o que
-    conferir e nenhuma linha falta (#93). */
- if(piPresent){
-  const overlay=vault&&path.join(vault,'.pi');
-  check('Overlay .pi',overlay&&fs.existsSync(overlay),overlay||'vault não configurado');
-  const visual=visualExtension(overlay,env,home);
-  check('Extensão visual',visual.ok,visual.detail);
- }
  check('Capturador visual',process.platform!=='darwin'||fs.existsSync(path.join(repo,'visual-check','windows')),process.platform==='darwin'?path.join(repo,'visual-check','windows'):'não se aplica neste sistema');
  check('Matérias configuradas',courses.length>0,`${courses.length} encontrada(s)`);
  for(const course of courses){
@@ -111,47 +69,13 @@ function checkVault(rows,{vault,courses,runtime},env,home,piPresent){
  check('Persistência da Mesa',persistence,why);
 }
 
-/* --- Perfil e permissões: o que a sessão vai carregar e o que ela pode fazer ---
-   O portão em si (bloqueio antes da execução) mora no workspace-guard; aqui o
-   objetivo é tornar visível o que ele vai aplicar, para que uma superfície de
-   permissão quebrada apareça no doctor em vez de só no log da sessão. */
-/** @param {DoctorRow[]} rows @param {DoctorContext} context @param {NodeJS.ProcessEnv} env @param {string} home @param {boolean} piPresent */
-function checkProfile(rows,{config,vault},env,home,piPresent){
+/* --- Ambiente: o temporário e o git que o updater e o verify usam --- */
+/** @param {DoctorRow[]} rows @param {DoctorContext} _context @param {NodeJS.ProcessEnv} env */
+function checkProfile(rows,_context,env){
  const check=(name,ok,detail)=>rows.push({name,ok:!!ok,detail:String(detail??'')});
- const agentDir=path.join(home,'.pi','agent');
- if(!piPresent){
-  /* Fora do Pi, só o temporário e o git importam para a Mesa. */
-  let tempOk=false,tempWhy=os.tmpdir();
-  try{const probe=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-doctor-')),'.probe');fs.writeFileSync(probe,'ok');fs.rmSync(path.dirname(probe),{recursive:true,force:true});tempOk=true;}catch(e){tempWhy=e.message;}
-  check('Diretório temporário gravável',tempOk,tempWhy);
-  const PATH_DIRS=(env.PATH||'').split(path.delimiter).filter(Boolean);
-  const GIT_NAMES=process.platform==='win32'?['git.exe','git.cmd','git']:['git'];
-  const git=PATH_DIRS.flatMap(dir=>GIT_NAMES.map(name=>path.join(dir,name))).find(p=>{try{return fs.existsSync(p);}catch{return false;}});
-  check('Executável git',git,git||'não encontrado no PATH — o updater por git e o verify o usam');
-  return;
- }
- const profileOn=config.desk?.pinnedExtensions!==false;
- const declaredPaths=profile.globalExtensionPaths();
- const presentPaths=declaredPaths.filter(f=>fs.existsSync(f));
- const overlayCount=profile.overlayExtensionPaths([vault&&path.join(vault,'.pi')]).length;
- if(!profileOn){
-  check('Perfil de carregamento',true,'perfil herdado (desk.pinnedExtensions: false)');
- }else{
-  const missing=declaredPaths.filter(f=>!fs.existsSync(f));
-  check('Perfil de carregamento',missing.length===0,`${presentPaths.length}/${declaredPaths.length} extensões globais + ${overlayCount} do overlay${missing.length?` · ausentes: ${missing.map(f=>path.basename(path.dirname(f))).join(', ')}`:''}`);
- }
- const mcpPath=path.join(agentDir,'mcp.json');
- let mcpCount=0;
- try{mcpCount=Object.keys(JSON.parse(fs.readFileSync(mcpPath,'utf8'))?.mcpServers||{}).length;}catch{/* sem mcp.json: zero servidores */}
- check('Integrações MCP declaradas',fs.existsSync(mcpPath)&&mcpCount>0,`${mcpCount} servidor(es) em ${mcpPath}`);
- const guardExt=path.join(agentDir,'extensions','workspace-guard','index.ts');
- check('Guard antes da execução',fs.existsSync(guardExt),guardExt);
- const codeGuard=vault&&path.join(vault,'.pi','extensions','code-study-guard.ts');
- check('Guard de estudo de código',codeGuard&&fs.existsSync(codeGuard),codeGuard||'overlay não encontrado');
  let tempOk=false,tempWhy=os.tmpdir();
  try{const probe=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'mesa-doctor-')),'.probe');fs.writeFileSync(probe,'ok');fs.rmSync(path.dirname(probe),{recursive:true,force:true});tempOk=true;}catch(e){tempWhy=e.message;}
  check('Diretório temporário gravável',tempOk,tempWhy);
- /* PATH pode não existir (ambiente enxuto) e o git tem outro nome no Windows. */
  const PATH_DIRS=(env.PATH||'').split(path.delimiter).filter(Boolean);
  const GIT_NAMES=process.platform==='win32'?['git.exe','git.cmd','git']:['git'];
  const git=PATH_DIRS.flatMap(dir=>GIT_NAMES.map(name=>path.join(dir,name))).find(p=>{try{return fs.existsSync(p);}catch{return false;}});
@@ -169,11 +93,8 @@ export function doctorChecks({env=process.env,home=os.homedir()}={}){
  /** @type {DoctorRow[]} */
  const rows=[];
  checkSetup(rows,env,context.config,home);
- const all=detectTutorEngines({config:context.config,deskDir:desk,env,home,testMode:false});
- const shown=visibleEngines({testMode:false,env});
- const engines=Object.fromEntries(Object.entries(all).filter(([id])=>shown.includes(id)));
- checkVault(rows,context,env,home,!!engines.pi);
- checkProfile(rows,context,env,home,!!engines.pi);
+ checkVault(rows,context);
+ checkProfile(rows,context,env);
  return {rows,context};
 }
 

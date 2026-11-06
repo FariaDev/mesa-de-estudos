@@ -2,10 +2,10 @@
    `core/composerview.bend`). Roda com o harness do ui-smoke:
      node tests/hunt-queue.mjs
    Evidências ficam em tests/artifacts/<stamp>-<bloco> quando EVIDENCE=1 ou o
-   bloco falha. Usa o fake Pi padrão no modo `FAKE_PI_QUEUE_LOG`: cada prompt é
+   bloco falha. Usa o fake OpenCode padrão no modo `FAKE_OPENCODE_QUEUE_LOG`: cada prompt é
    registrado com o `streamingBehavior` recebido e a contagem de anexos (é o que
-   prova followUp × steer e que o anexo guardado chegou ao Pi).
-   Cobre: enfileirar com o Pi ocupado (⏎), editar (⏎ salva / Esc cancela),
+   prova followUp × steer e que o anexo guardado chegou ao OpenCode).
+   Cobre: enfileirar com o OpenCode ocupado (⏎), editar (⏎ salva / Esc cancela),
    remover (×), a ordem e o `streamingBehavior` do flush, o rascunho digitado
    durante o envio, o steer (⌘/Ctrl+⏎), **Parar segurado** ("Enviar agora"),
    **Limpar** (com confirmação), **fechar com a fila e reabrir** (faixa
@@ -16,7 +16,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedSession,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,saveArtifacts,sessionIds,openSessionById} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,seedPlot,seedNativeSession,writeDeskJson,writeConfigJson,toastWait,sendEnabled,statusOnline,saveArtifacts,sessionIds,openSessionById} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
 
 const EVIDENCE=process.env.EVIDENCE==='1';
@@ -46,20 +46,20 @@ await withArtifacts('hunt-queue',async ctx=>{
  const runtime=ctx.runtime=newRuntime('hunt-queue');
  const course=seedCourse(runtime,'Calc');
  const logFile=path.join(runtime,'queue.log');
- const current=seedSession(runtime,[{type:'message',message:{role:'user',content:[{type:'text',text:'corrente'}],timestamp:1700000002000}}]);
+ const current=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'corrente'}],timestamp:1700000002000}],{courseId:'Calc'});
  /* A segunda conversa da matéria (a fila é por conversa: trocar não mistura). */
- const other=path.join(runtime,'pi-1700000001000.jsonl');
- fs.writeFileSync(other,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text:'outra conversa'}],timestamp:1700000001000}})+'\n');
+ const other=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'outra conversa'}],timestamp:1700000001000}],{courseId:'Calc'});
  /* Matéria explícita: sem config o app cairia no curso de exemplo (e na pasta
     real do autor). */
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{session:current,courseId:'Calc',courseStates:{Calc:{session:current,sessions:[{path:other,started:1700000001000,preview:'outra conversa'}]}}});
  /* 8 s: dá folga para editar/remover a fila antes de o turno do fake terminar. */
- const env={FAKE_PI_QUEUE_LOG:logFile,FAKE_PI_QUEUE_HOLD_MS:'8000',FAKE_PI_REFUSAL_LOG:path.join(runtime,'refusal.log')};
+ const env={FAKE_OPENCODE_QUEUE_LOG:logFile,FAKE_OPENCODE_QUEUE_HOLD_MS:'8000',FAKE_OPENCODE_REFUSAL_LOG:path.join(runtime,'refusal.log'),FAKE_OPENCODE_LOG:path.join(runtime,'fake.log')};
  let app=ctx.app=await launchDesk({runtime,env});
  let page=await app.firstWindow();
  const windows=[watch(page)];
  await statusOnline(page);
+ await sendEnabled(page);
 
  const entries=()=>{
   try{return fs.readFileSync(logFile,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}
@@ -71,7 +71,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  const waitLog=(text,timeout=20000)=>pollUntil(
   firstLines,
   lines=>lines.includes(text),
-  {timeout,interval:100,what:`«${text}» no log do Pi`}
+  {timeout,interval:100,what:`«${text}» no log do OpenCode`}
  );
  /* Ações de UI por janela: o teste reabre o app no meio (bloco 7). */
  const ui=pg=>({
@@ -115,7 +115,8 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.deepEqual(queued.rows,['um','dois']);
  assert.equal(queued.sending,0,'nenhum item nasce sending');
  assert.equal(queued.field,'','⏎ enfileirou: o campo esvaziou');
- assert.deepEqual(firstLines(),['base'],'nada foi para o Pi antes de o turno acabar');
+ await waitLog('base');
+ assert.deepEqual(firstLines(),['base'],'nada foi para o OpenCode antes de o turno acabar');
  /* Para o turno e segura a fila: editar/remover não corre contra o fim do
     turno do fake (o auto-flush só volta depois, no "Enviar agora"). */
  await page.locator('#stop').click();
@@ -151,14 +152,18 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.equal(await page.locator('#prompt').inputValue(),'rascunho novo','o rascunho digitado durante o envio não some');
  await page.locator('#prompt').fill('');
 
- /* ---------- 4. ⌘/Ctrl+⏎ com o Pi ocupado sai como steer ---------- */
+ /* ---------- 4. ⌘/Ctrl+⏎ com o OpenCode ocupado sai como steer ---------- */
  await page.locator('#prompt').fill('segura');
  await page.locator('#prompt').press('Enter');
  await busy();
  await queueIn(['depois']);
  assert.equal(await page.locator('.queue-label').textContent(),'Na fila · 1','a faixa abre com um item só, com a contagem');
- await page.locator('#prompt').fill('agora');
- await page.locator('#prompt').press('ControlOrMeta+Enter');
+  await page.locator('#prompt').fill('agora');
+  /* Sem espera fixa: o aceite do turno anterior precisa chegar antes de o
+     steer ler o estado; o log do fake prova o aceite (a resposta 200 e o
+     turn_start saem na sequência, e o intervalo da sondagem cobre o resto). */
+  await waitLog('segura');
+  await page.locator('#prompt').press('ControlOrMeta+Enter');
  await bubble('agora');
  await waitLog('agora');
  const steer=entries().find(entry=>String(entry.message).split('\n')[0]==='agora');
@@ -208,14 +213,19 @@ await withArtifacts('hunt-queue',async ctx=>{
  await page.locator('#prompt').fill('base da recusa');
  await page.locator('#prompt').press('Enter');
  await busy();
+ /* O clique em "Enviar agora" só é steer com o turno do motor já em voo: no
+    Mac o connect/MCP pode ainda estar abrindo quando o renderer já mostra a
+    fila. Espera a base chegar ao fake; sem isso o teste mede a janela de
+    conexão, não a recusa. */
+ await pollUntil(entries,list=>list.some(entry=>String(entry.message).startsWith('base da recusa')),{timeout:30000,what:'base da recusa chegar ao motor'});
  await queueIn(['fica antes','falhar na fila','fica depois']);
  assert.equal(await page.locator('.queue-item .queue-steer-now').count(),3);
  await page.locator('.queue-item .queue-steer-now').nth(1).click();
- await toastWait(page,'Recusa de teste antes do aceite');
+ await toastWait(page,'OpenCode recusou');
  await page.waitForFunction(()=>[...document.querySelectorAll('.queue-item span')].map(el=>el.textContent).join('|')==='fica antes|falhar na fila|fica depois',undefined,{timeout:10000});
  const restored=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
  assert.deepEqual(restored[current].items.map(item=>item.text),['fica antes','falhar na fila','fica depois'],'o item recusado voltou ao disco na posição original');
- assert.ok(!firstLines().includes('falhar na fila'),'a recusa não chegou ao Pi');
+ assert.ok(!firstLines().includes('falhar na fila'),'a recusa não chegou ao OpenCode');
  /* A recusa escondeu o Parar enquanto o turno antigo ainda roda: segura a fila
     e aborta antes de mexer nas linhas (o auto-flush tentaria a recusada de novo). */
  await page.evaluate(()=>{window.dispatchEvent(new Event('desk-stop'));return window.desk.abort().catch(()=>{});});
@@ -237,10 +247,14 @@ await withArtifacts('hunt-queue',async ctx=>{
  await statusOnline(page);
 
  /* ---------- 5. Parar só interrompe: a fila fica segurada e "Enviar agora" manda ---------- */
- await page.locator('#prompt').fill('segura dois');
- await page.locator('#prompt').press('Enter');
- await busy();
- await queueIn(['segurada um','segurada dois']);
+  await page.locator('#prompt').fill('segura dois');
+  await page.locator('#prompt').press('Enter');
+  await busy();
+  /* O #stop só entra com o turno do motor já em voo (bloco 4c): o Parar
+     otimista do renderer antes do prompt chegar ao motor mostra o erro no
+     lugar do toast segurado (Mac rodada 4b). */
+  await waitLog('segura dois');
+  await queueIn(['segurada um','segurada dois']);
  assert.equal(await page.locator('.queue-item').count(),2);
  await page.locator('#stop').click();
  await toastWait(page,'a fila ficou segurada');
@@ -267,6 +281,8 @@ await withArtifacts('hunt-queue',async ctx=>{
  await page.locator('#prompt').fill('base de novo');
  await page.locator('#prompt').press('Enter');
  await busy();
+ // O Parar só depois do turno chegar ao motor, como no bloco 5 (Mac rodada 4d).
+ await waitLog('base de novo');
  await queueIn(['descartavel um','descartavel dois']);
  await page.locator('#stop').click();
  await toastWait(page,'a fila ficou segurada');
@@ -326,18 +342,19 @@ await withArtifacts('hunt-queue',async ctx=>{
  const sent=entries().filter(entry=>['com anexo','sem anexo'].includes(String(entry.message).split('\n')[0]));
  log('[fila] recuperados enviados:',JSON.stringify(sent));
  assert.deepEqual(sent.map(entry=>entry.streamingBehavior),['followUp','followUp'],'a fila recuperada sai como followUp, na ordem');
- assert.deepEqual(sent.map(entry=>entry.images),[1,0],'o anexo guardado chegou ao Pi com o item dele');
+ assert.deepEqual(sent.map(entry=>entry.images),[1,0],'o anexo guardado chegou ao OpenCode com o item dele');
 
  /* ---------- 8. trocar de conversa guarda a fila e a devolve ---------- */
  await page.locator('#prompt').fill('fila da conversa A');
  await page.locator('#prompt').press('Enter');
+ await pollUntil(entries,list=>list.some(entry=>String(entry.message).startsWith('fila da conversa A')),{timeout:30000,what:'a fala da conversa A chegar ao motor'});
  await busy();
  await queueIn(['fica na A']);
  await page.locator('#stop').click();
  await toastWait(page,'a fila ficou segurada');
  await idle();
  assert.deepEqual((await strip()).rows,['fica na A']);
- const otherValue=(await sessionIds(page)).find(v=>v.endsWith('pi-1700000001000.jsonl'));
+ const otherValue=(await sessionIds(page)).find(v=>v===other);
  assert.ok(otherValue,'a outra sessão aparece na lista');
  await openSessionById(page,otherValue);
  await page.waitForFunction(()=>!document.querySelector('.queue-strip'),undefined,{timeout:30000});
@@ -361,34 +378,6 @@ await withArtifacts('hunt-queue',async ctx=>{
 
  assert.deepEqual(windows.flatMap(w=>w.errors),[],`erros de página: ${JSON.stringify(windows.flatMap(w=>w.errors))}`);
 
- /* ---------- 9. aceite + falha do estado: a mensagem vale e a fila não repete ---------- */
- /* A fila recuperada tem UM item: o "Enviar agora" o manda e a leitura de estado
-    que o main faz logo depois do aceite falha de propósito (FAKE_PI_CHAOS=
-    state-fail). O envio não pode virar erro — se virasse, o item continuaria na
-    fila e o mesmo texto seria reenviado no fim do turno. */
- await app.close();
- fs.writeFileSync(path.join(runtime,'pending.json'),JSON.stringify({
-  [current]:{items:[{id:'fila-estado',text:'fila com estado falho',refs:[],images:[]}],attachments:[],held:false}
- }));
- app=ctx.app=await launchDesk({runtime,env:{...env,FAKE_PI_CHAOS:'state-fail'}});
- page=await app.firstWindow();
- windows.push(watch(page));
- ({busy,settle,queueIn}=ui(page));
- await statusOnline(page);
- await toastWait(page,'pendente foi recuperada');
- await page.locator('.queue-send-now').click();
- await waitLog('fila com estado falho');
- await toastWait(page,'estado da sessão não pôde ser lido');
- await page.waitForFunction(()=>!document.querySelector('.queue-strip'),undefined,{timeout:30000});
- await settle();
- /* O turno do item aceito termina (agent_end do fake) e a fila não pode repetir. */
- await page.waitForTimeout(1800);// espera fixa: "nada acontece em 1,8 s" — o turno do item aceito termina e a fila não pode repetir o envio
- const repeated=entries().filter(entry=>String(entry.message).split('\n')[0]==='fila com estado falho');
- log('[fila] depois do estado falho:',JSON.stringify(firstLines()));
- assert.equal(repeated.length,1,`a mensagem aceita não é reenviada (log: ${JSON.stringify(firstLines())})`);
- const rest=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
- assert.ok(!rest[current]||rest[current].items.length===0,'o arquivo da fila ficou sem o item entregue');
-
  /* ---------- 10. entrega incerta não devolve o item (não duplica a fala) ---------- */
  await page.locator('#prompt').fill('base incerta');
  await page.locator('#prompt').press('Enter');
@@ -403,7 +392,7 @@ await withArtifacts('hunt-queue',async ctx=>{
  assert.equal(await page.locator('.queue-strip').count(),0,'entrega incerta não devolve o item à fila');
  const uncertainDisk=JSON.parse(fs.readFileSync(path.join(runtime,'pending.json'),'utf8'));
  assert.ok(!uncertainDisk[current]||uncertainDisk[current].items.length===0,'o arquivo não guarda o item incerto');
- assert.ok(!firstLines().includes('talvez tenha ido'),'o item incerto não chegou ao Pi de teste');
+ assert.ok(!firstLines().includes('talvez tenha ido'),'o item incerto não chegou ao OpenCode de teste');
  assert.deepEqual(windows.flatMap(w=>w.errors),[],`erros de página: ${JSON.stringify(windows.flatMap(w=>w.errors))}`);
 
  if(EVIDENCE)await saveArtifacts(ctx);

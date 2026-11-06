@@ -18,10 +18,10 @@ test('viewState: aba inativa fica fora; ativa sem sobreposição aparece; com qu
   for (const count of [1, 2, 5]) assert.equal(overlayCore.viewState(true, count).$, 'ViewCovered', `${count} sobreposições`);
 });
 
-test('OVERLAY_SELECTOR cobre diálogo, paleta de comandos e tela cheia do quadro', () => {
+test('OVERLAY_SELECTOR cobre diálogo, paleta de comandos e as telas inteiras', () => {
   const source = read('../src/ggb.mjs');
   const selector = /export const OVERLAY_SELECTOR='([^']+)'/.exec(source)?.[1];
   assert.ok(selector, 'src/ggb.mjs exporta OVERLAY_SELECTOR; esperado uma string entre aspas simples');
   const parts = selector.split(',');
-  assert.deepEqual(parts, ['dialog[open]', '#command-palette:not([hidden])', '.activity-fullscreen']);
+  assert.deepEqual(parts, ['dialog[open]', '#command-palette:not([hidden])', '.activity-fullscreen', 'body.chat-full']);
 });

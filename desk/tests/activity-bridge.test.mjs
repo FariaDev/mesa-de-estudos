@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {tempDir} from './temp-dir.mjs';
 const require = createRequire(import.meta.url);
 const {
   createActivityBridge,
@@ -24,7 +24,7 @@ const SPEC = {title: 'MRUV', objective: 'Explorar a', alternativeMarkdown: 's = 
 const payload = (toolCallId = '') => ({...SPEC, katex: false, toolCallId});
 
 function tempRuntime(tag) {
-  return fs.mkdtempSync(path.join(os.tmpdir(), `mesa-activity-bridge-${tag}-`));
+  return tempDir(`mesa-activity-bridge-${tag}`);
 }
 
 function startService(runtime, {generation = 1} = {}) {

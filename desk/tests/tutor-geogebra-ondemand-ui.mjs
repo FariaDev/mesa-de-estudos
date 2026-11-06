@@ -1,5 +1,5 @@
 // node tests/tutor-geogebra-ondemand-ui.mjs — GeoGebra sob demanda e quadro limpo por uso (#53), na janela.
-// O Pi de mentira (`mesa-geogebra-pi.mjs`) chama a ponte REAL do GeoGebra; o applet é a página
+// O OpenCode de mentira chama a ponte REAL do GeoGebra pelo MCP; o applet é a página
 // falsa `fake-ggb.html` (sem internet), trocada pelo seam LEARNING_DESK_GGB_PAGE do modo de teste.
 // Cobre: aba fechada → o pedido abre o applet e roda o comando; o segundo pedido começa com o
 // quadro vazio (a construção do aluno fica guardada); «Voltar à construção anterior» restaura
@@ -21,10 +21,15 @@ await withArtifacts('tutor-geogebra-ondemand',async ctx=>{
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites'));
  writeConfigJson(runtime,{runtimePath:runtime,vaultPath:runtime,courses:[{id:'calc',name:'Cálculo I',path:course}]});
  writeDeskJson(runtime,{courseId:'calc',courseStates:{calc:{pdfs:[{path:pdf,page:1}],study:{title:'',xopp:''}}}});
- const piLog=path.join(runtime,'pi-messages.log'),piOut=path.join(runtime,'pi-ggb.log');
- const pi=path.join(DESK,'tests/fixtures/mesa-geogebra-pi.mjs');fs.chmodSync(pi,0o755);
+ const promptLog=path.join(runtime,'prompts.jsonl'),mcpLog=path.join(runtime,'mcp-ggb.log');
+ const calls=[
+  {name:'geogebra',input:{action:'run',command:'A=(1,2)'}},
+  {name:'geogebra',input:{action:'run',command:'B=(3,3)'}},
+  {name:'geogebra',input:{action:'state'}},
+  {name:'geogebra',input:{action:'run',command:'C=(0,0)',continuar:true}},
+ ];
  const page_=path.join(DESK,'tests/fixtures/fake-ggb.html');
- ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_PI:pi,LEARNING_DESK_GGB_PAGE:page_,FAKE_PI_GGB_LOG:piLog,FAKE_PI_GGB_OUT:piOut}});
+ ctx.app=await launchDesk({runtime,env:{LEARNING_DESK_GGB_PAGE:page_,FAKE_OPENCODE_QUEUE_LOG:promptLog,FAKE_OPENCODE_MCP_CALLS:JSON.stringify(calls),FAKE_OPENCODE_MCP_LOG:mcpLog}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await resizeWindow(ctx.app,page,1440,900);
  await statusOnline(page);
@@ -39,7 +44,7 @@ await withArtifacts('tutor-geogebra-ondemand',async ctx=>{
   return view?view.webContents.executeJavaScript(source):null;
  },code);
  const objects=async()=>String(await inApplet('window.ggbApplet?window.ggbApplet.getAllObjectNames():""')||'').split('\n').filter(Boolean).sort();
- const answers=()=>{try{return fs.readFileSync(piOut,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}catch{return [];}};
+ const answers=()=>{try{return fs.readFileSync(mcpLog,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line).result);}catch{return [];}};
  const ask=async(text,{chip=true}={})=>{
   const before=answers().length;
   if(chip){
@@ -52,19 +57,28 @@ await withArtifacts('tutor-geogebra-ondemand',async ctx=>{
   await page.locator('#send').click();
   const list=await pollUntil(async()=>answers(),found=>found.length>before,{timeout:40000,what:`a resposta da ponte para «${text}»`});
   await page.waitForFunction(()=>document.querySelector('#stop').hidden,undefined,{timeout:30000});
-  return list[list.length-1].answer;
+  return list[list.length-1];
  };
  const back=page.locator('#ggb-back');
  const backHidden=()=>back.evaluate(el=>el.hidden);
 
+ /* 0. A aba vazia não abre muda: a barra diz que está carregando (A4). */
+ await page.locator('#course-tabs [data-id="geogebra"]').click();
+ await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
+ assert.equal(await page.locator('#ggb-board-note').isVisible(),true,'a barra espelha o carregamento');
+ assert.match(await page.locator('#ggb-board-note').textContent(),/Carregando|Loading/,'a barra diz que está carregando');
+ await page.waitForFunction(()=>document.querySelector('#ggb-board-note').hidden,undefined,{timeout:15000});
+ await page.locator('#course-tabs [data-id="calc"]').click();
+ await page.waitForFunction(()=>!document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
+
  /* 1. Aba fechada: o pedido ao geogebra abre o applet sozinho e roda o comando. */
  assert.equal(await page.evaluate(()=>document.querySelector('#references').classList.contains('ggb')),false,'começa com a aba GeoGebra fechada');
  let answer=await ask('ggb: A=(1,2)');
- assert.equal(answer.error,undefined,`o pedido não falha com a aba fechada (${JSON.stringify(answer)})`);
- assert.equal(answer.ok,true,'o comando rodou');
+ assert.doesNotMatch(answer,/indisponível|recusou/i,`o pedido não falha com a aba fechada (${answer})`);
+ assert.match(answer,/Comando aceito pelo GeoGebra/,'o comando rodou');
  await page.waitForFunction(()=>document.querySelector('#references').classList.contains('ggb'),undefined,{timeout:10000});
  assert.deepEqual(await objects(),['A'],'o applet foi aberto e tem a construção do tutor');
- const sent=fs.readFileSync(piLog,'utf8');
+ const sent=fs.readFileSync(promptLog,'utf8');
  assert.match(sent,/Ferramenta pedida na Mesa: geogebra/,'a menção chegou ao tutor como instrução');
  assert.equal(await backHidden(),true,'primeiro uso: não há construção anterior para voltar');
  assert.doesNotMatch(await page.locator('#messages .message.user .body').first().textContent(),/Ferramenta pedida/,'o balão do aluno não mostra a instrução');
@@ -73,20 +87,19 @@ await withArtifacts('tutor-geogebra-ondemand',async ctx=>{
  await inApplet('window.ggbApplet.evalCommand("S=(5,5)")');
  assert.deepEqual(await objects(),['A','S'],'o aluno acrescentou um objeto');
  answer=await ask('ggb: B=(3,3)');
- assert.equal(answer.ok,true,'o segundo comando rodou');
- assert.equal(answer.board?.cleared,true,'a resposta diz que o quadro foi limpo');
- assert.equal(answer.board?.origin,'student','e que a construção guardada tinha mão do aluno');
+ assert.match(answer,/Comando aceito pelo GeoGebra/,'o segundo comando rodou');
+ assert.match(answer,/quadro começou vazio.*construção do aluno/s,'a resposta diz que o quadro foi limpo e guardou a construção do aluno');
  assert.deepEqual(await objects(),['B'],'o segundo uso começa com o quadro vazio');
  await page.waitForFunction(()=>!document.querySelector('#ggb-back').hidden,undefined,{timeout:5000});
  await reviewShot(page,out,'depois-do-segundo-uso.png');
 
  /* 3. Ler não limpa; continuar mantém. */
  answer=await ask('ggb-estado');
- assert.equal(answer.error,undefined,'ler o estado funciona');
+ assert.match(answer,/Objetos atuais/,'ler o estado funciona');
  assert.deepEqual(await objects(),['B'],'ler não limpa o quadro');
  answer=await ask('ggb-continuar: C=(0,0)',{chip:false});
  assert.deepEqual(await objects(),['B','C'],'«continuar» acrescenta sem limpar');
- assert.equal(answer.board?.cleared,false,'sem limpeza quando continua');
+ assert.doesNotMatch(answer,/quadro começou vazio/,'sem limpeza quando continua');
 
  /* 4. Voltar restaura a construção do aluno (A e S) e guarda o que estava no quadro. */
  await back.click();

@@ -3,7 +3,7 @@
 // barra de rolagem; confirma com o check sem mexer no layout. Claro e escuro.
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {withArtifacts,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,launchDesk,statusOnline,setTheme,freezeMotion,resizeWindow,reviewShot,screenshotDirectory} from './helpers.mjs';
+import {withArtifacts,newRuntime,seedCourse,seedNativeSession,writeDeskJson,writeConfigJson,launchDesk,statusOnline,setTheme,freezeMotion,resizeWindow,reviewShot,screenshotDirectory} from './helpers.mjs';
 import {nextFrames} from './waits.mjs';
 
 const out=screenshotDirectory('code-copy');
@@ -21,7 +21,7 @@ await withArtifacts('code-copy',async ctx=>{
  const runtime=ctx.runtime=newRuntime('code-copy');
  const course=seedCourse(runtime,'calc');
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'calc',name:'Cálculo',path:course}]});
- const session=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Veja o código:\n\n```js\nconst soma = (a, b) => a + b;\nconsole.log(soma(2, 3));\n```\n\nE sem linguagem:\n\n```\nsem_etiqueta()\n```'}]}}]);
+ const session=seedNativeSession(runtime,[{role:'assistant',content:[{type:'text',text:'Veja o código:\n\n```js\nconst soma = (a, b) => a + b;\nconsole.log(soma(2, 3));\n```\n\nE sem linguagem:\n\n```\nsem_etiqueta()\n```'}]}],{courseId:'calc'});
  writeDeskJson(runtime,{courseId:'calc',session});
  const app=ctx.app=await launchDesk({runtime});
  const page=await app.firstWindow();

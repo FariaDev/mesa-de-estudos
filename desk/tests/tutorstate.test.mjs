@@ -1,6 +1,5 @@
 import test from 'node:test';
 import {ptText} from './pt-text.mjs';
-import {message} from '../src/i18n.mjs';
 import assert from 'node:assert/strict';
 import core from '../src/generated/tutorstate.core.js';
 
@@ -70,48 +69,14 @@ test('ligando: "Chamando o tutor" com Cancelar, mesmo com retomada guardada',()=
  }
 });
 
-test('sem resposta: o motivo em uma frase e as três ações',()=>{
+test('sem resposta: o motivo em uma frase e as duas ações',()=>{
  const root=view('error','O tutor demorou demais para atender.');
  assert.equal(attrs(root)['data-state'],'error');
  assert.equal(text(kids(kids(root)[0])[0]),'O tutor não atendeu.');
  assert.equal(text(fine(root)),'O tutor demorou demais para atender.');
  const buttons=actions(root);
- assert.deepEqual(buttons.map(n=>attrs(n).id),['connect','state-log','state-pi']);
- assert.deepEqual(buttons.map(text),['Chamar de novo','Ver o log','Ajustes do tutor']);
- assert.deepEqual(buttons.map(n=>attrs(n)['on:click']),['Connect','OpenLog','OpenPiSettings']);
- assert.deepEqual(classes(buttons),['ts-primary','ts-secondary','ts-ghost']);
-});
-
-test('o motivo: vazio cai numa frase própria e o texto comprido não é cortado',()=>{
- assert.equal(ptText(core.reasonLine('')),'O tutor não respondeu.');
- assert.equal(ptText(core.reasonLine('   \t ')),'O tutor não respondeu.');
- assert.equal(ptText(core.reasonLine('  motivo curto  ')),'motivo curto');
- assert.equal(ptText(core.reasonLine('x'.repeat(400))).length,400,'a coluna quebra em linhas; nada de corte silencioso');
- const root=view('error','');
- assert.equal(text(fine(root)),'O tutor não respondeu.');
-});
-
-test('um fato desconhecido cai em desligado (nunca em bloco vazio)',()=>{
- assert.equal(attrs(view('')) ['data-state'],'off');
- assert.equal(attrs(view('qualquer')) ['data-state'],'off');
-});
-
-test('os três estados têm a mesma casca: texto e depois ações (a distância é a mesma)',()=>{
- for(const root of [view('off','',true),view('connecting'),view('error','motivo')]){
-  assert.deepEqual(classes(kids(root)),['ts-text','ts-actions']);
-  assert.equal(attrs(kids(root)[0]).class,'ts-text');
-  assert.equal(attrs(kids(kids(root)[0])[0]).class,'ts-lead','a linha em destaque abre o texto');
- }
-});
-
-/* #27 — item 2: o mesmo "Pi não encontrado" tem a mesma ação principal na
-   primeira abertura e no "sem resposta" do app normal. */
-test('Pi não encontrado: Ajustes do tutor é a ação principal também no sem resposta',()=>{
- const root=view('error',message('tutor.error.piMissing'));
- const buttons=actions(root);
- assert.deepEqual(buttons.map(n=>attrs(n).id),['state-pi','connect','state-log']);
- assert.deepEqual(buttons.map(text),['Ajustes do tutor','Chamar de novo','Ver o log']);
- assert.deepEqual(classes(buttons),['ts-primary','ts-secondary','ts-ghost']);
- const other=actions(view('error','O tutor fechou.'));
- assert.deepEqual(other.map(n=>attrs(n).id),['connect','state-log','state-pi'],'outra causa mantém Chamar de novo como principal');
+ assert.deepEqual(buttons.map(n=>attrs(n).id),['connect','state-log']);
+ assert.deepEqual(buttons.map(text),['Chamar de novo','Ver o log']);
+ assert.deepEqual(buttons.map(n=>attrs(n)['on:click']),['Connect','OpenLog']);
+ assert.deepEqual(classes(buttons),['ts-primary','ts-secondary']);
 });

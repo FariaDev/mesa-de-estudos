@@ -3,10 +3,9 @@
 
 const crypto=require('node:crypto');
 const fs=require('node:fs');
-const path=require('node:path');
 const conversations=require('./src/agents/conversations.cjs');
 const free=require('./free-workspaces.cjs');
-const {formatSessionLabel,engineLabelPrefix}=require('./lib.cjs');
+const {formatSessionLabel}=require('./lib.cjs');
 const {cleanStudy}=require('./study.cjs');
 const {deskLayout}=require('./state-adapter.cjs');
 const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
@@ -16,7 +15,8 @@ const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
    (`free-workspaces.cjs`): título/rascunho/materiais/nativePath ficam lá;
    layout, estudo e rotações ficam por sessão em `desk.json`
    (`state.free.sessions`). A sessão ativa é sempre um `sessionId` do store;
-   `session` é o caminho nativo (JSONL do Pi ou descritor Claude). */
+   `session` é o caminho nativo (descritor Claude/OpenCode; JSONL Pi antigo só
+   para leitura). */
 
 /**
  * Cria o host das sessões Livre sobre o estado vivo do main.
@@ -25,10 +25,11 @@ const {sanitizeCourseState}=require('./desk-state-sanitize.cjs');
  *   ggb: import('./types/main-hosts').GeogebraHost,
  *   engine: import('./types/main-hosts').TutorEngineHost['engine'],
  *   defaultEngine: import('./types/main-hosts').TutorEngineHost['defaultEngine'],
+ *   visibleEngines: () => string[],
  *   previewFile: import('./types/main-hosts').TutorEngineHost['previewFile']}} options
- * @example const {ensureFreeRecord,hydrateFreeRecord}=createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,previewFile});
+ * @example const {ensureFreeRecord,hydrateFreeRecord}=createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,visibleEngines,previewFile});
  */
-function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,previewFile}){
+function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,visibleEngines,previewFile}){
  function isPromotedRecord(record){return !!(record&&record.promotion&&record.promotion.status==='promoted');}
  function freeRecordForToken(file){
   if(typeof file!=='string'||!file)return null;
@@ -37,34 +38,29 @@ function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,pr
   if(file.startsWith(prefix))return free.findWorkspace(runtime,file.slice(prefix.length));
   return null;
  }
- /* Motor da conversa Livre nova: Claude e OpenCode (#57) nascem com descritor; o resto é Pi. */
- const freeEngine=engine=>conversations.NATIVE_ENGINES.includes(engine)?engine:'pi';
- function newFreeNativePath(id,engine){return freeEngine(engine)!=='pi'?conversations.createClaudeConversation({runtime,courseId:FREE_ID,engine}):path.join(free.workspaceDir(runtime,id),`pi-${crypto.randomUUID()}.jsonl`);}
+ /* Motor da conversa Livre nova: Claude e OpenCode (#57) nascem com descritor;
+    o resto cai no motor padrão do release. */
+ const freeEngine=engine=>conversations.NATIVE_ENGINES.includes(engine)?engine:defaultEngine();
+ function newFreeNativePath(engine,extra={}){return conversations.createClaudeConversation({runtime,courseId:FREE_ID,engine:freeEngine(engine),...extra});}
  function ensureFreeNativePath(record){
   if(record.nativePath)return record;
-  const native=newFreeNativePath(record.id,defaultEngine());
+  const native=newFreeNativePath(defaultEngine());
   free.setNativePath(runtime,record.id,native);
   return free.findWorkspace(runtime,record.id)||record;
  }
- /* Marcador Pi vazio de uma abertura antiga não prende a sessão Livre sem Pi:
-    histórico Pi existente fica como está, e a escolha só repõe o caminho. */
+ /* Sessão Pi antiga não vira a ativa ao abrir o Livre, e o registro dela não é
+    tocado: é ele que a mantém na lista, aberta só para leitura. O mesmo vale
+    para o Claude, que está no código mas fora da vista (3ª revisão do release). */
  function usableNativePath(file){
   if(!file)return false;
-  try{if(freeEngine(engine(file))!=='pi')return true;}catch{return true;}
-  if(defaultEngine()==='pi')return true;
-  try{return fs.existsSync(file)&&fs.statSync(file).size>0;}catch{return false;}
- }
- function replaceEmptyNativePath(record){
-  const native=newFreeNativePath(record.id,defaultEngine());
-  free.setNativePath(runtime,record.id,native);
-  return free.findWorkspace(runtime,record.id)||record;
+  try{return visibleEngines().includes(engine(file));}catch{return true;}
  }
  /* Cria workspace + caminho nativo + entrada de layout. Não hidrata: quem chama
     decide quando a sessão vira a ativa. */
- function createFreeRecord(engine=defaultEngine()){
+ function createFreeRecord(engine=defaultEngine(),extra={}){
   const id=crypto.randomUUID();
   free.ensureWorkspace(runtime,{sessionId:id,title:free.defaultTitle()});
-  const nativePath=newFreeNativePath(id,freeEngine(engine));
+  const nativePath=newFreeNativePath(engine,extra);
   free.setNativePath(runtime,id,nativePath);
   const sessions={...(live.state.free?.sessions||{}),[id]:{nativePath,engine:freeEngine(engine),draft:'',study:{title:'',xopp:''}}};
   live.state.free={activeId:id,sessions};
@@ -77,11 +73,10 @@ function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,pr
   const list=free.listWorkspaces(runtime).filter(record=>!isPromotedRecord(record));
   let record=list.find(entry=>entry.id===live.state.free?.activeId)||list.find(entry=>entry.nativePath&&entry.nativePath===live.state.session)||list[0]||null;
   if(record&&!record.nativePath)record=ensureFreeNativePath(record);
-  if(record&&!usableNativePath(record.nativePath))record=replaceEmptyNativePath(record);
-  if(!record)record=createFreeRecord();
-  return record;
+  if(record&&usableNativePath(record.nativePath))return record;
+  return list.find(entry=>usableNativePath(entry.nativePath))||createFreeRecord();
  }
- function createFreeSession(engine){const record=createFreeRecord(engine);hydrateFreeRecord(record);return record;}
+ function createFreeSession(engine,extra={}){const record=createFreeRecord(engine,extra);hydrateFreeRecord(record);return record;}
  function freeEntryOf(id){return (live.state.free&&live.state.free.sessions&&live.state.free.sessions[id])||{};}
  function hydrateFreeRecord(record){
   const entry=freeEntryOf(record.id);
@@ -99,7 +94,7 @@ function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,pr
    study:cleanStudy(saved.study||{}),
    ggbBase64:typeof saved.ggbBase64==='string'?saved.ggbBase64:''};
   let kind='pi';
-  try{kind=record.nativePath?freeEngine(engine(record.nativePath)):'pi';}catch{/* descritor ilegível: segue como Pi */}
+  try{kind=record.nativePath?engine(record.nativePath):'pi';}catch{/* descritor ilegível: segue como Pi */}
   live.state.free={...(live.state.free||{}),activeId:record.id,sessions:{...(live.state.free?.sessions||{}),[record.id]:{...entry,nativePath:record.nativePath||entry.nativePath||'',engine:entry.engine||kind}} };
   live.freeSessionId=record.id;
   live.session=record.nativePath||live.session;
@@ -136,8 +131,10 @@ function createFreeSessionHost({live,runtime,FREE_ID,ggb,engine,defaultEngine,pr
    try{preview=fs.existsSync(path)?previewFile(path):'';}catch{/* sem prévia: o rótulo cai para a data */}
    const promoted=isPromotedRecord(record);
    const shownTitle=record.title===free.defaultTitle()?live.languageHost.t('free.title.placeholder'):record.title;
-   const label=engineLabelPrefix(kind)+(shownTitle||formatSessionLabel({path,started,preview}));
-   return {path,started,preview,engine:kind,label,promoted,promotedCourseId:promoted?record.promotion.courseId:''};
+   const label=shownTitle||formatSessionLabel({path,started,preview});
+   let lineage={};
+   if(conversations.NATIVE_ENGINES.includes(kind))try{const meta=conversations.conversationMetadata(path,{runtime});lineage={...(meta.origin?{origin:meta.origin}:{}),...(meta.handoff?{handoff:meta.handoff}:{})};}catch{/* descritor ilegível segue sem linhagem */}
+   return {path,started,preview,engine:kind,label,promoted,promotedCourseId:promoted?record.promotion.courseId:'',...lineage};
   }).filter(Boolean).sort((a,b)=>(b.started||0)-(a.started||0));
  }
  function freeWorkspacePayload(record){

@@ -236,12 +236,16 @@ async function run() {
     case 'unique': return scenarioUnique();
     case 'payload': return scenarioPayload();
     case 'inject': return scenarioInject();
-    case 'template-long': case 'template-wide': case 'template-overflow': case 'template-invalid': {
+    case 'template-long': case 'template-wide': case 'template-overflow': case 'template-invalid': case 'template-forged': {
       const templateUi = await import('./material-template-ui.mjs');
       return templateUi.runMaterialScenario(scenario, {app, store, materialPdf, runtime});
     }
     case 'figures-sanitize': case 'figures-pdf': case 'figure-preview':
       return require('./figures-scenarios.cjs').runFiguresScenario(scenario, {electron: require('electron'), store, materialPdf, runtime});
+    case 'stream-blocks':
+      return require('./stream-blocks-scenarios.cjs').runStreamBlocksScenario({electron: require('electron')});
+    case 'markup-attrs':
+      return require('./markup-attrs-scenarios.cjs').runMarkupAttrsScenario(scenario, {electron: require('electron')});
     default: return {ok: false, error: {code: 'BAD_SCENARIO', message: `cenário desconhecido: ${scenario}`}};
   }
 }

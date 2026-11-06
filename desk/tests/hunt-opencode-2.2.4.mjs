@@ -5,13 +5,16 @@
    decidiu:
 
    1. o `debug config` do 2.2.4 resolve `shell`, `edit` e `read` em `deny`,
-      com `*` em `deny` e `mesa_*` em `allow`, e não há plugin de jaula;
+      com `*` em `deny`, `mesa_*` em `allow` e o `read` liberado só pelo
+      sentinela `/mesa-nada-existe/*`; não há a chave `tools` nem plugin;
    2. um `ls` pedido pelo modelo NÃO roda com o shell desligado, e um
       `echo > /tmp/...` não cria o arquivo — nem com um `opencode.json`
       malicioso plantado na pasta da sessão;
-   3. o modelo não vê `execute` (Code Mode/fetch) nem os `opencode_*`; a
-      ferramenta `skill` aparece na lista, mas a chamada é negada e nem a
-      descrição nem o corpo do `SKILL.md` de teste chegam ao provedor;
+   3. o modelo vê `read` (o Zen devolve 429 sem ela, achado de 2026-11-05) e
+      `skill`, mas `read` é negado dentro/fora do workspace, por symlink, por
+      `..` e pelo caminho do Windows; `skill` também é negada e nem a
+      descrição nem o corpo do `SKILL.md` de teste chegam ao provedor; skills
+      de HOME/projeto/workspace não são carregadas;
    4. se o servidor pedir permissão mesmo assim, o adaptador recusa na hora
       (sem diálogo) e o turno termina;
    5. `criar_pdf` do MCP chega à ponte real de material e prepara o rascunho
@@ -26,6 +29,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import {trackTempDir} from './temp-dir.mjs';
 
 const require = (await import('node:module')).createRequire(import.meta.url);
 const {readPersonalConfig, serveEnv, writeServeConfig} = require('../src/agents/opencode-serve-config.cjs');
@@ -57,7 +61,7 @@ function versionOf(binary) {
    `call`, pede o `shell` com `state.command`. Guarda o corpo de cada pedido
    para a prova de que o conteúdo da skill não vazou. */
 async function createShellProvider(command, {failAuth = false, expectedKey = '', reply = 'Pronto.'} = {}) {
-  const state = {command, call: null, requests: 0, lastTools: [], bodies: [], authorized: [], reply};
+  const state = {command, call: null, calls: null, requests: 0, lastTools: [], bodies: [], authorized: [], reply};
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
@@ -86,11 +90,12 @@ async function createShellProvider(command, {failAuth = false, expectedKey = '',
       }
       state.lastTools = Array.isArray(parsed.tools) ? parsed.tools.map((tool) => String(tool.function?.name || tool.name || '')) : [];
       state.bodies.push(parsed);
-      const call = state.call || {name: 'shell', args: {command: state.command}};
+      const pending = state.calls?.length ? state.calls.shift() : null;
       const hasToolResult = (parsed.messages || []).some((message) => message.role === 'tool');
-      const chunks = hasToolResult
-        ? [chunk({role: 'assistant', content: state.reply}), chunk({}, 'stop')]
-        : [chunk({role: 'assistant', tool_calls: [{index: 0, id: 'call_1', type: 'function', function: {name: call.name, arguments: JSON.stringify(call.args)}}]}), chunk({}, 'tool_calls')];
+      const call = pending || (hasToolResult ? null : state.call || {name: 'shell', args: {command: state.command}});
+      const chunks = call
+        ? [chunk({role: 'assistant', tool_calls: [{index: 0, id: 'call_1', type: 'function', function: {name: call.name, arguments: JSON.stringify(call.args)}}]}), chunk({}, 'tool_calls')]
+        : [chunk({role: 'assistant', content: state.reply}), chunk({}, 'stop')];
       res.writeHead(200, {'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive'});
       for (const item of chunks) res.write(`data: ${JSON.stringify(item)}\n\n`);
       res.write('data: [DONE]\n\n');
@@ -257,7 +262,8 @@ if (!binary) skip('defina LEARNING_DESK_OPENCODE com o binário do OpenCode 2.x'
 const version = versionOf(binary);
 if (!/^opencode v?2\./.test(version)) skip(`${binary} é "${version}" (o hunt exige 2.x, de preferência 2.2.4)`);
 
-const runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-hunt-oc224-'));
+const runtime = trackTempDir(fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-hunt-oc224-')));
+let readOutside = '';
 const workspace = path.join(runtime, 'ws');
 const SKILL_ID = 'mesa-hunt-skill';
 const tmp = path.join(runtime, 'tmp');
@@ -266,6 +272,17 @@ fs.mkdirSync(workspace, {recursive: true});
 fs.mkdirSync(tmp, {recursive: true});
 fs.mkdirSync(home, {recursive: true});
 fs.writeFileSync(path.join(workspace, 'nota.md'), 'oi\n');
+/* Skills plantadas fora da config da Mesa: HOME, `.opencode/skill` do projeto
+   e `skill/` do workspace. O servidor da Mesa não pode carregar nenhuma. */
+const hiddenSkills = ['skill-home', 'skill-projeto', 'skill-workspace'];
+for (const [name, directory] of [
+  ['skill-home', path.join(home, '.config', 'opencode', 'skill', 'skill-home')],
+  ['skill-projeto', path.join(workspace, '.opencode', 'skill', 'skill-projeto')],
+  ['skill-workspace', path.join(workspace, 'skill', 'skill-workspace')],
+]) {
+  fs.mkdirSync(directory, {recursive: true});
+  fs.writeFileSync(path.join(directory, 'SKILL.md'), `---\nname: ${name}\ndescription: SEGREDO-${name}\n---\n\nCORPO-${name}\n`);
+}
 
 const provider = await createShellProvider('ls');
 const refusing = await createShellProvider('ls', {failAuth: true});
@@ -291,20 +308,32 @@ try {
   writeProviderConfig(configDir, provider.url);
   const baseEnv = serveEnv({...process.env, HOME: home, XDG_DATA_HOME: path.join(home, '.local', 'share'), XDG_CONFIG_HOME: path.join(home, '.config'), TMPDIR: tmp}, configDir);
   const permissions = resolvedPermissions(binary, baseEnv);
-  for (const action of ['shell', 'edit', 'multiedit', 'read', 'glob', 'grep', 'list']) {
+  for (const action of ['shell', 'edit']) {
     const rules = permissions.filter((rule) => rule.action === action);
     assert.ok(rules.length, `${action} aparece no config resolvido`);
     assert.ok(rules.every((rule) => rule.effect === 'deny'), `${action} em deny`);
   }
+  const readRules = permissions.filter((rule) => rule.action === 'read');
+  assert.ok(readRules.length, 'read aparece no config resolvido');
+  /* `read` é oferecida só pelo sentinela; todo caminho real continua em deny.
+     Sem esta regra allow o 2.2.4 retira a ferramenta e o Zen 429. */
+  assert.deepEqual(readRules.filter((rule) => rule.effect === 'allow').map((rule) => rule.resource), ['/mesa-nada-existe/*']);
+  assert.ok(readRules.some((rule) => rule.effect === 'deny' && rule.resource === '*'), 'read nega todo caminho real');
+  /* As demais nativas não têm regra própria: a regra `*` as nega. O 2.2.4 pode
+     ou não listar a ação; se listar, tem de ser deny. */
+  for (const action of ['multiedit', 'patch', 'glob', 'grep', 'list', 'task', 'webfetch', 'websearch']) {
+    const rules = permissions.filter((rule) => rule.action === action);
+    assert.ok(rules.every((rule) => rule.effect === 'deny'), `${action} em deny quando aparece`);
+  }
   const wildcard = permissions.filter((rule) => rule.action === '*');
-  assert.ok(wildcard.some((rule) => rule.effect === 'deny'), 'a regra * fecha o que tools não cobre (execute/opencode_*)');
+  assert.ok(wildcard.some((rule) => rule.effect === 'deny'), 'a regra * fecha o que sobra (execute/opencode_*)');
   assert.ok(permissions.some((rule) => rule.action === 'mesa_*' && rule.effect === 'allow'), 'o MCP mesa fica liberado');
   assert.equal(permissions.some((rule) => rule.effect === 'ask'), false, 'nada em ask');
-  assert.equal(permissions.some((rule) => rule.effect === 'allow' && rule.action !== 'mesa_*'), false, 'só mesa_* em allow');
+  assert.ok(permissions.filter((rule) => rule.effect === 'allow').every((rule) => rule.action === 'mesa_*' || (rule.action === 'read' && rule.resource === '/mesa-nada-existe/*')), 'só mesa_* e o sentinela do read em allow');
   const raw = JSON.parse(fs.readFileSync(path.join(configDir, 'opencode.json'), 'utf8'));
   assert.equal(raw.plugin, undefined, 'sem plugin da jaula');
-  assert.equal(raw.tools.shell, false);
-  assert.equal(raw.permission.read, 'deny');
+  assert.equal(raw.tools, undefined, 'sem tools: o Zen precisa de read na lista');
+  assert.deepEqual(raw.permission.read, {'*': 'deny', '/mesa-nada-existe/*': 'allow'});
   assert.equal(raw.permission['*'], 'deny');
   assert.equal(raw.permission['mesa_*'], 'allow');
   /* O config da pasta reabriria o shell sem esta trava (medido no 2.2.4). */
@@ -335,10 +364,10 @@ try {
   assert.equal(personalBaseEnv.OPENCODE_DISABLE_PROJECT_CONFIG, '1');
   assert.equal(personalBaseEnv.OPENCODE_DISABLE_CLAUDE_CODE, '1');
   assert.equal(JSON.parse(personalBaseEnv.OPENCODE_CONFIG_CONTENT).permission['*'], 'deny', 'a pessoa não reabre a permissão');
-  assert.equal(JSON.parse(personalBaseEnv.OPENCODE_CONFIG_CONTENT).tools.shell, false, 'a pessoa não reabre o shell');
+  assert.equal(JSON.parse(personalBaseEnv.OPENCODE_CONFIG_CONTENT).tools, undefined, 'a pessoa não reabre tools; o read precisa continuar oferecido');
   const personalPermissions = allResolvedPermissions(binary, personalBaseEnv);
   assert.ok(personalPermissions.length, 'o debug config devolveu as permissões da pessoa');
-  assert.ok(personalPermissions.every((rule) => rule.effect === 'deny' || rule.action === 'mesa_*'), `só mesa_* em allow: ${JSON.stringify(personalPermissions.filter((rule) => rule.effect !== 'deny'))}`);
+  assert.ok(personalPermissions.every((rule) => rule.effect === 'deny' || rule.action === 'mesa_*' || (rule.action === 'read' && rule.resource === '/mesa-nada-existe/*')), `só mesa_* e o sentinela do read em allow: ${JSON.stringify(personalPermissions.filter((rule) => rule.effect !== 'deny'))}`);
   assert.equal(personalPermissions.some((rule) => rule.effect === 'ask'), false, 'nada em ask');
   /* O `auth import` e o `debug config` leem o config global da pessoa e rodam
      o plugin dela, criando o marcador antes de o servidor da Mesa subir. Apagar
@@ -363,7 +392,7 @@ try {
   assert.ok(personalEnd, 'o turno da pessoa trouxe o resultado da ferramenta');
   assert.equal(personalEnd.isError, true, 'o shell pedido pela pessoa continua negado');
   assert.ok(personalProvider.state.authorized.length > 0 && personalProvider.state.authorized.every(Boolean), 'a auth.json da pessoa autenticou o provider');
-  assert.ok(personalProvider.state.lastTools.every((name) => name.startsWith('mesa_') || name === 'skill'), `só Mesa (e skill negado): ${personalProvider.state.lastTools.join(', ')}`);
+  assert.ok(personalProvider.state.lastTools.every((name) => name.startsWith('mesa_') || name === 'skill' || name === 'read'), `só Mesa, read e skill negada: ${personalProvider.state.lastTools.join(', ')}`);
   assert.equal(personalProvider.state.lastTools.some((name) => /pessoa|projeto|ponto/.test(name)), false, 'MCP/plugin da pessoa não entram na lista');
   const personalBodies = JSON.stringify(personalProvider.state.bodies);
   const everyBody = JSON.stringify([...provider.state.bodies, ...personalProvider.state.bodies]);
@@ -400,18 +429,65 @@ try {
   for (const name of ['mesa_ler_pdf', 'mesa_buscar_material', 'mesa_calcular', 'mesa_listar_materiais', 'mesa_salvar_nota', 'mesa_criar_atividade', 'mesa_criar_pdf', 'mesa_quiz', 'mesa_perguntar']) {
     assert.ok(provider.state.lastTools.includes(name), `o modelo viu ${name}; viu ${provider.state.lastTools.join(', ')}`);
   }
-  for (const native of ['bash', 'read', 'edit', 'write', 'glob', 'grep', 'execute', 'codemode', 'tool_search']) {
+  assert.ok(provider.state.lastTools.includes('read'), 'o Zen precisa de read na lista (429 sem ela)');
+  for (const native of ['bash', 'edit', 'write', 'glob', 'grep', 'execute', 'codemode', 'tool_search', 'webfetch', 'websearch', 'task']) {
     assert.equal(provider.state.lastTools.includes(native), false, `${native} não chega ao modelo`);
   }
   assert.equal(provider.state.lastTools.some((name) => name.startsWith('opencode_')), false, 'nenhuma ferramenta opencode_* chega ao modelo');
-  /* A lista real do 2.2.4 é exatamente as 12 da Mesa MAIS `skill`, que o
-     servidor injeta e a permissão `*: deny` recusa (2b). Não há como retirá-la
-     pelo config sem gambiarra; o release reporta essa exceção. */
+  /* A lista real do 2.2.4 é exatamente as 12 da Mesa MAIS `read` (o
+     destravamento do Zen) e `skill`, que o servidor injeta e a permissão
+     `*: deny` recusa (2c). Não há como retirá-los pelo config sem devolver
+     o 429. */
   const mesaTools = ['mesa_buscar_material', 'mesa_calcular', 'mesa_criar_atividade', 'mesa_criar_pdf', 'mesa_ler_pdf', 'mesa_listar_materiais', 'mesa_perguntar', 'mesa_previsualizar_atividade', 'mesa_propor_revisao', 'mesa_quiz', 'mesa_salvar_nota', 'mesa_ver_figura'];
-  assert.deepEqual([...provider.state.lastTools].sort(), [...mesaTools, 'skill'].sort(), `a lista é a Mesa + skill negada: ${provider.state.lastTools.join(', ')}`);
-  assert.ok(provider.state.lastTools.every((name) => name.startsWith('mesa_') || name === 'skill'), `só Mesa (e o skill do 2.2.4, negado): ${provider.state.lastTools.join(', ')}`);
+  assert.deepEqual([...provider.state.lastTools].sort(), [...mesaTools, 'read', 'skill'].sort(), `a lista é a Mesa + read + skill negada: ${provider.state.lastTools.join(', ')}`);
+  assert.ok(provider.state.lastTools.every((name) => name.startsWith('mesa_') || name === 'read' || name === 'skill'), `só Mesa, read e skill negada: ${provider.state.lastTools.join(', ')}`);
 
-  /* ---------- 2a. cartão do MCP chega à ponte /card e volta sem esperar ---------- */
+  /* ---------- 2a. read é oferecida mas nega todo caminho real ---------- */
+  const readInside = path.join(workspace, 'dentro-read.txt');
+  fs.writeFileSync(readInside, 'CONTEUDO-DENTRO-224');
+  readOutside = path.join(os.tmpdir(), `mesa-hunt-read-fora-${process.pid}.txt`);
+  fs.writeFileSync(readOutside, 'CONTEUDO-FORA-224');
+  const readLink = path.join(workspace, 'link-read.txt');
+  fs.symlinkSync(readOutside, readLink);
+  fs.writeFileSync(path.join(runtime, 'fora-dotdot-224.txt'), 'CONTEUDO-DOTDOT-224');
+  provider.state.calls = [
+    {name: 'read', args: {path: readInside}},
+    {name: 'read', args: {path: readOutside}},
+    {name: 'read', args: {path: readLink}},
+    {name: 'read', args: {path: `${workspace}/../fora-dotdot-224.txt`}},
+    {name: 'read', args: {path: 'C:\\mesa-nada-existe\\isca.txt'}},
+    {name: 'read', args: {path: '/mesa-nada-existe/isca.txt'}},
+  ];
+  const readEvents = [];
+  const readAdapter = adapterFor(live, workspace, mesa);
+  adapters.push(readAdapter);
+  readAdapter.on('event', (event) => readEvents.push(event));
+  await runTurn(readAdapter, readEvents, 'u-read', 'leia os arquivos');
+  const readEnds = readEvents.filter((event) => event.type === 'tool_end');
+  assert.equal(readEnds.length, 6, 'as seis leituras voltaram ao modelo');
+  assert.match(String(readEnds[0].result), /Permission denied: read/, 'arquivo dentro do workspace');
+  /* O 2.2.4 escolhe a ação pelo PROJETO, não pelo workspace: sem git, o
+     projeto global é a HOME real; dentro de um repo, é a raiz do repo. Um
+     TMPDIR dentro do projeto (ex.: ~/.cache/x) faz o arquivo fora do workspace
+     cair em `read`; fora do projeto (o /tmp padrão) cai em
+     `external_directory`. As duas negam e nenhuma leitura passa — medido em
+     2026-11-05 com TMPDIR em /tmp e em $HOME/.cache. */
+  assert.match(String(readEnds[1].result), /Permission denied: (read|external_directory)/, 'arquivo fora do workspace');
+  assert.equal(readEnds[1].isError, true, 'a leitura de fora é recusada, não só rotulada');
+  assert.equal(String(readEnds[1].result).includes('CONTEUDO-FORA-224'), false, 'o conteúdo de fora não volta ao modelo');
+  assert.match(String(readEnds[2].result), /Permission denied: (read|external_directory)/, 'symlink para fora');
+  assert.match(String(readEnds[3].result), /Permission denied: (read|external_directory)/, 'caminho com ..');
+  assert.match(String(readEnds[4].result), /Permission denied: (read|external_directory)/, 'caminho do Windows');
+  assert.match(String(readEnds[5].result), /Permission denied: (read|external_directory)/, 'sentinela');
+  const readBodies = JSON.stringify(provider.state.bodies);
+  for (const secret of ['CONTEUDO-DENTRO-224', 'CONTEUDO-FORA-224', 'CONTEUDO-DOTDOT-224']) {
+    assert.equal(readBodies.includes(secret), false, `${secret} não chega ao provedor`);
+  }
+  assert.equal(fs.readFileSync(readOutside, 'utf8'), 'CONTEUDO-FORA-224', 'o arquivo de fora continua intacto');
+  assert.equal(fs.existsSync('/mesa-nada-existe'), false, 'o sentinela não foi criado');
+  provider.state.calls = null;
+
+  /* ---------- 2b. cartão do MCP chega à ponte /card e volta sem esperar ---------- */
   provider.state.call = {name: 'mesa_quiz', args: {question: '2+2?', options: [{label: '3'}, {label: '4'}], correctAnswer: '4'}};
   const cardEvents = [];
   const cardAdapter = adapterFor(live, workspace, mesa);
@@ -427,10 +503,11 @@ try {
   assert.deepEqual(cards[0].raw.args.options.map((option) => option.label), ['3', '4']);
   provider.state.call = null;
 
-  /* ---------- 2b. skill carregada é negada e o conteúdo não chega ao modelo ---------- */
+  /* ---------- 2c. skill carregada é negada e o conteúdo não chega ao modelo ---------- */
   const skillClient = createOpenCodeClient({baseUrl: live.baseUrl, password: live.password});
   const loadedSkills = await waitForSkill(skillClient, workspace, SKILL_ID);
   assert.ok(loadedSkills.includes(SKILL_ID), 'o 2.2.4 carregou o SKILL.md de teste');
+  for (const hidden of hiddenSkills) assert.equal(loadedSkills.includes(hidden), false, `${hidden} (HOME/projeto/workspace) não é carregada`);
   provider.state.call = {name: 'skill', args: {id: SKILL_ID}};
   const skillEvents = [];
   const skillAdapter = adapterFor(live, workspace, mesa);
@@ -447,7 +524,7 @@ try {
   assert.ok(provider.state.lastTools.includes('skill'), 'o 2.2.4 mantém skill na lista; a permissão nega a chamada');
   provider.state.call = null;
 
-  /* ---------- 2c. criar_pdf chega à ponte de material e prepara a prévia ---------- */
+  /* ---------- 2d. criar_pdf chega à ponte de material e prepara a prévia ---------- */
   const pdfRuntime = path.join(runtime, 'pdf');
   const pdfWorkspace = path.join(pdfRuntime, 'ws');
   fs.mkdirSync(pdfWorkspace, {recursive: true});
@@ -506,7 +583,7 @@ try {
   assert.match(String(providerError.detail || ''), /Incorrect API key provided/, 'o detalhe do provedor vai para o log');
   assert.equal(failingEvents.find((event) => event.type === 'turn_end').isError, true);
 
-  console.log(`ok hunt opencode ${version}: nativas em deny, shell não roda, skill negada sem vazar, criar_pdf/quiz chegam às pontes sem esperar, escrita fora não acontece e erro do provedor fica visível`);
+  console.log(`ok hunt opencode ${version}: read oferecida e negada em todo caminho real, shell não roda, skill negada sem vazar, criar_pdf/quiz chegam às pontes sem esperar, escrita fora não acontece e erro do provedor fica visível`);
   console.log(`ferramentas ${version}: ${provider.state.lastTools.join(', ')}`);
   console.log(`ferramentas pessoais ${version}: ${personalProvider.state.lastTools.join(', ')}`);
 } finally {
@@ -520,5 +597,6 @@ try {
   await refusing.close();
   await personalProvider?.close();
   personalServer?.stop();
+  fs.rmSync(readOutside, {force: true});
   fs.rmSync(runtime, {recursive: true, force: true});
 }

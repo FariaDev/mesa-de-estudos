@@ -1,15 +1,15 @@
-import {$,S,toast,refs,mayAdvanceQueue,connect,supportsCapability} from './state.mjs';
+import {$,S,connect,toast,refs,mayAdvanceQueue,supportsCapability} from './state.mjs';
 import {mentionIds,clearMentions} from './mentions.mjs';
-import {send,resetAttachments,persistTray,isComposerCommand} from './chat.mjs';
+import {send,isComposerCommand,resetAttachments,persistTray} from './chat.mjs';
 import core from './generated/composerview.core.js';
 import pendingCore from './generated/pending.core.js';
 import {createQueueRetry} from './queue-retry.mjs';
 import {steerQueuedOutcome,restoreQueuedAt} from './queue-steer.mjs';
 import {build,renderChildren,preserveFocus} from './view-host.mjs';
-import {t} from './ui-text.mjs';
+import {t,LANGUAGE_EVENT} from './ui-text.mjs';
 import {message} from './i18n.mjs';
-import {toNat} from './bend-nat.mjs';
 import {icon} from '../icons.mjs';
+import {createQueueIntake} from './queue-intake.mjs';
 
 /* Fila de mensagens da Mesa — nasceu como espelho da fila da Conversa (aposentada na #50)
    e segue sobre o núcleo (`core/composerview.bend`), com uma diferença que aqui é
@@ -66,13 +66,15 @@ function liveEditText(item){
 }
 
 /* Mensagem só com anexo (a captura do Conferir, sem texto) não pode virar uma
-   linha em branco na faixa: diz o que está guardado. Em edição vale o texto real. */
+   linha em branco na faixa: diz o que está guardado. Em edição vale o texto
+   real. A imagem usa `attach.altImage` do catálogo (E11 da auditoria EN,
+   rodada 8): fixar 'Imagem anexada' vazava PT em EN. */
 function rowText(item){
  if(item.id===editingId)return liveEditText(item);
  if(item.text)return item.text;
  const pdfs=item.payload.pdfs||[];
  if(pdfs.length)return t('queue.pdfAttached',{name:pdfs[0].name||'PDF'});
- return item.payload.images.length?'Imagem anexada':'';
+ return item.payload.images.length?t('attach.altImage'):'';
 }
 
 function rowOf(item){
@@ -376,36 +378,23 @@ async function flushQueue({force=false}={}){
 
 /* Cmd/Ctrl+⏎ com o motor sem steer: em vez de prometer interromper e reenviar,
    a mensagem enfileira — o mesmo caminho do ⏎ ocupado (o `#prompt` chama daqui
-   quando `capabilities.steer` é false). */
-export function enqueueFromComposer(){
- const el=$('#prompt');
- if(!el)return false;
- const text=el.value.trim();
- if(!text&&!S.attachments.length&&!S.pdfAttachments.length)return false;
- enqueue(text);
- el.value='';
- el.dispatchEvent(new Event('input'));
- return true;
-}
-
-/* ⏎/Enviar/⌘⏎ no composer com o Pi livre. Tutor ligado: vai direto, como
-   sempre. Tutor desligado, ligando ou sem resposta: a mensagem é GUARDADA na
-   fila (texto, referências e anexos do momento; vai para o disco na hora) e o
-   tutor é chamado sem outro clique — quando ele atende, o `desk-tutor-link`
-   abaixo solta a fila, uma por vez e na ordem. Cancelar ou não ser atendido
-   não apaga nada: a mensagem espera a próxima chamada. */
-export function submit(value,options={}){
- const text=String(value??'').trim();
- if(options.release!==false)release();
- const keep=pendingCore.keptWhileOff(!!S.connected,!!S.busy,isComposerCommand(text),text,toNat(S.attachments.length+S.pdfAttachments.length));
- if(!keep)return send(value,undefined,options.steer===true?{steer:true}:{});
- enqueue(text);
- const el=$('#prompt');
- if(el){el.value='';el.dispatchEvent(new Event('input'));}
- /* Troca de matéria/sessão em curso: ela mesma chama o tutor no fim. */
- if(!S.switching)connect().catch(()=>{});
- return true;
-}
+   quando `capabilities.steer` é false). A entrada mora em queue-intake.mjs; aqui
+   ficam os nomes que main.mjs e os atalhos já usam. */
+/* Quantos itens esperam na fila (aviso da passagem, #87): sem DOM. */
+export function pendingCount(){return queue.length;}
+/* Acessores: `queue.mjs` é importado por `state.mjs` no meio da avaliação dele
+   (ciclo), então `S`/`connect` ainda estão em TDZ quando este módulo roda; só
+   podem ser lidos no clique, não na criação da entrada. `rehold`: envio direto
+   incerto ou recusado logo depois de soltar a fila volta a segurá-la, sem novo
+   aviso, e o "Enviar agora" segue na faixa (auditoria de máquinas de estado, fila #1). */
+const intake=createQueueIntake({
+ enqueue:(text)=>enqueue(text),release:()=>release(),isHeld:()=>held,
+ rehold:()=>{if(held||!queue.length)return;held=true;renderQueue();persist(true);},
+ send:(text,images,options)=>send(text,images,options),isComposerCommand:(text)=>isComposerCommand(text),
+ state:()=>S,prompt:()=>$('#prompt'),connect:()=>connect()
+});
+export const enqueueFromComposer=intake.enqueueFromComposer;
+export const submit=intake.submit;
 
 /* O usuário voltou ao comando (⏎/Enviar/⌘⏎ no composer): a fila segurada pode
    voltar ao fluxo normal. Chamado pelo `main.mjs`. */
@@ -456,8 +445,12 @@ export function init(){
  window.addEventListener('desk-idle',()=>flushQueue());
  /* O "Enviar agora" da linha existe só com o tutor ocupado e motor com steer:
     o render acompanha as duas viradas para o botão nascer/sumir na hora. */
- window.addEventListener('desk-busy',()=>{if(queue.length)renderQueue();});
- window.addEventListener('desk-engine-facts',()=>{if(queue.length)renderQueue();});
+  window.addEventListener('desk-busy',()=>{if(queue.length)renderQueue();});
+  window.addEventListener('desk-engine-facts',()=>{if(queue.length)renderQueue();});
+  /* Troca de idioma: a linha da imagem anexada guarda o texto traduzido da
+     hora do render, então repinta (o texto em edição sai ileso pelo
+     `liveEditText`). */
+  window.addEventListener(LANGUAGE_EVENT,()=>{if(queue.length)renderQueue();});
  /* O tutor passou a atender (chamada nova, "Chamar de novo", abertura): a fila
     guardada sai. Só na virada para "ligado" — a checagem de saúde repete o
     estado a cada rodada e não pode soltar a fila. O adiamento deixa o

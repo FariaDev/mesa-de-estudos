@@ -51,7 +51,7 @@ try{
  for(const key of fields)await page.locator('#cfg-desk-'+key).uncheck();
  await page.locator('#cfg-title').fill('Minha mesa');
  await saveSettings(page);
- assert.equal(await page.locator('#context-edit').isHidden(),true);
+ assert.equal(await page.locator('#study-context').evaluate(el=>el.hidden),true,'studyContext desligado esconde a edição do contexto');
  assert.equal(await page.locator('#calculator').isHidden(),true);
  assert.equal(await page.locator('#check').isHidden(),true);
  assert.equal(await page.locator('#include-refs').isHidden(),true);
@@ -76,7 +76,7 @@ try{
  assert.equal(await page.locator('#cfg-title').inputValue(),'Minha mesa');
  for(const key of fields)await page.locator('#cfg-desk-'+key).check();
  await saveSettings(page);
- assert.equal(await page.locator('#context-edit').isVisible(),true);
+ assert.equal(await page.locator('#study-context').evaluate(el=>el.hidden),false,'studyContext religado devolve a edição do contexto');
  assert.equal(await page.locator('#exercise-title').inputValue(),'Questão preservada','reativar restaura estudo');
  assert.equal(await page.locator('#pick-xopp').getAttribute('data-path'),xopp,'associação xopp sobrevive a desativar/reabrir/reativar');
  assert.equal(await page.locator('#calculator').isVisible(),true);

@@ -11,10 +11,8 @@ import view.bend as V
 # título e os três botões são nós vivos do `index.html`; este núcleo devolve os
 # itens dos dois menus que abrem dali, e o aplicador (`desk/src/view-host.mjs`)
 # monta no DOM:
-#   - `newSessionMenu`: o cabeçalho "Nova sessão com…" e os três motores (o
-#     padrão, o Claude experimental e o OpenCode). Criar uma sessão nunca troca
-#     o motor da que está aberta; o clique no "+" cria direto com o motor atual
-#     e o menu abre pelo clique direito;
+#   - o menu de sessão nova é interface pura (rótulo, ordem, "(atual)") e mora
+#     em JS desde a #87; com um motor só o "+" cria direto, sem menu;
 #   - `moreItems`: Contexto (submenu com a medição e as compactações), Encerrar
 #     por hoje (some só pela flag `desk.endDay`), Exportar sessão e recolher o
 #     tutor;
@@ -37,7 +35,7 @@ import view.bend as V
 # modelo saiu daqui para a caixa de mensagem). O host não cria esses nós: o
 # teste de janela confere que o cabeçalho é exatamente isto.
 def headIds() -> List<&2, String>:
-  ["session-title", "sidechat-toggle", "new-session", "chat-more"]
+  ["session-title", "sidechat-toggle", "chat-full", "new-session", "chat-more"]
 
 # Item de menu: papel, id, rótulo, glifo e handler. `extra` entra antes do
 # ícone e do clique, na ordem dada.
@@ -52,43 +50,6 @@ def menuNode(
 
 def item(id: String, text: String, icon: String, handler: String, extra: List<&2, V.ViewAttr>) -> V.ViewNode:
   menuNode(id, "menuitem", text, icon, handler, extra)
-
-# ---------- sessão nova ----------
-
-def newSessionDefault() -> V.ViewNode:
-  item("new-session-default", M.msg("header.newSessionPi"), "plus", "NewSession", Nil{})
-
-def newSessionClaude() -> V.ViewNode:
-  item(
-    "new-session-claude",
-    M.msg("header.newSessionClaude"),
-    "plus",
-    "NewSessionClaude",
-    Nil{}
-  )
-
-# OpenCode (#57): motor com os modelos grátis do Zen.
-def newSessionOpenCode() -> V.ViewNode:
-  item(
-    "new-session-opencode",
-    M.msg("header.newSessionOpenCode"),
-    "plus",
-    "NewSessionOpenCode",
-    Nil{}
-  )
-
-def newSessionItems() -> List<&2, V.ViewNode>:
-  [newSessionDefault(), newSessionClaude(), newSessionOpenCode()]
-
-# O menu aberto precisa dizer o que se escolhe; o `aria-label` do popover já
-# nomeia o grupo, então o cabeçalho visível é decorativo para o leitor de tela.
-def newSessionHead() -> V.ViewNode:
-  V.viewEl("div", [V.attrClass("conv-head"), V.attr("aria-hidden", "true")], [
-    V.viewEl("strong", Nil{}, [V.viewText(M.msg("header.newSessionWith"))])
-  ])
-
-def newSessionMenu() -> List<&2, V.ViewNode>:
-  [newSessionHead(), newSessionDefault(), newSessionClaude(), newSessionOpenCode()]
 
 # ---------- mais opções ----------
 
@@ -105,7 +66,8 @@ def endDayItem(endDay: Bool) -> V.ViewNode:
   )
 
 # "Contexto" é uma linha que abre o submenu no próprio lugar (sem flyout):
-# dentro dele ficam a medição viva e as duas ações de compactação.
+# dentro dele ficam o que vai junto e a edição do contexto de estudo (nós vivos
+# do host, #123), a medição viva e as duas ações de compactação.
 def contextItem() -> V.ViewNode:
   item(
     "more-context",

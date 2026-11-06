@@ -261,10 +261,6 @@ function $studyContextRow(_f_0) {
   const _studyContext_0 = _f_0["studyContext"];
   return $view_viewEl("div", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("study-context"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$hiddenAttrs($$Bool_not(_studyContext_0)), tail: { $: "Nil" } } }), { $: "Nil" });
 }
-function $contextEditButton(_f_0) {
-  const _studyContext_0 = _f_0["studyContext"];
-  return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("context-edit"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$hiddenAttrs($$Bool_not(_studyContext_0)), tail: { $: "Nil" } } }), { $: "Nil" });
-}
 function $conferirButton(_f_0) {
   const _conferir_0 = _f_0["conferir"];
   return $view_viewEl("button", $$view_attrJoin({ $: "Con", head: { $: "Con", head: $$view_attrId("check"), tail: { $: "Nil" } }, tail: { $: "Con", head: $$hiddenAttrs($$Bool_not(_conferir_0)), tail: { $: "Nil" } } }), { $: "Nil" });
@@ -444,7 +440,6 @@ var deskflags_default = {
   "refsPressed.if": run_lib((a0, a1) => run_loop($refsPressed_if(a0, a1)), 2),
   includeRefsButton: run_lib((a0) => run_loop($includeRefsButton(a0)), 1),
   studyContextRow: run_lib((a0) => run_loop($studyContextRow(a0)), 1),
-  contextEditButton: run_lib((a0) => run_loop($contextEditButton(a0)), 1),
   conferirButton: run_lib((a0) => run_loop($conferirButton(a0)), 1),
   calcDivider: run_lib((a0) => run_loop($calcDivider(a0)), 1)
 };

@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {makeZip} from './zipkit.mjs';
 import {TEST_COMMIT, makeSignedRelease} from './fake-update-release.mjs';
+import {tempDir, trackTempDir} from './temp-dir.mjs';
 
 /* Aplicação do updater em raiz fake (modos git e zip), SEM rede e SEM processo
    real: comandos (git/npm/node) e o reopen são falsos/injetados. Os cenários
@@ -15,7 +15,7 @@ import {TEST_COMMIT, makeSignedRelease} from './fake-update-release.mjs';
 const require = createRequire(import.meta.url);
 const updater = require('../updater.cjs');
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-updateflow-test-'));
+const tmp = () => tempDir('mesa-updateflow-test');
 const write = (file, text) => { fs.mkdirSync(path.dirname(file), {recursive: true}); fs.writeFileSync(file, text); };
 const read = (file) => fs.readFileSync(file, 'utf8');
 
@@ -123,8 +123,9 @@ test('modo zip: substitui só a lista explícita, protegido intocado, npm ci só
 });
 
 test('modo zip: lock igual não roda npm ci', async () => {
-  const root = fakeInstallRoot();
-  const runtime = tmp();
+ const root = fakeInstallRoot();
+ write(path.join(root, 'desk', 'package.json'), '{"version":"0.3.9"}'); /* abaixo da anunciada: a trava anti-rollback deixa passar */
+ const runtime = tmp();
   const {run, calls} = fakeRun();
   const zip = makeZip({'x/desk/main.cjs': 'main novo', 'x/desk/package.json': '{"version":"0.4.0"}', 'x/desk/package-lock.json': '{"lock":"antigo"}'});
   const release = makeSignedRelease({version: '0.4.0', commit: TEST_COMMIT, zip});
@@ -332,7 +333,7 @@ test('A1: rollback re-sincroniza as dependências do payload quando o sync passa
 test('B1: entrada de manifesto fora da raiz é recusada (sem delete arbitrário)', () => {
   const root = tmp();
   write(path.join(root, 'desk', 'src', 'velho.mjs'), 'órfão gerenciado');
-  const vitima = path.join(path.dirname(root), 'vitima-manifesto.txt');
+  const vitima = path.join(tmp(), 'vitima-manifesto.txt');
   write(vitima, 'não me apaga');
   const linhas = [];
   const removidos = updater.removeOrphans(root, ['desk/src/velho.mjs', '../' + path.basename(vitima), '/etc/hosts'], [], (l) => linhas.push(l));
@@ -340,66 +341,6 @@ test('B1: entrada de manifesto fora da raiz é recusada (sem delete arbitrário)
   assert.equal(fs.existsSync(path.join(root, 'desk', 'src', 'velho.mjs')), false, 'o órfão gerenciado sai');
   assert.equal(fs.existsSync(vitima), true, 'o arquivo fora da raiz sobrevive');
   assert.match(linhas.join('\n'), /entrada de manifesto recusada/);
-});
-
-test('applyPiOnly: npm install do Pi local no pós-fechamento; falha vira motivo no log', async () => {
-  const deskDir = path.join(tmp(), 'desk');
-  fs.mkdirSync(deskDir, {recursive: true});
-  const runtime = tmp();
-  const reopens = [];
-  let cwdVisto = '';
-  const ok = fakeRun((cmd, args, opts) => { cwdVisto = opts?.cwd || ''; return {stdout: ''}; });
-  const okResult = await updater.applyPiOnly({deskDir, runtime, run: ok.run, reopen: () => reopens.push('reabriu')});
-  assert.equal(okResult.ok, true);
-  assert.deepEqual(ok.calls, [['npm', 'install', '@earendil-works/pi-coding-agent@latest']]);
-  /* A2: o npm do Pi agora roda em desk/.pi-local (package.json próprio, fora
-     da árvore npm da Mesa) — o cwd do npm é a pasta do Pi, nunca o desk. */
-  assert.equal(cwdVisto, path.join(deskDir, '.pi-local'), 'o npm do Pi roda dentro de desk/.pi-local');
-  assert.equal(fs.existsSync(path.join(deskDir, '.pi-local', 'package.json')), true, 'a pasta do Pi local tem package.json próprio');
-  assert.equal(fs.existsSync(path.join(deskDir, 'package.json')), false, 'o npm do Pi NÃO cria package.json na raiz do desk');
-  assert.equal(reopens.length, 1);
-
-  const falha = fakeRun(() => { throw Error('registry fora do ar'); });
-  const badResult = await updater.applyPiOnly({deskDir, runtime, run: falha.run, reopen: () => reopens.push('reabriu')});
-  assert.equal(badResult.ok, false);
-  assert.match(logOf(runtime), /FALHOU ao atualizar o Pi \(registry fora do ar\)/);
-  assert.equal(reopens.length, 2, 'mesmo na falha a Mesa reabre (com o Pi que já estava)');
-});
-
-/* ---------- D2: o Pi local sobrevive à atualização da Mesa ---------- */
-
-test('D2/A2: update da Mesa deixa o Pi local (.pi-local) resolvível e executável', async () => {
-  const root = fakeInstallRoot();
-  const deskDir = path.join(root, 'desk');
-  /* Contrato novo: o Pi mora em desk/.pi-local, com lock próprio. */
-  const piHome = path.join(deskDir, '.pi-local');
-  fs.mkdirSync(path.join(piHome, 'node_modules', '.bin'), {recursive: true});
-  fs.writeFileSync(path.join(piHome, 'package.json'), '{"name":"mesa-pi-local","version":"1.0.0","private":true}');
-  fs.writeFileSync(path.join(piHome, 'node_modules', '.bin', 'pi'), '#!/usr/bin/env node\n');
-  fs.chmodSync(path.join(piHome, 'node_modules', '.bin', 'pi'), 0o755);
-  const {resolvePi, ensurePiLocalHome} = require('../pi.cjs');
-  const antes = resolvePi({deskDir});
-  assert.equal(antes, path.join(piHome, 'node_modules', '.bin', 'pi'), 'o Pi local vence os candidatos automáticos');
-
-  const runtime = tmp();
-  const zip = makeZip({
-    'x/desk/package.json': '{"version":"0.4.1"}',
-    'x/desk/package-lock.json': '{"lock":"novo"}',
-    'x/desk/main.cjs': 'main novo',
-  });
-  const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
-  const result = await updater.applyUpdate({
-    mode: 'zip', rootDir: root, deskDir, runtime, announcedVersion: '0.4.1',
-    publicKey: release.publicKey, fetchBuffer: release.fetchBuffer, run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
-  });
-  assert.equal(result.ok, true);
-  /* O update reescreveu o desk inteiro; o Pi local (e o lock dele) ficou. */
-  assert.equal(fs.existsSync(path.join(piHome, 'node_modules', '.bin', 'pi')), true, 'o binário do Pi continua lá');
-  assert.equal(resolvePi({deskDir}), antes, 'resolvePi continua achando o Pi local');
-  assert.equal(ensurePiLocalHome(deskDir), piHome, 'o ensure mantém a mesma pasta');
-  /* E o lock do Pi nunca foi para a lista do updater (protegido de fato). */
-  const manifesto = JSON.parse(read(path.join(root, '.update-manifest.json')));
-  assert.ok(!manifesto.files.some((f) => f.startsWith('.pi-local/')), 'o Pi local está fora do manifesto do zip');
 });
 
 /* ---------- D5: órfãos gerenciados, adicionados locais e symlink ---------- */
@@ -538,6 +479,8 @@ test('D4/A5: recuperação que falha PRESERVA o backup e diz o caminho no log', 
   });
   assert.equal(result.ok, false);
   assert.equal(result.incomplete, true, 'a falha é declarada como recuperação incompleta');
+  /* O backup preservado (A5) é lixo de teste: registra para o sweep garantido. */
+  if (result.backup) trackTempDir(result.backup);
   assert.ok(result.backup && fs.existsSync(result.backup), 'o backup fica no disco');
   assert.equal(backupInjetado, result.backup, 'o backup reportado é o que o updater criou');
   const entries = logOf(runtime).split('\n').filter(Boolean).map((line) => JSON.parse(line));
@@ -549,6 +492,89 @@ test('D4/A5: recuperação que falha PRESERVA o backup e diz o caminho no log', 
   /* O restore foi interrompido antes de copiar: o código novo sobreviveu — é
      exatamente por isso que o backup não pode ser apagado. */
   assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main novo');
+});
+
+/* Regressão (2026-11-05): o rollback COMPLETO apaga o instantâneo — só o
+   rollback incompleto o preserva (A5). Sem o rm, cada update desfeito deixava
+   um `mesa-update-backup-*` inteiro no /tmp. O TMPDIR isolado torna a contagem
+   imune a outros testes em paralelo. */
+test('rollback completo não deixa mesa-update-backup para trás', async () => {
+  const root = fakeInstallRoot();
+  const runtime = tmp();
+  const isolado = tempDir('mesa-tmpdir-isolado');
+  const anterior = process.env.TMPDIR;
+  process.env.TMPDIR = isolado;
+  try {
+    fs.mkdirSync(path.join(root, 'desk', 'src', 'bloqueado.mjs'));
+    const zip = makeZip({
+      ...NOVO,
+      'mesa-de-estudos-0.4.1/desk/src/bloqueado.mjs': 'não vai entrar',
+    });
+    const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip});
+    const result = await updater.applyUpdate({
+      mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
+      publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+      run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+    });
+    assert.equal(result.ok, false);
+    assert.match(logOf(runtime), /rollback aplicado/);
+    assert.equal(result.incomplete, undefined, 'rollback completo: nada é declarado incompleto');
+    assert.deepEqual(fs.readdirSync(isolado), [], 'nenhum mesa-update-backup-* sobra do rollback completo');
+  } finally {
+    if (anterior === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = anterior;
+  }
+});
+
+/* Regressão (2026-11-05): falha ao apagar o instantâneo depois de um rollback
+   completo só vai ao log (não vira exceção que o catch do apply leria como
+   rollback incompleto). A pasta-mãe só-leitura faz o rm falhar. */
+test('backup de rollback completo que não apaga só vai ao log', {skip: process.platform === 'win32' || process.getuid?.() === 0}, () => {
+  const mae = tempDir('mesa-backup-mae');
+  const backup = path.join(mae, 'mesa-update-backup-x');
+  fs.mkdirSync(path.join(backup, 'desk'), {recursive: true});
+  fs.writeFileSync(path.join(backup, 'desk', 'main.cjs'), 'antigo');
+  fs.chmodSync(mae, 0o500);
+  const linhas = [];
+  try {
+    assert.equal(updater.discardUpdateBackup(backup, (linha) => linhas.push(linha)), false);
+  } finally {
+    fs.chmodSync(mae, 0o700);
+  }
+  assert.match(linhas.join('\n'), /instantâneo não foi apagado/);
+  assert.equal(updater.discardUpdateBackup(backup, (linha) => linhas.push(linha)), true);
+  assert.equal(fs.existsSync(backup), false);
+});
+
+/* Regressão (revisão de segurança, 2026-11-05): no caminho feliz o rm do
+   instantâneo também estava dentro do try; se falhasse, o catch desfazia o
+   update já aplicado lendo um backup meio apagado. A pasta-mãe só-leitura
+   faz o rm falhar depois do instantâneo. */
+test('falha ao apagar o instantâneo depois do update não desfaz o update', {skip: process.platform === 'win32' || process.getuid?.() === 0}, async () => {
+  const root = fakeInstallRoot();
+  const runtime = tmp();
+  const isolado = tempDir('mesa-tmpdir-isolado');
+  const anterior = process.env.TMPDIR;
+  process.env.TMPDIR = isolado;
+  try {
+    const release = makeSignedRelease({version: '0.4.1', commit: TEST_COMMIT, zip: makeZip(NOVO)});
+    const result = await updater.applyUpdate({
+      mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime, announcedVersion: '0.4.1',
+      publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+      run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+      snapshot: (snapshotRoot, backup, include) => {
+        updater.snapshotTree(snapshotRoot, backup, include);
+        fs.chmodSync(isolado, 0o500);
+      },
+    });
+    assert.equal(result.ok, true, 'a limpeza do instantâneo não é parte da transação');
+    assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main novo');
+    assert.match(logOf(runtime), /instantâneo não foi apagado/);
+  } finally {
+    fs.chmodSync(isolado, 0o700);
+    if (anterior === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = anterior;
+  }
 });
 
 /* ---------- A4: PID que não sai no prazo aborta sem tocar nada ---------- */
@@ -574,8 +600,9 @@ test('D3/A4: PID que não sai no prazo → update abortado, disco intacto, sem r
 });
 
 test('D3/A4: PID que sai normalmente destrava a aplicação', async () => {
-  const root = fakeInstallRoot();
-  const runtime = tmp();
+ const root = fakeInstallRoot();
+ write(path.join(root, 'desk', 'package.json'), '{"version":"0.3.9"}'); /* abaixo da anunciada: a trava anti-rollback deixa passar */
+ const runtime = tmp();
   const child = require('node:child_process').spawn('sleep', ['0.2']);
   const zip = makeZip({'x/desk/main.cjs': 'main novo', 'x/desk/package.json': '{"version":"0.4.0"}'});
   const release = makeSignedRelease({version: '0.4.0', commit: TEST_COMMIT, zip});
@@ -681,10 +708,97 @@ test('#80: commit da tag diferente do manifesto recusa git e bundle antes do mer
       announcedVersion: '0.4.1', sourceInfo: mode === 'bundle' ? {path: clone} : null,
       publicKey: release.publicKey, fetchBuffer: release.fetchBuffer, run, reopen: () => {}, waitPid: 0,
     });
-    assert.equal(result.ok, false, `${mode}: recusa`);
-    assert.match(result.reason, /commit da tag v0\.4\.1/, `${mode}: motivo diz a tag`);
-    assert.match(result.reason, /não bate com o commit do manifesto assinado/, `${mode}: motivo diz o manifesto`);
-    assert.ok(!calls.some((call) => call[0] === 'git' && call[1] === 'merge'), `${mode}: merge nunca acontece`);
-    assert.equal(read(path.join(clone, 'desk', 'main.cjs')), 'main antigo', `${mode}: nada aplicado`);
-  }
+  assert.equal(result.ok, false, `${mode}: recusa`);
+  assert.match(result.reason, /commit da tag v0\.4\.1/, `${mode}: motivo diz a tag`);
+  assert.match(result.reason, /não bate com o commit do manifesto assinado/, `${mode}: motivo diz o manifesto`);
+  assert.ok(!calls.some((call) => call[0] === 'git' && call[1] === 'merge'), `${mode}: merge nunca acontece`);
+  assert.equal(read(path.join(clone, 'desk', 'main.cjs')), 'main antigo', `${mode}: nada aplicado`);
+ }
+});
+
+/* ---------- Anti-rollback: a anunciada tem de ser mais nova que a instalada ----------
+   Quem controla os metadados da Release pública, sem a chave, pode marcar uma
+   versão assinada ANTIGA como `latest`; sem a trava, o updater instalava. A
+   recusa vem antes de qualquer mutação e antes de baixar (o `downloads` conta
+   os GETs do manifesto/assinatura/zip). */
+
+/* Instalação numa versão, com o zip assinado de outra. */
+function olderSignedRelease(installed, announced) {
+  const root = fakeInstallRoot();
+  write(path.join(root, 'desk', 'package.json'), `{"version":"${installed}"}`);
+  const zip = makeZip({
+   'x/desk/package.json': `{"version":"${announced}"}`,
+   'x/desk/main.cjs': `main da v${announced}`,
+  });
+  return {root, release: makeSignedRelease({version: announced, commit: TEST_COMMIT, zip})};
+}
+
+test('anti-rollback: versão assinada mais velha recusa sem baixar e sem tocar o disco', async () => {
+ const {root, release} = olderSignedRelease('0.4.1', '0.4.0');
+ const runtime = tmp();
+ const reopens = [];
+ let downloads = 0;
+ const result = await updater.applyUpdate({
+  mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
+  announcedVersion: '0.4.0', publicKey: release.publicKey,
+  fetchBuffer: async (url) => { downloads++; return release.fetchBuffer(url); },
+  run: async () => ({stdout: ''}), reopen: () => reopens.push('reabriu'), waitPid: 0,
+ });
+ assert.equal(result.ok, false);
+ assert.match(result.reason, /não é mais nova/);
+ assert.match(result.reason, /0\.4\.0/);
+ assert.match(result.reason, /0\.4\.1/);
+ assert.equal(downloads, 0, 'a trava vem antes de baixar o manifesto');
+ assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main antigo', 'nada aplicado');
+ assert.equal(read(path.join(root, 'desk', 'package.json')), '{"version":"0.4.1"}');
+ assert.equal(fs.existsSync(path.join(root, '.update-manifest.json')), false, 'sem prova de aplicação');
+ assert.deepEqual(reopens, [], 'recusa antes de mutar: nada a reabrir');
+ assert.match(logOf(runtime), /não é mais nova/);
+});
+
+test('anti-rollback: versão igual à instalada recusa (reinstalar não é update)', async () => {
+ const {root, release} = olderSignedRelease('0.4.0', '0.4.0');
+ const runtime = tmp();
+ let downloads = 0;
+ const result = await updater.applyUpdate({
+  mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
+  announcedVersion: '0.4.0', publicKey: release.publicKey,
+  fetchBuffer: async (url) => { downloads++; return release.fetchBuffer(url); },
+  run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0,
+ });
+ assert.equal(result.ok, false);
+ assert.match(result.reason, /não é mais nova/);
+ assert.equal(downloads, 0, 'a trava vem antes de baixar o manifesto');
+ assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main antigo', 'nada aplicado');
+});
+
+test('anti-rollback: allowOlder aplica a mais velha; sem ele, a mesma recusa', async () => {
+ /* Só o CLI passa `allowOlder` (com `--versao` explícito): a chamada automática
+    nunca passa, então o caminho automático segue travado. */
+ for (const allowOlder of [false, true]) {
+  const {root, release} = olderSignedRelease('0.4.1', '0.4.0');
+  const runtime = tmp();
+  const result = await updater.applyUpdate({
+   mode: 'zip', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
+   announcedVersion: '0.4.0', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+   run: async () => ({stdout: ''}), reopen: () => {}, waitPid: 0, allowOlder,
+  });
+  assert.equal(result.ok, allowOlder, `allowOlder=${allowOlder}`);
+  assert.equal(read(path.join(root, 'desk', 'main.cjs')), allowOlder ? 'main da v0.4.0' : 'main antigo');
+ }
+});
+
+test('anti-rollback no modo git: anunciada mais velha recusa antes de qualquer git', async () => {
+ const {root, release} = olderSignedRelease('0.4.1', '0.4.0');
+ const runtime = tmp();
+ const {run, calls} = fakeRun();
+ const result = await updater.applyUpdate({
+  mode: 'git', rootDir: root, deskDir: path.join(root, 'desk'), runtime,
+  announcedVersion: '0.4.0', publicKey: release.publicKey, fetchBuffer: release.fetchBuffer,
+  run, reopen: () => {}, waitPid: 0,
+ });
+ assert.equal(result.ok, false);
+ assert.match(result.reason, /não é mais nova/);
+ assert.deepEqual(calls, [], 'nem o git rev-parse roda antes da trava');
+ assert.equal(read(path.join(root, 'desk', 'main.cjs')), 'main antigo', 'nada aplicado');
 });

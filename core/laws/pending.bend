@@ -140,3 +140,12 @@ law pending_hold_after_answer_busy:
   {P.holdAfterAnswer(True{}, False{}, True{}, True{}) == False{} : Bool}
 law pending_hold_after_answer_permission:
   {P.holdAfterAnswer(False{}, True{}, True{}, False{}) == False{} : Bool}
+
+law pending_rehold_after_send_refused:
+  {P.reholdAfterSend(True{}, False{}) == True{} : Bool}
+law pending_rehold_after_send_accepted:
+  {P.reholdAfterSend(True{}, True{}) == False{} : Bool}
+law pending_rehold_after_send_not_held_refused:
+  {P.reholdAfterSend(False{}, False{}) == False{} : Bool}
+law pending_rehold_after_send_not_held_accepted:
+  {P.reholdAfterSend(False{}, True{}) == False{} : Bool}

@@ -43,14 +43,14 @@ async function shot(page,name){
  await page.screenshot({path:path.join(SHOT_DIR,name)});
 }
 
-async function openDesk(ctx,tag,{two}){
+async function openDesk(ctx,tag,{two,env}){
  const runtime=ctx.runtime=newRuntime(tag),course=seedCourse(runtime,'Test');
  fs.writeFileSync(path.join(course,'Limites.pdf'),pagesPdf(6,n=>`Limites pagina ${n}`));
  fs.writeFileSync(path.join(course,`${LONG}.pdf`),pagesPdf(4,n=>`Lista longa pagina ${n}`));
  if(two)fs.writeFileSync(path.join(course,'Formulario.pdf'),pagesPdf(3,n=>`Formulario pagina ${n}`));
  const desk=two?{pinnedExtensions:false}:{panels:[{label:'Lista',prefer:['Limites']}],pinnedExtensions:false};
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Cálculo I',path:course}],desk});
- ctx.app=await launchDesk({runtime});
+ ctx.app=await launchDesk({runtime,env:env||{}});
  const page=await ctx.app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
  await page.waitForSelector('.pdf-panel canvas',{timeout:25000});
@@ -200,21 +200,24 @@ await withArtifacts('leitor-dois',async ctx=>{
  await page.keyboard.press('ControlOrMeta+Shift+I');
  assert.equal(await first.locator('.invert').getAttribute('aria-pressed'),'false','⌘⇧I desfaz');
 
- /* #42 (5): "Página escura" — opcional, desligada por padrão mesmo no tema
-    escuro, por leitor (o outro leitor não muda e trocar de material mantém),
-    inverte papel e texto preservando o matiz. */
- const darkState=async i=>reader(page,i).evaluate(panel=>{
-  const item=panel.querySelector('.invert'),canvas=panel.querySelector('.pdf-page canvas');
-  return {label:item.textContent.trim(),pressed:item.getAttribute('aria-pressed'),state:getComputedStyle(item,'::after').content,filter:canvas?getComputedStyle(canvas).filter:'',inverted:panel.querySelector('.pdf-viewport').classList.contains('inverted')};
- });
- for(const [theme] of THEMES){
-  await setTheme(page,theme);
-  const off=await darkState(0);
-  assert.equal(off.label,'Página escura',`${theme}: o item se chama Página escura`);
-  assert.equal(off.pressed,'false',`${theme}: desligada por padrão, mesmo no tema escuro`);
-  assert.equal(off.state,'"Desligada"',`${theme}: o menu diz que está desligada`);
-  assert.equal(off.inverted,false,`${theme}: a página continua branca`);
- }
+  /* #42 (5): "Página escura" — opcional, desligada por padrão mesmo no tema
+     escuro, por leitor (o outro leitor não muda e trocar de material mantém),
+     inverte papel e texto preservando o matiz. O estado sai no `::after` a
+     partir do `data-state` que o `paintInvertState` traduz (E1 da auditoria EN,
+     rodada 8): o CSS não fixa mais "Desligada"/"Ligada". */
+  const darkState=async i=>reader(page,i).evaluate(panel=>{
+   const item=panel.querySelector('.invert'),canvas=panel.querySelector('.pdf-page canvas');
+   return {label:item.textContent.trim(),pressed:item.getAttribute('aria-pressed'),state:getComputedStyle(item,'::after').content,dataState:item.dataset.state,filter:canvas?getComputedStyle(canvas).filter:'',inverted:panel.querySelector('.pdf-viewport').classList.contains('inverted')};
+  });
+  for(const [theme] of THEMES){
+   await setTheme(page,theme);
+   const off=await darkState(0);
+   assert.equal(off.label,'Página escura',`${theme}: o item se chama Página escura`);
+   assert.equal(off.pressed,'false',`${theme}: desligada por padrão, mesmo no tema escuro`);
+   assert.equal(off.dataState,'Desligada',`${theme}: o data-state traduzido diz que está desligada`);
+   assert.equal(off.state,'"Desligada"',`${theme}: o menu diz que está desligada`);
+   assert.equal(off.inverted,false,`${theme}: a página continua branca`);
+  }
  await setTheme(page,'dark');
  await first.locator('.more').click();
  await menu.locator('.invert').click();
@@ -222,8 +225,9 @@ await withArtifacts('leitor-dois',async ctx=>{
  assert.equal(on.pressed,'true','ligar a Página escura no menu');
  assert.match(on.filter,/invert\(1\) hue-rotate\(180deg\)/,`inverte preservando o matiz (${on.filter})`);
  assert.equal((await darkState(1)).inverted,false,'o outro leitor não muda: é estado por leitor');
- await first.locator('.more').click();
- assert.equal((await darkState(0)).state,'"Ligada"','o menu diz que está ligada');
+  await first.locator('.more').click();
+  assert.equal((await darkState(0)).state,'"Ligada"','o menu diz que está ligada');
+  assert.equal((await darkState(0)).dataState,'Ligada','o data-state acompanha em português');
  await shot(page,'pagina-escura-escuro-1440x900-menu.png');
  await page.keyboard.press('Escape');
  await shot(page,'pagina-escura-escuro-1440x900.png');
@@ -238,24 +242,27 @@ await withArtifacts('leitor-dois',async ctx=>{
  assert.equal((await darkState(0)).pressed,'false','desligar a Página escura');
  await setTheme(page,'light');
 
- /* #42 (4): borda de foco — uma regra só. O painel onde está o foco (leitor,
-    coluna do tutor ou chat lateral) ganha o mesmo contorno de 1px na cor do
-    anel; os outros não têm contorno. */
+ /* #42 (4): borda de foco. A coluna do tutor e o chat lateral ganham o
+    contorno de 1px na cor do anel no painel; no leitor o anel fica só na
+    barra de ferramentas (auditoria de UI/UX, rodada 1, C1). */
  const rings=()=>page.evaluate(()=>{
   const probe=document.createElement('span');probe.style.color='var(--ring)';document.body.append(probe);
   const ring=getComputedStyle(probe).color;probe.remove();
   const look=el=>{if(!el)return null;const cs=getComputedStyle(el,'::after');return {on:cs.content!=='none'&&cs.borderTopStyle==='solid',width:cs.borderTopWidth,color:cs.borderTopColor,inset:[cs.top,cs.left,cs.right,cs.bottom].join(' ')};};
-  return {ring,reader:look(document.querySelectorAll('#pdf-grid .pdf-panel')[0]),other:look(document.querySelectorAll('#pdf-grid .pdf-panel')[1]),tutor:look(document.querySelector('#sidebar')),side:look(document.querySelector('#sidechat'))};
+  const reader=document.querySelectorAll('#pdf-grid .pdf-panel')[0];
+  return {ring,reader:look(reader),bar:look(reader?.querySelector(':scope > .pdf-title')),other:look(document.querySelectorAll('#pdf-grid .pdf-panel')[1]),tutor:look(document.querySelector('#sidebar')),side:look(document.querySelector('#sidechat'))};
  });
+ const ringShape=(r,key,label)=>{
+  assert.equal(r[key].on,true,`${label}: ${key} ganha o contorno`);
+  assert.equal(r[key].width,'1px',`${label}: contorno de 1px`);
+  assert.equal(r[key].color,r.ring,`${label}: contorno na cor do anel`);
+  assert.equal(r[key].inset,'0px 0px 0px 0px',`${label}: contorno por dentro`);
+ };
  const only=(r,who,label)=>{
-  for(const key of ['reader','other','tutor','side']){
+  for(const key of ['reader','bar','other','tutor','side']){
    if(!r[key])continue;
-   if(key===who){
-    assert.equal(r[key].on,true,`${label}: ${key} ganha o contorno`);
-    assert.equal(r[key].width,'1px',`${label}: contorno de 1px`);
-    assert.equal(r[key].color,r.ring,`${label}: contorno na cor do anel`);
-    assert.equal(r[key].inset,'0px 0px 0px 0px',`${label}: contorno por dentro do painel`);
-   }else assert.equal(r[key].on,false,`${label}: ${key} sem contorno`);
+   if(key===who)ringShape(r,key,label);
+   else assert.equal(r[key].on,false,`${label}: ${key} sem contorno`);
   }
  };
  for(const [theme,tag] of THEMES){
@@ -264,7 +271,7 @@ await withArtifacts('leitor-dois',async ctx=>{
    await setSize(ctx.app,page,size);
    const label=`${tag} ${size.join('x')}`;
    await first.locator('.pager').focus();
-   only(await rings(),'reader',`${label} leitor`);
+   only(await rings(),'bar',`${label} leitor`);
    await shot(page,`foco-leitor-${tag}-${size.join('x')}.png`);
    await page.locator('#prompt').focus();
    only(await rings(),'tutor',`${label} tutor`);
@@ -276,10 +283,39 @@ await withArtifacts('leitor-dois',async ctx=>{
    await closeSidechat(page);
   }
  }
- await setTheme(page,'light');
- await setSize(ctx.app,page,WIDE);
+  await setTheme(page,'light');
+  await setSize(ctx.app,page,WIDE);
 
- /* Páginas: o pager vira campo; as setas do teclado continuam andando. */
+  /* Auditoria de UI/UX, rodada 2 (D3): o próprio painel (`tabindex="0"`) ganha
+     um indicador discreto de 1px quando o foco do teclado chega nele; o clique
+     com o mouse não mostra. O anel da barra continua valendo. */
+  const panelRing=(index)=>page.evaluate((i)=>{
+    const panel=document.querySelectorAll('#pdf-grid .pdf-panel')[i];
+    const cs=getComputedStyle(panel,'::after');
+    return {on:cs.content!=='none'&&cs.borderTopStyle==='solid',width:cs.borderTopWidth,color:cs.borderTopColor};
+  },index);
+  const focusedPanel=()=>page.evaluate(()=>[...document.querySelectorAll('#pdf-grid .pdf-panel')].findIndex((p)=>p===document.activeElement));
+  const ringColor=await page.evaluate(()=>{
+    const probe=document.createElement('span');probe.style.color='var(--ring)';document.body.append(probe);
+    const color=getComputedStyle(probe).color;probe.remove();return color;
+  });
+  await first.locator('.pdf-title').click({position:{x:4,y:4}});
+  const mouseRing=await panelRing(0);
+  assert.equal(mouseRing.on,false,'clique com o mouse: painel sem indicador');
+  await page.evaluate(()=>document.activeElement?.blur());
+  for(let i=0;i<40;i++){
+   if(await focusedPanel()>=0)break;
+   await page.keyboard.press('Tab');
+  }
+  const at=await focusedPanel();
+  assert.ok(at>=0,'Tab alcança um painel do leitor');
+  const keyRing=await panelRing(at);
+  assert.equal(keyRing.on,true,'Tab até o painel: indicador discreto aparece');
+  assert.equal(keyRing.width,'1px','Tab até o painel: indicador de 1px');
+  assert.equal(keyRing.color,ringColor,'Tab até o painel: indicador na cor do anel');
+  await shot(page,'foco-painel-claro-1440x900.png');
+
+  /* Páginas: o pager vira campo; as setas do teclado continuam andando. */
  assert.equal(await first.locator('.pager').getAttribute('aria-label'),'Página 1 de 6','o pager diz a página e o total');
  await first.locator('.pager').click();
  assert.equal(await first.locator('.page-number').getAttribute('aria-label'),'Página 1 de 6','o campo diz a página e o total');
@@ -334,9 +370,41 @@ await withArtifacts('leitor-dois',async ctx=>{
  await settle(page);
  const reopened=await second.boundingBox();
  assert.ok(near(reopened.width,before.width,3),`reabrir devolve a largura (${reopened.width} de ${before.width})`);
- assertOneLine(await bars(page),'depois de reabrir',{readers:2});
- assert.deepEqual(errors,[],'sem erros na página');
-});
+  assertOneLine(await bars(page),'depois de reabrir',{readers:2});
+  assert.deepEqual(errors,[],'sem erros na página');
+ });
+
+ /* E1 da auditoria EN (rodada 8): em inglês o item "Dark page" termina com o
+    estado traduzido ("Off"/"On", do catálogo via `data-state`), nunca
+    "Desligada"/"Ligada". A troca de idioma com o app aberto repinta. */
+ await withArtifacts('leitor-en-dark-state',async ctx=>{
+  const {page,errors}=await openDesk(ctx,'leitor-en-dark-state',{two:false,env:{LEARNING_DESK_LOCALE:'en-US'}});
+  const panel=reader(page,0);
+  const state=()=>panel.evaluate(el=>{
+   const item=el.querySelector('.invert');
+   return {label:item.textContent.trim(),pressed:item.getAttribute('aria-pressed'),dataState:item.dataset.state,shown:getComputedStyle(item,'::after').content};
+  });
+  await setTheme(page,'dark');
+  const off=await state();
+  assert.equal(off.label,'Dark page','en: o item se chama Dark page');
+  assert.equal(off.pressed,'false','en: desligada por padrão');
+  assert.equal(off.dataState,'Off','en: o data-state vem do catálogo inglês');
+  assert.equal(off.shown,'"Off"','en: o menu mostra Off, sem português');
+  await panel.locator('.more').click();
+  await panel.locator('.pdf-more-pop .invert').click();
+  const on=await state();
+  assert.equal(on.pressed,'true','en: ligar a Dark page no menu');
+  assert.equal(on.dataState,'On','en: o data-state acompanha');
+  assert.equal(on.shown,'"On"','en: o menu mostra On');
+  /* Trocar para PT repinta o estado sem recarregar. */
+  await page.evaluate(async()=>{(await import('./src/ui-text.mjs')).setUiLanguage('pt-BR');});
+  const back=await state();
+  assert.equal(back.label,'Página escura','pt-BR: o item volta ao português');
+  assert.equal(back.dataState,'Ligada','pt-BR: o ligado repinta em português');
+  assert.equal(back.shown,'"Ligada"','pt-BR: o menu mostra Ligada');
+  await setTheme(page,'light');
+  assert.deepEqual(errors,[],'sem erros na página');
+ });
 
 await withArtifacts('leitor-um',async ctx=>{
  const {page,errors}=await openDesk(ctx,'leitor-um',{two:false});

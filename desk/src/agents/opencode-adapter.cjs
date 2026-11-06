@@ -40,7 +40,9 @@ const {markTutorPrompt, visibleHistory} = require('./tutor-prompt-text.mjs');
 const {contextUsage} = require('./opencode-usage.cjs');
 const {WIRE_SESSION_RE, wireMessageId} = require('./opencode-ids.cjs');
 const {materializeImages} = require('./opencode-images.cjs');
-const {PROMPT_TIMEOUT_MS, admitTurn, failure, inboxUser} = require('./opencode-delivery.cjs');
+const {PROMPT_TIMEOUT_MS, admitTurn, failure, inboxUser, redactErrorDetail, stringStatus} = require('./opencode-delivery.cjs');
+const {trackDelivery, cancel: cancelAdapter, cancelledAcceptance: settleCancelledAcceptance} = require('./opencode-cancel.cjs');
+const {createTurnGuard} = require('./opencode-turn-guard.cjs');
 const {readOpenCodeVersion, oldOpenCode} = require('./opencode-version.cjs');
 const {message} = require('../i18n.mjs');
 /**
@@ -50,20 +52,8 @@ const {message} = require('../i18n.mjs');
  *   resume?: boolean, systemPrompt?: string, onSessionId?: (id: string) => unknown, sessionTitle?: string, selection?: unknown, fetch?: typeof globalThis.fetch,
  *   persistDelivery?: (patch: {id: string, status: string}) => unknown, log?: (area: string, line: string) => void,
  *   mcpConfig?: () => Record<string, unknown>|null, compactTimeoutMs?: number,
- *   readVersion?: (binary: string) => Promise<string>, deleteSessionOnStop?: boolean}} OpenCodeAdapterOptions
+ *   cancelAcquire?: () => void, readVersion?: (binary: string) => Promise<string>, deleteSessionOnStop?: boolean}} OpenCodeAdapterOptions
  */
-
-/** @param {unknown} value @returns {string} */
-function redactErrorDetail(value) {
-  return String(value || '').replace(/((?:api[_-]?key|authorization|bearer)["']?\s*[:=]\s*["']?)[^"',}\s]+/gi, '$1***').slice(0, 400);
-}
-
-/** @param {unknown} value @returns {string} */
-function stringStatus(value) {
-  if (!value || typeof value !== 'object') return '';
-  const status = /** @type {{status?: unknown}} */ (value).status;
-  return typeof status === 'string' ? status : '';
-}
 
 class OpenCodeAdapter extends EventEmitter {
   /** @param {OpenCodeAdapterOptions} options */
@@ -86,9 +76,12 @@ class OpenCodeAdapter extends EventEmitter {
     this.stream = null;
     /** @type {Promise<void>|null} */
     this.binding = null;
+    this.turnGuard = createTurnGuard({cancelled: () => failure('tutor.error.cancelled', {}, {notSent: true})});
     this.busy = false;
-    /** @type {{id: string}|null} */
+    /** @type {{id: string, token?: import('./opencode-delivery.cjs').DeliveryToken}|null} */
     this.turn = null;
+    /** @type {Set<import('./opencode-delivery.cjs').DeliveryToken>} */
+    this.pendingDeliveries = new Set();
     this.runId = '';
     this.tempDir = '';
     /** @type {import('./opencode-commands.cjs').SlashCommand[]|null} */
@@ -124,11 +117,14 @@ class OpenCodeAdapter extends EventEmitter {
   }
 
   async bind() {
+    const generation = this.turnGuard.capture();
     const lease = await this.options.acquire();
+    this.turnGuard.throwIfStale(generation);
     /* O turno usa a API v2 do `serve`: o 1.19.5 estável recusa todo pedido com
        400 Missing key ["prompt"] e nem expõe o MCP `mesa`. Isso vem de antes
        da #91; versão ilegível segue sem bloquear. */
     const versionText = await (this.options.readVersion || readOpenCodeVersion)(lease.binary).catch(() => '');
+    this.turnGuard.throwIfStale(generation);
     const old = oldOpenCode(versionText);
     if (old) throw failure('err.opencode.versionUnsupported', {version: old.text}, {notSent: true});
     if (this.lease && lease.baseUrl === this.lease.baseUrl && this.client) return;
@@ -136,6 +132,19 @@ class OpenCodeAdapter extends EventEmitter {
     this.lease = lease;
     this.client = createOpenCodeClient({baseUrl: lease.baseUrl, password: lease.password, fetch: this.options.fetch, log: this.log});
     this.commandCache = null;
+    try {
+      await this.openSession(lease, generation);
+    } catch (error) {
+      /* Sem isto o próximo connect veria o lease e voltaria cedo: "online" sobre
+         uma sessão que nunca existiu, com todo envio recusado. */
+      this.closeStream();
+      this.lease = null;
+      this.client = null;
+      throw error;
+    }
+  }
+
+  async openSession(lease, generation) {
     /* O MCP é da pasta, não da sessão: sobe junto com o catálogo e o admit.
        O SSE espera o ses_ — antes disso o evento de outra conversa no mesmo
        servidor entraria neste leitor. As instruções precisam do ses_. */
@@ -153,16 +162,18 @@ class OpenCodeAdapter extends EventEmitter {
         if (!this.options.resume) this.controls.selection = {model: null, effort: null};
         else this.emitEvent('warning', {code: 'OPENCODE_MODEL_UNAVAILABLE', message: message('opencode.controls.savedUnavailable')});
       }
-      await this.admitSession();
+      await this.admitSession(generation);
     } finally {
       await mcp;
     }
+    this.turnGuard.throwIfStale(generation);
     await this.publishTutorPrompt();
     this.emitEvent('init', {executable: lease.binary, sessionId: this.sessionId});
     await this.ensureEvents();
   }
 
-  async admitSession() {
+  async admitSession(generation) {
+    this.turnGuard.throwIfStale(generation);
     const found = this.options.resume ? await this.http().request('GET', this.route('')) : null;
     if (found?.ok) return this.applyModel();
     if (found) this.emitEvent('warning', {code: 'OPENCODE_SESSION_MISSING', message: message('opencode.session.missing')});
@@ -170,6 +181,7 @@ class OpenCodeAdapter extends EventEmitter {
     const body = {...(this.sessionId ? {id: this.sessionId} : {}), title: this.options.sessionTitle || message('opencode.session.title'), location: {directory: this.options.directory},
       ...(ref ? {model: ref} : {})};
     const created = await this.http().request('POST', '/api/session', {body});
+    this.turnGuard.throwIfStale(generation); // POST tardio não adota após stop/troca (#r5-C)
     const id = String(wireItem(created.payload).id || '');
     if (created.ok && id && id === this.sessionId) return;
     if (created.ok && !this.sessionId && WIRE_SESSION_RE.test(id)) return this.adoptSession(id);
@@ -264,7 +276,7 @@ class OpenCodeAdapter extends EventEmitter {
       if (type !== 'compaction_delta') this.emitEvent(type, payload);
       return;
     }
-    if (type === 'execution') return this.settleTurn({isError: payload.status === 'failed', cancelled: payload.status === 'interrupted'});
+    if (type === 'execution') return this.turnGuard.settleExecution((end) => this.settleTurn(end), payload.status);
     if (type === 'idle') return this.settleTurn({});
     if (type === 'permission_request') return void this.refusePermission(payload);
     if (type === 'error' && payload.detail) this.log('opencode', `erro do provedor: ${redactErrorDetail(payload.detail)}`);
@@ -294,9 +306,9 @@ class OpenCodeAdapter extends EventEmitter {
     try { await this.options.persistDelivery?.({id, status}); } catch (error) { this.log('opencode', `fase da entrega não gravada: ${error?.message || error}`); }
   }
 
-  /** @param {{isError?: boolean, cancelled?: boolean, uncertain?: boolean}} end */
-  endTurn({isError = false, cancelled = false, uncertain = false}) {
-    if (!this.turn) return;
+  /** @param {{isError?: boolean, cancelled?: boolean, uncertain?: boolean}} end @param {{force?: boolean}} [options] */
+  endTurn({isError = false, cancelled = false, uncertain = false}, {force = false} = {}) {
+    if (!this.turn && !force) return;
     this.turn = null;
     this.busy = false;
     this.emitEvent('turn_end', {isError, cancelled, uncertain});
@@ -321,7 +333,7 @@ class OpenCodeAdapter extends EventEmitter {
   /** @param {import('./opencode-http.cjs').EventStream} stream */
   streamClosed(stream) {
     if (this.stream !== stream) return;
-    this.stream = null;
+    this.stream = null; this.turnGuard.forgetEchoes();
     this.compactions.abandon(this.compactions.current);
     /* Queda depois do aceite: a entrega fica incerta e NUNCA é reenviada. */
     const id = this.turn?.id;
@@ -332,7 +344,7 @@ class OpenCodeAdapter extends EventEmitter {
 
   closeStream() {
     const stream = this.stream;
-    this.stream = null;
+    this.stream = null; this.turnGuard.forgetEchoes();
     try { stream?.abort(); } catch { /* já fechado */ }
   }
 
@@ -346,12 +358,17 @@ class OpenCodeAdapter extends EventEmitter {
     });
   }
 
+  /* O Parar de todo envio (prompt ou comando) mora em `opencode-cancel.cjs`. */
+  _trackDelivery(start) { return trackDelivery(this, start); }
   /**
    * Envia uma mensagem do aluno; `delivery: 'steer'` interrompe o turno em voo.
    * @param {{id?: string, text?: string, images?: unknown[], delivery?: 'steer'}} input
    */
   async send(input) {
     const id = String(input.id || '');
+    return this._trackDelivery((token) => this.deliverPrompt(input, id, token));
+  }
+  async deliverPrompt(input, id, token) {
     await this.connect();
     /* Steer só é steer com turno em voo; ocioso, é um envio normal (o serviço
        já decide assim, e o adaptador repete a regra para quem o chama direto). */
@@ -362,36 +379,32 @@ class OpenCodeAdapter extends EventEmitter {
     const files = this.files(input.images);
     const body = {id: wireMessageId(id), text, resume: true, ...(input.delivery === 'steer' ? {delivery: 'steer'} : {}), ...(files.length ? {files} : {})};
     /* Recusa comprovada desfaz a marca: a retentativa ainda leva as instruções. */
-    return admitTurn(this, {id, route: this.route('/prompt'), body, action: 'opencode.action.prompt', steer,
+    return admitTurn(this, {id, route: this.route('/prompt'), body, action: 'opencode.action.prompt', steer, token,
       accepts: (response) => response.status === 200 && inboxUser(response.payload),
       onRefused: () => { if (marked) this.prefixArmed = false; }});
   }
-
   /** @param {{id?: string, name: string, text?: string, images?: unknown[]}} input */
   async command(input) {
     const id = String(input.id || '');
+    return this._trackDelivery((token) => this.deliverCommand(input, id, token));
+  }
+
+  async deliverCommand(input, id, token) {
     await this.connect();
     const files = this.files(input.images);
     const body = {name: String(input.name || '').replace(/^\/+/, ''), text: String(input.text || ''), ...(files.length ? {files} : {})};
-    return admitTurn(this, {id, route: this.route('/command'), body, action: 'opencode.action.command',
+    return admitTurn(this, {id, route: this.route('/command'), body, action: 'opencode.action.command', token,
       accepts: (response) => response.status === 204 || (response.status === 200 && inboxUser(response.payload))});
   }
-
   /** @param {{id?: string}} [input] */
   async compact(input = {}) {
     await this.connect();
     return runCompaction({request: this.http().request, route: (suffix) => this.route(suffix), ensureEvents: () => this.ensureEvents(), compactions: this.compactions}, input);
   }
 
-  async cancel() {
-    if (!this.client) return {aborted: false};
-    const response = await this.http().request('POST', this.route('/interrupt')).catch((error) => {
-      this.log('opencode', `falha ao interromper: ${error?.message || error}`);
-      return null;
-    });
-    this.endTurn({cancelled: true});
-    return {aborted: Boolean(response?.ok)};
-  }
+  async cancel() { return cancelAdapter(this); }
+
+  async cancelledAcceptance(token, id) { return settleCancelledAcceptance(this, token, id); }
 
   /* ---------- leitura ---------- */
 
@@ -400,7 +413,6 @@ class OpenCodeAdapter extends EventEmitter {
     const list = normalizeHistory(await allMessages(this.http().request, this.route('/message')));
     return visibleHistory(list, String(this.options.systemPrompt || ''));
   }
-
 
   async commands() {
     await this.connect();
@@ -455,6 +467,11 @@ class OpenCodeAdapter extends EventEmitter {
   cacheHistory() {}
 
   stop() {
+    /* A subida em voo não pode ficar pendurada: sem isto, cancelar a chamada
+       deixava a coluna em "Chamando…" até o servidor responder. */
+    this.turnGuard.invalidate();
+    for (const token of this.pendingDeliveries) { token.cancelled = true; token.closed = true; }
+    try { this.options.cancelAcquire?.(); } catch { /* já cancelado */ }
     const deletion = this.deleteTemporarySession();
     this.closeStream();
     this.compactions.abandon(this.compactions.current);

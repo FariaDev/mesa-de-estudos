@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,writeDeskJson,seedSession,tinyPdf,statusOnline,toastWait,menuLocator,openSessionList,tutorMore} from './helpers.mjs';
+import {withArtifacts,launchDesk,newRuntime,seedCourse,writeConfigJson,writeDeskJson,seedNativeSession,tinyPdf,statusOnline,toastWait,menuLocator,openSessionList,tutorMore} from './helpers.mjs';
 import {pollUntil} from './waits.mjs';
 
 /* Smoke Electron da área de apoio + chat lateral (frontend).
@@ -36,9 +36,8 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  const first=path.join(course,'Limites.pdf'),second=path.join(course,'Formulario.pdf');
  fs.writeFileSync(first,tinyPdf('Exercise',2));
  fs.writeFileSync(second,tinyPdf('Support',2));
- const current=seedSession(runtime,[{type:'message',message:{role:'user',content:[{type:'text',text:'conversa atual'}]}}]);
- const older=path.join(runtime,'pi-1700000000000.jsonl');
- fs.writeFileSync(older,JSON.stringify({type:'message',message:{role:'user',content:[{type:'text',text:'conversa antiga'}]}})+'\n');
+ const current=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'conversa atual'}]}],{courseId:'Test',preview:'conversa atual'});
+ const older=seedNativeSession(runtime,[{role:'user',content:[{type:'text',text:'conversa antiga'}]}],{courseId:'Test',started:Date.now()-3600000,preview:'conversa antiga'});
  writeDeskJson(runtime,{session:current,courseId:'Test',courseStates:{Test:{session:current,pdfs:[{path:first,page:1,zoom:1,scrollX:0,scrollY:0},{path:second,page:1,zoom:1,scrollX:0,scrollY:0}],sessions:[{path:current,started:Date.now(),preview:'conversa atual'},{path:older,started:Date.now()-3600000,preview:'conversa antiga'}]}}});
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Teste',path:course}],desk:{pinnedExtensions:false}});
  ctx.app=await launchDesk({runtime});
@@ -151,21 +150,21 @@ await withArtifacts('area-apoio-e-lateral',async ctx=>{
  await page.locator('#prompt').fill('rascunho principal existente');
  await pollUntil(()=>fs.readFileSync(path.join(runtime,'desk.json'),'utf8'),text=>text.includes('rascunho principal existente'),{what:'o rascunho principal em desk.json',onTimeout:'return'});
  await page.locator('#conv-list .conv-row').filter({hasText:'conversa antiga'}).click();
- await page.waitForFunction(()=>document.querySelector('#session-title')?.dataset.session.endsWith('pi-1700000000000.jsonl'),undefined,{timeout:15000});
+ await page.waitForFunction(id=>document.querySelector('#session-title')?.dataset.session===id,older,{timeout:15000});
  /* Mesmo caminho do seletor: o estado da conversa antiga vira o atual e o
     rascunho do principal NÃO vaza para a nova conversa. */
  const deskAfterFlip=JSON.parse(fs.readFileSync(path.join(runtime,'desk.json'),'utf8'));
  const stateAfterFlip=deskAfterFlip.courseStates?.Test||deskAfterFlip;
- assert.equal(stateAfterFlip.session.endsWith('pi-1700000000000.jsonl'),true,'a conversa escolhida vira a sessão da matéria');
+ assert.equal(stateAfterFlip.session===older,true,'a conversa escolhida vira a sessão da matéria');
  assert.equal(await page.locator('#prompt').inputValue(),'','o rascunho do principal não vaza entre conversas');
  await page.waitForFunction(()=>document.querySelector('#sidechat-prompt')?.value===''||document.querySelector('#sidechat').hidden,undefined,{timeout:15000});
  assert.equal(await page.locator('#sidechat-prompt').inputValue(),'','o rascunho do chat lateral não vaza na troca de conversa');
 
  /* ---- 7. Referências: estado claro + detalhes ---- */
- assert.match(await page.locator('#goes-along').textContent(),/\.pdf p\.1/,'a linha Vai junto lista material e página');
+ assert.match(await page.locator('#context-summary').textContent(),/\.pdf p\.1/,'o resumo do contexto lista material e página');
  await page.locator('#include-refs').click();
  assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'false','o alternador mostra o estado desligado');
- assert.match(await page.locator('#goes-along').textContent(),/Referências desligadas/,'desligar o toggle muda a linha Vai junto');
+ assert.match(await page.locator('#context-summary').textContent(),/Referências desligadas/,'desligar o toggle muda o resumo do contexto');
  await page.locator('#include-refs').click();
  assert.equal(await page.locator('#include-refs').getAttribute('aria-pressed'),'true');
 
@@ -235,7 +234,7 @@ await withArtifacts('lateral-parar',async ctx=>{
  const runtime=ctx.runtime=newRuntime('lateral-parar'),course=seedCourse(runtime,'Test');
  fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdf('Exercise'));
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Teste',path:course}],desk:{pinnedExtensions:false}});
- ctx.app=await launchDesk({runtime,env:{FAKE_PI_QUEUE_LOG:path.join(runtime,'queue.jsonl'),FAKE_PI_QUEUE_HOLD_MS:'4000'}});
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_QUEUE_LOG:path.join(runtime,'queue.jsonl'),FAKE_OPENCODE_QUEUE_HOLD_MS:'4000'}});
  const page=await ctx.app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
  await page.waitForSelector('.pdf-panel canvas',{timeout:25000});
@@ -260,7 +259,7 @@ await withArtifacts('lateral-pedido',async ctx=>{
  const runtime=ctx.runtime=newRuntime('lateral-pedido'),course=seedCourse(runtime,'Test');
  fs.writeFileSync(path.join(course,'Limites.pdf'),tinyPdf('Exercise'));
  writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'Test',name:'Teste',path:course}],desk:{pinnedExtensions:false}});
- ctx.app=await launchDesk({runtime});
+ ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MCP_CALL:JSON.stringify({name:'quiz',input:{question:'Quanto é 2+2?',options:[{label:'3'},{label:'4'}],correctAnswer:'4'}})}});
  const page=await ctx.app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await statusOnline(page);
  await page.waitForSelector('.pdf-panel canvas',{timeout:25000});

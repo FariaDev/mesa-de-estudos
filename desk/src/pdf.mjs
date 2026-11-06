@@ -12,8 +12,10 @@ import {applyIcons,build,renderInto,renderChildren} from './view-host.mjs';
 import {navBack,toggleNav} from './nav.mjs';
 import {offsetFacts,offsetFromRecord,labelsList,readDocLabels} from './pdf-labels.mjs';
 import {bindPdfDrop,isPdfFile} from './pdf-drop.mjs';
+import {rememberPdfReader} from './pdf-zoom.mjs';
+import {fitReaderStatus,observeReaderStatus} from './reader-status-fit.mjs';
 import {text as uiText,t as uiT} from './ui-text.mjs';
-import {message as uiMessage} from './i18n.mjs';
+import {message as uiMessage,parseMessage} from './i18n.mjs';
 import {roundNat, toNat} from './bend-nat.mjs';
 import {causeArg} from './error-detail.mjs';
 // Dobra de acento que preserva o comprimento da string (índices continuam válidos
@@ -189,10 +191,14 @@ export class PdfPanel {
   };
   this.el=build(pdfPage.panelShell(this.shellFacts()),this.handlers);
   iconize(this.el);
+  this.el.addEventListener('pointerdown',()=>rememberPdfReader(this));
   $('#pdf-grid').append(this.el);this.q=s=>this.el.querySelector(s);
+  /* P1 da rodada 6: o status do leitor vazio some de vista quando não cabe. */
+  observeReaderStatus(this.el);
   // O contrato antigo já nascia com `aria-pressed="false"` no botão de inverter
   // (o `load` e o `toggleInvert` continuam atualizando o mesmo atributo).
   this.q('.invert').setAttribute('aria-pressed',String(!!this.invert));
+  this.paintInvertState();
   this.failReason='';
   this.paintViewport();
   renderInto(this.q('.page-total'),pdfView.pageTotalEmpty());
@@ -232,9 +238,15 @@ export class PdfPanel {
   this.paintPrinted();
   const box=this.q('.pdf-viewport');
   box.addEventListener('pointerdown',()=>this.el.focus());
-  box.addEventListener('scroll',()=>{if(this._layingOut)return;this.scrollX=box.scrollLeft;this.scrollY=box.scrollTop;this.updateCurrentPage();this.renderVisible();hideQuoteButton();save();},{passive:true});
+  /* Escondido (tela inteira do tutor, painel minimizado) o navegador zera a
+     rolagem do viewport: isso não é a pessoa rolando e não pode sobrescrever a
+     posição gravada (#98). */
+  box.addEventListener('scroll',()=>{if(this._layingOut)return;if(!box.offsetWidth){this._hidden=true;return;}rememberPdfReader(this);this.scrollX=box.scrollLeft;this.scrollY=box.scrollTop;this.updateCurrentPage();this.renderVisible();hideQuoteButton();save();},{passive:true});
   box.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();this.nudgeZoom(e.deltaY>0?-.2:.2);}},{passive:false});
-  this.resize=new ResizeObserver(()=>{const w=box.clientWidth;box.style.setProperty('--gutter',`${box.offsetWidth-w}px`);if(w===this._width)return;this._width=w;this.rememberScroll();clearTimeout(this.resizeTimer);this.resizeTimer=setTimeout(()=>this.render(),120);});this.resize.observe(box);
+  /* Sem largura o painel está fora do layout (tela inteira do tutor, painel
+     minimizado): não redimensiona nem grava rolagem 0 — só marca que voltou, e
+     a volta devolve a posição que a pessoa deixou (#98). */
+  this.resize=new ResizeObserver(()=>{const w=box.clientWidth;box.style.setProperty('--gutter',`${box.offsetWidth-w}px`);if(!box.offsetWidth){this._hidden=true;return;}if(this._hidden){this._hidden=false;box.scrollLeft=this.scrollX;box.scrollTop=this.scrollY;}if(w===this._width)return;this._width=w;this.rememberScroll();clearTimeout(this.resizeTimer);this.resizeTimer=setTimeout(()=>this.render(),120);});this.resize.observe(box);
  }
  // Fatos do painel para o núcleo: rótulo, biblioteca, documento atual e os
  // estados de minimizar/busca (a `pinned` é do `state.mjs`, depois do build).
@@ -249,11 +261,12 @@ export class PdfPanel {
   return hasCourseSheet()?{$:'PdfSheet',course:String(S.activeCourseName||'')}:{$:'PdfEmpty'};
  }
  // Estado → miolo (`None` = carregando/erro não mexem no documento, como no Electron).
- paintViewport(){
-  const state=this.readerState();
-  /* Sem material (folha ou vazio) a barra fica só com o rótulo, "Nenhum material"
-     e Mais opções: página, busca e favoritos não têm onde agir (#27 B3). */
-  this.el.toggleAttribute('data-no-material',state.$==='PdfSheet'||state.$==='PdfEmpty'||state.$==='PdfFailed');
+  paintViewport(){
+   const state=this.readerState();
+   /* Sem material (folha ou vazio) a barra fica só com o rótulo, "Nenhum material"
+      e Mais opções: página, busca e favoritos não têm onde agir (#27 B3). */
+   this.el.toggleAttribute('data-no-material',state.$==='PdfSheet'||state.$==='PdfEmpty'||state.$==='PdfFailed');
+   fitReaderStatus(this.el);
   const out=pdfPage.viewport(state,{$:'Nil'});
   if(out.$!=='Some')return;
   const box=this.q('.pdf-viewport');
@@ -271,7 +284,7 @@ export class PdfPanel {
  askTutor(){
   window.dispatchEvent(new CustomEvent('desk-reader-sheet',{detail:{action:'tutor',seed:uiText(readerSheet.tutorSeed(String(S.activeCourseName||'')))}}));
  }
- populate(){const selected=this.path;renderChildren(this.q('.pdf-select'),pdfPage.optionNodes(this.optionList(),this.path||''));if(selected)this.q('.pdf-select').value=selected;this.titleSelect();}
+  populate(){const selected=this.path;renderChildren(this.q('.pdf-select'),pdfPage.optionNodes(this.optionList(),this.path||''));if(selected)this.q('.pdf-select').value=selected;this.titleSelect();fitReaderStatus(this.el);}
  /* Rótulo + nome inteiro do material na dica: a barra estreita encurta o nome com
     reticências e, num leitor de ~250px, esconde o rótulo. */
  titleSelect(){const select=this.q('.pdf-select');if(select)select.title=[this.label,select.selectedOptions[0]?.textContent].filter(Boolean).join(' · ');}
@@ -508,10 +521,23 @@ export class PdfPanel {
    const target=hit.$==='Some'?Number(hit.value):this.findPages[0].page;
    this.goto(target);
    toast(uiMessage(cycle?'pdf.find.cycle':'pdf.find.found',{page:target}));
-  }catch(e){toast(e.message);}
-  finally{button.disabled=false;button.textContent='Buscar';}
+   }catch(e){toast(e.message);}
+   /* O rótulo volta do núcleo (`findButtonLabel` = `common.search`), no idioma
+      atual (E8 da auditoria EN, rodada 8): o `finally` fixava 'Buscar' e o
+      botão virava PT depois da primeira busca em EN. */
+   /* `data-i18n` põe o botão na repintura da troca de idioma (revisão i18n):
+      o `textContent` tira o texto do rastreio do view-host. */
+   finally{button.disabled=false;button.dataset.i18n=parseMessage(pdfPage.findButtonLabel())?.key||'common.search';button.textContent=uiText(pdfPage.findButtonLabel());}
  }
- toggleInvert(){this.invert=!this.invert;this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));save(true);}
+  // O estado da Página escura sai no `::after` do botão (`readers.css`): o CSS
+  // lê `data-state` e o texto vem do catálogo, nos dois idiomas (E1 da
+  // auditoria EN, rodada 8). Chamar depois de cada troca e na troca de idioma.
+  paintInvertState(){
+   const btn=this.q('.invert');
+   if(!btn)return;
+   btn.dataset.state=uiT(this.invert?'pdf.view.invertOn':'pdf.view.invertOff');
+  }
+  toggleInvert(){this.invert=!this.invert;this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintInvertState();save(true);}
  // Gira 90° o documento DESTE leitor (ciclo 0→90→180→270→0). A volta entra no
  // viewport do PDF.js somada à rotação nativa da página; fica guardada por
  // caminho (mapa do runtime + snapshot) e o render reancora a página atual
@@ -567,7 +593,7 @@ export class PdfPanel {
    (0 incluído) > mapa por caminho. O mapa é compartilhado entre leitores; o
    snapshot é de cada painel — com o mesmo PDF nos dois, cada um volta na sua
    orientação. O mapa só decide quando o snapshot é legado (sem o campo). */
-const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation');this.loading=true;this.failReason='';this.path=path;this.page=Math.max(1,use.page||1);this.zoom=use.zoom||1;this.rotation=normalizeRotation(memo?memo.rotation:explicitRotation?settings.rotation:(pdfRotations.get(path)??0));this.scrollX=use.scrollX||0;this.scrollY=use.scrollY||0;/* Página escura (#42) é do leitor, não do documento: trocar de material mantém; só a restauração do estado (que traz `invert`) a define. */this.invert=Object.prototype.hasOwnProperty.call(settings,'invert')?!!settings.invert:!!this.invert;this.findTerm='';this.findPages=[];this.findTotal=0;this.q('.pdf-select').value=path;this.titleSelect();this.updateFindCount();this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintRotationBtn();this.paintPrinted();this.paintViewport();this.loadPageOffset(path,id);try{const {doc}=await cachedPdf(path);if(id!==this.version)return false;this.doc=doc;this.failReason='';this.page=Math.max(1,Math.min(doc.numPages,this.page));this.capturePageLabels(doc,id);await this.render();this.loading=false;updateWindowTitle();save();return true;}catch(e){
+const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation');this.loading=true;this.failReason='';this.path=path;this.page=Math.max(1,use.page||1);this.zoom=use.zoom||1;this.rotation=normalizeRotation(memo?memo.rotation:explicitRotation?settings.rotation:(pdfRotations.get(path)??0));this.scrollX=use.scrollX||0;this.scrollY=use.scrollY||0;/* Página escura (#42) é do leitor, não do documento: trocar de material mantém; só a restauração do estado (que traz `invert`) a define. */this.invert=Object.prototype.hasOwnProperty.call(settings,'invert')?!!settings.invert:!!this.invert;this.findTerm='';this.findPages=[];this.findTotal=0;this.q('.pdf-select').value=path;this.titleSelect();this.updateFindCount();this.q('.pdf-viewport').classList.toggle('inverted',this.invert);this.q('.invert').setAttribute('aria-pressed',String(this.invert));this.paintInvertState();this.paintRotationBtn();this.paintPrinted();this.paintViewport();this.loadPageOffset(path,id);try{const {doc}=await cachedPdf(path);if(id!==this.version)return false;this.doc=doc;this.failReason='';this.page=Math.max(1,Math.min(doc.numPages,this.page));this.capturePageLabels(doc,id);await this.render();this.loading=false;updateWindowTitle();save();return true;}catch(e){
    /* Falha ao ler/abrir: o leitor sai do estado de carregamento e mostra o
       motivo no próprio painel (#90). A base só trocava o rodapé; sem ele, o
       toast sozinho deixava o miolo em "carregando" para sempre. */
@@ -647,7 +673,7 @@ const explicitRotation=Object.prototype.hasOwnProperty.call(settings,'rotation')
    renderChildren(span,pdfPage.hlSegments(text,lower,term),{});
   }
  }
- updateCurrentPage(){if(!this.pageEls.length||!this.el.isConnected)return;const box=this.q('.pdf-viewport');const center=box.scrollTop+box.clientHeight/2;const page=nearestPageIndex(this.pageEls,center)+1;if(page!==this.page){this.page=page;this.updatePageUI(true);}}
+ updateCurrentPage(){if(!this.pageEls.length||!this.el.isConnected)return;const box=this.q('.pdf-viewport');const center=box.scrollTop+box.clientHeight/2;const page=nearestPageIndex(this.pageEls,center)+1;if(page!==this.page){this.page=page;this.updatePageUI();}}
  // Mede todas as páginas de uma vez. A rotação efetiva é nativa do PDF mais a
  // volta do usuário: entra na base (fit), no viewport final e na chave de
  // render — o PDF.js cuida da geometria; nada de `transform` CSS na página.

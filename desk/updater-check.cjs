@@ -1,10 +1,10 @@
 'use strict';
 
-const {CLAUDE_REGISTRY_URL,PI_REGISTRY_URL,RELEASES_URL,TAGS_URL,XOURNAL_RELEASES_URL,cacheWrite,fresh,isNewer,readCache,semverCompare,semverParse}=require('./updater-core.cjs');
+const {CLAUDE_REGISTRY_URL,RELEASES_URL,TAGS_URL,XOURNAL_RELEASES_URL,cacheWrite,fresh,isNewer,readCache,semverCompare,semverParse}=require('./updater-core.cjs');
 const {invalidValue}=require('./src/error-detail.mjs');
 
 /* Atualização — consulta: GETs públicos com prazo (injetáveis nos testes),
-   notas da versão e as versões mais novas da Mesa, do Pi, do Claude Code e
+   notas da versão e as versões mais novas da Mesa e do Claude Code e
    do Xournal++.
    Saiu de updater.cjs na #43 fase 2; o worker copia este arquivo junto
    (`WORKER_FILES`). */
@@ -135,9 +135,6 @@ async function checkForUpdates({current='',manual=false,cacheFile='',fetchJson=d
  if(cacheFile)await cacheWrite(cacheFile,prev=>({...prev,release:{at:now,version:release.version,notes:release.notes,url:release.url}}));
  return {status:isNewer(release.version,current)?'update':'current',version:release.version,notes:release.notes,url:release.url,current,cached:false,checkedAt:now};
 }
-/* Versão mais nova do Pi. SÓ o registry `@earendil-works` — o antigo
-   `@mariozechner/pi-coding-agent` está deprecado e parado em 0.73.1; usá-lo
-   como fallback mentiria a versão. Sem resposta = desconhecido, sem erro. */
 async function registryLatest(key,url,{cacheFile='',fetchJson=defaultFetchJson,now=Date.now(),manual=false,cacheOnly=false}={}){
  const cache=cacheFile?readCache(cacheFile):{};
  if(!manual&&fresh(cache[key],now))return {version:String(cache[key].version||''),known:!!cache[key].version};
@@ -152,9 +149,8 @@ async function registryLatest(key,url,{cacheFile='',fetchJson=defaultFetchJson,n
   return {version,known:true};
  }catch{return {version:'',known:false};}
 }
-function piLatest(options={}){return registryLatest('pi',PI_REGISTRY_URL,options);}
-/* Claude Code (#45): o pacote npm `@anthropic-ai/claude-code`, na mesma
-   checagem diária do Pi. Só lê a versão; sem resposta = desconhecido. */
+/* Claude Code (#45): o pacote npm `@anthropic-ai/claude-code`, na checagem
+   diária. Só lê a versão; sem resposta = desconhecido. */
 function claudeLatest(options={}){return registryLatest('claude',CLAUDE_REGISTRY_URL,options);}
 /* Xournal++ é só informativo (o app não o atualiza): o painel pede sob demanda. */
 async function xournalLatest({cacheFile='',fetchJson=defaultFetchJson,now=Date.now(),manual=false}={}){
@@ -169,4 +165,4 @@ async function xournalLatest({cacheFile='',fetchJson=defaultFetchJson,now=Date.n
  }catch{return {version:'',known:false};}
 }
 
-module.exports={timedFetch,defaultFetchJson,defaultFetchBuffer,sharedFetchJson,releaseFromGithub,releaseFromTags,checkForUpdates,piLatest,claudeLatest,xournalLatest};
+module.exports={timedFetch,defaultFetchJson,defaultFetchBuffer,sharedFetchJson,releaseFromGithub,releaseFromTags,checkForUpdates,claudeLatest,xournalLatest};

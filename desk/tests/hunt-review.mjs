@@ -1,8 +1,8 @@
-/* Caça a bugs do caderno de revisão (pedido 6): guardar de uma resposta do Pi
-   (o enunciado vem da mensagem de usuário QUE O PI RESPONDEU, não da primeira da
+/* Caça a bugs do caderno de revisão (pedido 6): guardar de uma resposta do OpenCode
+   (o enunciado vem da mensagem de usuário QUE O TUTOR RESPONDEU, não da primeira da
    conversa; o trecho selecionado vira a dificuldade), a aba com os itens, os dois
    prompts que caem no composer, a edição, a remoção e a convivência com o
-   GeoGebra. Roda com o mesmo boot do ui-smoke (Playwright + fake Pi + runtime
+   GeoGebra. Roda com o mesmo boot do ui-smoke (Playwright + fake OpenCode + runtime
    temporário).
    Uso: node tests/hunt-review.mjs [filtro]
 
@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {artifactDir,launchDesk,newRuntime,seedCourse,seedSession,writeDeskJson,writeConfigJson,tinyPdf,fillStudyTitle} from './helpers.mjs';
+import {artifactDir,launchDesk,newRuntime,seedCourse,seedNativeSession,writeDeskJson,writeConfigJson,tinyPdf,fillStudyTitle} from './helpers.mjs';
 import {nextFrames,pollUntil} from './waits.mjs';
 
 const STAMP=new Date().toISOString().replace(/[:.]/g,'-').replace(/Z$/,'');
@@ -88,19 +88,19 @@ if(only('caderno')){
   const course=seedCourse(runtime,'A');
   const pdf=path.join(course,'Limites.pdf');
   fs.writeFileSync(pdf,tinyPdf('Limites1'));
-  // O histórico pintado é o das mensagens já salvas (o fake Pi não devolve
-  // mensagem nova): a resposta do Pi que vira item do caderno entra semeada.
-  // A PRIMEIRA fala do usuário é isca: a tentativa guardada tem de ser a que o
-  // Pi estava respondendo (a última antes da resposta), não a primeira do
-  // histórico.
-  const session=seedSession(runtime,[
-   {type:'message',message:{role:'user',content:[{type:'text',text:'primeira tentativa: errei a primeira'}]}},
-   {type:'message',message:{role:'user',content:[{type:'text',text:'tentei dividir por x²'}]}},
-   {type:'message',message:{role:'assistant',content:[{type:'text',text:'Comece pelo limite pela direita e depois fatore o numerador.'}]}}
-  ]);
+  // O histórico pintado é o das mensagens já salvas: a resposta que vira item
+  // do caderno entra semeada. A PRIMEIRA fala do usuário é isca: a tentativa
+  // guardada tem de ser a que o tutor estava respondendo (a última antes da
+  // resposta), não a primeira do histórico.
+  const session=seedNativeSession(runtime,[
+   {role:'user',content:[{type:'text',text:'primeira tentativa: errei a primeira'}]},
+   {role:'user',content:[{type:'text',text:'tentei dividir por x²'}]},
+   {role:'assistant',content:[{type:'text',text:'Comece pelo limite pela direita e depois fatore o numerador.'}]}
+  ],{courseId:'A'});
   writeDeskJson(runtime,{session,courseId:'A',courseStates:{A:{session,pdfs:[{path:pdf,page:1,zoom:1,scrollX:0,scrollY:0}],sessions:[{path:session,started:Date.now(),preview:'sessão do caderno'}]}}});
   writeConfigJson(runtime,{vaultPath:runtime,courses:[{id:'A',name:'Matéria A',path:course}]});
-  const page=await s.launch();
+  const draft={question:'Lista 3 — Limites',attempt:'tentei dividir por x²',difficulty:'pela direita'};
+  const page=await s.launch({env:{FAKE_OPENCODE_REVIEW_DRAFT:JSON.stringify(draft),FAKE_OPENCODE_REVIEW_DELAY:'0'}});
   const prompt=()=>page.locator('#prompt').inputValue();
   const fileOf=()=>path.join(runtime,'review.json');
   const itemsOf=()=>{
@@ -121,7 +121,7 @@ if(only('caderno')){
    }
   };
 
-  await s.step('a resposta do Pi oferece "Guardar para revisar"',async()=>{
+  await s.step('a resposta do OpenCode oferece "Guardar para revisar"',async()=>{
    await page.waitForSelector('.pdf-panel canvas',{timeout:30000});
    await connectIfNeeded();
    await page.waitForSelector('.message.assistant button.msg-review',{timeout:25000});
@@ -154,7 +154,7 @@ if(only('caderno')){
    await page.waitForSelector('#review-dialog[open]');
    assert.equal((await page.locator('#review-dialog h2').textContent()).trim(),'Guardar para revisar');
    assert.equal(await page.locator('#review-question').inputValue(),'Lista 3 — Limites');
-   assert.equal(await page.locator('#review-attempt').inputValue(),'tentei dividir por x²','a tentativa é a fala que o Pi estava respondendo, não a primeira do histórico');
+   assert.equal(await page.locator('#review-attempt').inputValue(),'tentei dividir por x²','a tentativa é a fala que o tutor estava respondendo, não a primeira do histórico');
    assert.equal(await page.locator('#review-difficulty').inputValue(),'pela direita');
    assert.equal((await page.locator('#review-ref').textContent()).trim(),'Referência: Limites, p. 1');
   });

@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {spawnSync, execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
+import {tempDir} from './temp-dir.mjs';
 
 /* Script de release assinada (#80) rodando de verdade: git local temporário,
    par Ed25519 gerado no teste e nenhuma rede. Cobre keygen, sign, verify e a
@@ -16,7 +16,7 @@ const updater = require('../updater.cjs');
 
 const DESK = path.resolve(import.meta.dirname, '..');
 const SCRIPT = path.join(DESK, 'scripts', 'update-release.mjs');
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'mesa-release-test-'));
+const tmp = () => tempDir('mesa-release-test');
 
 function write(file, text) {
   fs.mkdirSync(path.dirname(file), {recursive: true});

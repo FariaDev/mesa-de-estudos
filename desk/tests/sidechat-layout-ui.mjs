@@ -72,8 +72,7 @@ async function assertSameBox(page,label){
   ['#composer','#sidechat-composer',['borderTopWidth','borderLeftWidth','borderTopLeftRadius','boxShadow','backgroundColor','paddingLeft']],
   ['#composer-box','#sidechat-box',['borderTopWidth','borderTopLeftRadius','boxShadow','backgroundColor','paddingLeft']],
   ['#prompt','#sidechat-prompt',['borderTopWidth','fontSize','lineHeight','paddingLeft','backgroundColor']],
-  ['#send','#sidechat-send',['height','backgroundColor','borderTopLeftRadius','fontSize','color']],
-  ['#goes-along','#sidechat-scope',['fontSize','color','paddingLeft']]
+  ['#send','#sidechat-send',['height','backgroundColor','borderTopLeftRadius','fontSize','color']]
  ];
  for(const [tutor,lateral,props] of pairs)for(const prop of props){
   assert.equal(await style(page,lateral,prop),await style(page,tutor,prop),`${label}: ${lateral} ${prop} igual a ${tutor}`);
@@ -242,6 +241,34 @@ await withArtifacts('lateral-um-leitor',async ctx=>{
    await setSize(ctx.app,page,size);
    await openSidechat(page);
    const base=`um-${tag}-${size.join('x')}`;
+   /* Auditoria de UI/UX, rodada 2 (D4): em 900×650 o título não pode virar
+      "Chat l…" — o selo do motor some e o nome segue inteiro e acessível. */
+   if(size===MINIMUM){
+    const head=await page.evaluate(()=>{
+     const title=document.querySelector('#sidechat-title');
+     const engine=document.querySelector('#sidechat-engine');
+     return {title:title?.textContent.trim(),cut:(title?.scrollWidth??0)>(title?.clientWidth??0)+1,engineVisible:!!engine&&!engine.hidden&&getComputedStyle(engine).display!=='none'};
+    });
+    assert.equal(head.title,'Chat lateral',`${base}: o título segue "Chat lateral"`);
+    assert.equal(head.cut,false,`${base}: o título não trunca`);
+    assert.equal(head.engineVisible,false,`${base}: o selo do motor some na janela mínima`);
+    assert.equal(await page.locator('#sidechat').getAttribute('aria-label'),'Chat lateral',`${base}: a seção tem nome acessível`);
+    /* Revisão da rodada 2: o selo olhava a janela, então voltava a espremer o título
+       em 1101 a 1200 px com o divisor arrastado. Agora mede o cabeçalho. */
+    for(const width of [1101,1200]){
+     await setSize(ctx.app,page,[width,650]);
+     await page.evaluate(()=>document.documentElement.style.setProperty('--chat','650px'));
+     await settle(page);
+     const dragged=await page.evaluate(()=>{
+      const title=document.querySelector('#sidechat-title');
+      const engine=document.querySelector('#sidechat-engine');
+      return {cut:title.scrollWidth>title.clientWidth+1,engineVisible:!engine.hidden&&getComputedStyle(engine).display!=='none'};
+     });
+     assert.deepEqual(dragged,{cut:false,engineVisible:false},`${base}: divisor arrastado em ${width}x650`);
+     await page.evaluate(()=>document.documentElement.style.removeProperty('--chat'));
+    }
+    await setSize(ctx.app,page,size);
+   }
    assertLayout(await layoutNow(page),`chat lateral ${base}`,{readers:1});
    assert.equal(await page.locator('#sidechat-scope-text').textContent(),'Limites.pdf p. 1','a linha de escopo vale com um leitor');
    await assertSendAndScope(page,`chat lateral ${base}`);

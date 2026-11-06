@@ -36,7 +36,7 @@ await withArtifacts('captura-fila',async ctx=>{
  const session=seedSession(runtime,[{type:'message',message:{role:'user',content:[{type:'text',text:'corrente'}]}}]);
  baseConfig(runtime,course);
  writeDeskJson(runtime,{courseId:'calc',session,courseStates:{calc:{session,sessions:[{path:session,started:1700000002000}]}}});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_QUEUE_LOG:path.join(runtime,'queue.log'),FAKE_PI_QUEUE_HOLD_MS:'60000'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_QUEUE_LOG:path.join(runtime,'queue.log'),FAKE_OPENCODE_QUEUE_HOLD_MS:'60000'}});
  const page=await app.firstWindow();
  await resizeWindow(app,page,1440,900);
  await scale2(page);
@@ -71,7 +71,7 @@ await withArtifacts('captura-estados',async ctx=>{
  const pdf=path.join(course,'Limites.pdf');fs.writeFileSync(pdf,tinyPdf('Limites'));
  baseConfig(runtime,course);
  writeDeskJson(runtime,{courseId:'calc',pdfs:[{path:pdf,page:1}],study:{title:'Lista 2 · 7b',xopp:''}});
- const app=ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_VISIBLE_ENGINES:'opencode',LEARNING_DESK_OPENCODE:'',LEARNING_DESK_CLAUDE_HOME:''}});
+ const app=ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_VISIBLE_ENGINES:'opencode',LEARNING_DESK_OPENCODE:'',LEARNING_DESK_CLAUDE_HOME:''}});
  const page=await app.firstWindow();
  await resizeWindow(app,page,1440,900);
  await scale2(page);
@@ -120,7 +120,7 @@ await withArtifacts('captura-codigo',async ctx=>{
  baseConfig(runtime,course);
  const session=seedSession(runtime,[{type:'message',message:{role:'assistant',content:[{type:'text',text:'Veja o código:\n\n```js\nconst soma = (a, b) => a + b;\nconsole.log(soma(2, 3));\n```'}]}}]);
  writeDeskJson(runtime,{courseId:'calc',session});
- const app=ctx.app=await launchDesk({runtime,env:{FAKE_PI_MANY_MODELS:'1',FAKE_PI_SECOND_MODEL:'1'}});
+ const app=ctx.app=await launchDesk({runtime,env:{FAKE_OPENCODE_MANY_MODELS:'1',FAKE_OPENCODE_SECOND_MODEL:'1'}});
  const page=await app.firstWindow();
  await resizeWindow(app,page,1440,900);
  await scale2(page);

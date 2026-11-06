@@ -8,8 +8,16 @@
    reencaixando, redimensionando ou medindo no lugar errado (#49). */
 const STREAMS=new WeakMap();
 
+/* CDP não tem prazo: um compositor que não responde deixava a sessão ou o
+   `Page.startScreencast` esperando para sempre e o teste sem saída (#49). */
+function withDeadline(promise,ms,what){
+ let timer;
+ const late=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(`${what} não respondeu em ${ms} ms`)),ms);});
+ return Promise.race([promise,late]).finally(()=>clearTimeout(timer));
+}
+
 async function startStream(page){
- const session=await page.context().newCDPSession(page);
+ const session=await withDeadline(page.context().newCDPSession(page),15000,'a sessão CDP da página');
  STREAMS.set(page,session);
  session.on('Page.screencastFrame',(frame)=>{
   session.send('Page.screencastFrameAck',{sessionId:frame.sessionId}).catch(()=>{});
@@ -19,7 +27,7 @@ async function startStream(page){
   session.send('Page.stopScreencast').catch(()=>{});
   session.detach().catch(()=>{});
  });
- await session.send('Page.startScreencast',{format:'jpeg',quality:5,maxWidth:32,maxHeight:32,everyNthFrame:1});
+ await withDeadline(session.send('Page.startScreencast',{format:'jpeg',quality:5,maxWidth:32,maxHeight:32,everyNthFrame:1}),15000,'o screencast CDP (quadros do compositor)');
 }
 
 /** Mantém o compositor da página escondida pedindo quadros.

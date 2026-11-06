@@ -19,7 +19,7 @@ test('primeira mensagem manda o contexto completo', () => {
   assert.match(out.text, /- matéria: Cálculo I/);
   assert.match(out.text, /- exercício ativo: Lista 3/);
   assert.match(out.text, /- referências abertas na mesa \(abertas, não lidas por você\):/);
-  assert.match(out.text, /  · \/x\/limites\.pdf#page=3/);
+  assert.match(out.text, /  · \/x\/limites\.pdf \(p\. 3\)/);
 });
 
 test('contexto inalterado não é reenviado no turno seguinte', () => {
@@ -74,14 +74,14 @@ test('captura sem horário não é tratada como captura', () => {
   assert.doesNotMatch(out.text, /captura desta mensagem/);
 });
 
-test('referências são limitadas a duas e normalizadas em #page', () => {
+test('referências são limitadas a duas e normalizadas com página', () => {
   const refs = formatRefs([
     {path: '/x/a.pdf', page: 0},
     {path: '/x/b.pdf', page: 7},
     {path: '/x/c.pdf', page: 9},
     {path: 'sem-page'},
   ]);
-  assert.deepEqual(refs, ['/x/a.pdf#page=1', '/x/b.pdf#page=7']);
+  assert.deepEqual(refs, ['/x/a.pdf (p. 1)', '/x/b.pdf (p. 7)']);
 });
 
 test('a chave muda quando qualquer parte do contexto muda', () => {
@@ -127,13 +127,14 @@ test('em inglês o bloco sai em inglês, e valor livre com quebra de linha não 
   });
   assert.match(out.text, /^\[Desk context\]\n- course: Calculus I\n/);
   assert.match(out.text, /- active exercise: List 3 - course: fake\n/);
-  assert.match(out.text, /  · \/x\/limits\.pdf#page=3/);
+  assert.match(out.text, /  · \/x\/limits\.pdf \(p\. 3\)/);
   assert.doesNotMatch(out.text, /matéria|exercício|captura|/);
 });
 
-test('#70: formatRef usa #page=N no Pi e no Claude e o caminho limpo no OpenCode', () => {
-  assert.equal(formatRef('/c/Limites.pdf', 3), '/c/Limites.pdf#page=3');
+test('#70: formatRef usa #page=N no Claude/histórico Pi e o caminho limpo no OpenCode', () => {
+  assert.equal(formatRef('/c/Limites.pdf', 3), '/c/Limites.pdf (p. 3)');
   assert.equal(formatRef('/c/Limites.pdf', 3, 'claude'), '/c/Limites.pdf#page=3');
+  assert.equal(formatRef('/c/Limites.pdf', 3, 'pi'), '/c/Limites.pdf#page=3');
   assert.equal(formatRef('/c/Limites.pdf', 53, 'opencode'), '/c/Limites.pdf (p. 53)');
   assert.equal(formatRef('/c/Limites.pdf', 'x', 'opencode'), '/c/Limites.pdf (p. 1)');
 });

@@ -42,7 +42,7 @@ const {MAX_DRAFT} = require('./state-adapter.cjs');
 const core = require('./src/generated/sidechat.core.js').default;
 const {message: uiMsg} = require('./src/i18n.mjs');
 const {createCardSession} = require('./card-session.cjs');
-const {CONTEXT_END_MARKER, CORE_BY_STATUS, ID_RE, MAX_DIALOG_IDS, MAX_MESSAGE_ID, SCHEMA_VERSION, STATUS_BY_CORE, appendMessage, conversationList, descriptorPath, displayMessages, displayUserText, fail, isPlainObject, normalizeRefs, nowMs, piSessionPath, readDescriptorRaw, readIndex, saveDescriptor, sidechatsDir, validDescriptor, writeIndex} = require('./sidechat-store.cjs');
+const {CONTEXT_END_MARKER, CORE_BY_STATUS, ID_RE, MAX_DIALOG_IDS, MAX_MESSAGE_ID, SCHEMA_VERSION, STATUS_BY_CORE, appendMessage, conversationList, descriptorPath, displayMessages, displayUserText, fail, isPlainObject, normalizeRefs, nowMs, readDescriptorRaw, readIndex, saveDescriptor, sidechatsDir, validDescriptor, writeIndex} = require('./sidechat-store.cjs');
 
 /* ---------- manager ---------- */
 
@@ -221,7 +221,7 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
            para a UI. */
         return;
       }
-      if (descriptor.engine === 'pi' && appendMessage(descriptor, event.message)) {
+      if (role === 'assistant' && appendMessage(descriptor, event.message)) {
         descriptor.updatedAt = now();
         saveDescriptor(runtime, descriptor);
       }
@@ -240,9 +240,8 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     emit?.({id, engine: descriptor.engine, event});
   }
 
-  /* O motor do Pi lê a chave do cofre de forma assíncrona (`piLaunch`): abrir
-     duas vezes ao mesmo tempo compartilha a mesma criação em vez de subir dois
-     processos. */
+  /* Abrir duas vezes ao mesmo tempo compartilha a mesma criação em vez de
+     subir dois processos. */
   function ensureChannel(entry) {
     if (entry.channel) return Promise.resolve(entry.channel);
     if (entry.channelPromise) return entry.channelPromise;
@@ -259,10 +258,10 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
     return entry.channelPromise;
   }
 
-  /* Histórico de exibição. O cache do Claude guarda o texto enviado (com o
-     envelope de contexto); a projeção tira o bloco sem tocar no arquivo. O do
-     Pi é registro de falas limpas — a projeção é defesa para descritores
-     antigos que tenham guardado o eco do motor. */
+  /* Histórico de exibição. O cache nativo guarda o texto enviado (com o
+     envelope de contexto); a projeção tira o bloco sem tocar no arquivo. Um
+     descritor Pi antigo é registro de falas limpas — a projeção é defesa para
+     descritores que tenham guardado o eco do motor. */
   function storedMessages(descriptor, channel) {
     if (descriptor.engine === 'pi') {
       return displayMessages(Array.isArray(descriptor.messages) ? descriptor.messages : []);
@@ -383,8 +382,8 @@ function createSideChatManager({runtime, current, snapshot, validPdf, createEngi
       delivery: null,
       context: snap,
       contextDeliveredKey: '',
-      session: ctx.engine === 'pi' ? piSessionPath(runtime, id) : null,
-      /* O lateral nativo nasce no modelo e no esforço da principal (v1.0.2), como o Pi. */
+      session: null,
+      /* O lateral nativo nasce no modelo e no esforço da principal (v1.0.2). */
       claude: isNative(ctx.engine) ? conversations.createClaudeConversation({runtime, courseId: ctx.courseId, engine: ctx.engine, ...(ctx.model ? {model: ctx.model} : {}), ...(ctx.effort ? {effort: ctx.effort} : {})}) : null,
     };
     if (!validDescriptor(descriptor, id)) fail(uiMsg('err.sidechat.createFail'));

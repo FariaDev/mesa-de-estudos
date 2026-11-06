@@ -1,4 +1,4 @@
-import {$,S,toast,connect,applyAccent,save} from './state.mjs';
+import {$,S,toast,connect,invalidateConnect,applyAccent,save} from './state.mjs';
 import {wireAccentPicker} from './accent-picker.mjs';
 import {applyIcons} from './view-host.mjs';
 import {icon} from '../icons.mjs';
@@ -6,6 +6,7 @@ import firstRun from './generated/firstrun.core.js';
 import {t,setUiLanguage,LANGUAGE_EVENT} from './ui-text.mjs';
 import {initialSetup,nextSetup,backSetup,goToStep,stepId,clearFolder} from './setup-flow.mjs';
 import {paintSetup,focusTarget} from './setup-view.mjs';
+import {refreshOpenCodeProviders,cancelOpenCodeProviderLogin} from './opencode-providers.mjs';
 
 /* Primeira abertura (tickets #21, #24 e #64).
    Sem configuração (`needsSetup`) — ou com a pasta de dados válida e nenhuma
@@ -28,10 +29,10 @@ let kind='setup';
    aba Livre), só volta quando passa de ter matéria a não ter nenhuma. */
 let seenCourses=null;
 let state=initialSetup('setup');
-let facts={kind:'setup',piFound:false,claudeFound:false,opencodeFound:false,opencodeBinary:'',opencodeOldVersion:'',installSupported:false,platform:'',dataFolder:'',pdfNames:[],elsewhere:0,visibleEngines:['pi','claude','opencode']};
+let facts={kind:'setup',claudeFound:false,opencodeFound:false,opencodeBinary:'',opencodeOldVersion:'',installSupported:false,platform:'',dataFolder:'',pdfNames:[],elsewhere:0,visibleEngines:['claude','opencode']};
 let creating=false;
 let wired=false;
-let hooks={createCourse:async()=>{},openPiSettings:()=>{}};
+let hooks={createCourse:async()=>{}};
 let benched=[];
 /** Estado vivo da instalação do OpenCode na tela (#release OpenCode). */
 let install={state:'idle',phase:'',percent:-1,errorCode:'',error:'',version:''};
@@ -42,18 +43,20 @@ export const isFirstRun=()=>active;
 
 const actions={
  Connect:()=>{connect().catch(()=>{});},
+ OpenTutorSettings:()=>window.dispatchEvent(new CustomEvent('desk-open-settings',{detail:{section:'pastas'}})),
  /* Começar sem plano pago (#44): evento, para não depender do diálogo. */
  UseFreeModels:()=>window.dispatchEvent(new Event('desk-open-free-models')),
- OpenPiSettings:()=>hooks.openPiSettings(),
  ChangeDataFolder:()=>{changeDataFolder();},
  InstallOpenCode:()=>{runInstall();},
  UpdateOpenCode:()=>{if(window.confirm(t('firstrun.tutor.opencodeOldConfirm',{version:facts.opencodeOldVersion})))runInstall();},
+ ChooseOpenCode:()=>{chooseOpenCode();},
  OpenOpenCodeHelp:()=>{window.desk.openExternal?.('https://opencode.ai/v2/docs/').catch(()=>{});},
 };
 
 function paint(){
  if(!active)return;
  paintSetup(state,facts,actions,install);
+ if(stepId(state)==='tutor'&&!state.online&&(facts.opencodeFound||facts.opencodeOldVersion))refreshOpenCodeProviders('setup');
 }
 
 /** Troca o estado e repinta; o foco vai para o campo do passo novo. */
@@ -161,6 +164,7 @@ function leave(){
  active=false;
  kind='setup';
  delete document.body.dataset.firstRun;
+ cancelOpenCodeProviderLogin('setup');
  bench(false);
  announce();
 }
@@ -189,12 +193,35 @@ async function runInstall(){
   facts={...facts,opencodeFound:binary,opencodeBinary:binary,opencodeOldVersion:String(detected.detectedOpenCodeOldVersion||'')};
   install={state:'done',phase:'done',percent:100,errorCode:'',error:'',version:String(result.version||'')};
   window.dispatchEvent(new Event('desk-engine-facts'));
+  refreshOpenCodeProviders('setup',{force:true});
  }catch(error){
   /* A tela usa o código; a mensagem técnica (HTTP, hash, fs) fica no log do
      host e nunca aparece crua aqui. */
   install={state:'error',phase:'',percent:-1,errorCode:String(error?.code||'failed'),error:String(error?.message||''),version:''};
  }
  paint();
+}
+
+/* Escolher manualmente o OpenCode (#102): o diálogo é o do main
+   (`pick-executable`, o mesmo de Pi/Claude/Xournal++) e o caminho fica no
+   `config.json`; a detecção refeita diz se ele responde e em que versão. */
+async function chooseOpenCode(){
+ try{
+  if(typeof window.desk.pickExecutable!=='function')throw Error(t('firstrun.error.openCode'));
+  const chosen=await window.desk.pickExecutable('opencode');
+  if(!chosen)return;
+  const info=await window.desk.getConfig();
+  const data=await window.desk.saveConfig({...info.config,opencodePath:chosen});
+  /* O save-config para a ponte (main.cjs): o voo corrente não vale mais —
+     mesmo tratamento do `adoptSavedConfig` (revisão connect-parar, achado 4). */
+  S.connected=false;invalidateConnect();
+  const binary=String(data?.detectedOpenCode||'');
+  facts={...facts,opencodeFound:binary,opencodeBinary:binary,opencodeOldVersion:String(data?.detectedOpenCodeOldVersion||'')};
+  S.detected={...(S.detected||{}),opencode:binary};
+  paint();
+  window.dispatchEvent(new Event('desk-engine-facts'));
+  refreshOpenCodeProviders('setup',{force:true});
+ }catch(error){toast(error?.message||t('firstrun.error.openCode'));}
 }
 
 /* ---------- ligação ---------- */
@@ -286,7 +313,7 @@ function wire(){
 }
 
 /* Entra na primeira abertura: o host já carregou o estado (Livre) e disse que
-   falta configuração ou matéria. `detectedPi`, `detectedClaude`,
+   falta configuração ou matéria. `detectedClaude`,
    `detectedOpenCode` e `detectedOpenCodeOldVersion` são o que o host achou de
    cada motor; a 1.x do OpenCode aparece com a versão e não conta como pronta.
    Sem `needsSetup` o núcleo lê "tem configuração e nenhuma matéria" e vale o
@@ -303,7 +330,7 @@ export async function enterFirstRun(data,nextHooks={}){
  let installSupported=false;
  try{installSupported=!!(await window.desk.openCodeInstallSupported?.());}catch{/* a tela oferece o link oficial */}
  install={state:'idle',phase:'',percent:-1,errorCode:'',error:'',version:''};
- facts={kind,piFound:!!data?.detectedPi,claudeFound:!!data?.detectedClaude,opencodeFound:!!data?.detectedOpenCode,opencodeBinary:String(data?.detectedOpenCode||''),opencodeOldVersion:String(data?.detectedOpenCodeOldVersion||''),installSupported,platform:String(data?.platform||''),dataFolder,pdfNames:[],elsewhere:0,visibleEngines:Array.isArray(data?.visibleEngines)&&data.visibleEngines.length?data.visibleEngines:['pi','claude','opencode']};
+ facts={kind,claudeFound:!!data?.detectedClaude,opencodeFound:!!data?.detectedOpenCode,opencodeBinary:String(data?.detectedOpenCode||''),opencodeOldVersion:String(data?.detectedOpenCodeOldVersion||''),installSupported,platform:String(data?.platform||''),dataFolder,pdfNames:[],elsewhere:0,visibleEngines:Array.isArray(data?.visibleEngines)&&data.visibleEngines.length?data.visibleEngines:['claude','opencode']};
  state={...initialSetup(kind),online:String(S.link?.state||'')==='online'};
  $('#first-run-name').value='';
  document.body.dataset.firstRun='true';

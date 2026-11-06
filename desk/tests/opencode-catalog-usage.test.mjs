@@ -19,7 +19,7 @@ const PAYLOAD = {
   data: [
     {
       id: 'minimax-m3.1-flash-free', modelID: 'minimax-m3.1-flash-free', providerID: 'opencode',
-      name: 'MiniMax M3.1 Flash Free', limit: {context: 1000000},
+      name: 'MiniMax M3.1 Flash Free', limit: {context: 1000000}, capabilities: {input: ['text', 'image']},
       variants: [
         {id: 'low', settings: {reasoningEffort: 'low'}},
         {id: 'medium', settings: {reasoningEffort: 'medium'}},
@@ -50,7 +50,7 @@ test('o payload do catálogo vira a lista do seletor (provider, id, name, varian
   assert.equal(models.length, 3);
   assert.deepEqual(models[0], {
     provider: 'opencode', id: 'minimax-m3.1-flash-free', name: 'MiniMax M3.1 Flash Free',
-    variants: ['low', 'medium', 'high', 'xhigh', 'max'],
+    variants: ['low', 'medium', 'high', 'xhigh', 'max'], contextWindow: 1000000, input: ['text', 'image'], reasoning: true,
   });
   assert.deepEqual(models[1].variants, [], 'modelo sem variante tem lista vazia (não é erro)');
   assert.equal(models[2].name, 'sem-nome', 'modelo sem nome usa o id');
@@ -61,6 +61,11 @@ test('a lista crua também é aceita e o payload torto vira lista vazia', () => 
   assert.deepEqual(catalogModels(null), []);
   assert.deepEqual(catalogModels({data: 'nope'}), []);
   assert.deepEqual(catalogModels({}), []);
+});
+
+test('catalogModels guarda janela, entrada e raciocínio do modelo', () => {
+  const [model] = catalogModels({data: [{id: 'com-visao', providerID: 'opencode', capabilities: {input: ['text', 'image']}, limit: {context: 200000}, variants: [{id: 'high'}]}]});
+  assert.deepEqual({contextWindow: model.contextWindow, input: model.input, reasoning: model.reasoning}, {contextWindow: 200000, input: ['text', 'image'], reasoning: true});
 });
 
 test('catalogModels guarda o custo do primeiro item de cost', () => {

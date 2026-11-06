@@ -116,6 +116,10 @@
 .model-row-logo,.model-section-logo{display:inline-flex;flex:none;color:var(--faint)}
 .model-row-logo .icon,.model-section-logo .icon{width:12px;height:12px}
 .model-row-provider{flex:none;white-space:nowrap}
+/* Uma linha só com o que couber (auditoria de UI/UX, rodada 2, D9): duas linhas
+   foram medidas e quebram a densidade — 6 linhas inteiras à vista em 1440×900
+   contra 7+ do contrato —, então a nota segue cortando com reticências e o
+   texto cheio fica no title (B1). */
 .model-row-note{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .model-row-provider+.model-row-note::before{content:"·";margin-right:5px}
 .model-row-check{display:inline-flex;flex:none;width:14px;color:var(--fg-strong);opacity:0}

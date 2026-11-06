@@ -15,7 +15,7 @@ await withArtifacts('claude-executable-upgrade',async ctx=>{
  const id=conversations.readClaudeConversation(file,{runtime}).nativeSessionId;
  writeConfigJson(runtime,{vaultPath:runtime,claudePath:current,courses:[{id:'Synthetic',name:'Synthetic',path:folder}]});
  writeDeskJson(runtime,{courseId:'Synthetic',session:file,courseStates:{Synthetic:{session:file,sessions:[{path:file}]}}});
- ctx.app=await launchDesk({runtime,pi:false,env:{LEARNING_DESK_CLAUDE:current,LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-executable-spy.mjs'),FAKE_CLAUDE_EXECUTABLE_TRACE:trace}});
+ ctx.app=await launchDesk({runtime,opencode:false,env:{LEARNING_DESK_CLAUDE:current,LEARNING_DESK_CLAUDE_SDK_FACTORY:path.join(DESK,'tests/fixtures/claude-sdk-executable-spy.mjs'),FAKE_CLAUDE_EXECUTABLE_TRACE:trace}});
  const page=await ctx.app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  const rows=()=>fs.readFileSync(trace,'utf8').trim().split('\n').map(JSON.parse);
  await statusOnline(page,{timeout:30000});
